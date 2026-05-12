@@ -1,0 +1,47 @@
+{
+  "summary": "V3 cost-effective Databento testing — full backend + frontend coverage. 33/33 backend pytest pass (9 v1 + 8 v2 + 16 v3 new). Frontend: Trinity is default page, BudgetMeter renders ($1.35/$125, paid=SPY, window=09:00-10:30 ET, off-window indicator), edit panel exposes all 4 testids (paid-tickers-input, window-start-input, window-stop-input, save-policy). Heatseeker spot polls /api/spot every 5s and shows '● LIVE' pulse with live-updated price ($738.18). Flowseeker has duration dropdown (1m/2m/5m/10m), override-window checkbox, start button — clicking start with overrideWindow=false shows inline window error 'Outside live window {start: 09:00, stop: 10:30}. Pass enforce_window=false to override.' Backend correctly enforces window gate, paid-ticker gate, and idempotent /api/live/tape/stop. Heatmap data_source is yfinance for QQQ/^SPX (free) and databento+yfinance for SPY (paid).",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "/api/flow/SPY (SSE)", "issue": "When Databento Live OPRA license is missing, stream emits 'A live data license is required to access OPRA.PILLAR.' as `_error` payload AFTER ~5-10s of pings — works but UI sees blank 'waiting for trades' first. Consider emitting the error immediately on connection."},
+      {"endpoint": "/api/flow/{ticker}", "issue": "Pydantic Query constraint max_seconds ge=10 returns HTTP 422 instead of an SSE error event. Acceptable but inconsistent with rest of /api/flow which emits SSE errors."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "Flowseeker inline error", "issues": ["Window-out error message dumps raw Python dict repr: \"{'start_hhmm': '09:00', 'stop_hhmm': '10:30'}\" — should render as '09:00-10:30 ET' for end users."]},
+      {"screen": "BudgetMeter", "issues": ["The 'off-window' / 'on-window' indicator is small (10px) and uses ○/● glyphs — fine on desktop but may be missed at-a-glance during 09:00-10:30 trading; consider color emphasis when in-window."]}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_v3_costsave.py",
+    "/app/backend/tests/test_heatseeker.py",
+    "/app/backend/tests/test_heatseeker_v2.py",
+    "/app/test_reports/pytest/v3_results.xml"
+  ],
+  "action_items": [
+    "(Optional) In Flowseeker.js, format the window error message — replace dict repr with 'Outside live window 09:00-10:30 ET'.",
+    "(Optional) /api/flow Pydantic max_seconds Query: convert HTTP 422 to an SSE error event for consistency.",
+    "(Optional) databento_provider stream_live_trades: emit `_error` event immediately when DBN key/license missing rather than waiting for callback timeout."
+  ],
+  "critical_code_review_comments": [
+    "server.py L160: LIVE_WINDOW comparison `LIVE_WINDOW['start_hhmm'] <= hhmm <= LIVE_WINDOW['stop_hhmm']` uses lexicographic string compare — works correctly only because 'HH:MM' zero-padded format sorts identically to time order. Document this assumption or parse to time objects.",
+    "server.py L1018 set_live_policy: PAID_TICKERS is module-level mutable state — not thread-safe across worker processes (uvicorn workers > 1 would diverge). If app scales to multi-worker, persist policy in Mongo.",
+    "server.py /api/spot quick_spot L1046 hack: `_cache[cache_key] = {'ts': time.time() - (CACHE_TTL_SEC - 5), 'data': res}` to force ~5s TTL is clever but brittle — if CACHE_TTL_SEC changes someone WILL forget this. Add a per-key TTL or constant SPOT_TTL_SEC = 5.",
+    "server.py /api/flow uses `_session_state` global dict for session tracking — same multi-worker concern as PAID_TICKERS; also one active stream max but no lock if two clients start concurrently.",
+    "Frontend App.js Flowseeker line ~570: the inline error renders the server's raw error string which contains a Python dict repr. Server should send {error: 'Outside window', window: {...}} and client should format.",
+    "useLiveSpot in App.js polls /api/spot every 5s regardless of tab visibility — burns yfinance quota when user tabs away. Use Page Visibility API or only poll when page=='heatseeker' AND document.visibilityState=='visible'."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_v3_costsave.py (new — 16 tests covering all v3 features)"
+  ],
+  "success_rate": {"backend": "100% (33/33)", "frontend": "100% of v3 flows tested"},
+  "test_credentials": "N/A — read-only app, no auth",
+  "seed_data_creation": "Databento OI cache pre-warmed by heatmap calls during tests. Test suite automatically reverts /api/live/policy to default {paid_tickers:['SPY'], window:09:00-10:30 ET} at end of run.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Backend tests: /app/backend/tests/test_v3_costsave.py + test_heatseeker.py + test_heatseeker_v2.py = 33 tests total. Run: REACT_APP_BACKEND_URL=<public-url> pytest /app/backend/tests/ -v. Tests auto-reset PAID_TICKERS to ['SPY'] on teardown. Flow SSE tests use max_seconds=10 (Pydantic min) and enforce_window=false ONLY briefly. /api/spot is yfinance and free. Note: Databento Live OPRA license is currently NOT provisioned in this env — `/api/flow` emits a license-required error after ready event, which is expected and does NOT indicate a code bug.",
+  "rca of the issue": "N/A — no bugs found. The only real issue surfaced is cosmetic: Flowseeker displays raw Python dict repr in the window-out error. Mitigation: format error message server-side or parse client-side."
+}

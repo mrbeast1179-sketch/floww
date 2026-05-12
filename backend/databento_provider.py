@@ -195,7 +195,8 @@ async def fetch_oi_for_ticker(ticker: str, day: Optional[date_cls] = None) -> Di
 
 async def stream_live_trades(parent: str, queue: asyncio.Queue, stop_event: asyncio.Event, dry_run: bool = False):
     """Stream live OPRA trades for a parent symbol into a queue.
-    EXPENSIVE — only run when client subscribes via /api/flow SSE."""
+    EXPENSIVE — only run when client subscribes via /api/flow SSE.
+    Hard-stops within ~2s of stop_event being set, even if no trades are flowing."""
     if dry_run:
         return
     key = os.environ.get("DATABENTO_API_KEY", DBN_KEY)
@@ -209,6 +210,7 @@ async def stream_live_trades(parent: str, queue: asyncio.Queue, stop_event: asyn
     loop = asyncio.get_event_loop()
 
     def _run():
+        live = None
         try:
             live = db.Live(key=key)
             live.subscribe(
@@ -221,9 +223,11 @@ async def stream_live_trades(parent: str, queue: asyncio.Queue, stop_event: asyn
             def cb(rec):
                 try:
                     if stop_event.is_set():
-                        live.stop()
+                        try:
+                            live.stop()
+                        except Exception:
+                            pass
                         return
-                    # rec is a databento record (Trade message)
                     sym = getattr(rec, "raw_symbol", None) or getattr(rec, "symbol", None)
                     if not sym:
                         return
@@ -259,11 +263,24 @@ async def stream_live_trades(parent: str, queue: asyncio.Queue, stop_event: asyn
 
             live.add_callback(cb)
             live.start()
-            live.block_for_close(timeout=300)  # auto-disconnect after 5 min
+
+            # Poll stop_event every second so manual stop is responsive
+            import time as _t
+            t0 = _t.time()
+            while _t.time() - t0 < 600:  # hard upper-bound 10 min safety
+                if stop_event.is_set():
+                    break
+                _t.sleep(1)
         except Exception as e:
             log.warning(f"flow stream err: {e}")
             try:
                 asyncio.run_coroutine_threadsafe(queue.put({"_error": str(e)}), loop)
+            except Exception:
+                pass
+        finally:
+            try:
+                if live is not None:
+                    live.stop()
             except Exception:
                 pass
 

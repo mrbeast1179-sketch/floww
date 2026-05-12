@@ -483,27 +483,38 @@ function Flowseeker({ ticker }) {
   const [events, setEvents] = useState([]);
   const [status, setStatus] = useState("idle");
   const [filter, setFilter] = useState({ unusual: false, sweep: false, block: false, side: "all" });
+  const [sessionInfo, setSessionInfo] = useState(null);
+  const [errMsg, setErrMsg] = useState(null);
+  const [overrideWindow, setOverrideWindow] = useState(false);
+  const [duration, setDuration] = useState(120);
   const esRef = useRef(null);
 
   const start = useCallback(() => {
     if (esRef.current) return;
     setStatus("connecting");
-    setEvents([]);
-    const url = `${API}/flow/${encodeURIComponent(ticker)}?max_seconds=120`;
+    setEvents([]); setErrMsg(null); setSessionInfo(null);
+    const url = `${API}/flow/${encodeURIComponent(ticker)}?max_seconds=${duration}&enforce_window=${!overrideWindow}`;
     const es = new EventSource(url);
     esRef.current = es;
-    es.addEventListener("ready", () => setStatus("live"));
+    es.addEventListener("ready", (e) => {
+      try { setSessionInfo(JSON.parse(e.data)); } catch { /* noop */ }
+      setStatus("live");
+    });
     es.addEventListener("end", () => { setStatus("ended"); es.close(); esRef.current = null; });
-    es.addEventListener("error", () => { setStatus("error"); es.close(); esRef.current = null; });
+    es.addEventListener("error", (e) => {
+      try { const m = JSON.parse(e.data || "{}"); if (m.error) setErrMsg(m.error); } catch { /* noop */ }
+      setStatus("error"); es.close(); esRef.current = null;
+    });
     es.onmessage = (ev) => {
       try {
         const msg = JSON.parse(ev.data);
         setEvents((prev) => [msg, ...prev].slice(0, 250));
       } catch { /* noop */ }
     };
-  }, [ticker]);
+  }, [ticker, duration, overrideWindow]);
 
-  const stop = useCallback(() => {
+  const stop = useCallback(async () => {
+    try { await axios.post(`${API}/live/tape/stop`); } catch { /* noop */ }
     esRef.current?.close();
     esRef.current = null;
     setStatus("stopped");
@@ -528,14 +539,34 @@ function Flowseeker({ ticker }) {
         <div>
           <div className="label">Flowseeker · Live OPRA trades</div>
           <div className="text-xs text-slate-500">{ticker} · status <span className={status === "live" ? "text-teal-400" : status === "error" ? "text-rose-400" : "text-slate-400"}>{status}</span> · {filtered.length}/{events.length} trades</div>
+          {sessionInfo?.auto_stop_at && (
+            <div className="text-[10px] text-slate-600">session {sessionInfo.session_id} · auto-stop {new Date(sessionInfo.auto_stop_at).toLocaleTimeString()}</div>
+          )}
+          {errMsg && <div className="text-[11px] text-rose-400 mt-1">⚠ {errMsg}</div>}
         </div>
-        <div className="flex gap-2">
-          {status !== "live" && status !== "connecting" && (
-            <button data-testid="flow-start" onClick={start} className="btn">▶ start (2 min)</button>
-          )}
-          {(status === "live" || status === "connecting") && (
-            <button data-testid="flow-stop" onClick={stop} className="btn">■ stop</button>
-          )}
+        <div className="flex flex-col items-end gap-2">
+          <div className="flex gap-2 items-center text-[10px] text-slate-500">
+            <label className="flex items-center gap-1">duration
+              <select data-testid="flow-duration" value={duration} onChange={e => setDuration(Number(e.target.value))} className="bg-slate-900 border border-slate-700 px-1 rounded text-slate-200" disabled={status === "live"}>
+                <option value={60}>1m</option>
+                <option value={120}>2m</option>
+                <option value={300}>5m</option>
+                <option value={600}>10m</option>
+              </select>
+            </label>
+            <label className="flex items-center gap-1">
+              <input type="checkbox" data-testid="flow-override-window" checked={overrideWindow} onChange={e => setOverrideWindow(e.target.checked)} disabled={status === "live"} />
+              override window
+            </label>
+          </div>
+          <div className="flex gap-2">
+            {status !== "live" && status !== "connecting" && (
+              <button data-testid="flow-start" onClick={start} className="btn">▶ start ({duration}s)</button>
+            )}
+            {(status === "live" || status === "connecting") && (
+              <button data-testid="flow-stop" onClick={stop} className="btn">■ stop</button>
+            )}
+          </div>
         </div>
       </div>
       <div className="flex gap-2 mb-3 text-[11px] flex-wrap">
@@ -589,6 +620,119 @@ function Flowseeker({ ticker }) {
   );
 }
 
+// ============ Budget Meter & Live Controls ============
+function BudgetMeter({ onStopTape }) {
+  const [u, setU] = useState(null);
+  const [editing, setEditing] = useState(false);
+  const [paidInput, setPaidInput] = useState("SPY");
+  const [startInput, setStartInput] = useState("09:00");
+  const [stopInput, setStopInput] = useState("10:30");
+
+  const refresh = useCallback(async () => {
+    try {
+      const res = await axios.get(`${API}/databento/usage`);
+      setU(res.data);
+      setPaidInput((res.data.paid_tickers || ["SPY"]).join(","));
+      setStartInput(res.data.live_window_et?.start_hhmm || "09:00");
+      setStopInput(res.data.live_window_et?.stop_hhmm || "10:30");
+    } catch (e) { /* noop */ }
+  }, []);
+
+  useEffect(() => {
+    refresh();
+    const id = setInterval(refresh, 15000);
+    return () => clearInterval(id);
+  }, [refresh]);
+
+  const savePolicy = async () => {
+    try {
+      await axios.post(`${API}/live/policy`, {
+        paid_tickers: paidInput.split(",").map(s => s.trim()).filter(Boolean),
+        window_start: startInput,
+        window_stop: stopInput,
+      });
+      setEditing(false);
+      refresh();
+    } catch (e) { /* noop */ }
+  };
+
+  if (!u) return null;
+  const pct = Math.min(100, u.budget_pct_used || 0);
+  const barColor = pct > 80 ? "#ef4444" : pct > 50 ? "#fbbf24" : "#34d399";
+  const tapeActive = u.live_tape_state?.live_tape_active;
+
+  return (
+    <div className="flex items-center gap-3 px-3 py-1 rounded border border-slate-800" style={{ background: "rgba(15,22,32,0.7)" }} data-testid="budget-meter">
+      <div className="text-[10px] uppercase tracking-widest text-slate-500">Databento</div>
+      <div className="flex items-center gap-1">
+        <div className="w-24 h-1.5 bg-slate-800 rounded overflow-hidden">
+          <div style={{ width: `${pct}%`, height: "100%", background: barColor, transition: "width 400ms" }} />
+        </div>
+        <span className="mono text-[11px]" style={{ color: barColor }}>${fmt(u.est_total_cost_usd, 2)}</span>
+        <span className="text-[10px] text-slate-600">/ ${fmt(u.budget_usd, 0)}</span>
+      </div>
+      <div className="text-[10px] text-slate-500">
+        paid <span className="text-teal-400">{(u.paid_tickers || []).join(",") || "—"}</span> · window <span className="text-slate-400">{u.live_window_et?.start_hhmm}-{u.live_window_et?.stop_hhmm} ET</span>
+        {u.in_window_now && <span className="ml-1 text-emerald-400">● in-window</span>}
+        {!u.in_window_now && <span className="ml-1 text-slate-600">○ off-window</span>}
+      </div>
+      {tapeActive && (
+        <div className="flex items-center gap-1">
+          <span className="text-[10px] text-rose-400 flash-pulse">● TAPE LIVE</span>
+          <button data-testid="budget-stop-tape" onClick={async () => { await axios.post(`${API}/live/tape/stop`); onStopTape && onStopTape(); refresh(); }} className="text-[10px] underline text-rose-300">stop</button>
+        </div>
+      )}
+      <button data-testid="budget-edit" onClick={() => setEditing(v => !v)} className="text-[10px] underline text-slate-500 hover:text-teal-400">{editing ? "cancel" : "edit"}</button>
+      {editing && (
+        <div className="absolute right-4 top-12 panel p-3 z-40 w-72" data-testid="budget-edit-panel">
+          <div className="label mb-2">Live Policy</div>
+          <div className="space-y-2 text-[11px]">
+            <div>
+              <div className="text-slate-500 mb-1">Paid tickers (comma-sep)</div>
+              <input value={paidInput} onChange={e => setPaidInput(e.target.value)} className="w-full bg-slate-900 border border-slate-700 px-2 py-1 rounded text-slate-200" data-testid="paid-tickers-input" />
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <div className="text-slate-500 mb-1">Window start ET</div>
+                <input value={startInput} onChange={e => setStartInput(e.target.value)} className="w-full bg-slate-900 border border-slate-700 px-2 py-1 rounded text-slate-200" data-testid="window-start-input" />
+              </div>
+              <div>
+                <div className="text-slate-500 mb-1">Window stop ET</div>
+                <input value={stopInput} onChange={e => setStopInput(e.target.value)} className="w-full bg-slate-900 border border-slate-700 px-2 py-1 rounded text-slate-200" data-testid="window-stop-input" />
+              </div>
+            </div>
+            <button onClick={savePolicy} data-testid="save-policy" className="btn w-full active">Save</button>
+            <div className="text-[10px] text-slate-600 leading-snug">
+              <div>· Paid tickers = only ones that hit Databento OPRA OI (~$0.15/ticker/day cached 24h).</div>
+              <div>· Outside window, Live Tape refuses to start.</div>
+              <div>· Other tickers stay on free yfinance feed.</div>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ============ Live Spot Pulse — recompute GEX feel without burning $$ ============
+function useLiveSpot(ticker, enabled = true, intervalMs = 5000) {
+  const [spot, setSpot] = useState(null);
+  useEffect(() => {
+    if (!enabled || !ticker) return;
+    let mounted = true;
+    const f = async () => {
+      try {
+        const res = await axios.get(`${API}/spot/${encodeURIComponent(ticker)}`);
+        if (mounted) setSpot(res.data);
+      } catch { /* noop */ }
+    };
+    f();
+    const id = setInterval(f, intervalMs);
+    return () => { mounted = false; clearInterval(id); };
+  }, [ticker, enabled, intervalMs]);
+  return spot;
+}
+
 // ============ MAIN APP ============
 export default function App() {
   const [ticker, setTicker] = useState("SPY");
@@ -598,7 +742,7 @@ export default function App() {
   const [expiries, setExpiries] = useState(4);
   const [mode, setMode] = useState("day"); // day | swing
   const [view, setView] = useState("grid"); // grid | bar
-  const [page, setPage] = useState("heatseeker"); // heatseeker | trinity | flowseeker
+  const [page, setPage] = useState("trinity"); // trinity is default (user preference)
   const [trinityData, setTrinityData] = useState(null);
   const [filters, setFilters] = useState({ magMin: 0, lifecycle: "all", side: "all" });
   const [customTicker, setCustomTicker] = useState("");
@@ -635,6 +779,8 @@ export default function App() {
     }
   }, [ticker, mode, page, fetchHeatmap, fetchTrinity]);
 
+  const livespot = useLiveSpot(ticker, page === "heatseeker", 5000);
+  const spotDelta = (livespot && data?.spot) ? (livespot.spot - data.spot) : 0;
   const regimeColor = data?.nodes?.regime === "positive" ? "text-emerald-400" : data?.nodes?.regime === "negative" ? "text-rose-400" : "text-slate-400";
 
   return (
@@ -659,8 +805,9 @@ export default function App() {
           </div>
         </div>
         <div className="flex items-center gap-3 text-[11px] text-slate-500">
+          <BudgetMeter />
           <span className="text-[10px] uppercase tracking-widest text-slate-600">{data?.data_source || ""}</span>
-          <span>· refresh 30s</span>
+          <span>· 30s</span>
           {loading && <span className="text-teal-400 flash-pulse">● syncing</span>}
           {!loading && lastRefresh.current && <span className="text-slate-600">{lastRefresh.current.toLocaleTimeString()}</span>}
         </div>
@@ -740,7 +887,15 @@ export default function App() {
                 <div className="text-lg font-bold tracking-wider">{ticker.replace("^", "")}</div>
                 <div className={`text-xs uppercase tracking-widest ${regimeColor}`}>{data?.nodes?.regime || "—"} γ</div>
               </div>
-              <div className="text-2xl mono mt-1">${fmt(data?.spot, 2)}</div>
+              <div className="text-2xl mono mt-1" data-testid="spot-price">
+                ${fmt(livespot?.spot ?? data?.spot, 2)}
+                {livespot && data?.spot && Math.abs(spotDelta) > 0.01 && (
+                  <span className={`ml-2 text-xs ${spotDelta > 0 ? "text-emerald-400" : "text-rose-400"}`} data-testid="spot-delta">
+                    {spotDelta > 0 ? "▲" : "▼"} {Math.abs(spotDelta).toFixed(2)}
+                  </span>
+                )}
+                {livespot && <span className="ml-2 text-[9px] uppercase tracking-widest text-teal-500 flash-pulse">● live</span>}
+              </div>
               <div className="text-[10px] text-slate-500">
                 {data?.expiries_used?.length ? `${data.expiries_used.length} exp · ${data.expiries_used[0]} → ${data.expiries_used.slice(-1)[0]}` : ""}
               </div>

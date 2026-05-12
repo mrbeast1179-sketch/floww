@@ -152,10 +152,48 @@ def fetch_spot_and_chains(ticker: str, max_expiries: int = 4) -> Dict[str, Any]:
     return data
 
 
+# Tickers allowed to use Databento OI (paid). Default: SPY only. Toggle via /api/live/policy.
+DEFAULT_PAID_TICKERS = {"SPY"}
+PAID_TICKERS: set = set(DEFAULT_PAID_TICKERS)
+
+# Trading window (ET) when live features auto-engage; outside this window, live calls auto-disabled.
+LIVE_WINDOW = {"start_hhmm": "09:00", "stop_hhmm": "10:30"}
+
+# Session tracking for cost meter
+_session_state: Dict[str, Any] = {
+    "live_tape_active": False,
+    "live_tape_ticker": None,
+    "live_tape_started_at": None,
+    "live_tape_auto_stop_at": None,
+    "live_tape_session_id": None,
+    "msg_count": 0,
+}
+
+
+def _in_window_now_et() -> bool:
+    """Check if current time is within configured live window (US/Eastern)."""
+    try:
+        from zoneinfo import ZoneInfo
+        et = datetime.now(ZoneInfo("America/New_York"))
+    except Exception:
+        et = datetime.now(timezone.utc) - timedelta(hours=5)
+    hhmm = et.strftime("%H:%M")
+    return LIVE_WINDOW["start_hhmm"] <= hhmm <= LIVE_WINDOW["stop_hhmm"]
+
+
 async def fetch_spot_and_chains_merged(ticker: str, max_expiries: int = 4) -> Dict[str, Any]:
-    """yfinance for spot+IV + Databento for OI. Falls back gracefully."""
+    """yfinance for spot+IV + Databento for OI (only if ticker is in PAID_TICKERS).
+    Falls back to pure yfinance for free-tier tickers."""
     yf_data = await asyncio.to_thread(fetch_spot_and_chains, ticker, max_expiries)
     spot = yf_data["spot"]
+
+    # Free-tier short-circuit: use yfinance OI only
+    short = ticker.upper().replace("^", "")
+    if short not in PAID_TICKERS:
+        for c in yf_data["contracts"]:
+            c["oi_source"] = "yfinance"
+        return {**yf_data, "data_source": "yfinance"}
+
     dbn_oi = {}
     try:
         dbn_oi = await fetch_oi_for_ticker(ticker)
@@ -163,7 +201,8 @@ async def fetch_spot_and_chains_merged(ticker: str, max_expiries: int = 4) -> Di
         log.warning(f"databento OI lookup fail {ticker}: {e}")
 
     if not dbn_oi:
-        # No Databento data — pure yfinance
+        for c in yf_data["contracts"]:
+            c["oi_source"] = "yfinance"
         return {**yf_data, "data_source": "yfinance"}
 
     # Build (strike, expiry, type) -> OI map from Databento
@@ -831,13 +870,43 @@ async def contract_drilldown(ticker: str, expiry: Optional[str] = None, strike: 
 # ----------------------------- Flowseeker (SSE) -------------------------------
 
 @api.get("/flow/{ticker}")
-async def flow_stream(ticker: str, request: Request, max_seconds: int = Query(120, ge=10, le=300)):
-    """SSE stream of live OPRA trades for a ticker via Databento Live.
-    Cost-capped: max_seconds <= 300 (5 min). Filters to unusual/sweep/block by default in client."""
+async def flow_stream(ticker: str, request: Request, max_seconds: int = Query(120, ge=10, le=600), enforce_window: bool = Query(True)):
+    """SSE stream of live OPRA trades via Databento Live.
+    Cost-capped: max_seconds (default 120, max 600). Outside the configured live window (default 9:00–10:30 ET),
+    the stream refuses to start unless enforce_window=false.
+    Tracks session in Mongo `live_sessions` with msg_count + est_cost_usd."""
     t = ticker.strip().upper().replace("^", "")
+    if t not in PAID_TICKERS:
+        async def deny():
+            yield f"event: error\ndata: {json.dumps({'error': f'{t} not in paid tickers. POST /api/live/policy to enable.'})}\n\n"
+        return StreamingResponse(deny(), media_type="text/event-stream")
+    if enforce_window and not _in_window_now_et():
+        async def out_of_window():
+            yield f"event: error\ndata: {json.dumps({'error': f'Outside live window {LIVE_WINDOW}. Pass enforce_window=false to override.'})}\n\n"
+        return StreamingResponse(out_of_window(), media_type="text/event-stream")
+
     parent = PARENT_MAP.get(t, f"{t}.OPT")
     queue: asyncio.Queue = asyncio.Queue(maxsize=2000)
     stop = asyncio.Event()
+
+    # Begin session record
+    import uuid
+    session_id = str(uuid.uuid4())[:8]
+    started_at = datetime.now(timezone.utc).isoformat()
+    auto_stop_at = (datetime.now(timezone.utc) + timedelta(seconds=max_seconds)).isoformat()
+    _session_state.update({
+        "live_tape_active": True,
+        "live_tape_ticker": t,
+        "live_tape_started_at": started_at,
+        "live_tape_auto_stop_at": auto_stop_at,
+        "live_tape_session_id": session_id,
+        "msg_count": 0,
+    })
+    await db.live_sessions.insert_one({
+        "session_id": session_id, "ticker": t, "parent": parent,
+        "started_at": started_at, "auto_stop_at": auto_stop_at,
+        "max_seconds": max_seconds, "msg_count": 0, "est_cost_usd": 0.0,
+    })
 
     async def producer():
         try:
@@ -849,10 +918,12 @@ async def flow_stream(ticker: str, request: Request, max_seconds: int = Query(12
     deadline = time.time() + max_seconds
 
     async def gen():
+        msg_count = 0
+        bytes_count = 0
         try:
-            yield f"event: ready\ndata: {json.dumps({'parent': parent})}\n\n"
+            yield f"event: ready\ndata: {json.dumps({'parent': parent, 'session_id': session_id, 'auto_stop_at': auto_stop_at})}\n\n"
             while time.time() < deadline:
-                if await request.is_disconnected():
+                if await request.is_disconnected() or stop.is_set() or not _session_state.get("live_tape_active"):
                     break
                 try:
                     msg = await asyncio.wait_for(queue.get(), timeout=1.0)
@@ -865,28 +936,129 @@ async def flow_stream(ticker: str, request: Request, max_seconds: int = Query(12
                 if msg.get("_error"):
                     yield f"event: error\ndata: {json.dumps(msg)}\n\n"
                     break
-                yield f"data: {json.dumps(msg)}\n\n"
+                payload = json.dumps(msg)
+                msg_count += 1
+                bytes_count += len(payload)
+                _session_state["msg_count"] = msg_count
+                yield f"data: {payload}\n\n"
         finally:
             stop.set()
             try:
                 task.cancel()
             except Exception:
                 pass
+            # estimate cost: OPRA Live is roughly $1 per GB; conservative $0.000002/message
+            est_cost = round(max(bytes_count / (1024**3), msg_count * 0.000002), 4)
+            ended_at = datetime.now(timezone.utc).isoformat()
+            await db.live_sessions.update_one(
+                {"session_id": session_id},
+                {"$set": {"ended_at": ended_at, "msg_count": msg_count,
+                          "bytes": bytes_count, "est_cost_usd": est_cost}},
+            )
+            _session_state.update({
+                "live_tape_active": False,
+                "live_tape_ticker": None,
+                "live_tape_session_id": None,
+            })
 
     return StreamingResponse(gen(), media_type="text/event-stream")
 
 
 @api.get("/databento/usage")
 async def dbn_usage():
-    """Quick view of Databento cache stats."""
+    """Quick view of Databento cache stats + estimated cost."""
     try:
         n = await db.databento_oi.count_documents({})
         recent = []
         async for doc in db.databento_oi.find({}, {"_id": 0, "parent": 1, "day": 1, "count": 1, "fetched_at": 1}).sort("fetched_at", -1).limit(20):
             recent.append(doc)
-        return {"cached_days": n, "recent": recent}
+        # rough cost estimate: $0.15 per OI snapshot
+        est_oi_cost = round(n * 0.15, 2)
+
+        # Live tape sessions
+        sessions = []
+        async for s in db.live_sessions.find({}, {"_id": 0}).sort("started_at", -1).limit(20):
+            sessions.append(s)
+        est_tape_cost = sum(s.get("est_cost_usd", 0) for s in sessions)
+
+        total = round(est_oi_cost + est_tape_cost, 2)
+        budget = 125.0
+        return {
+            "cached_days": n,
+            "recent": recent,
+            "live_sessions": sessions,
+            "est_oi_cost_usd": est_oi_cost,
+            "est_tape_cost_usd": round(est_tape_cost, 2),
+            "est_total_cost_usd": total,
+            "budget_usd": budget,
+            "budget_remaining_usd": round(budget - total, 2),
+            "budget_pct_used": round((total / budget) * 100, 1) if budget else 0,
+            "paid_tickers": sorted(PAID_TICKERS),
+            "live_window_et": LIVE_WINDOW,
+            "live_tape_state": _session_state,
+            "in_window_now": _in_window_now_et(),
+        }
     except Exception as e:
         return {"error": str(e)}
+
+
+# ----------------------------- Live policy & spot refresh ---------------------
+
+class LivePolicyReq(BaseModel):
+    paid_tickers: Optional[List[str]] = None
+    window_start: Optional[str] = None  # "HH:MM" ET
+    window_stop: Optional[str] = None
+
+
+@api.post("/live/policy")
+async def set_live_policy(req: LivePolicyReq):
+    """Update which tickers may use Databento (paid) + the live window."""
+    global PAID_TICKERS
+    if req.paid_tickers is not None:
+        PAID_TICKERS = set(t.upper().replace("^", "") for t in req.paid_tickers)
+    if req.window_start:
+        LIVE_WINDOW["start_hhmm"] = req.window_start
+    if req.window_stop:
+        LIVE_WINDOW["stop_hhmm"] = req.window_stop
+    return {"paid_tickers": sorted(PAID_TICKERS), "live_window_et": LIVE_WINDOW}
+
+
+@api.get("/spot/{ticker}")
+async def quick_spot(ticker: str):
+    """Cheap, fast spot price via yfinance. Free. Use for live GEX recompute (γ depends on S)."""
+    t = ticker.strip().upper()
+    if t == "SPX":
+        t = "^SPX"
+    cache_key = f"spot:{t}"
+    hit = cache_get(cache_key)
+    if hit is not None:
+        return hit
+    def _f():
+        try:
+            yt = yf.Ticker(t)
+            fi = yt.fast_info
+            return float(fi.get("lastPrice") or fi.get("last_price") or 0)
+        except Exception:
+            return 0.0
+    spot = await asyncio.to_thread(_f)
+    res = {"ticker": t, "spot": spot, "ts": datetime.now(timezone.utc).isoformat()}
+    # Short TTL so it feels live
+    _cache[cache_key] = {"ts": time.time() - (CACHE_TTL_SEC - 5), "data": res}  # ~5s TTL
+    return res
+
+
+@api.post("/live/tape/stop")
+async def stop_live_tape():
+    """Hard-stop the live OPRA trade stream (Flowseeker). Returns final session stats."""
+    sid = _session_state.get("live_tape_session_id")
+    _session_state["live_tape_active"] = False
+    if sid:
+        ended_at = datetime.now(timezone.utc).isoformat()
+        await db.live_sessions.update_one(
+            {"session_id": sid},
+            {"$set": {"ended_at": ended_at, "manually_stopped": True}},
+        )
+    return {"stopped": True, "session_id": sid, "msg_count": _session_state.get("msg_count", 0)}
 
 
 app.include_router(api)
