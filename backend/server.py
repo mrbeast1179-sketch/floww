@@ -152,12 +152,13 @@ def fetch_spot_and_chains(ticker: str, max_expiries: int = 4) -> Dict[str, Any]:
     return data
 
 
-# Tickers allowed to use Databento OI (paid). Default: SPY only. Toggle via /api/live/policy.
+# Tickers allowed to use Databento OI (paid). Default: SPY only. Persisted in Mongo (db.live_policy).
 DEFAULT_PAID_TICKERS = {"SPY"}
 PAID_TICKERS: set = set(DEFAULT_PAID_TICKERS)
 
 # Trading window (ET) when live features auto-engage; outside this window, live calls auto-disabled.
 LIVE_WINDOW = {"start_hhmm": "09:00", "stop_hhmm": "10:30"}
+PREFETCH_HHMM = "08:55"  # pre-fetch SPY OI 5 min before market open
 
 # Session tracking for cost meter
 _session_state: Dict[str, Any] = {
@@ -1015,7 +1016,7 @@ class LivePolicyReq(BaseModel):
 
 @api.post("/live/policy")
 async def set_live_policy(req: LivePolicyReq):
-    """Update which tickers may use Databento (paid) + the live window."""
+    """Update which tickers may use Databento (paid) + the live window. Persisted in Mongo."""
     global PAID_TICKERS
     if req.paid_tickers is not None:
         PAID_TICKERS = set(t.upper().replace("^", "") for t in req.paid_tickers)
@@ -1023,7 +1024,64 @@ async def set_live_policy(req: LivePolicyReq):
         LIVE_WINDOW["start_hhmm"] = req.window_start
     if req.window_stop:
         LIVE_WINDOW["stop_hhmm"] = req.window_stop
+    await db.live_policy.update_one(
+        {"_id": "singleton"},
+        {"$set": {"paid_tickers": sorted(PAID_TICKERS), "live_window": LIVE_WINDOW,
+                  "updated_at": datetime.now(timezone.utc).isoformat()}},
+        upsert=True,
+    )
     return {"paid_tickers": sorted(PAID_TICKERS), "live_window_et": LIVE_WINDOW}
+
+
+async def _load_policy_from_mongo():
+    global PAID_TICKERS
+    try:
+        doc = await db.live_policy.find_one({"_id": "singleton"})
+        if doc:
+            PAID_TICKERS = set(doc.get("paid_tickers") or DEFAULT_PAID_TICKERS)
+            lw = doc.get("live_window") or {}
+            if lw.get("start_hhmm"):
+                LIVE_WINDOW["start_hhmm"] = lw["start_hhmm"]
+            if lw.get("stop_hhmm"):
+                LIVE_WINDOW["stop_hhmm"] = lw["stop_hhmm"]
+            log.info(f"live policy loaded: paid={sorted(PAID_TICKERS)} window={LIVE_WINDOW}")
+    except Exception as e:
+        log.warning(f"live policy load fail: {e}")
+
+
+# ---------- Scheduled pre-fetch (APScheduler) ----------
+_scheduler_started = False
+
+
+async def _prefetch_paid_oi():
+    """Pre-fetch OI for all paid tickers so first request after open is instant."""
+    log.info(f"prefetch OI for {sorted(PAID_TICKERS)}")
+    for t in list(PAID_TICKERS):
+        try:
+            r = await fetch_oi_for_ticker(t)
+            log.info(f"  prefetched {t}: {len(r)} contracts")
+        except Exception as e:
+            log.warning(f"  prefetch {t} fail: {e}")
+
+
+async def _scheduler_loop():
+    """Lightweight scheduler — fires once per day at PREFETCH_HHMM ET. No extra deps."""
+    fired_for_date = None
+    while True:
+        try:
+            try:
+                from zoneinfo import ZoneInfo
+                et = datetime.now(ZoneInfo("America/New_York"))
+            except Exception:
+                et = datetime.now(timezone.utc) - timedelta(hours=5)
+            hhmm = et.strftime("%H:%M")
+            today_et = et.date().isoformat()
+            if hhmm >= PREFETCH_HHMM and fired_for_date != today_et and et.weekday() < 5:
+                fired_for_date = today_et
+                asyncio.create_task(_prefetch_paid_oi())
+        except Exception as e:
+            log.warning(f"scheduler tick err: {e}")
+        await asyncio.sleep(60)
 
 
 @api.get("/spot/{ticker}")
@@ -1080,6 +1138,12 @@ async def on_start():
     await db.snapshots.create_index([("ticker", 1), ("ts", -1)])
     cache = init_cache(db)
     await cache.ensure_index()
+    await _load_policy_from_mongo()
+    global _scheduler_started
+    if not _scheduler_started:
+        _scheduler_started = True
+        asyncio.create_task(_scheduler_loop())
+        log.info(f"scheduler started · prefetch at {PREFETCH_HHMM} ET")
     log.info("databento cache initialized")
 
 
