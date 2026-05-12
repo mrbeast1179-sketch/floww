@@ -432,6 +432,12 @@ function Drilldown({ ticker, expiry, strike, onClose }) {
         {data && (
           <div>
             <div className="text-[11px] text-slate-500 mb-2">Spot {fmt(data.spot, 2)} · {data.count} contracts · source {data.data_source}</div>
+            {data.count === 0 ? (
+              <div className="text-slate-500 text-xs py-8 text-center">
+                No contracts at this strike × expiry combination.
+                <div className="text-[10px] text-slate-600 mt-1">(Empty cells = no OI or no IV data available for this leg.)</div>
+              </div>
+            ) : (
             <table className="w-full text-[11px] mono">
               <thead className="text-slate-500 text-[10px] uppercase tracking-widest">
                 <tr>
@@ -464,6 +470,7 @@ function Drilldown({ ticker, expiry, strike, onClose }) {
                 ))}
               </tbody>
             </table>
+            )}
           </div>
         )}
       </div>

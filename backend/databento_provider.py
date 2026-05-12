@@ -195,15 +195,22 @@ async def fetch_oi_for_ticker(ticker: str, day: Optional[date_cls] = None) -> Di
 
 async def stream_live_trades(parent: str, queue: asyncio.Queue, stop_event: asyncio.Event, dry_run: bool = False):
     """Stream live OPRA trades for a parent symbol into a queue.
-    EXPENSIVE — only run when client subscribes via /api/flow SSE.
-    `dry_run=True` returns immediately without actually connecting."""
-    if dry_run or not DBN_KEY:
+    EXPENSIVE — only run when client subscribes via /api/flow SSE."""
+    if dry_run:
+        return
+    key = os.environ.get("DATABENTO_API_KEY", DBN_KEY)
+    if not key:
+        loop = asyncio.get_event_loop()
+        try:
+            asyncio.run_coroutine_threadsafe(queue.put({"_error": "Databento key missing"}), loop)
+        except Exception:
+            pass
         return
     loop = asyncio.get_event_loop()
 
     def _run():
         try:
-            live = db.Live(key=DBN_KEY)
+            live = db.Live(key=key)
             live.subscribe(
                 dataset="OPRA.PILLAR",
                 schema="trades",

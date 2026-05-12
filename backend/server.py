@@ -183,15 +183,12 @@ async def fetch_spot_and_chains_merged(ticker: str, max_expiries: int = 4) -> Di
             c["oi_source"] = "yfinance"
         yf_keys.add(key)
 
-    # Add DBN-only contracts: estimate IV by interpolation per expiry
+    # Add DBN-only contracts: estimate IV by per-expiry arithmetic mean of yfinance IVs
     today = datetime.now(timezone.utc).date()
-    iv_by_expiry: Dict[str, float] = {}
+    iv_lists: Dict[str, list] = {}
     for c in yf_data["contracts"]:
-        iv_by_expiry.setdefault(c["expiry"], []).append(c["iv"]) if False else None
-    iv_avg_by_expiry: Dict[str, float] = {}
-    for c in yf_data["contracts"]:
-        iv_avg_by_expiry.setdefault(c["expiry"], 0.0)
-        iv_avg_by_expiry[c["expiry"]] = (iv_avg_by_expiry[c["expiry"]] + c["iv"]) / 2
+        iv_lists.setdefault(c["expiry"], []).append(c["iv"])
+    iv_avg_by_expiry: Dict[str, float] = {e: (sum(vs) / len(vs)) for e, vs in iv_lists.items() if vs}
 
     for (strike, expiry, typ), oi in dbn_map.items():
         if (strike, expiry, typ) in yf_keys:
