@@ -15,31 +15,173 @@ const fmtAbs = (n) => {
   if (n === null || n === undefined || isNaN(n)) return "—";
   const a = Math.abs(n);
   if (a >= 1e9) return (n / 1e9).toFixed(2) + "B";
-  if (a >= 1e6) return (n / 1e6).toFixed(2) + "M";
-  if (a >= 1e3) return (n / 1e3).toFixed(2) + "K";
+  if (a >= 1e6) return (n / 1e6).toFixed(1) + "M";
+  if (a >= 1e3) return (n / 1e3).toFixed(1) + "K";
   return n.toFixed(0);
+};
+const fmtCell = (v) => {
+  if (v === null || v === undefined || isNaN(v) || v === 0) return "";
+  const a = Math.abs(v);
+  const sign = v < 0 ? "-" : "";
+  let s;
+  if (a >= 1e6) s = (a / 1e6).toFixed(2) + "M";
+  else if (a >= 1e3) s = (a / 1e3).toFixed(1) + "K";
+  else s = a.toFixed(0);
+  return sign + "$" + s;
 };
 const pctClass = (v) => v > 0 ? "text-emerald-400" : v < 0 ? "text-rose-400" : "text-slate-400";
 
 const tagFor = (kind) => ({
-  king: "tag king",
-  floor: "tag floor",
-  ceiling: "tag ceiling",
-  gate: "tag gate",
-  air: "tag air",
-  fresh: "tag fresh",
-  tested: "tag tested",
-  delivered: "tag delivered",
-  decaying: "tag decaying",
+  king: "tag king", floor: "tag floor", ceiling: "tag ceiling", gate: "tag gate", air: "tag air",
+  fresh: "tag fresh", tested: "tag tested", delivered: "tag delivered", decaying: "tag decaying",
 }[kind] || "tag");
 
-// ============ Heatmap component ============
-function Heatmap({ data, compact = false, filters }) {
-  if (!data) return null;
-  const { spot, strikes, nodes } = data;
-  if (!strikes || strikes.length === 0) return <div className="text-slate-500 text-xs p-4">No strike data</div>;
+// Skylit-style color scale: positive (Pika) = cyan/teal, negative (Barney) = purple/violet
+// King highlights pop yellow-green
+function cellColor(v, maxAbs, isKing = false) {
+  if (!v || maxAbs === 0) return { bg: "rgba(15, 22, 32, 0.7)", text: "#5a6781" };
+  const norm = Math.min(1, Math.abs(v) / maxAbs);
+  if (isKing && v > 0) return { bg: `rgba(190, 242, 100, ${0.55 + 0.4 * norm})`, text: "#0b1320" };
+  if (isKing && v < 0) return { bg: `rgba(232, 121, 249, ${0.55 + 0.4 * norm})`, text: "#0b1320" };
+  if (v > 0) {
+    // teal scale  -> brighter for larger
+    const alpha = 0.15 + 0.7 * norm;
+    return { bg: `rgba(45, 212, 191, ${alpha})`, text: norm > 0.5 ? "#0b1320" : "#a7f3d0" };
+  } else {
+    const alpha = 0.18 + 0.7 * norm;
+    return { bg: `rgba(168, 85, 247, ${alpha})`, text: norm > 0.5 ? "#fdf4ff" : "#e9d5ff" };
+  }
+}
 
-  // Filter strikes per UI controls
+// ============ Skylit-style 2D Grid Heatmap ============
+function GridHeatmap({ data, filters, onCellClick }) {
+  const spotRowRef = useRef(null);
+  useEffect(() => {
+    if (spotRowRef.current) {
+      spotRowRef.current.scrollIntoView({ block: "center", behavior: "auto" });
+    }
+  }, [data?.ticker, data?.mode]);
+
+  if (!data?.grid) return <div className="text-slate-500 text-xs p-4">No grid data</div>;
+  const { spot, grid, nodes } = data;
+  const expiries = grid.expiries || [];
+  let strikes = (grid.strikes || []).slice().sort((a, b) => b - a); // descending
+  if (filters?.side === "above") strikes = strikes.filter(s => s > spot);
+  if (filters?.side === "below") strikes = strikes.filter(s => s < spot);
+
+  // Helper to look up grid cell with key fallback (handles both "739" and "739.0")
+  const cellOf = (e, s) => {
+    const g = grid.grid?.[e];
+    if (!g) return 0;
+    return g[String(Number.isInteger(s) ? s : s)] ?? g[String(s)] ?? g[String(s.toFixed(1))] ?? g[String(parseInt(s))] ?? 0;
+  };
+
+  // Hide rows where ALL cells are zero/empty across visible expiries
+  strikes = strikes.filter(s => expiries.some(e => Math.abs(cellOf(e, s)) > 0));
+
+  // global maxAbs across visible cells
+  let maxAbs = 1;
+  for (const e of expiries) {
+    for (const s of strikes) {
+      const v = cellOf(e, s);
+      if (Math.abs(v) > maxAbs) maxAbs = Math.abs(v);
+    }
+  }
+
+  const kingStrike = nodes?.king?.strike;
+  const floorSet = new Set((nodes?.floors || []).map(f => f.strike));
+  const ceilSet = new Set((nodes?.ceilings || []).map(f => f.strike));
+  const gkSet = new Set((nodes?.gatekeepers || []).map(f => f.strike));
+  const inAir = (s) => (nodes?.air_pockets || []).some(a => s >= a.low && s <= a.high);
+
+  // spot insertion: find where to put the spot line
+  const spotIdx = strikes.findIndex(s => s <= spot);
+
+  const expFmt = (e) => { try { const [, m, d] = e.split("-"); return `${m}-${d}`; } catch { return e; } };
+
+  return (
+    <div className="overflow-auto" data-testid="grid-heatmap" style={{ maxHeight: "75vh" }}>
+      <table className="border-collapse mono text-[10px]">
+        <thead className="sticky top-0 z-10" style={{ background: "var(--panel)" }}>
+          <tr>
+            <th className="px-2 py-1 text-left text-slate-500 sticky left-0 z-20" style={{ background: "var(--panel)" }}>Strike</th>
+            {expiries.map((e) => (
+              <th key={e} className="px-2 py-1 text-slate-400 font-normal" style={{ minWidth: 64 }}>{expFmt(e)}</th>
+            ))}
+            <th className="px-2 py-1 text-slate-500 text-left">Tags</th>
+          </tr>
+        </thead>
+        <tbody>
+          {strikes.map((s, i) => {
+            const isKing = s === kingStrike;
+            const isFloor = floorSet.has(s);
+            const isCeil = ceilSet.has(s);
+            const isGate = gkSet.has(s);
+            const airy = inAir(s);
+
+            return (
+              <React.Fragment key={s}>
+                {i === spotIdx && (
+                  <tr ref={spotRowRef}>
+                    <td colSpan={expiries.length + 2} style={{ padding: 0 }}>
+                      <div className="relative" style={{ height: 18 }}>
+                        <div className="absolute inset-x-0 top-1/2" style={{ height: 1, background: "linear-gradient(90deg, transparent, rgba(94,234,212,0.85), transparent)", boxShadow: "0 0 6px rgba(94,234,212,0.55)" }} />
+                        <div className="absolute left-2 top-0 text-[10px] font-bold tracking-widest text-teal-300 px-1" style={{ background: "var(--panel)", textShadow: "0 0 6px rgba(94,234,212,0.6)" }}>
+                          ◆ SPOT {fmt(spot, 2)}
+                        </div>
+                      </div>
+                    </td>
+                  </tr>
+                )}
+                <tr
+                  className={`bar-row ${airy ? "opacity-65" : ""}`}
+                  data-testid={`grid-row-${s}`}
+                >
+                  <td
+                    className={`px-2 py-1 font-bold sticky left-0 z-10 ${isKing ? "text-amber-300" : isFloor ? "text-emerald-400" : isCeil ? "text-rose-400" : isGate ? "text-sky-400" : "text-slate-400"}`}
+                    style={{ background: "var(--panel)" }}
+                  >
+                    {fmt(s, s >= 1000 ? 0 : 1)}
+                  </td>
+                  {expiries.map((e) => {
+                    const v = cellOf(e, s);
+                    const isKingCell = isKing && Math.abs(v) > 0.6 * maxAbs;
+                    const col = cellColor(v, maxAbs, isKingCell);
+                    return (
+                      <td
+                        key={e}
+                        className="px-1 py-1 text-center cursor-pointer hover:outline hover:outline-1 hover:outline-teal-400"
+                        style={{ background: col.bg, color: col.text, minWidth: 60 }}
+                        onClick={() => onCellClick && onCellClick(s, e, v)}
+                        title={`strike ${s} · exp ${e} · gex ${fmtCell(v)}`}
+                      >
+                        {fmtCell(v)}
+                      </td>
+                    );
+                  })}
+                  <td className="px-2 py-1">
+                    <div className="flex gap-1 items-center">
+                      {isKing && <span className="tag king">KING</span>}
+                      {isFloor && <span className="tag floor">FLR</span>}
+                      {isCeil && <span className="tag ceiling">CEIL</span>}
+                      {isGate && <span className="tag gate">GATE</span>}
+                      {airy && <span className="tag air">AIR</span>}
+                    </div>
+                  </td>
+                </tr>
+              </React.Fragment>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+// ============ Horizontal Bar Heatmap (compact summary) ============
+function BarHeatmap({ data, filters, compact = true }) {
+  if (!data?.strikes) return null;
+  const { spot, strikes, nodes } = data;
   const filtered = strikes.filter((s) => {
     if (filters?.magMin && Math.abs(s.gex) < filters.magMin) return false;
     if (filters?.lifecycle && filters.lifecycle !== "all" && s.lifecycle !== filters.lifecycle) return false;
@@ -47,108 +189,47 @@ function Heatmap({ data, compact = false, filters }) {
     if (filters?.side === "below" && s.strike >= spot) return false;
     return true;
   });
-
-  if (filtered.length === 0) {
-    return <div className="text-slate-500 text-xs p-4">No strikes match current filters.</div>;
-  }
-
-  // Sort by strike DESCENDING so high strikes render on top (like Skylit)
+  if (!filtered.length) return <div className="text-slate-500 text-xs p-4">No strikes match filters.</div>;
   const sorted = [...filtered].sort((a, b) => b.strike - a.strike);
-  const maxAbs = Math.max(...filtered.map((s) => Math.abs(s.gex)), 1);
-
-  const kingStrike = nodes?.king?.strike;
-  const floorStrikes = new Set((nodes?.floors || []).map((f) => f.strike));
-  const ceilStrikes = new Set((nodes?.ceilings || []).map((f) => f.strike));
-  const gkStrikes = new Set((nodes?.gatekeepers || []).map((f) => f.strike));
-  const airRanges = nodes?.air_pockets || [];
-
-  // Spot insertion index (between strikes)
-  const rowHeight = compact ? 16 : 20;
+  const maxAbs = Math.max(...filtered.map(s => Math.abs(s.gex)), 1);
+  const king = nodes?.king?.strike;
+  const fSet = new Set((nodes?.floors || []).map(f => f.strike));
+  const cSet = new Set((nodes?.ceilings || []).map(f => f.strike));
+  const rowH = compact ? 14 : 18;
 
   return (
-    <div className="relative" data-testid="heatmap-container" style={{ paddingTop: 8, paddingBottom: 8 }}>
-      {/* axis legend */}
-      <div className="flex justify-between text-[10px] text-slate-500 px-2 pb-1">
-        <span>← PUT GEX (Barney/neg)</span>
-        <span className="text-slate-400">STRIKE</span>
-        <span>CALL GEX (Pika/pos) →</span>
-      </div>
-
-      <div className="relative" style={{ minHeight: sorted.length * rowHeight }}>
-        {sorted.map((s, i) => {
-          const isKing = s.strike === kingStrike;
-          const isFloor = floorStrikes.has(s.strike);
-          const isCeil = ceilStrikes.has(s.strike);
-          const isGate = gkStrikes.has(s.strike);
-          const inAirPocket = airRanges.some((a) => s.strike >= a.low && s.strike <= a.high);
-          const pos = s.gex > 0;
-          const w = Math.max(2, (Math.abs(s.gex) / maxAbs) * 50); // 50% half-width
-          const dist = Math.abs(s.strike - spot) / spot * 100;
-          // Lifecycle opacity
-          const lifeAlpha = { fresh: 1.0, tested: 0.78, delivered: 0.55, decaying: 0.32 }[s.lifecycle] || 0.9;
-
-          // Determine if spot line should appear between this and previous strike
-          const prev = sorted[i - 1];
-          const showSpotLine = prev && prev.strike > spot && s.strike <= spot;
-
-          return (
-            <React.Fragment key={s.strike}>
-              {showSpotLine && (
-                <div className="flex items-center my-1 px-2 relative" data-testid="spot-line">
-                  <div className="flex-1 h-px" style={{ background: "linear-gradient(90deg, transparent, rgba(94,234,212,0.85), transparent)" }} />
-                  <div className="px-2 text-[10px] tracking-widest text-teal-300 font-bold" style={{ textShadow: "0 0 8px rgba(94,234,212,0.5)" }}>
-                    SPOT {fmt(spot, 2)}
-                  </div>
-                  <div className="flex-1 h-px" style={{ background: "linear-gradient(90deg, transparent, rgba(94,234,212,0.85), transparent)" }} />
-                </div>
-              )}
-              <div className={`bar-row flex items-center text-[11px] mono px-2 ${inAirPocket ? "opacity-50" : ""}`} style={{ height: rowHeight }}>
-                {/* PUT/NEG side (right-aligned bar) */}
-                <div className="flex-1 flex justify-end pr-1">
-                  {!pos && (
-                    <div className="heat-bar" style={{
-                      width: `${w}%`,
-                      background: isKing ? "var(--king)" : `rgba(248, 113, 113, ${0.45 + 0.45 * (Math.abs(s.gex)/maxAbs)})`,
-                      opacity: lifeAlpha,
-                    }} />
-                  )}
-                </div>
-                {/* Strike label center */}
-                <div className={`w-20 text-center font-bold ${isKing ? "text-amber-400" : isFloor ? "text-emerald-400" : isCeil ? "text-rose-400" : isGate ? "text-sky-400" : "text-slate-300"}`}>
-                  {fmt(s.strike, 0)}
-                </div>
-                {/* CALL/POS side */}
-                <div className="flex-1 flex pl-1">
-                  {pos && (
-                    <div className="heat-bar" style={{
-                      width: `${w}%`,
-                      background: isKing ? "var(--king)" : `rgba(52, 211, 153, ${0.45 + 0.45 * (Math.abs(s.gex)/maxAbs)})`,
-                      opacity: lifeAlpha,
-                    }} />
-                  )}
-                </div>
-                {/* tags */}
-                {!compact && (
-                  <div className="w-44 flex gap-1 justify-end items-center pl-2">
-                    {isKing && <span className={tagFor("king")}>KING</span>}
-                    {isFloor && <span className={tagFor("floor")}>FLOOR</span>}
-                    {isCeil && <span className={tagFor("ceiling")}>CEIL</span>}
-                    {isGate && <span className={tagFor("gate")}>GATE</span>}
-                    {inAirPocket && <span className={tagFor("air")}>AIR</span>}
-                    <span className={tagFor(s.lifecycle)} title={`tap prob ${(s.tap_prob*100).toFixed(0)}%`}>{s.lifecycle?.[0]?.toUpperCase()}{s.taps>0?`·${s.taps}`:""}</span>
-                  </div>
-                )}
-                {!compact && (
-                  <div className="w-16 text-right text-slate-500 text-[10px]">{fmtAbs(s.gex)}</div>
-                )}
-                {!compact && (
-                  <div className="w-12 text-right text-slate-600 text-[10px]">{dist.toFixed(1)}%</div>
-                )}
+    <div className="relative" style={{ paddingTop: 4, paddingBottom: 4 }}>
+      {sorted.map((s, i) => {
+        const isKing = s.strike === king;
+        const isF = fSet.has(s.strike);
+        const isC = cSet.has(s.strike);
+        const pos = s.gex > 0;
+        const w = Math.max(2, (Math.abs(s.gex) / maxAbs) * 48);
+        const prev = sorted[i - 1];
+        const showSpot = prev && prev.strike > spot && s.strike <= spot;
+        return (
+          <React.Fragment key={s.strike}>
+            {showSpot && (
+              <div className="flex items-center my-1 px-2">
+                <div className="flex-1 h-px" style={{ background: "linear-gradient(90deg, transparent, rgba(94,234,212,0.85), transparent)" }} />
+                <div className="px-1 text-[9px] tracking-widest text-teal-300">{fmt(spot, 1)}</div>
+                <div className="flex-1 h-px" style={{ background: "linear-gradient(90deg, transparent, rgba(94,234,212,0.85), transparent)" }} />
               </div>
-            </React.Fragment>
-          );
-        })}
-      </div>
+            )}
+            <div className="bar-row flex items-center text-[10px] mono px-1" style={{ height: rowH }}>
+              <div className="flex-1 flex justify-end pr-1">
+                {!pos && <div style={{ width: `${w}%`, height: 10, borderRadius: 2,
+                  background: isKing ? "rgba(232, 121, 249, 0.85)" : `rgba(168, 85, 247, ${0.4 + 0.5 * Math.abs(s.gex)/maxAbs})` }} />}
+              </div>
+              <div className={`w-14 text-center ${isKing ? "text-amber-300 font-bold" : isF ? "text-emerald-400" : isC ? "text-rose-400" : "text-slate-400"}`}>{fmt(s.strike, 0)}</div>
+              <div className="flex-1 flex pl-1">
+                {pos && <div style={{ width: `${w}%`, height: 10, borderRadius: 2,
+                  background: isKing ? "rgba(190, 242, 100, 0.9)" : `rgba(45, 212, 191, ${0.4 + 0.5 * Math.abs(s.gex)/maxAbs})` }} />}
+              </div>
+            </div>
+          </React.Fragment>
+        );
+      })}
     </div>
   );
 }
@@ -165,13 +246,13 @@ function PatternCard({ p }) {
     support: "text-emerald-400 border-emerald-500/40",
   }[p.bias] || "text-slate-300 border-slate-700";
   return (
-    <div className={`panel-2 p-3 border ${biasColor}`} data-testid={`pattern-${p.name.toLowerCase().replace(/\s+/g,'-')}`}>
+    <div className={`panel-2 p-3 border ${biasColor}`} data-testid={`pattern-${p.name.toLowerCase().replace(/\s+/g, "-")}`}>
       <div className="flex justify-between items-baseline">
         <div className="text-sm font-bold tracking-wide uppercase">{p.name}</div>
         <div className="text-[10px] uppercase tracking-widest opacity-70">{p.bias}</div>
       </div>
       <div className="h-1 mt-2 mb-2 bg-slate-800 rounded">
-        <div className="h-full rounded" style={{ width: `${(p.severity*100).toFixed(0)}%`, background: "currentColor", opacity: 0.6 }} />
+        <div className="h-full rounded" style={{ width: `${(p.severity * 100).toFixed(0)}%`, background: "currentColor", opacity: 0.6 }} />
       </div>
       <div className="text-[11px] text-slate-400 leading-snug">{p.note}</div>
     </div>
@@ -192,12 +273,12 @@ function VelocityGauge({ velocity }) {
         <svg viewBox="0 0 100 60" width="100" height="60">
           <path d="M 10 55 A 40 40 0 0 1 90 55" fill="none" stroke="#1f2a3a" strokeWidth="6" />
           <path d="M 10 55 A 40 40 0 0 1 90 55" fill="none" stroke={color} strokeWidth="6"
-                strokeDasharray={`${score * 125} 200`} strokeLinecap="round" />
-          <line x1="50" y1="55" x2={50 + 35*Math.cos((angle-90)*Math.PI/180)} y2={55 + 35*Math.sin((angle-90)*Math.PI/180)} stroke={color} strokeWidth="2" />
+            strokeDasharray={`${score * 125} 200`} strokeLinecap="round" />
+          <line x1="50" y1="55" x2={50 + 35 * Math.cos((angle - 90) * Math.PI / 180)} y2={55 + 35 * Math.sin((angle - 90) * Math.PI / 180)} stroke={color} strokeWidth="2" />
           <circle cx="50" cy="55" r="3" fill={color} />
         </svg>
         <div>
-          <div className="text-2xl font-bold mono" style={{ color }}>{warming ? "…" : (score*100).toFixed(0)}</div>
+          <div className="text-2xl font-bold mono" style={{ color }}>{warming ? "…" : (score * 100).toFixed(0)}</div>
           <div className="text-[10px] uppercase tracking-widest text-slate-500">{warming ? "warming up" : "rate of change"}</div>
         </div>
       </div>
@@ -205,131 +286,49 @@ function VelocityGauge({ velocity }) {
         <div>
           <div className="label">Floor</div>
           <div className={velocity.rolling_floor === "rolling_up" ? "text-emerald-400" : velocity.rolling_floor === "rolling_down" ? "text-rose-400" : "text-slate-400"}>
-            {(velocity.rolling_floor || "stable").replace("_"," ")}
+            {(velocity.rolling_floor || "stable").replace("_", " ")}
           </div>
         </div>
         <div>
           <div className="label">Ceiling</div>
           <div className={velocity.rolling_ceiling === "rolling_up" ? "text-emerald-400" : velocity.rolling_ceiling === "rolling_down" ? "text-rose-400" : "text-slate-400"}>
-            {(velocity.rolling_ceiling || "stable").replace("_"," ")}
+            {(velocity.rolling_ceiling || "stable").replace("_", " ")}
           </div>
         </div>
       </div>
       {velocity.floor_sequence?.length > 1 && (
-        <div className="mt-2 text-[10px] text-slate-500">
-          Floors: {velocity.floor_sequence.slice(0,4).map(s=>fmt(s,0)).join(" → ")}
-        </div>
+        <div className="mt-2 text-[10px] text-slate-500">Floors: {velocity.floor_sequence.slice(0, 4).map(s => fmt(s, 0)).join(" → ")}</div>
       )}
       {velocity.ceiling_sequence?.length > 1 && (
-        <div className="text-[10px] text-slate-500">
-          Ceilings: {velocity.ceiling_sequence.slice(0,4).map(s=>fmt(s,0)).join(" → ")}
-        </div>
+        <div className="text-[10px] text-slate-500">Ceilings: {velocity.ceiling_sequence.slice(0, 4).map(s => fmt(s, 0)).join(" → ")}</div>
       )}
     </div>
   );
 }
 
-// ============ Trinity strip ============
-function TrinityBar({ tickers, onPick }) {
-  const [data, setData] = useState(null);
-  const [loading, setLoading] = useState(false);
-
-  const fetchT = useCallback(async () => {
-    setLoading(true);
-    try {
-      const res = await axios.get(`${API}/trinity?tickers=${tickers.join(",")}`);
-      setData(res.data);
-    } catch (e) {
-      console.error("trinity", e);
-    } finally { setLoading(false); }
-  }, [tickers]);
-
-  useEffect(() => {
-    fetchT();
-    const id = setInterval(fetchT, REFRESH_MS);
-    return () => clearInterval(id);
-  }, [fetchT]);
-
-  if (!data) return <div className="panel p-3 text-xs text-slate-500" data-testid="trinity-loading">Loading Trinity…</div>;
-
-  const verdictColor = {
-    full_alignment: "text-emerald-400",
-    partial_alignment: "text-amber-300",
-    divergence: "text-rose-400",
-  }[data.alignment?.verdict] || "text-slate-400";
-
-  return (
-    <div className="panel p-3" data-testid="trinity-bar">
-      <div className="flex items-center justify-between mb-2">
-        <div className="label">Trinity Mode · SPX / SPY / QQQ</div>
-        <div className={`text-[11px] uppercase tracking-widest ${verdictColor}`}>
-          {(data.alignment?.verdict || "—").replace("_"," ")} · conf {(data.alignment?.confluence*100||0).toFixed(0)}%
-        </div>
-      </div>
-      <div className="grid grid-cols-3 gap-2">
-        {tickers.map((t) => {
-          const r = data.tickers[t];
-          if (!r || r.error) return <div key={t} className="panel-2 p-2 text-[11px] text-rose-400">{t}: err</div>;
-          const k = r.nodes?.king;
-          const regColor = r.nodes?.regime === "positive" ? "text-emerald-400" : r.nodes?.regime === "negative" ? "text-rose-400" : "text-slate-400";
-          return (
-            <button
-              key={t}
-              onClick={() => onPick && onPick(t)}
-              data-testid={`trinity-tile-${t}`}
-              className="panel-2 p-2 text-left hover:border-teal-500 transition"
-            >
-              <div className="flex justify-between items-baseline">
-                <div className="font-bold text-sm">{t.replace("^","")}</div>
-                <div className={`text-[10px] uppercase ${regColor}`}>{r.nodes?.regime}</div>
-              </div>
-              <div className="text-[11px] mono text-slate-300 mt-1">spot {fmt(r.spot, 2)}</div>
-              <div className="text-[10px] mono text-slate-500">king {fmt(k?.strike, 0)} · {fmtAbs(k?.gex)}</div>
-              <div className="flex gap-1 mt-1 flex-wrap">
-                {(r.patterns||[]).slice(0,3).map((p,i) => (
-                  <span key={i} className="text-[9px] px-1 py-px border border-slate-700 rounded uppercase tracking-wider text-slate-400">{p.name}</span>
-                ))}
-              </div>
-            </button>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
-
-// ============ Movers panel ============
+// ============ Top Movers ============
 function Movers({ onPick }) {
   const [rows, setRows] = useState([]);
-  const [loading, setLoading] = useState(false);
-
   useEffect(() => {
     let mounted = true;
     const f = async () => {
-      setLoading(true);
       try {
         const res = await axios.get(`${API}/movers?limit=12`);
         if (mounted) setRows(res.data.results || []);
-      } catch (e) { console.error(e); }
-      finally { if (mounted) setLoading(false); }
+      } catch (e) { /* noop */ }
     };
     f();
     const id = setInterval(f, 60000);
     return () => { mounted = false; clearInterval(id); };
   }, []);
-
   return (
     <div className="panel p-3" data-testid="movers-panel">
       <div className="label mb-2">Top Movers (prev session %)</div>
       <div className="flex flex-col gap-1 text-[11px]">
-        {rows.length === 0 && <div className="text-slate-500">{loading ? "…" : "no data"}</div>}
+        {rows.length === 0 && <div className="text-slate-500">…</div>}
         {rows.map((r) => (
-          <button
-            key={r.ticker}
-            onClick={() => onPick && onPick(r.ticker)}
-            data-testid={`mover-${r.ticker}`}
-            className="flex justify-between items-center px-2 py-1 hover:bg-slate-800/40 rounded"
-          >
+          <button key={r.ticker} data-testid={`mover-${r.ticker}`} onClick={() => onPick && onPick(r.ticker)}
+            className="flex justify-between items-center px-2 py-1 hover:bg-slate-800/40 rounded">
             <span className="font-bold w-14 text-left">{r.ticker}</span>
             <span className="mono text-slate-400 w-20 text-right">${fmt(r.close, 2)}</span>
             <span className={`mono w-16 text-right ${pctClass(r.pct)}`}>{r.pct >= 0 ? "+" : ""}{r.pct}%</span>
@@ -348,33 +347,30 @@ function NodesTable({ data }) {
   const spot = data.spot;
   const all = (data.strikes || []).map((s) => {
     const role = s.strike === data.nodes.king?.strike ? "King"
-      : data.nodes.floors?.some(f=>f.strike===s.strike) ? "Floor"
-      : data.nodes.ceilings?.some(f=>f.strike===s.strike) ? "Ceiling"
-      : data.nodes.gatekeepers?.some(f=>f.strike===s.strike) ? "Gatekeeper"
+      : data.nodes.floors?.some(f => f.strike === s.strike) ? "Floor"
+      : data.nodes.ceilings?.some(f => f.strike === s.strike) ? "Ceiling"
+      : data.nodes.gatekeepers?.some(f => f.strike === s.strike) ? "Gatekeeper"
       : null;
     return { ...s, role, mag: Math.abs(s.gex), dist: Math.abs(s.strike - spot) / spot * 100 };
   }).filter(s => s.role || s.mag > 0);
-
-  const sorted = [...all].sort((a,b) => {
+  const sorted = [...all].sort((a, b) => {
     const va = a[sortKey], vb = b[sortKey];
     if (va == null) return 1;
     if (vb == null) return -1;
     return sortDir === "desc" ? vb - va : va - vb;
   });
-
   const head = (k, l) => (
     <th className="text-left text-[10px] uppercase tracking-widest text-slate-500 font-normal px-2 py-1 cursor-pointer hover:text-teal-400"
-        onClick={() => { setSortKey(k); setSortDir(d => sortKey===k && d==="desc" ? "asc":"desc"); }}>
-      {l}{sortKey===k ? (sortDir==="desc"?" ↓":" ↑"):""}
+      onClick={() => { setSortKey(k); setSortDir(d => sortKey === k && d === "desc" ? "asc" : "desc"); }}>
+      {l}{sortKey === k ? (sortDir === "desc" ? " ↓" : " ↑") : ""}
     </th>
   );
-
   return (
     <div className="panel p-3" data-testid="nodes-table">
       <div className="label mb-2">Structural Nodes</div>
       <div className="overflow-y-auto" style={{ maxHeight: 280 }}>
         <table className="w-full text-[11px] mono">
-          <thead className="sticky top-0 bg-slate-900">
+          <thead className="sticky top-0" style={{ background: "var(--panel)" }}>
             <tr>
               {head("strike", "Strike")}
               <th className="text-left text-[10px] uppercase tracking-widest text-slate-500 font-normal px-2 py-1">Role</th>
@@ -390,12 +386,10 @@ function NodesTable({ data }) {
               <tr key={s.strike} className="bar-row border-t border-slate-800/60">
                 <td className="px-2 py-1 font-bold text-slate-200">{fmt(s.strike, 0)}</td>
                 <td className="px-2 py-1">
-                  {s.role && (
-                    <span className={`tag ${s.role==="King"?"king":s.role==="Floor"?"floor":s.role==="Ceiling"?"ceiling":"gate"}`}>{s.role}</span>
-                  )}
+                  {s.role && <span className={`tag ${s.role === "King" ? "king" : s.role === "Floor" ? "floor" : s.role === "Ceiling" ? "ceiling" : "gate"}`}>{s.role}</span>}
                 </td>
                 <td className="px-2 py-1 text-slate-300">{fmtAbs(s.mag)}</td>
-                <td className={`px-2 py-1 ${s.gex>0?"text-emerald-400":"text-rose-400"}`}>{s.gex>0?"+":""}{fmtAbs(s.gex)}</td>
+                <td className={`px-2 py-1 ${s.gex > 0 ? "text-emerald-400" : "text-rose-400"}`}>{s.gex > 0 ? "+" : ""}{fmtAbs(s.gex)}</td>
                 <td className="px-2 py-1 text-slate-500">{s.dist.toFixed(2)}%</td>
                 <td className="px-2 py-1 text-slate-500">{s.taps}</td>
                 <td className="px-2 py-1"><span className={tagFor(s.lifecycle)}>{s.lifecycle}</span></td>
@@ -408,23 +402,206 @@ function NodesTable({ data }) {
   );
 }
 
-// ============ Main App ============
+// ============ Drilldown panel ============
+function Drilldown({ ticker, expiry, strike, onClose }) {
+  const [data, setData] = useState(null);
+  const [loading, setLoading] = useState(false);
+  useEffect(() => {
+    if (!ticker) return;
+    setLoading(true);
+    const params = new URLSearchParams();
+    if (expiry) params.set("expiry", expiry);
+    if (strike) params.set("strike", strike);
+    axios.get(`${API}/contract/${encodeURIComponent(ticker)}?${params.toString()}`)
+      .then(r => setData(r.data))
+      .catch(() => setData(null))
+      .finally(() => setLoading(false));
+  }, [ticker, expiry, strike]);
+  if (!data && !loading) return null;
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ background: "rgba(0,0,0,0.7)" }} onClick={onClose}>
+      <div className="panel p-4 max-w-4xl w-[90%] max-h-[80vh] overflow-auto" onClick={(e) => e.stopPropagation()} data-testid="drilldown-modal">
+        <div className="flex justify-between items-center mb-3">
+          <div>
+            <div className="label">Contract Drilldown</div>
+            <div className="text-lg font-bold">{ticker} {strike ? `· ${strike}` : ""} {expiry ? `· ${expiry}` : ""}</div>
+          </div>
+          <button onClick={onClose} className="btn" data-testid="drilldown-close">close ✕</button>
+        </div>
+        {loading && <div className="text-slate-500">loading…</div>}
+        {data && (
+          <div>
+            <div className="text-[11px] text-slate-500 mb-2">Spot {fmt(data.spot, 2)} · {data.count} contracts · source {data.data_source}</div>
+            <table className="w-full text-[11px] mono">
+              <thead className="text-slate-500 text-[10px] uppercase tracking-widest">
+                <tr>
+                  <th className="text-left px-2 py-1">Type</th>
+                  <th className="text-left px-2 py-1">Strike</th>
+                  <th className="text-left px-2 py-1">Expiry</th>
+                  <th className="text-right px-2 py-1">OI</th>
+                  <th className="text-right px-2 py-1">Volume</th>
+                  <th className="text-right px-2 py-1">IV</th>
+                  <th className="text-right px-2 py-1">Δ</th>
+                  <th className="text-right px-2 py-1">Γ</th>
+                  <th className="text-right px-2 py-1">GEX</th>
+                  <th className="text-left px-2 py-1">Src</th>
+                </tr>
+              </thead>
+              <tbody>
+                {data.rows.map((r, i) => (
+                  <tr key={i} className="bar-row border-t border-slate-800/60">
+                    <td className={`px-2 py-1 ${r.type === "call" ? "text-emerald-400" : "text-rose-400"}`}>{r.type}</td>
+                    <td className="px-2 py-1 font-bold">{fmt(r.strike, 0)}</td>
+                    <td className="px-2 py-1 text-slate-400">{r.expiry}</td>
+                    <td className="px-2 py-1 text-right">{fmt(r.oi, 0)}</td>
+                    <td className="px-2 py-1 text-right text-slate-500">{fmt(r.volume, 0)}</td>
+                    <td className="px-2 py-1 text-right text-slate-400">{(r.iv * 100).toFixed(1)}%</td>
+                    <td className="px-2 py-1 text-right text-slate-400">{r.delta?.toFixed(3)}</td>
+                    <td className="px-2 py-1 text-right text-slate-500">{r.gamma?.toFixed(5)}</td>
+                    <td className={`px-2 py-1 text-right ${r.gex > 0 ? "text-emerald-400" : "text-rose-400"}`}>{fmtAbs(r.gex)}</td>
+                    <td className="px-2 py-1 text-[10px] text-slate-600">{r.oi_source}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ============ Flowseeker ============
+function Flowseeker({ ticker }) {
+  const [events, setEvents] = useState([]);
+  const [status, setStatus] = useState("idle");
+  const [filter, setFilter] = useState({ unusual: false, sweep: false, block: false, side: "all" });
+  const esRef = useRef(null);
+
+  const start = useCallback(() => {
+    if (esRef.current) return;
+    setStatus("connecting");
+    setEvents([]);
+    const url = `${API}/flow/${encodeURIComponent(ticker)}?max_seconds=120`;
+    const es = new EventSource(url);
+    esRef.current = es;
+    es.addEventListener("ready", () => setStatus("live"));
+    es.addEventListener("end", () => { setStatus("ended"); es.close(); esRef.current = null; });
+    es.addEventListener("error", () => { setStatus("error"); es.close(); esRef.current = null; });
+    es.onmessage = (ev) => {
+      try {
+        const msg = JSON.parse(ev.data);
+        setEvents((prev) => [msg, ...prev].slice(0, 250));
+      } catch { /* noop */ }
+    };
+  }, [ticker]);
+
+  const stop = useCallback(() => {
+    esRef.current?.close();
+    esRef.current = null;
+    setStatus("stopped");
+  }, []);
+
+  useEffect(() => () => esRef.current?.close(), []);
+
+  const filtered = events.filter(e => {
+    if (filter.unusual && !e.unusual) return false;
+    if (filter.sweep && !e.sweep) return false;
+    if (filter.block && !e.block) return false;
+    if (filter.side !== "all") {
+      if (filter.side === "calls" && e.type !== "call") return false;
+      if (filter.side === "puts" && e.type !== "put") return false;
+    }
+    return true;
+  });
+
+  return (
+    <div className="panel p-3" data-testid="flowseeker-panel">
+      <div className="flex justify-between items-center mb-3">
+        <div>
+          <div className="label">Flowseeker · Live OPRA trades</div>
+          <div className="text-xs text-slate-500">{ticker} · status <span className={status === "live" ? "text-teal-400" : status === "error" ? "text-rose-400" : "text-slate-400"}>{status}</span> · {filtered.length}/{events.length} trades</div>
+        </div>
+        <div className="flex gap-2">
+          {status !== "live" && status !== "connecting" && (
+            <button data-testid="flow-start" onClick={start} className="btn">▶ start (2 min)</button>
+          )}
+          {(status === "live" || status === "connecting") && (
+            <button data-testid="flow-stop" onClick={stop} className="btn">■ stop</button>
+          )}
+        </div>
+      </div>
+      <div className="flex gap-2 mb-3 text-[11px] flex-wrap">
+        <button data-testid="flow-filter-unusual" onClick={() => setFilter(f => ({ ...f, unusual: !f.unusual }))} className={`btn ${filter.unusual ? "active" : ""}`}>unusual</button>
+        <button data-testid="flow-filter-sweep" onClick={() => setFilter(f => ({ ...f, sweep: !f.sweep }))} className={`btn ${filter.sweep ? "active" : ""}`}>sweep ≥250</button>
+        <button data-testid="flow-filter-block" onClick={() => setFilter(f => ({ ...f, block: !f.block }))} className={`btn ${filter.block ? "active" : ""}`}>block ≥500</button>
+        {["all", "calls", "puts"].map(s => (
+          <button key={s} onClick={() => setFilter(f => ({ ...f, side: s }))} className={`btn ${filter.side === s ? "active" : ""}`}>{s}</button>
+        ))}
+      </div>
+      <div className="overflow-auto" style={{ maxHeight: "60vh" }}>
+        <table className="w-full text-[10px] mono">
+          <thead className="sticky top-0 text-slate-500 text-[10px] uppercase tracking-widest" style={{ background: "var(--panel)" }}>
+            <tr>
+              <th className="text-left px-2 py-1">Time</th>
+              <th className="text-left px-2 py-1">Type</th>
+              <th className="text-left px-2 py-1">Strike</th>
+              <th className="text-left px-2 py-1">Expiry</th>
+              <th className="text-right px-2 py-1">Price</th>
+              <th className="text-right px-2 py-1">Size</th>
+              <th className="text-right px-2 py-1">Notional</th>
+              <th className="text-left px-2 py-1">Side</th>
+              <th className="text-left px-2 py-1">Flag</th>
+            </tr>
+          </thead>
+          <tbody>
+            {filtered.map((e, i) => (
+              <tr key={i} className="bar-row border-t border-slate-800/40">
+                <td className="px-2 py-1 text-slate-500">{new Date(e.ts / 1e6).toLocaleTimeString()}</td>
+                <td className={`px-2 py-1 ${e.type === "call" ? "text-emerald-400" : "text-rose-400"}`}>{e.type}</td>
+                <td className="px-2 py-1 font-bold">{fmt(e.strike, 0)}</td>
+                <td className="px-2 py-1 text-slate-400">{e.expiry}</td>
+                <td className="px-2 py-1 text-right">${fmt(e.price, 2)}</td>
+                <td className="px-2 py-1 text-right">{fmt(e.size, 0)}</td>
+                <td className="px-2 py-1 text-right text-amber-300">${fmtAbs(e.notional)}</td>
+                <td className="px-2 py-1 text-slate-500">{e.side}</td>
+                <td className="px-2 py-1">
+                  {e.block ? <span className="tag king">BLOCK</span> : e.sweep ? <span className="tag ceiling">SWEEP</span> : e.unusual ? <span className="tag tested">UNUSUAL</span> : null}
+                </td>
+              </tr>
+            ))}
+            {filtered.length === 0 && (
+              <tr><td colSpan={9} className="text-center text-slate-500 py-6 text-[11px]">
+                {status === "idle" || status === "stopped" || status === "ended" ? "Press start to stream live OPRA trades (max 2 min/session — Databento cost-aware)." : "waiting for trades…"}
+              </td></tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+// ============ MAIN APP ============
 export default function App() {
   const [ticker, setTicker] = useState("SPY");
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState(null);
-  const [expiries, setExpiries] = useState(3);
-  const [trinityMode, setTrinityMode] = useState(false);
+  const [expiries, setExpiries] = useState(4);
+  const [mode, setMode] = useState("day"); // day | swing
+  const [view, setView] = useState("grid"); // grid | bar
+  const [page, setPage] = useState("heatseeker"); // heatseeker | trinity | flowseeker
   const [trinityData, setTrinityData] = useState(null);
   const [filters, setFilters] = useState({ magMin: 0, lifecycle: "all", side: "all" });
   const [customTicker, setCustomTicker] = useState("");
+  const [drilldown, setDrilldown] = useState(null);
   const lastRefresh = useRef(null);
 
-  const fetchHeatmap = useCallback(async (t) => {
+  const fetchHeatmap = useCallback(async (t, m) => {
     setLoading(true); setErr(null);
     try {
-      const res = await axios.get(`${API}/heatmap/${encodeURIComponent(t)}?expiries=${expiries}`);
+      const res = await axios.get(`${API}/heatmap/${encodeURIComponent(t)}?expiries=${expiries}&mode=${m}`, { timeout: 90000 });
       setData(res.data);
       lastRefresh.current = new Date();
     } catch (e) {
@@ -432,89 +609,88 @@ export default function App() {
     } finally { setLoading(false); }
   }, [expiries]);
 
-  const fetchTrinity = useCallback(async () => {
+  const fetchTrinity = useCallback(async (m) => {
     try {
-      const res = await axios.get(`${API}/trinity?tickers=${TRINITY.join(",")}`);
+      const res = await axios.get(`${API}/trinity?tickers=${TRINITY.join(",")}&mode=${m}`, { timeout: 120000 });
       setTrinityData(res.data);
     } catch (e) { console.error(e); }
   }, []);
 
   useEffect(() => {
-    if (trinityMode) {
-      fetchTrinity();
-      const id = setInterval(fetchTrinity, REFRESH_MS);
+    if (page === "trinity") {
+      fetchTrinity(mode);
+      const id = setInterval(() => fetchTrinity(mode), REFRESH_MS);
       return () => clearInterval(id);
-    } else {
-      fetchHeatmap(ticker);
-      const id = setInterval(() => fetchHeatmap(ticker), REFRESH_MS);
+    } else if (page === "heatseeker") {
+      fetchHeatmap(ticker, mode);
+      const id = setInterval(() => fetchHeatmap(ticker, mode), REFRESH_MS);
       return () => clearInterval(id);
     }
-  }, [ticker, trinityMode, fetchHeatmap, fetchTrinity]);
+  }, [ticker, mode, page, fetchHeatmap, fetchTrinity]);
 
   const regimeColor = data?.nodes?.regime === "positive" ? "text-emerald-400" : data?.nodes?.regime === "negative" ? "text-rose-400" : "text-slate-400";
 
   return (
     <div className="App min-h-screen" style={{ background: "var(--bg)" }}>
       {/* HEADER */}
-      <header className="border-b border-slate-800 px-4 py-2 flex items-center justify-between sticky top-0 z-20" style={{ background: "rgba(7,9,13,0.95)", backdropFilter: "blur(8px)" }}>
+      <header className="border-b border-slate-800 px-4 py-2 flex items-center justify-between sticky top-0 z-30" style={{ background: "rgba(7,9,13,0.96)", backdropFilter: "blur(8px)" }}>
         <div className="flex items-center gap-4">
           <div className="flex items-baseline gap-2">
             <span className="text-sm font-bold tracking-widest text-teal-300">CONFLUENCE DECODER</span>
-            <span className="text-[10px] text-slate-500">/ Heatseeker GEX</span>
+            <span className="text-[10px] text-slate-500">/ Skylit-style Heatseeker</span>
           </div>
           <div className="dotted-divider w-8" />
           <div className="flex gap-1">
-            {DEFAULT_TICKERS.map(t => (
-              <button
-                key={t}
-                onClick={() => { setTicker(t); setTrinityMode(false); }}
-                data-testid={`ticker-btn-${t}`}
-                className={`btn ${!trinityMode && ticker===t ? "active":""}`}
-              >
-                {t.replace("^","")}
-              </button>
-            ))}
-            <button
-              onClick={() => setTrinityMode(true)}
-              data-testid="trinity-toggle"
-              className={`btn ${trinityMode ? "active":""}`}
-            >△ TRINITY</button>
+            <button data-testid="page-heatseeker" onClick={() => setPage("heatseeker")} className={`btn ${page === "heatseeker" ? "active" : ""}`}>◆ HEATSEEKER</button>
+            <button data-testid="page-trinity" onClick={() => setPage("trinity")} className={`btn ${page === "trinity" ? "active" : ""}`}>△ TRINITY</button>
+            <button data-testid="page-flowseeker" onClick={() => setPage("flowseeker")} className={`btn ${page === "flowseeker" ? "active" : ""}`}>⟶ FLOWSEEKER</button>
           </div>
-          <input
-            type="text"
-            value={customTicker}
-            onChange={(e) => setCustomTicker(e.target.value.toUpperCase())}
-            onKeyDown={(e) => { if (e.key==="Enter" && customTicker) { setTicker(customTicker); setTrinityMode(false); }}}
-            placeholder="add ticker…"
-            data-testid="custom-ticker-input"
-            className="bg-slate-900 border border-slate-700 rounded px-2 py-1 text-xs text-slate-200 w-28 focus:outline-none focus:border-teal-500"
-          />
+          <div className="dotted-divider w-8" />
+          <div className="flex gap-1" data-testid="mode-toggle">
+            <button onClick={() => setMode("day")} className={`btn ${mode === "day" ? "active" : ""}`}>Day</button>
+            <button onClick={() => setMode("swing")} className={`btn ${mode === "swing" ? "active" : ""}`}>Swing</button>
+          </div>
         </div>
         <div className="flex items-center gap-3 text-[11px] text-slate-500">
-          <span>refresh 30s</span>
+          <span className="text-[10px] uppercase tracking-widest text-slate-600">{data?.data_source || ""}</span>
+          <span>· refresh 30s</span>
           {loading && <span className="text-teal-400 flash-pulse">● syncing</span>}
-          {!loading && lastRefresh.current && <span className="text-slate-600">last {lastRefresh.current.toLocaleTimeString()}</span>}
+          {!loading && lastRefresh.current && <span className="text-slate-600">{lastRefresh.current.toLocaleTimeString()}</span>}
         </div>
       </header>
 
-      {/* TRINITY MODE */}
-      {trinityMode && trinityData && (
+      {/* TICKER STRIP (always visible except Flowseeker) */}
+      {page !== "trinity" && (
+        <div className="px-4 py-2 border-b border-slate-800/70 flex items-center gap-2 flex-wrap">
+          {DEFAULT_TICKERS.map(t => (
+            <button key={t} data-testid={`ticker-btn-${t}`} onClick={() => setTicker(t)} className={`btn ${ticker === t ? "active" : ""}`}>
+              {t.replace("^", "")}
+            </button>
+          ))}
+          <input type="text" value={customTicker} onChange={(e) => setCustomTicker(e.target.value.toUpperCase())}
+            onKeyDown={(e) => { if (e.key === "Enter" && customTicker) { setTicker(customTicker); }}}
+            placeholder="add ticker…" data-testid="custom-ticker-input"
+            className="bg-slate-900 border border-slate-700 rounded px-2 py-1 text-xs text-slate-200 w-28 focus:outline-none focus:border-teal-500" />
+        </div>
+      )}
+
+      {/* TRINITY VIEW */}
+      {page === "trinity" && trinityData && (
         <div className="p-4 space-y-4" data-testid="trinity-view">
           <div className="panel p-3">
             <div className="flex justify-between items-center">
               <div>
                 <div className="label">Alignment Verdict</div>
-                <div className={`text-2xl font-bold uppercase tracking-wider ${
-                  trinityData.alignment.verdict === "full_alignment" ? "text-emerald-400" :
-                  trinityData.alignment.verdict === "partial_alignment" ? "text-amber-300" : "text-rose-400"
-                }`}>{trinityData.alignment.verdict.replace("_"," ")}</div>
+                <div className={`text-2xl font-bold uppercase tracking-wider ${trinityData.alignment.verdict === "full_alignment" ? "text-emerald-400" : trinityData.alignment.verdict === "partial_alignment" ? "text-amber-300" : "text-rose-400"}`}>
+                  {trinityData.alignment.verdict.replace("_", " ")}
+                </div>
               </div>
               <div className="text-right">
                 <div className="label">Regime · Confluence</div>
                 <div className="text-lg mono">
-                  <span className={trinityData.alignment.regime==="positive"?"text-emerald-400":trinityData.alignment.regime==="negative"?"text-rose-400":"text-slate-400"}>{trinityData.alignment.regime}</span>
+                  <span className={trinityData.alignment.regime === "positive" ? "text-emerald-400" : trinityData.alignment.regime === "negative" ? "text-rose-400" : "text-slate-400"}>{trinityData.alignment.regime}</span>
                   <span className="text-slate-500"> · </span>
-                  <span>{(trinityData.alignment.confluence*100).toFixed(0)}%</span>
+                  <span>{(trinityData.alignment.confluence * 100).toFixed(0)}%</span>
                 </div>
               </div>
             </div>
@@ -531,12 +707,15 @@ export default function App() {
               return (
                 <div key={t} className="panel p-3" data-testid={`trinity-panel-${t}`}>
                   <div className="flex justify-between items-baseline mb-2">
-                    <div className="font-bold text-sm">{t.replace("^","")}</div>
-                    <button className="text-[10px] text-teal-400 underline" onClick={() => { setTicker(t); setTrinityMode(false); }}>focus →</button>
+                    <div className="font-bold text-sm">{t.replace("^", "")}</div>
+                    <button className="text-[10px] text-teal-400 underline" onClick={() => { setTicker(t); setPage("heatseeker"); }}>focus →</button>
                   </div>
-                  <div className="text-[11px] mono text-slate-400">spot {fmt(d.spot,2)} · king {fmt(d.nodes?.king?.strike,0)}</div>
-                  <div className="mt-2">
-                    <Heatmap data={d} compact filters={{}} />
+                  <div className="text-[11px] mono text-slate-400">spot {fmt(d.spot, 2)} · king {fmt(d.nodes?.king?.strike, 0)} · {d.nodes?.regime}γ</div>
+                  <div className="mt-2"><BarHeatmap data={d} filters={{}} compact /></div>
+                  <div className="mt-2 flex flex-wrap gap-1">
+                    {(d.patterns || []).slice(0, 3).map((p, i) => (
+                      <span key={i} className="text-[9px] px-1 py-px border border-slate-700 rounded uppercase tracking-wider text-slate-400">{p.name}</span>
+                    ))}
                   </div>
                 </div>
               );
@@ -545,28 +724,27 @@ export default function App() {
         </div>
       )}
 
-      {/* SINGLE TICKER MODE */}
-      {!trinityMode && (
+      {/* HEATSEEKER (single ticker) */}
+      {page === "heatseeker" && (
         <div className="grid grid-cols-12 gap-3 p-4">
-          {/* LEFT: filters + movers */}
           <aside className="col-span-3 space-y-3">
             <div className="panel p-3" data-testid="ticker-summary">
               <div className="flex justify-between items-baseline">
-                <div className="text-lg font-bold tracking-wider">{ticker.replace("^","")}</div>
+                <div className="text-lg font-bold tracking-wider">{ticker.replace("^", "")}</div>
                 <div className={`text-xs uppercase tracking-widest ${regimeColor}`}>{data?.nodes?.regime || "—"} γ</div>
               </div>
               <div className="text-2xl mono mt-1">${fmt(data?.spot, 2)}</div>
               <div className="text-[10px] text-slate-500">
-                {data?.expiries_used?.length ? `${data.expiries_used.length} expiries · ${data.expiries_used[0]} → ${data.expiries_used.slice(-1)[0]}` : ""}
+                {data?.expiries_used?.length ? `${data.expiries_used.length} exp · ${data.expiries_used[0]} → ${data.expiries_used.slice(-1)[0]}` : ""}
               </div>
               {err && <div className="text-rose-400 text-[11px] mt-2">{err}</div>}
               <div className="dotted-divider my-3" />
               <div className="grid grid-cols-2 gap-2 text-[11px]">
-                <div><div className="label">King</div><div className="mono text-amber-400">{fmt(data?.nodes?.king?.strike,0)}</div></div>
+                <div><div className="label">King</div><div className="mono text-amber-300">{fmt(data?.nodes?.king?.strike, 0)}</div></div>
                 <div><div className="label">|GEX|</div><div className="mono">{fmtAbs(data?.nodes?.king?.gex)}</div></div>
-                <div><div className="label">Top Floor</div><div className="mono text-emerald-400">{fmt(data?.nodes?.floors?.[0]?.strike,0) || "—"}</div></div>
-                <div><div className="label">Top Ceiling</div><div className="mono text-rose-400">{fmt(data?.nodes?.ceilings?.[0]?.strike,0) || "—"}</div></div>
-                <div><div className="label">Polarity</div><div className="mono text-sky-300">{data?.nodes?.polarity_level ? fmt(data.nodes.polarity_level,1) : "—"}</div></div>
+                <div><div className="label">Top Floor</div><div className="mono text-emerald-400">{fmt(data?.nodes?.floors?.[0]?.strike, 0) || "—"}</div></div>
+                <div><div className="label">Top Ceiling</div><div className="mono text-rose-400">{fmt(data?.nodes?.ceilings?.[0]?.strike, 0) || "—"}</div></div>
+                <div><div className="label">Polarity</div><div className="mono text-sky-300">{data?.nodes?.polarity_level ? fmt(data.nodes.polarity_level, 1) : "—"}</div></div>
                 <div><div className="label">Gatekeepers</div><div className="mono">{data?.nodes?.gatekeepers?.length || 0}</div></div>
               </div>
             </div>
@@ -575,49 +753,55 @@ export default function App() {
               <div className="label mb-2">Filters / Sort</div>
               <div className="space-y-2 text-[11px]">
                 <div>
-                  <div className="text-slate-500 mb-1">Expiries near term</div>
+                  <div className="text-slate-500 mb-1">View</div>
                   <div className="flex gap-1">
-                    {[1,2,3,4,6].map(n => (
-                      <button key={n} onClick={() => setExpiries(n)} className={`btn flex-1 ${expiries===n?"active":""}`}>{n}</button>
+                    <button onClick={() => setView("grid")} data-testid="view-grid" className={`btn flex-1 ${view === "grid" ? "active" : ""}`}>2D Grid</button>
+                    <button onClick={() => setView("bar")} data-testid="view-bar" className={`btn flex-1 ${view === "bar" ? "active" : ""}`}>Bars</button>
+                  </div>
+                </div>
+                <div>
+                  <div className="text-slate-500 mb-1">Expiries</div>
+                  <div className="flex gap-1">
+                    {[2, 4, 6, 8, 12].map(n => (
+                      <button key={n} onClick={() => setExpiries(n)} className={`btn flex-1 ${expiries === n ? "active" : ""}`}>{n}</button>
                     ))}
                   </div>
                 </div>
                 <div>
-                  <div className="text-slate-500 mb-1">Side relative to spot</div>
+                  <div className="text-slate-500 mb-1">Side</div>
                   <div className="flex gap-1">
-                    {["all","above","below"].map(s => (
-                      <button key={s} onClick={() => setFilters(f=>({...f,side:s}))} className={`btn flex-1 ${filters.side===s?"active":""}`}>{s}</button>
+                    {["all", "above", "below"].map(s => (
+                      <button key={s} onClick={() => setFilters(f => ({ ...f, side: s }))} className={`btn flex-1 ${filters.side === s ? "active" : ""}`}>{s}</button>
                     ))}
                   </div>
                 </div>
                 <div>
                   <div className="text-slate-500 mb-1">Lifecycle</div>
                   <div className="flex gap-1 flex-wrap">
-                    {["all","fresh","tested","delivered","decaying"].map(s => (
-                      <button key={s} onClick={() => setFilters(f=>({...f,lifecycle:s}))} className={`btn ${filters.lifecycle===s?"active":""}`}>{s}</button>
+                    {["all", "fresh", "tested", "delivered", "decaying"].map(s => (
+                      <button key={s} onClick={() => setFilters(f => ({ ...f, lifecycle: s }))} className={`btn ${filters.lifecycle === s ? "active" : ""}`}>{s}</button>
                     ))}
                   </div>
                 </div>
                 <div>
-                  <div className="text-slate-500 mb-1">Min |GEX| threshold</div>
-                  <input type="range" min="0" max={Math.abs(data?.nodes?.king?.gex||1e9)} step={1e7}
-                         value={filters.magMin} onChange={(e)=>setFilters(f=>({...f,magMin:Number(e.target.value)}))}
-                         className="w-full" />
+                  <div className="text-slate-500 mb-1">Min |GEX|</div>
+                  <input type="range" min="0" max={Math.abs(data?.nodes?.king?.gex || 1e9)} step={1e7}
+                    value={filters.magMin} onChange={(e) => setFilters(f => ({ ...f, magMin: Number(e.target.value) }))}
+                    className="w-full" />
                   <div className="text-[10px] text-slate-500 mono">{fmtAbs(filters.magMin)}</div>
                 </div>
               </div>
             </div>
 
-            <Movers onPick={(t) => { setTicker(t); setTrinityMode(false); }} />
+            <Movers onPick={(t) => setTicker(t)} />
           </aside>
 
-          {/* CENTER: heatmap */}
           <main className="col-span-6">
             <div className="panel p-3" data-testid="main-heatmap">
               <div className="flex justify-between items-center mb-2">
                 <div>
-                  <div className="label">Heatseeker · GEX by Strike</div>
-                  <div className="text-[10px] text-slate-500">Pos (green) = Pika · dealers long γ (contrarian) · Neg (red) = Barney · pro-cyclical · Gold = King</div>
+                  <div className="label">Heatseeker · GEX {view === "grid" ? "Grid (Strike × Expiry)" : "Bars"}</div>
+                  <div className="text-[10px] text-slate-500">Teal (Pika) = positive γ · Purple (Barney) = negative · Yellow-green = King · click any cell to drill</div>
                 </div>
                 <div className="flex gap-2 text-[10px]">
                   <span className="tag king">KING</span>
@@ -627,17 +811,22 @@ export default function App() {
                   <span className="tag air">AIR</span>
                 </div>
               </div>
-              {data ? <Heatmap data={data} filters={filters} /> : <div className="text-slate-500 text-xs p-6 text-center">Loading…</div>}
+              {data ? (
+                view === "grid"
+                  ? <GridHeatmap data={data} filters={filters} onCellClick={(s, e) => setDrilldown({ ticker, expiry: e, strike: s })} />
+                  : <BarHeatmap data={data} filters={filters} compact={false} />
+              ) : (
+                <div className="text-slate-500 text-xs p-6 text-center">Loading…</div>
+              )}
             </div>
           </main>
 
-          {/* RIGHT: patterns + velocity + nodes */}
           <aside className="col-span-3 space-y-3">
             <div className="panel p-3" data-testid="patterns-panel">
               <div className="label mb-2">Patterns Detected</div>
               <div className="space-y-2">
-                {data?.patterns?.length ? data.patterns.map((p,i) => <PatternCard key={i} p={p} />) : (
-                  <div className="text-slate-500 text-xs">No textbook pattern. Trade only A+ structure.</div>
+                {data?.patterns?.length ? data.patterns.map((p, i) => <PatternCard key={i} p={p} />) : (
+                  <div className="text-slate-500 text-xs">No textbook pattern. A+ setups only.</div>
                 )}
               </div>
             </div>
@@ -650,10 +839,10 @@ export default function App() {
               <div className="panel p-3" data-testid="air-pockets-panel">
                 <div className="label mb-2">Air Pockets</div>
                 <div className="space-y-1 text-[11px]">
-                  {data.nodes.air_pockets.map((a,i) => (
+                  {data.nodes.air_pockets.map((a, i) => (
                     <div key={i} className="flex justify-between text-slate-400">
-                      <span className="mono">{fmt(a.low,0)} – {fmt(a.high,0)}</span>
-                      <span className="text-slate-500">width {a.width} · mid {fmt(a.mid,0)}</span>
+                      <span className="mono">{fmt(a.low, 0)} – {fmt(a.high, 0)}</span>
+                      <span className="text-slate-500">w {a.width} · mid {fmt(a.mid, 0)}</span>
                     </div>
                   ))}
                 </div>
@@ -664,9 +853,18 @@ export default function App() {
         </div>
       )}
 
-      {/* FOOTER */}
+      {/* FLOWSEEKER */}
+      {page === "flowseeker" && (
+        <div className="p-4">
+          <Flowseeker ticker={ticker} />
+        </div>
+      )}
+
+      {/* DRILLDOWN MODAL */}
+      {drilldown && <Drilldown {...drilldown} onClose={() => setDrilldown(null)} />}
+
       <footer className="border-t border-slate-800 px-4 py-2 text-[10px] text-slate-600 flex justify-between">
-        <span>Data: Polygon.io (aggs, movers) + yfinance (chains, IV). GEX via Black-Scholes γ.</span>
+        <span>Data: Databento OPRA (OI) · yfinance (IV) · Polygon (aggs). GEX via Black-Scholes γ.</span>
         <span>Confluence Decoder · Skylit-style Heatseeker · {new Date().getFullYear()}</span>
       </footer>
     </div>

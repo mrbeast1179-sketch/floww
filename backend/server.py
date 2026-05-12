@@ -1,22 +1,22 @@
 """
 Confluence Decoder - Skylit-style Heatseeker GEX Analytics
-- Polygon: stock aggs, top movers proxy, reference
-- yfinance: spot + options chains (OI, IV)
-- Black-Scholes gamma -> per-strike GEX
-- Node hierarchy: King, Floors, Ceilings, Gatekeepers, Air Pockets
-- Patterns: Rug, Reverse Rug, Pika Cloud, Beach Ball, Whipsaw, Rainbow Road
-- Velocity (rate of change) + Rolling floors/ceilings via Mongo snapshots
-- Trinity mode aggregation across SPX/SPY/QQQ
+- Databento: real-time/EOD Open Interest via OPRA.PILLAR statistics + Live trades for Flowseeker
+- yfinance: spot + IV from option chains (fallback for OI when Databento has no data)
+- Polygon: stock aggs, tap-count history
+- Black-Scholes gamma -> per-strike (and per-strike×expiry) GEX
+- Node hierarchy, patterns, velocity, rolling, trinity
 """
-from fastapi import FastAPI, APIRouter, HTTPException, Query
+from fastapi import FastAPI, APIRouter, HTTPException, Query, Request
+from fastapi.responses import StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
 from motor.motor_asyncio import AsyncIOMotorClient
 from pydantic import BaseModel
 from pathlib import Path
 from typing import List, Optional, Dict, Any
-from datetime import datetime, timezone, date
+from datetime import datetime, timezone, date, timedelta
 import os
+import json
 import logging
 import asyncio
 import math
@@ -26,6 +26,8 @@ import yfinance as yf
 import pandas as pd
 import numpy as np
 from scipy.stats import norm
+
+from databento_provider import init_cache, fetch_oi_for_ticker, PARENT_MAP, stream_live_trades
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / ".env")
@@ -76,6 +78,18 @@ def bs_gamma(S: float, K: float, T: float, sigma: float, r: float = RISK_FREE_RA
     try:
         d1 = (math.log(S / K) + (r - q + 0.5 * sigma * sigma) * T) / (sigma * math.sqrt(T))
         return math.exp(-q * T) * norm.pdf(d1) / (S * sigma * math.sqrt(T))
+    except Exception:
+        return 0.0
+
+
+def bs_delta(S: float, K: float, T: float, sigma: float, q: float = 0.0, kind: str = "call", r: float = RISK_FREE_RATE) -> float:
+    if S <= 0 or K <= 0 or T <= 0 or sigma <= 0:
+        return 0.0
+    try:
+        d1 = (math.log(S / K) + (r - q + 0.5 * sigma * sigma) * T) / (sigma * math.sqrt(T))
+        if kind == "call":
+            return math.exp(-q * T) * norm.cdf(d1)
+        return -math.exp(-q * T) * norm.cdf(-d1)
     except Exception:
         return 0.0
 
@@ -138,6 +152,69 @@ def fetch_spot_and_chains(ticker: str, max_expiries: int = 4) -> Dict[str, Any]:
     return data
 
 
+async def fetch_spot_and_chains_merged(ticker: str, max_expiries: int = 4) -> Dict[str, Any]:
+    """yfinance for spot+IV + Databento for OI. Falls back gracefully."""
+    yf_data = await asyncio.to_thread(fetch_spot_and_chains, ticker, max_expiries)
+    spot = yf_data["spot"]
+    dbn_oi = {}
+    try:
+        dbn_oi = await fetch_oi_for_ticker(ticker)
+    except Exception as e:
+        log.warning(f"databento OI lookup fail {ticker}: {e}")
+
+    if not dbn_oi:
+        # No Databento data — pure yfinance
+        return {**yf_data, "data_source": "yfinance"}
+
+    # Build (strike, expiry, type) -> OI map from Databento
+    dbn_map: Dict[tuple, int] = {}
+    for sym, c in dbn_oi.items():
+        dbn_map[(c["strike"], c["expiry"], c["type"])] = c["oi"]
+
+    # Overlay Databento OI onto yfinance IV/strike contracts. Add any DBN contracts missing in YF using avg IV.
+    yf_keys = set()
+    for c in yf_data["contracts"]:
+        key = (c["strike"], c["expiry"], c["type"])
+        dbn_val = dbn_map.get(key)
+        if dbn_val is not None:
+            c["oi"] = max(c["oi"], dbn_val)  # prefer larger (latest EOD vs YF intraday)
+            c["oi_source"] = "databento"
+        else:
+            c["oi_source"] = "yfinance"
+        yf_keys.add(key)
+
+    # Add DBN-only contracts: estimate IV by interpolation per expiry
+    today = datetime.now(timezone.utc).date()
+    iv_by_expiry: Dict[str, float] = {}
+    for c in yf_data["contracts"]:
+        iv_by_expiry.setdefault(c["expiry"], []).append(c["iv"]) if False else None
+    iv_avg_by_expiry: Dict[str, float] = {}
+    for c in yf_data["contracts"]:
+        iv_avg_by_expiry.setdefault(c["expiry"], 0.0)
+        iv_avg_by_expiry[c["expiry"]] = (iv_avg_by_expiry[c["expiry"]] + c["iv"]) / 2
+
+    for (strike, expiry, typ), oi in dbn_map.items():
+        if (strike, expiry, typ) in yf_keys:
+            continue
+        if expiry not in iv_avg_by_expiry:
+            # Skip if no IV reference (unknown expiry)
+            continue
+        try:
+            exp_d = datetime.strptime(expiry, "%Y-%m-%d").date()
+        except Exception:
+            continue
+        T = max((exp_d - today).days, 1) / 365.0
+        yf_data["contracts"].append({
+            "expiry": expiry, "T": T, "type": typ, "strike": strike,
+            "oi": oi, "iv": iv_avg_by_expiry[expiry], "volume": 0,
+            "oi_source": "databento",
+        })
+
+    yf_data["data_source"] = "databento+yfinance"
+    yf_data["dbn_contracts"] = len(dbn_map)
+    return yf_data
+
+
 # ----------------------------- GEX Aggregation --------------------------------
 
 def compute_gex_by_strike(spot: float, contracts: List[Dict[str, Any]], ticker: str = "") -> List[Dict[str, Any]]:
@@ -171,6 +248,40 @@ def compute_gex_by_strike(spot: float, contracts: List[Dict[str, Any]], ticker: 
 
     out = sorted(agg.values(), key=lambda r: r["strike"])
     return out
+
+
+def compute_gex_grid(spot: float, contracts: List[Dict[str, Any]], ticker: str = "") -> Dict[str, Any]:
+    """2D grid: GEX per (strike, expiry). Skylit-style heatmap layout.
+    Returns {expiries: [...], strikes: [...], grid: {expiry: {strike: gex}}}"""
+    if spot <= 0 or not contracts:
+        return {"expiries": [], "strikes": [], "grid": {}}
+    q = DIV_YIELD.get(ticker, 0.0)
+    grid: Dict[str, Dict[float, float]] = {}
+    strike_totals: Dict[float, float] = {}
+    for c in contracts:
+        gamma = bs_gamma(spot, c["strike"], c["T"], c["iv"], q=q)
+        if gamma <= 0:
+            continue
+        gex_unit = gamma * c["oi"] * 100.0 * spot * spot * 0.01
+        sign = 1.0 if c["type"] == "call" else -1.0
+        cell = sign * gex_unit
+        d = grid.setdefault(c["expiry"], {})
+        d[c["strike"]] = d.get(c["strike"], 0.0) + cell
+        strike_totals[c["strike"]] = strike_totals.get(c["strike"], 0.0) + cell
+
+    expiries = sorted(grid.keys())
+    strikes = sorted(strike_totals.keys())
+
+    def _k(x: float) -> str:
+        # Normalize key: integer-valued floats become "739", otherwise "739.5"
+        return str(int(x)) if float(x).is_integer() else str(x)
+
+    return {
+        "expiries": expiries,
+        "strikes": strikes,
+        "grid": {e: {_k(k): v for k, v in grid[e].items()} for e in expiries},
+        "strike_totals": [{"strike": k, "gex": v} for k, v in sorted(strike_totals.items())],
+    }
 
 
 # ----------------------------- Node Hierarchy ---------------------------------
@@ -526,15 +637,20 @@ class HeatmapResp(BaseModel):
 
 # ----------------------------- Heatmap Core -----------------------------------
 
-async def build_heatmap(ticker: str, max_expiries: int = 4, with_taps: bool = True) -> Dict[str, Any]:
-    raw = await asyncio.to_thread(fetch_spot_and_chains, ticker, max_expiries)
+async def build_heatmap(ticker: str, max_expiries: int = 4, with_taps: bool = True, mode: str = "day") -> Dict[str, Any]:
+    if mode == "swing":
+        max_expiries = max(max_expiries, 8)
+    raw = await fetch_spot_and_chains_merged(ticker, max_expiries)
     spot = raw["spot"]
     if not spot or not raw["contracts"]:
         raise HTTPException(404, f"No options data for {ticker}")
 
-    strikes = compute_gex_by_strike(spot, raw["contracts"], ticker)    # Limit to strikes within +/- 15% of spot (Heatseeker focus)
-    band = 0.15
+    strikes = compute_gex_by_strike(spot, raw["contracts"], ticker)
+    grid = compute_gex_grid(spot, raw["contracts"], ticker)
+    band = 0.25 if mode == "swing" else 0.15
     strikes = [s for s in strikes if abs(s["strike"] - spot) / spot <= band]
+    grid["strikes"] = [k for k in grid["strikes"] if abs(k - spot) / spot <= band]
+    grid["strike_totals"] = [s for s in grid["strike_totals"] if abs(s["strike"] - spot) / spot <= band]
 
     # Tag fresh/tested via tap counts
     tap_map: Dict[float, int] = {}
@@ -565,10 +681,13 @@ async def build_heatmap(ticker: str, max_expiries: int = 4, with_taps: bool = Tr
         "spot": spot,
         "expiries_used": raw["expiries"],
         "strikes": strikes,
+        "grid": grid,
         "nodes": nodes,
         "patterns": patterns,
         "velocity": velocity,
         "tap_counts": {str(k): v for k, v in tap_map.items()},
+        "data_source": raw.get("data_source", "yfinance"),
+        "mode": mode,
         "asof": datetime.now(timezone.utc).isoformat(),
     }
 
@@ -606,18 +725,18 @@ async def list_tickers():
 
 
 @api.get("/heatmap/{ticker}")
-async def heatmap(ticker: str, expiries: int = Query(4, ge=1, le=8), taps: bool = True):
+async def heatmap(ticker: str, expiries: int = Query(4, ge=1, le=12), taps: bool = True, mode: str = Query("day", pattern="^(day|swing)$")):
     t = ticker.strip().upper()
     if t == "SPX":
         t = "^SPX"
-    return await build_heatmap(t, expiries, taps)
+    return await build_heatmap(t, expiries, taps, mode)
 
 
 @api.get("/trinity")
-async def trinity(tickers: str = Query(",".join(TRINITY))):
+async def trinity(tickers: str = Query(",".join(TRINITY)), mode: str = Query("day", pattern="^(day|swing)$")):
     syms = [t.strip() for t in tickers.split(",") if t.strip()]
     out: Dict[str, Any] = {}
-    results = await asyncio.gather(*[build_heatmap(s, 3, True) for s in syms], return_exceptions=True)
+    results = await asyncio.gather(*[build_heatmap(s, 3, True, mode) for s in syms], return_exceptions=True)
     for sym, res in zip(syms, results):
         if isinstance(res, Exception):
             out[sym] = {"error": str(res)}
@@ -681,6 +800,98 @@ async def glossary():
     }
 
 
+# ----------------------------- Drilldown / Contract details -------------------
+
+@api.get("/contract/{ticker}")
+async def contract_drilldown(ticker: str, expiry: Optional[str] = None, strike: Optional[float] = None):
+    """Per-contract details: strike OI/IV breakdown, call vs put.
+    Returns rows for ALL strikes at given expiry, or all expiries at given strike."""
+    t = ticker.strip().upper()
+    if t == "SPX":
+        t = "^SPX"
+    raw = await fetch_spot_and_chains_merged(t, 8)
+    spot = raw["spot"]
+    rows: List[Dict[str, Any]] = []
+    for c in raw["contracts"]:
+        if expiry and c["expiry"] != expiry:
+            continue
+        if strike and abs(c["strike"] - strike) > 0.01:
+            continue
+        q = DIV_YIELD.get(t, 0.0)
+        gamma = bs_gamma(spot, c["strike"], c["T"], c["iv"], q=q)
+        delta = bs_delta(spot, c["strike"], c["T"], c["iv"], q, c["type"])
+        gex = gamma * c["oi"] * 100 * spot * spot * 0.01 * (1 if c["type"] == "call" else -1)
+        rows.append({
+            **c,
+            "delta": round(delta, 4),
+            "gamma": round(gamma, 6),
+            "gex": gex,
+        })
+    return _sanitize({"ticker": t, "spot": spot, "rows": rows,
+                      "count": len(rows), "data_source": raw.get("data_source")})
+
+
+# ----------------------------- Flowseeker (SSE) -------------------------------
+
+@api.get("/flow/{ticker}")
+async def flow_stream(ticker: str, request: Request, max_seconds: int = Query(120, ge=10, le=300)):
+    """SSE stream of live OPRA trades for a ticker via Databento Live.
+    Cost-capped: max_seconds <= 300 (5 min). Filters to unusual/sweep/block by default in client."""
+    t = ticker.strip().upper().replace("^", "")
+    parent = PARENT_MAP.get(t, f"{t}.OPT")
+    queue: asyncio.Queue = asyncio.Queue(maxsize=2000)
+    stop = asyncio.Event()
+
+    async def producer():
+        try:
+            await stream_live_trades(parent, queue, stop)
+        finally:
+            await queue.put({"_eof": True})
+
+    task = asyncio.create_task(producer())
+    deadline = time.time() + max_seconds
+
+    async def gen():
+        try:
+            yield f"event: ready\ndata: {json.dumps({'parent': parent})}\n\n"
+            while time.time() < deadline:
+                if await request.is_disconnected():
+                    break
+                try:
+                    msg = await asyncio.wait_for(queue.get(), timeout=1.0)
+                except asyncio.TimeoutError:
+                    yield ": ping\n\n"
+                    continue
+                if msg.get("_eof"):
+                    yield f"event: end\ndata: {{}}\n\n"
+                    break
+                if msg.get("_error"):
+                    yield f"event: error\ndata: {json.dumps(msg)}\n\n"
+                    break
+                yield f"data: {json.dumps(msg)}\n\n"
+        finally:
+            stop.set()
+            try:
+                task.cancel()
+            except Exception:
+                pass
+
+    return StreamingResponse(gen(), media_type="text/event-stream")
+
+
+@api.get("/databento/usage")
+async def dbn_usage():
+    """Quick view of Databento cache stats."""
+    try:
+        n = await db.databento_oi.count_documents({})
+        recent = []
+        async for doc in db.databento_oi.find({}, {"_id": 0, "parent": 1, "day": 1, "count": 1, "fetched_at": 1}).sort("fetched_at", -1).limit(20):
+            recent.append(doc)
+        return {"cached_days": n, "recent": recent}
+    except Exception as e:
+        return {"error": str(e)}
+
+
 app.include_router(api)
 
 app.add_middleware(
@@ -695,6 +906,9 @@ app.add_middleware(
 @app.on_event("startup")
 async def on_start():
     await db.snapshots.create_index([("ticker", 1), ("ts", -1)])
+    cache = init_cache(db)
+    await cache.ensure_index()
+    log.info("databento cache initialized")
 
 
 @app.on_event("shutdown")
