@@ -721,6 +721,7 @@ function useLiveSpot(ticker, enabled = true, intervalMs = 5000) {
     if (!enabled || !ticker) return;
     let mounted = true;
     const f = async () => {
+      if (typeof document !== "undefined" && document.visibilityState === "hidden") return;
       try {
         const res = await axios.get(`${API}/spot/${encodeURIComponent(ticker)}`);
         if (mounted) setSpot(res.data);

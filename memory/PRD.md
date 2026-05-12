@@ -1,4 +1,76 @@
-# Confluence Decoder · Heatseeker GEX Terminal (v2 — Databento + 2D Grid)
+# Confluence Decoder · Heatseeker GEX Terminal (v3 — Cost-aware Live)
+
+## Problem Statement
+A personal Skylit-style trading dashboard, cost-optimized to stretch $125 Databento credit across many trading sessions. User trades SPY + QQQ, watches 09:00-10:30 ET only, prefers Trinity + Swing modes. v1 = baseline. v2 = Databento OI + 2D grid. **v3 (this iteration) = cost-tier gating, live-spot pulse (free), session/budget controls.**
+
+## Architecture
+- **Backend**: FastAPI + MongoDB. Two-tier data routing:
+  - **Paid tier (Databento)**: only tickers in `PAID_TICKERS` set (default `["SPY"]`). Cached 24h. ~$0.15/ticker/day for OI.
+  - **Free tier**: yfinance OI + IV for everything else; Polygon for daily aggs.
+- `databento_provider.py`: OPRA.PILLAR statistics (stat_type=9 OI) + Live `trades` stream for Flowseeker. Hard stop_event polling.
+- `server.py`: live policy + budget tracking + window enforcement.
+- **Frontend**: React 19 dark terminal. Skylit 2D grid, Trinity (default), Flowseeker SSE, Drilldown.
+
+## What's Implemented
+### v1 (baseline)
+- ✅ Black-Scholes γ GEX, node hierarchy, 6 patterns, tap-prob lifecycle, Velocity Mode, Rolling Floors/Ceilings, Trinity alignment, Top Movers, filters/sort.
+
+### v2 (Databento + Grid)
+- ✅ Databento OPRA OI cached in Mongo, 2D Strike × Expiry grid (Skylit-style), Day/Swing toggle, Flowseeker SSE, Contract Drilldown, NaN/Inf sanitization.
+
+### v3 (this iteration — Cost-aware)
+- ✅ **Two-tier data routing** — `PAID_TICKERS` set gates Databento; everyone else free. Default ['SPY'] only.
+- ✅ **Live policy endpoint** `POST /api/live/policy` to adjust paid tickers + trading window.
+- ✅ **Trading window enforcement** — `/api/flow` refuses outside 09:00-10:30 ET unless `enforce_window=false`.
+- ✅ **Budget meter** `GET /api/databento/usage` — running cost (OI snapshots × $0.15 + live tape estimate), budget $125, % used, in-window indicator.
+- ✅ **Hard stop endpoint** `POST /api/live/tape/stop` — idempotent.
+- ✅ **Fast free spot endpoint** `GET /api/spot/{ticker}` — yfinance, 5s cache, used by frontend `useLiveSpot` for live GEX feel without Databento cost.
+- ✅ **Trinity is now the default page** (per user preference).
+- ✅ **BudgetMeter header widget** — always-visible $$/total + paid tickers + window + on/off-window status + edit-policy panel.
+- ✅ **Live spot pulse on Heatseeker** — `● LIVE` indicator + ▲/▼ delta vs heatmap-snapshot spot, free, 5s polling, pauses when tab hidden.
+- ✅ **Flowseeker session controls** — duration (1m/2m/5m/10m), override-window checkbox, structured human-readable error messages, session_id + auto_stop_at displayed.
+- ✅ Test coverage: **33/33 backend pytest pass** (9 v1 + 8 v2 + 16 v3), full frontend E2E pass.
+
+## Cost Model (v3)
+- SPY OI snapshot: ~$0.15/day (cached 24h)
+- QQQ + SPXW: $0 (yfinance)
+- Spot polling: $0 (yfinance)
+- Heatmap recompute on spot tick: $0 (uses cached OI)
+- Flowseeker live tape: ~$0.02-0.10 per 2-minute session on SPY (highly variable). User-gated.
+
+**Estimated runway**: SPY OI only = **~830 days** from $125. Adding 2 daily 2-min Flow sessions ≈ 600+ days.
+
+## API Surface (v3 additions)
+- `GET /api/spot/{ticker}` — free yfinance spot (5s cache)
+- `GET /api/databento/usage` — cost/budget meter + sessions
+- `POST /api/live/policy` — update PAID_TICKERS + window
+- `POST /api/live/tape/stop` — hard-stop active SSE tape
+- `GET /api/flow/{ticker}?enforce_window=true|false` — gated streaming
+
+## Data Sources
+- **Databento OPRA.PILLAR**: SPY OI (statistics schema) + SPY live trades (Flowseeker)
+- **yfinance**: spot + IV + OI for free-tier tickers (QQQ, SPXW, AAPL, etc.)
+- **Polygon REST**: daily aggs for tap-count lifecycle (free tier)
+
+## Prioritized Backlog
+**P1**
+- Make BudgetMeter "in-window" status more visually prominent (color emphasis when active 9:00-10:30 ET)
+- Persist `PAID_TICKERS` in Mongo (currently in-memory; multi-worker safe)
+- Auto-pull SPY OI snapshot at 9:00 ET via APScheduler so first request in trading window is instant
+
+**P2**
+- Snapshot deep-link sharing (`/snap/:id`)
+- Intraday OI delta estimation from Flow trade volume (when tape is active)
+- Persist tap-prob history per node for true 1st/2nd/3rd tap stats
+
+**P3**
+- Grid virtualization for >200-row swing views
+- Export grid as PNG / heatmap image
+- Watchlist personalization, alerts on Rolling Floor/Ceiling shifts
+
+## Next Action Items
+- Optional: Scheduled OI pre-fetch at 8:55 ET so user gets instant data at open
+- Persist PAID_TICKERS + LIVE_WINDOW in Mongo for multi-worker durability
 
 ## Problem Statement
 A personal Skylit-style trading dashboard. v1 wired Polygon + yfinance for GEX. v2 (this iteration) plugs in **Databento** ($125 credits) for real OPRA Open Interest, refactors the heatmap to a **2D Strike × Expiry grid** matching Skylit's Heatseeker layout, adds **Swing Mode** for multi-expiry views, **Flowseeker** (live OPRA trade tape), and **Contract Drilldown**. Trinity Mode (SPXW + SPY + QQQ) for cross-index confluence.

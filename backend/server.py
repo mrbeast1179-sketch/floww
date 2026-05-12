@@ -882,7 +882,10 @@ async def flow_stream(ticker: str, request: Request, max_seconds: int = Query(12
         return StreamingResponse(deny(), media_type="text/event-stream")
     if enforce_window and not _in_window_now_et():
         async def out_of_window():
-            yield f"event: error\ndata: {json.dumps({'error': f'Outside live window {LIVE_WINDOW}. Pass enforce_window=false to override.'})}\n\n"
+            window_str = f"{LIVE_WINDOW['start_hhmm']}-{LIVE_WINDOW['stop_hhmm']} ET"
+            err = {"error": f"Outside live window ({window_str}). Toggle 'override window' to bypass.",
+                   "window": LIVE_WINDOW}
+            yield f"event: error\ndata: {json.dumps(err)}\n\n"
         return StreamingResponse(out_of_window(), media_type="text/event-stream")
 
     parent = PARENT_MAP.get(t, f"{t}.OPT")
@@ -1026,13 +1029,14 @@ async def set_live_policy(req: LivePolicyReq):
 @api.get("/spot/{ticker}")
 async def quick_spot(ticker: str):
     """Cheap, fast spot price via yfinance. Free. Use for live GEX recompute (γ depends on S)."""
+    SPOT_TTL = 5
     t = ticker.strip().upper()
     if t == "SPX":
         t = "^SPX"
     cache_key = f"spot:{t}"
-    hit = cache_get(cache_key)
-    if hit is not None:
-        return hit
+    item = _cache.get(cache_key)
+    if item and (time.time() - item["ts"]) < SPOT_TTL:
+        return item["data"]
     def _f():
         try:
             yt = yf.Ticker(t)
@@ -1042,8 +1046,7 @@ async def quick_spot(ticker: str):
             return 0.0
     spot = await asyncio.to_thread(_f)
     res = {"ticker": t, "spot": spot, "ts": datetime.now(timezone.utc).isoformat()}
-    # Short TTL so it feels live
-    _cache[cache_key] = {"ts": time.time() - (CACHE_TTL_SEC - 5), "data": res}  # ~5s TTL
+    _cache[cache_key] = {"ts": time.time(), "data": res}
     return res
 
 
