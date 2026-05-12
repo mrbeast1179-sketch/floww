@@ -607,7 +607,10 @@ async def list_tickers():
 
 @api.get("/heatmap/{ticker}")
 async def heatmap(ticker: str, expiries: int = Query(4, ge=1, le=8), taps: bool = True):
-    return await build_heatmap(ticker.upper().replace("SPX", "^SPX") if ticker.upper() in ("SPX",) else ticker, expiries, taps)
+    t = ticker.strip().upper()
+    if t == "SPX":
+        t = "^SPX"
+    return await build_heatmap(t, expiries, taps)
 
 
 @api.get("/trinity")

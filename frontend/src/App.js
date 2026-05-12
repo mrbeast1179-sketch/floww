@@ -182,8 +182,9 @@ function PatternCard({ p }) {
 function VelocityGauge({ velocity }) {
   if (!velocity) return null;
   const score = velocity.velocity_score || 0;
+  const warming = (velocity.snapshots_count || 0) < 3;
   const angle = score * 180 - 90;
-  const color = score > 0.4 ? "#ef4444" : score > 0.2 ? "#fbbf24" : "#34d399";
+  const color = warming ? "#64748b" : score > 0.4 ? "#ef4444" : score > 0.2 ? "#fbbf24" : "#34d399";
   return (
     <div className="panel-2 p-3" data-testid="velocity-gauge">
       <div className="label mb-2">Velocity Mode</div>
@@ -196,8 +197,8 @@ function VelocityGauge({ velocity }) {
           <circle cx="50" cy="55" r="3" fill={color} />
         </svg>
         <div>
-          <div className="text-2xl font-bold mono" style={{ color }}>{(score*100).toFixed(0)}</div>
-          <div className="text-[10px] uppercase tracking-widest text-slate-500">rate of change</div>
+          <div className="text-2xl font-bold mono" style={{ color }}>{warming ? "…" : (score*100).toFixed(0)}</div>
+          <div className="text-[10px] uppercase tracking-widest text-slate-500">{warming ? "warming up" : "rate of change"}</div>
         </div>
       </div>
       <div className="grid grid-cols-2 gap-2 mt-3 text-[11px]">
