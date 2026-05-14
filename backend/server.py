@@ -672,9 +672,49 @@ class HeatmapResp(BaseModel):
     asof: str
 
 
+# ----------------------------- Volume-Weighted GEX (for intraday) --------------
+
+def compute_gex_by_strike_volume(spot: float, contracts: List[Dict[str, Any]], ticker: str) -> List[Dict[str, Any]]:
+    """Volume-weighted GEX — shows where the action is RIGHT NOW.
+    Uses volume instead of OI for weighting. Same BS gamma formula."""
+    if spot <= 0 or not contracts:
+        return []
+    q = DIV_YIELD.get(ticker, 0.0)
+    agg: Dict[float, Dict[str, float]] = {}
+    for c in contracts:
+        gamma = bs_gamma(spot, c["strike"], c["T"], c["iv"], q=q)
+        if gamma <= 0:
+            continue
+        # Use volume instead of OI for intraday focus
+        vol = c.get("volume", 0) or 0
+        if vol <= 0:
+            continue
+        gex_unit = gamma * vol * 100.0 * spot * spot * 0.01
+        sign = 1.0 if c["type"] == "call" else -1.0
+        bucket = agg.setdefault(c["strike"], {
+            "strike": c["strike"], "gex": 0.0, "call_gex": 0.0, "put_gex": 0.0,
+            "call_oi": 0.0, "put_oi": 0.0, "total_oi": 0.0,
+            "call_vol": 0.0, "put_vol": 0.0, "total_vol": 0.0,
+        })
+        bucket["gex"] += sign * gex_unit
+        if c["type"] == "call":
+            bucket["call_gex"] += gex_unit
+            bucket["call_vol"] += vol
+            bucket["call_oi"] += c["oi"]
+        else:
+            bucket["put_gex"] += gex_unit
+            bucket["put_vol"] += vol
+            bucket["put_oi"] += c["oi"]
+        bucket["total_oi"] += c["oi"]
+        bucket["total_vol"] += vol
+
+    out = sorted(agg.values(), key=lambda r: r["strike"])
+    return out
+
+
 # ----------------------------- Heatmap Core -----------------------------------
 
-async def build_heatmap(ticker: str, max_expiries: int = 4, with_taps: bool = True, mode: str = "day", dte: Optional[int] = None) -> Dict[str, Any]:
+async def build_heatmap(ticker: str, max_expiries: int = 4, with_taps: bool = True, mode: str = "day", dte: Optional[int] = None, scalp: bool = False) -> Dict[str, Any]:
     if mode == "swing":
         max_expiries = max(max_expiries, 8)
     raw = await fetch_spot_and_chains_merged(ticker, max_expiries)
@@ -682,43 +722,67 @@ async def build_heatmap(ticker: str, max_expiries: int = 4, with_taps: bool = Tr
     if not spot or not raw["contracts"]:
         raise HTTPException(404, f"No options data for {ticker}")
 
-    # DTE filter for day-trading focus: dte=0 → today only, dte=1 → today+tomorrow, None = All
+    today = datetime.now(timezone.utc).date()
+
+    # Scalp mode: force 0DTE only, tight band, volume-weighted
+    if scalp:
+        dte = 0
+        mode = "scalp"
+
+    # DTE filter
     if dte is not None:
-        today = datetime.now(timezone.utc).date()
         cutoff = today + timedelta(days=dte)
         raw["contracts"] = [c for c in raw["contracts"]
                             if datetime.strptime(c["expiry"], "%Y-%m-%d").date() <= cutoff]
         raw["expiries"] = sorted({c["expiry"] for c in raw["contracts"]})
 
-    strikes = compute_gex_by_strike(spot, raw["contracts"], ticker)
-    grid = compute_gex_grid(spot, raw["contracts"], ticker)
-    band = 0.25 if mode == "swing" else 0.15
+    # Choose GEX computation: volume-weighted for scalp, OI for normal
+    if scalp:
+        strikes = compute_gex_by_strike_volume(spot, raw["contracts"], ticker)
+        grid = {"expiries": raw["expiries"], "strikes": [], "grid": {}, "strike_totals": []}
+    else:
+        strikes = compute_gex_by_strike(spot, raw["contracts"], ticker)
+        grid = compute_gex_grid(spot, raw["contracts"], ticker)
+
+    # Band: scalp=±2%, day=±15%, swing=±25%
+    if scalp:
+        band = 0.02
+    elif mode == "swing":
+        band = 0.25
+    else:
+        band = 0.15
+
     strikes = [s for s in strikes if abs(s["strike"] - spot) / spot <= band]
-    grid["strikes"] = [k for k in grid["strikes"] if abs(k - spot) / spot <= band]
-    grid["strike_totals"] = [s for s in grid["strike_totals"] if abs(s["strike"] - spot) / spot <= band]
+    if not scalp:
+        grid["strikes"] = [k for k in grid["strikes"] if abs(k - spot) / spot <= band]
+        grid["strike_totals"] = [s for s in grid["strike_totals"] if abs(s["strike"] - spot) / spot <= band]
 
     # Tag fresh/tested via tap counts
     tap_map: Dict[float, int] = {}
-    if with_taps:
+    if with_taps and not scalp:
         tap_map = await tap_counts(ticker, [s["strike"] for s in strikes], days=5)
     for s in strikes:
-        tc = tap_map.get(s["strike"], 0)
-        s["taps"] = tc
-        if tc == 0:
-            s["lifecycle"] = "fresh"
-        elif tc == 1:
-            s["lifecycle"] = "tested"
-        elif tc == 2:
-            s["lifecycle"] = "delivered"
+        if scalp:
+            s["taps"] = 0
+            s["lifecycle"] = "live"
+            s["tap_prob"] = 1.0
         else:
-            s["lifecycle"] = "decaying"
-        # Tap probability per Skylit: 80/66/33/10
-        s["tap_prob"] = [0.80, 0.66, 0.33, 0.10][min(tc, 3)]
+            tc = tap_map.get(s["strike"], 0)
+            s["taps"] = tc
+            if tc == 0:
+                s["lifecycle"] = "fresh"
+            elif tc == 1:
+                s["lifecycle"] = "tested"
+            elif tc == 2:
+                s["lifecycle"] = "delivered"
+            else:
+                s["lifecycle"] = "decaying"
+            s["tap_prob"] = [0.80, 0.66, 0.33, 0.10][min(tc, 3)]
 
     nodes = classify_nodes(strikes, spot)
     patterns = detect_patterns(strikes, nodes, spot)
 
-    # Velocity & rolling: compute against history BEFORE saving current snapshot
+    # Velocity & rolling
     velocity = await velocity_and_rolling(ticker, {"strikes_compact": [{"strike": s["strike"], "gex": s["gex"]} for s in strikes]})
 
     payload = {
@@ -736,7 +800,6 @@ async def build_heatmap(ticker: str, max_expiries: int = 4, with_taps: bool = Tr
         "asof": datetime.now(timezone.utc).isoformat(),
     }
 
-    # Persist asynchronously
     asyncio.create_task(save_snapshot(ticker, payload))
     return _sanitize(payload)
 
@@ -770,11 +833,11 @@ async def list_tickers():
 
 
 @api.get("/heatmap/{ticker}")
-async def heatmap(ticker: str, expiries: int = Query(4, ge=1, le=12), taps: bool = True, mode: str = Query("day", pattern="^(day|swing)$"), dte: Optional[int] = Query(None, ge=0, le=30, description="DTE filter: 0=today only, 1=today+tomorrow, 7=within week, None=all")):
+async def heatmap(ticker: str, expiries: int = Query(4, ge=1, le=12), taps: bool = True, mode: str = Query("day", pattern="^(day|swing|scalp)$"), dte: Optional[int] = Query(None, ge=0, le=30, description="DTE filter: 0=today only, 1=today+tomorrow, 7=within week, None=all"), scalp: bool = Query(False, description="Scalp mode: 0DTE only, volume-weighted GEX, ±2% band")):
     t = ticker.strip().upper()
     if t == "SPX":
         t = "^SPX"
-    return await build_heatmap(t, expiries, taps, mode, dte)
+    return await build_heatmap(t, expiries, taps, mode, dte, scalp)
 
 
 @api.get("/trinity")
@@ -881,10 +944,37 @@ async def contract_drilldown(ticker: str, expiry: Optional[str] = None, strike: 
 @api.get("/flow/{ticker}")
 async def flow_stream(ticker: str, request: Request, max_seconds: int = Query(120, ge=10, le=600), enforce_window: bool = Query(True)):
     """SSE stream of live OPRA trades via Databento Live.
-    Cost-capped: max_seconds (default 120, max 600). Outside the configured live window (default 9:00–10:30 ET),
-    the stream refuses to start unless enforce_window=false.
-    Tracks session in Mongo `live_sessions` with msg_count + est_cost_usd."""
+    Requires a Databento Live OPRA.PILLAR license (separate from Historical)."""
     t = ticker.strip().upper().replace("^", "")
+
+    # Check Databento key exists
+    key = os.environ.get("DATABENTO_API_KEY", "")
+    if not key:
+        async def no_key():
+            err = {"error": "Databento API key not configured.",
+                   "hint": "Set DATABENTO_API_KEY in backend/.env"}
+            yield f"event: error\ndata: {json.dumps(err)}\n\n"
+        return StreamingResponse(no_key(), media_type="text/event-stream")
+
+    # Pre-flight: try to detect missing Live license early
+    import databento as _db
+    try:
+        _test = _db.Live(key=key)
+        _test.subscribe(dataset="OPRA.PILLAR", schema="trades", stype_in="parent", symbols="SPY.OPT")
+        del _test
+    except Exception as _e:
+        async def no_license():
+            err = {
+                "error": "Databento Live OPRA.PILLAR license required.",
+                "detail": str(_e),
+                "hint": "Your key has Historical data access but NOT Live streaming. These are separate entitlements.",
+                "cost": "~$0.50-1.00 per SPY session. Your $125 credits can cover this.",
+                "upgrade": "https://databento.com/dashboard/licenses → Add OPRA.PILLAR Live",
+                "docs": "https://databento.com/docs/live/opra"
+            }
+            yield f"event: error\ndata: {json.dumps(err)}\n\n"
+        return StreamingResponse(no_license(), media_type="text/event-stream")
+
     if t not in PAID_TICKERS:
         async def deny():
             yield f"event: error\ndata: {json.dumps({'error': f'{t} not in paid tickers. POST /api/live/policy to enable.'})}\n\n"
