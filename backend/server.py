@@ -674,13 +674,21 @@ class HeatmapResp(BaseModel):
 
 # ----------------------------- Heatmap Core -----------------------------------
 
-async def build_heatmap(ticker: str, max_expiries: int = 4, with_taps: bool = True, mode: str = "day") -> Dict[str, Any]:
+async def build_heatmap(ticker: str, max_expiries: int = 4, with_taps: bool = True, mode: str = "day", dte: Optional[int] = None) -> Dict[str, Any]:
     if mode == "swing":
         max_expiries = max(max_expiries, 8)
     raw = await fetch_spot_and_chains_merged(ticker, max_expiries)
     spot = raw["spot"]
     if not spot or not raw["contracts"]:
         raise HTTPException(404, f"No options data for {ticker}")
+
+    # DTE filter for day-trading focus: dte=0 → today only, dte=1 → today+tomorrow, None = All
+    if dte is not None:
+        today = datetime.now(timezone.utc).date()
+        cutoff = today + timedelta(days=dte)
+        raw["contracts"] = [c for c in raw["contracts"]
+                            if datetime.strptime(c["expiry"], "%Y-%m-%d").date() <= cutoff]
+        raw["expiries"] = sorted({c["expiry"] for c in raw["contracts"]})
 
     strikes = compute_gex_by_strike(spot, raw["contracts"], ticker)
     grid = compute_gex_grid(spot, raw["contracts"], ticker)
@@ -762,18 +770,18 @@ async def list_tickers():
 
 
 @api.get("/heatmap/{ticker}")
-async def heatmap(ticker: str, expiries: int = Query(4, ge=1, le=12), taps: bool = True, mode: str = Query("day", pattern="^(day|swing)$")):
+async def heatmap(ticker: str, expiries: int = Query(4, ge=1, le=12), taps: bool = True, mode: str = Query("day", pattern="^(day|swing)$"), dte: Optional[int] = Query(None, ge=0, le=30, description="DTE filter: 0=today only, 1=today+tomorrow, 7=within week, None=all")):
     t = ticker.strip().upper()
     if t == "SPX":
         t = "^SPX"
-    return await build_heatmap(t, expiries, taps, mode)
+    return await build_heatmap(t, expiries, taps, mode, dte)
 
 
 @api.get("/trinity")
-async def trinity(tickers: str = Query(",".join(TRINITY)), mode: str = Query("day", pattern="^(day|swing)$")):
+async def trinity(tickers: str = Query(",".join(TRINITY)), mode: str = Query("day", pattern="^(day|swing)$"), dte: Optional[int] = Query(None, ge=0, le=30)):
     syms = [t.strip() for t in tickers.split(",") if t.strip()]
     out: Dict[str, Any] = {}
-    results = await asyncio.gather(*[build_heatmap(s, 3, True, mode) for s in syms], return_exceptions=True)
+    results = await asyncio.gather(*[build_heatmap(s, 3, True, mode, dte) for s in syms], return_exceptions=True)
     for sym, res in zip(syms, results):
         if isinstance(res, Exception):
             out[sym] = {"error": str(res)}
@@ -889,6 +897,15 @@ async def flow_stream(ticker: str, request: Request, max_seconds: int = Query(12
             yield f"event: error\ndata: {json.dumps(err)}\n\n"
         return StreamingResponse(out_of_window(), media_type="text/event-stream")
 
+    # Check Databento key exists
+    key = os.environ.get("DATABENTO_API_KEY", "")
+    if not key:
+        async def no_key():
+            err = {"error": "Databento API key not configured. Set DATABENTO_API_KEY in .env.",
+                   "hint": "Flowseeker requires a Databento Live OPRA.PILLAR license (separate from Historical)."}
+            yield f"event: error\ndata: {json.dumps(err)}\n\n"
+        return StreamingResponse(no_key(), media_type="text/event-stream")
+
     parent = PARENT_MAP.get(t, f"{t}.OPT")
     queue: asyncio.Queue = asyncio.Queue(maxsize=2000)
     stop = asyncio.Event()
@@ -924,6 +941,8 @@ async def flow_stream(ticker: str, request: Request, max_seconds: int = Query(12
     async def gen():
         msg_count = 0
         bytes_count = 0
+        first_msg_deadline = time.time() + 15  # wait 15s for first trade to detect license issues
+        license_warned = False
         try:
             yield f"event: ready\ndata: {json.dumps({'parent': parent, 'session_id': session_id, 'auto_stop_at': auto_stop_at})}\n\n"
             while time.time() < deadline:
@@ -932,10 +951,17 @@ async def flow_stream(ticker: str, request: Request, max_seconds: int = Query(12
                 try:
                     msg = await asyncio.wait_for(queue.get(), timeout=1.0)
                 except asyncio.TimeoutError:
+                    # No trades yet — if past first-msg window and still nothing, warn about license
+                    if not license_warned and time.time() > first_msg_deadline and msg_count == 0:
+                        license_warned = True
+                        warn = {"warning": "No trades received after 15s. Your Databento key may lack the OPRA Live license.",
+                                "hint": "OPRA.PILLAR Live is a separate paid entitlement from Historical data. Check your Databento dashboard → Licenses.",
+                                "docs": "https://databento.com/docs/live/opra"}
+                        yield f"event: warning\ndata: {json.dumps(warn)}\n\n"
                     yield ": ping\n\n"
                     continue
                 if msg.get("_eof"):
-                    yield f"event: end\ndata: {{}}\n\n"
+                    yield "event: end\ndata: {}\n\n"
                     break
                 if msg.get("_error"):
                     yield f"event: error\ndata: {json.dumps(msg)}\n\n"
@@ -1065,10 +1091,18 @@ async def _prefetch_paid_oi():
 
 
 async def _scheduler_loop():
-    """Lightweight scheduler — fires once per day at PREFETCH_HHMM ET. No extra deps."""
+    """Lightweight scheduler — fires once per day at PREFETCH_HHMM ET. No extra deps.
+    Also refreshes live policy from Mongo every 5 min for multi-worker sync."""
     fired_for_date = None
+    policy_refresh_counter = 0
     while True:
         try:
+            # Refresh live policy from Mongo every ~5 min (multi-worker sync)
+            policy_refresh_counter += 1
+            if policy_refresh_counter >= 5:
+                policy_refresh_counter = 0
+                await _load_policy_from_mongo()
+
             try:
                 from zoneinfo import ZoneInfo
                 et = datetime.now(ZoneInfo("America/New_York"))

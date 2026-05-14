@@ -482,6 +482,8 @@ function Drilldown({ ticker, expiry, strike, onClose }) {
 function Flowseeker({ ticker }) {
   const [events, setEvents] = useState([]);
   const [status, setStatus] = useState("idle");
+  const [warning, setWarning] = useState(null);
+  const [licenseError, setLicenseError] = useState(false);
   const [filter, setFilter] = useState({ unusual: false, sweep: false, block: false, side: "all" });
   const [sessionInfo, setSessionInfo] = useState(null);
   const [errMsg, setErrMsg] = useState(null);
@@ -492,7 +494,7 @@ function Flowseeker({ ticker }) {
   const start = useCallback(() => {
     if (esRef.current) return;
     setStatus("connecting");
-    setEvents([]); setErrMsg(null); setSessionInfo(null);
+    setEvents([]); setErrMsg(null); setSessionInfo(null); setWarning(null); setLicenseError(false);
     const url = `${API}/flow/${encodeURIComponent(ticker)}?max_seconds=${duration}&enforce_window=${!overrideWindow}`;
     const es = new EventSource(url);
     esRef.current = es;
@@ -501,8 +503,19 @@ function Flowseeker({ ticker }) {
       setStatus("live");
     });
     es.addEventListener("end", () => { setStatus("ended"); es.close(); esRef.current = null; });
+    es.addEventListener("warning", (e) => {
+      try {
+        const m = JSON.parse(e.data || "{}");
+        setWarning(m);
+        setLicenseError(true);
+      } catch { /* noop */ }
+    });
     es.addEventListener("error", (e) => {
-      try { const m = JSON.parse(e.data || "{}"); if (m.error) setErrMsg(m.error); } catch { /* noop */ }
+      try {
+        const m = JSON.parse(e.data || "{}");
+        if (m.error) setErrMsg(m.error);
+        if (m.hint) setLicenseError(true);
+      } catch { /* noop */ }
       setStatus("error"); es.close(); esRef.current = null;
     });
     es.onmessage = (ev) => {
@@ -543,6 +556,17 @@ function Flowseeker({ ticker }) {
             <div className="text-[10px] text-slate-600">session {sessionInfo.session_id} · auto-stop {new Date(sessionInfo.auto_stop_at).toLocaleTimeString()}</div>
           )}
           {errMsg && <div className="text-[11px] text-rose-400 mt-1">⚠ {errMsg}</div>}
+          {licenseError && (warning || errMsg) && (
+            <div className="mt-2 p-3 border border-amber-500/50 rounded bg-amber-500/10" data-testid="flow-license-warning">
+              <div className="text-amber-300 text-xs font-bold mb-1">⚠ OPRA Live License Issue</div>
+              <div className="text-amber-200/80 text-[11px] leading-snug">
+                {warning?.hint || errMsg || "Flowseeker requires a Databento Live OPRA.PILLAR license (separate from Historical data)."}
+              </div>
+              <div className="text-[10px] text-amber-400/60 mt-1">
+                Check your Databento dashboard → Licenses. Historical access ≠ Live streaming.
+              </div>
+            </div>
+          )}
         </div>
         <div className="flex flex-col items-end gap-2">
           <div className="flex gap-2 items-center text-[10px] text-slate-500">
@@ -660,10 +684,13 @@ function BudgetMeter({ onStopTape }) {
   const pct = Math.min(100, u.budget_pct_used || 0);
   const barColor = pct > 80 ? "#ef4444" : pct > 50 ? "#fbbf24" : "#34d399";
   const tapeActive = u.live_tape_state?.live_tape_active;
+  const inWindow = u.in_window_now;
 
   return (
-    <div className="flex items-center gap-3 px-3 py-1 rounded border border-slate-800" style={{ background: "rgba(15,22,32,0.7)" }} data-testid="budget-meter">
-      <div className="text-[10px] uppercase tracking-widest text-slate-500">Databento</div>
+    <div className={`flex items-center gap-3 px-3 py-1 rounded border ${inWindow ? "border-emerald-500/60 bg-emerald-500/5" : "border-slate-800"}`} style={{ background: inWindow ? "rgba(16, 185, 129, 0.04)" : "rgba(15,22,32,0.7)" }} data-testid="budget-meter">
+      <div className={`text-[10px] uppercase tracking-widest ${inWindow ? "text-emerald-400" : "text-slate-500"}`}>
+        {inWindow ? "● IN-WINDOW" : "○ OFF-WINDOW"}
+      </div>
       <div className="flex items-center gap-1">
         <div className="w-24 h-1.5 bg-slate-800 rounded overflow-hidden">
           <div style={{ width: `${pct}%`, height: "100%", background: barColor, transition: "width 400ms" }} />
@@ -673,8 +700,6 @@ function BudgetMeter({ onStopTape }) {
       </div>
       <div className="text-[10px] text-slate-500">
         paid <span className="text-teal-400">{(u.paid_tickers || []).join(",") || "—"}</span> · window <span className="text-slate-400">{u.live_window_et?.start_hhmm}-{u.live_window_et?.stop_hhmm} ET</span>
-        {u.in_window_now && <span className="ml-1 text-emerald-400">● in-window</span>}
-        {!u.in_window_now && <span className="ml-1 text-slate-600">○ off-window</span>}
       </div>
       {tapeActive && (
         <div className="flex items-center gap-1">
@@ -746,6 +771,7 @@ export default function App() {
   const [page, setPage] = useState("trinity"); // trinity is default (user preference)
   const [trinityData, setTrinityData] = useState(null);
   const [filters, setFilters] = useState({ magMin: 0, lifecycle: "all", side: "all" });
+  const [dte, setDte] = useState(null); // null = All, 0 = 0DTE only, 1 = 1DTE, 7 = within week
   const [customTicker, setCustomTicker] = useState("");
   const [drilldown, setDrilldown] = useState(null);
   const lastRefresh = useRef(null);
@@ -753,20 +779,28 @@ export default function App() {
   const fetchHeatmap = useCallback(async (t, m) => {
     setLoading(true); setErr(null);
     try {
-      const res = await axios.get(`${API}/heatmap/${encodeURIComponent(t)}?expiries=${expiries}&mode=${m}`, { timeout: 90000 });
+      const params = new URLSearchParams();
+      params.set("expiries", expiries);
+      params.set("mode", m);
+      if (dte !== null) params.set("dte", dte);
+      const res = await axios.get(`${API}/heatmap/${encodeURIComponent(t)}?${params.toString()}`, { timeout: 90000 });
       setData(res.data);
       lastRefresh.current = new Date();
     } catch (e) {
       setErr(e.response?.data?.detail || e.message);
     } finally { setLoading(false); }
-  }, [expiries]);
+  }, [expiries, dte]);
 
   const fetchTrinity = useCallback(async (m) => {
     try {
-      const res = await axios.get(`${API}/trinity?tickers=${TRINITY.join(",")}&mode=${m}`, { timeout: 120000 });
+      const params = new URLSearchParams();
+      params.set("tickers", TRINITY.join(","));
+      params.set("mode", m);
+      if (dte !== null) params.set("dte", dte);
+      const res = await axios.get(`${API}/trinity?${params.toString()}`, { timeout: 120000 });
       setTrinityData(res.data);
     } catch (e) { console.error(e); }
-  }, []);
+  }, [dte]);
 
   useEffect(() => {
     if (page === "trinity") {
@@ -920,6 +954,14 @@ export default function App() {
                   <div className="flex gap-1">
                     <button onClick={() => setView("grid")} data-testid="view-grid" className={`btn flex-1 ${view === "grid" ? "active" : ""}`}>2D Grid</button>
                     <button onClick={() => setView("bar")} data-testid="view-bar" className={`btn flex-1 ${view === "bar" ? "active" : ""}`}>Bars</button>
+                  </div>
+                </div>
+                <div>
+                  <div className="text-slate-500 mb-1">DTE Filter</div>
+                  <div className="flex gap-1">
+                    {[{l:"0DTE",v:0},{l:"1DTE",v:1},{l:"Week",v:7},{l:"All",v:null}].map(({l,v}) => (
+                      <button key={l} onClick={() => setDte(v)} data-testid={`dte-${l.toLowerCase()}`} className={`btn flex-1 ${dte === v ? "active" : ""}`}>{l}</button>
+                    ))}
                   </div>
                 </div>
                 <div>
