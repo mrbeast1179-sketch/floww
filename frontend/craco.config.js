@@ -23,20 +23,22 @@ if (config.enableHealthCheck) {
 }
 
 let webpackConfig = {
-  eslint: {
-    configure: {
-      extends: ["plugin:react-hooks/recommended"],
-      rules: {
-        "react-hooks/rules-of-hooks": "error",
-        "react-hooks/exhaustive-deps": "warn",
-      },
-    },
-  },
   webpack: {
     alias: {
       '@': path.resolve(__dirname, 'src'),
     },
     configure: (webpackConfig) => {
+      // Disable fork-ts-checker-webpack-plugin and ESLint plugin to avoid ajv version conflicts
+      webpackConfig.plugins = webpackConfig.plugins.filter(
+        p => p.constructor?.name !== 'ForkTsCheckerWebpackPlugin' && p.constructor?.name !== 'ESLintWebpackPlugin'
+      );
+      // Disable eslint in module rules
+      webpackConfig.module.rules = webpackConfig.module.rules.map(rule => {
+        if (rule.use) {
+          rule.use = rule.use.filter(u => !u.loader || !u.loader.includes('eslint-loader'));
+        }
+        return rule;
+      });
 
       // Add ignored patterns to reduce watched directories
         webpackConfig.watchOptions = {
