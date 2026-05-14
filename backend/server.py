@@ -82,6 +82,40 @@ def bs_gamma(S: float, K: float, T: float, sigma: float, r: float = RISK_FREE_RA
         return 0.0
 
 
+def bs_vanna(S: float, K: float, T: float, sigma: float, r: float = RISK_FREE_RATE, q: float = 0.0) -> float:
+    """Vanna: sensitivity of delta to changes in implied volatility.
+    Vanna = -e^(-qT) * d2 / sigma * N'(d1)
+    where d2 = d1 - sigma*sqrt(T)
+    This measures how much delta changes when IV changes.
+    """
+    if S <= 0 or K <= 0 or T <= 0 or sigma <= 0:
+        return 0.0
+    try:
+        d1 = (math.log(S / K) + (r - q + 0.5 * sigma * sigma) * T) / (sigma * math.sqrt(T))
+        d2 = d1 - sigma * math.sqrt(T)
+        return -math.exp(-q * T) * d2 / sigma * norm.pdf(d1)
+    except Exception:
+        return 0.0
+
+
+def bs_charm(S: float, K: float, T: float, sigma: float, r: float = RISK_FREE_RATE, q: float = 0.0) -> float:
+    """Charm: sensitivity of delta to time decay (dDelta/dTime).
+    Charm = -e^(-qT) * [N'(d1) * (2(r-q)T - d2*sigma*sqrt(T)) / (2T*sigma*sqrt(T)) - q*N(d1)] for calls
+    Simplified: charm = -gamma * (2(r-q)T - d2*sigma*sqrt(T)) / (2T) for calls
+    """
+    if S <= 0 or K <= 0 or T <= 0 or sigma <= 0:
+        return 0.0
+    try:
+        d1 = (math.log(S / K) + (r - q + 0.5 * sigma * sigma) * T) / (sigma * math.sqrt(T))
+        d2 = d1 - sigma * math.sqrt(T)
+        pdf_d1 = norm.pdf(d1)
+        cdf_d1 = norm.cdf(d1)
+        charm = -math.exp(-q * T) * (pdf_d1 * (2 * (r - q) * T - d2 * sigma * math.sqrt(T)) / (2 * T * sigma * math.sqrt(T)) - q * cdf_d1)
+        return charm
+    except Exception:
+        return 0.0
+
+
 def bs_delta(S: float, K: float, T: float, sigma: float, q: float = 0.0, kind: str = "call", r: float = RISK_FREE_RATE) -> float:
     if S <= 0 or K <= 0 or T <= 0 or sigma <= 0:
         return 0.0
@@ -257,7 +291,7 @@ async def fetch_spot_and_chains_merged(ticker: str, max_expiries: int = 4) -> Di
 def compute_gex_by_strike(spot: float, contracts: List[Dict[str, Any]], ticker: str = "") -> List[Dict[str, Any]]:
     """Per-strike net GEX. Convention: dealer-positive convention.
     GEX = OI * 100 * gamma * S^2 * 0.01, calls add positive, puts subtract.
-    Returns sorted-by-strike list of {strike, gex, call_gex, put_gex, total_oi, call_oi, put_oi}.
+    Returns sorted-by-strike list of {strike, gex, call_gex, put_gex, total_oi, call_oi, put_oi, vex, vanna}.
     """
     if spot <= 0 or not contracts:
         return []
@@ -265,21 +299,28 @@ def compute_gex_by_strike(spot: float, contracts: List[Dict[str, Any]], ticker: 
     agg: Dict[float, Dict[str, float]] = {}
     for c in contracts:
         gamma = bs_gamma(spot, c["strike"], c["T"], c["iv"], q=q)
-        if gamma <= 0:
+        vanna = bs_vanna(spot, c["strike"], c["T"], c["iv"], q=q)
+        if gamma <= 0 and abs(vanna) <= 0:
             continue
         # GEX in $ per 1% move (notional)
         gex_unit = gamma * c["oi"] * 100.0 * spot * spot * 0.01
+        # VEX: vanna exposure = OI * 100 * vanna * S * 0.01
+        vex_unit = vanna * c["oi"] * 100.0 * spot * 0.01
         sign = 1.0 if c["type"] == "call" else -1.0
         bucket = agg.setdefault(c["strike"], {
             "strike": c["strike"], "gex": 0.0, "call_gex": 0.0, "put_gex": 0.0,
             "call_oi": 0.0, "put_oi": 0.0, "total_oi": 0.0,
+            "vex": 0.0, "call_vex": 0.0, "put_vex": 0.0,
         })
         bucket["gex"] += sign * gex_unit
+        bucket["vex"] += sign * vex_unit
         if c["type"] == "call":
             bucket["call_gex"] += gex_unit
+            bucket["call_vex"] += vex_unit
             bucket["call_oi"] += c["oi"]
         else:
             bucket["put_gex"] += gex_unit
+            bucket["put_vex"] += vex_unit
             bucket["put_oi"] += c["oi"]
         bucket["total_oi"] += c["oi"]
 
@@ -403,6 +444,43 @@ def classify_nodes(strikes: List[Dict[str, Any]], spot: float) -> Dict[str, Any]
                 polarity = (x1 + x2) / 2
             break
 
+    # VEX-weighted flip: where does cumulative VEX change sign?
+    vex_flip = None
+    cum_v = 0.0
+    vex_arr = []
+    for s in sorted_by_strike:
+        cum_v += s.get("vex", 0.0)
+        vex_arr.append((s["strike"], cum_v))
+    for i in range(1, len(vex_arr)):
+        a, b = vex_arr[i - 1], vex_arr[i]
+        if a[1] == 0 or b[1] == 0 or (a[1] > 0) != (b[1] > 0):
+            x1, y1 = a; x2, y2 = b
+            if y2 - y1 != 0:
+                vex_flip = x1 + (0 - y1) * (x2 - x1) / (y2 - y1)
+            else:
+                vex_flip = (x1 + x2) / 2
+            break
+
+    # Stacked nodes: strikes where both call and put GEX are significant (>20% of max)
+    stacked = []
+    for s in strikes:
+        total = abs(s.get("call_gex", 0)) + abs(s.get("put_gex", 0))
+        if total > 0:
+            call_pct = abs(s.get("call_gex", 0)) / total
+            put_pct = abs(s.get("put_gex", 0)) / total
+            if call_pct > 0.2 and put_pct > 0.2:
+                stacked.append({"strike": s["strike"], "call_pct": round(call_pct, 2), "put_pct": round(put_pct, 2)})
+
+    # Tug-of-war: zones where positive and negative GEX are within 2% of spot
+    tug_of_war = []
+    near_strikes = [s for s in sorted_by_strike if abs(s["strike"] - spot) / spot < 0.03]
+    for i in range(1, len(near_strikes)):
+        a, b = near_strikes[i-1], near_strikes[i]
+        if (a["gex"] > 0 and b["gex"] < 0) or (a["gex"] < 0 and b["gex"] > 0):
+            tug_of_war.append({"low": a["strike"], "high": b["strike"],
+                                "positive": a["gex"] if a["gex"] > 0 else b["gex"],
+                                "negative": a["gex"] if a["gex"] < 0 else b["gex"]})
+
     return {
         "king": king,
         "floors": floors[:5],
@@ -413,6 +491,9 @@ def classify_nodes(strikes: List[Dict[str, Any]], spot: float) -> Dict[str, Any]
         "regime": regime,
         "total_gex": total_gex,
         "near_gex": near_gex,
+        "vex_flip": vex_flip,
+        "stacked_nodes": stacked[:10],
+        "tug_of_war": tug_of_war[:5],
     }
 
 
