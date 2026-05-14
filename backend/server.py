@@ -954,47 +954,54 @@ async def flow_stream(ticker: str, request: Request, max_seconds: int = Query(12
             err = {"error": "Databento API key not configured.",
                    "hint": "Set DATABENTO_API_KEY in backend/.env"}
             yield f"event: error\ndata: {json.dumps(err)}\n\n"
-        return StreamingResponse(no_key(), media_type="text/event-stream")
+            await asyncio.sleep(3)
+        return StreamingResponse(no_key(), media_type="text/event-stream",
+                                headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
 
-    # Pre-flight: try to detect missing Live license early
-    import databento as _db
-    try:
-        _test = _db.Live(key=key)
-        _test.subscribe(dataset="OPRA.PILLAR", schema="trades", stype_in="parent", symbols="SPY.OPT")
-        del _test
-    except Exception as _e:
-        async def no_license():
-            err = {
-                "error": "Databento Live OPRA.PILLAR license required.",
-                "detail": str(_e),
-                "hint": "Your key has Historical data access but NOT Live streaming. These are separate entitlements.",
-                "cost": "~$0.50-1.00 per SPY session. Your $125 credits can cover this.",
-                "upgrade": "https://databento.com/dashboard/licenses → Add OPRA.PILLAR Live",
-                "docs": "https://databento.com/docs/live/opra"
-            }
-            yield f"event: error\ndata: {json.dumps(err)}\n\n"
-        return StreamingResponse(no_license(), media_type="text/event-stream")
-
+    # Gate: paid tickers check (before expensive license pre-flight)
     if t not in PAID_TICKERS:
         async def deny():
             yield f"event: error\ndata: {json.dumps({'error': f'{t} not in paid tickers. POST /api/live/policy to enable.'})}\n\n"
-        return StreamingResponse(deny(), media_type="text/event-stream")
+            await asyncio.sleep(3)
+        return StreamingResponse(deny(), media_type="text/event-stream",
+                                headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
+
+    # Gate: trading window check (before expensive license pre-flight)
     if enforce_window and not _in_window_now_et():
         async def out_of_window():
             window_str = f"{LIVE_WINDOW['start_hhmm']}-{LIVE_WINDOW['stop_hhmm']} ET"
             err = {"error": f"Outside live window ({window_str}). Toggle 'override window' to bypass.",
                    "window": LIVE_WINDOW}
             yield f"event: error\ndata: {json.dumps(err)}\n\n"
-        return StreamingResponse(out_of_window(), media_type="text/event-stream")
+            await asyncio.sleep(3)
+        return StreamingResponse(out_of_window(), media_type="text/event-stream",
+                                headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
 
-    # Check Databento key exists
-    key = os.environ.get("DATABENTO_API_KEY", "")
-    if not key:
-        async def no_key():
-            err = {"error": "Databento API key not configured. Set DATABENTO_API_KEY in .env.",
-                   "hint": "Flowseeker requires a Databento Live OPRA.PILLAR license (separate from Historical)."}
-            yield f"event: error\ndata: {json.dumps(err)}\n\n"
-        return StreamingResponse(no_key(), media_type="text/event-stream")
+    # Pre-flight: try to detect missing Live license early
+    import databento as _db
+    _license_err = None
+    try:
+        _test = _db.Live(key=key)
+        _test.subscribe(dataset="OPRA.PILLAR", schema="trades", stype_in="parent", symbols="SPY.OPT")
+        del _test
+    except Exception as _e:
+        _license_err = str(_e)
+    if _license_err is not None:
+        _le = _license_err  # capture for closure
+        async def no_license():
+            err = {
+                "error": "Databento Live OPRA.PILLAR license required.",
+                "detail": _le,
+                "hint": "Your key has Historical data access but NOT Live streaming. These are separate entitlements.",
+                "cost": "~$0.50-1.00 per SPY session. Your $125 credits can cover this.",
+                "upgrade": "https://databento.com/dashboard/licenses → Add OPRA.PILLAR Live",
+                "docs": "https://databento.com/docs/live/opra"
+            }
+            yield f"event: warning\ndata: {json.dumps(err)}\n\n"
+            yield f"event: end\ndata: {json.dumps({'status': 'no_live_license'})}\n\n"
+            await asyncio.sleep(3)
+        return StreamingResponse(no_license(), media_type="text/event-stream",
+                                headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
 
     parent = PARENT_MAP.get(t, f"{t}.OPT")
     queue: asyncio.Queue = asyncio.Queue(maxsize=2000)
