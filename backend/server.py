@@ -462,8 +462,11 @@ def classify_nodes(strikes: List[Dict[str, Any]], spot: float) -> Dict[str, Any]
             break
 
     # Stacked nodes: strikes where both call and put GEX are significant (>20% of max)
+    # Only show stacked nodes within the visible band (±3% of spot)
     stacked = []
     for s in strikes:
+        if abs(s["strike"] - spot) / spot > 0.03:
+            continue
         total = abs(s.get("call_gex", 0)) + abs(s.get("put_gex", 0))
         if total > 0:
             call_pct = abs(s.get("call_gex", 0)) / total
