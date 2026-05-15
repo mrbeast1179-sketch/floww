@@ -567,6 +567,16 @@ def classify_nodes(strikes: List[Dict[str, Any]], spot: float) -> Dict[str, Any]
     if math.isnan(total_charm) or math.isinf(total_charm):
         total_charm = 0.0
 
+    # Total vomma
+    total_vomma = sum((s.get("vomma") or 0.0) for s in strikes)
+    if math.isnan(total_vomma) or math.isinf(total_vomma):
+        total_vomma = 0.0
+
+    # Total zomma
+    total_zomma = sum((s.get("zomma") or 0.0) for s in strikes)
+    if math.isnan(total_zomma) or math.isinf(total_zomma):
+        total_zomma = 0.0
+
     # Charm flip point: weighted average of all strikes by absolute charm
     total_abs_charm = sum(abs(s.get("charm") or 0.0) for s in strikes)
     if total_abs_charm > 0:
@@ -575,8 +585,6 @@ def classify_nodes(strikes: List[Dict[str, Any]], spot: float) -> Dict[str, Any]
         charm_flip = spot
 
     # Max Pain: strike where total OI-weighted pain is minimized
-    # Pain = sum of OI * |strike - reference| for all options
-    # The max pain point is where option writers lose least / buyers lose most
     max_pain = None
     if strikes:
         strike_range = sorted(set(s["strike"] for s in strikes))
@@ -594,6 +602,39 @@ def classify_nodes(strikes: List[Dict[str, Any]], spot: float) -> Dict[str, Any]
     total_call_oi = sum(s.get("call_oi", 0) or 0 for s in strikes)
     total_put_oi = sum(s.get("put_oi", 0) or 0 for s in strikes)
     put_call_ratio = total_put_oi / total_call_oi if total_call_oi > 0 else None
+
+    # ---- Risk Metrics (from gex-backtesting repo) ----
+
+    # GCI: Gamma Concentration Index (Herfindahl-Hirschman)
+    # Measures how concentrated gamma is across strikes. Range [0, 1].
+    # 1/N if perfectly uniform; approaches 1.0 if all gamma at one strike.
+    total_abs = sum(abs(s["gex"]) for s in strikes) or 1.0
+    gamma_shares = [abs(s["gex"]) / total_abs for s in strikes]
+    gci = sum(s * s for s in gamma_shares)
+
+    # PGR: Protective Gamma Ratio
+    # Fraction of total gamma within 20 points of spot.
+    gdw_decay = 20.0  # decay constant for GDW
+    near_spot = 20.0  # points for PGR window
+    gamma_near = sum(abs(s["gex"]) for s in strikes if abs(s["strike"] - spot) <= near_spot)
+    pgr = gamma_near / total_abs if total_abs > 0 else 0.0
+
+    # GDW: Gamma Distance Weighted
+    # Exponentially-weighted gamma favoring strikes near spot.
+    gdw = sum(abs(s["gex"]) * math.exp(-abs(s["strike"] - spot) / gdw_decay) for s in strikes)
+
+    # CAR: Convexity Acceleration Risk
+    # Composite of zomma (60%) and vomma (40%) with time decay amplification.
+    # Captures feedback loop risk: vol spike -> gamma change -> hedging -> more vol.
+    # Time amplifier: 1/sqrt(TTE) capped at 30x. Use 1 day as default TTE.
+    avg_tte = 1.0 / 252.0  # ~1 trading day default
+    time_amp = min(30.0, 1.0 / math.sqrt(max(avg_tte, 0.001)))
+    gamma_sign = -1.0 if total_gex < 0 else 1.0
+    car_net = gamma_sign * (0.6 * total_zomma + 0.4 * total_vomma) * time_amp / 1e6
+    car_gross = (0.6 * abs(total_zomma) + 0.4 * abs(total_vomma)) * time_amp / 1e6
+
+    # Charm Risk: aggregate delta decay exposure
+    charm_risk = total_charm / 1e6
 
     return {
         "king": king,
@@ -615,6 +656,17 @@ def classify_nodes(strikes: List[Dict[str, Any]], spot: float) -> Dict[str, Any]
         "tug_of_war": tug_of_war[:5],
         "total_vega": total_vega,
         "total_charm": total_charm,
+        "total_vomma": total_vomma,
+        "total_zomma": total_zomma,
+        "risk_metrics": {
+            "gci": round(gci, 4),
+            "pgr": round(pgr, 4),
+            "gdw": round(gdw, 2),
+            "car_net": round(car_net, 2),
+            "car_gross": round(car_gross, 2),
+            "charm_risk": round(charm_risk, 2),
+            "time_amp": round(time_amp, 1),
+        },
     }
 
 

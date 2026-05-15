@@ -1175,6 +1175,59 @@ export default function App() {
               </div>
             </div>
 
+            {/* Risk Dashboard - GCI/PGR/GDW/CAR from gex-backtesting */}
+            {data?.nodes?.risk_metrics && (
+              <div className="panel-2 p-2">
+                <div className="label mb-1">Risk Dashboard</div>
+                <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-[9px]">
+                  <div className="flex justify-between">
+                    <span className="text-slate-500">GCI</span>
+                    <span className={`mono font-bold ${data.nodes.risk_metrics.gci > 0.25 ? "text-rose-400" : data.nodes.risk_metrics.gci > 0.15 ? "text-amber-400" : "text-emerald-400"}`}>
+                      {data.nodes.risk_metrics.gci.toFixed(3)}
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-slate-500">PGR</span>
+                    <span className={`mono font-bold ${data.nodes.risk_metrics.pgr < 0.3 ? "text-rose-400" : data.nodes.risk_metrics.pgr < 0.5 ? "text-amber-400" : "text-emerald-400"}`}>
+                      {(data.nodes.risk_metrics.pgr * 100).toFixed(1)}%
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-slate-500">GDW</span>
+                    <span className="mono text-slate-300">{fmtAbs(data.nodes.risk_metrics.gdw)}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-slate-500">T-Amp</span>
+                    <span className="mono text-slate-300">{data.nodes.risk_metrics.time_amp}x</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-slate-500">CAR Net</span>
+                    <span className={`mono font-bold ${data.nodes.risk_metrics.car_net < 0 ? "text-rose-400" : "text-emerald-400"}`}>
+                      {data.nodes.risk_metrics.car_net.toFixed(1)}M
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-slate-500">CAR Gross</span>
+                    <span className="mono text-amber-300">{data.nodes.risk_metrics.car_gross.toFixed(1)}M</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-slate-500">Charm Risk</span>
+                    <span className={`mono font-bold ${Math.abs(data.nodes.risk_metrics.charm_risk) > 50 ? "text-rose-400" : "text-slate-300"}`}>
+                      {data.nodes.risk_metrics.charm_risk.toFixed(1)}M
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-slate-500">Vomma</span>
+                    <span className="mono text-slate-300">{fmtAbs(data?.nodes?.total_vomma)}</span>
+                  </div>
+                </div>
+                <div className="mt-1.5 text-[8px] text-slate-600 leading-tight">
+                  GCI: gamma concentration (high = fragile). PGR: protective gamma near spot (low = no cushion). 
+                  CAR: convexity acceleration risk (vol spike → gamma feedback). Charm: delta decay pressure.
+                </div>
+              </div>
+            )}
+
             <div className="panel p-3" data-testid="patterns-panel">
               <div className="label mb-2">Patterns Detected</div>
               <div className="space-y-2">
@@ -1202,6 +1255,41 @@ export default function App() {
                 <div className="text-[10px] text-slate-600 mt-2 italic">Pathways, not targets.</div>
               </div>
             )}
+
+            {/* Greek Educational Accordion - from gflows */}
+            <div className="panel-2 p-2">
+              <div className="label mb-1">Greek Reference</div>
+              <details className="text-[9px]">
+                <summary className="text-slate-400 cursor-pointer hover:text-slate-300">Gamma (∂Δ/∂S)</summary>
+                <div className="text-slate-500 mt-1 pl-2 border-l border-slate-700">
+                  Rate of delta change. Highest ATM near expiry. Long γ = dealers hedge against market (stabilizing). Short γ = dealers hedge with market (destabilizing).
+                </div>
+              </details>
+              <details className="text-[9px] mt-1">
+                <summary className="text-slate-400 cursor-pointer hover:text-slate-300">Vanna (∂Δ/∂σ)</summary>
+                <div className="text-slate-500 mt-1 pl-2 border-l border-slate-700">
+                  Delta sensitivity to IV changes. Long vanna = IV up → delta up (selling pressure). Short vanna = IV up → delta down (buying pressure). Strongest near OPEX.
+                </div>
+              </details>
+              <details className="text-[9px] mt-1">
+                <summary className="text-slate-400 cursor-pointer hover:text-slate-300">Charm (∂Δ/∂t)</summary>
+                <div className="text-slate-500 mt-1 pl-2 border-l border-slate-700">
+                  Delta decay per day. For 0DTE, charm is extreme. Long charm = delta increases daily (selling). Short charm = delta decreases (buying). Forces hedging flows as expiry approaches.
+                </div>
+              </details>
+              <details className="text-[9px] mt-1">
+                <summary className="text-slate-400 cursor-pointer hover:text-slate-300">Vomma (∂V/∂σ)</summary>
+                <div className="text-slate-500 mt-1 pl-2 border-l border-slate-700">
+                  Vega sensitivity to vol changes. High vomma = option prices explode during vol spikes. Creates feedback: vol up → vega up → more hedging.
+                </div>
+              </details>
+              <details className="text-[9px] mt-1">
+                <summary className="text-slate-400 cursor-pointer hover:text-slate-300">Zomma (∂Γ/∂σ)</summary>
+                <div className="text-slate-500 mt-1 pl-2 border-l border-slate-700">
+                  Gamma sensitivity to vol changes. Vol spike → gamma increase → bigger hedging demand → more vol. Key driver of PUT explosions.
+                </div>
+              </details>
+            </div>
           </aside>
         </div>
       )}
