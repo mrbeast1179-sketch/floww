@@ -1256,6 +1256,74 @@ export default function App() {
               </div>
             )}
 
+            {/* Opportunities - from GEX-Dashboard */}
+            {data?.opportunities?.length > 0 && (
+              <div className="panel-2 p-2">
+                <div className="label mb-1">Trading Opportunities</div>
+                <div className="space-y-1.5">
+                  {data.opportunities.slice(0, 5).map((o, i) => (
+                    <div key={i} className={`text-[9px] p-1.5 rounded border-l-2 ${
+                      o.direction === "bullish" ? "border-emerald-500 bg-emerald-500/5" :
+                      o.direction === "bearish" ? "border-rose-500 bg-rose-500/5" :
+                      "border-amber-500 bg-amber-500/5"
+                    }`}>
+                      <div className="flex justify-between items-center">
+                        <span className="font-bold text-slate-200">{o.name}</span>
+                        <span className={`mono text-[8px] px-1 py-px rounded ${
+                          o.risk === "high" ? "bg-rose-500/20 text-rose-400" :
+                          o.risk === "medium" ? "bg-amber-500/20 text-amber-400" :
+                          "bg-emerald-500/20 text-emerald-400"
+                        }`}>{o.risk}</span>
+                      </div>
+                      <div className="text-slate-400 mt-0.5">{o.description}</div>
+                      <div className="flex gap-2 mt-0.5 text-[8px]">
+                        <span className="text-slate-500">conf: <span className="text-slate-300 mono">{(o.confidence * 100).toFixed(0)}%</span></span>
+                        {o.entry && <span className="text-slate-500">entry: <span className="text-slate-300 mono">${o.entry[0]}–${o.entry[1]}</span></span>}
+                        {o.target && <span className="text-slate-500">target: <span className="text-emerald-400 mono">${fmt(o.target, 0)}</span></span>}
+                        {o.stop && <span className="text-slate-500">stop: <span className="text-rose-400 mono">${fmt(o.stop, 0)}</span></span>}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Implied Move - from EzOptions */}
+            {data?.implied_move && (
+              <div className="panel-2 p-2">
+                <div className="label mb-1">Implied Move</div>
+                <div className="grid grid-cols-2 gap-x-3 gap-y-0.5 text-[9px]">
+                  <div className="flex justify-between">
+                    <span className="text-slate-500">Expected</span>
+                    <span className="mono text-amber-300 font-bold">±{data.implied_move.implied_move_pct}%</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-slate-500">Range</span>
+                    <span className="mono text-slate-300">${fmt(data.implied_move.lower_range, 1)}–${fmt(data.implied_move.upper_range, 1)}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-slate-500">ATM Strike</span>
+                    <span className="mono text-slate-300">{fmt(data.implied_move.atm_strike, 0)}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-slate-500">Avg IV</span>
+                    <span className="mono text-slate-300">{(data.implied_move.avg_iv * 100).toFixed(1)}%</span>
+                  </div>
+                </div>
+                <div className="mt-1.5 h-2 bg-slate-800 rounded-full overflow-hidden relative">
+                  <div className="absolute inset-y-0 left-1/2 w-0.5 bg-slate-500" />
+                  <div
+                    className="absolute inset-y-0 bg-amber-500/30 rounded-full"
+                    style={{
+                      left: `${50 - data.implied_move.implied_move_pct * 5}%`,
+                      right: `${50 - data.implied_move.implied_move_pct * 5}%`,
+                    }}
+                  />
+                </div>
+                <div className="text-[8px] text-slate-600 mt-1">Market expects ±{data.implied_move.implied_move_pct}% move by nearest expiry</div>
+              </div>
+            )}
+
             {/* Greek Educational Accordion - from gflows */}
             <div className="panel-2 p-2">
               <div className="label mb-1">Greek Reference</div>
