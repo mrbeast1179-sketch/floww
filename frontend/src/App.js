@@ -37,24 +37,24 @@ const tagFor = (kind) => ({
 }[kind] || "tag");
 
 // Skylit-style color scale: positive (Pika) = cyan/teal, negative (Barney) = purple/violet
-// King highlights pop yellow-green
-function cellColor(v, maxAbs, isKing = false) {
+// King highlights pop yellow-green. VEX uses warmer tones (amber/pink)
+function cellColor(v, maxAbs, isKing = false, mode = "gex") {
   if (!v || maxAbs === 0) return { bg: "rgba(15, 22, 32, 0.7)", text: "#5a6781" };
   const norm = Math.min(1, Math.abs(v) / maxAbs);
+  if (mode === "vex") {
+    if (isKing && v > 0) return { bg: `rgba(251, 191, 36, ${0.55 + 0.4 * norm})`, text: "#0b1320" };
+    if (isKing && v < 0) return { bg: `rgba(219, 39, 119, ${0.55 + 0.4 * norm})`, text: "#0b1320" };
+    if (v > 0) { const alpha = 0.15 + 0.7 * norm; return { bg: `rgba(245, 158, 11, ${alpha})`, text: norm > 0.5 ? "#0b1320" : "#fcd34d" }; }
+    else { const alpha = 0.18 + 0.7 * norm; return { bg: `rgba(219, 39, 119, ${alpha})`, text: norm > 0.5 ? "#fdf4ff" : "#f9a8d4" }; }
+  }
   if (isKing && v > 0) return { bg: `rgba(190, 242, 100, ${0.55 + 0.4 * norm})`, text: "#0b1320" };
   if (isKing && v < 0) return { bg: `rgba(232, 121, 249, ${0.55 + 0.4 * norm})`, text: "#0b1320" };
-  if (v > 0) {
-    // teal scale  -> brighter for larger
-    const alpha = 0.15 + 0.7 * norm;
-    return { bg: `rgba(45, 212, 191, ${alpha})`, text: norm > 0.5 ? "#0b1320" : "#a7f3d0" };
-  } else {
-    const alpha = 0.18 + 0.7 * norm;
-    return { bg: `rgba(168, 85, 247, ${alpha})`, text: norm > 0.5 ? "#fdf4ff" : "#e9d5ff" };
-  }
+  if (v > 0) { const alpha = 0.15 + 0.7 * norm; return { bg: `rgba(45, 212, 191, ${alpha})`, text: norm > 0.5 ? "#0b1320" : "#a7f3d0" }; }
+  else { const alpha = 0.18 + 0.7 * norm; return { bg: `rgba(168, 85, 247, ${alpha})`, text: norm > 0.5 ? "#fdf4ff" : "#e9d5ff" }; }
 }
 
 // ============ Skylit-style 2D Grid Heatmap ============
-function GridHeatmap({ data, filters, onCellClick }) {
+function GridHeatmap({ data, filters, onCellClick, viewMode = "gex" }) {
   const spotRowRef = useRef(null);
   useEffect(() => {
     if (spotRowRef.current) {
@@ -156,7 +156,7 @@ function GridHeatmap({ data, filters, onCellClick }) {
                   {expiries.map((e) => {
                     const v = cellOf(e, s);
                     const isKingCell = isKing && Math.abs(v) > 0.6 * maxAbs;
-                    const col = cellColor(v, maxAbs, isKingCell);
+                    const col = cellColor(v, maxAbs, isKingCell, viewMode);
                     return (
                       <td
                         key={e}
@@ -189,11 +189,13 @@ function GridHeatmap({ data, filters, onCellClick }) {
 }
 
 // ============ Horizontal Bar Heatmap (compact summary) ============
-function BarHeatmap({ data, filters, compact = true }) {
+function BarHeatmap({ data, filters, compact = true, viewMode = "gex" }) {
   if (!data?.strikes) return null;
   const { spot, strikes, nodes } = data;
+  const key = viewMode === "vex" ? "vex" : "gex";
   const filtered = strikes.filter((s) => {
-    if (filters?.magMin && Math.abs(s.gex) < filters.magMin) return false;
+    const val = s[key] || s.gex || 0;
+    if (filters?.magMin && Math.abs(val) < filters.magMin) return false;
     if (filters?.lifecycle && filters.lifecycle !== "all" && s.lifecycle !== filters.lifecycle) return false;
     if (filters?.side === "above" && s.strike <= spot) return false;
     if (filters?.side === "below" && s.strike >= spot) return false;
@@ -201,11 +203,15 @@ function BarHeatmap({ data, filters, compact = true }) {
   });
   if (!filtered.length) return <div className="text-slate-500 text-xs p-4">No strikes match filters.</div>;
   const sorted = [...filtered].sort((a, b) => b.strike - a.strike);
-  const maxAbs = Math.max(...filtered.map(s => Math.abs(s.gex)), 1);
+  const maxAbs = Math.max(...filtered.map(s => Math.abs(s[key] || s.gex || 0)), 1);
   const king = nodes?.king?.strike;
   const fSet = new Set((nodes?.floors || []).map(f => f.strike));
   const cSet = new Set((nodes?.ceilings || []).map(f => f.strike));
   const rowH = compact ? 14 : 18;
+  const barColorPos = viewMode === "vex" ? "rgba(245, 158, 11, 0.7)" : "rgba(45, 212, 191, 0.7)";
+  const barColorNeg = viewMode === "vex" ? "rgba(219, 39, 119, 0.7)" : "rgba(168, 85, 247, 0.7)";
+  const kingColorPos = viewMode === "vex" ? "rgba(251, 191, 36, 0.9)" : "rgba(190, 242, 100, 0.9)";
+  const kingColorNeg = viewMode === "vex" ? "rgba(219, 39, 119, 0.85)" : "rgba(232, 121, 249, 0.85)";
 
   return (
     <div className="relative" style={{ paddingTop: 4, paddingBottom: 4 }}>
@@ -213,8 +219,9 @@ function BarHeatmap({ data, filters, compact = true }) {
         const isKing = s.strike === king;
         const isF = fSet.has(s.strike);
         const isC = cSet.has(s.strike);
-        const pos = s.gex > 0;
-        const w = Math.max(2, (Math.abs(s.gex) / maxAbs) * 48);
+        const val = s[key] || s.gex || 0;
+        const pos = val > 0;
+        const w = Math.max(2, (Math.abs(val) / maxAbs) * 48);
         const prev = sorted[i - 1];
         const showSpot = prev && prev.strike > spot && s.strike <= spot;
         return (
@@ -229,12 +236,12 @@ function BarHeatmap({ data, filters, compact = true }) {
             <div className="bar-row flex items-center text-[10px] mono px-1" style={{ height: rowH }}>
               <div className="flex-1 flex justify-end pr-1">
                 {!pos && <div style={{ width: `${w}%`, height: 10, borderRadius: 2,
-                  background: isKing ? "rgba(232, 121, 249, 0.85)" : `rgba(168, 85, 247, ${0.4 + 0.5 * Math.abs(s.gex)/maxAbs})` }} />}
+                  background: isKing ? kingColorNeg : barColorNeg }} />}
               </div>
               <div className={`w-14 text-center ${isKing ? "text-amber-300 font-bold" : isF ? "text-emerald-400" : isC ? "text-rose-400" : "text-slate-400"}`}>{fmt(s.strike, 0)}</div>
               <div className="flex-1 flex pl-1">
                 {pos && <div style={{ width: `${w}%`, height: 10, borderRadius: 2,
-                  background: isKing ? "rgba(190, 242, 100, 0.9)" : `rgba(45, 212, 191, ${0.4 + 0.5 * Math.abs(s.gex)/maxAbs})` }} />}
+                  background: isKing ? kingColorPos : barColorPos }} />}
               </div>
             </div>
           </React.Fragment>
@@ -778,6 +785,7 @@ export default function App() {
   const [expiries, setExpiries] = useState(4);
   const [mode, setMode] = useState("day"); // day | swing
   const [view, setView] = useState("grid"); // grid | bar
+  const [viewMode, setViewMode] = useState("gex"); // gex | vex
   const [page, setPage] = useState("trinity"); // trinity is default (user preference)
   const [trinityData, setTrinityData] = useState(null);
   const [filters, setFilters] = useState({ magMin: 0, lifecycle: "all", side: "all" });
@@ -967,6 +975,13 @@ export default function App() {
                   </div>
                 </div>
                 <div>
+                  <div className="text-slate-500 mb-1">Exposure</div>
+                  <div className="flex gap-1">
+                    <button onClick={() => setViewMode("gex")} className={`btn flex-1 ${viewMode === "gex" ? "active" : ""}`}>GEX</button>
+                    <button onClick={() => setViewMode("vex")} className={`btn flex-1 ${viewMode === "vex" ? "active" : ""}`}>VEX</button>
+                  </div>
+                </div>
+                <div>
                   <div className="text-slate-500 mb-1">DTE Filter</div>
                   <div className="flex gap-1">
                     {[{l:"0DTE",v:0},{l:"1DTE",v:1},{l:"Week",v:7},{l:"All",v:null}].map(({l,v}) => (
@@ -1015,8 +1030,8 @@ export default function App() {
             <div className="panel p-3" data-testid="main-heatmap">
               <div className="flex justify-between items-center mb-2">
                 <div>
-                  <div className="label">Heatseeker · GEX {view === "grid" ? "Grid (Strike × Expiry)" : "Bars"}</div>
-                  <div className="text-[10px] text-slate-500">Teal (Pika) = positive γ · Purple (Barney) = negative · Yellow-green = King · click any cell to drill</div>
+                  <div className="label">Heatseeker · {viewMode === "vex" ? "VEX" : "GEX"} {view === "grid" ? "Grid (Strike × Expiry)" : "Bars"}</div>
+                  <div className="text-[10px] text-slate-500">{viewMode === "vex" ? "Amber = positive vanna · Pink = negative vanna · Yellow = King" : "Teal (Pika) = positive γ · Purple (Barney) = negative · Yellow-green = King · click any cell to drill"}</div>
                 </div>
                 <div className="flex gap-2 text-[10px]">
                   <span className="tag king">KING</span>
@@ -1028,8 +1043,8 @@ export default function App() {
               </div>
               {data ? (
                 view === "grid"
-                  ? <GridHeatmap data={data} filters={filters} onCellClick={(s, e) => setDrilldown({ ticker, expiry: e, strike: s })} />
-                  : <BarHeatmap data={data} filters={filters} compact={false} />
+                  ? <GridHeatmap data={data} filters={filters} onCellClick={(s, e) => setDrilldown({ ticker, expiry: e, strike: s })} viewMode={viewMode} />
+                  : <BarHeatmap data={data} filters={filters} compact={false} viewMode={viewMode} />
               ) : (
                 <div className="text-slate-500 text-xs p-6 text-center">Loading…</div>
               )}
@@ -1037,6 +1052,102 @@ export default function App() {
           </main>
 
           <aside className="col-span-3 space-y-3">
+            {/* Flip Zone Bar */}
+            {(data?.nodes?.polarity_level || data?.nodes?.vex_flip) && (
+              <div className="panel-2 p-2 flex gap-3 text-[10px]">
+                {data?.nodes?.polarity_level && (
+                  <div className="flex items-center gap-1.5">
+                    <span className="w-2 h-2 rounded-full bg-amber-400/60" />
+                    <span className="text-slate-500">GEX Flip:</span>
+                    <span className="text-amber-300 font-bold mono">{fmt(data.nodes.polarity_level, 1)}</span>
+                    <span className="text-slate-600">({((data.nodes.polarity_level - data.spot) / data.spot * 100).toFixed(2)}%)</span>
+                  </div>
+                )}
+                {data?.nodes?.vex_flip && (
+                  <div className="flex items-center gap-1.5">
+                    <span className="w-2 h-2 rounded-full bg-pink-500/60" />
+                    <span className="text-slate-500">VEX Flip:</span>
+                    <span className="text-pink-300 font-bold mono">{fmt(data.nodes.vex_flip, 1)}</span>
+                    <span className="text-slate-600">({((data.nodes.vex_flip - data.spot) / data.spot * 100).toFixed(2)}%)</span>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Stacked Nodes */}
+            {data?.nodes?.stacked_nodes?.length > 0 && (
+              <div className="panel-2 p-2">
+                <div className="label mb-1">Stacked Nodes</div>
+                <div className="space-y-0.5">
+                  {data.nodes.stacked_nodes.slice(0, 4).map((s: any, i: number) => (
+                    <div key={i} className="flex items-center gap-1.5 text-[9px]">
+                      <span className="mono text-slate-300 w-12">{fmt(s.strike, 0)}</span>
+                      <div className="flex-1 flex gap-0.5 items-center h-2">
+                        <div className="h-full rounded-l bg-teal-500/70" style={{width: `${s.call_pct * 100}%`}} />
+                        <div className="h-full rounded-r bg-purple-500/70" style={{width: `${s.put_pct * 100}%`}} />
+                      </div>
+                      <span className="text-teal-400 w-6 text-right">{Math.round(s.call_pct * 100)}</span>
+                      <span className="text-purple-400 w-6 text-right">{Math.round(s.put_pct * 100)}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Tug of War */}
+            {data?.nodes?.tug_of_war?.length > 0 && (
+              <div className="panel-2 p-2">
+                <div className="label mb-1">Tug-of-War</div>
+                <div className="space-y-0.5">
+                  {data.nodes.tug_of_war.slice(0, 3).map((z: any, i: number) => (
+                    <div key={i} className="flex items-center gap-1.5 text-[9px]">
+                      <span className="w-1.5 h-1.5 rounded-full bg-amber-400/60" />
+                      <span className="mono text-slate-300">{fmt(z.low, 0)}–{fmt(z.high, 0)}</span>
+                      <span className="text-emerald-400">+{fmtAbs(z.positive)}</span>
+                      <span className="text-rose-400">{fmtAbs(z.negative)}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Scenario Matrix */}
+            <div className="panel-2 p-2">
+              <div className="label mb-1">Scenario</div>
+              <div className="space-y-1">
+                {data?.nodes?.regime === "positive" && (
+                  <>
+                    <div className="text-[9px] text-sky-400 font-bold">◎ RANGE DAY</div>
+                    <div className="text-[8px] text-slate-400">Dealers dampen vol. Mean-reversion.</div>
+                    {data?.nodes?.king?.strike > data?.spot && (
+                      <div className="text-[8px] text-rose-400">▽ Ceiling at {fmt(data.nodes.king.strike, 0)}</div>
+                    )}
+                    {data?.nodes?.king?.strike < data?.spot && (
+                      <div className="text-[8px] text-emerald-400">△ Floor at {fmt(data.nodes.king.strike, 0)}</div>
+                    )}
+                  </>
+                )}
+                {data?.nodes?.regime === "negative" && (
+                  <>
+                    <div className="text-[9px] text-amber-400 font-bold">⚡ TREND DAY</div>
+                    <div className="text-[8px] text-slate-400">Dealers amplify moves. Momentum.</div>
+                  </>
+                )}
+                {data?.nodes?.regime === "neutral" && (
+                  <>
+                    <div className="text-[9px] text-orange-400 font-bold">⚠ WHIPSAW</div>
+                    <div className="text-[8px] text-slate-400">Mixed signals. Reduce size.</div>
+                  </>
+                )}
+                {data?.nodes?.polarity_level && (
+                  <div className="text-[8px] text-yellow-300">⟷ Flip at {fmt(data.nodes.polarity_level, 1)}</div>
+                )}
+                {data?.nodes?.total_vega && Math.abs(data.nodes.total_vega) > 1e6 && (
+                  <div className="text-[8px] text-slate-500">Vega: {fmtAbs(data.nodes.total_vega)}</div>
+                )}
+              </div>
+            </div>
+
             <div className="panel p-3" data-testid="patterns-panel">
               <div className="label mb-2">Patterns Detected</div>
               <div className="space-y-2">
