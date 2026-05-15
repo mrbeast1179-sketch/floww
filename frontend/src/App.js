@@ -79,6 +79,16 @@ function GridHeatmap({ data, filters, onCellClick }) {
   // Hide rows where ALL cells are zero/empty across visible expiries
   strikes = strikes.filter(s => expiries.some(e => Math.abs(cellOf(e, s)) > 0));
 
+  // Filter by lifecycle
+  if (filters?.lifecycle && filters.lifecycle !== "all") {
+    const lifecycleStrikes = new Set(
+      (data.strikes || [])
+        .filter(s => s.lifecycle === filters.lifecycle)
+        .map(s => s.strike)
+    );
+    strikes = strikes.filter(s => lifecycleStrikes.has(s));
+  }
+
   // global maxAbs across visible cells
   let maxAbs = 1;
   for (const e of expiries) {
@@ -865,47 +875,47 @@ export default function App() {
 
       {/* TRINITY VIEW */}
       {page === "trinity" && trinityData && (
-        <div className="p-4 space-y-4" data-testid="trinity-view">
-          <div className="panel p-3">
-            <div className="flex justify-between items-center">
+        <div className="p-3" data-testid="trinity-view">
+          <div className="panel p-2 mb-2 flex justify-between items-center">
+            <div className="flex items-center gap-4">
               <div>
-                <div className="label">Alignment Verdict</div>
-                <div className={`text-2xl font-bold uppercase tracking-wider ${trinityData.alignment.verdict === "full_alignment" ? "text-emerald-400" : trinityData.alignment.verdict === "partial_alignment" ? "text-amber-300" : "text-rose-400"}`}>
-                  {trinityData.alignment.verdict.replace("_", " ")}
+                <div className="label">Verdict</div>
+                <div className={`text-lg font-bold uppercase tracking-wider ${trinityData.alignment.verdict === "full_alignment" ? "text-emerald-400" : trinityData.alignment.verdict === "partial_alignment" ? "text-amber-300" : "text-rose-400"}`}>
+                  {trinityData.alignment.verdict.replace(/_/g, " ")}
                 </div>
               </div>
-              <div className="text-right">
-                <div className="label">Regime · Confluence</div>
-                <div className="text-lg mono">
+              <div className="dotted-divider h-6" style={{width:1}} />
+              <div>
+                <div className="label">Regime</div>
+                <div className="text-sm mono">
                   <span className={trinityData.alignment.regime === "positive" ? "text-emerald-400" : trinityData.alignment.regime === "negative" ? "text-rose-400" : "text-slate-400"}>{trinityData.alignment.regime}</span>
-                  <span className="text-slate-500"> · </span>
-                  <span>{(trinityData.alignment.confluence * 100).toFixed(0)}%</span>
+                  <span className="text-slate-500"> · {(trinityData.alignment.confluence * 100).toFixed(0)}%</span>
                 </div>
               </div>
             </div>
-            <div className="text-[11px] text-slate-500 mt-2">
-              {trinityData.alignment.verdict === "full_alignment" && "All three indices agree. Highest-conviction environment — A+ setups live here."}
-              {trinityData.alignment.verdict === "partial_alignment" && "Two-of-three confluence. Trade with reduced size; the third is a warning, not a stop sign."}
-              {trinityData.alignment.verdict === "divergence" && "Cross-instrument disagreement. Wait. Forcing a trade into divergence is hope, not edge."}
+            <div className="text-[9px] text-slate-500 max-w-xs text-right">
+              {trinityData.alignment.verdict === "full_alignment" && "All three agree. Highest conviction."}
+              {trinityData.alignment.verdict === "partial_alignment" && "Two-of-three. Reduced size."}
+              {trinityData.alignment.verdict === "divergence" && "Disagreement. Wait."}
             </div>
           </div>
-          <div className="grid grid-cols-3 gap-3">
+          <div className="grid grid-cols-3 gap-2">
             {TRINITY.map((t) => {
               const d = trinityData.tickers[t];
-              if (!d || d.error) return <div key={t} className="panel p-3 text-rose-400 text-xs">{t}: {d?.error}</div>;
+              if (!d || d.error) return <div key={t} className="panel p-2 text-rose-400 text-[10px]">{t}: {d?.error || "no data"}</div>;
               return (
-                <div key={t} className="panel p-3" data-testid={`trinity-panel-${t}`}>
-                  <div className="flex justify-between items-baseline mb-2">
-                    <div className="font-bold text-sm">{t.replace("^", "")}</div>
-                    <button className="text-[10px] text-teal-400 underline" onClick={() => { setTicker(t); setPage("heatseeker"); }}>focus →</button>
+                <div key={t} className="panel p-2" data-testid={`trinity-panel-${t}`}>
+                  <div className="flex justify-between items-baseline mb-1">
+                    <div className="font-bold text-xs">{t.replace("^", "")}</div>
+                    <div className="text-[9px] mono text-slate-400">spot {fmt(d.spot, 1)} · {d.nodes?.regime}γ</div>
                   </div>
-                  <div className="text-[11px] mono text-slate-400">spot {fmt(d.spot, 2)} · king {fmt(d.nodes?.king?.strike, 0)} · {d.nodes?.regime}γ</div>
-                  <div className="mt-2"><BarHeatmap data={d} filters={{}} compact /></div>
-                  <div className="mt-2 flex flex-wrap gap-1">
+                  <div className="mb-1"><BarHeatmap data={d} filters={{}} compact /></div>
+                  <div className="flex flex-wrap gap-0.5">
                     {(d.patterns || []).slice(0, 3).map((p, i) => (
-                      <span key={i} className="text-[9px] px-1 py-px border border-slate-700 rounded uppercase tracking-wider text-slate-400">{p.name}</span>
+                      <span key={i} className="text-[8px] px-1 py-px border border-slate-700 rounded uppercase tracking-wider text-slate-400">{p.name}</span>
                     ))}
                   </div>
+                  <button className="text-[8px] text-teal-400 underline mt-1" onClick={() => { setTicker(t); setPage("heatseeker"); }}>focus →</button>
                 </div>
               );
             })}
