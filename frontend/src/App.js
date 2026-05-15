@@ -37,10 +37,16 @@ const tagFor = (kind) => ({
 }[kind] || "tag");
 
 // Skylit-style color scale: positive (Pika) = cyan/teal, negative (Barney) = purple/violet
-// King highlights pop yellow-green. VEX uses warmer tones (amber/pink)
+// King highlights pop yellow-green. VEX uses warmer tones (amber/pink). Charm uses cyan/violet.
 function cellColor(v, maxAbs, isKing = false, mode = "gex") {
   if (!v || maxAbs === 0) return { bg: "rgba(15, 22, 32, 0.7)", text: "#5a6781" };
   const norm = Math.min(1, Math.abs(v) / maxAbs);
+  if (mode === "charm") {
+    if (isKing && v > 0) return { bg: `rgba(34, 211, 238, ${0.55 + 0.4 * norm})`, text: "#0b1320" };
+    if (isKing && v < 0) return { bg: `rgba(168, 85, 247, ${0.55 + 0.4 * norm})`, text: "#0b1320" };
+    if (v > 0) { const alpha = 0.15 + 0.7 * norm; return { bg: `rgba(34, 211, 238, ${alpha})`, text: norm > 0.5 ? "#0b1320" : "#a5f3fc" }; }
+    else { const alpha = 0.18 + 0.7 * norm; return { bg: `rgba(168, 85, 247, ${alpha})`, text: norm > 0.5 ? "#fdf4ff" : "#e9d5ff" }; }
+  }
   if (mode === "vex") {
     if (isKing && v > 0) return { bg: `rgba(251, 191, 36, ${0.55 + 0.4 * norm})`, text: "#0b1320" };
     if (isKing && v < 0) return { bg: `rgba(219, 39, 119, ${0.55 + 0.4 * norm})`, text: "#0b1320" };
@@ -63,7 +69,7 @@ function GridHeatmap({ data, filters, onCellClick, viewMode = "gex" }) {
   }, [data?.ticker, data?.mode]);
 
   if (!data?.grid) return <div className="text-slate-500 text-xs p-4">No grid data</div>;
-  const { spot, grid, nodes } = data;
+  const { spot, grid, charm_grid, nodes } = data;
   const expiries = grid.expiries || [];
   let strikes = (grid.strikes || []).slice().sort((a, b) => b - a); // descending
   if (filters?.side === "above") strikes = strikes.filter(s => s > spot);
@@ -71,9 +77,10 @@ function GridHeatmap({ data, filters, onCellClick, viewMode = "gex" }) {
 
   // Helper to look up grid cell with key fallback (handles both "739" and "739.0")
   const cellOf = (e, s) => {
-    const g = grid.grid?.[e];
-    if (!g) return 0;
-    return g[String(Number.isInteger(s) ? s : s)] ?? g[String(s)] ?? g[String(s.toFixed(1))] ?? g[String(parseInt(s))] ?? 0;
+    const g = (viewMode === "charm" ? charm_grid : grid.grid) || {};
+    const ge = g[e];
+    if (!ge) return 0;
+    return ge[String(Number.isInteger(s) ? s : s)] ?? ge[String(s)] ?? ge[String(s.toFixed(1))] ?? ge[String(parseInt(s))] ?? 0;
   };
 
   // Hide rows where ALL cells are zero/empty across visible expiries
@@ -163,7 +170,7 @@ function GridHeatmap({ data, filters, onCellClick, viewMode = "gex" }) {
                         className="px-1 py-1 text-center cursor-pointer hover:outline hover:outline-1 hover:outline-teal-400"
                         style={{ background: col.bg, color: col.text, minWidth: 60 }}
                         onClick={() => onCellClick && onCellClick(s, e, v)}
-                        title={`strike ${s} · exp ${e} · gex ${fmtCell(v)}`}
+                        title={`strike ${s} · exp ${e} · ${viewMode === "charm" ? "charm" : "gex"} ${fmtCell(v)}`}
                       >
                         {fmtCell(v)}
                       </td>
@@ -192,7 +199,7 @@ function GridHeatmap({ data, filters, onCellClick, viewMode = "gex" }) {
 function BarHeatmap({ data, filters, compact = true, viewMode = "gex" }) {
   if (!data?.strikes) return null;
   const { spot, strikes, nodes } = data;
-  const key = viewMode === "vex" ? "vex" : "gex";
+  const key = viewMode === "vex" ? "vex" : viewMode === "charm" ? "charm" : "gex";
   const filtered = strikes.filter((s) => {
     const val = s[key] || s.gex || 0;
     if (filters?.magMin && Math.abs(val) < filters.magMin) return false;
@@ -208,10 +215,10 @@ function BarHeatmap({ data, filters, compact = true, viewMode = "gex" }) {
   const fSet = new Set((nodes?.floors || []).map(f => f.strike));
   const cSet = new Set((nodes?.ceilings || []).map(f => f.strike));
   const rowH = compact ? 14 : 18;
-  const barColorPos = viewMode === "vex" ? "rgba(245, 158, 11, 0.7)" : "rgba(45, 212, 191, 0.7)";
-  const barColorNeg = viewMode === "vex" ? "rgba(219, 39, 119, 0.7)" : "rgba(168, 85, 247, 0.7)";
-  const kingColorPos = viewMode === "vex" ? "rgba(251, 191, 36, 0.9)" : "rgba(190, 242, 100, 0.9)";
-  const kingColorNeg = viewMode === "vex" ? "rgba(219, 39, 119, 0.85)" : "rgba(232, 121, 249, 0.85)";
+  const barColorPos = viewMode === "vex" ? "rgba(245, 158, 11, 0.7)" : viewMode === "charm" ? "rgba(34, 211, 238, 0.7)" : "rgba(45, 212, 191, 0.7)";
+  const barColorNeg = viewMode === "vex" ? "rgba(219, 39, 119, 0.7)" : viewMode === "charm" ? "rgba(168, 85, 247, 0.7)" : "rgba(168, 85, 247, 0.7)";
+  const kingColorPos = viewMode === "vex" ? "rgba(251, 191, 36, 0.9)" : viewMode === "charm" ? "rgba(34, 211, 238, 0.9)" : "rgba(190, 242, 100, 0.9)";
+  const kingColorNeg = viewMode === "vex" ? "rgba(219, 39, 119, 0.85)" : viewMode === "charm" ? "rgba(168, 85, 247, 0.85)" : "rgba(232, 121, 249, 0.85)";
 
   return (
     <div className="relative" style={{ paddingTop: 4, paddingBottom: 4 }}>
@@ -979,6 +986,7 @@ export default function App() {
                   <div className="flex gap-1">
                     <button onClick={() => setViewMode("gex")} className={`btn flex-1 ${viewMode === "gex" ? "active" : ""}`}>GEX</button>
                     <button onClick={() => setViewMode("vex")} className={`btn flex-1 ${viewMode === "vex" ? "active" : ""}`}>VEX</button>
+                    <button onClick={() => setViewMode("charm")} className={`btn flex-1 ${viewMode === "charm" ? "active" : ""}`}>Charm</button>
                   </div>
                 </div>
                 <div>
@@ -1030,8 +1038,8 @@ export default function App() {
             <div className="panel p-3" data-testid="main-heatmap">
               <div className="flex justify-between items-center mb-2">
                 <div>
-                  <div className="label">Heatseeker · {viewMode === "vex" ? "VEX" : "GEX"} {view === "grid" ? "Grid (Strike × Expiry)" : "Bars"}</div>
-                  <div className="text-[10px] text-slate-500">{viewMode === "vex" ? "Amber = positive vanna · Pink = negative vanna · Yellow = King" : "Teal (Pika) = positive γ · Purple (Barney) = negative · Yellow-green = King · click any cell to drill"}</div>
+                  <div className="label">Heatseeker · {viewMode === "vex" ? "VEX" : viewMode === "charm" ? "Charm" : "GEX"} {view === "grid" ? "Grid (Strike × Expiry)" : "Bars"}</div>
+                  <div className="text-[10px] text-slate-500">{viewMode === "vex" ? "Amber = positive vanna · Pink = negative vanna · Yellow = King" : viewMode === "charm" ? "Cyan = positive charm (delta decay up) · Violet = negative charm · King highlight" : "Teal (Pika) = positive γ · Purple (Barney) = negative · Yellow-green = King · click any cell to drill"}</div>
                 </div>
                 <div className="flex gap-2 text-[10px]">
                   <span className="tag king">KING</span>
@@ -1053,8 +1061,8 @@ export default function App() {
 
           <aside className="col-span-3 space-y-3">
             {/* Flip Zone Bar */}
-            {(data?.nodes?.polarity_level || data?.nodes?.vex_flip) && (
-              <div className="panel-2 p-2 flex gap-3 text-[10px]">
+            {(data?.nodes?.polarity_level || data?.nodes?.vex_flip || data?.nodes?.charm_flip || data?.nodes?.max_pain) && (
+              <div className="panel-2 p-2 flex gap-3 text-[10px] flex-wrap">
                 {data?.nodes?.polarity_level && (
                   <div className="flex items-center gap-1.5">
                     <span className="w-2 h-2 rounded-full bg-amber-400/60" />
@@ -1069,6 +1077,22 @@ export default function App() {
                     <span className="text-slate-500">VEX Flip:</span>
                     <span className="text-pink-300 font-bold mono">{fmt(data.nodes.vex_flip, 1)}</span>
                     <span className="text-slate-600">({((data.nodes.vex_flip - data.spot) / data.spot * 100).toFixed(2)}%)</span>
+                  </div>
+                )}
+                {data?.nodes?.charm_flip && (
+                  <div className="flex items-center gap-1.5">
+                    <span className="w-2 h-2 rounded-full bg-cyan-400/60" />
+                    <span className="text-slate-500">Charm Flip:</span>
+                    <span className="text-cyan-300 font-bold mono">{fmt(data.nodes.charm_flip, 1)}</span>
+                    <span className="text-slate-600">({((data.nodes.charm_flip - data.spot) / data.spot * 100).toFixed(2)}%)</span>
+                  </div>
+                )}
+                {data?.nodes?.max_pain && (
+                  <div className="flex items-center gap-1.5">
+                    <span className="w-2 h-2 rounded-full bg-orange-400/60" />
+                    <span className="text-slate-500">Max Pain:</span>
+                    <span className="text-orange-300 font-bold mono">{fmt(data.nodes.max_pain, 1)}</span>
+                    <span className="text-slate-600">({((data.nodes.max_pain - data.spot) / data.spot * 100).toFixed(2)}%)</span>
                   </div>
                 )}
               </div>
@@ -1144,6 +1168,9 @@ export default function App() {
                 )}
                 {data?.nodes?.total_vega && Math.abs(data.nodes.total_vega) > 1e6 && (
                   <div className="text-[8px] text-slate-500">Vega: {fmtAbs(data.nodes.total_vega)}</div>
+                )}
+                {data?.nodes?.put_call_ratio && (
+                  <div className="text-[8px] text-slate-500">P/C Ratio: <span className={data.nodes.put_call_ratio > 1 ? "text-rose-400" : "text-emerald-400"}>{data.nodes.put_call_ratio.toFixed(2)}</span></div>
                 )}
               </div>
             </div>

@@ -98,13 +98,77 @@ def bs_delta(S: float, K: float, T: float, sigma: float, q: float = 0.0, kind: s
 
 
 def bs_vanna(S: float, K: float, T: float, sigma: float, r: float = RISK_FREE_RATE, q: float = 0.0) -> float:
-    """Vanna: sensitivity of delta to changes in implied volatility."""
+    """Vanna: sensitivity of delta to changes in implied volatility.
+    Vanna = -e^(-qT) * N'(d1) * d2 / sigma
+    where d2 = d1 - sigma*sqrt(T)
+    """
     if S <= 0 or K <= 0 or T <= 0 or sigma <= 0:
         return 0.0
     try:
         d1 = (math.log(S / K) + (r - q + 0.5 * sigma * sigma) * T) / (sigma * math.sqrt(T))
         d2 = d1 - sigma * math.sqrt(T)
-        result = -math.exp(-q * T) * d2 / sigma * norm.pdf(d1)
+        result = -math.exp(-q * T) * norm.pdf(d1) * d2 / sigma
+        if math.isnan(result) or math.isinf(result):
+            return 0.0
+        return result
+    except Exception:
+        return 0.0
+
+
+def bs_charm(S: float, K: float, T: float, sigma: float, r: float = RISK_FREE_RATE, q: float = 0.0, kind: str = "call") -> float:
+    """Charm: sensitivity of delta to time decay (dDelta/dTime).
+    Charm = -N'(d1) * (2(r-q)T - d2*sigma*sqrt(T)) / (2*T*sigma*sqrt(T))  for calls
+    Charm = -N'(d1) * (2(r-q)T - d2*sigma*sqrt(T)) / (2*T*sigma*sqrt(T))  for puts (same sign convention)
+    Matches gex-backtesting repo's BlackScholesGreeks.charm() formula.
+    """
+    if S <= 0 or K <= 0 or T <= 0 or sigma <= 0:
+        return 0.0
+    try:
+        d1 = (math.log(S / K) + (r - q + 0.5 * sigma * sigma) * T) / (sigma * math.sqrt(T))
+        d2 = d1 - sigma * math.sqrt(T)
+        pdf_d1 = norm.pdf(d1)
+        sqrt_T = math.sqrt(T)
+        charm = -pdf_d1 * (2 * (r - q) * T - d2 * sigma * sqrt_T) / (2 * T * sigma * sqrt_T)
+        if kind == "put":
+            charm = -charm
+        if math.isnan(charm) or math.isinf(charm):
+            return 0.0
+        return charm
+    except Exception:
+        return 0.0
+
+
+def bs_vomma(S: float, K: float, T: float, sigma: float, r: float = RISK_FREE_RATE, q: float = 0.0) -> float:
+    """Vomma (volga): sensitivity of vega to changes in implied volatility.
+    Vomma = vega * d1 * d2 / sigma
+    High vomma means option prices explode during vol spikes.
+    """
+    if S <= 0 or K <= 0 or T <= 0 or sigma <= 0:
+        return 0.0
+    try:
+        d1 = (math.log(S / K) + (r - q + 0.5 * sigma * sigma) * T) / (sigma * math.sqrt(T))
+        d2 = d1 - sigma * math.sqrt(T)
+        vega = S * math.exp(-q * T) * norm.pdf(d1) * math.sqrt(T)
+        result = vega * d1 * d2 / sigma
+        if math.isnan(result) or math.isinf(result):
+            return 0.0
+        return result
+    except Exception:
+        return 0.0
+
+
+def bs_zomma(S: float, K: float, T: float, sigma: float, r: float = RISK_FREE_RATE, q: float = 0.0) -> float:
+    """Zomma: sensitivity of gamma to changes in implied volatility.
+    Zomma = gamma * (d1 * d2 - 1) / sigma
+    Creates feedback loop: vol spike -> gamma increase -> bigger hedging demand.
+    """
+    if S <= 0 or K <= 0 or T <= 0 or sigma <= 0:
+        return 0.0
+    try:
+        d1 = (math.log(S / K) + (r - q + 0.5 * sigma * sigma) * T) / (sigma * math.sqrt(T))
+        d2 = d1 - sigma * math.sqrt(T)
+        gamma = norm.pdf(d1) / (S * sigma * math.sqrt(T))
+        result = gamma * (d1 * d2 - 1) / sigma
         if math.isnan(result) or math.isinf(result):
             return 0.0
         return result
@@ -301,32 +365,50 @@ def compute_gex_by_strike(spot: float, contracts: List[Dict[str, Any]], ticker: 
         gamma = bs_gamma(spot, c["strike"], c["T"], c["iv"], q=q)
         vanna = bs_vanna(spot, c["strike"], c["T"], c["iv"], q=q)
         vega_val = bs_vega(spot, c["strike"], c["T"], c["iv"], q=q)
+        charm = bs_charm(spot, c["strike"], c["T"], c["iv"], q=q, kind=c["type"])
+        vomma = bs_vomma(spot, c["strike"], c["T"], c["iv"], q=q)
+        zomma = bs_zomma(spot, c["strike"], c["T"], c["iv"], q=q)
         if gamma <= 0 and abs(vanna) <= 0:
             continue
-        gex_unit = gamma * c["oi"] * 100.0 * spot * spot * 0.01
-        vex_unit = vanna * c["oi"] * 100.0 * spot * 0.01
+        gex_unit = gamma * oi * 100.0 * spot * spot * 0.01
+        vex_unit = vanna * oi * 100.0 * spot * 0.01
         vega_unit = vega_val * oi * 100.0
+        charm_unit = charm * oi * 100.0 * spot * 0.01
+        vomma_unit = vomma * oi * 100.0
+        zomma_unit = zomma * oi * 100.0 * spot * 0.01
         sign = 1.0 if c["type"] == "call" else -1.0
         bucket = agg.setdefault(c["strike"], {
             "strike": c["strike"], "gex": 0.0, "call_gex": 0.0, "put_gex": 0.0,
             "call_oi": 0.0, "put_oi": 0.0, "total_oi": 0.0,
             "vex": 0.0, "call_vex": 0.0, "put_vex": 0.0,
             "vega": 0.0, "call_vega": 0.0, "put_vega": 0.0,
+            "charm": 0.0, "call_charm": 0.0, "put_charm": 0.0,
+            "vomma": 0.0, "call_vomma": 0.0, "put_vomma": 0.0,
+            "zomma": 0.0, "call_zomma": 0.0, "put_zomma": 0.0,
         })
         bucket["gex"] += sign * gex_unit
         bucket["vex"] += sign * vex_unit
         bucket["vega"] += sign * vega_unit
+        bucket["charm"] += sign * charm_unit
+        bucket["vomma"] += sign * vomma_unit
+        bucket["zomma"] += sign * zomma_unit
         if c["type"] == "call":
             bucket["call_gex"] += gex_unit
             bucket["call_vex"] += vex_unit
             bucket["call_vega"] += vega_unit
-            bucket["call_oi"] += c["oi"]
+            bucket["call_charm"] += charm_unit
+            bucket["call_vomma"] += vomma_unit
+            bucket["call_zomma"] += zomma_unit
+            bucket["call_oi"] += oi
         else:
             bucket["put_gex"] += gex_unit
             bucket["put_vex"] += vex_unit
             bucket["put_vega"] += vega_unit
-            bucket["put_oi"] += c["oi"]
-        bucket["total_oi"] += c["oi"]
+            bucket["put_charm"] += charm_unit
+            bucket["put_vomma"] += vomma_unit
+            bucket["put_zomma"] += zomma_unit
+            bucket["put_oi"] += oi
+        bucket["total_oi"] += oi
 
     out = sorted(agg.values(), key=lambda r: r["strike"])
     return out
@@ -334,21 +416,27 @@ def compute_gex_by_strike(spot: float, contracts: List[Dict[str, Any]], ticker: 
 
 def compute_gex_grid(spot: float, contracts: List[Dict[str, Any]], ticker: str = "") -> Dict[str, Any]:
     """2D grid: GEX per (strike, expiry). Skylit-style heatmap layout.
-    Returns {expiries: [...], strikes: [...], grid: {expiry: {strike: gex}}}"""
+    Returns {expiries: [...], strikes: [...], grid: {expiry: {strike: gex}}, charm_grid: {expiry: {strike: charm}}}"""
     if spot <= 0 or not contracts:
-        return {"expiries": [], "strikes": [], "grid": {}}
+        return {"expiries": [], "strikes": [], "grid": {}, "charm_grid": {}}
     q = DIV_YIELD.get(ticker, 0.0)
     grid: Dict[str, Dict[float, float]] = {}
+    charm_grid: Dict[str, Dict[float, float]] = {}
     strike_totals: Dict[float, float] = {}
     for c in contracts:
         gamma = bs_gamma(spot, c["strike"], c["T"], c["iv"], q=q)
+        charm = bs_charm(spot, c["strike"], c["T"], c["iv"], q=q, kind=c["type"])
         if gamma <= 0:
             continue
         gex_unit = gamma * c["oi"] * 100.0 * spot * spot * 0.01
+        charm_unit = charm * c["oi"] * 100.0 * spot * 0.01
         sign = 1.0 if c["type"] == "call" else -1.0
         cell = sign * gex_unit
+        charm_cell = sign * charm_unit
         d = grid.setdefault(c["expiry"], {})
         d[c["strike"]] = d.get(c["strike"], 0.0) + cell
+        dc = charm_grid.setdefault(c["expiry"], {})
+        dc[c["strike"]] = dc.get(c["strike"], 0.0) + charm_cell
         strike_totals[c["strike"]] = strike_totals.get(c["strike"], 0.0) + cell
 
     expiries = sorted(grid.keys())
@@ -362,6 +450,7 @@ def compute_gex_grid(spot: float, contracts: List[Dict[str, Any]], ticker: str =
         "expiries": expiries,
         "strikes": strikes,
         "grid": {e: {_k(k): v for k, v in grid[e].items()} for e in expiries},
+        "charm_grid": {e: {_k(k): v for k, v in charm_grid[e].items()} for e in expiries},
         "strike_totals": [{"strike": k, "gex": v} for k, v in sorted(strike_totals.items())],
     }
 
@@ -473,6 +562,39 @@ def classify_nodes(strikes: List[Dict[str, Any]], spot: float) -> Dict[str, Any]
     if math.isnan(total_vega) or math.isinf(total_vega):
         total_vega = 0.0
 
+    # Total charm
+    total_charm = sum((s.get("charm") or 0.0) for s in strikes)
+    if math.isnan(total_charm) or math.isinf(total_charm):
+        total_charm = 0.0
+
+    # Charm flip point: weighted average of all strikes by absolute charm
+    total_abs_charm = sum(abs(s.get("charm") or 0.0) for s in strikes)
+    if total_abs_charm > 0:
+        charm_flip = sum(s["strike"] * abs(s.get("charm") or 0.0) for s in strikes) / total_abs_charm
+    else:
+        charm_flip = spot
+
+    # Max Pain: strike where total OI-weighted pain is minimized
+    # Pain = sum of OI * |strike - reference| for all options
+    # The max pain point is where option writers lose least / buyers lose most
+    max_pain = None
+    if strikes:
+        strike_range = sorted(set(s["strike"] for s in strikes))
+        min_pain = float("inf")
+        for test_strike in strike_range:
+            pain = 0.0
+            for s in strikes:
+                oi = s.get("total_oi", 0) or 0
+                pain += oi * abs(s["strike"] - test_strike)
+            if pain < min_pain:
+                min_pain = pain
+                max_pain = test_strike
+
+    # Put/Call ratio
+    total_call_oi = sum(s.get("call_oi", 0) or 0 for s in strikes)
+    total_put_oi = sum(s.get("put_oi", 0) or 0 for s in strikes)
+    put_call_ratio = total_put_oi / total_call_oi if total_call_oi > 0 else None
+
     return {
         "king": king,
         "floors": floors[:5],
@@ -484,9 +606,15 @@ def classify_nodes(strikes: List[Dict[str, Any]], spot: float) -> Dict[str, Any]
         "total_gex": total_gex,
         "near_gex": near_gex,
         "vex_flip": vex_flip,
+        "charm_flip": charm_flip,
+        "max_pain": max_pain,
+        "put_call_ratio": put_call_ratio,
+        "total_call_oi": total_call_oi,
+        "total_put_oi": total_put_oi,
         "stacked_nodes": stacked[:10],
         "tug_of_war": tug_of_war[:5],
         "total_vega": total_vega,
+        "total_charm": total_charm,
     }
 
 
