@@ -77,7 +77,10 @@ def bs_gamma(S: float, K: float, T: float, sigma: float, r: float = RISK_FREE_RA
         return 0.0
     try:
         d1 = (math.log(S / K) + (r - q + 0.5 * sigma * sigma) * T) / (sigma * math.sqrt(T))
-        return math.exp(-q * T) * norm.pdf(d1) / (S * sigma * math.sqrt(T))
+        result = math.exp(-q * T) * norm.pdf(d1) / (S * sigma * math.sqrt(T))
+        if math.isnan(result) or math.isinf(result):
+            return 0.0
+        return result
     except Exception:
         return 0.0
 
@@ -95,29 +98,30 @@ def bs_delta(S: float, K: float, T: float, sigma: float, q: float = 0.0, kind: s
 
 
 def bs_vanna(S: float, K: float, T: float, sigma: float, r: float = RISK_FREE_RATE, q: float = 0.0) -> float:
-    """Vanna: sensitivity of delta to changes in implied volatility.
-    Vanna = -e^(-qT) * d2 / sigma * N'(d1)
-    where d2 = d1 - sigma*sqrt(T)
-    """
+    """Vanna: sensitivity of delta to changes in implied volatility."""
     if S <= 0 or K <= 0 or T <= 0 or sigma <= 0:
         return 0.0
     try:
         d1 = (math.log(S / K) + (r - q + 0.5 * sigma * sigma) * T) / (sigma * math.sqrt(T))
         d2 = d1 - sigma * math.sqrt(T)
-        return -math.exp(-q * T) * d2 / sigma * norm.pdf(d1)
+        result = -math.exp(-q * T) * d2 / sigma * norm.pdf(d1)
+        if math.isnan(result) or math.isinf(result):
+            return 0.0
+        return result
     except Exception:
         return 0.0
 
 
 def bs_vega(S: float, K: float, T: float, sigma: float, r: float = RISK_FREE_RATE, q: float = 0.0) -> float:
-    """Vega: sensitivity of option price to implied volatility.
-    Vega = S * e^(-qT) * N'(d1) * sqrt(T)
-    """
+    """Vega: sensitivity of option price to implied volatility."""
     if S <= 0 or K <= 0 or T <= 0 or sigma <= 0:
         return 0.0
     try:
         d1 = (math.log(S / K) + (r - q + 0.5 * sigma * sigma) * T) / (sigma * math.sqrt(T))
-        return S * math.exp(-q * T) * norm.pdf(d1) * math.sqrt(T)
+        result = S * math.exp(-q * T) * norm.pdf(d1) * math.sqrt(T)
+        if math.isnan(result) or math.isinf(result):
+            return 0.0
+        return result
     except Exception:
         return 0.0
 
@@ -291,14 +295,17 @@ def compute_gex_by_strike(spot: float, contracts: List[Dict[str, Any]], ticker: 
     q = DIV_YIELD.get(ticker, 0.0)
     agg: Dict[float, Dict[str, float]] = {}
     for c in contracts:
+        oi = c.get("oi", 0) or 0
+        if oi <= 0 or (isinstance(oi, float) and math.isnan(oi)):
+            continue
         gamma = bs_gamma(spot, c["strike"], c["T"], c["iv"], q=q)
         vanna = bs_vanna(spot, c["strike"], c["T"], c["iv"], q=q)
-        vega = bs_vega(spot, c["strike"], c["T"], c["iv"], q=q)
+        vega_val = bs_vega(spot, c["strike"], c["T"], c["iv"], q=q)
         if gamma <= 0 and abs(vanna) <= 0:
             continue
         gex_unit = gamma * c["oi"] * 100.0 * spot * spot * 0.01
         vex_unit = vanna * c["oi"] * 100.0 * spot * 0.01
-        vega_unit = vega * c["oi"] * 100.0
+        vega_unit = vega_val * oi * 100.0
         sign = 1.0 if c["type"] == "call" else -1.0
         bucket = agg.setdefault(c["strike"], {
             "strike": c["strike"], "gex": 0.0, "call_gex": 0.0, "put_gex": 0.0,
@@ -364,7 +371,8 @@ def compute_gex_grid(spot: float, contracts: List[Dict[str, Any]], ticker: str =
 def classify_nodes(strikes: List[Dict[str, Any]], spot: float) -> Dict[str, Any]:
     if not strikes or spot <= 0:
         return {"king": None, "floors": [], "ceilings": [], "gatekeepers": [], "air_pockets": [],
-                "polarity_level": None, "regime": "unknown"}
+                "polarity_level": None, "regime": "unknown", "total_gex": 0, "near_gex": 0,
+                "vex_flip": None, "stacked_nodes": [], "tug_of_war": [], "total_vega": 0}
 
     # King = largest absolute exposure
     king = max(strikes, key=lambda r: abs(r["gex"]))
@@ -379,7 +387,7 @@ def classify_nodes(strikes: List[Dict[str, Any]], spot: float) -> Dict[str, Any]
         key=lambda r: r["gex"], reverse=True,
     )
 
-    # Gatekeepers: positive nodes between spot and king (smaller than king but meaningful >= 15% of king mag)
+    # Gatekeepers: positive nodes between spot and king
     gk_threshold = 0.15 * max_abs
     if king and king["strike"] != spot:
         lo, hi = sorted([spot, king["strike"]])
@@ -411,57 +419,37 @@ def classify_nodes(strikes: List[Dict[str, Any]], spot: float) -> Dict[str, Any]
         air_pockets.append({"low": min(run_strikes), "high": max(run_strikes),
                             "width": len(run_strikes), "mid": (min(run_strikes) + max(run_strikes)) / 2})
 
-    # Polarity / regime
+    # Polarity / regime - use total GEX
     total_gex = sum(s["gex"] for s in strikes)
     spot_window = [s for s in strikes if abs(s["strike"] - spot) / spot < 0.02]
     near_gex = sum(s["gex"] for s in spot_window)
-    if near_gex > 0:
+    if total_gex > 0:
         regime = "positive"
-    elif near_gex < 0:
+    elif total_gex < 0:
         regime = "negative"
     else:
         regime = "neutral"
 
-    # Gamma flip / polarity zero-crossing
-    polarity = None
-    cum = 0.0
-    sorted_by_strike = sorted(strikes, key=lambda r: r["strike"])
-    cum_arr = []
-    for s in sorted_by_strike:
-        cum += s["gex"]
-        cum_arr.append((s["strike"], cum))
-    for i in range(1, len(cum_arr)):
-        a, b = cum_arr[i - 1], cum_arr[i]
-        if a[1] == 0 or b[1] == 0 or (a[1] > 0) != (b[1] > 0):
-            # zero crossing -> linear interp
-            x1, y1 = a; x2, y2 = b
-            if y2 - y1 != 0:
-                polarity = x1 + (0 - y1) * (x2 - x1) / (y2 - y1)
-            else:
-                polarity = (x1 + x2) / 2
-            break
+    # Gamma flip point: weighted average of all strikes by absolute GEX
+    # This gives the "center of gravity" for gamma exposure
+    # A more useful flip point than cumulative zero-crossing
+    total_abs_gex = sum(abs(s["gex"]) for s in strikes)
+    if total_abs_gex > 0:
+        polarity = sum(s["strike"] * abs(s["gex"]) for s in strikes) / total_abs_gex
+    else:
+        polarity = spot
 
-    # VEX-weighted flip: where does cumulative VEX change sign?
-    vex_flip = None
-    cum_v = 0.0
-    vex_arr = []
-    for s in sorted_by_strike:
-        cum_v += s.get("vex", 0.0)
-        vex_arr.append((s["strike"], cum_v))
-    for i in range(1, len(vex_arr)):
-        a, b = vex_arr[i - 1], vex_arr[i]
-        if a[1] == 0 or b[1] == 0 or (a[1] > 0) != (b[1] > 0):
-            x1, y1 = a; x2, y2 = b
-            if y2 - y1 != 0:
-                vex_flip = x1 + (0 - y1) * (x2 - x1) / (y2 - y1)
-            else:
-                vex_flip = (x1 + x2) / 2
-            break
+    # VEX flip point: same weighted average approach for vanna
+    total_abs_vex = sum(abs(s.get("vex", 0.0) or 0) for s in strikes)
+    if total_abs_vex > 0:
+        vex_flip = sum(s["strike"] * abs(s.get("vex", 0.0) or 0) for s in strikes) / total_abs_vex
+    else:
+        vex_flip = spot
 
-    # Stacked nodes: strikes where both call and put GEX are significant (>20% of total)
+    # Stacked nodes: strikes where both call and put GEX are significant
     stacked = []
     for s in strikes:
-        if abs(s["strike"] - spot) / spot > 0.05:
+        if abs(s["strike"] - spot) / spot > 0.03:
             continue
         total = abs(s.get("call_gex", 0)) + abs(s.get("put_gex", 0))
         if total > 0:
@@ -470,9 +458,9 @@ def classify_nodes(strikes: List[Dict[str, Any]], spot: float) -> Dict[str, Any]
             if call_pct > 0.2 and put_pct > 0.2:
                 stacked.append({"strike": s["strike"], "call_pct": round(call_pct, 2), "put_pct": round(put_pct, 2)})
 
-    # Tug-of-war: zones where positive and negative GEX are within 5% of spot
+    # Tug-of-war: zones where positive and negative GEX are within 3% of spot
     tug_of_war = []
-    near_strikes = [s for s in sorted_by_strike if abs(s["strike"] - spot) / spot < 0.05]
+    near_strikes = sorted([s for s in strikes if abs(s["strike"] - spot) / spot < 0.03], key=lambda r: r["strike"])
     for i in range(1, len(near_strikes)):
         a, b = near_strikes[i-1], near_strikes[i]
         if (a["gex"] > 0 and b["gex"] < 0) or (a["gex"] < 0 and b["gex"] > 0):
@@ -481,7 +469,9 @@ def classify_nodes(strikes: List[Dict[str, Any]], spot: float) -> Dict[str, Any]
                                 "negative": a["gex"] if a["gex"] < 0 else b["gex"]})
 
     # Total vega
-    total_vega = sum(s.get("vega", 0.0) for s in strikes)
+    total_vega = sum((s.get("vega") or 0.0) for s in strikes)
+    if math.isnan(total_vega) or math.isinf(total_vega):
+        total_vega = 0.0
 
     return {
         "king": king,
