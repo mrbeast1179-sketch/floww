@@ -1324,6 +1324,127 @@ export default function App() {
               </div>
             )}
 
+            {/* Institutional Vol Analytics */}
+            {(data?.skew || data?.iv_rank) && (
+              <div className="panel-2 p-2">
+                <div className="label mb-1">Volatility Analytics</div>
+                <div className="space-y-1.5">
+                  {/* Skew Metrics */}
+                  {data?.skew && (
+                    <>
+                      <div className="text-[8px] text-slate-500 uppercase tracking-wider">Skew</div>
+                      <div className="grid grid-cols-2 gap-x-3 gap-y-0.5 text-[9px]">
+                        <div className="flex justify-between">
+                          <span className="text-slate-500">ATM IV</span>
+                          <span className="mono text-slate-300">{(data.skew.atm_iv * 100).toFixed(1)}%</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-slate-500">RR 25d</span>
+                          <span className={`mono font-bold ${
+                            data.skew.interpretation?.risk_reversal === "bullish" ? "text-emerald-400" :
+                            data.skew.interpretation?.risk_reversal === "bearish" ? "text-rose-400" : "text-slate-300"
+                          }`}>{(data.skew.risk_reversal_25d * 100).toFixed(2)}%</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-slate-500">Butterfly</span>
+                          <span className="mono text-slate-300">{(data.skew.butterfly_25d * 100).toFixed(2)}%</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-slate-500">Skew Slope</span>
+                          <span className={`mono ${
+                            data.skew.interpretation?.skew_slope === "steep" ? "text-amber-400" : "text-slate-300"
+                          }`}>{data.skew.skew_slope.toFixed(2)}</span>
+                        </div>
+                      </div>
+                      <div className="text-[8px] text-slate-600">
+                        {data.skew.interpretation?.risk_reversal === "bullish" && "Call skew — market pricing upside risk"}
+                        {data.skew.interpretation?.risk_reversal === "bearish" && "Put skew — market pricing downside risk"}
+                        {data.skew.interpretation?.risk_reversal === "neutral" && "Symmetric skew — balanced risk pricing"}
+                      </div>
+                    </>
+                  )}
+
+                  {/* IV Rank & Realized Vol */}
+                  {data?.iv_rank && (
+                    <>
+                      <div className="text-[8px] text-slate-500 uppercase tracking-wider mt-1">IV Rank / RV</div>
+                      <div className="grid grid-cols-2 gap-x-3 gap-y-0.5 text-[9px]">
+                        <div className="flex justify-between">
+                          <span className="text-slate-500">IV Rank</span>
+                          <span className={`mono font-bold ${
+                            data.iv_rank.interpretation === "expensive" ? "text-rose-400" :
+                            data.iv_rank.interpretation === "cheap" ? "text-emerald-400" : "text-amber-400"
+                          }`}>
+                            {data.iv_rank.iv_rank !== null ? (data.iv_rank.iv_rank * 100).toFixed(0) + "%" : "—"}
+                          </span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-slate-500">IV Pctl</span>
+                          <span className="mono text-slate-300">
+                            {data.iv_rank.iv_percentile !== null ? (data.iv_rank.iv_percentile * 100).toFixed(0) + "%" : "—"}
+                          </span>
+                        </div>
+                        {data.iv_rank.rv_close && (
+                          <>
+                            <div className="flex justify-between">
+                              <span className="text-slate-500">RV 20d</span>
+                              <span className="mono text-slate-300">{(data.iv_rank.rv_close * 100).toFixed(1)}%</span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span className="text-slate-500">RV-IV Spread</span>
+                              <span className={`mono font-bold ${
+                                (data.iv_rank.rv_iv_spread || 0) > 0.05 ? "text-rose-400" :
+                                (data.iv_rank.rv_iv_spread || 0) < -0.05 ? "text-emerald-400" : "text-slate-300"
+                              }`}>
+                                {data.iv_rank.rv_iv_spread !== undefined ? (data.iv_rank.rv_iv_spread * 100).toFixed(1) + "%" : "—"}
+                              </span>
+                            </div>
+                          </>
+                        )}
+                      </div>
+                      {data.iv_rank.interpretation && (
+                        <div className={`text-[8px] ${
+                          data.iv_rank.interpretation === "expensive" ? "text-rose-400" :
+                          data.iv_rank.interpretation === "cheap" ? "text-emerald-400" : "text-amber-400"
+                        }`}>
+                          Options are {data.iv_rank.interpretation} relative to 52w range
+                          {data.iv_rank.rv_iv_spread > 0.05 && " — IV significantly above RV (sell premium)"}
+                          {data.iv_rank.rv_iv_spread < -0.05 && " — IV below RV (buy premium)"}
+                        </div>
+                      )}
+                    </>
+                  )}
+
+                  {/* Term Structure */}
+                  {data?.iv_surface?.term_structure?.length > 0 && (
+                    <>
+                      <div className="text-[8px] text-slate-500 uppercase tracking-wider mt-1">Term Structure</div>
+                      <div className="flex gap-1 flex-wrap">
+                        {data.iv_surface.term_structure.slice(0, 6).map((ts, i) => (
+                          <div key={i} className="text-[8px] px-1.5 py-0.5 bg-slate-800 rounded">
+                            <span className="text-slate-500">{ts.dte}d</span>{" "}
+                            <span className="mono text-slate-300">{(ts.atm_iv * 100).toFixed(1)}%</span>
+                          </div>
+                        ))}
+                      </div>
+                      {data.iv_surface.term_structure.length >= 2 && (() => {
+                        const first = data.iv_surface.term_structure[0]?.atm_iv || 0;
+                        const last = data.iv_surface.term_structure[data.iv_surface.term_structure.length - 1]?.atm_iv || 0;
+                        const slope = last - first;
+                        return (
+                          <div className={`text-[8px] ${slope > 0.02 ? "text-amber-400" : slope < -0.02 ? "text-emerald-400" : "text-slate-500"}`}>
+                            {slope > 0.02 ? "Contango — longer-dated IV higher (normal)" :
+                             slope < -0.02 ? "Backwardation — near-term IV elevated (event risk)" :
+                             "Flat term structure"}
+                          </div>
+                        );
+                      })()}
+                    </>
+                  )}
+                </div>
+              </div>
+            )}
+
             {/* Greek Educational Accordion - from gflows */}
             <div className="panel-2 p-2">
               <div className="label mb-1">Greek Reference</div>
