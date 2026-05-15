@@ -1,2 +1,14 @@
 /* App.css intentionally minimal — styling lives in index.css */
 .App { min-height: 100vh; }
+
+/* Ensure proper overflow handling for the 3-column layout */
+.overflow-hidden { overflow: hidden; }
+.overflow-y-auto { overflow-y: auto; }
+.overflow-x-auto { overflow-x: auto; }
+
+/* Smooth scrolling for panels */
+aside { scroll-behavior: smooth; }
+
+/* Collapsible section animation */
+details > summary { list-style: none; }
+details > summary::-webkit-details-marker { display: none; }
