@@ -150,9 +150,21 @@ function PositionForm({ onAdd }) {
   );
 }
 
+// ============ CSV Export Helper ============
+function downloadCSV(filename, headers, rows) {
+  const csv = [headers.join(","), ...rows.map(r => headers.map(h => {
+    const v = r[h];
+    const s = v == null ? "" : String(v);
+    return s.includes(",") || s.includes('"') || s.includes("\n") ? `"${s.replace(/"/g, '""')}"` : s;
+  }).join(","))].join("\n");
+  const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url; a.download = filename; a.click();
+  URL.revokeObjectURL(url);
+}
 // ============ Greeks Summary Bar ============
 function GreeksBar({ greeks }) {
-  if (!greeks) return null;
   const items = [
     { k: "delta", label: "Δ" },
     { k: "gamma", label: "Γ" },
@@ -451,7 +463,19 @@ export default function PortfolioPanel({ ticker, spot }) {
 
             {positions.length > 0 ? (
               <div className="panel p-3">
-                <div className="label mb-2">Open Positions ({positions.length})</div>
+                <div className="flex justify-between items-center mb-2">
+                  <div className="label mb-0">Open Positions ({positions.length})</div>
+                  {positions.length > 0 && (
+                    <button
+                      onClick={() => downloadCSV(
+                        `portfolio_${portfolioName}_${new Date().toISOString().slice(0,10)}.csv`,
+                        ["symbol","type","strike","expiry","qty","entry_price","entry_iv","underlying_price"],
+                        positions.map(p => ({ symbol: p.symbol, type: p.option_type, strike: p.strike, expiry: p.expiry, qty: p.quantity, entry_price: p.entry_price, entry_iv: p.entry_iv, underlying_price: p.underlying_price }))
+                      )}
+                      className="btn text-[9px] px-2 py-0.5"
+                    >Export CSV</button>
+                  )}
+                </div>
                 <table className="w-full text-[11px] mono">
                   <thead>
                     <tr className="text-slate-500 text-[10px] uppercase tracking-widest">

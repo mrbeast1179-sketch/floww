@@ -197,6 +197,65 @@ function Drilldown({ ticker, expiry, strike, onClose }) {
   );
 }
 
+// ============ Ticker Search / Autocomplete ============
+function TickerSearch({ tickers, value, onChange }) {
+  const [query, setQuery] = useState("");
+  const [open, setOpen] = useState(false);
+  const inputRef = useRef(null);
+  const ref = useRef(null);
+
+  const filtered = useMemo(() => {
+    const q = query.toUpperCase().replace("^", "");
+    if (!q) return tickers.slice(0, 10);
+    return tickers.filter(t => t.toUpperCase().replace("^", "").includes(q)).slice(0, 10);
+  }, [query, tickers]);
+
+  useEffect(() => {
+    const handler = (e) => {
+      if (ref.current && !ref.current.contains(e.target)) setOpen(false);
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
+
+  return (
+    <div ref={ref} className="relative">
+      <input
+        ref={inputRef}
+        value={open ? query : value.replace("^", "")}
+        onChange={e => { setQuery(e.target.value); setOpen(true); }}
+        onFocus={() => { setQuery(""); setOpen(true); }}
+        onKeyDown={e => {
+          if (e.key === "Enter" && filtered.length > 0) {
+            onChange(filtered[0]);
+            setOpen(false);
+            inputRef.current?.blur();
+          }
+          if (e.key === "Escape") { setOpen(false); inputRef.current?.blur(); }
+        }}
+        placeholder="Search ticker…"
+        className="btn"
+        style={{ padding: "4px 8px", width: 120 }}
+      />
+      {open && filtered.length > 0 && (
+        <div className="absolute top-full left-0 mt-1 w-40 rounded border border-slate-700 shadow-xl z-50 overflow-hidden" style={{ background: "var(--panel)" }}>
+          {filtered.map(t => (
+            <button
+              key={t}
+              onClick={() => { onChange(t); setOpen(false); setQuery(""); }}
+              className="block w-full text-left px-3 py-1.5 text-[11px] hover:bg-slate-700/60 transition-colors"
+              style={{ background: t === value ? "var(--bg-2)" : "transparent" }}
+            >
+              <span className="font-bold">{t.replace("^", "")}</span>
+              {t.startsWith("^") && <span className="text-slate-500 ml-1 text-[9px]">IDX</span>}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ============ Regime Color Helper ============
 const regimeColor = (regime) => regime === "positive" ? "text-emerald-400" : regime === "negative" ? "text-rose-400" : "text-slate-400";
 
@@ -317,9 +376,11 @@ export default function App() {
         </div>
         <div className="flex items-center gap-3">
           {tickers && (
-            <select value={ticker} onChange={e => setTicker(e.target.value)} className="btn" style={{ padding: "4px 8px" }}>
-              {[...tickers.trinity, ...tickers.default, ...tickers.popular].map(t => <option key={t} value={t}>{t.replace("^", "")}</option>)}
-            </select>
+            <TickerSearch
+              tickers={[...tickers.trinity, ...tickers.default, ...tickers.popular]}
+              value={ticker}
+              onChange={setTicker}
+            />
           )}
           <div className="text-[10px] text-slate-500">
             {data?.data_source && <span>{data.data_source}</span>}
