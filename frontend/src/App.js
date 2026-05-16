@@ -218,6 +218,13 @@ export default function App() {
     } catch (e) { setErr(e.response?.data?.detail || e.message); }
   }, [ticker, expiries, mode, dte]);
 
+  // Auto-dismiss errors after 10s
+  useEffect(() => {
+    if (!err) return;
+    const id = setTimeout(() => setErr(null), 10000);
+    return () => clearTimeout(id);
+  }, [err]);
+
   useEffect(() => { fetchData(); const id = setInterval(fetchData, REFRESH_MS); return () => clearInterval(id); }, [fetchData]);
 
   // Live spot polling
@@ -286,7 +293,12 @@ export default function App() {
                 <div className="text-[10px] text-slate-500">
                   {data?.expiries_used?.length ? `${data.expiries_used.length} exp · ${data.expiries_used[0]} → ${data.expiries_used.slice(-1)[0]}` : ""}
                 </div>
-                {err && <div className="text-rose-400 text-[11px] mt-2">{err}</div>}
+                {err && (
+                  <div className="text-rose-400 text-[11px] mt-2 bg-rose-500/10 rounded px-2 py-1 flex justify-between items-center">
+                    <span>{err}</span>
+                    <button onClick={() => setErr(null)} className="text-rose-400 hover:text-rose-300 text-[10px]">✕</button>
+                  </div>
+                )}
                 <div className="dotted-divider my-3" />
                 <div className="grid grid-cols-2 gap-2 text-[11px]">
                   <div><div className="label">King</div><div className="mono text-amber-300">{fmt(data?.nodes?.king?.strike, 0)}</div></div>
