@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState, useCallback, useRef } from "react"
 import axios from "axios";
 import "@/App.css";
 
-import { fmt, fmtAbs, pctClass, tagFor, TRINITY, DEFAULT_TICKERS, REFRESH_MS } from "./lib/helpers";
+import { fmt, fmtAbs, pctClass, tagFor, TRINITY, DEFAULT_TICKERS } from "./lib/helpers";
 import GridHeatmap from "./components/GridHeatmap";
 import BarHeatmap from "./components/BarHeatmap";
 import PatternCard from "./components/PatternCard";
@@ -24,6 +24,8 @@ import MultiTimeframeGEXPanel from "./components/MultiTimeframeGEXPanel";
 import AlertsPanel from "./components/AlertsPanel";
 import UOAPanel from "./components/UOAPanel";
 import { useWebSocketGex } from "./hooks/useWebSocketGex";
+import { useDebounce } from "./hooks/useDebounce";
+import { SettingsPanel } from "./components/SettingsPanel";
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
@@ -263,7 +265,12 @@ const regimeColor = (regime) => regime === "positive" ? "text-emerald-400" : reg
 // ============ Main App ============
 export default function App() {
   const [page, setPage] = useState("trinity");
-  const [ticker, setTicker] = useState("SPY");
+  const [ticker, setTicker] = useState(() => {
+    try { return localStorage.getItem("floww_settings") ? JSON.parse(localStorage.getItem("floww_settings")).defaultTicker || "SPY" : "SPY"; } catch { return "SPY"; }
+  });
+  const [refreshMs, setRefreshMs] = useState(() => {
+    try { return localStorage.getItem("floww_settings") ? JSON.parse(localStorage.getItem("floww_settings")).refreshMs || 25000 : 25000; } catch { return 25000; }
+  });
   const [data, setData] = useState(null);
   const [livespot, setLivespot] = useState(null);
   const [err, setErr] = useState(null);
@@ -278,29 +285,34 @@ export default function App() {
   const [advanced, setAdvanced] = useState(null);
   const wsGex = useWebSocketGex(page === "heatseeker" ? ticker : null);
 
+  // Debounced filter values to prevent API spam
+  const debouncedMode = useDebounce(mode, 300);
+  const debouncedExpiries = useDebounce(expiries, 300);
+  const debouncedDte = useDebounce(dte, 300);
+
   // Fetch tickers
   useEffect(() => { axios.get(`${API}/tickers`).then(r => setTickers(r.data)).catch(() => {}); }, []);
 
   // Fetch heatmap data
   const fetchData = useCallback(async () => {
     try {
-      const dteParam = dte != null ? `&dte=${dte}` : "";
-      const res = await axios.get(`${API}/heatmap/${ticker}?expiries=${expiries}&mode=${mode}${dteParam}`);
+      const dteParam = debouncedDte != null ? `&dte=${debouncedDte}` : "";
+      const res = await axios.get(`${API}/heatmap/${ticker}?expiries=${debouncedExpiries}&mode=${debouncedMode}${dteParam}`);
       setData(res.data); setErr(null);
     } catch (e) {
       const detail = e.response?.data?.detail;
       const msg = typeof detail === 'string' ? detail : (detail?.[0]?.msg || JSON.stringify(detail));
       setErr(msg);
     }
-  }, [ticker, expiries, mode, dte]);
+  }, [ticker, debouncedExpiries, debouncedMode, debouncedDte]);
 
   // Fetch advanced analytics (hedge impulse, pressure cloud, charm)
   const fetchAdvanced = useCallback(async () => {
     try {
-      const res = await axios.get(`${API}/advanced/${ticker}?expiries=${expiries}`);
+      const res = await axios.get(`${API}/advanced/${ticker}?expiries=${debouncedExpiries}`);
       setAdvanced(res.data);
     } catch (e) { /* noop */ }
-  }, [ticker, expiries]);
+  }, [ticker, debouncedExpiries]);
 
   // Auto-dismiss errors after 10s
   useEffect(() => {
@@ -309,10 +321,10 @@ export default function App() {
     return () => clearTimeout(id);
   }, [err]);
 
-  useEffect(() => { fetchData(); const id = setInterval(fetchData, REFRESH_MS); return () => clearInterval(id); }, [fetchData]);
+  useEffect(() => { fetchData(); const id = setInterval(fetchData, refreshMs); return () => clearInterval(id); }, [fetchData, refreshMs]);
 
   // Fetch advanced analytics on ticker/expiry change
-  useEffect(() => { fetchAdvanced(); const id = setInterval(fetchAdvanced, REFRESH_MS * 2); return () => clearInterval(id); }, [fetchAdvanced]);
+  useEffect(() => { fetchAdvanced(); const id = setInterval(fetchAdvanced, refreshMs * 2); return () => clearInterval(id); }, [fetchAdvanced, refreshMs]);
 
   // Live spot polling
   useEffect(() => {
@@ -491,6 +503,12 @@ export default function App() {
 
               <Movers onPick={(t) => setTicker(t)} />
               <HistoryPanel ticker={ticker} />
+              <SettingsPanel
+                refreshMs={refreshMs}
+                onRefreshMsChange={setRefreshMs}
+                defaultTicker={ticker}
+                onDefaultTickerChange={setTicker}
+              />
             </div>
           </aside>
 
