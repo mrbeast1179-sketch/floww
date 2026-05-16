@@ -23,6 +23,7 @@ import OptionsChainTable from "./components/OptionsChainTable";
 import MultiTimeframeGEXPanel from "./components/MultiTimeframeGEXPanel";
 import AlertsPanel from "./components/AlertsPanel";
 import UOAPanel from "./components/UOAPanel";
+import { useWebSocketGex } from "./hooks/useWebSocketGex";
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
@@ -275,6 +276,7 @@ export default function App() {
   const [drilldown, setDrilldown] = useState(null);
   const [tickers, setTickers] = useState(null);
   const [advanced, setAdvanced] = useState(null);
+  const wsGex = useWebSocketGex(page === "heatseeker" ? ticker : null);
 
   // Fetch tickers
   useEffect(() => { axios.get(`${API}/tickers`).then(r => setTickers(r.data)).catch(() => {}); }, []);
@@ -435,6 +437,23 @@ export default function App() {
                   <div><div className="label">Polarity</div><div className="mono text-sky-300">{data?.nodes?.polarity_level ? fmt(data.nodes.polarity_level, 1) : "—"}</div></div>
                   <div><div className="label">Gatekeepers</div><div className="mono">{data?.nodes?.gatekeepers?.length || 0}</div></div>
                 </div>
+
+                {/* Live GEX WebSocket indicator */}
+                {wsGex.connected && wsGex.data && (
+                  <>
+                    <div className="dotted-divider my-2" />
+                    <div className="flex items-center justify-between text-[9px]">
+                      <span className="text-teal-400 font-bold flash-pulse">● LIVE GEX</span>
+                      <span className="text-slate-500">{new Date(wsGex.data.asof).toLocaleTimeString()}</span>
+                    </div>
+                    <div className="grid grid-cols-2 gap-x-3 gap-y-0.5 text-[9px] mt-1">
+                      <div className="flex justify-between"><span className="text-slate-500">Spot</span><span className="mono text-slate-300">${fmt(wsGex.data.spot, 2)}</span></div>
+                      <div className="flex justify-between"><span className="text-slate-500">Total GEX</span><span className={`mono ${wsGex.data.total_gex > 0 ? "text-emerald-400" : "text-rose-400"}`}>{wsGex.data.total_gex > 0 ? "+" : ""}{fmtAbs(wsGex.data.total_gex)}</span></div>
+                      <div className="flex justify-between"><span className="text-slate-500">King</span><span className="mono text-amber-300">{wsGex.data.king ? fmt(wsGex.data.king.strike, 0) : "—"}</span></div>
+                      <div className="flex justify-between"><span className="text-slate-500">Regime</span><span className={`mono ${regimeColor(wsGex.data.regime)}`}>{wsGex.data.regime || "—"}</span></div>
+                    </div>
+                  </>
+                )}
               </div>
 
               {/* Filters */}
