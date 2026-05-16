@@ -1,5 +1,5 @@
 import React from "react";
-import { fmt, fmtAbs, pctClass, tagFor, cellColor, expFmt } from "../lib/helpers";
+import { fmt, fmtAbs, pctClass, tagFor, cellColor, expFmt, fmtCell } from "../lib/helpers";
 
 export default function GridHeatmap({ data, filters, onCellClick, viewMode = "gex" }) {
   const spotRowRef = React.useRef(null);

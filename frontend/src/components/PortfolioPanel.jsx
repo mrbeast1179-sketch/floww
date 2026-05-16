@@ -245,7 +245,7 @@ function ScenarioTable({ scenarios }) {
 // ============ Hedge Result ============
 function HedgeResult({ result }) {
   if (!result) return null;
-  if (result.error) return <div className="text-rose-400 text-[10px]">{result.error}</div>;
+  if (result.error) return <div className="text-rose-400 text-[10px]">{typeof result.error === 'string' ? result.error : JSON.stringify(result.error)}</div>;
   return (
     <div className="space-y-1.5 text-[10px]">
       <div className="label">Gamma/Vega Neutral Hedge</div>

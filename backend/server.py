@@ -35,6 +35,13 @@ from vol_analytics import (
     calc_realized_volatility,
     calc_iv_rank_percentile,
 )
+from advanced_analytics import (
+    calc_implied_pdf,
+    calc_market_regime,
+    calc_hedge_impulse_curve,
+    calc_pressure_cloud,
+    calc_charm_integral,
+)
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / ".env")
@@ -79,6 +86,16 @@ def cache_get(key: str):
 
 def cache_set(key: str, data: Any):
     _cache[key] = {"ts": time.time(), "data": data}
+
+
+def cache_get_or_set(key: str, fn, ttl: int = CACHE_TTL_SEC):
+    """Get from cache or compute and store. fn is a sync callable."""
+    item = _cache.get(key)
+    if item and (time.time() - item["ts"]) < ttl:
+        return item["data"]
+    data = fn()
+    _cache[key] = {"ts": time.time(), "data": data}
+    return data
 
 
 # ============ Portfolio Persistence (Mongo) ============
@@ -398,6 +415,7 @@ def compute_gex_grid(spot: float, contracts: List[Dict[str, Any]], ticker: str =
 # Import from shared module to avoid circular imports with portfolio.py
 from bs_greeks import (
     bs_gamma, bs_delta, bs_vanna, bs_charm, bs_vomma, bs_zomma, bs_vega,
+    bs_call_price, bs_put_price,
     RISK_FREE_RATE as BS_RISK_FREE_RATE,
 )
 RISK_FREE_RATE = BS_RISK_FREE_RATE
@@ -1299,6 +1317,10 @@ async def build_heatmap(ticker: str, max_expiries: int = 4, with_taps: bool = Tr
         iv_rank["rv_iv_spread"] = round(skew.get("atm_iv", 0) - rv.get("rv_close", 0), 4)
         iv_rank["rv_close"] = rv.get("rv_close")
 
+    # --- Advanced analytics (regime + implied PDF) ---
+    market_regime = calc_market_regime(spot, raw["contracts"])
+    implied_pdf = calc_implied_pdf(spot, raw["contracts"])
+
     # Velocity & rolling
     velocity = await velocity_and_rolling(ticker, {"strikes_compact": [{"strike": s["strike"], "gex": s["gex"]} for s in strikes]})
 
@@ -1325,6 +1347,9 @@ async def build_heatmap(ticker: str, max_expiries: int = 4, with_taps: bool = Tr
         "skew": skew,
         "iv_rank": iv_rank,
         "realized_vol": rv,
+        # Advanced analytics
+        "market_regime": market_regime,
+        "implied_pdf": implied_pdf,
     }
 
     asyncio.create_task(save_snapshot(ticker, payload))
@@ -1403,6 +1428,106 @@ async def trinity(tickers: str = Query(",".join(TRINITY)), mode: str = Query("da
         },
         "asof": datetime.now(timezone.utc).isoformat(),
     }
+
+
+@api.get("/implied-pdf/{ticker}")
+async def implied_pdf(ticker: str, expiries: int = Query(4, ge=1, le=12)):
+    """Breeden-Litzenberger implied probability distribution."""
+    t = ticker.strip().upper()
+    if t == "SPX":
+        t = "^SPX"
+    raw = await fetch_spot_and_chains_merged(t, expiries)
+    spot = raw["spot"]
+    if not spot or not raw["contracts"]:
+        raise HTTPException(404, f"No options data for {ticker}")
+    result = calc_implied_pdf(spot, raw["contracts"])
+    return _sanitize(result)
+
+
+@api.get("/regime/{ticker}")
+async def regime(ticker: str, expiries: int = Query(4, ge=1, le=12)):
+    """Market regime detection from IV surface."""
+    t = ticker.strip().upper()
+    if t == "SPX":
+        t = "^SPX"
+    raw = await fetch_spot_and_chains_merged(t, expiries)
+    spot = raw["spot"]
+    if not spot or not raw["contracts"]:
+        raise HTTPException(404, f"No options data for {ticker}")
+    result = calc_market_regime(spot, raw["contracts"])
+    return _sanitize(result)
+
+
+@api.get("/hedge-impulse/{ticker}")
+async def hedge_impulse(ticker: str, expiries: int = Query(4, ge=1, le=12)):
+    """Hedge impulse curve: gamma + vanna combined response."""
+    t = ticker.strip().upper()
+    if t == "SPX":
+        t = "^SPX"
+    raw = await fetch_spot_and_chains_merged(t, expiries)
+    spot = raw["spot"]
+    if not spot or not raw["contracts"]:
+        raise HTTPException(404, f"No options data for {ticker}")
+    result = calc_hedge_impulse_curve(spot, raw["contracts"], t)
+    return _sanitize(result)
+
+
+@api.get("/pressure-cloud/{ticker}")
+async def pressure_cloud(ticker: str, expiries: int = Query(4, ge=1, le=12)):
+    """Pressure cloud: stability zones, acceleration zones, regime edges."""
+    t = ticker.strip().upper()
+    if t == "SPX":
+        t = "^SPX"
+    raw = await fetch_spot_and_chains_merged(t, expiries)
+    spot = raw["spot"]
+    if not spot or not raw["contracts"]:
+        raise HTTPException(404, f"No options data for {ticker}")
+    result = calc_pressure_cloud(spot, raw["contracts"], t)
+    return _sanitize(result)
+
+
+@api.get("/charm-integral/{ticker}")
+async def charm_integral_endpoint(ticker: str, expiries: int = Query(4, ge=1, le=12)):
+    """Charm integral: time-decay pressure to close."""
+    t = ticker.strip().upper()
+    if t == "SPX":
+        t = "^SPX"
+    raw = await fetch_spot_and_chains_merged(t, expiries)
+    spot = raw["spot"]
+    if not spot or not raw["contracts"]:
+        raise HTTPException(404, f"No options data for {ticker}")
+    result = calc_charm_integral(spot, raw["contracts"], t)
+    return _sanitize(result)
+
+
+@api.get("/advanced/{ticker}")
+async def advanced_analytics(ticker: str, expiries: int = Query(4, ge=1, le=12)):
+    """Combined advanced analytics: PDF, regime, impulse, pressure, charm."""
+    t = ticker.strip().upper()
+    if t == "SPX":
+        t = "^SPX"
+    raw = await fetch_spot_and_chains_merged(t, expiries)
+    spot = raw["spot"]
+    if not spot or not raw["contracts"]:
+        raise HTTPException(404, f"No options data for {ticker}")
+
+    # Run independent computations
+    pdf = calc_implied_pdf(spot, raw["contracts"])
+    regime_data = calc_market_regime(spot, raw["contracts"])
+    impulse = calc_hedge_impulse_curve(spot, raw["contracts"], t)
+    pressure = calc_pressure_cloud(spot, raw["contracts"], t)
+    charm = calc_charm_integral(spot, raw["contracts"], t)
+
+    return _sanitize({
+        "ticker": t,
+        "spot": spot,
+        "implied_pdf": pdf,
+        "regime": regime_data,
+        "hedge_impulse": impulse,
+        "pressure_cloud": pressure,
+        "charm_integral": charm,
+        "asof": datetime.now(timezone.utc).isoformat(),
+    })
 
 
 @api.get("/movers")
@@ -1977,6 +2102,460 @@ async def schwab_import_to_portfolio(name: str, account_hash: str):
 
     await _save_portfolio_to_mongo(name, _portfolios[name])
     return {"status": "imported", "added": added, "total": len(_portfolios[name].positions)}
+
+
+# ============ Options Chain Table ============
+
+@api.get("/chain/{ticker}")
+async def options_chain_table(
+    ticker: str,
+    expiry: Optional[str] = Query(None, description="Filter by expiry YYYY-MM-DD"),
+    min_oi: int = Query(0, ge=0),
+    min_volume: int = Query(0, ge=0),
+    moneyness: Optional[str] = Query(None, pattern="^(itm|otm|atm|all)$", description="ITM/OTM/ATM/ALL"),
+    sort_by: str = Query("strike", pattern="^(strike|expiry|oi|volume|iv|delta|gamma|gex|vanna|charm)$"),
+    sort_dir: str = Query("asc", pattern="^(asc|desc)$"),
+):
+    """Full options chain table with per-contract Greeks and GEX. Sorted and filtered."""
+    t = ticker.strip().upper()
+    if t == "SPX":
+        t = "^SPX"
+    cache_key = f"chain:{t}:{expiry}:{min_oi}:{min_volume}:{moneyness}:{sort_by}:{sort_dir}"
+    cached = cache_get(cache_key)
+    if cached:
+        return cached
+    raw = await fetch_spot_and_chains_merged(t, 12)
+    spot = raw["spot"]
+    if not spot or not raw["contracts"]:
+        raise HTTPException(404, f"No options data for {ticker}")
+
+    rows: List[Dict[str, Any]] = []
+    q = DIV_YIELD.get(t, 0.0)
+    today = datetime.now(timezone.utc).date()
+    for c in raw["contracts"]:
+        if expiry and c["expiry"] != expiry:
+            continue
+        if c["oi"] < min_oi:
+            continue
+        if (c.get("volume") or 0) < min_volume:
+            continue
+
+        # Moneyness filter
+        if moneyness and moneyness != "all":
+            if c["type"] == "call":
+                if moneyness == "itm" and c["strike"] >= spot:
+                    continue
+                if moneyness == "otm" and c["strike"] <= spot:
+                    continue
+                if moneyness == "atm" and abs(c["strike"] - spot) / spot > 0.02:
+                    continue
+            else:
+                if moneyness == "itm" and c["strike"] <= spot:
+                    continue
+                if moneyness == "otm" and c["strike"] >= spot:
+                    continue
+                if moneyness == "atm" and abs(c["strike"] - spot) / spot > 0.02:
+                    continue
+
+        gamma = bs_gamma(spot, c["strike"], c["T"], c["iv"], q=q)
+        delta = bs_delta(spot, c["strike"], c["T"], c["iv"], q, c["type"])
+        vanna = bs_vanna(spot, c["strike"], c["T"], c["iv"], q)
+        charm = bs_charm(spot, c["strike"], c["T"], c["iv"], q, c["type"])
+        vega = bs_vega(spot, c["strike"], c["T"], c["iv"], q)
+        gex = gamma * c["oi"] * 100 * spot * spot * 0.01 * (1 if c["type"] == "call" else -1)
+        vanna_exposure = vanna * c["oi"] * 100 * spot * 0.01
+        charm_exposure = charm * c["oi"] * 100 * spot * spot * 0.01
+
+        # DTE from expiry string
+        try:
+            exp_date = datetime.strptime(c["expiry"], "%Y-%m-%d").date()
+            dte = max((exp_date - today).days, 0)
+        except Exception:
+            dte = 0
+
+        rows.append({
+            "type": c["type"],
+            "strike": c["strike"],
+            "expiry": c["expiry"],
+            "dte": dte,
+            "iv": round(float(c["iv"]), 4),
+            "oi": c["oi"],
+            "volume": c.get("volume") or 0,
+            "delta": round(float(delta), 4),
+            "gamma": round(float(gamma), 6),
+            "vega": round(float(vega), 4),
+            "vanna": round(float(vanna), 4),
+            "charm": round(float(charm), 4),
+            "gex": round(gex, 0),
+            "vanna_exposure": round(vanna_exposure, 0),
+            "charm_exposure": round(charm_exposure, 0),
+            "moneyness_pct": round((c["strike"] - spot) / spot * 100, 1),
+        })
+
+    # Sort
+    reverse = sort_dir == "desc"
+    if sort_by == "strike":
+        rows.sort(key=lambda r: r["strike"], reverse=reverse)
+    elif sort_by == "expiry":
+        rows.sort(key=lambda r: r["expiry"], reverse=reverse)
+    elif sort_by == "oi":
+        rows.sort(key=lambda r: r["oi"], reverse=reverse)
+    elif sort_by == "volume":
+        rows.sort(key=lambda r: r["volume"], reverse=reverse)
+    elif sort_by == "iv":
+        rows.sort(key=lambda r: r["iv"], reverse=reverse)
+    elif sort_by == "delta":
+        rows.sort(key=lambda r: abs(r["delta"]), reverse=reverse)
+    elif sort_by == "gamma":
+        rows.sort(key=lambda r: r["gamma"], reverse=reverse)
+    elif sort_by == "gex":
+        rows.sort(key=lambda r: abs(r["gex"]), reverse=reverse)
+    elif sort_by == "vanna":
+        rows.sort(key=lambda r: abs(r["vanna"]), reverse=reverse)
+    elif sort_by == "charm":
+        rows.sort(key=lambda r: abs(r["charm"]), reverse=reverse)
+
+    result = _sanitize({
+        "ticker": t,
+        "spot": spot,
+        "rows": rows,
+        "count": len(rows),
+        "expiries": sorted({r["expiry"] for r in rows}),
+        "data_source": raw.get("data_source"),
+    })
+    cache_set(cache_key, result)
+    return result
+
+
+# ============ Multi-Timeframe GEX ============
+
+@api.get("/gex-timeframes/{ticker}")
+async def multi_timeframe_gex(ticker: str):
+    """GEX aggregated at multiple timeframes: 0DTE, 1DTE, weekly, monthly."""
+    t = ticker.strip().upper()
+    if t == "SPX":
+        t = "^SPX"
+    cache_key = f"gextf:{t}"
+    cached = cache_get(cache_key)
+    if cached:
+        return cached
+    raw = await fetch_spot_and_chains_merged(t, 12)
+    spot = raw["spot"]
+    if not spot or not raw["contracts"]:
+        raise HTTPException(404, f"No options data for {ticker}")
+
+    today = datetime.now(timezone.utc).date()
+    q = DIV_YIELD.get(t, 0.0)
+
+    # Bucket contracts by timeframe
+    buckets = {
+        "0DTE": [], "1DTE": [], "weekly": [], "monthly": [], "all": []
+    }
+    for c in raw["contracts"]:
+        exp_date = datetime.strptime(c["expiry"], "%Y-%m-%d").date()
+        dte = (exp_date - today).days
+        if dte <= 0:
+            buckets["0DTE"].append(c)
+        elif dte <= 1:
+            buckets["1DTE"].append(c)
+        elif dte <= 7:
+            buckets["weekly"].append(c)
+        else:
+            buckets["monthly"].append(c)
+        buckets["all"].append(c)
+
+    result = {}
+    for label, contracts in buckets.items():
+        if not contracts:
+            result[label] = {"gex_total": 0, "call_gex": 0, "put_gex": 0, "strikes": [], "net_gamma": 0}
+            continue
+
+        strikes = compute_gex_by_strike(spot, contracts, t)
+        total_gex = sum(s["gex"] for s in strikes)
+        call_gex = sum(s["gex"] for s in strikes if s["gex"] > 0)
+        put_gex = sum(s["gex"] for s in strikes if s["gex"] < 0)
+
+        # Net gamma exposure
+        net_gamma = 0
+        for c in contracts:
+            gamma = bs_gamma(spot, c["strike"], c["T"], c["iv"], q=q)
+            sign = 1 if c["type"] == "call" else -1
+            net_gamma += gamma * c["oi"] * 100 * sign
+
+        # Key levels
+        positive = sorted([s for s in strikes if s["gex"] > 0], key=lambda x: x["gex"], reverse=True)
+        negative = sorted([s for s in strikes if s["gex"] < 0], key=lambda x: x["gex"])
+
+        result[label] = {
+            "gex_total": round(total_gex, 0),
+            "call_gex": round(call_gex, 0),
+            "put_gex": round(put_gex, 0),
+            "net_gamma": round(net_gamma, 0),
+            "contract_count": len(contracts),
+            "top_floors": [{"strike": s["strike"], "gex": round(s["gex"], 0)} for s in positive[:5]],
+            "top_ceilings": [{"strike": s["strike"], "gex": round(s["gex"], 0)} for s in negative[:5]],
+            "strikes": strikes,
+        }
+
+    result = _sanitize({
+        "ticker": t,
+        "spot": spot,
+        "timeframes": result,
+        "asof": datetime.now(timezone.utc).isoformat(),
+    })
+    cache_set(cache_key, result)
+    return result
+
+
+# ============ GEX Alerts ============
+
+class AlertRule(BaseModel):
+    ticker: str
+    alert_type: str  # "gex_cross", "gex_spike", "oi_spike", "iv_spike"
+    threshold: float
+    direction: str = "above"  # "above" or "below"
+    expiry: Optional[str] = None
+    strike: Optional[float] = None
+    label: Optional[str] = None
+
+
+# In-memory alert store (persist to Mongo in production)
+_alert_rules: List[Dict[str, Any]] = []
+_alert_history: List[Dict[str, Any]] = []
+
+
+@api.post("/alerts")
+async def create_alert(rule: AlertRule):
+    """Create a new GEX alert rule."""
+    rule_dict = rule.dict()
+    rule_dict["id"] = str(len(_alert_rules) + 1)
+    rule_dict["created_at"] = datetime.now(timezone.utc).isoformat()
+    rule_dict["active"] = True
+    rule_dict["trigger_count"] = 0
+    _alert_rules.append(rule_dict)
+    return {"status": "created", "rule": rule_dict}
+
+
+@api.get("/alerts")
+async def list_alerts(ticker: Optional[str] = None, active_only: bool = True):
+    """List alert rules."""
+    rules = _alert_rules
+    if ticker:
+        rules = [r for r in rules if r["ticker"] == ticker.upper()]
+    if active_only:
+        rules = [r for r in rules if r.get("active", True)]
+    return {"rules": rules, "count": len(rules)}
+
+
+@api.delete("/alerts/{alert_id}")
+async def delete_alert(alert_id: str):
+    """Delete an alert rule."""
+    global _alert_rules
+    _alert_rules = [r for r in _alert_rules if r["id"] != alert_id]
+    return {"status": "deleted"}
+
+
+@api.get("/alerts/check/{ticker}")
+async def check_alerts(ticker: str):
+    """Check all alert rules against current data. Returns triggered alerts."""
+    t = ticker.strip().upper()
+    if t == "SPX":
+        t = "^SPX"
+
+    raw = await fetch_spot_and_chains_merged(t, 8)
+    spot = raw["spot"]
+    if not spot:
+        return {"triggered": [], "error": "No data"}
+
+    triggered = []
+    for rule in _alert_rules:
+        if not rule.get("active", True):
+            continue
+        if rule["ticker"] != t:
+            continue
+
+        value = 0
+        if rule["alert_type"] == "gex_cross":
+            strikes = compute_gex_by_strike(spot, raw["contracts"], t)
+            total_gex = sum(s["gex"] for s in strikes)
+            value = total_gex
+        elif rule["alert_type"] == "gex_spike":
+            strikes = compute_gex_by_strike(spot, raw["contracts"], t)
+            if rule.get("strike"):
+                match = [s for s in strikes if abs(s["strike"] - rule["strike"]) < 0.5]
+                value = match[0]["gex"] if match else 0
+            else:
+                value = max(abs(s["gex"]) for s in strikes) if strikes else 0
+        elif rule["alert_type"] == "oi_spike":
+            for c in raw["contracts"]:
+                if rule.get("strike") and abs(c["strike"] - rule["strike"]) < 0.5:
+                    value = c["oi"]
+                    break
+                elif rule.get("expiry") and c["expiry"] == rule["expiry"]:
+                    value = max(value, c["oi"])
+        elif rule["alert_type"] == "iv_spike":
+            ivs = [c["iv"] for c in raw["contracts"] if c["iv"] > 0]
+            value = max(ivs) if ivs else 0
+
+        crossed = False
+        if rule["direction"] == "above" and value > rule["threshold"]:
+            crossed = True
+        elif rule["direction"] == "below" and value < rule["threshold"]:
+            crossed = True
+
+        if crossed:
+            trigger = {
+                "rule_id": rule["id"],
+                "ticker": t,
+                "type": rule["alert_type"],
+                "value": round(value, 2),
+                "threshold": rule["threshold"],
+                "direction": rule["direction"],
+                "label": rule.get("label", ""),
+                "triggered_at": datetime.now(timezone.utc).isoformat(),
+            }
+            triggered.append(trigger)
+            rule["trigger_count"] = rule.get("trigger_count", 0) + 1
+            _alert_history.append(trigger)
+
+    return {"triggered": triggered, "spot": spot, "asof": datetime.now(timezone.utc).isoformat()}
+
+
+# ============ Unusual Options Activity (UOA) ============
+
+@api.get("/uoa/{ticker}")
+async def detect_uoa(
+    ticker: str,
+    min_premium: float = Query(50000, ge=1000, description="Minimum premium in USD"),
+    min_oi_ratio: float = Query(2.0, ge=1.0, description="Min volume/OI ratio"),
+    max_results: int = Query(20, ge=1, le=50),
+):
+    """Detect unusual options activity: high premium, volume spikes, OI anomalies."""
+    t = ticker.strip().upper()
+    if t == "SPX":
+        t = "^SPX"
+    cache_key = f"uoa:{t}:{min_premium}:{min_oi_ratio}:{max_results}"
+    cached = cache_get(cache_key)
+    if cached:
+        return cached
+    raw = await fetch_spot_and_chains_merged(t, 8)
+    spot = raw["spot"]
+    if not spot or not raw["contracts"]:
+        raise HTTPException(404, f"No options data for {ticker}")
+
+    today = datetime.now(timezone.utc).date()
+    q = DIV_YIELD.get(t, 0.0)
+    unusual = []
+
+    # Compute per-strike volume and OI stats
+    all_volumes = [c.get("volume", 0) for c in raw["contracts"] if c.get("volume", 0) > 0]
+    avg_volume = sum(all_volumes) / len(all_volumes) if all_volumes else 0
+    all_oi = [c["oi"] for c in raw["contracts"] if c["oi"] > 0]
+    avg_oi = sum(all_oi) / len(all_oi) if all_oi else 0
+
+    for c in raw["contracts"]:
+        volume = c.get("volume") or 0
+        oi = c["oi"]
+        # Estimate premium using BS price (mid/last not available from yfinance chain)
+        if c["type"] == "call":
+            est_price = bs_call_price(spot, c["strike"], c["T"], c["iv"], r=RISK_FREE_RATE, q=q)
+        else:
+            est_price = bs_put_price(spot, c["strike"], c["T"], c["iv"], r=RISK_FREE_RATE, q=q)
+        premium = volume * est_price * 100  # Contract multiplier
+
+        # Skip if below minimum premium
+        if premium < min_premium:
+            continue
+
+        # Volume/OI ratio
+        vol_oi_ratio = volume / max(oi, 1)
+
+        # Z-score for volume
+        if len(all_volumes) > 1:
+            vol_std = (sum((v - avg_volume) ** 2 for v in all_volumes) / len(all_volumes)) ** 0.5
+            vol_zscore = (volume - avg_volume) / max(vol_std, 1)
+        else:
+            vol_zscore = 0
+
+        # OI vs average
+        oi_ratio = oi / max(avg_oi, 1)
+
+        # DTE
+        exp_date = datetime.strptime(c["expiry"], "%Y-%m-%d").date()
+        dte = (exp_date - today).days
+
+        # Signal scoring
+        score = 0
+        signals = []
+
+        if vol_oi_ratio >= min_oi_ratio:
+            score += min(vol_oi_ratio * 10, 40)
+            signals.append(f"vol/OI x{vol_oi_ratio:.1f}")
+
+        if vol_zscore > 2:
+            score += min(vol_zscore * 10, 30)
+            signals.append(f"vol z{vol_zscore:.1f}")
+
+        if oi_ratio > 3:
+            score += min(oi_ratio * 5, 20)
+            signals.append(f"OI x{oi_ratio:.1f} avg")
+
+        if dte <= 7 and premium > min_premium * 2:
+            score += 15
+            signals.append("0-1DTE large")
+
+        if premium > 500000:
+            score += 20
+            signals.append("block trade")
+
+        if score < 20:
+            continue
+
+        # Determine sentiment
+        if c["type"] == "call" and vol_oi_ratio > 3:
+            sentiment = "bullish"
+        elif c["type"] == "put" and vol_oi_ratio > 3:
+            sentiment = "bearish"
+        elif c["type"] == "call":
+            sentiment = "mildly bullish"
+        else:
+            sentiment = "mildly bearish"
+
+        unusual.append({
+            "type": c["type"],
+            "strike": c["strike"],
+            "expiry": c["expiry"],
+            "dte": dte,
+            "iv": round(float(c["iv"]), 4),
+            "volume": volume,
+            "oi": oi,
+            "est_price": round(float(est_price), 2),
+            "premium": round(premium, 0),
+            "vol_oi_ratio": round(vol_oi_ratio, 2),
+            "vol_zscore": round(vol_zscore, 2),
+            "score": round(score, 0),
+            "signals": signals,
+            "sentiment": sentiment,
+            "moneyness_pct": round((c["strike"] - spot) / spot * 100, 1),
+        })
+
+    # Sort by score descending
+    unusual.sort(key=lambda x: x["score"], reverse=True)
+
+    result = _sanitize({
+        "ticker": t,
+        "spot": spot,
+        "unusual": unusual[:max_results],
+        "count": len(unusual[:max_results]),
+        "stats": {
+            "avg_volume": round(avg_volume, 0),
+            "avg_oi": round(avg_oi, 0),
+            "total_contracts_scanned": len(raw["contracts"]),
+        },
+        "asof": datetime.now(timezone.utc).isoformat(),
+    })
+    cache_set(cache_key, result)
+    return result
 
 
 app.include_router(api)

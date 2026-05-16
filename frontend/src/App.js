@@ -12,8 +12,17 @@ import {
   RiskDashboardPanel, OpportunitiesPanel, ImpliedMovePanel, VolAnalyticsPanel,
   GreekReferencePanel, UsagePanel, LivePolicyPanel,
 } from "./components/SidebarPanels";
+import {
+  MarketRegimePanel, ImpliedPDFPanel, HedgeImpulsePanel,
+  PressureCloudPanel, CharmIntegralPanel,
+} from "./components/AdvancedAnalyticsPanel";
 import PortfolioPanel from "./components/PortfolioPanel";
 import FlowTicker from "./components/FlowTicker";
+import HistoryPanel from "./components/HistoryPanel";
+import OptionsChainTable from "./components/OptionsChainTable";
+import MultiTimeframeGEXPanel from "./components/MultiTimeframeGEXPanel";
+import AlertsPanel from "./components/AlertsPanel";
+import UOAPanel from "./components/UOAPanel";
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
@@ -206,6 +215,7 @@ export default function App() {
   const [dte, setDte] = useState(null);
   const [drilldown, setDrilldown] = useState(null);
   const [tickers, setTickers] = useState(null);
+  const [advanced, setAdvanced] = useState(null);
 
   // Fetch tickers
   useEffect(() => { axios.get(`${API}/tickers`).then(r => setTickers(r.data)).catch(() => {}); }, []);
@@ -213,10 +223,23 @@ export default function App() {
   // Fetch heatmap data
   const fetchData = useCallback(async () => {
     try {
-      const res = await axios.get(`${API}/heatmap/${ticker}?expiries=${expiries}&mode=${mode}&dte=${dte ?? ""}`);
+      const dteParam = dte != null ? `&dte=${dte}` : "";
+      const res = await axios.get(`${API}/heatmap/${ticker}?expiries=${expiries}&mode=${mode}${dteParam}`);
       setData(res.data); setErr(null);
-    } catch (e) { setErr(e.response?.data?.detail || e.message); }
+    } catch (e) {
+      const detail = e.response?.data?.detail;
+      const msg = typeof detail === 'string' ? detail : (detail?.[0]?.msg || JSON.stringify(detail));
+      setErr(msg);
+    }
   }, [ticker, expiries, mode, dte]);
+
+  // Fetch advanced analytics (hedge impulse, pressure cloud, charm)
+  const fetchAdvanced = useCallback(async () => {
+    try {
+      const res = await axios.get(`${API}/advanced/${ticker}?expiries=${expiries}`);
+      setAdvanced(res.data);
+    } catch (e) { /* noop */ }
+  }, [ticker, expiries]);
 
   // Auto-dismiss errors after 10s
   useEffect(() => {
@@ -232,6 +255,46 @@ export default function App() {
     const poll = async () => { try { const r = await axios.get(`${API}/spot/${ticker}`); setLivespot(r.data); } catch (e) {} };
     poll(); const id = setInterval(poll, 5000); return () => clearInterval(id);
   }, [ticker]);
+
+  // Keyboard shortcuts
+  useEffect(() => {
+    const handler = (e) => {
+      if (e.target.tagName === "INPUT" || e.target.tagName === "SELECT" || e.target.tagName === "TEXTAREA") return;
+      switch (e.key) {
+        case "1": setPage("trinity"); break;
+        case "2": setPage("heatseeker"); break;
+        case "3": setPage("portfolio"); break;
+        case "g": setView("grid"); break;
+        case "b": setView("bar"); break;
+        case "c": setView("chain"); break;
+        case "d": setMode("day"); break;
+        case "s": setMode("swing"); break;
+        case "x": setMode("scalp"); break;
+        case "e": setViewMode("gex"); break;
+        case "v": setViewMode("vex"); break;
+        case "h": setViewMode("charm"); break;
+        case "ArrowUp":
+          e.preventDefault();
+          if (tickers) {
+            const all = [...tickers.trinity, ...tickers.default, ...tickers.popular];
+            const idx = all.indexOf(ticker);
+            if (idx > 0) setTicker(all[idx - 1]);
+          }
+          break;
+        case "ArrowDown":
+          e.preventDefault();
+          if (tickers) {
+            const all = [...tickers.trinity, ...tickers.default, ...tickers.popular];
+            const idx = all.indexOf(ticker);
+            if (idx < all.length - 1) setTicker(all[idx + 1]);
+          }
+          break;
+        default: break;
+      }
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [tickers, ticker]);
 
   const spotDelta = livespot?.spot && data?.spot ? livespot.spot - data.spot : 0;
 
@@ -269,7 +332,7 @@ export default function App() {
         </div>
       )}
 
-      {/* Single Ticker Heatseeker */}
+          {/* Single Ticker Heatseeker */}
       {page === "heatseeker" && (
         <div className="flex-1 flex overflow-hidden">
           {/* Left Sidebar - Filters & Summary */}
@@ -316,6 +379,7 @@ export default function App() {
                 <div className="flex gap-1 mb-2">
                   <button onClick={() => setView("grid")} className={`btn flex-1 ${view === "grid" ? "active" : ""}`}>2D Grid</button>
                   <button onClick={() => setView("bar")} className={`btn flex-1 ${view === "bar" ? "active" : ""}`}>Bars</button>
+                  <button onClick={() => setView("chain")} className={`btn flex-1 ${view === "chain" ? "active" : ""}`}>Chain</button>
                 </div>
                 <div className="text-slate-500 mb-1 text-[10px]">Mode</div>
                 <div className="flex gap-1 mb-2">
@@ -367,7 +431,9 @@ export default function App() {
               </div>
               <div className="flex-1 overflow-hidden">
                 {data ? (
-                  view === "grid"
+                  view === "chain"
+                    ? <OptionsChainTable ticker={ticker} spot={livespot?.spot ?? data?.spot} />
+                    : view === "grid"
                     ? <GridHeatmap data={data} filters={filters} onCellClick={(s, e) => setDrilldown({ ticker, expiry: e, strike: s })} viewMode={viewMode} />
                     : <BarHeatmap data={data} filters={filters} compact={false} viewMode={viewMode} />
                 ) : (
@@ -388,6 +454,14 @@ export default function App() {
               <OpportunitiesPanel data={data} />
               <ImpliedMovePanel data={data} />
               <VolAnalyticsPanel data={data} />
+              <MarketRegimePanel data={data} />
+              <ImpliedPDFPanel data={data} />
+              <HedgeImpulsePanel data={data} />
+              <PressureCloudPanel data={data} />
+              <CharmIntegralPanel data={data} />
+              <MultiTimeframeGEXPanel ticker={ticker} />
+              <AlertsPanel ticker={ticker} />
+              <UOAPanel ticker={ticker} />
               {page === "heatseeker" && <FlowTicker ticker={ticker} />}
               <UsagePanel />
               <LivePolicyPanel />
@@ -437,6 +511,9 @@ export default function App() {
       {/* Footer */}
       <footer className="border-t border-slate-800 px-4 py-2 text-[10px] text-slate-600 flex justify-between flex-shrink-0">
         <span>Data: Databento OPRA (OI) · yfinance (IV) · Polygon (aggs). GEX via Black-Scholes γ.</span>
+        <span className="hidden md:inline text-slate-700">
+          Keys: 1/2/3 pages · G/B/C views · D/S/X modes · E/V/H overlays · ↑↓ tickers
+        </span>
         <span>Confluence Decoder · Institutional Grade · {new Date().getFullYear()}</span>
       </footer>
     </div>

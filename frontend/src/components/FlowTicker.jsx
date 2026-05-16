@@ -151,7 +151,7 @@ export default function FlowTicker({ ticker }) {
       {/* Error/Warning */}
       {error && (
         <div className="text-[9px] text-amber-400 bg-amber-500/10 rounded px-2 py-1 mb-2 flex-shrink-0">
-          {error}
+          {typeof error === 'string' ? error : JSON.stringify(error)}
         </div>
       )}
 

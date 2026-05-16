@@ -70,8 +70,14 @@
 
 ### To start tomorrow:
 1. `cd ~/Documents/GitHub/floww/backend && source .venv/bin/activate && uvicorn server:app --reload --port 8000`
-2. `cd ~/Documents/GitHub/floww/frontend && npx craco start`
-3. Open http://localhost:3000
+2. `cd ~/Documents/GitHub/floww/frontend && npx craco start` (dev mode) OR use the built version:
+   - `cd ~/Documents/GitHub/floww/frontend && npx craco build && python3 -m http.server 3000 --directory build`
+3. Open http://localhost:3000 in Chrome
+
+### Known issues:
+- MongoDB must be running locally (mongod) for portfolio persistence and snapshots
+- Databento Live license NOT included — Flow Tape will show warning without it
+- yfinance can be slow on first load (15-30s for heatmap)
 
 ### Notes:
 - Databento key: Historical only (NO Live license — Flowseeker won't work)
