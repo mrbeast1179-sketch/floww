@@ -26,6 +26,7 @@ import UOAPanel from "./components/UOAPanel";
 import { useWebSocketGex } from "./hooks/useWebSocketGex";
 import { useDebounce } from "./hooks/useDebounce";
 import { SettingsPanel } from "./components/SettingsPanel";
+import { ShortcutsModal } from "./components/ShortcutsModal";
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
@@ -274,6 +275,8 @@ export default function App() {
   const [data, setData] = useState(null);
   const [livespot, setLivespot] = useState(null);
   const [err, setErr] = useState(null);
+  const [showLeftSidebar, setShowLeftSidebar] = useState(false);
+  const [showRightSidebar, setShowRightSidebar] = useState(false);
   const [view, setView] = useState("grid");
   const [viewMode, setViewMode] = useState("gex");
   const [mode, setMode] = useState("day");
@@ -412,9 +415,15 @@ export default function App() {
 
           {/* Single Ticker Heatseeker */}
       {page === "heatseeker" && (
-        <div className="flex-1 flex overflow-hidden">
+        <div className="flex-1 flex overflow-hidden relative">
+          {/* Mobile toggle buttons */}
+          <div className="md:hidden fixed bottom-12 left-2 z-40 flex gap-1">
+            <button onClick={() => setShowLeftSidebar(!showLeftSidebar)} className="btn text-[9px] px-2 py-1">◀ Filters</button>
+            <button onClick={() => setShowRightSidebar(!showRightSidebar)} className="btn text-[9px] px-2 py-1">Analytics ▶</button>
+          </div>
+
           {/* Left Sidebar - Filters & Summary */}
-          <aside className="w-64 border-r border-slate-800 overflow-y-auto flex-shrink-0" style={{ background: "var(--bg-2)" }}>
+          <aside className={`w-64 border-r border-slate-800 overflow-y-auto flex-shrink-0 ${showLeftSidebar ? "fixed inset-y-0 left-0 z-50" : "hidden"} md:block md:static md:z-auto`} style={{ background: "var(--bg-2)" }}>
             <div className="p-2 space-y-2">
               {/* Ticker Summary */}
               <div className="panel p-3">
@@ -545,7 +554,7 @@ export default function App() {
           </main>
 
           {/* Right Sidebar - Analytics Panels */}
-          <aside className="w-72 border-l border-slate-800 overflow-y-auto flex-shrink-0" style={{ background: "var(--bg-2)" }}>
+          <aside className={`w-72 border-l border-slate-800 overflow-y-auto flex-shrink-0 ${showRightSidebar ? "fixed inset-y-0 right-0 z-50" : "hidden"} md:block md:static md:z-auto`} style={{ background: "var(--bg-2)" }}>
             <div className="p-2 space-y-2">
               <FlipZonesPanel data={data} />
               <StackedNodesPanel data={data} />
@@ -613,10 +622,15 @@ export default function App() {
       <footer className="border-t border-slate-800 px-4 py-2 text-[10px] text-slate-600 flex justify-between flex-shrink-0">
         <span>Data: Databento OPRA (OI) · yfinance (IV) · Polygon (aggs). GEX via Black-Scholes γ.</span>
         <span className="hidden md:inline text-slate-700">
-          Keys: 1/2/3 pages · G/B/C views · D/S/X modes · E/V/H overlays · ↑↓ tickers
+          Keys: 1/2/3 pages · G/B/C views · D/S/X modes · E/V/H overlays · ↑↓ tickers · ? shortcuts
         </span>
         <span>Confluence Decoder · Institutional Grade · {new Date().getFullYear()}</span>
       </footer>
+
+      {/* Shortcuts Modal */}
+      {page === "heatseeker" && (
+        <ShortcutsModal />
+      )}
     </div>
   );
 }

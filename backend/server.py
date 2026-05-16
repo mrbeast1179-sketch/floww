@@ -66,6 +66,36 @@ logging.basicConfig(
 )
 log = logging.getLogger("heatseeker")
 
+# ----------------------------- Rate Limiting -----------------------------
+import time
+from collections import defaultdict
+
+_rate_limits: dict = defaultdict(list)  # ip -> [timestamp, ...]
+
+RATE_LIMIT = int(os.environ.get("RATE_LIMIT_PER_MINUTE", "60"))  # requests per minute
+
+@app.middleware("http")
+async def rate_limit_middleware(request: Request, call_next):
+    """Simple in-memory rate limiter: RATE_LIMIT requests per minute per IP."""
+    client_ip = request.client.host if request.client else "unknown"
+    now = time.time()
+    window = 60.0  # 1 minute
+
+    # Clean old entries
+    _rate_limits[client_ip] = [t for t in _rate_limits[client_ip] if now - t < window]
+
+    if len(_rate_limits[client_ip]) >= RATE_LIMIT:
+        log.warning(f"Rate limit exceeded for {client_ip}")
+        return JSONResponse(
+            status_code=429,
+            content={"error": "Rate limit exceeded", "retry_after": int(window - (now - _rate_limits[client_ip][0]))},
+        )
+
+    _rate_limits[client_ip].append(now)
+    response = await call_next(request)
+    return response
+
+
 app = FastAPI(title="Confluence Decoder")
 api = APIRouter(prefix="/api")
 
