@@ -250,6 +250,9 @@ export default function App() {
 
   useEffect(() => { fetchData(); const id = setInterval(fetchData, REFRESH_MS); return () => clearInterval(id); }, [fetchData]);
 
+  // Fetch advanced analytics on ticker/expiry change
+  useEffect(() => { fetchAdvanced(); const id = setInterval(fetchAdvanced, REFRESH_MS * 2); return () => clearInterval(id); }, [fetchAdvanced]);
+
   // Live spot polling
   useEffect(() => {
     const poll = async () => { try { const r = await axios.get(`${API}/spot/${ticker}`); setLivespot(r.data); } catch (e) {} };
@@ -456,9 +459,9 @@ export default function App() {
               <VolAnalyticsPanel data={data} />
               <MarketRegimePanel data={data} />
               <ImpliedPDFPanel data={data} />
-              <HedgeImpulsePanel data={data} />
-              <PressureCloudPanel data={data} />
-              <CharmIntegralPanel data={data} />
+              <HedgeImpulsePanel data={advanced} />
+              <PressureCloudPanel data={advanced} />
+              <CharmIntegralPanel data={advanced} />
               <MultiTimeframeGEXPanel ticker={ticker} />
               <AlertsPanel ticker={ticker} />
               <UOAPanel ticker={ticker} />

@@ -6,7 +6,7 @@ Confluence Decoder - Skylit-style Heatseeker GEX Analytics
 - Black-Scholes gamma -> per-strike (and per-strike×expiry) GEX
 - Node hierarchy, patterns, velocity, rolling, trinity
 """
-from fastapi import FastAPI, APIRouter, HTTPException, Query, Request
+from fastapi import FastAPI, APIRouter, HTTPException, Query, Request, WebSocket, WebSocketDisconnect
 from fastapi.responses import StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
@@ -58,6 +58,36 @@ log = logging.getLogger("heatseeker")
 
 app = FastAPI(title="Confluence Decoder")
 api = APIRouter(prefix="/api")
+
+# ----------------------------- Global Exception Handler ------------------------------
+
+from fastapi.responses import JSONResponse
+from fastapi.exceptions import RequestValidationError
+from starlette.exceptions import HTTPException as StarletteHTTPException
+
+@app.exception_handler(StarletteHTTPException)
+async def http_exception_handler(request: Request, exc: StarletteHTTPException):
+    log.error(f"HTTP {exc.status_code} {request.url.path}: {exc.detail}")
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={"error": str(exc.detail), "status_code": exc.status_code, "path": request.url.path},
+    )
+
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(request: Request, exc: RequestValidationError):
+    log.error(f"Validation error {request.url.path}: {exc.errors()}")
+    return JSONResponse(
+        status_code=422,
+        content={"error": "Validation failed", "details": exc.errors(), "path": request.url.path},
+    )
+
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception):
+    log.error(f"Unhandled exception {request.url.path}: {type(exc).__name__}: {exc}", exc_info=True)
+    return JSONResponse(
+        status_code=500,
+        content={"error": "Internal server error", "type": type(exc).__name__, "path": request.url.path},
+    )
 
 # ----------------------------- Constants & Config -----------------------------
 
@@ -1357,22 +1387,54 @@ async def build_heatmap(ticker: str, max_expiries: int = 4, with_taps: bool = Tr
 
 
 def _sanitize(obj):
-    """Replace NaN/Inf with None recursively for JSON safety."""
+    """Replace NaN/Inf with None recursively for JSON safety. Handles numpy types."""
     if isinstance(obj, dict):
         return {k: _sanitize(v) for k, v in obj.items()}
     if isinstance(obj, list):
         return [_sanitize(v) for v in obj]
-    if isinstance(obj, float):
+    if isinstance(obj, (float, np.floating)):
         if math.isnan(obj) or math.isinf(obj):
             return None
+        return float(obj)
+    if isinstance(obj, (int, np.integer)):
+        return int(obj)
     return obj
 
 
-# ----------------------------- API Endpoints ----------------------------------
+@app.get("/health")
+async def health_root():
+    return await health()
+
+
+# ----------------------------- API Endpoints ------------------------------
 
 @api.get("/")
 async def root():
     return {"app": "confluence-decoder", "version": "2.0", "ts": datetime.now(timezone.utc).isoformat()}
+
+
+@api.get("/health")
+async def health():
+    """Health check with dependency status."""
+    status = {"app": "confluence-decoder", "version": "2.0", "ts": datetime.now(timezone.utc).isoformat(), "dependencies": {}}
+    # Check Mongo
+    try:
+        await db.command("ping")
+        status["dependencies"]["mongodb"] = "ok"
+    except Exception as e:
+        status["dependencies"]["mongodb"] = f"error: {str(e)}"
+    # Check yfinance (lightweight)
+    try:
+        import yfinance as yf
+        t = yf.Ticker("SPY")
+        _ = t.fast_info
+        status["dependencies"]["yfinance"] = "ok"
+    except Exception as e:
+        status["dependencies"]["yfinance"] = f"error: {str(e)}"
+    # Overall
+    all_ok = all(v == "ok" for v in status["dependencies"].values())
+    status["status"] = "healthy" if all_ok else "degraded"
+    return status
 
 
 @api.get("/tickers")
@@ -2556,6 +2618,51 @@ async def detect_uoa(
     })
     cache_set(cache_key, result)
     return result
+
+
+# ============ WebSocket Live GEX Stream ============
+
+@app.websocket("/ws/gex/{ticker}")
+async def websocket_gex(websocket: WebSocket, ticker: str):
+    """WebSocket stream pushing live spot + key GEX levels every 5 seconds."""
+    await websocket.accept()
+    t = ticker.strip().upper()
+    if t == "SPX":
+        t = "^SPX"
+    try:
+        while True:
+            try:
+                raw = await fetch_spot_and_chains_merged(t, 4)
+                spot = raw["spot"]
+                if not spot or not raw["contracts"]:
+                    await websocket.send_json({"error": "No data", "ticker": t})
+                    await asyncio.sleep(5)
+                    continue
+
+                strikes = compute_gex_by_strike(spot, raw["contracts"], t)
+                total_gex = sum(s["gex"] for s in strikes)
+                positive = sorted([s for s in strikes if s["gex"] > 0], key=lambda x: x["gex"], reverse=True)
+                negative = sorted([s for s in strikes if s["gex"] < 0], key=lambda x: x["gex"])
+
+                # Find nodes
+                nodes = classify_nodes(strikes, spot)
+
+                payload = {
+                    "ticker": t,
+                    "spot": spot,
+                    "total_gex": round(total_gex, 0),
+                    "king": nodes.get("king"),
+                    "floors": [{"strike": s["strike"], "gex": round(s["gex"], 0)} for s in positive[:5]],
+                    "ceilings": [{"strike": s["strike"], "gex": round(s["gex"], 0)} for s in negative[:5]],
+                    "regime": nodes.get("regime"),
+                    "asof": datetime.now(timezone.utc).isoformat(),
+                }
+                await websocket.send_json(_sanitize(payload))
+            except Exception as e:
+                await websocket.send_json({"error": str(e), "ticker": t})
+            await asyncio.sleep(5)
+    except WebSocketDisconnect:
+        pass
 
 
 app.include_router(api)
