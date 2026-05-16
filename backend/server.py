@@ -81,6 +81,71 @@ def cache_set(key: str, data: Any):
     _cache[key] = {"ts": time.time(), "data": data}
 
 
+# ============ Portfolio Persistence (Mongo) ============
+
+def _pos_to_dict(p):
+    """Serialize a Position to a dict for Mongo storage."""
+    return {
+        "symbol": p.symbol, "option_type": p.option_type, "strike": p.strike,
+        "expiry": p.expiry, "quantity": p.quantity, "entry_price": p.entry_price,
+        "entry_iv": p.entry_iv, "underlying_price": p.underlying_price,
+        "is_long": p.is_long, "dte": p.dte, "T": p.T,
+        "delta": p.delta, "gamma": p.gamma, "vega": p.vega, "theta": p.theta,
+        "vanna": p.vanna, "charm": p.charm, "vomma": p.vomma, "zomma": p.zomma,
+        "price": p.price,
+    }
+
+def _pos_from_dict(d: Dict[str, Any]) -> Position:
+    """Reconstruct a Position from a Mongo dict."""
+    p = Position.__new__(Position)
+    p.symbol = d["symbol"]
+    p.option_type = d["option_type"]
+    p.strike = d["strike"]
+    p.expiry = d["expiry"]
+    p.quantity = d["quantity"]
+    p.entry_price = d["entry_price"]
+    p.entry_iv = d["entry_iv"]
+    p.underlying_price = d["underlying_price"]
+    p.is_long = d.get("is_long", d["quantity"] > 0)
+    p.dte = d.get("dte", 0)
+    p.T = d.get("T", 0)
+    p.delta = d.get("delta", 0)
+    p.gamma = d.get("gamma", 0)
+    p.vega = d.get("vega", 0)
+    p.theta = d.get("theta", 0)
+    p.vanna = d.get("vanna", 0)
+    p.charm = d.get("charm", 0)
+    p.vomma = d.get("vomma", 0)
+    p.zomma = d.get("zomma", 0)
+    p.price = d.get("price", 0)
+    p.entry_date = datetime.now(timezone.utc)
+    return p
+
+async def _save_portfolio_to_mongo(name: str, portfolio: Portfolio):
+    """Persist portfolio to Mongo."""
+    positions = [_pos_to_dict(p) for p in portfolio.positions]
+    await db.portfolios.update_one(
+        {"_id": name},
+        {"$set": {"positions": positions, "cash": portfolio.cash,
+                   "updated_at": datetime.now(timezone.utc).isoformat()}},
+        upsert=True,
+    )
+
+async def _load_portfolio_from_mongo(name: str) -> Optional[Portfolio]:
+    """Load portfolio from Mongo. Returns None if not found."""
+    doc = await db.portfolios.find_one({"_id": name})
+    if not doc:
+        return None
+    p = Portfolio(doc.get("name", name))
+    p.cash = doc.get("cash", 0.0)
+    for pd in doc.get("positions", []):
+        try:
+            p.positions.append(_pos_from_dict(pd))
+        except Exception:
+            continue
+    return p
+
+
 # ============ Data Fetching Functions (moved here to maintain correct order) ============
 
 def fetch_spot_and_chains(ticker: str, max_expiries: int = 4) -> Dict[str, Any]:
@@ -1742,7 +1807,7 @@ class HedgeReq(BaseModel):
 async def add_position(name: str, req: PositionReq):
     """Add a position to a portfolio."""
     if name not in _portfolios:
-        _portfolios[name] = Portfolio(name)
+        _portfolios[name] = await _load_portfolio_from_mongo(name) or Portfolio(name)
     pos = Position(
         symbol=req.symbol, option_type=req.option_type, strike=req.strike,
         expiry=req.expiry, quantity=req.quantity, entry_price=req.entry_price,
@@ -1750,6 +1815,7 @@ async def add_position(name: str, req: PositionReq):
         is_long=req.quantity > 0,
     )
     _portfolios[name].add_position(pos)
+    await _save_portfolio_to_mongo(name, _portfolios[name])
     return {"status": "added", "positions": len(_portfolios[name].positions)}
 
 
@@ -1757,8 +1823,11 @@ async def add_position(name: str, req: PositionReq):
 async def remove_position(name: str, index: int):
     """Remove a position by index."""
     if name not in _portfolios:
+        _portfolios[name] = await _load_portfolio_from_mongo(name)
+    if not _portfolios[name]:
         raise HTTPException(404, "Portfolio not found")
     _portfolios[name].remove_position(index)
+    await _save_portfolio_to_mongo(name, _portfolios[name])
     return {"status": "removed", "positions": len(_portfolios[name].positions)}
 
 
@@ -1766,6 +1835,8 @@ async def remove_position(name: str, index: int):
 async def get_portfolio(name: str, spot: float = Query(...), iv: float = Query(...)):
     """Get portfolio summary with aggregated Greeks and P&L."""
     if name not in _portfolios:
+        _portfolios[name] = await _load_portfolio_from_mongo(name)
+    if not _portfolios[name]:
         raise HTTPException(404, "Portfolio not found")
     p = _portfolios[name]
     return {
@@ -1781,6 +1852,8 @@ async def get_portfolio(name: str, spot: float = Query(...), iv: float = Query(.
 async def portfolio_scenario(name: str, spot: float = Query(...), iv: float = Query(...)):
     """Run scenario analysis on portfolio."""
     if name not in _portfolios:
+        _portfolios[name] = await _load_portfolio_from_mongo(name)
+    if not _portfolios[name]:
         raise HTTPException(404, "Portfolio not found")
     p = _portfolios[name]
     scenarios = p.scenario_analysis(spot, iv)
@@ -1791,6 +1864,8 @@ async def portfolio_scenario(name: str, spot: float = Query(...), iv: float = Qu
 async def portfolio_hedge(name: str, req: HedgeReq):
     """Calculate Greek-neutral hedge for portfolio."""
     if name not in _portfolios:
+        _portfolios[name] = await _load_portfolio_from_mongo(name)
+    if not _portfolios[name]:
         raise HTTPException(404, "Portfolio not found")
     p = _portfolios[name]
     hedge = p.greek_neutral_hedge(req.spot, req.iv, req.hedge_options)
@@ -1806,6 +1881,96 @@ async def position_size(
 ):
     """Calculate position size based on GEX levels and risk parameters."""
     return calc_position_size(account_size, risk_per_trade_pct, spot, gex_level)
+
+
+# ============ Schwab API Integration ============
+
+from schwab import SchwabTokenManager, SchwabClient, import_schwab_positions, detect_sweeps
+
+_schwab_token_mgr = SchwabTokenManager()
+
+
+class SchwabAuthReq(BaseModel):
+    code: str  # Authorization code from OAuth callback
+
+
+@api.get("/schwab/auth-url")
+async def schwab_auth_url():
+    """Get the Schwab OAuth2 authorization URL."""
+    if not SCHWAB_CLIENT_ID:
+        return {"error": "SCHWAB_CLIENT_ID not set in .env", "hint": "Get credentials at https://developer.schwab.com/"}
+    mgr = SchwabTokenManager()
+    return {"auth_url": mgr.get_auth_url()}
+
+
+@api.post("/schwab/auth")
+async def schwab_auth(req: SchwabAuthReq):
+    """Exchange OAuth code for tokens."""
+    try:
+        token = await _schwab_token_mgr.exchange_code(req.code)
+        return {"status": "authenticated", "expires_in": token.get("expires_in")}
+    except Exception as e:
+        raise HTTPException(400, f"Auth failed: {e}")
+
+
+@api.get("/schwab/accounts")
+async def schwab_accounts():
+    """Get Schwab account numbers."""
+    try:
+        client = SchwabClient(_schwab_token_mgr)
+        accounts = await client.get_accounts()
+        return {"accounts": accounts}
+    except Exception as e:
+        raise HTTPException(401, f"Failed: {e}")
+
+
+@api.get("/schwab/positions/{account_hash}")
+async def schwab_positions(account_hash: str):
+    """Import positions from Schwab account."""
+    try:
+        positions = await import_schwab_positions(account_hash)
+        return {"positions": positions, "count": len(positions)}
+    except Exception as e:
+        raise HTTPException(401, f"Failed: {e}")
+
+
+@api.get("/schwab/sweeps/{account_hash}")
+async def schwab_sweeps(account_hash: str, days: int = Query(7, ge=1, le=90)):
+    """Detect options sweeps from Schwab transaction history."""
+    try:
+        sweeps = await detect_sweeps(account_hash, days)
+        return {"sweeps": sweeps, "count": len(sweeps)}
+    except Exception as e:
+        raise HTTPException(401, f"Failed: {e}")
+
+
+@api.post("/schwab/import-to-portfolio/{name}/{account_hash}")
+async def schwab_import_to_portfolio(name: str, account_hash: str):
+    """Import Schwab positions directly into a portfolio."""
+    positions = await import_schwab_positions(account_hash)
+    if name not in _portfolios:
+        _portfolios[name] = await _load_portfolio_from_mongo(name) or Portfolio(name)
+
+    added = 0
+    for pos_data in positions:
+        if pos_data["option_type"] == "equity":
+            continue  # Skip equity for now
+        try:
+            pos = Position(
+                symbol=pos_data["symbol"], option_type=pos_data["option_type"],
+                strike=pos_data["strike"], expiry=pos_data["expiry"],
+                quantity=pos_data["quantity"], entry_price=pos_data["entry_price"],
+                entry_iv=max(pos_data["entry_iv"], 0.01),
+                underlying_price=max(pos_data["underlying_price"], 1.0),
+                is_long=pos_data["is_long"],
+            )
+            _portfolios[name].add_position(pos)
+            added += 1
+        except Exception:
+            continue
+
+    await _save_portfolio_to_mongo(name, _portfolios[name])
+    return {"status": "imported", "added": added, "total": len(_portfolios[name].positions)}
 
 
 app.include_router(api)

@@ -262,3 +262,47 @@ export function GreekReferencePanel() {
     </Section>
   );
 }
+
+// ============ Databento Usage Panel ============
+export function UsagePanel() {
+  const [usage, setUsage] = useState(null);
+  const [loading, setLoading] = useState(false);
+
+  const fetchUsage = async () => {
+    setLoading(true);
+    try {
+      const base = process.env.REACT_APP_BACKEND_URL || "";
+      const res = await axios.get(`${base}/api/databento/usage`);
+      setUsage(res.data);
+    } catch (e) { /* noop */ }
+    setLoading(false);
+  };
+
+  return (
+    <Section title="Data Usage" defaultOpen={false} badge={usage ? `$${usage.total_usd}` : undefined}>
+      <button onClick={fetchUsage} className="btn w-full text-[9px] mb-1" disabled={loading}>
+        {loading ? "…" : "Check Usage"}
+      </button>
+      {usage && (
+        <div className="space-y-0.5 text-[9px]">
+          <div className="flex justify-between">
+            <span className="text-slate-500">Total</span>
+            <span className="mono font-bold text-slate-300">${usage.total_usd}</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-slate-500">OI Fetches</span>
+            <span className="mono text-slate-400">${usage.est_oi_cost_usd} ({usage.oi_fetch_count})</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-slate-500">Live Tape</span>
+            <span className="mono text-slate-400">${usage.est_tape_cost_usd} ({usage.tape_session_count})</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-slate-500">Credits Left</span>
+            <span className="mono font-bold text-emerald-400">${usage.credits_remaining}</span>
+          </div>
+        </div>
+      )}
+    </Section>
+  );
+}

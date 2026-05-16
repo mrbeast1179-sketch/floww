@@ -10,9 +10,10 @@ import TrinityView from "./components/TrinityView";
 import {
   FlipZonesPanel, StackedNodesPanel, TugOfWarPanel, ScenarioPanel,
   RiskDashboardPanel, OpportunitiesPanel, ImpliedMovePanel, VolAnalyticsPanel,
-  GreekReferencePanel,
+  GreekReferencePanel, UsagePanel,
 } from "./components/SidebarPanels";
 import PortfolioPanel from "./components/PortfolioPanel";
+import FlowTicker from "./components/FlowTicker";
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
@@ -199,6 +200,7 @@ export default function App() {
   const [err, setErr] = useState(null);
   const [view, setView] = useState("grid");
   const [viewMode, setViewMode] = useState("gex");
+  const [mode, setMode] = useState("day");
   const [filters, setFilters] = useState({ side: "all", lifecycle: "all", magMin: 0 });
   const [expiries, setExpiries] = useState(4);
   const [dte, setDte] = useState(null);
@@ -211,10 +213,10 @@ export default function App() {
   // Fetch heatmap data
   const fetchData = useCallback(async () => {
     try {
-      const res = await axios.get(`${API}/heatmap/${ticker}?expiries=${expiries}&mode=day&dte=${dte ?? ""}`);
+      const res = await axios.get(`${API}/heatmap/${ticker}?expiries=${expiries}&mode=${mode}&dte=${dte ?? ""}`);
       setData(res.data); setErr(null);
     } catch (e) { setErr(e.response?.data?.detail || e.message); }
-  }, [ticker, expiries, dte]);
+  }, [ticker, expiries, mode, dte]);
 
   useEffect(() => { fetchData(); const id = setInterval(fetchData, REFRESH_MS); return () => clearInterval(id); }, [fetchData]);
 
@@ -303,7 +305,12 @@ export default function App() {
                   <button onClick={() => setView("grid")} className={`btn flex-1 ${view === "grid" ? "active" : ""}`}>2D Grid</button>
                   <button onClick={() => setView("bar")} className={`btn flex-1 ${view === "bar" ? "active" : ""}`}>Bars</button>
                 </div>
-                <div className="text-slate-500 mb-1 text-[10px]">Exposure</div>
+                <div className="text-slate-500 mb-1 text-[10px]">Mode</div>
+                <div className="flex gap-1 mb-2">
+                  {["day", "swing", "scalp"].map(m => (
+                    <button key={m} onClick={() => setMode(m)} className={`btn flex-1 ${mode === m ? "active" : ""}`}>{m.toUpperCase()}</button>
+                  ))}
+                </div>
                 <div className="flex gap-1 mb-2">
                   {["gex", "vex", "charm"].map(m => (
                     <button key={m} onClick={() => setViewMode(m)} className={`btn flex-1 ${viewMode === m ? "active" : ""}`}>{m.toUpperCase()}</button>
@@ -368,6 +375,8 @@ export default function App() {
               <OpportunitiesPanel data={data} />
               <ImpliedMovePanel data={data} />
               <VolAnalyticsPanel data={data} />
+              {page === "heatseeker" && <FlowTicker ticker={ticker} />}
+              <UsagePanel />
 
               {/* Patterns */}
               <div className="panel p-3" data-testid="patterns-panel">

@@ -5,6 +5,83 @@ import { fmt, fmtAbs, pctClass } from "../lib/helpers";
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
 
+// ============ Position Sizing Widget ============
+function PositionSizing({ spot }) {
+  const [accountSize, setAccountSize] = useState("100000");
+  const [riskPct, setRiskPct] = useState("0.02");
+  const [gexLevel, setGexLevel] = useState("0");
+  const [result, setResult] = useState(null);
+  const [loading, setLoading] = useState(false);
+
+  const calcSize = async () => {
+    if (!spot) return;
+    setLoading(true);
+    try {
+      const res = await axios.post(`${API}/position-size`, null, {
+        params: {
+          account_size: parseFloat(accountSize),
+          risk_per_trade_pct: parseFloat(riskPct),
+          spot,
+          gex_level: parseFloat(gexLevel) || 0,
+        },
+      });
+      setResult(res.data);
+    } catch (e) {
+      console.error("Position sizing failed:", e);
+    }
+    setLoading(false);
+  };
+
+  const inputCls = "w-full bg-slate-800/60 border border-slate-700 rounded px-2 py-1 text-[11px] text-slate-200 focus:border-teal-500 focus:outline-none";
+
+  return (
+    <div className="panel p-3">
+      <div className="label mb-2">Position Sizing</div>
+      <div className="grid grid-cols-3 gap-1.5 mb-2">
+        <div>
+          <div className="label mb-0.5">Account $</div>
+          <input type="number" className={inputCls} value={accountSize} onChange={(e) => setAccountSize(e.target.value)} />
+        </div>
+        <div>
+          <div className="label mb-0.5">Risk %</div>
+          <input type="number" step="0.005" className={inputCls} value={riskPct} onChange={(e) => setRiskPct(e.target.value)} />
+        </div>
+        <div>
+          <div className="label mb-0.5">GEX Level</div>
+          <input type="number" className={inputCls} value={gexLevel} onChange={(e) => setGexLevel(e.target.value)} placeholder="0" />
+        </div>
+      </div>
+      <button onClick={calcSize} className="btn w-full text-[10px]" disabled={loading || !spot}>
+        {loading ? "…" : "Calculate Size"}
+      </button>
+      {result && (
+        <div className="mt-2 space-y-0.5 text-[10px]">
+          <div className="flex justify-between">
+            <span className="text-slate-500">Contracts</span>
+            <span className="mono font-bold text-slate-300">{result.recommended_contracts}</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-slate-500">Position Value</span>
+            <span className="mono text-slate-300">${fmt(result.position_value, 0)}</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-slate-500">% of Account</span>
+            <span className="mono text-slate-300">{result.position_pct_of_account}%</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-slate-500">Risk Amount</span>
+            <span className="mono text-amber-400">${fmt(result.risk_per_trade, 0)}</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-slate-500">GEX Factor</span>
+            <span className="mono text-slate-400">{result.gex_factor}</span>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ============ Position Entry Form ============
 function PositionForm({ onAdd }) {
   const [form, setForm] = useState({
@@ -447,6 +524,11 @@ export default function PortfolioPanel({ ticker, spot }) {
         )}
 
         {/* Position Sizing */}
+        {activeTab === "positions" && (
+          <PositionSizing spot={currentSpot} />
+        )}
+
+        {/* Quick Actions */}
         {activeTab === "positions" && positions.length > 0 && (
           <div className="panel p-3">
             <div className="label mb-2">Quick Actions</div>
