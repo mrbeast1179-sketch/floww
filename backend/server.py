@@ -1664,6 +1664,12 @@ class LivePolicyReq(BaseModel):
     window_stop: Optional[str] = None
 
 
+@api.get("/live/policy")
+async def get_live_policy():
+    """Get current live trading policy."""
+    return {"paid_tickers": sorted(PAID_TICKERS), "live_window_et": LIVE_WINDOW}
+
+
 @api.post("/live/policy")
 async def set_live_policy(req: LivePolicyReq):
     """Update which tickers may use Databento (paid) + the live window. Persisted in Mongo."""

@@ -10,7 +10,7 @@ import TrinityView from "./components/TrinityView";
 import {
   FlipZonesPanel, StackedNodesPanel, TugOfWarPanel, ScenarioPanel,
   RiskDashboardPanel, OpportunitiesPanel, ImpliedMovePanel, VolAnalyticsPanel,
-  GreekReferencePanel, UsagePanel,
+  GreekReferencePanel, UsagePanel, LivePolicyPanel,
 } from "./components/SidebarPanels";
 import PortfolioPanel from "./components/PortfolioPanel";
 import FlowTicker from "./components/FlowTicker";
@@ -331,6 +331,7 @@ export default function App() {
               </div>
 
               <Movers onPick={(t) => setTicker(t)} />
+              <HistoryPanel ticker={ticker} />
             </div>
           </aside>
 
@@ -377,6 +378,7 @@ export default function App() {
               <VolAnalyticsPanel data={data} />
               {page === "heatseeker" && <FlowTicker ticker={ticker} />}
               <UsagePanel />
+              <LivePolicyPanel />
 
               {/* Patterns */}
               <div className="panel p-3" data-testid="patterns-panel">

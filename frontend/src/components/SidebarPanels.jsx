@@ -306,3 +306,75 @@ export function UsagePanel() {
     </Section>
   );
 }
+
+// ============ Live Policy Panel ============
+export function LivePolicyPanel() {
+  const [policy, setPolicy] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [tickers, setTickers] = useState("SPY");
+  const [windowStart, setWindowStart] = useState("09:00");
+  const [windowStop, setWindowStop] = useState("10:30");
+
+  const fetchPolicy = async () => {
+    setLoading(true);
+    try {
+      const base = process.env.REACT_APP_BACKEND_URL || "";
+      const res = await axios.get(`${base}/api/live/policy`);
+      setPolicy(res.data);
+      if (res.data.paid_tickers) setTickers(res.data.paid_tickers.join(", "));
+      if (res.data.live_window_et) {
+        setWindowStart(res.data.live_window_et.start_hhmm || "09:00");
+        setWindowStop(res.data.live_window_et.stop_hhmm || "10:30");
+      }
+    } catch (e) { /* noop */ }
+    setLoading(false);
+  };
+
+  const updatePolicy = async () => {
+    setLoading(true);
+    try {
+      const base = process.env.REACT_APP_BACKEND_URL || "";
+      const res = await axios.post(`${base}/api/live/policy`, {
+        paid_tickers: tickers.split(",").map((t) => t.trim().toUpperCase()).filter(Boolean),
+        window_start: windowStart,
+        window_stop: windowStop,
+      });
+      setPolicy(res.data);
+    } catch (e) { /* noop */ }
+    setLoading(false);
+  };
+
+  const inputCls = "w-full bg-slate-800/60 border border-slate-700 rounded px-2 py-1 text-[10px] text-slate-200 focus:border-teal-500 focus:outline-none";
+
+  return (
+    <Section title="Live Policy" defaultOpen={false}>
+      <button onClick={fetchPolicy} className="btn w-full text-[9px] mb-1" disabled={loading}>
+        {loading ? "…" : "Load Policy"}
+      </button>
+      {policy && (
+        <div className="text-[9px] text-slate-400 mb-1">
+          Paid: {policy.paid_tickers?.join(", ") || "—"} · Window: {policy.live_window_et?.start_hhmm}–{policy.live_window_et?.stop_hhmm} ET
+        </div>
+      )}
+      <div className="space-y-1">
+        <div>
+          <div className="label mb-0.5">Paid Tickers (comma-sep)</div>
+          <input className={inputCls} value={tickers} onChange={(e) => setTickers(e.target.value)} placeholder="SPY, QQQ" />
+        </div>
+        <div className="grid grid-cols-2 gap-1">
+          <div>
+            <div className="label mb-0.5">Window Start (ET)</div>
+            <input className={inputCls} value={windowStart} onChange={(e) => setWindowStart(e.target.value)} />
+          </div>
+          <div>
+            <div className="label mb-0.5">Window Stop (ET)</div>
+            <input className={inputCls} value={windowStop} onChange={(e) => setWindowStop(e.target.value)} />
+          </div>
+        </div>
+        <button onClick={updatePolicy} className="btn w-full text-[9px]" disabled={loading}>
+          Update Policy
+        </button>
+      </div>
+    </Section>
+  );
+}
