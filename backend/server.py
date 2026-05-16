@@ -28,6 +28,13 @@ import numpy as np
 from scipy.stats import norm
 
 from databento_provider import init_cache, fetch_oi_for_ticker, PARENT_MAP, stream_live_trades
+from portfolio import Position, Portfolio, calc_position_size
+from vol_analytics import (
+    calc_iv_surface_data,
+    calc_skew_metrics,
+    calc_realized_volatility,
+    calc_iv_rank_percentile,
+)
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / ".env")
@@ -52,6 +59,10 @@ TRINITY = ["^SPX", "SPY", "QQQ"]
 RISK_FREE_RATE = 0.045
 DIV_YIELD = {"SPY": 0.013, "QQQ": 0.006, "^SPX": 0.013, "IWM": 0.012}
 
+# Live window config (ET hours)
+LIVE_WINDOW = {"start_hhmm": "09:00", "stop_hhmm": "10:30"}
+PREFETCH_HHMM = "08:55"  # pre-fetch SPY OI 5 min before market open
+
 # Cache for spot/chains so we don't slam yfinance
 _cache: Dict[str, Dict[str, Any]] = {}
 CACHE_TTL_SEC = 25
@@ -70,124 +81,7 @@ def cache_set(key: str, data: Any):
     _cache[key] = {"ts": time.time(), "data": data}
 
 
-# ----------------------------- Black-Scholes ----------------------------------
-
-def bs_gamma(S: float, K: float, T: float, sigma: float, r: float = RISK_FREE_RATE, q: float = 0.0) -> float:
-    if S <= 0 or K <= 0 or T <= 0 or sigma <= 0:
-        return 0.0
-    try:
-        d1 = (math.log(S / K) + (r - q + 0.5 * sigma * sigma) * T) / (sigma * math.sqrt(T))
-        result = math.exp(-q * T) * norm.pdf(d1) / (S * sigma * math.sqrt(T))
-        if math.isnan(result) or math.isinf(result):
-            return 0.0
-        return result
-    except Exception:
-        return 0.0
-
-
-def bs_delta(S: float, K: float, T: float, sigma: float, q: float = 0.0, kind: str = "call", r: float = RISK_FREE_RATE) -> float:
-    if S <= 0 or K <= 0 or T <= 0 or sigma <= 0:
-        return 0.0
-    try:
-        d1 = (math.log(S / K) + (r - q + 0.5 * sigma * sigma) * T) / (sigma * math.sqrt(T))
-        if kind == "call":
-            return math.exp(-q * T) * norm.cdf(d1)
-        return -math.exp(-q * T) * norm.cdf(-d1)
-    except Exception:
-        return 0.0
-
-
-def bs_vanna(S: float, K: float, T: float, sigma: float, r: float = RISK_FREE_RATE, q: float = 0.0) -> float:
-    """Vanna: sensitivity of delta to changes in implied volatility.
-    Vanna = -e^(-qT) * N'(d1) * d2 / sigma
-    where d2 = d1 - sigma*sqrt(T)
-    """
-    if S <= 0 or K <= 0 or T <= 0 or sigma <= 0:
-        return 0.0
-    try:
-        d1 = (math.log(S / K) + (r - q + 0.5 * sigma * sigma) * T) / (sigma * math.sqrt(T))
-        d2 = d1 - sigma * math.sqrt(T)
-        result = -math.exp(-q * T) * norm.pdf(d1) * d2 / sigma
-        if math.isnan(result) or math.isinf(result):
-            return 0.0
-        return result
-    except Exception:
-        return 0.0
-
-
-def bs_charm(S: float, K: float, T: float, sigma: float, r: float = RISK_FREE_RATE, q: float = 0.0, kind: str = "call") -> float:
-    """Charm: sensitivity of delta to time decay (dDelta/dTime).
-    Charm = -N'(d1) * (2(r-q)T - d2*sigma*sqrt(T)) / (2*T*sigma*sqrt(T))  for calls
-    Charm = -N'(d1) * (2(r-q)T - d2*sigma*sqrt(T)) / (2*T*sigma*sqrt(T))  for puts (same sign convention)
-    Matches gex-backtesting repo's BlackScholesGreeks.charm() formula.
-    """
-    if S <= 0 or K <= 0 or T <= 0 or sigma <= 0:
-        return 0.0
-    try:
-        d1 = (math.log(S / K) + (r - q + 0.5 * sigma * sigma) * T) / (sigma * math.sqrt(T))
-        d2 = d1 - sigma * math.sqrt(T)
-        pdf_d1 = norm.pdf(d1)
-        sqrt_T = math.sqrt(T)
-        charm = -pdf_d1 * (2 * (r - q) * T - d2 * sigma * sqrt_T) / (2 * T * sigma * sqrt_T)
-        if kind == "put":
-            charm = -charm
-        if math.isnan(charm) or math.isinf(charm):
-            return 0.0
-        return charm
-    except Exception:
-        return 0.0
-
-
-def bs_vomma(S: float, K: float, T: float, sigma: float, r: float = RISK_FREE_RATE, q: float = 0.0) -> float:
-    """Vomma (volga): sensitivity of vega to changes in implied volatility.
-    Vomma = vega * d1 * d2 / sigma
-    High vomma means option prices explode during vol spikes.
-    """
-    if S <= 0 or K <= 0 or T <= 0 or sigma <= 0:
-        return 0.0
-    try:
-        d1 = (math.log(S / K) + (r - q + 0.5 * sigma * sigma) * T) / (sigma * math.sqrt(T))
-        d2 = d1 - sigma * math.sqrt(T)
-        vega = S * math.exp(-q * T) * norm.pdf(d1) * math.sqrt(T)
-        result = vega * d1 * d2 / sigma
-        if math.isnan(result) or math.isinf(result):
-            return 0.0
-        return result
-    except Exception:
-        return 0.0
-
-
-def bs_zomma(S: float, K: float, T: float, sigma: float, r: float = RISK_FREE_RATE, q: float = 0.0) -> float:
-    """Zomma: sensitivity of gamma to changes in implied volatility.
-    Zomma = gamma * (d1 * d2 - 1) / sigma
-    Creates feedback loop: vol spike -> gamma increase -> bigger hedging demand.
-    """
-    if S <= 0 or K <= 0 or T <= 0 or sigma <= 0:
-        return 0.0
-    try:
-        d1 = (math.log(S / K) + (r - q + 0.5 * sigma * sigma) * T) / (sigma * math.sqrt(T))
-        d2 = d1 - sigma * math.sqrt(T)
-        gamma = norm.pdf(d1) / (S * sigma * math.sqrt(T))
-        result = gamma * (d1 * d2 - 1) / sigma
-        if math.isnan(result) or math.isinf(result):
-            return 0.0
-        return result
-    except Exception:
-        return 0.0
-
-
-def bs_vega(S: float, K: float, T: float, sigma: float, r: float = RISK_FREE_RATE, q: float = 0.0) -> float:
-    """Vega: sensitivity of option price to implied volatility."""
-    if S <= 0 or K <= 0 or T <= 0 or sigma <= 0:
-        return 0.0
-    try:
-        d1 = (math.log(S / K) + (r - q + 0.5 * sigma * sigma) * T) / (sigma * math.sqrt(T))
-        result = S * math.exp(-q * T) * norm.pdf(d1) * math.sqrt(T)
-        if math.isnan(result) or math.isinf(result):
-            return 0.0
-        return result
-    except Exception:
-        return 0.0
+# ============ Data Fetching Functions (moved here to maintain correct order) ============
 
 def fetch_spot_and_chains(ticker: str, max_expiries: int = 4) -> Dict[str, Any]:
     """Returns spot + flattened option contracts (limited expiries near term)."""
@@ -231,13 +125,8 @@ def fetch_spot_and_chains(ticker: str, max_expiries: int = 4) -> Dict[str, Any]:
                 if strike <= 0 or oi <= 0 or iv <= 0:
                     continue
                 contracts.append({
-                    "expiry": exp,
-                    "T": T,
-                    "type": kind,
-                    "strike": strike,
-                    "oi": oi,
-                    "iv": iv,
-                    "volume": vol,
+                    "expiry": exp, "T": T, "type": kind,
+                    "strike": strike, "oi": oi, "iv": iv, "volume": vol,
                 })
 
     data = {"ticker": ticker, "spot": spot, "expiries": expiries, "contracts": contracts}
@@ -248,10 +137,6 @@ def fetch_spot_and_chains(ticker: str, max_expiries: int = 4) -> Dict[str, Any]:
 # Tickers allowed to use Databento OI (paid). Default: SPY only. Persisted in Mongo (db.live_policy).
 DEFAULT_PAID_TICKERS = {"SPY"}
 PAID_TICKERS: set = set(DEFAULT_PAID_TICKERS)
-
-# Trading window (ET) when live features auto-engage; outside this window, live calls auto-disabled.
-LIVE_WINDOW = {"start_hhmm": "09:00", "stop_hhmm": "10:30"}
-PREFETCH_HHMM = "08:55"  # pre-fetch SPY OI 5 min before market open
 
 # Session tracking for cost meter
 _session_state: Dict[str, Any] = {
@@ -304,19 +189,19 @@ async def fetch_spot_and_chains_merged(ticker: str, max_expiries: int = 4) -> Di
     for sym, c in dbn_oi.items():
         dbn_map[(c["strike"], c["expiry"], c["type"])] = c["oi"]
 
-    # Overlay Databento OI onto yfinance IV/strike contracts. Add any DBN contracts missing in YF using avg IV.
+    # Overlay Databento OI onto yfinance IV/strike contracts
     yf_keys = set()
     for c in yf_data["contracts"]:
         key = (c["strike"], c["expiry"], c["type"])
         dbn_val = dbn_map.get(key)
         if dbn_val is not None:
-            c["oi"] = max(c["oi"], dbn_val)  # prefer larger (latest EOD vs YF intraday)
+            c["oi"] = max(c["oi"], dbn_val)
             c["oi_source"] = "databento"
         else:
             c["oi_source"] = "yfinance"
         yf_keys.add(key)
 
-    # Add DBN-only contracts: estimate IV by per-expiry arithmetic mean of yfinance IVs
+    # Add DBN-only contracts
     today = datetime.now(timezone.utc).date()
     iv_lists: Dict[str, list] = {}
     for c in yf_data["contracts"]:
@@ -327,7 +212,6 @@ async def fetch_spot_and_chains_merged(ticker: str, max_expiries: int = 4) -> Di
         if (strike, expiry, typ) in yf_keys:
             continue
         if expiry not in iv_avg_by_expiry:
-            # Skip if no IV reference (unknown expiry)
             continue
         try:
             exp_d = datetime.strptime(expiry, "%Y-%m-%d").date()
@@ -348,12 +232,7 @@ async def fetch_spot_and_chains_merged(ticker: str, max_expiries: int = 4) -> Di
 # ----------------------------- GEX Aggregation --------------------------------
 
 def compute_gex_by_strike(spot: float, contracts: List[Dict[str, Any]], ticker: str = "") -> List[Dict[str, Any]]:
-    """Per-strike net GEX, VEX, and Vega. Convention: dealer-positive convention.
-    GEX = OI * 100 * gamma * S^2 * 0.01, calls add positive, puts subtract.
-    VEX = OI * 100 * vanna * S * 0.01
-    Vega = OI * 100 * vega
-    Returns sorted-by-strike list with gex, vex, vega fields.
-    """
+    """Per-strike net GEX, VEX, and Vega. Convention: dealer-positive convention."""
     if spot <= 0 or not contracts:
         return []
     q = DIV_YIELD.get(ticker, 0.0)
@@ -415,8 +294,7 @@ def compute_gex_by_strike(spot: float, contracts: List[Dict[str, Any]], ticker: 
 
 
 def compute_gex_grid(spot: float, contracts: List[Dict[str, Any]], ticker: str = "") -> Dict[str, Any]:
-    """2D grid: GEX per (strike, expiry). Skylit-style heatmap layout.
-    Returns {expiries: [...], strikes: [...], grid: {expiry: {strike: gex}}, charm_grid: {expiry: {strike: charm}}}"""
+    """2D grid: GEX per (strike, expiry). Skylit-style heatmap layout."""
     if spot <= 0 or not contracts:
         return {"expiries": [], "strikes": [], "grid": {}, "charm_grid": {}}
     q = DIV_YIELD.get(ticker, 0.0)
@@ -443,7 +321,6 @@ def compute_gex_grid(spot: float, contracts: List[Dict[str, Any]], ticker: str =
     strikes = sorted(strike_totals.keys())
 
     def _k(x: float) -> str:
-        # Normalize key: integer-valued floats become "739", otherwise "739.5"
         return str(int(x)) if float(x).is_integer() else str(x)
 
     return {
@@ -453,264 +330,12 @@ def compute_gex_grid(spot: float, contracts: List[Dict[str, Any]], ticker: str =
         "charm_grid": {e: {_k(k): v for k, v in charm_grid[e].items()} for e in expiries},
         "strike_totals": [{"strike": k, "gex": v} for k, v in sorted(strike_totals.items())],
     }
-
-
-# ----------------------------- Institutional Volatility Analytics ----------------
-
-def calc_iv_surface_data(spot: float, contracts: List[Dict[str, Any]]) -> Dict[str, Any]:
-    """Calculate IV surface data: IV across moneyness and time.
-    Returns grid data suitable for 3D surface or heatmap visualization.
-    Institutional standard: moneyness (K/S) × TTE → IV."""
-    if spot <= 0 or not contracts:
-        return {"strikes": [], "expiries": [], "iv_grid": [], "smile": []}
-
-    from collections import defaultdict
-    import numpy as np
-    from scipy.interpolate import griddata as scipy_griddata
-
-    # Build raw data points
-    points = []  # (moneyness, tte)
-    values = []  # IV
-    raw_by_expiry = defaultdict(list)
-
-    for c in contracts:
-        iv = c.get("iv", 0)
-        T = c.get("T", 0)
-        if iv <= 0 or iv > 3.0 or T <= 0:
-            continue
-        moneyness = c["strike"] / spot
-        points.append([moneyness, T])
-        values.append(iv)
-        raw_by_expiry[c["expiry"]].append({
-            "strike": c["strike"],
-            "moneyness": round(moneyness, 4),
-            "iv": round(iv, 4),
-            "type": c["type"],
-        })
-
-    if len(points) < 4:
-        return {"strikes": [], "expiries": [], "iv_grid": [], "smile": [], "raw": raw_by_expiry}
-
-    points_arr = np.array(points)
-    values_arr = np.array(values)
-
-    # Create interpolation grid
-    moneyness_range = np.linspace(0.85, 1.15, 50)
-    tte_range = np.linspace(
-        max(min(p[1] for p in points), 0.001),
-        max(p[1] for p in points),
-        30
-    )
-    grid_m, grid_t = np.meshgrid(moneyness_range, tte_range)
-
-    # Interpolate with linear + nearest fill
-    try:
-        grid_iv = scipy_griddata(points_arr, values_arr, (grid_m, grid_t), method='linear')
-        mask = np.isnan(grid_iv)
-        if mask.any():
-            grid_iv[mask] = scipy_griddata(points_arr, values_arr, (grid_m[mask], grid_t[mask]), method='nearest')
-    except Exception:
-        grid_iv = np.zeros_like(grid_m)
-
-    # Extract ATM smile (across strikes for nearest expiry)
-    nearest_expiry = min(raw_by_expiry.keys())
-    smile_data = sorted(raw_by_expiry[nearest_expiry], key=lambda x: x["strike"])
-
-    # Term structure (ATM IV across expiries)
-    term_structure = []
-    for exp in sorted(raw_by_expiry.keys()):
-        exp_data = raw_by_expiry[exp]
-        # Find ATM IV for this expiry
-        atm_data = min(exp_data, key=lambda x: abs(x["moneyness"] - 1.0))
-        try:
-            exp_date = datetime.strptime(exp, "%Y-%m-%d").date()
-            dte = (exp_date - datetime.now(timezone.utc).date()).days
-        except Exception:
-            dte = 0
-        term_structure.append({
-            "expiry": exp,
-            "dte": dte,
-            "atm_iv": atm_data["iv"],
-            "atm_strike": atm_data["strike"],
-        })
-
-    return {
-        "smile": smile_data[:30],  # limit for performance
-        "term_structure": term_structure,
-        "raw_by_expiry": {k: v[:20] for k, v in raw_by_expiry.items()},
-    }
-
-
-def calc_skew_metrics(spot: float, contracts: List[Dict[str, Any]]) -> Dict[str, Any]:
-    """Calculate volatility skew metrics.
-    - 25d risk reversal: IV(25d call) - IV(25d put). Positive = call skew (bullish).
-    - 25d butterfly: (IV(25d call) + IV(25d put))/2 - IV(ATM). Measures smile convexity.
-    - Skew slope: IV change per unit moneyness.
-    Institutional standard from CBOE/Deutsche Bank."""
-    if spot <= 0 or not contracts:
-        return {}
-
-    # Group by strike, get average IV for calls and puts
-    from collections import defaultdict
-    call_ivs = defaultdict(list)
-    put_ivs = defaultdict(list)
-    for c in contracts:
-        iv = c.get("iv", 0)
-        if iv <= 0 or iv > 3.0:
-            continue
-        if c["type"] == "call":
-            call_ivs[c["strike"]].append(iv)
-        else:
-            put_ivs[c["strike"]].append(iv)
-
-    # Average IV per strike
-    call_iv_avg = {k: sum(v)/len(v) for k, v in call_ivs.items()}
-    put_iv_avg = {k: sum(v)/len(v) for k, v in put_ivs.items()}
-    all_strikes = sorted(set(list(call_iv_avg.keys()) + list(put_iv_avg.keys())))
-    if not all_strikes:
-        return {}
-
-    # Find ATM
-    atm_strike = min(all_strikes, key=lambda s: abs(s - spot))
-    atm_iv_call = call_iv_avg.get(atm_strike, 0)
-    atm_iv_put = put_iv_avg.get(atm_strike, 0)
-    atm_iv = (atm_iv_call + atm_iv_put) / 2 if atm_iv_call and atm_iv_put else (atm_iv_call or atm_iv_put)
-
-    # Find 25 delta strikes (approximate via moneyness)
-    # 25d call ≈ strike where delta ≈ 0.25, typically OTM
-    # 25d put ≈ strike where delta ≈ -0.25, typically OTM
-    # Approximate: find strikes closest to 25% probability OTM
-    call_25d_strike = None
-    put_25d_strike = None
-    for s in all_strikes:
-        moneyness = s / spot
-        if moneyness > 1.0 and call_25d_strike is None:
-            call_25d_strike = s  # first OTM call
-        if moneyness < 1.0:
-            put_25d_strike = s  # last OTM put
-
-    iv_25d_call = call_iv_avg.get(call_25d_strike, atm_iv) if call_25d_strike else atm_iv
-    iv_25d_put = put_iv_avg.get(put_25d_strike, atm_iv) if put_25d_strike else atm_iv
-
-    # Risk reversal: 25d call IV - 25d put IV
-    risk_reversal_25d = iv_25d_call - iv_25d_put
-
-    # Butterfly: average of wings minus body
-    butterfly_25d = (iv_25d_call + iv_25d_put) / 2 - atm_iv if atm_iv > 0 else 0
-
-    # Skew slope: IV change from 90% to 110% moneyness
-    iv_90 = None
-    iv_110 = None
-    for s in all_strikes:
-        m = s / spot
-        iv_s = call_iv_avg.get(s) or put_iv_avg.get(s)
-        if iv_s:
-            if abs(m - 0.90) < 0.02:
-                iv_90 = iv_s
-            if abs(m - 1.10) < 0.02:
-                iv_110 = iv_s
-
-    skew_slope = (iv_110 - iv_90) / 0.20 if iv_90 and iv_110 else 0
-
-    return {
-        "atm_iv": round(atm_iv, 4),
-        "atm_strike": atm_strike,
-        "risk_reversal_25d": round(risk_reversal_25d, 4),
-        "butterfly_25d": round(butterfly_25d, 4),
-        "skew_slope": round(skew_slope, 4),
-        "iv_25d_call": round(iv_25d_call, 4),
-        "iv_25d_put": round(iv_25d_put, 4),
-        "call_25d_strike": call_25d_strike,
-        "put_25d_strike": put_25d_strike,
-        "interpretation": {
-            "risk_reversal": "bullish" if risk_reversal_25d > 0.02 else "bearish" if risk_reversal_25d < -0.02 else "neutral",
-            "butterfly": "fat_tails" if butterfly_25d > 0.02 else "thin_tails" if butterfly_25d < -0.01 else "normal",
-            "skew_slope": "steep" if abs(skew_slope) > 0.5 else "flat" if abs(skew_slope) < 0.1 else "moderate",
-        }
-    }
-
-
-def calc_realized_volatility(ticker: str, days: int = 20) -> Optional[Dict[str, Any]]:
-    """Calculate realized volatility from historical prices.
-    Uses Parkinson (high-low) and Garman-Klass estimators for efficiency.
-    Institutional standard: annualized, with comparison to implied.
-    NOTE: This is a synchronous function, call via asyncio.to_thread()."""
-    import numpy as np
-    try:
-        yt = yf.Ticker(ticker)
-        hist = yt.history(period=f"{days+10}d")
-    except Exception:
-        return None
-    if hist is None or len(hist) < 5:
-        return None
-    hist = hist.tail(days)
-    close = hist["Close"].values.astype(float)
-    high = hist["High"].values.astype(float)
-    low = hist["Low"].values.astype(float)
-    open_p = hist["Open"].values.astype(float)
-    if len(close) < 5:
-        return None
-    # Standard close-to-close RV
-    log_returns = np.log(close[1:] / close[:-1])
-    rv_close = float(np.std(log_returns, ddof=1) * np.sqrt(252))
-    # Parkinson (high-low) RV
-    hl_ratio = np.log(high[1:] / low[1:])
-    rv_parkinson = float(np.sqrt(np.mean(hl_ratio**2) / (4 * np.log(2)) * 252))
-    # Garman-Klass
-    log_hl = np.log(high[1:] / low[1:])
-    log_co = np.log(close[1:] / open_p[1:])
-    rv_gk = float(np.sqrt(np.mean(0.5 * log_hl**2 - (2*np.log(2)-1) * log_co**2) * 252))
-    return {
-        "rv_close": round(rv_close, 4),
-        "rv_parkinson": round(rv_parkinson, 4),
-        "rv_garman_klass": round(rv_gk, 4),
-        "days": days,
-        "current_price": round(float(close[-1]), 2),
-    }
-
-
-def calc_iv_rank_percentile(ticker: str, current_iv: float, lookback_days: int = 252) -> Dict[str, Any]:
-    """Calculate IV rank and IV percentile.
-    IV Rank = (current IV - 52w low IV) / (52w high IV - 52w low IV)
-    IV Percentile = % of days in past year with IV below current.
-    Institutional standard for determining if options are cheap/expensive."""
-    try:
-        # Use VIX as proxy for SPX, or calculate from option chain history
-        # For now, use current chain to estimate
-        yt = yf.Ticker(ticker)
-        hist = yt.history(period=f"{lookback_days}d")
-        if hist is None or len(hist) < 30:
-            return {"iv_rank": None, "iv_percentile": None, "note": "Insufficient history"}
-
-        # Estimate historical IV from realized vol of different windows
-        close = hist["Close"].values
-        iv_estimates = []
-        for window in [5, 10, 20, 30, 60]:
-            if len(close) > window:
-                rets = np.log(close[-window:] / close[-window-1:-1])
-                iv_est = float(np.std(rets) * np.sqrt(252))
-                iv_estimates.append(iv_est)
-
-        if not iv_estimates:
-            return {"iv_rank": None, "iv_percentile": None}
-
-        iv_min = min(iv_estimates)
-        iv_max = max(iv_estimates)
-        iv_range = iv_max - iv_min if iv_max > iv_min else 0.01
-
-        iv_rank = (current_iv - iv_min) / iv_range
-        iv_percentile = sum(1 for iv in iv_estimates if iv <= current_iv) / len(iv_estimates)
-
-        return {
-            "iv_rank": round(iv_rank, 4),
-            "iv_percentile": round(iv_percentile, 4),
-            "iv_52w_low": round(iv_min, 4),
-            "iv_52w_high": round(iv_max, 4),
-            "current_iv": round(current_iv, 4),
-            "interpretation": "expensive" if iv_rank > 0.7 else "cheap" if iv_rank < 0.3 else "fair",
-        }
-    except Exception:
-        return {"iv_rank": None, "iv_percentile": None, "note": "Calculation failed"}
+# Import from shared module to avoid circular imports with portfolio.py
+from bs_greeks import (
+    bs_gamma, bs_delta, bs_vanna, bs_charm, bs_vomma, bs_zomma, bs_vega,
+    RISK_FREE_RATE as BS_RISK_FREE_RATE,
+)
+RISK_FREE_RATE = BS_RISK_FREE_RATE
 
 
 # ----------------------------- Implied Move & Probability (from EzOptions) ------
@@ -2088,6 +1713,99 @@ async def stop_live_tape():
             {"$set": {"ended_at": ended_at, "manually_stopped": True}},
         )
     return {"stopped": True, "session_id": sid, "msg_count": _session_state.get("msg_count", 0)}
+
+
+# ============ Portfolio Position Tracking & Hedging ============
+
+# In-memory portfolio store (persist to Mongo in production)
+_portfolios: Dict[str, Portfolio] = {}
+
+
+class PositionReq(BaseModel):
+    symbol: str
+    option_type: str  # "call" or "put"
+    strike: float
+    expiry: str  # "YYYY-MM-DD"
+    quantity: int  # positive = long, negative = short
+    entry_price: float
+    entry_iv: float
+    underlying_price: float
+
+
+class HedgeReq(BaseModel):
+    spot: float
+    iv: float
+    hedge_options: List[Dict[str, Any]]  # [{"strike": 745, "expiry": "2026-05-16", "type": "call", "iv": 0.15}]
+
+
+@api.post("/portfolio/{name}/position")
+async def add_position(name: str, req: PositionReq):
+    """Add a position to a portfolio."""
+    if name not in _portfolios:
+        _portfolios[name] = Portfolio(name)
+    pos = Position(
+        symbol=req.symbol, option_type=req.option_type, strike=req.strike,
+        expiry=req.expiry, quantity=req.quantity, entry_price=req.entry_price,
+        entry_iv=req.entry_iv, underlying_price=req.underlying_price,
+        is_long=req.quantity > 0,
+    )
+    _portfolios[name].add_position(pos)
+    return {"status": "added", "positions": len(_portfolios[name].positions)}
+
+
+@api.delete("/portfolio/{name}/position/{index}")
+async def remove_position(name: str, index: int):
+    """Remove a position by index."""
+    if name not in _portfolios:
+        raise HTTPException(404, "Portfolio not found")
+    _portfolios[name].remove_position(index)
+    return {"status": "removed", "positions": len(_portfolios[name].positions)}
+
+
+@api.get("/portfolio/{name}")
+async def get_portfolio(name: str, spot: float = Query(...), iv: float = Query(...)):
+    """Get portfolio summary with aggregated Greeks and P&L."""
+    if name not in _portfolios:
+        raise HTTPException(404, "Portfolio not found")
+    p = _portfolios[name]
+    return {
+        "name": name,
+        "positions": len(p.positions),
+        "cash": round(p.cash, 2),
+        "greeks": p.aggregate_greeks(spot, iv),
+        "pnl": p.total_pnl(spot, iv),
+    }
+
+
+@api.get("/portfolio/{name}/scenario")
+async def portfolio_scenario(name: str, spot: float = Query(...), iv: float = Query(...)):
+    """Run scenario analysis on portfolio."""
+    if name not in _portfolios:
+        raise HTTPException(404, "Portfolio not found")
+    p = _portfolios[name]
+    scenarios = p.scenario_analysis(spot, iv)
+    return {"scenarios": scenarios}
+
+
+@api.post("/portfolio/{name}/hedge")
+async def portfolio_hedge(name: str, req: HedgeReq):
+    """Calculate Greek-neutral hedge for portfolio."""
+    if name not in _portfolios:
+        raise HTTPException(404, "Portfolio not found")
+    p = _portfolios[name]
+    hedge = p.greek_neutral_hedge(req.spot, req.iv, req.hedge_options)
+    return hedge
+
+
+@api.post("/position-size")
+async def position_size(
+    account_size: float = Query(...),
+    risk_per_trade_pct: float = Query(..., ge=0.001, le=0.1),
+    spot: float = Query(...),
+    gex_level: float = Query(0),
+):
+    """Calculate position size based on GEX levels and risk parameters."""
+    return calc_position_size(account_size, risk_per_trade_pct, spot, gex_level)
 
 
 app.include_router(api)

@@ -12,6 +12,7 @@ import {
   RiskDashboardPanel, OpportunitiesPanel, ImpliedMovePanel, VolAnalyticsPanel,
   GreekReferencePanel,
 } from "./components/SidebarPanels";
+import PortfolioPanel from "./components/PortfolioPanel";
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
@@ -236,6 +237,7 @@ export default function App() {
           <div className="flex gap-1">
             <button onClick={() => setPage("trinity")} className={`btn ${page === "trinity" ? "active" : ""}`}>Trinity</button>
             <button onClick={() => setPage("heatseeker")} className={`btn ${page === "heatseeker" ? "active" : ""}`}>Heatseeker</button>
+            <button onClick={() => setPage("portfolio")} className={`btn ${page === "portfolio" ? "active" : ""}`}>Portfolio</button>
           </div>
         </div>
         <div className="flex items-center gap-3">
@@ -399,6 +401,11 @@ export default function App() {
             </div>
           </aside>
         </div>
+      )}
+
+      {/* Portfolio View */}
+      {page === "portfolio" && (
+        <PortfolioPanel ticker={ticker} spot={livespot?.spot ?? data?.spot} />
       )}
 
       {/* Drilldown Modal */}
