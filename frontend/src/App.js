@@ -296,16 +296,31 @@ export default function App() {
   // Fetch tickers
   useEffect(() => { axios.get(`${API}/tickers`).then(r => setTickers(r.data)).catch(() => {}); }, []);
 
+  const [loading, setLoading] = useState(false);
+
   // Fetch heatmap data
   const fetchData = useCallback(async () => {
+    setLoading(true);
     try {
       const dteParam = debouncedDte != null ? `&dte=${debouncedDte}` : "";
-      const res = await axios.get(`${API}/heatmap/${ticker}?expiries=${debouncedExpiries}&mode=${debouncedMode}${dteParam}`);
+      const res = await axios.get(`${API}/heatmap/${ticker}?expiries=${debouncedExpiries}&mode=${debouncedMode}${dteParam}`, { timeout: 30000 });
       setData(res.data); setErr(null);
     } catch (e) {
-      const detail = e.response?.data?.detail;
-      const msg = typeof detail === 'string' ? detail : (detail?.[0]?.msg || JSON.stringify(detail));
+      let msg = "Failed to load data";
+      if (e.code === "ECONNABORTED") {
+        msg = "Request timed out. The server may be busy.";
+      } else if (e.response) {
+        const detail = e.response.data?.detail;
+        if (typeof detail === "string") msg = detail;
+        else if (Array.isArray(detail) && detail[0]?.msg) msg = detail[0].msg;
+        else if (detail?.error) msg = detail.error;
+        else if (typeof detail === "object") msg = JSON.stringify(detail);
+      } else if (e.request) {
+        msg = "Network error. Check your connection.";
+      }
       setErr(msg);
+    } finally {
+      setLoading(false);
     }
   }, [ticker, debouncedExpiries, debouncedMode, debouncedDte]);
 
@@ -444,9 +459,18 @@ export default function App() {
                   {data?.expiries_used?.length ? `${data.expiries_used.length} exp · ${data.expiries_used[0]} → ${data.expiries_used.slice(-1)[0]}` : ""}
                 </div>
                 {err && (
-                  <div className="text-rose-400 text-[11px] mt-2 bg-rose-500/10 rounded px-2 py-1 flex justify-between items-center">
-                    <span>{err}</span>
-                    <button onClick={() => setErr(null)} className="text-rose-400 hover:text-rose-300 text-[10px]">✕</button>
+                  <div className="text-rose-400 text-[11px] mt-2 bg-rose-500/10 rounded px-2 py-1.5 flex justify-between items-start border border-rose-500/20">
+                    <div className="flex-1">
+                      <div className="font-bold text-[10px] uppercase tracking-widest mb-0.5">Error</div>
+                      <span>{err}</span>
+                    </div>
+                    <button onClick={() => { setErr(null); fetchData(); }} className="text-rose-400 hover:text-rose-300 text-[10px] ml-2 whitespace-nowrap">Retry ↻</button>
+                  </div>
+                )}
+                {loading && !data && (
+                  <div className="text-sky-400 text-[11px] mt-2 bg-sky-500/10 rounded px-2 py-1.5 flex items-center gap-2 border border-sky-500/20">
+                    <span className="inline-block w-2 h-2 bg-sky-400 rounded-full animate-pulse" />
+                    Loading market data…
                   </div>
                 )}
                 <div className="dotted-divider my-3" />
