@@ -52,6 +52,10 @@ __pycache__/
 venv/
 .venv/
 
+# Logs
+logs/
+*.log
+
 # Development tools
 chainlit.md
 .chainlit

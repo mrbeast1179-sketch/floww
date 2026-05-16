@@ -53,7 +53,17 @@ POLYGON_API_KEY = os.environ.get("POLYGON_API_KEY", "")
 client = AsyncIOMotorClient(MONGO_URL)
 db = client[DB_NAME]
 
-logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
+LOG_DIR = ROOT_DIR / "logs"
+LOG_DIR.mkdir(exist_ok=True)
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s %(levelname)s %(name)s: %(message)s",
+    handlers=[
+        logging.StreamHandler(),
+        logging.FileHandler(LOG_DIR / "app.log", mode="a"),
+    ],
+)
 log = logging.getLogger("heatseeker")
 
 app = FastAPI(title="Confluence Decoder")
