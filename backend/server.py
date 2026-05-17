@@ -2598,6 +2598,73 @@ async def api_model_info(ticker: str):
     }
 
 
+# ============ LLM Analysis ============
+
+from services.llm import get_llm_service, analyze_trade_with_llm
+
+
+@api.post("/api/llm/analyze-trade")
+async def api_analyze_trade(
+    ticker: str = Query(...),
+    spot: float = Query(...),
+    regime: str = Query(...),
+    net_gex: float = Query(0),
+    prediction: str = Query(""),
+    confidence: float = Query(0.5),
+    provider: str = Query("cerebras"),
+):
+    """Analyze a trade opportunity using LLM."""
+    result = await analyze_trade_with_llm(ticker, spot, regime, net_gex, prediction, confidence)
+    return result
+
+
+@api.post("/api/llm/generate-briefing")
+async def api_generate_briefing(
+    ticker: str = Query("SPY"),
+    provider: str = Query("cerebras"),
+):
+    """Generate AI-powered morning briefing."""
+    from motor.motor_asyncio import AsyncIOMotorClient
+    from dotenv import load_dotenv
+    
+    load_dotenv()
+    client = AsyncIOMotorClient(os.environ.get("MONGO_URL", ""))
+    db = client[os.environ.get("DB_NAME", "confluence_decoder")]
+    
+    # Get latest snapshot
+    latest = await db.snapshots.find_one({"ticker": ticker}, sort=[("ts", -1)])
+    client.close()
+    
+    if not latest:
+        return {"status": "no_data", "ticker": ticker}
+    
+    # Get ML prediction
+    from ml_price_prediction import predict_price_direction
+    ml_result = await predict_price_direction(ticker)
+    
+    # Generate briefing
+    result = await analyze_trade_with_llm(
+        ticker=ticker,
+        spot=latest.get("spot", 0),
+        regime=latest.get("regime", "unknown"),
+        net_gex=latest.get("net_gex", 0),
+        prediction=ml_result.get("prediction", "unknown"),
+        confidence=ml_result.get("confidence", 0),
+    )
+    
+    return result
+
+
+@api.get("/api/llm/providers")
+async def api_llm_providers():
+    """List available LLM providers."""
+    llm = get_llm_service()
+    return {
+        "providers": list(llm.providers.keys()),
+        "default": "cerebras",
+    }
+
+
 # ============ Quant Analytics ============
 
 from services.analytics import GexSurfaceComputer, HistoricalGexAnalyzer, MultiTickerComparator
