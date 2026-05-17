@@ -9,7 +9,29 @@ const ALERT_TYPES = [
   { v: "gex_spike", l: "GEX Spike", desc: "Single strike GEX spike" },
   { v: "oi_spike", l: "OI Spike", desc: "Open interest spike" },
   { v: "iv_spike", l: "IV Spike", desc: "Implied vol spike" },
+  { v: "gamma_flip", l: "Gamma Flip", desc: "Regime change positive ↔ negative gamma" },
+  { v: "gamma_squeeze", l: "Gamma Squeeze", desc: "Negative gamma + spot near flip + volume spike" },
+  { v: "wall_breach", l: "Wall Breach", desc: "Spot crosses call/put wall" },
+  { v: "charm_pinning", l: "Charm Pinning", desc: "Charm-driven pinning (0DTE)" },
+  { v: "vanna_regime", l: "Vanna Regime Change", desc: "Sign flip in net VEX" },
+  { v: "pc_oi_ratio", l: "Unusual P/C OI Ratio", desc: "Put OI / call OI ratio > 2x" },
+  { v: "max_pain_magnet", l: "Max Pain Magnet", desc: "Spot within 1% of max pain" },
+  { v: "momentum_extreme", l: "Momentum Extreme", desc: "Strong bullish/bearish momentum" },
+  { v: "gex_magnitude_shift", l: "GEX Magnitude Shift", desc: "Total GEX changed > 40%" },
+  { v: "pin_risk", l: "Pin Risk", desc: "Spot near max gamma strike" },
 ];
+
+const PRIORITY_STYLES = {
+  HIGH: "bg-rose-500/20 text-rose-400 border-rose-500/30",
+  MEDIUM: "bg-amber-500/20 text-amber-400 border-amber-500/30",
+  LOW: "bg-sky-500/20 text-sky-400 border-sky-500/30",
+};
+
+const PRIORITY_ICONS = {
+  HIGH: "🔴",
+  MEDIUM: "🟡",
+  LOW: "🔵",
+};
 
 export default function AlertsPanel({ ticker }) {
   const [rules, setRules] = useState([]);
@@ -84,14 +106,27 @@ export default function AlertsPanel({ ticker }) {
         <div className="mt-1.5 space-y-1.5">
           {/* Triggered alerts */}
           {triggered.length > 0 && (
-            <div className="bg-rose-500/10 rounded px-2 py-1.5 border border-rose-500/20">
-              <div className="text-[9px] font-bold text-rose-400 mb-1">⚡ TRIGGERED</div>
-              {triggered.map((t, i) => (
-                <div key={i} className="text-[9px] text-rose-300 flex justify-between">
-                  <span>{t.label || t.type}</span>
-                  <span className="mono">{fmtAbs(t.value)} {t.direction} {fmtAbs(t.threshold)}</span>
-                </div>
-              ))}
+            <div className="space-y-1">
+              <div className="text-[9px] font-bold text-rose-400 mb-1">⚡ TRIGGERED ALERTS</div>
+              {triggered.map((t, i) => {
+                const priority = t.priority || "MEDIUM";
+                const style = PRIORITY_STYLES[priority] || PRIORITY_STYLES.MEDIUM;
+                const icon = PRIORITY_ICONS[priority] || PRIORITY_ICONS.MEDIUM;
+                return (
+                  <div key={i} className={`rounded px-2 py-1 border ${style}`}>
+                    <div className="text-[9px] font-bold flex justify-between">
+                      <span>{icon} {t.label || t.type}</span>
+                      <span className="text-[8px] opacity-70">{priority}</span>
+                    </div>
+                    {t.message && <div className="text-[8px] opacity-80 mt-0.5">{t.message}</div>}
+                    {!t.message && (
+                      <div className="text-[8px] mono">
+                        {fmtAbs(t.value)} {t.direction} {fmtAbs(t.threshold)}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
             </div>
           )}
 
