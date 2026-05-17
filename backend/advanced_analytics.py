@@ -595,3 +595,142 @@ def calc_charm_integral(spot: float, contracts: List[Dict[str, Any]],
         "direction": direction,
         "buckets": buckets[::3],  # every 90 min for performance
     }
+
+
+# ============================================================================
+# Gamma Flip & Key Levels (from FlashAlpha gex-explained research)
+# ============================================================================
+
+def calc_gamma_flip_levels(spot: float, contracts: List[Dict[str, Any]],
+                            ticker: str = "") -> Dict[str, Any]:
+    """
+    Compute gamma flip, call wall, put wall, max pain, 0DTE magnet, hedging flows.
+
+    The gamma flip is the single most important level from GEX analysis.
+    Above it = positive gamma (mean-reverting). Below it = negative gamma (momentum).
+    """
+    if not spot or spot <= 0 or spot != spot:  # spot != spot catches NaN
+        return {"gamma_flip": None, "call_wall": None, "put_wall": None,
+                "max_pain": None, "zero_dte_magnet": None, "total_gex": 0,
+                "regime": "unknown", "hedging_flow": {}}
+
+    from datetime import datetime, timezone, date as date_type
+    q = {"SPY": 0.013, "QQQ": 0.006, "^SPX": 0.013, "IWM": 0.012}.get(ticker, 0.0)
+    today = datetime.now(timezone.utc).date()
+
+    gex_by_strike: Dict[float, float] = {}
+    oi_by_strike: Dict[float, int] = {}
+    zero_dte_oi: Dict[float, int] = {}
+
+    for c in contracts:
+        strike = c["strike"]
+        oi = c.get("oi", 0) or 0
+        if oi <= 0:
+            continue
+        gamma = bs_gamma(spot, strike, c["T"], c["iv"], q=q)
+        if gamma <= 0:
+            continue
+        gex_unit = gamma * oi * 100.0 * spot * spot * 0.01
+        sign = 1.0 if c["type"] == "call" else -1.0
+        gex_by_strike[strike] = gex_by_strike.get(strike, 0.0) + sign * gex_unit
+        oi_by_strike[strike] = oi_by_strike.get(strike, 0) + oi
+        try:
+            exp_date = datetime.strptime(c["expiry"], "%Y-%m-%d").date()
+            if (exp_date - today).days <= 0:
+                zero_dte_oi[strike] = zero_dte_oi.get(strike, 0) + oi
+        except Exception:
+            pass
+
+    if not gex_by_strike:
+        return {"gamma_flip": None, "call_wall": None, "put_wall": None,
+                "max_pain": None, "zero_dte_magnet": None, "total_gex": 0,
+                "regime": "unknown", "hedging_flow": {}}
+
+    sorted_strikes = sorted(gex_by_strike.keys())
+    total_gex = sum(gex_by_strike.values())
+    # Ensure it's a clean Python float
+    try:
+        total_gex = float(total_gex)
+    except (TypeError, ValueError):
+        total_gex = 0.0
+
+    # Gamma flip: first zero crossing
+    gamma_flip = None
+    for i in range(len(sorted_strikes) - 1):
+        k1, k2 = sorted_strikes[i], sorted_strikes[i + 1]
+        g1, g2 = gex_by_strike[k1], gex_by_strike[k2]
+        if g1 * g2 < 0 and g2 != g1:  # avoid division by zero
+            gamma_flip = k1 + (k2 - k1) * (-g1 / (g2 - g1))
+            break
+
+    call_wall = max(sorted_strikes, key=lambda k: gex_by_strike[k])
+    put_wall = min(sorted_strikes, key=lambda k: gex_by_strike[k])
+
+    # Max pain
+    if oi_by_strike:
+        min_pain = float("inf")
+        max_pain = sorted_strikes[len(sorted_strikes) // 2]
+        for candidate in sorted_strikes:
+            pain = sum(oi * abs(candidate - k) for k, oi in oi_by_strike.items())
+            if pain < min_pain:
+                min_pain = pain
+                max_pain = candidate
+    else:
+        max_pain = None
+
+    zero_dte_magnet = max(zero_dte_oi, key=zero_dte_oi.get) if zero_dte_oi else None
+
+    # Regime classification
+    regime = "unknown"
+    try:
+        spot_f = float(spot)
+        if spot_f != spot_f:  # NaN check
+            regime = "unknown"
+        elif gamma_flip is not None:
+            gf = float(gamma_flip)
+            if gf == gf:  # not NaN
+                regime = "positive_gamma" if spot_f >= gf else "negative_gamma"
+            else:
+                regime = "positive_gamma" if spot_f >= 0 else "negative_gamma"
+        else:
+            tg = float(total_gex)
+            if tg == tg:  # not NaN
+                regime = "positive_gamma" if tg >= 0 else "negative_gamma"
+    except (TypeError, ValueError, AttributeError):
+        regime = "unknown"
+
+    # Dealer hedging flow at ±1%
+    move_pct = 0.01
+    try:
+        if spot > 0 and total_gex == total_gex:  # NaN check: NaN != NaN
+            up_shares = int(total_gex * move_pct / spot)
+            dn_shares = int(total_gex * (-move_pct) / spot)
+        else:
+            up_shares = 0
+            dn_shares = 0
+    except (TypeError, ValueError, OverflowError):
+        up_shares = 0
+        dn_shares = 0
+
+    try:
+        total_gex_clean = round(total_gex, 0) if total_gex == total_gex else 0
+    except (TypeError, ValueError):
+        total_gex_clean = 0
+
+    return {
+        "gamma_flip": round(gamma_flip, 2) if gamma_flip else None,
+        "call_wall": call_wall,
+        "put_wall": put_wall,
+        "max_pain": max_pain,
+        "zero_dte_magnet": zero_dte_magnet,
+        "total_gex": total_gex_clean,
+        "regime": regime,
+        "hedging_flow": {
+            "up_1pct": {"shares": abs(up_shares), "direction": "buy" if up_shares > 0 else "sell", "notional_usd": abs(up_shares) * spot},
+            "down_1pct": {"shares": abs(dn_shares), "direction": "buy" if dn_shares > 0 else "sell", "notional_usd": abs(dn_shares) * spot},
+        },
+        "dist_to_flip": round(spot - gamma_flip, 2) if gamma_flip else None,
+        "dist_to_call_wall_pct": round((call_wall - spot) / spot * 100, 2) if spot > 0 else None,
+        "dist_to_put_wall_pct": round((spot - put_wall) / spot * 100, 2) if spot > 0 else None,
+        "spot": spot,
+    }

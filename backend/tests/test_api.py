@@ -269,3 +269,28 @@ async def test_404_handling(client):
 async def test_validation_error(client):
     r = await client.get("/heatmap/SPY?mode=invalid")
     assert r.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_gamma_flip_endpoint(client):
+    r = await client.get("/gamma-flip/SPY?expiries=2")
+    assert r.status_code == 200
+    d = r.json()
+    assert "gamma_flip" in d
+    assert "call_wall" in d
+    assert "put_wall" in d
+    assert "regime" in d
+    assert d["regime"] in ("positive_gamma", "negative_gamma", "unknown")
+
+
+@pytest.mark.asyncio
+async def test_daily_checklist_endpoint(client):
+    r = await client.get("/daily-checklist/SPY?expiries=2")
+    assert r.status_code == 200
+    d = r.json()
+    assert "regime" in d
+    assert "key_levels" in d
+    assert "strategy" in d
+    assert "risk_management" in d
+    assert "hedging_flow" in d
+    assert "recommended_strategies" in d["strategy"]

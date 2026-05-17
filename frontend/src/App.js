@@ -27,6 +27,9 @@ import { useWebSocketGex } from "./hooks/useWebSocketGex";
 import { useDebounce } from "./hooks/useDebounce";
 import { SettingsPanel } from "./components/SettingsPanel";
 import { ShortcutsModal } from "./components/ShortcutsModal";
+import { MorningBriefing } from "./components/MorningBriefing";
+import { PositionSizing } from "./components/PositionSizing";
+import { TradeEntry } from "./components/TradeEntry";
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
@@ -580,6 +583,8 @@ export default function App() {
           {/* Right Sidebar - Analytics Panels */}
           <aside className={`w-72 border-l border-slate-800 overflow-y-auto flex-shrink-0 ${showRightSidebar ? "fixed inset-y-0 right-0 z-50" : "hidden"} md:block md:static md:z-auto`} style={{ background: "var(--bg-2)" }}>
             <div className="p-2 space-y-2">
+              {/* Morning Briefing — top priority */}
+              {page === "heatseeker" && <MorningBriefing ticker={ticker} spot={livespot?.spot ?? data?.spot} />}
               <FlipZonesPanel data={data} />
               <StackedNodesPanel data={data} />
               <TugOfWarPanel data={data} />
@@ -599,6 +604,10 @@ export default function App() {
               {page === "heatseeker" && <FlowTicker ticker={ticker} />}
               <UsagePanel />
               <LivePolicyPanel />
+              {/* Position Sizing */}
+              {page === "heatseeker" && <PositionSizing ticker={ticker} spot={livespot?.spot ?? data?.spot} />}
+              {/* Trade Entry */}
+              {page === "heatseeker" && <TradeEntry ticker={ticker} spot={livespot?.spot ?? data?.spot} />}
 
               {/* Patterns */}
               <div className="panel p-3" data-testid="patterns-panel">

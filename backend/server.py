@@ -41,6 +41,7 @@ from advanced_analytics import (
     calc_hedge_impulse_curve,
     calc_pressure_cloud,
     calc_charm_integral,
+    calc_gamma_flip_levels,
 )
 
 ROOT_DIR = Path(__file__).parent
@@ -65,6 +66,9 @@ logging.basicConfig(
     ],
 )
 log = logging.getLogger("heatseeker")
+
+app = FastAPI(title="Confluence Decoder")
+api = APIRouter(prefix="/api")
 
 # ----------------------------- Rate Limiting -----------------------------
 import time
@@ -95,9 +99,6 @@ async def rate_limit_middleware(request: Request, call_next):
     response = await call_next(request)
     return response
 
-
-app = FastAPI(title="Confluence Decoder")
-api = APIRouter(prefix="/api")
 
 # ----------------------------- Global Exception Handler ------------------------------
 
@@ -1306,7 +1307,7 @@ async def build_heatmap(ticker: str, max_expiries: int = 4, with_taps: bool = Tr
         max_expiries = max(max_expiries, 8)
     raw = await fetch_spot_and_chains_merged(ticker, max_expiries)
     spot = raw["spot"]
-    if not spot or not raw["contracts"]:
+    if not spot or spot != spot or not raw["contracts"]:  # spot != spot catches NaN
         raise HTTPException(404, f"No options data for {ticker}")
 
     today = datetime.now(timezone.utc).date()
@@ -1387,9 +1388,10 @@ async def build_heatmap(ticker: str, max_expiries: int = 4, with_taps: bool = Tr
         iv_rank["rv_iv_spread"] = round(skew.get("atm_iv", 0) - rv.get("rv_close", 0), 4)
         iv_rank["rv_close"] = rv.get("rv_close")
 
-    # --- Advanced analytics (regime + implied PDF) ---
+    # --- Advanced analytics (regime + implied PDF + gamma flip levels) ---
     market_regime = calc_market_regime(spot, raw["contracts"])
     implied_pdf = calc_implied_pdf(spot, raw["contracts"])
+    gamma_flip_data = calc_gamma_flip_levels(spot, raw["contracts"], ticker)
 
     # Velocity & rolling
     velocity = await velocity_and_rolling(ticker, {"strikes_compact": [{"strike": s["strike"], "gex": s["gex"]} for s in strikes]})
@@ -1420,6 +1422,7 @@ async def build_heatmap(ticker: str, max_expiries: int = 4, with_taps: bool = Tr
         # Advanced analytics
         "market_regime": market_regime,
         "implied_pdf": implied_pdf,
+        "gamma_flip": gamma_flip_data,
     }
 
     asyncio.create_task(save_snapshot(ticker, payload))
@@ -1632,7 +1635,168 @@ async def advanced_analytics(ticker: str, expiries: int = Query(4, ge=1, le=12))
     })
 
 
-@api.get("/movers")
+@api.get("/gamma-flip/{ticker}")
+async def gamma_flip(ticker: str, expiries: int = Query(4, ge=1, le=12)):
+    """Gamma flip level, call/put walls, max pain, 0DTE magnet, hedging flows."""
+    t = ticker.strip().upper()
+    if t == "SPX":
+        t = "^SPX"
+    raw = await fetch_spot_and_chains_merged(t, expiries)
+    spot = raw["spot"]
+    if not spot or spot != spot or not raw["contracts"]:  # spot != spot catches NaN
+        raise HTTPException(404, f"No options data for {ticker}")
+    result = calc_gamma_flip_levels(spot, raw["contracts"], t)
+    return _sanitize(result)
+
+
+@api.get("/daily-checklist/{ticker}")
+async def daily_checklist(ticker: str, expiries: int = Query(4, ge=1, le=12)):
+    """Daily trading checklist: GEX regime, key levels, strategy recommendations."""
+    t = ticker.strip().upper()
+    if t == "SPX":
+        t = "^SPX"
+    raw = await fetch_spot_and_chains_merged(t, expiries)
+    spot = raw["spot"]
+    if not spot or spot != spot or not raw["contracts"]:
+        raise HTTPException(404, f"No options data for {ticker}")
+
+    # Compute all analytics
+    gf = calc_gamma_flip_levels(spot, raw["contracts"], t)
+    regime_data = calc_market_regime(spot, raw["contracts"])
+    iv_surface = calc_iv_surface_data(spot, raw["contracts"])
+    skew = calc_skew_metrics(spot, raw["contracts"])
+
+    # Build checklist
+    checklist = {
+        "ticker": t,
+        "spot": spot,
+        "asof": datetime.now(timezone.utc).isoformat(),
+        "regime": {
+            "gex_regime": gf["regime"],
+            "market_regime": regime_data.get("regime", "unknown"),
+            "iv_rank": iv_surface.get("atm_iv", 0),
+            "skew": skew.get("risk_reversal_25d", 0),
+        },
+        "key_levels": {
+            "gamma_flip": gf["gamma_flip"],
+            "call_wall": gf["call_wall"],
+            "put_wall": gf["put_wall"],
+            "max_pain": gf["max_pain"],
+            "dist_to_flip": gf["dist_to_flip"],
+            "dist_to_call_wall_pct": gf["dist_to_call_wall_pct"],
+            "dist_to_put_wall_pct": gf["dist_to_put_wall_pct"],
+        },
+        "hedging_flow": gf["hedging_flow"],
+        "strategy": _get_strategy_recommendation(gf, regime_data, skew),
+        "risk_management": _get_risk_levels(gf, spot),
+    }
+    return _sanitize(checklist)
+
+
+def _get_strategy_recommendation(gf: Dict, regime: Dict, skew: Dict) -> Dict[str, Any]:
+    """Generate strategy recommendations based on GEX regime and market conditions."""
+    gex_regime = gf.get("regime", "unknown")
+    dist_to_flip = gf.get("dist_to_flip")
+    call_wall = gf.get("call_wall")
+    put_wall = gf.get("put_wall")
+    spot = gf.get("spot", 0)
+
+    if gex_regime == "positive_gamma":
+        regime_desc = "Positive gamma — dealers are long gamma, market is self-correcting"
+        bias = "mean_reversion"
+        strategies = [
+            "Sell premium (iron condors, short strangles) between put wall and call wall",
+            "Buy dips to put wall, sell rallies to call wall",
+            "Short volatility strategies favored",
+            "Avoid chasing breakouts — they tend to reverse",
+        ]
+        if dist_to_flip is not None and dist_to_flip < 0:
+            warning = "CAUTION: Price is below gamma flip — regime may be transitioning to negative"
+        else:
+            warning = None
+    elif gex_regime == "negative_gamma":
+        regime_desc = "Negative gamma — dealers are short gamma, market is self-amplifying"
+        bias = "momentum"
+        strategies = [
+            "Long volatility strategies (long straddles, strangles)",
+            "Momentum/trend following — breakouts accelerate",
+            "Buy breakouts above call wall, short breakdowns below put wall",
+            "Avoid mean-reversion — moves tend to extend",
+        ]
+        if dist_to_flip is not None and dist_to_flip > 0:
+            warning = "CAUTION: Price is above gamma flip — regime may be transitioning to positive"
+        else:
+            warning = None
+    else:
+        regime_desc = "Unknown regime — insufficient data"
+        bias = "neutral"
+        strategies = ["Wait for clearer signal before entering positions"]
+        warning = None
+
+    # Skew-based adjustments
+    rr = skew.get("risk_reversal_25d", 0)
+    if rr > 0.02:
+        skew_note = "Put skew elevated — fear premium in puts, consider put selling or put spreads"
+    elif rr < -0.02:
+        skew_note = "Call skew elevated — bullish positioning, consider call buying or call spreads"
+    else:
+        skew_note = "Skew relatively balanced — no strong directional bias from options positioning"
+
+    return {
+        "regime_description": regime_desc,
+        "directional_bias": bias,
+        "recommended_strategies": strategies,
+        "warning": warning,
+        "skew_note": skew_note,
+        "position_sizing_note": _get_position_sizing_note(gf, spot),
+    }
+
+
+def _get_risk_levels(gf: Dict, spot: float) -> Dict[str, Any]:
+    """Calculate key risk levels for stop-loss and target placement."""
+    call_wall = gf.get("call_wall")
+    put_wall = gf.get("put_wall")
+    gamma_flip = gf.get("gamma_flip")
+    max_pain = gf.get("max_pain")
+
+    # Support/resistance from GEX levels
+    resistance_1 = call_wall
+    resistance_2 = call_wall + (call_wall - spot) * 0.5 if call_wall else None
+    support_1 = put_wall
+    support_2 = put_wall - (spot - put_wall) * 0.5 if put_wall else None
+
+    # Stop loss suggestions
+    if put_wall and spot > put_wall:
+        stop_below_put_wall = put_wall - (spot - put_wall) * 0.3
+    else:
+        stop_below_put_wall = None
+
+    return {
+        "resistance": {"R1": resistance_1, "R2": resistance_2},
+        "support": {"S1": support_1, "S2": support_2},
+        "gamma_flip_level": gamma_flip,
+        "max_pain": max_pain,
+        "stop_suggestion": {
+            "below_put_wall": stop_below_put_wall,
+            "note": "Place stops beyond GEX walls — dealer hedging can create temporary spikes through levels",
+        },
+    }
+
+
+def _get_position_sizing_note(gf: Dict, spot: float) -> str:
+    """Generate position sizing guidance based on GEX regime."""
+    regime = gf.get("regime", "unknown")
+    dist_to_flip = gf.get("dist_to_flip")
+
+    if regime == "positive_gamma":
+        if dist_to_flip is not None and abs(dist_to_flip) < 5:
+            return "Near gamma flip — reduce position size, regime could flip. Max 1% account risk per trade."
+        return "Positive gamma — standard position sizing OK. Max 2% account risk per trade."
+    elif regime == "negative_gamma":
+        if dist_to_flip is not None and dist_to_flip < -10:
+            return "Deep negative gamma — reduce position size, moves can be violent. Max 0.5% account risk per trade."
+        return "Negative gamma — reduce position size vs normal. Max 1% account risk per trade."
+    return "Unknown regime — use minimal position size until regime clarifies."
 async def movers(limit: int = 10):
     rows = await top_movers_polygon(limit=limit)
     return {"results": rows, "asof": datetime.now(timezone.utc).isoformat()}
