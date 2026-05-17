@@ -29,7 +29,6 @@ class ErrorBoundary extends React.Component {
 }
 
 const root = ReactDOM.createRoot(document.getElementById("root"));
-console.log("MOUNTING APP");
 root.render(
   <React.StrictMode>
     <ErrorBoundary>
@@ -37,4 +36,4 @@ root.render(
     </ErrorBoundary>
   </React.StrictMode>
 );
-console.log("MOUNTED");
+

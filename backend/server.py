@@ -72,7 +72,6 @@ app = FastAPI(title="Confluence Decoder")
 api = APIRouter(prefix="/api")
 
 # ----------------------------- Rate Limiting -----------------------------
-import time
 from collections import defaultdict
 
 _rate_limits: dict = defaultdict(list)  # ip -> [timestamp, ...]

@@ -92,7 +92,7 @@ function PositionForm({ onAdd }) {
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    const qty = parseInt(form.quantity) * (form.option_type === "put" ? 1 : 1);
+    const qty = parseInt(form.quantity) * (form.option_type === "put" ? -1 : 1);
     onAdd({
       ...form,
       strike: parseFloat(form.strike),

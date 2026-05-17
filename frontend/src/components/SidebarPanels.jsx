@@ -122,16 +122,18 @@ export function ScenarioPanel({ data }) {
 export function RiskDashboardPanel({ data }) {
   if (!data?.nodes?.risk_metrics) return null;
   const rm = data.nodes.risk_metrics;
+  const safeFixed = (v, d) => (v != null && !isNaN(v)) ? v.toFixed(d) : "—";
+  const safePct = (v) => (v != null && !isNaN(v)) ? (v * 100).toFixed(1) + "%" : "—";
   return (
     <Section title="Risk Dashboard">
       <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-[9px]">
-        <RiskMetric label="GCI" value={rm.gci.toFixed(3)} warn={rm.gci > 0.25} caution={rm.gci > 0.15} />
-        <RiskMetric label="PGR" value={(rm.pgr * 100).toFixed(1) + "%"} warn={rm.pgr < 0.3} caution={rm.pgr < 0.5} invert />
+        <RiskMetric label="GCI" value={safeFixed(rm.gci, 3)} warn={rm.gci > 0.25} caution={rm.gci > 0.15} />
+        <RiskMetric label="PGR" value={safePct(rm.pgr)} warn={rm.pgr < 0.3} caution={rm.pgr < 0.5} invert />
         <RiskMetric label="GDW" value={fmtAbs(rm.gdw)} />
-        <RiskMetric label="T-Amp" value={rm.time_amp + "x"} />
-        <RiskMetric label="CAR Net" value={rm.car_net.toFixed(1) + "M"} warn={rm.car_net < 0} invert />
-        <RiskMetric label="CAR Gross" value={rm.car_gross.toFixed(1) + "M"} caution />
-        <RiskMetric label="Charm Risk" value={rm.charm_risk.toFixed(1) + "M"} warn={Math.abs(rm.charm_risk) > 50} />
+        <RiskMetric label="T-Amp" value={rm.time_amp ? rm.time_amp + "x" : "—"} />
+        <RiskMetric label="CAR Net" value={safeFixed(rm.car_net, 1) + "M"} warn={rm.car_net < 0} invert />
+        <RiskMetric label="CAR Gross" value={safeFixed(rm.car_gross, 1) + "M"} caution />
+        <RiskMetric label="Charm Risk" value={safeFixed(rm.charm_risk, 1) + "M"} warn={Math.abs(rm.charm_risk || 0) > 50} />
         <RiskMetric label="Vomma" value={fmtAbs(data?.nodes?.total_vomma)} />
       </div>
       <div className="mt-1.5 text-[8px] text-slate-600 leading-tight">GCI: gamma concentration. PGR: protective gamma near spot. CAR: convexity acceleration risk.</div>

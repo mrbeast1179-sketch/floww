@@ -4,8 +4,10 @@ services:
   mongo:
     image: mongo:7
     restart: unless-stopped
-    ports:
-      - "27017:27017"
+    # NOTE: No auth enabled for local dev. For production, use MongoDB Atlas
+    # or enable auth with --auth flag and MONGO_INITDB_ROOT_USERNAME/PASSWORD
+    expose:
+      - "27017"
     volumes:
       - mongo_data:/data/db
 
@@ -19,7 +21,6 @@ services:
     environment:
       - MONGO_URL=mongodb://mongo:27017
       - DB_NAME=confluence_decoder
-      - DATABENTO_API_KEY=${DATABENTO_API_KEY}
     depends_on:
       - mongo
     env_file:
@@ -32,8 +33,9 @@ services:
     restart: unless-stopped
     ports:
       - "3000:3000"
-    environment:
-      - REACT_APP_BACKEND_URL=http://localhost:8000
+    # NOTE: REACT_APP_BACKEND_URL must be set at build time for CRA.
+    # The env var here only affects runtime. For production, build with:
+    # docker build --build-arg REACT_APP_BACKEND_URL=https://your-domain.com -f Dockerfile.frontend .
     depends_on:
       - backend
 

@@ -1,15 +1,31 @@
+# Build stage
+FROM node:20-alpine AS builder
+
+WORKDIR /app
+
+COPY frontend/package*.json ./
+RUN npm ci
+
+COPY frontend/ .
+ARG REACT_APP_BACKEND_URL=http://localhost:8000
+RUN npm run build
+
+# Serve stage
 FROM node:20-alpine
 
 WORKDIR /app
 
-# Install serve globally
 RUN npm install -g serve
 
-# Copy frontend build
-COPY frontend/build/ ./build/
+COPY --from=builder /app/build ./build
 
-# Expose port
+# Create non-root user
+RUN adduser -D appuser && chown -R appuser:appuser /app
+USER appuser
+
 EXPOSE 3000
 
-# Run
+HEALTHCHECK --interval=30s --timeout=5s --retries=3 \
+  CMD wget --no-verbose --tries=1 --spider http://localhost:3000/ || exit 1
+
 CMD ["serve", "-s", "build", "-l", "3000"]
