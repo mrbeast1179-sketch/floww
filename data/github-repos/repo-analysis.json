@@ -1,0 +1,772 @@
+{
+  "EsterHlav_Black-Scholes-Option-Pricing-Model": {
+    "file_count": 0,
+    "files": [],
+    "languages": []
+  },
+  "fintools-ai_mcp-options-order-flow-server": {
+    "file_count": 15,
+    "files": [
+      {
+        "path": "src/storage/grpc_client.py",
+        "size": 22010,
+        "ext": ".py"
+      },
+      {
+        "path": "src/formatters/context_builder.py",
+        "size": 18623,
+        "ext": ".py"
+      },
+      {
+        "path": "src/proto/options_order_flow_pb2.py",
+        "size": 13226,
+        "ext": ".py"
+      },
+      {
+        "path": "src/formatters/xml_formatter.py",
+        "size": 13034,
+        "ext": ".py"
+      },
+      {
+        "path": "src/proto/options_order_flow_pb2_grpc.py",
+        "size": 11934,
+        "ext": ".py"
+      },
+      {
+        "path": "src/tools/options_monitoring_tool.py",
+        "size": 8272,
+        "ext": ".py"
+      },
+      {
+        "path": "src/mcp_server.py",
+        "size": 6904,
+        "ext": ".py"
+      },
+      {
+        "path": "src/tools/options_flow_tool.py",
+        "size": 3868,
+        "ext": ".py"
+      },
+      {
+        "path": "test_tools.py",
+        "size": 2281,
+        "ext": ".py"
+      },
+      {
+        "path": "run_server.py",
+        "size": 377,
+        "ext": ".py"
+      },
+      {
+        "path": "src/proto/__init__.py",
+        "size": 72,
+        "ext": ".py"
+      },
+      {
+        "path": "src/__init__.py",
+        "size": 59,
+        "ext": ".py"
+      },
+      {
+        "path": "src/storage/__init__.py",
+        "size": 45,
+        "ext": ".py"
+      },
+      {
+        "path": "src/formatters/__init__.py",
+        "size": 40,
+        "ext": ".py"
+      },
+      {
+        "path": "src/tools/__init__.py",
+        "size": 31,
+        "ext": ".py"
+      }
+    ],
+    "languages": [
+      ".py"
+    ]
+  },
+  "Matteo-Ferrara_gex-tracker": {
+    "file_count": 1,
+    "files": [
+      {
+        "path": "main.py",
+        "size": 5422,
+        "ext": ".py"
+      }
+    ],
+    "languages": [
+      ".py"
+    ]
+  },
+  "Andrew-Reis-SMU-2022_Options_Based_Trading": {
+    "file_count": 9,
+    "files": [
+      {
+        "path": "weekly_reports.py",
+        "size": 14978,
+        "ext": ".py"
+      },
+      {
+        "path": "retroactive_daily_reports.py",
+        "size": 14572,
+        "ext": ".py"
+      },
+      {
+        "path": "daily_report.py",
+        "size": 14217,
+        "ext": ".py"
+      },
+      {
+        "path": "Deprecated Code/break_even_data_acquisition (deprecated).py",
+        "size": 13020,
+        "ext": ".py"
+      },
+      {
+        "path": "Deprecated Code/retroactive_data_acquisition.py",
+        "size": 7833,
+        "ext": ".py"
+      },
+      {
+        "path": "Deprecated Code/otm_options_data_acquisition (deprecated).py",
+        "size": 7674,
+        "ext": ".py"
+      },
+      {
+        "path": "Performance_Evaluation.py",
+        "size": 6983,
+        "ext": ".py"
+      },
+      {
+        "path": "Deprecated Code/hypothesis_testing_of_daily_reports.py",
+        "size": 5709,
+        "ext": ".py"
+      },
+      {
+        "path": "credit_spreads_daily.py",
+        "size": 5639,
+        "ext": ".py"
+      }
+    ],
+    "languages": [
+      ".py"
+    ]
+  },
+  "aaguiar10_gflows": {
+    "file_count": 6,
+    "files": [
+      {
+        "path": "modules/calc.py",
+        "size": 31705,
+        "ext": ".py"
+      },
+      {
+        "path": "app.py",
+        "size": 28367,
+        "ext": ".py"
+      },
+      {
+        "path": "modules/layout.py",
+        "size": 23231,
+        "ext": ".py"
+      },
+      {
+        "path": "modules/stats.py",
+        "size": 3501,
+        "ext": ".py"
+      },
+      {
+        "path": "modules/ticker_dwn.py",
+        "size": 2843,
+        "ext": ".py"
+      },
+      {
+        "path": "assets/theme.js",
+        "size": 643,
+        "ext": ".js"
+      }
+    ],
+    "languages": [
+      ".py",
+      ".js"
+    ]
+  },
+  "fanzhenya_options_lab": {
+    "file_count": 1,
+    "files": [
+      {
+        "path": "options_lab.ipynb",
+        "size": 160558,
+        "ext": ".ipynb"
+      }
+    ],
+    "languages": [
+      ".ipynb"
+    ]
+  },
+  "jwolberg_options-scanner": {
+    "file_count": 4,
+    "files": [
+      {
+        "path": "src/OptionsScanner.jsx",
+        "size": 49269,
+        "ext": ".jsx"
+      },
+      {
+        "path": "proxy/server.js",
+        "size": 6958,
+        "ext": ".js"
+      },
+      {
+        "path": "vite.config.js",
+        "size": 327,
+        "ext": ".js"
+      },
+      {
+        "path": "src/main.jsx",
+        "size": 272,
+        "ext": ".jsx"
+      }
+    ],
+    "languages": [
+      ".jsx",
+      ".js"
+    ]
+  },
+  "yzoz_python-option-calculator": {
+    "file_count": 6,
+    "files": [
+      {
+        "path": "searching.py",
+        "size": 3902,
+        "ext": ".py"
+      },
+      {
+        "path": "example_plot.py",
+        "size": 2503,
+        "ext": ".py"
+      },
+      {
+        "path": "pricing.py",
+        "size": 2400,
+        "ext": ".py"
+      },
+      {
+        "path": "plot.py",
+        "size": 1760,
+        "ext": ".py"
+      },
+      {
+        "path": "bsm.py",
+        "size": 1263,
+        "ext": ".py"
+      },
+      {
+        "path": "example_greeks.py",
+        "size": 477,
+        "ext": ".py"
+      }
+    ],
+    "languages": [
+      ".py"
+    ]
+  },
+  "kyosenergy_options-calculator": {
+    "file_count": 0,
+    "files": [],
+    "languages": []
+  },
+  "iAmGiG_gex-llm-patterns": {
+    "file_count": 223,
+    "files": [
+      {
+        "path": "src/agents/market_mechanics_agent.py",
+        "size": 106414,
+        "ext": ".py"
+      },
+      {
+        "path": "src/data_sources/historical_gex_builder.py",
+        "size": 54637,
+        "ext": ".py"
+      },
+      {
+        "path": "src/cache/research_cache.py",
+        "size": 53135,
+        "ext": ".py"
+      },
+      {
+        "path": "scripts/validation/paper1/16_analyze_eod_latent_information.py",
+        "size": 45570,
+        "ext": ".py"
+      },
+      {
+        "path": "src/data_sources/historical_collector.py",
+        "size": 45003,
+        "ext": ".py"
+      },
+      {
+        "path": "docs/papers/paper2/figures/archive/generate_improved_figures.py",
+        "size": 39401,
+        "ext": ".py"
+      },
+      {
+        "path": "src/analysis/pattern_library.py",
+        "size": 38961,
+        "ext": ".py"
+      },
+      {
+        "path": "src/cache/sqlite_options_manager.py",
+        "size": 38348,
+        "ext": ".py"
+      },
+      {
+        "path": "docs/papers/jrfm/portal_upload/build_r3_docx.py",
+        "size": 37894,
+        "ext": ".py"
+      },
+      {
+        "path": "docs/papers/paper2/figures/archive/scripts/generate_publication_figures.py",
+        "size": 36447,
+        "ext": ".py"
+      },
+      {
+        "path": "src/data/market_data_system.py",
+        "size": 34395,
+        "ext": ".py"
+      },
+      {
+        "path": "src/tools/autogen_tools.py",
+        "size": 32606,
+        "ext": ".py"
+      },
+      {
+        "path": "scripts/validation/paper1/02_validate_pattern_taxonomy.py",
+        "size": 31896,
+        "ext": ".py"
+      },
+      {
+        "path": "scripts/validation/paper1/01_validate_raw_options_chain.py",
+        "size": 29253,
+        "ext": ".py"
+      },
+      {
+        "path": "src/analysis/technical_indicator_baseline.py",
+        "size": 27288,
+        "ext": ".py"
+      },
+      {
+        "path": "src/agents/data_retrieval_agent.py",
+        "size": 26508,
+        "ext": ".py"
+      },
+      {
+        "path": "tools/code_reviewer.py",
+        "size": 26015,
+        "ext": ".py"
+      },
+      {
+        "path": "src/validation/mechanics_validation_dataset.py",
+        "size": 25631,
+        "ext": ".py"
+      },
+      {
+        "path": "scripts/research/paper3/hedge_ratio_optimization.py",
+        "size": 23537,
+        "ext": ".py"
+      },
+      {
+        "path": "scripts/validation/paper1/04_validate_patterns_legacy.py",
+        "size": 23091,
+        "ext": ".py"
+      },
+      {
+        "path": "scripts/validation/paper2/04_validate_regime_windows.py",
+        "size": 23079,
+        "ext": ".py"
+      },
+      {
+        "path": "docs/archive/legacy/base_agent_reference.py",
+        "size": 23044,
+        "ext": ".py"
+      },
+      {
+        "path": "src/validation/outcome_calculator.py",
+        "size": 22909,
+        "ext": ".py"
+      },
+      {
+        "path": "scripts/data_processing/dask_gex_pipeline.py",
+        "size": 22854,
+        "ext": ".py"
+      },
+      {
+        "path": "src/analysis/pattern_engine_integration.py",
+        "size": 22575,
+        "ext": ".py"
+      },
+      {
+        "path": "src/cache/gex_cache_manager.py",
+        "size": 22498,
+        "ext": ".py"
+      },
+      {
+        "path": "scripts/validation/audit_options_data.py",
+        "size": 22115,
+        "ext": ".py"
+      },
+      {
+        "path": "src/utils/unified_reports_manager.py",
+        "size": 21735,
+        "ext": ".py"
+      },
+      {
+        "path": "src/validation/options_chain_validator.py",
+        "size": 21549,
+        "ext": ".py"
+      },
+      {
+        "path": "src/llm/mechanics_prompt_builder.py",
+        "size": 21325,
+        "ext": ".py"
+      }
+    ],
+    "languages": [
+      ".py"
+    ]
+  },
+  "Buzzfund_UnusualOptions": {
+    "file_count": 4,
+    "files": [
+      {
+        "path": "voiratio.py",
+        "size": 6295,
+        "ext": ".py"
+      },
+      {
+        "path": "insider.py",
+        "size": 2673,
+        "ext": ".py"
+      },
+      {
+        "path": "Example Requests/example.py",
+        "size": 680,
+        "ext": ".py"
+      },
+      {
+        "path": "data.py",
+        "size": 338,
+        "ext": ".py"
+      }
+    ],
+    "languages": [
+      ".py"
+    ]
+  },
+  "Proshotv2_Gamma-Vanna-Options-Exposure": {
+    "file_count": 1,
+    "files": [
+      {
+        "path": "main.py",
+        "size": 33006,
+        "ext": ".py"
+      }
+    ],
+    "languages": [
+      ".py"
+    ]
+  },
+  "FullStackCraft_floe": {
+    "file_count": 55,
+    "files": [
+      {
+        "path": "src/client/brokers/TastyTradeClient.ts",
+        "size": 35259,
+        "ext": ".ts"
+      },
+      {
+        "path": "src/client/brokers/SchwabClient.ts",
+        "size": 34779,
+        "ext": ".ts"
+      },
+      {
+        "path": "src/client/FloeClient.ts",
+        "size": 32180,
+        "ext": ".ts"
+      },
+      {
+        "path": "src/client/brokers/IBKRClient.ts",
+        "size": 31404,
+        "ext": ".ts"
+      },
+      {
+        "path": "site/src/app/playground/page.tsx",
+        "size": 30784,
+        "ext": ".tsx"
+      },
+      {
+        "path": "src/client/brokers/TradeStationClient.ts",
+        "size": 29712,
+        "ext": ".ts"
+      },
+      {
+        "path": "src/client/FloeClientWithTastyTrade.test.ts",
+        "size": 29079,
+        "ext": ".ts"
+      },
+      {
+        "path": "src/client/FloeClientWithSchwab.test.ts",
+        "size": 27717,
+        "ext": ".ts"
+      },
+      {
+        "path": "src/apiclient/index.ts",
+        "size": 26561,
+        "ext": ".ts"
+      },
+      {
+        "path": "src/client/FloeClientWithTradier.test.ts",
+        "size": 26322,
+        "ext": ".ts"
+      },
+      {
+        "path": "src/client/FloeClientWithTradeStation.test.ts",
+        "size": 25083,
+        "ext": ".ts"
+      },
+      {
+        "path": "src/client/brokers/TradierClient.ts",
+        "size": 22963,
+        "ext": ".ts"
+      },
+      {
+        "path": "src/client/brokers/BaseBrokerClient.ts",
+        "size": 22450,
+        "ext": ".ts"
+      },
+      {
+        "path": "src/impliedpdf/adjusted.ts",
+        "size": 22098,
+        "ext": ".ts"
+      },
+      {
+        "path": "src/hedgeflow/pressurecloud.test.ts",
+        "size": 20474,
+        "ext": ".ts"
+      },
+      {
+        "path": "src/apiclient/index.test.ts",
+        "size": 17789,
+        "ext": ".ts"
+      },
+      {
+        "path": "src/exposure/index.test.ts",
+        "size": 17082,
+        "ext": ".ts"
+      },
+      {
+        "path": "src/hedgeflow/pressurecloud.ts",
+        "size": 15477,
+        "ext": ".ts"
+      },
+      {
+        "path": "src/exposure/index.ts",
+        "size": 12537,
+        "ext": ".ts"
+      },
+      {
+        "path": "src/hedgeflow/curve.ts",
+        "size": 12158,
+        "ext": ".ts"
+      },
+      {
+        "path": "src/impliedpdf/index.ts",
+        "size": 11957,
+        "ext": ".ts"
+      },
+      {
+        "path": "src/iv/index.ts",
+        "size": 9982,
+        "ext": ".ts"
+      },
+      {
+        "path": "src/types/index.ts",
+        "size": 9455,
+        "ext": ".ts"
+      },
+      {
+        "path": "src/blackscholes/index.ts",
+        "size": 8914,
+        "ext": ".ts"
+      },
+      {
+        "path": "src/utils/occ.ts",
+        "size": 8695,
+        "ext": ".ts"
+      },
+      {
+        "path": "src/volresponse/index.ts",
+        "size": 8350,
+        "ext": ".ts"
+      },
+      {
+        "path": "src/blackscholes/index.test.ts",
+        "size": 7605,
+        "ext": ".ts"
+      },
+      {
+        "path": "src/hedgeflow/types.ts",
+        "size": 7509,
+        "ext": ".ts"
+      },
+      {
+        "path": "src/volatility/index.test.ts",
+        "size": 7188,
+        "ext": ".ts"
+      },
+      {
+        "path": "src/volatility/index.ts",
+        "size": 6721,
+        "ext": ".ts"
+      }
+    ],
+    "languages": [
+      ".ts",
+      ".tsx",
+      ".js"
+    ]
+  },
+  "MattL922_implied-volatility": {
+    "file_count": 2,
+    "files": [
+      {
+        "path": "implied-volatility.js",
+        "size": 1587,
+        "ext": ".js"
+      },
+      {
+        "path": "test/implied-volatility.js",
+        "size": 471,
+        "ext": ".js"
+      }
+    ],
+    "languages": [
+      ".js"
+    ]
+  },
+  "boyac_pyOptionPricing": {
+    "file_count": 7,
+    "files": [
+      {
+        "path": "30_70_simulation.py",
+        "size": 2021,
+        "ext": ".py"
+      },
+      {
+        "path": "historical_vol_auto.py",
+        "size": 1374,
+        "ext": ".py"
+      },
+      {
+        "path": "hedge.py",
+        "size": 1193,
+        "ext": ".py"
+      },
+      {
+        "path": "black_scholes.py",
+        "size": 1116,
+        "ext": ".py"
+      },
+      {
+        "path": "garman_klass_vol.py",
+        "size": 1028,
+        "ext": ".py"
+      },
+      {
+        "path": "binomial_1step.py",
+        "size": 924,
+        "ext": ".py"
+      },
+      {
+        "path": "historical_vol.py",
+        "size": 809,
+        "ext": ".py"
+      }
+    ],
+    "languages": [
+      ".py"
+    ]
+  },
+  "czong_option_chain_unusual_activity_detect": {
+    "file_count": 2,
+    "files": [
+      {
+        "path": "main-yahoo.py",
+        "size": 2694,
+        "ext": ".py"
+      },
+      {
+        "path": "main-google.py",
+        "size": 1536,
+        "ext": ".py"
+      }
+    ],
+    "languages": [
+      ".py"
+    ]
+  },
+  "wnnii_Unusual-Options": {
+    "file_count": 2,
+    "files": [
+      {
+        "path": "discord bot.py",
+        "size": 5016,
+        "ext": ".py"
+      },
+      {
+        "path": "Options.py",
+        "size": 3421,
+        "ext": ".py"
+      }
+    ],
+    "languages": [
+      ".py"
+    ]
+  },
+  "EazyDuz1t_EzOptions": {
+    "file_count": 2,
+    "files": [
+      {
+        "path": "ezoptions.py",
+        "size": 468379,
+        "ext": ".py"
+      },
+      {
+        "path": "main.py",
+        "size": 2239,
+        "ext": ".py"
+      }
+    ],
+    "languages": [
+      ".py"
+    ]
+  },
+  "TechfaneTechnologies_QtsApp": {
+    "file_count": 1,
+    "files": [
+      {
+        "path": "example.py",
+        "size": 1179,
+        "ext": ".py"
+      }
+    ],
+    "languages": [
+      ".py"
+    ]
+  },
+  "EazyDuz1t_EzOptions-Schwab": {
+    "file_count": 0,
+    "files": [],
+    "languages": []
+  }
+}

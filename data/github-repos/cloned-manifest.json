@@ -1,0 +1,25 @@
+{
+  "cloned": [
+    "TechfaneTechnologies/QtsApp",
+    "iAmGiG/gex-llm-patterns",
+    "Proshotv2/Gamma-Vanna-Options-Exposure",
+    "fanzhenya/options_lab",
+    "EazyDuz1t/EzOptions-Schwab",
+    "boyac/pyOptionPricing",
+    "aaguiar10/gflows",
+    "EazyDuz1t/EzOptions",
+    "jwolberg/options-scanner",
+    "czong/option_chain_unusual_activity_detect",
+    "EsterHlav/Black-Scholes-Option-Pricing-Model",
+    "wnnii/Unusual-Options",
+    "Matteo-Ferrara/gex-tracker",
+    "yzoz/python-option-calculator",
+    "fintools-ai/mcp-options-order-flow-server",
+    "Buzzfund/UnusualOptions",
+    "FullStackCraft/floe",
+    "kyosenergy/options-calculator",
+    "Andrew-Reis-SMU-2022/Options_Based_Trading",
+    "MattL922/implied-volatility"
+  ],
+  "count": 20
+}

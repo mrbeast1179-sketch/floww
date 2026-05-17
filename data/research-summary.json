@@ -1,0 +1,120 @@
+{
+  "github_repos_found": 81,
+  "github_repos_cloned": 24,
+  "key_algorithms_extracted": {
+    "GEX_calculation": {
+      "source": "Matteo-Ferrara/gex-tracker",
+      "functions": [
+        "compute_total_gex",
+        "compute_gex_by_strike",
+        "compute_gex_by_expiration"
+      ],
+      "description": "Scrapes CBOE data, calculates total notional GEX, gamma by strike and expiration, 3D surface plot"
+    },
+    "Gamma_Vanna_Exposure": {
+      "source": "Proshotv2/Gamma-Vanna-Options-Exposure",
+      "functions": [
+        "calculate_greeks",
+        "calculate_vanna",
+        "calculate_adjusted_gex",
+        "calculate_shares_for_hedging"
+      ],
+      "description": "Uses Tradier API, py_vollib for Greeks, calculates GEX/VEX with vanna exposure"
+    },
+    "Options_Flow_Analysis": {
+      "source": "fintools-ai/mcp-options-order-flow-server",
+      "functions": [
+        "analyze_options_flow",
+        "get_options_flow",
+        "configure_options_monitoring"
+      ],
+      "description": "MCP server for comprehensive options order flow analysis with gRPC"
+    },
+    "Unusual_Options_Activity": {
+      "source": "Buzzfund/UnusualOptions",
+      "functions": [
+        "getLatestInsiderTrading",
+        "getTopInsiderTrading",
+        "getInsiderTradingForTicker",
+        "getchain"
+      ],
+      "description": "Scans for unusual options activity using Yahoo Finance API"
+    },
+    "Twitter_Sentiment": {
+      "source": "shirosaidev/stocksight",
+      "functions": [
+        "sentiment_analysis",
+        "tweeklink_sentiment_analysis",
+        "get_sentiment_from_url"
+      ],
+      "description": "Uses VADER sentiment, TextBlob, Tweepy for Twitter streaming, NLTK for NLP"
+    },
+    "Stock_Prediction": {
+      "source": "jasti/Stock-Predictor",
+      "functions": [
+        "perform_sentiment_analysis",
+        "perform_financial_analysis",
+        "checkIfValidTweet"
+      ],
+      "description": "SGDClassifier, linear regression, decision trees for stock prediction from tweets"
+    },
+    "ML_Sentiment": {
+      "source": "kaushikjadhav01/Stock-Market-Prediction-Web-App",
+      "functions": [
+        "retrieving_tweets_polarity",
+        "recommending",
+        "ARIMA_ALGO",
+        "LSTM_ALGO",
+        "LIN_REG_ALGO"
+      ],
+      "description": "ARIMA, LSTM, Linear Regression with TextBlob sentiment for stock prediction"
+    },
+    "Black_Scholes": {
+      "source": "boyac/pyOptionPricing",
+      "functions": [
+        "BlackScholes",
+        "CND",
+        "hv",
+        "Binomial",
+        "historical_volatility",
+        "gk_vol"
+      ],
+      "description": "Complete Black-Scholes implementation with Greeks, Monte Carlo, binomial tree"
+    },
+    "Options_Scanner": {
+      "source": "jwolberg/options-scanner",
+      "functions": [
+        "computeTier",
+        "normalize",
+        "Bar",
+        "Row",
+        "Section"
+      ],
+      "description": "Options market dashboard for scanning gamma exposure, volatility"
+    },
+    "GEX_LLM_Patterns": {
+      "source": "iAmGiG/gex-llm-patterns",
+      "functions": [
+        "review_file",
+        "fix_imports",
+        "generate_report"
+      ],
+      "description": "LLM structural reasoning validation via gamma exposure analysis"
+    }
+  },
+  "twitter_scraping_status": {
+    "nitter_mirrors_tested": 10,
+    "working": 0,
+    "xurl_installed": true,
+    "xurl_authenticated": false,
+    "note": "X API requires user authentication. Nitter mirrors are mostly down. Need user to set up X API credentials."
+  },
+  "data_files_created": {
+    "repos_index": "/Users/nav/Documents/GitHub/floww/data/github-repos/repos-index.json",
+    "cloned_manifest": "/Users/nav/Documents/GitHub/floww/data/github-repos/cloned-manifest.json",
+    "repo_analysis": "/Users/nav/Documents/GitHub/floww/data/github-repos/repo-analysis.json",
+    "extracted_functions": "/Users/nav/Documents/GitHub/floww/data/github-repos/extracted-functions.json",
+    "extraction_summary": "/Users/nav/Documents/GitHub/floww/data/github-repos/extraction-summary.json",
+    "extracted_code_dir": "/Users/nav/Documents/GitHub/floww/data/github-repos/extracted-code/"
+  }
+}

@@ -1,0 +1,5 @@
+# Ignore cloned repos - they're research references, not part of the project
+data/github-repos/cloned/
+data/github-repos/extracted-code/
+data/x-scrape/
+data/social-reports/
