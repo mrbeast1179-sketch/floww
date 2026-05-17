@@ -22,7 +22,7 @@ export default function OptionsChainTable({ ticker, spot }) {
   const [sortDir, setSortDir] = useState("asc");
   const [side, setSide] = useState("all"); // all, calls, puts
 
-  const fetchChain = async () => {
+  const fetchChain = useCallback(async () => {
     setLoading(true);
     try {
       const params = new URLSearchParams({
@@ -34,9 +34,9 @@ export default function OptionsChainTable({ ticker, spot }) {
       setChain(res.data);
     } catch (e) { /* noop */ }
     setLoading(false);
-  };
+  }, [ticker, expiry, moneyness, minOi, sortBy, sortDir]);
 
-  useEffect(() => { fetchChain(); }, [ticker, expiry, moneyness, minOi, sortBy, sortDir]);
+  useEffect(() => { fetchChain(); }, [fetchChain]);
 
   const filtered = useMemo(() => {
     if (!chain?.rows) return [];

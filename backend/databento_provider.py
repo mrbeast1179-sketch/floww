@@ -72,8 +72,16 @@ def parse_osi(raw: str) -> Optional[Dict[str, Any]]:
 
 
 def _last_trading_day_utc(now: Optional[datetime] = None) -> date_cls:
-    """Approx US equities last trading day in UTC. Saturday/Sunday roll back."""
-    n = (now or datetime.now(timezone.utc)) - timedelta(hours=14)  # after US close
+    """Approx US equities last trading day in UTC. Saturday/Sunday roll back.
+    Uses America/New_York timezone for correct DST handling."""
+    from zoneinfo import ZoneInfo
+    ny_tz = ZoneInfo("America/New_York")
+    n = (now or datetime.now(timezone.utc)).astimezone(ny_tz)
+    # After US market close (4pm ET)
+    if n.hour >= 16:
+        n = n.replace(hour=16, minute=0, second=0, microsecond=0)
+    else:
+        n = n.replace(hour=16, minute=0, second=0, microsecond=0) - timedelta(days=1)
     while n.weekday() >= 5:
         n -= timedelta(days=1)
     return n.date()

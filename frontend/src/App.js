@@ -343,15 +343,49 @@ export default function App() {
     return () => clearTimeout(id);
   }, [err]);
 
-  useEffect(() => { fetchData(); const id = setInterval(fetchData, refreshMs); return () => clearInterval(id); }, [fetchData, refreshMs]);
-
-  // Fetch advanced analytics on ticker/expiry change
-  useEffect(() => { fetchAdvanced(); const id = setInterval(fetchAdvanced, refreshMs * 2); return () => clearInterval(id); }, [fetchAdvanced, refreshMs]);
-
-  // Live spot polling
+  // Main data fetch with in-flight guard
   useEffect(() => {
-    const poll = async () => { try { const r = await axios.get(`${API}/spot/${ticker}`); setLivespot(r.data); } catch (e) {} };
-    poll(); const id = setInterval(poll, 5000); return () => clearInterval(id);
+    let cancelled = false;
+    const doFetch = async () => {
+      if (cancelled) return;
+      try {
+        const r = await axios.get(`${API}/data/${ticker}`);
+        if (!cancelled) setData(r.data);
+      } catch (e) { if (!cancelled) setErr(e.message); }
+    };
+    doFetch();
+    const id = setInterval(doFetch, refreshMs);
+    return () => { cancelled = true; clearInterval(id); };
+  }, [ticker, refreshMs]);
+
+  // Advanced analytics with in-flight guard
+  useEffect(() => {
+    let cancelled = false;
+    const doFetch = async () => {
+      if (cancelled) return;
+      try {
+        const r = await axios.get(`${API}/advanced/${ticker}`);
+        if (!cancelled) setAdvanced(r.data);
+      } catch (e) { if (!cancelled) {} }
+    };
+    doFetch();
+    const id = setInterval(doFetch, refreshMs * 2);
+    return () => { cancelled = true; clearInterval(id); };
+  }, [ticker, refreshMs]);
+
+  // Live spot polling with in-flight guard
+  useEffect(() => {
+    let cancelled = false;
+    const poll = async () => {
+      if (cancelled) return;
+      try {
+        const r = await axios.get(`${API}/spot/${ticker}`);
+        if (!cancelled) setLivespot(r.data);
+      } catch (e) { if (!cancelled) {} }
+    };
+    poll();
+    const id = setInterval(poll, 5000);
+    return () => { cancelled = true; clearInterval(id); };
   }, [ticker]);
 
   // Keyboard shortcuts

@@ -63,15 +63,16 @@ export function TradeEntry({ ticker, spot }) {
   const [formData, setFormData] = useState({});
   const [savedTrades, setSavedTrades] = useState([]);
 
+  // Fetch checklist when ticker changes (not on every spot poll to avoid resetting user input)
   useEffect(() => {
     if (!ticker) return;
     fetch(`${API}/daily-checklist/${ticker}?expiries=4`)
       .then(r => r.json())
       .then(d => {
         setChecklist(d);
-        // Pre-fill form with GEX levels
         const gf = d.key_levels || {};
-        setFormData({
+        setFormData(prev => ({
+          ...prev,
           put_short: gf.put_wall || "",
           put_long: gf.put_wall ? gf.put_wall - 5 : "",
           call_short: gf.call_wall || "",
@@ -79,11 +80,11 @@ export function TradeEntry({ ticker, spot }) {
           strike: Math.round(spot || 0),
           long_strike: Math.round(spot || 0),
           short_strike: gf.call_wall || "",
-          contracts: 1,
-        });
+          contracts: prev.contracts || 1,
+        }));
       })
       .catch(() => setChecklist(null));
-  }, [ticker, spot]);
+  }, [ticker]);
 
   const template = TRADE_TEMPLATES[selectedTemplate];
   const regime = checklist?.regime?.gex_regime || "unknown";

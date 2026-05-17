@@ -57,9 +57,10 @@ export default function AlertsPanel({ ticker }) {
     } catch (e) { /* noop */ }
   };
 
-  useEffect(() => { fetchRules(); }, [ticker]);
+  // Fetch rules and check alerts on mount/ticker change (single effect to avoid double-fetch)
   useEffect(() => {
     if (!ticker) return;
+    fetchRules();
     checkAlerts();
     const id = setInterval(checkAlerts, 30000);
     return () => clearInterval(id);

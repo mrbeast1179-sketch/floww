@@ -308,7 +308,11 @@ def _in_window_now_et() -> bool:
         from zoneinfo import ZoneInfo
         et = datetime.now(ZoneInfo("America/New_York"))
     except Exception:
-        et = datetime.now(timezone.utc) - timedelta(hours=5)
+        # Fallback: use UTC-4 (EDT) during DST, UTC-5 (EST) otherwise
+        import time
+        is_dst = time.localtime().tm_isdst > 0
+        offset = 4 if is_dst else 5
+        et = datetime.now(timezone.utc) - timedelta(hours=offset)
     hhmm = et.strftime("%H:%M")
     return LIVE_WINDOW["start_hhmm"] <= hhmm <= LIVE_WINDOW["stop_hhmm"]
 
@@ -516,9 +520,7 @@ def calc_implied_move(spot: float, contracts: List[Dict[str, Any]]) -> Optional[
     if T <= 0:
         T = 1/365
     avg_iv = (call_iv + put_iv) / 2
-    # Straddle price ≈ S * σ * sqrt(T) * sqrt(2/π) for ATM
-    straddle = spot * avg_iv * math.sqrt(T) * math.sqrt(2 / math.pi)
-    # More accurate: use 0.8 * S * σ * sqrt(T) (market standard approximation)
+    # Straddle price ≈ 0.8 * S * σ * sqrt(T) (market standard approximation)
     straddle = 0.8 * spot * avg_iv * math.sqrt(T)
     return {
         "atm_strike": atm,
@@ -1320,8 +1322,14 @@ async def build_heatmap(ticker: str, max_expiries: int = 4, with_taps: bool = Tr
     # DTE filter
     if dte is not None:
         cutoff = today + timedelta(days=dte)
-        raw["contracts"] = [c for c in raw["contracts"]
-                            if datetime.strptime(c["expiry"], "%Y-%m-%d").date() <= cutoff]
+        filtered = []
+        for c in raw["contracts"]:
+            try:
+                if datetime.strptime(c["expiry"], "%Y-%m-%d").date() <= cutoff:
+                    filtered.append(c)
+            except Exception:
+                continue
+        raw["contracts"] = filtered
         raw["expiries"] = sorted({c["expiry"] for c in raw["contracts"]})
 
     # Choose GEX computation: volume-weighted for scalp, OI for normal
@@ -2130,7 +2138,10 @@ async def _scheduler_loop():
                 from zoneinfo import ZoneInfo
                 et = datetime.now(ZoneInfo("America/New_York"))
             except Exception:
-                et = datetime.now(timezone.utc) - timedelta(hours=5)
+                import time
+                is_dst = time.localtime().tm_isdst > 0
+                offset = 4 if is_dst else 5
+                et = datetime.now(timezone.utc) - timedelta(hours=offset)
             hhmm = et.strftime("%H:%M")
             today_et = et.date().isoformat()
             if hhmm >= PREFETCH_HHMM and fired_for_date != today_et and et.weekday() < 5:
@@ -2526,7 +2537,10 @@ async def multi_timeframe_gex(ticker: str):
         "0DTE": [], "1DTE": [], "weekly": [], "monthly": [], "all": []
     }
     for c in raw["contracts"]:
-        exp_date = datetime.strptime(c["expiry"], "%Y-%m-%d").date()
+        try:
+            exp_date = datetime.strptime(c["expiry"], "%Y-%m-%d").date()
+        except Exception:
+            continue
         dte = (exp_date - today).days
         if dte <= 0:
             buckets["0DTE"].append(c)
@@ -2755,7 +2769,10 @@ async def detect_uoa(
         oi_ratio = oi / max(avg_oi, 1)
 
         # DTE
-        exp_date = datetime.strptime(c["expiry"], "%Y-%m-%d").date()
+        try:
+            exp_date = datetime.strptime(c["expiry"], "%Y-%m-%d").date()
+        except Exception:
+            continue
         dte = (exp_date - today).days
 
         # Signal scoring
