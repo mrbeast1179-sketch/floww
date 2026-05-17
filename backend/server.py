@@ -2562,6 +2562,123 @@ async def api_predict_price(ticker: str):
     return result
 
 
+# ============ Quant Analytics ============
+
+from services.analytics import GexSurfaceComputer, HistoricalGexAnalyzer, MultiTickerComparator
+
+
+@api.get("/api/analytics/surface/{ticker}")
+async def api_gex_surface(ticker: str):
+    """Get GEX surface (strike × expiry matrix)."""
+    from server import fetch_spot_and_chains_merged
+    
+    t = ticker.strip().upper()
+    if t == "SPX":
+        t = "^SPX"
+    
+    raw = await fetch_spot_and_chains_merged(t, 8)
+    if not raw.get("contracts"):
+        return {"status": "no_data"}
+    
+    surface = GexSurfaceComputer.compute_surface(raw["spot"], raw["contracts"])
+    return surface
+
+
+@api.get("/api/analytics/regime-stats/{ticker}")
+async def api_regime_stats(ticker: str, days: int = Query(30, ge=1, le=365)):
+    """Get regime statistics for a ticker."""
+    from motor.motor_asyncio import AsyncIOMotorClient
+    from dotenv import load_dotenv
+    from datetime import timedelta
+    
+    load_dotenv()
+    client = AsyncIOMotorClient(os.environ.get("MONGO_URL", ""))
+    db = client[os.environ.get("DB_NAME", "confluence_decoder")]
+    
+    # Get snapshots from last N days
+    cutoff = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
+    cursor = db.snapshots.find(
+        {"ticker": ticker, "ts": {"$gte": cutoff}}
+    ).sort("ts", 1)
+    
+    snapshots = await cursor.to_list(length=10000)
+    client.close()
+    
+    if not snapshots:
+        return {"status": "no_data", "ticker": ticker}
+    
+    stats = HistoricalGexAnalyzer.compute_regime_statistics(snapshots)
+    stats["ticker"] = ticker
+    stats["days"] = days
+    stats["snapshots_analyzed"] = len(snapshots)
+    
+    return stats
+
+
+@api.get("/api/analytics/compare")
+async def api_compare_tickers(tickers: str = Query("SPY,QQQ,IWM,DIA")):
+    """Compare GEX regimes across multiple tickers."""
+    from motor.motor_asyncio import AsyncIOMotorClient
+    from dotenv import load_dotenv
+    
+    load_dotenv()
+    client = AsyncIOMotorClient(os.environ.get("MONGO_URL", ""))
+    db = client[os.environ.get("DB_NAME", "confluence_decoder")]
+    
+    ticker_list = [t.strip().upper() for t in tickers.split(",") if t.strip()]
+    snapshots_by_ticker = {}
+    
+    for ticker in ticker_list:
+        cursor = db.snapshots.find({"ticker": ticker}).sort("ts", -1).limit(10)
+        snaps = await cursor.to_list(length=10)
+        if snaps:
+            snapshots_by_ticker[ticker] = snaps
+    
+    client.close()
+    
+    if not snapshots_by_ticker:
+        return {"status": "no_data"}
+    
+    comparison = MultiTickerComparator.compare_regimes(snapshots_by_ticker)
+    return comparison
+
+
+@api.get("/api/analytics/correlation")
+async def api_gex_correlation(
+    ticker1: str = Query(...),
+    ticker2: str = Query(...),
+    days: int = Query(30, ge=1, le=365),
+):
+    """Compute GEX correlation between two tickers."""
+    from motor.motor_asyncio import AsyncIOMotorClient
+    from dotenv import load_dotenv
+    from datetime import timedelta
+    
+    load_dotenv()
+    client = AsyncIOMotorClient(os.environ.get("MONGO_URL", ""))
+    db = client[os.environ.get("DB_NAME", "confluence_decoder")]
+    
+    cutoff = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
+    
+    cursor1 = db.snapshots.find({"ticker": ticker1.upper(), "ts": {"$gte": cutoff}})
+    snaps1 = await cursor1.to_list(length=10000)
+    
+    cursor2 = db.snapshots.find({"ticker": ticker2.upper(), "ts": {"$gte": cutoff}})
+    snaps2 = await cursor2.to_list(length=10000)
+    
+    client.close()
+    
+    correlation = HistoricalGexAnalyzer.compute_gex_correlation(snaps1, snaps2)
+    
+    return {
+        "ticker1": ticker1.upper(),
+        "ticker2": ticker2.upper(),
+        "correlation": correlation,
+        "samples": min(len(snaps1), len(snaps2)),
+        "days": days,
+    }
+
+
 # ============ Schwab API Integration ============
 
 from schwab import SchwabTokenManager, SchwabClient, import_schwab_positions, detect_sweeps
