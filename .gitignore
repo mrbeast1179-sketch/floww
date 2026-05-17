@@ -96,3 +96,4 @@ credentials.json
 data/github-repos/cloned/
 data/github-repos/extracted-code/
 data/x-scrape/
+.claude/worktrees/
