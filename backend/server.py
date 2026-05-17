@@ -141,10 +141,63 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
     log.error(f"Unhandled exception {request.url.path}: {type(exc).__name__}: {exc}", exc_info=True)
+    # Track error
+    try:
+        from error_tracking import log_error
+        log_error(
+            error_type=type(exc).__name__,
+            message=str(exc),
+            data={"path": request.url.path, "method": request.method}
+        )
+    except Exception:
+        pass
     return JSONResponse(
         status_code=500,
         content={"error": "Internal server error", "type": type(exc).__name__, "path": request.url.path},
     )
+
+
+# ----------------------------- Error Tracking & Performance API -----------------------------
+
+@app.middleware("http")
+async def performance_middleware(request: Request, call_next):
+    """Track request performance."""
+    start = time.time()
+    response = await call_next(request)
+    duration_ms = (time.time() - start) * 1000
+    
+    try:
+        from error_tracking import perf_monitor, set_request_id
+        endpoint = f"{request.method} {request.url.path}"
+        perf_monitor.record(endpoint, duration_ms)
+        set_request_id()
+    except Exception:
+        pass
+    
+    response.headers["X-Response-Time-Ms"] = str(round(duration_ms, 2))
+    return response
+
+
+@api.get("/api/errors/summary")
+async def api_error_summary():
+    """Get error tracking summary."""
+    from error_tracking import get_error_summary
+    return get_error_summary()
+
+
+@api.get("/api/performance/stats")
+async def api_performance_stats():
+    """Get API performance statistics."""
+    from error_tracking import perf_monitor
+    return {"endpoints": perf_monitor.get_all_stats()}
+
+
+@api.post("/api/errors/clear")
+async def api_clear_errors():
+    """Clear error tracking data."""
+    from error_tracking import clear_error_log
+    clear_error_log()
+    return {"status": "cleared"}
 
 # ----------------------------- Constants & Config -----------------------------
 
