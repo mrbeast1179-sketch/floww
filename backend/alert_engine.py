@@ -179,26 +179,28 @@ class AlertEngine:
                 data={"momentum_score": momentum_score, "direction": "BEARISH"}
             ))
         
-        # 4. WALL BREACH (MEDIUM)
-        if current.call_wall > 0:
-            breach_pct = (spot - current.call_wall) / current.call_wall * 100
-            if breach_pct > self.WALL_BREACH_PROXIMITY_PCT:
+        # 4. WALL BREACH (MEDIUM) — only fire on crossing, not while beyond
+        if current.call_wall > 0 and previous:
+            # Bullish: spot was at or below call wall, now above it
+            if previous.spot_price <= current.call_wall and spot > current.call_wall:
+                breach_pct = (spot - current.call_wall) / current.call_wall * 100
                 alerts.append(Alert(
                     type="WALL_BREACH",
                     priority="MEDIUM",
                     ticker=ticker,
-                    message=f"🚀 BULLISH breakout — spot {spot:.0f} breached call wall at {current.call_wall:.0f} (+{breach_pct:.2f}%)",
+                    message=f"🚀 BULLISH breakout — spot {spot:.0f} crossed above call wall at {current.call_wall:.0f} (+{breach_pct:.2f}%)",
                     data={"wall": current.call_wall, "direction": "BULLISH", "breach_pct": round(breach_pct, 2)}
                 ))
         
-        if current.put_wall > 0:
-            breach_pct = (current.put_wall - spot) / current.put_wall * 100
-            if breach_pct > self.WALL_BREACH_PROXIMITY_PCT:
+        if current.put_wall > 0 and previous:
+            # Bearish: spot was at or above put wall, now below it
+            if previous.spot_price >= current.put_wall and spot < current.put_wall:
+                breach_pct = (current.put_wall - spot) / current.put_wall * 100
                 alerts.append(Alert(
                     type="WALL_BREACH",
                     priority="MEDIUM",
                     ticker=ticker,
-                    message=f"🔻 BEARISH breakdown — spot {spot:.0f} breached put wall at {current.put_wall:.0f} (-{breach_pct:.2f}%)",
+                    message=f"🔻 BEARISH breakdown — spot {spot:.0f} crossed below put wall at {current.put_wall:.0f} (-{breach_pct:.2f}%)",
                     data={"wall": current.put_wall, "direction": "BEARISH", "breach_pct": round(breach_pct, 2)}
                 ))
         

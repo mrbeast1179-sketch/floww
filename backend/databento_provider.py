@@ -113,7 +113,9 @@ def _fetch_oi_sync(parent: str, day: date_cls) -> Dict[str, Any]:
         p = parse_osi(sym)
         if not p:
             continue
-        oi = int(qty) if qty == qty else 0  # NaN check
+        if qty != qty or qty is None:  # NaN check first
+            continue
+        oi = int(qty)
         if oi <= 0:
             continue
         p["oi"] = oi

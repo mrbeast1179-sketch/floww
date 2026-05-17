@@ -6,3 +6,8 @@ frontend/build
 .git
 *.md
 scripts/
+**/.env
+**/.env.*
+**/credentials.json
+**/*.pem
+**/*.key

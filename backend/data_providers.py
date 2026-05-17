@@ -29,17 +29,19 @@ POLYGON_API_KEY = os.environ.get("POLYGON_API_KEY", "")
 
 
 class RateLimiter:
-    """Simple rate limiter for API calls."""
+    """Simple rate limiter for API calls with async lock."""
     def __init__(self, calls_per_minute: int):
         self.interval = 60.0 / calls_per_minute
         self.last_call = 0
+        self._lock = asyncio.Lock()
     
     async def wait(self):
-        now = time.time()
-        elapsed = now - self.last_call
-        if elapsed < self.interval:
-            await asyncio.sleep(self.interval - elapsed)
-        self.last_call = time.time()
+        async with self._lock:
+            now = time.time()
+            elapsed = now - self.last_call
+            if elapsed < self.interval:
+                await asyncio.sleep(self.interval - elapsed)
+            self.last_call = time.time()
 
 
 class FreeDataProvider:
@@ -50,11 +52,12 @@ class FreeDataProvider:
         self.rate_limiter = RateLimiter(rate_limit)
         self.enabled = False
     
-    async def _get(self, url: str, params: dict = None) -> Optional[dict]:
+    async def _get(self, url: str, params: dict = None, headers: dict = None) -> Optional[dict]:
         await self.rate_limiter.wait()
         try:
             async with aiohttp.ClientSession() as session:
-                async with session.get(url, params=params or {}, timeout=aiohttp.ClientTimeout(total=10)) as resp:
+                async with session.get(url, params=params or {}, headers=headers or {},
+                                       timeout=aiohttp.ClientTimeout(total=10)) as resp:
                     if resp.status == 200:
                         return await resp.json()
                     elif resp.status == 429:
@@ -75,15 +78,17 @@ class FinnhubProvider(FreeDataProvider):
         super().__init__("Finnhub", rate_limit=60)
         self.enabled = bool(FINNHUB_API_KEY)
         self.base = "https://finnhub.io/api/v1"
+        self._headers = {"X-Finnhub-Token": FINNHUB_API_KEY} if FINNHUB_API_KEY else {}
+    
+    async def _finnhub_get(self, path: str, params: dict = None) -> Optional[dict]:
+        """Make a Finnhub API call with token in header."""
+        return await self._get(f"{self.base}{path}", params=params, headers=self._headers)
     
     async def get_quote(self, ticker: str) -> Optional[dict]:
         """Get real-time quote."""
         if not self.enabled:
             return None
-        data = await self._get(f"{self.base}/quote", {
-            "symbol": ticker,
-            "token": FINNHUB_API_KEY,
-        })
+        data = await self._finnhub_get("/quote", {"symbol": ticker})
         if data and data.get("c", 0) > 0:
             return {
                 "price": data["c"],
@@ -103,17 +108,13 @@ class FinnhubProvider(FreeDataProvider):
             return []
         
         if ticker:
-            data = await self._get(f"{self.base}/company-news", {
+            data = await self._finnhub_get("/company-news", {
                 "symbol": ticker,
                 "from": (datetime.now() - timedelta(days=7)).strftime("%Y-%m-%d"),
                 "to": datetime.now().strftime("%Y-%m-%d"),
-                "token": FINNHUB_API_KEY,
             })
         else:
-            data = await self._get(f"{self.base}/news", {
-                "category": "general",
-                "token": FINNHUB_API_KEY,
-            })
+            data = await self._finnhub_get("/news", {"category": "general"})
         
         if data and isinstance(data, list):
             return [{
@@ -130,10 +131,7 @@ class FinnhubProvider(FreeDataProvider):
         """Get earnings calendar."""
         if not self.enabled:
             return []
-        data = await self._get(f"{self.base}/calendar/earnings", {
-            "symbol": ticker,
-            "token": FINNHUB_API_KEY,
-        })
+        data = await self._finnhub_get("/calendar/earnings", {"symbol": ticker})
         if data and isinstance(data, list):
             return [{
                 "date": item.get("date", ""),
@@ -147,10 +145,7 @@ class FinnhubProvider(FreeDataProvider):
         """Get analyst recommendations."""
         if not self.enabled:
             return None
-        data = await self._get(f"{self.base}/stock/recommendation", {
-            "symbol": ticker,
-            "token": FINNHUB_API_KEY,
-        })
+        data = await self._finnhub_get("/stock/recommendation", {"symbol": ticker})
         if data and isinstance(data, list) and len(data) > 0:
             latest = data[0]
             return {
@@ -168,10 +163,7 @@ class FinnhubProvider(FreeDataProvider):
         """Get options flow data (if available on free tier)."""
         if not self.enabled:
             return None
-        data = await self._get(f"{self.base}/stock/option-chain", {
-            "symbol": ticker,
-            "token": FINNHUB_API_KEY,
-        })
+        data = await self._finnhub_get("/stock/option-chain", {"symbol": ticker})
         if data and data.get("data"):
             return {
                 "expirations": [d.get("expirationDate") for d in data["data"][:4]],
@@ -252,14 +244,13 @@ class PolygonProvider(FreeDataProvider):
         super().__init__("Polygon", rate_limit=5)
         self.enabled = bool(POLYGON_API_KEY)
         self.base = "https://api.polygon.io"
+        self._headers = {"Authorization": f"Bearer {POLYGON_API_KEY}"} if POLYGON_API_KEY else {}
     
     async def get_ticker_details(self, ticker: str) -> Optional[dict]:
         """Get ticker details."""
         if not self.enabled:
             return None
-        data = await self._get(f"{self.base}/v3/reference/tickers/{ticker}", {
-            "apiKey": POLYGON_API_KEY,
-        })
+        data = await self._get(f"{self.base}/v3/reference/tickers/{ticker}", headers=self._headers)
         if data and data.get("results"):
             r = data["results"]
             return {
@@ -275,11 +266,7 @@ class PolygonProvider(FreeDataProvider):
         """Get options contracts for a ticker."""
         if not self.enabled:
             return []
-        data = await self._get(f"{self.base}/v3/reference/options/contracts", {
-            "underlying_ticker": ticker,
-            "limit": limit,
-            "apiKey": POLYGON_API_KEY,
-        })
+        data = await self._get(f"{self.base}/v3/reference/options/contracts", params={"underlying_ticker": ticker, "limit": limit}, headers=self._headers)
         if data and data.get("results"):
             return [{
                 "ticker": c.get("ticker", ""),
@@ -294,9 +281,7 @@ class PolygonProvider(FreeDataProvider):
         """Get last trade."""
         if not self.enabled:
             return None
-        data = await self._get(f"{self.base}/v2/last/trade/{ticker}", {
-            "apiKey": POLYGON_API_KEY,
-        })
+        data = await self._get(f"{self.base}/v2/last/trade/{ticker}", headers=self._headers)
         if data and data.get("results"):
             r = data["results"]
             return {

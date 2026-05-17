@@ -29,6 +29,7 @@ from scipy.stats import norm
 
 from databento_provider import init_cache, fetch_oi_for_ticker, PARENT_MAP, stream_live_trades
 from portfolio import Position, Portfolio, calc_position_size
+from schwab import SCHWAB_CLIENT_ID, SCHWAB_CLIENT_SECRET
 from vol_analytics import (
     calc_iv_surface_data,
     calc_skew_metrics,
@@ -1108,9 +1109,9 @@ async def tap_counts(ticker: str, strikes: List[float], days: int = 5) -> Dict[f
     if not POLYGON_API_KEY or not strikes:
         return {s: 0 for s in strikes}
     end = datetime.now(timezone.utc).date()
-    start = end - pd.Timedelta(days=days * 2)
+    start = end - timedelta(days=days * 2)
     pg_ticker = ticker.replace("^SPX", "I:SPX") if ticker.startswith("^") else ticker
-    url = f"https://api.polygon.io/v2/aggs/ticker/{pg_ticker}/range/1/day/{start}/{end}"
+    url = f"https://api.polygon.io/v2/aggs/ticker/{pg_ticker}/range/1/day/{start.isoformat()}/{end.isoformat()}"
     out = {s: 0 for s in strikes}
     try:
         async with httpx.AsyncClient(timeout=10) as cli:

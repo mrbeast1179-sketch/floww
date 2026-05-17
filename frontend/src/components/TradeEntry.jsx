@@ -199,7 +199,7 @@ export function TradeEntry({ ticker, spot }) {
           const width = ss - ls;
           maxProfit = (width - debit) * c * 100;
           maxRisk = debit * c * 100;
-          brekeven = `${(ls + debit).toFixed(1)}`;
+          breakeven = `${(ls + debit).toFixed(1)}`;
         } else if (selectedTemplate === "put_spread") {
           const debit = parseFloat(formData.debit) || 0;
           const ls = parseFloat(formData.long_strike) || 0;
@@ -207,7 +207,7 @@ export function TradeEntry({ ticker, spot }) {
           const width = ls - ss;
           maxProfit = (width - debit) * c * 100;
           maxRisk = debit * c * 100;
-          brekeven = `${(ls - debit).toFixed(1)}`;
+          breakeven = `${(ls - debit).toFixed(1)}`;
         } else if (selectedTemplate === "single_leg") {
           const premium = parseFloat(formData.premium) || 0;
           const action = formData.action || "";
