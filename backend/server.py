@@ -2547,6 +2547,22 @@ async def api_collect_all():
     return {"results": results}
 
 
+@api.post("/api/ml/train-price/{ticker}")
+async def api_train_price_model(ticker: str):
+    """Train price direction prediction model."""
+    from ml_price_prediction import train_price_direction_model
+    result = await train_price_direction_model(ticker)
+    return result
+
+
+@api.get("/api/ml/predict-price/{ticker}")
+async def api_predict_price(ticker: str):
+    """Predict price direction using trained model."""
+    from ml_price_prediction import predict_price_direction
+    result = await predict_price_direction(ticker)
+    return result
+
+
 # ============ Schwab API Integration ============
 
 from schwab import SchwabTokenManager, SchwabClient, import_schwab_positions, detect_sweeps
