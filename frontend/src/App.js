@@ -32,6 +32,7 @@ import { PositionSizing } from "./components/PositionSizing";
 import { TradeEntry } from "./components/TradeEntry";
 import { TradeJournal } from "./components/TradeJournal";
 import { DashboardSummary } from "./components/DashboardSummary";
+import { TradeAnalytics } from "./components/TradeAnalytics";
 import { SocialFlowPanel } from "./components/SocialFlowPanel";
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
@@ -645,6 +646,7 @@ export default function App() {
               <CharmIntegralPanel data={advanced} />
               <MultiTimeframeGEXPanel ticker={ticker} />
               <AlertsPanel ticker={ticker} />
+              <TradeAnalytics ticker={ticker} />
               <UOAPanel ticker={ticker} />
               {page === "heatseeker" && <FlowTicker ticker={ticker} />}
               <UsagePanel />
