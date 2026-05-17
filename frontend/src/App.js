@@ -30,6 +30,7 @@ import { ShortcutsModal } from "./components/ShortcutsModal";
 import { MorningBriefing } from "./components/MorningBriefing";
 import { PositionSizing } from "./components/PositionSizing";
 import { TradeEntry } from "./components/TradeEntry";
+import { TradeJournal } from "./components/TradeJournal";
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
@@ -407,6 +408,7 @@ export default function App() {
             <button onClick={() => setPage("trinity")} className={`btn ${page === "trinity" ? "active" : ""}`}>Trinity</button>
             <button onClick={() => setPage("heatseeker")} className={`btn ${page === "heatseeker" ? "active" : ""}`}>Heatseeker</button>
             <button onClick={() => setPage("portfolio")} className={`btn ${page === "portfolio" ? "active" : ""}`}>Portfolio</button>
+            <button onClick={() => setPage("journal")} className={`btn ${page === "journal" ? "active" : ""}`}>Journal</button>
           </div>
         </div>
         <div className="flex items-center gap-3">
@@ -646,6 +648,11 @@ export default function App() {
       {/* Portfolio View */}
       {page === "portfolio" && (
         <PortfolioPanel ticker={ticker} spot={livespot?.spot ?? data?.spot} />
+      )}
+
+      {/* Trade Journal */}
+      {page === "journal" && (
+        <TradeJournal ticker={ticker} />
       )}
 
       {/* Drilldown Modal */}
