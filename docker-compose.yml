@@ -1,43 +1,55 @@
+# Docker Compose for local development
+# Usage: docker-compose up -d
+
 version: "3.8"
 
 services:
-  mongo:
-    image: mongo:7
-    restart: unless-stopped
-    # NOTE: No auth enabled for local dev. For production, use MongoDB Atlas
-    # or enable auth with --auth flag and MONGO_INITDB_ROOT_USERNAME/PASSWORD
-    expose:
-      - "27017"
-    volumes:
-      - mongo_data:/data/db
-
   backend:
     build:
       context: .
       dockerfile: Dockerfile.backend
-    restart: unless-stopped
     ports:
       - "8000:8000"
     environment:
       - MONGO_URL=mongodb://mongo:27017
       - DB_NAME=confluence_decoder
+      - DATABENTO_API_KEY=${DATABENTO_API_KEY:-}
+      - POLYGON_API_KEY=${POLYGON_API_KEY:-}
+      - ALPHA_VANTAGE_KEY=${ALPHA_VANTAGE_KEY:-}
+      - FINNHUB_API_KEY=${FINNHUB_API_KEY:-}
+      - GEMINI_API_KEY=${GEMINI_API_KEY:-}
+      - FLASHALPHA_API_KEY=${FLASHALPHA_API_KEY:-}
+      - MARKETSTACK_API_KEY=${MARKETSTACK_API_KEY:-}
+      - API_SECRET_KEY=${API_SECRET_KEY:-}
+      - CORS_ORIGINS=*
     depends_on:
       - mongo
-    env_file:
-      - .env
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
 
   frontend:
     build:
       context: .
       dockerfile: Dockerfile.frontend
-    restart: unless-stopped
     ports:
-      - "3000:3000"
-    # NOTE: REACT_APP_BACKEND_URL must be set at build time for CRA.
-    # The env var here only affects runtime. For production, build with:
-    # docker build --build-arg REACT_APP_BACKEND_URL=https://your-domain.com -f Dockerfile.frontend .
+      - "3000:80"
+    environment:
+      - REACT_APP_BACKEND_URL=http://localhost:8000
     depends_on:
       - backend
+    restart: unless-stopped
+
+  mongo:
+    image: mongo:7
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo-data:/data/db
+    restart: unless-stopped
 
 volumes:
-  mongo_data:
+  mongo-data:
