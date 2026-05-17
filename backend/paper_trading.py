@@ -10,15 +10,75 @@ All trades are placed in PAPER mode only.
 """
 
 import logging
-from typing import Dict, Any, List, Optional
+import hashlib
+from typing import Dict, Any, List, Optional, Union
 from datetime import datetime, timezone
+from pydantic import BaseModel
 
 logger = logging.getLogger(__name__)
 
 # Trading configuration
-MAX_POSITION_SIZE = 1  # Max contracts per trade
-DEFAULT_STRATEGY = "iron_condible"
+MAX_POSITION_SIZE = 1
+DEFAULT_STRATEGY = "iron_condor"  # Fixed typo: was "iron_condible"
 ENABLED_SIGNALS = {"GAMMA_FLIP", "GAMMA_SQUEEZE", "WALL_BREACH"}
+
+
+# ─── Strategy Union ───
+
+class IronCondor(BaseModel):
+    type: str = "iron_condor"
+    call_strike_high: float
+    call_strike_low: float
+    put_strike_high: float
+    put_strike_low: float
+    expiry: str
+    qty: int = 1
+
+class Straddle(BaseModel):
+    type: str = "straddle"
+    strike: float
+    expiry: str
+    qty: int = 1
+
+class Strangle(BaseModel):
+    type: str = "strangle"
+    call_strike: float
+    put_strike: float
+    expiry: str
+    qty: int = 1
+
+class VerticalSpread(BaseModel):
+    type: str = "vertical"
+    side: str  # "call" or "put"
+    buy_strike: float
+    sell_strike: float
+    expiry: str
+    qty: int = 1
+
+class CalendarSpread(BaseModel):
+    type: str = "calendar"
+    side: str
+    strike: float
+    near_expiry: str
+    far_expiry: str
+    qty: int = 1
+
+class SingleLeg(BaseModel):
+    type: str = "single_leg"
+    option_type: str
+    strike: float
+    expiry: str
+    side: str  # "buy" or "sell"
+    qty: int = 1
+
+Strategy = Union[IronCondor, Straddle, Strangle, VerticalSpread, CalendarSpread, SingleLeg]
+
+
+def generate_client_order_id(intent: Dict[str, Any], session_salt: str = "") -> str:
+    """Generate deterministic client order ID. Same intent + salt = same ID."""
+    import json
+    content = json.dumps(intent, sort_keys=True) + session_salt
+    return hashlib.sha256(content.encode()).hexdigest()[:16]
 
 
 def get_alpaca_client():
