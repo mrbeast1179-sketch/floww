@@ -21,6 +21,7 @@ import logging
 import asyncio
 import math
 import time
+from collections import deque
 import httpx
 import yfinance as yf
 import pandas as pd
@@ -74,28 +75,43 @@ api = APIRouter(prefix="/api")
 # ----------------------------- Rate Limiting -----------------------------
 from collections import defaultdict
 
-_rate_limits: dict = defaultdict(list)  # ip -> [timestamp, ...]
+_rate_limits: dict = defaultdict(deque)  # ip -> deque[timestamp]
 
 RATE_LIMIT = int(os.environ.get("RATE_LIMIT_PER_MINUTE", "60"))  # requests per minute
 
 @app.middleware("http")
 async def rate_limit_middleware(request: Request, call_next):
-    """Simple in-memory rate limiter: RATE_LIMIT requests per minute per IP."""
+    """Rate limiter: RATE_LIMIT requests per minute per IP with sliding window.
+    Uses a deque for O(1) cleanup and proper sliding window semantics."""
     client_ip = request.client.host if request.client else "unknown"
     now = time.time()
     window = 60.0  # 1 minute
-
-    # Clean old entries
-    _rate_limits[client_ip] = [t for t in _rate_limits[client_ip] if now - t < window]
-
-    if len(_rate_limits[client_ip]) >= RATE_LIMIT:
-        log.warning(f"Rate limit exceeded for {client_ip}")
+    
+    if client_ip not in _rate_limits:
+        _rate_limits[client_ip] = deque()
+    
+    # Remove entries outside the sliding window
+    dq = _rate_limits[client_ip]
+    while dq and now - dq[0] >= window:
+        dq.popleft()
+    
+    if len(dq) >= RATE_LIMIT:
+        retry_after = int(window - (now - dq[0])) + 1
+        log.warning(f"Rate limit exceeded for {client_ip} ({len(dq)}/{RATE_LIMIT})")
         return JSONResponse(
             status_code=429,
-            content={"error": "Rate limit exceeded", "retry_after": int(window - (now - _rate_limits[client_ip][0]))},
+            content={"error": "Rate limit exceeded", "retry_after": retry_after},
+            headers={"Retry-After": str(retry_after)},
         )
-
-    _rate_limits[client_ip].append(now)
+    
+    dq.append(now)
+    
+    # Periodically clean empty IPs to prevent memory leak
+    if len(_rate_limits) > 10000:
+        empty_ips = [ip for ip, dq in _rate_limits.items() if not dq]
+        for ip in empty_ips:
+            del _rate_limits[ip]
+    
     response = await call_next(request)
     return response
 
@@ -1459,6 +1475,21 @@ async def health_root():
 
 # ----------------------------- API Endpoints ------------------------------
 
+# Cache import (lazy — only loaded when Redis is available)
+from functools import wraps as _wraps
+_cache_available = False
+try:
+    from cache import cache_response
+    _cache_available = True
+except ImportError:
+    def cache_response(ttl=60, key_prefix="api"):
+        def decorator(func):
+            @_wraps(func)
+            async def wrapper(*args, **kwargs):
+                return await func(*args, **kwargs)
+            return wrapper
+        return decorator
+
 @api.get("/")
 async def root():
     return {"app": "confluence-decoder", "version": "2.0", "ts": datetime.now(timezone.utc).isoformat()}
@@ -1498,6 +1529,7 @@ async def list_tickers():
 
 
 @api.get("/heatmap/{ticker}")
+@cache_response(ttl=60, key_prefix="heatmap")
 async def heatmap(ticker: str, expiries: int = Query(4, ge=1, le=12), taps: bool = True, mode: str = Query("day", pattern="^(day|swing|scalp)$"), dte: Optional[int] = Query(None, ge=0, le=30, description="DTE filter: 0=today only, 1=today+tomorrow, 7=within week, None=all"), scalp: bool = Query(False, description="Scalp mode: 0DTE only, volume-weighted GEX, ±2% band")):
     t = ticker.strip().upper()
     if t == "SPX":
@@ -1506,6 +1538,7 @@ async def heatmap(ticker: str, expiries: int = Query(4, ge=1, le=12), taps: bool
 
 
 @api.get("/trinity")
+@cache_response(ttl=60, key_prefix="trinity")
 async def trinity(tickers: str = Query(",".join(TRINITY)), mode: str = Query("day", pattern="^(day|swing)$"), dte: Optional[int] = Query(None, ge=0, le=30)):
     syms = [t.strip() for t in tickers.split(",") if t.strip()]
     out: Dict[str, Any] = {}
@@ -1614,6 +1647,7 @@ async def charm_integral_endpoint(ticker: str, expiries: int = Query(4, ge=1, le
 
 
 @api.get("/advanced/{ticker}")
+@cache_response(ttl=120, key_prefix="advanced")
 async def advanced_analytics(ticker: str, expiries: int = Query(4, ge=1, le=12)):
     """Combined advanced analytics: PDF, regime, impulse, pressure, charm."""
     t = ticker.strip().upper()
@@ -2153,6 +2187,7 @@ async def _scheduler_loop():
 
 
 @api.get("/spot/{ticker}")
+@cache_response(ttl=10, key_prefix="spot")
 async def quick_spot(ticker: str):
     """Cheap, fast spot price via yfinance. Free. Use for live GEX recompute (γ depends on S)."""
     SPOT_TTL = 5
