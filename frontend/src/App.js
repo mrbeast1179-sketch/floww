@@ -357,7 +357,11 @@ export default function App() {
   // Keyboard shortcuts
   useEffect(() => {
     const handler = (e) => {
+      // Don't fire shortcuts when typing in inputs
       if (e.target.tagName === "INPUT" || e.target.tagName === "SELECT" || e.target.tagName === "TEXTAREA") return;
+      // Don't fire on modifier combinations (Cmd+S, Cmd+D, etc.)
+      if (e.metaKey || e.ctrlKey) return;
+      
       switch (e.key) {
         case "1": setPage("trinity"); break;
         case "2": setPage("heatseeker"); break;

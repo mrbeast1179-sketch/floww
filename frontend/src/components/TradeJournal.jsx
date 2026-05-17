@@ -32,9 +32,14 @@ export function TradeJournal({ ticker }) {
     } catch {}
   }, []);
 
-  // Save trades to localStorage
+  // Save trades to localStorage (skip initial empty state)
+  const loadedRef = useRef(false);
   useEffect(() => {
-    localStorage.setItem("floww_trades", JSON.stringify(trades));
+    if (loadedRef.current) {
+      localStorage.setItem("floww_trades", JSON.stringify(trades));
+    } else if (trades.length > 0) {
+      loadedRef.current = true;
+    }
   }, [trades]);
 
   const handleAdd = () => {

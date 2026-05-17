@@ -13,6 +13,8 @@ export default function FlowTicker({ ticker }) {
   const [stats, setStats] = useState({ totalNotional: 0, sweepCount: 0, blockCount: 0, unusualCount: 0, msgCount: 0 });
   const [filter, setFilter] = useState("all"); // all | sweeps | blocks | unusual
   const [paused, setPaused] = useState(false);
+  const pausedRef = useRef(paused);
+  useEffect(() => { pausedRef.current = paused; }, [paused]);
   const esRef = useRef(null);
   const tradesRef = useRef([]);
   const maxTrades = 200;
@@ -32,7 +34,7 @@ export default function FlowTicker({ ticker }) {
     es.onopen = () => setStatus("live");
 
     es.onmessage = (e) => {
-      if (paused) return;
+      if (pausedRef.current) return;
       try {
         const trade = JSON.parse(e.data);
         addTrade(trade);
@@ -79,16 +81,33 @@ export default function FlowTicker({ ticker }) {
     };
   }, [ticker, paused]);
 
+  const rafRef = useRef(null);
+  const pendingTradesRef = useRef([]);
+
   const addTrade = (trade) => {
-    tradesRef.current = [trade, ...tradesRef.current].slice(0, maxTrades);
-    setTrades([...tradesRef.current]);
-    setStats((s) => ({
-      totalNotional: s.totalNotional + (trade.notional || 0),
-      sweepCount: s.sweepCount + (trade.sweep ? 1 : 0),
-      blockCount: s.blockCount + (trade.block ? 1 : 0),
-      unusualCount: s.unusualCount + (trade.unusual ? 1 : 0),
-      msgCount: s.msgCount + 1,
-    }));
+    pendingTradesRef.current.push(trade);
+    // Batch updates with rAF to avoid re-render on every SSE message
+    if (!rafRef.current) {
+      rafRef.current = requestAnimationFrame(() => {
+        const pending = pendingTradesRef.current;
+        pendingTradesRef.current = [];
+        rafRef.current = null;
+        tradesRef.current = [...pending.reverse(), ...tradesRef.current].slice(0, maxTrades);
+        setTrades([...tradesRef.current]);
+        // Aggregate stats from pending batch
+        setStats((s) => {
+          let totalNotional = s.totalNotional, sweepCount = s.sweepCount, blockCount = s.blockCount, unusualCount = s.unusualCount, msgCount = s.msgCount;
+          for (const t of pending) {
+            totalNotional += t.notional || 0;
+            if (t.sweep) sweepCount++;
+            if (t.block) blockCount++;
+            if (t.unusual) unusualCount++;
+            msgCount++;
+          }
+          return { totalNotional, sweepCount, blockCount, unusualCount, msgCount };
+        });
+      });
+    }
   };
 
   const disconnect = () => {
