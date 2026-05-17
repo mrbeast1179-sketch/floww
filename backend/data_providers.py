@@ -90,14 +90,17 @@ class FinnhubProvider(FreeDataProvider):
             return None
         data = await self._finnhub_get("/quote", {"symbol": ticker})
         if data and data.get("c", 0) > 0:
+            prev_close = data.get("pc", 0) or 0
+            change = data["c"] - prev_close
+            change_pct = round(change / prev_close * 100, 2) if prev_close != 0 else 0
             return {
                 "price": data["c"],
                 "open": data.get("o", 0),
                 "high": data.get("h", 0),
                 "low": data.get("l", 0),
-                "prev_close": data.get("pc", 0),
-                "change": data["c"] - data.get("pc", 0),
-                "change_pct": round((data["c"] - data.get("pc", 0)) / data.get("pc", 0) * 100, 2) if data.get("pc", 0) > 0 else 0,
+                "prev_close": prev_close,
+                "change": change,
+                "change_pct": change_pct,
                 "source": "finnhub",
             }
         return None
@@ -211,7 +214,9 @@ class AlphaVantageProvider(FreeDataProvider):
             # Get latest value
             tech_key = f"Technical Analysis: {function}"
             if tech_key in data:
-                latest_date = sorted(data[tech_key].keys())[-1]
+                # Sort by parsed date to handle both daily and intraday formats
+                dates = sorted(data[tech_key].keys(), key=lambda d: datetime.strptime(d[:10], "%Y-%m-%d"))
+                latest_date = dates[-1]
                 values = data[tech_key][latest_date]
                 return {
                     "indicator": indicator,

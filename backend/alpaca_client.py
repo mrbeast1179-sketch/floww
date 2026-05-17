@@ -29,10 +29,24 @@ class AlpacaClient:
     """Alpaca paper trading client."""
     
     def __init__(self):
-        self.enabled = bool(ALPACA_API_KEY and ALPACA_SECRET_KEY)
-        self.headers = {
-            "APCA-API-KEY-ID": ALPACA_API_KEY,
-            "APCA-API-SECRET-KEY": ALPACA_SECRET_KEY,
+        self._load_keys()
+    
+    def _load_keys(self):
+        """Load keys from environment at call time (not import time)."""
+        self._api_key = os.environ.get("ALPACA_API_KEY", "")
+        self._secret_key = os.environ.get("ALPACA_SECRET_KEY", "")
+    
+    @property
+    def enabled(self):
+        self._load_keys()
+        return bool(self._api_key and self._secret_key)
+    
+    @property
+    def headers(self):
+        self._load_keys()
+        return {
+            "APCA-API-KEY-ID": self._api_key,
+            "APCA-API-SECRET-KEY": self._secret_key,
         }
     
     async def _get(self, url: str, params: dict = None) -> Optional[Any]:
@@ -59,8 +73,13 @@ class AlpacaClient:
             async with aiohttp.ClientSession() as session:
                 async with session.post(url, headers=self.headers, json=data or {},
                                         timeout=aiohttp.ClientTimeout(total=10)) as resp:
-                    if resp.status in (200, 201, 207):
+                    if resp.status in (200, 201):
                         return await resp.json()
+                    elif resp.status == 207:
+                        # Partial success — some orders filled, some failed
+                        result = await resp.json()
+                        logger.warning(f"Alpaca partial success (207): {result}")
+                        return result
                     else:
                         text = await resp.text()
                         logger.warning(f"Alpaca API error {resp.status}: {text[:200]}")
@@ -110,7 +129,7 @@ class AlpacaClient:
         if data and isinstance(data, list):
             return [{
                 "symbol": p.get("symbol", ""),
-                "qty": int(p.get("qty", 0)),
+                "qty": int(float(p.get("qty", 0))),
                 "side": p.get("side", ""),
                 "avg_entry_price": float(p.get("avg_entry_price", 0)),
                 "current_price": float(p.get("current_price", 0)),
@@ -214,12 +233,15 @@ class AlpacaClient:
             }
         return None
     
-    async def get_bars(self, symbol: str, timeframe: str = "1Day", limit: int = 100) -> List[dict]:
+    async def get_bars(self, symbol: str, timeframe: str = "1Day", limit: int = 100,
+                        start: Optional[str] = None, end: Optional[str] = None) -> List[dict]:
         """Get price bars."""
-        data = await self._get(f"{ALPACA_DATA_URL}/v2/stocks/{symbol.upper()}/bars", {
-            "timeframe": timeframe,
-            "limit": limit,
-        })
+        params = {"timeframe": timeframe, "limit": limit}
+        if start:
+            params["start"] = start
+        if end:
+            params["end"] = end
+        data = await self._get(f"{ALPACA_DATA_URL}/v2/stocks/{symbol.upper()}/bars", params)
         if data and data.get("bars"):
             return [{
                 "timestamp": b.get("t", ""),

@@ -34,12 +34,16 @@ class FlashAlphaClient:
     """Client for the FlashAlpha options analytics API."""
     
     def __init__(self):
-        self.enabled = bool(FLASHALPHA_API_KEY)
         self.base_url = FLASHALPHA_BASE_URL
-        self._headers = {
-            "X-Api-Key": FLASHALPHA_API_KEY,
-            "Content-Type": "application/json",
-        }
+    
+    @property
+    def enabled(self):
+        return bool(os.environ.get("FLASHALPHA_API_KEY", ""))
+    
+    @property
+    def _headers(self):
+        key = os.environ.get("FLASHALPHA_API_KEY", "")
+        return {"X-Api-Key": key, "Content-Type": "application/json"} if key else {}
     
     async def _get(self, path: str, params: dict = None) -> Optional[dict]:
         if not self.enabled:

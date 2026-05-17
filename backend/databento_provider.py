@@ -20,13 +20,13 @@ DBN_KEY = os.environ.get("DATABENTO_API_KEY", "")
 _hist_client: Optional[db.Historical] = None
 
 
-def _get_client() -> db.Historical:
+def _get_client() -> Optional[db.Historical]:
     global _hist_client, DBN_KEY
-    # Re-read env in case .env loaded after module import
-    key = os.environ.get("DATABENTO_API_KEY", DBN_KEY)
-    if _hist_client is None or not DBN_KEY:
+    # Re-read env in case .env loaded after module import or key rotated
+    key = os.environ.get("DATABENTO_API_KEY", "")
+    if _hist_client is None or key != DBN_KEY:
         DBN_KEY = key
-        _hist_client = db.Historical(key)
+        _hist_client = db.Historical(key) if key else None
     return _hist_client
 
 
@@ -82,6 +82,9 @@ def _last_trading_day_utc(now: Optional[datetime] = None) -> date_cls:
 def _fetch_oi_sync(parent: str, day: date_cls) -> Dict[str, Any]:
     """Blocking Databento fetch. Returns {raw_symbol: {strike, expiry, type, oi}}."""
     client = _get_client()
+    if not client:
+        log.warning("Databento client not initialized — missing DATABENTO_API_KEY")
+        return {}
     # Tight pre-market window where EOD OI is published
     start = f"{day.isoformat()}T10:00:00"
     end = f"{day.isoformat()}T13:30:00"
@@ -105,8 +108,8 @@ def _fetch_oi_sync(parent: str, day: date_cls) -> Dict[str, Any]:
     df = df[df["stat_type"] == 9]
     if df.empty:
         return {}
-    # latest per symbol
-    df = df.groupby("symbol").last().reset_index()
+    # latest per symbol — sort by timestamp first to ensure .last() picks the newest
+    df = df.sort_values("ts_event").groupby("symbol").last().reset_index()
 
     out: Dict[str, Dict[str, Any]] = {}
     for sym, qty in zip(df["symbol"], df["quantity"]):

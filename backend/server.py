@@ -1798,6 +1798,8 @@ def _get_position_sizing_note(gf: Dict, spot: float) -> str:
             return "Deep negative gamma — reduce position size, moves can be violent. Max 0.5% account risk per trade."
         return "Negative gamma — reduce position size vs normal. Max 1% account risk per trade."
     return "Unknown regime — use minimal position size until regime clarifies."
+
+@api.get("/api/movers")
 async def movers(limit: int = 10):
     rows = await top_movers_polygon(limit=limit)
     return {"results": rows, "asof": datetime.now(timezone.utc).isoformat()}
@@ -2221,7 +2223,10 @@ async def add_position(name: str, req: PositionReq):
 async def remove_position(name: str, index: int):
     """Remove a position by index."""
     if name not in _portfolios:
-        _portfolios[name] = await _load_portfolio_from_mongo(name)
+        loaded = await _load_portfolio_from_mongo(name)
+        if not loaded:
+            raise HTTPException(404, "Portfolio not found")
+        _portfolios[name] = loaded
     if not _portfolios[name]:
         raise HTTPException(404, "Portfolio not found")
     _portfolios[name].remove_position(index)
@@ -2232,10 +2237,11 @@ async def remove_position(name: str, index: int):
 @api.get("/portfolio/{name}")
 async def get_portfolio(name: str, spot: float = Query(...), iv: float = Query(...)):
     """Get portfolio summary with aggregated Greeks and P&L."""
-    if name not in _portfolios:
-        _portfolios[name] = await _load_portfolio_from_mongo(name)
-    if not _portfolios[name]:
-        raise HTTPException(404, "Portfolio not found")
+    if name not in _portfolios or not _portfolios[name]:
+        loaded = await _load_portfolio_from_mongo(name)
+        if not loaded:
+            raise HTTPException(404, "Portfolio not found")
+        _portfolios[name] = loaded
     p = _portfolios[name]
     return {
         "name": name,
@@ -2249,10 +2255,11 @@ async def get_portfolio(name: str, spot: float = Query(...), iv: float = Query(.
 @api.get("/portfolio/{name}/scenario")
 async def portfolio_scenario(name: str, spot: float = Query(...), iv: float = Query(...)):
     """Run scenario analysis on portfolio."""
-    if name not in _portfolios:
-        _portfolios[name] = await _load_portfolio_from_mongo(name)
-    if not _portfolios[name]:
-        raise HTTPException(404, "Portfolio not found")
+    if name not in _portfolios or not _portfolios[name]:
+        loaded = await _load_portfolio_from_mongo(name)
+        if not loaded:
+            raise HTTPException(404, "Portfolio not found")
+        _portfolios[name] = loaded
     p = _portfolios[name]
     scenarios = p.scenario_analysis(spot, iv)
     return {"scenarios": scenarios}
@@ -2261,10 +2268,11 @@ async def portfolio_scenario(name: str, spot: float = Query(...), iv: float = Qu
 @api.post("/portfolio/{name}/hedge")
 async def portfolio_hedge(name: str, req: HedgeReq):
     """Calculate Greek-neutral hedge for portfolio."""
-    if name not in _portfolios:
-        _portfolios[name] = await _load_portfolio_from_mongo(name)
-    if not _portfolios[name]:
-        raise HTTPException(404, "Portfolio not found")
+    if name not in _portfolios or not _portfolios[name]:
+        loaded = await _load_portfolio_from_mongo(name)
+        if not loaded:
+            raise HTTPException(404, "Portfolio not found")
+        _portfolios[name] = loaded
     p = _portfolios[name]
     hedge = p.greek_neutral_hedge(req.spot, req.iv, req.hedge_options)
     return hedge
@@ -2870,15 +2878,15 @@ async def websocket_gex(websocket: WebSocket, ticker: str):
         pass
 
 
-app.include_router(api)
-
 app.add_middleware(
     CORSMiddleware,
-    allow_credentials=True,
+    allow_credentials=False,
     allow_origins=os.environ.get("CORS_ORIGINS", "*").split(","),
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+app.include_router(api)
 
 
 @app.on_event("startup")
