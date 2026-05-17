@@ -2562,6 +2562,42 @@ async def api_predict_price(ticker: str):
     return result
 
 
+@api.post("/api/ml/train-advanced/{ticker}")
+async def api_train_advanced(ticker: str):
+    """Train model with walk-forward cross-validation."""
+    from ml_advanced import train_with_walkforward_cv
+    result = await train_with_walkforward_cv(ticker)
+    return result
+
+
+@api.get("/api/ml/model-info/{ticker}")
+async def api_model_info(ticker: str):
+    """Get model information and performance metrics."""
+    import joblib
+    import os
+    
+    model_dir = os.path.join(os.path.dirname(__file__), "..", "models")
+    model_path = os.path.join(model_dir, f"price_model_{ticker}.joblib")
+    
+    if not os.path.exists(model_path):
+        return {"status": "no_model", "ticker": ticker}
+    
+    model = joblib.load(model_path)
+    
+    return {
+        "status": "ok",
+        "ticker": ticker,
+        "model_type": type(model).__name__,
+        "n_estimators": getattr(model, "n_estimators", None),
+        "max_depth": getattr(model, "max_depth", None),
+        "feature_importances": dict(zip(
+            [f"f{i}" for i in range(len(model.feature_importances_))],
+            [round(f, 4) for f in model.feature_importances_],
+        )),
+        "model_size_mb": round(os.path.getsize(model_path) / 1024 / 1024, 2),
+    }
+
+
 # ============ Quant Analytics ============
 
 from services.analytics import GexSurfaceComputer, HistoricalGexAnalyzer, MultiTickerComparator
