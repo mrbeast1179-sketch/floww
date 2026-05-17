@@ -510,7 +510,7 @@ export default function PortfolioPanel({ ticker, spot }) {
                         <td className="text-right px-2 py-1 text-slate-400">{(p.entry_iv * 100).toFixed(1)}%</td>
                         <td className="text-right px-2 py-1 text-slate-400">{p.underlying_price}</td>
                         <td className="px-2 py-1">
-                          <button onClick={() => removePosition(i)} className="text-rose-400 hover:text-rose-300 text-[10px]">✕</button>
+                          <button onClick={() => removePosition(i)} className="text-rose-400 hover:text-rose-300 text-[10px]" aria-label={`Remove position ${i}`}>✕</button>
                         </td>
                       </tr>
                     ))}

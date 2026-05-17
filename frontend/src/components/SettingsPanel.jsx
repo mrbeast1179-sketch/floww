@@ -15,7 +15,7 @@ function saveSettings(s) {
 }
 
 export function getSettings() {
-  return { refreshMs: 25000, defaultTicker: "SPY", theme: "dark", ...loadSettings() };
+  return { refreshMs: 25000, defaultTicker: "SPY", theme: "dark", colorBlindMode: false, ...loadSettings() };
 }
 
 export function SettingsPanel({ refreshMs, onRefreshMsChange, defaultTicker, onDefaultTickerChange }) {
@@ -74,7 +74,19 @@ export function SettingsPanel({ refreshMs, onRefreshMsChange, defaultTicker, onD
                 <button key={t} className="btn flex-1 text-[9px] active">{t}</button>
               ))}
             </div>
-            <div className="text-[8px] text-slate-600 mt-0.5">More themes coming soon</div>
+          <div>
+            <div className="label mb-0.5">Accessibility</div>
+            <div className="flex gap-1">
+              <button
+                onClick={() => saveSettings({ ...s, colorBlindMode: !s.colorBlindMode })}
+                className={`btn flex-1 text-[9px] ${s.colorBlindMode ? "active" : ""}`}
+                aria-label={s.colorBlindMode ? "Disable color-blind mode" : "Enable color-blind mode"}
+                title="Use patterns instead of colors for regime indicators"
+              >
+                {s.colorBlindMode ? "👁️ Color-Blind ON" : "👁️ Color-Blind OFF"}
+              </button>
+            </div>
+            <div className="text-[8px] text-slate-600 mt-0.5">Patterns instead of colors</div>
           </div>
         </div>
       )}

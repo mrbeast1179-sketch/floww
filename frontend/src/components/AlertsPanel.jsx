@@ -107,7 +107,7 @@ export default function AlertsPanel({ ticker }) {
                       {r.trigger_count > 0 && <span className="ml-1 text-amber-400">({r.trigger_count}x)</span>}
                     </div>
                   </div>
-                  <button onClick={() => deleteRule(r.id)} className="text-slate-600 hover:text-rose-400 text-[10px]">✕</button>
+                  <button onClick={() => deleteRule(r.id)} className="text-slate-600 hover:text-rose-400 text-[10px]" aria-label={`Delete alert rule ${r.id}`}>✕</button>
                 </div>
               ))}
             </div>
