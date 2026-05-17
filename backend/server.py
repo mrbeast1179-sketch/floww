@@ -2387,6 +2387,62 @@ async def position_size(
     return calc_position_size(account_size, risk_per_trade_pct, spot, gex_level)
 
 
+# ============ Paper Trading Automation ============
+
+from paper_trading import process_signals_for_ticker, execute_paper_trade, build_order_from_signal
+
+
+@api.post("/api/paper-trading/execute")
+async def api_execute_paper_trade(
+    ticker: str = Query(...),
+    strategy: str = Query("iron_condor"),
+    qty: int = Query(1, ge=1, le=10),
+):
+    """Execute a paper trade manually."""
+    order = {"strategy": strategy, "ticker": ticker, "spot": 0}
+    result = await execute_paper_trade(order, qty)
+    return result
+
+
+@api.post("/api/paper-trading/signals")
+async def api_process_signals(
+    ticker: str = Query(...),
+    auto_trade: bool = Query(False),
+):
+    """Process trading signals for a ticker and optionally auto-trade."""
+    from alert_engine import AlertEngine
+    engine = AlertEngine()
+    signals = engine.detect_alerts(ticker)
+    signal_dicts = [s.to_dict() for s in signals]
+    results = await process_signals_for_ticker(ticker, signal_dicts, auto_trade)
+    return {
+        "ticker": ticker,
+        "signals_found": len(signals),
+        "actions": results,
+        "auto_trade": auto_trade,
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+    }
+
+
+@api.get("/api/paper-trading/status")
+async def api_paper_trading_status():
+    """Get paper trading account status."""
+    from alpaca_client import AlpacaClient
+    client = AlpacaClient()
+    if not client.enabled:
+        return {"enabled": False, "message": "Alpaca not configured"}
+    account = await client.get_account()
+    positions = await client.get_positions()
+    orders = await client.get_orders()
+    return {
+        "enabled": True,
+        "account": account,
+        "open_positions": len(positions),
+        "open_orders": len(orders),
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+    }
+
+
 # ============ Schwab API Integration ============
 
 from schwab import SchwabTokenManager, SchwabClient, import_schwab_positions, detect_sweeps
