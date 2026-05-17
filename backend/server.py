@@ -2443,6 +2443,34 @@ async def api_paper_trading_status():
     }
 
 
+# ============ Morning Briefing Email ============
+
+from morning_briefing import send_briefing_email, generate_briefing_data, format_briefing_email
+
+
+@api.get("/api/briefing/{ticker}")
+async def api_get_briefing(ticker: str):
+    """Get morning briefing data (JSON)."""
+    data = generate_briefing_data(ticker)
+    return data
+
+
+@api.get("/api/briefing/{ticker}/html")
+async def api_get_briefing_html(ticker: str):
+    """Get morning briefing as HTML (for email preview)."""
+    data = generate_briefing_data(ticker)
+    html = format_briefing_email(data)
+    from fastapi.responses import HTMLResponse
+    return HTMLResponse(content=html)
+
+
+@api.post("/api/briefing/{ticker}/send")
+async def api_send_briefing(ticker: str, to_email: str = Query(...)):
+    """Send morning briefing email."""
+    result = await send_briefing_email(to_email, ticker)
+    return result
+
+
 # ============ Schwab API Integration ============
 
 from schwab import SchwabTokenManager, SchwabClient, import_schwab_positions, detect_sweeps
