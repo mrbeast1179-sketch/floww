@@ -1,0 +1,792 @@
+\documentclass[11pt, a4paper]{article}
+
+% Packages
+\usepackage[margin=1.75in]{geometry}
+\usepackage{parskip}
+\usepackage{titlesec}
+\usepackage{fancyhdr}
+\usepackage{amsmath, amsthm, amssymb}
+\usepackage{longtable}
+\usepackage{array}
+\usepackage{algorithm}
+\usepackage{algpseudocode}
+\usepackage[table]{xcolor}
+
+% Header and Footer
+\pagestyle{fancy}
+\fancyhf{}
+\renewcommand{\headrulewidth}{0pt}
+\fancyfoot[C]{\thepage}
+
+% Section Formatting
+\titleformat{\section}{\normalfont\Large\bfseries}{\thesection}{1em}{}
+\titleformat{\subsection}{\normalfont\large\bfseries}{\thesubsection}{1em}{}
+
+% Add hyperref last
+\usepackage[hidelinks]{hyperref}
+
+\title{Introducing \texttt{floe}: Static and Real-time Calculation of Options Pricing, Flows, and Dealer Gamma, Vanna, and Charm Exposures via Broker Data}
+\author{Full Stack Craft LLC}
+\date{\today}
+
+\begin{document}
+
+\maketitle
+\noindent\textbf{Repository:} \href{https://github.com/FullStackCraft/floe}{https://github.com/FullStackCraft/floe}
+\medskip
+\tableofcontents
+\newpage
+
+\section{Motivation}
+
+In recent years, the interest and involvement of retail traders in global markets has surged, including the use of more complex instruments such as options and futures. For the most part, many brokerages have embraced this secular trend by offering their customers a way to stream real-time data directly on their personal computers. However, the standard interface between each brokerage varies widely, and retail traders are left with challenging documentation and inconsistent APIs to work with. We attempt to alleviate this problem by introducing a zero-dependency, browser-only TypeScript library that can compute a variety of both static and real-time options pricing and flow data, including dealer gamma, vanna, and charm exposures from streaming broker data.
+
+\section{Introducing \texttt{floe}}
+
+We introduce \texttt{floe}: a zero-dependency, browser-only TypeScript library for computing real-time options flow data, including dealer gamma, vanna, and charm exposures that can be derived purely from real-time streamed broker data alone.
+
+The mathematical foundation of \texttt{floe} rests upon the seminal work of Black and Scholes \cite{black1973pricing} and Merton \cite{merton1973theory}, whose option pricing framework enables the computation of the Greeks used throughout this paper.
+
+\section{Paper Structure}
+
+The remainder of this paper is divided into two broad sections: the first and main focus of this paper, Section~\ref{sec:realtime-dealer-exposure-calculations} describes our process of calculating in real-time both a smoothed implied volatility surface, the live open interest, and the dealer exposures derived from it. All following sections detail the variety of other options related pricing and analytics that \texttt{floe} can compute.
+
+\section{Real-time Dealer Exposure Calculations}
+\label{sec:realtime-dealer-exposure-calculations}
+
+The real-time dealer exposure calculation consists of two phases: an initialization phase that captures open interest at market open ($t=0$), and a continuous update phase that recalculates exposures as new spot prices and option quotes arrive. These calculations can be done over a unified interface regardless of the given broker or data source.
+
+\subsection{Initialization Phase: Capturing Open Interest}
+
+At or before market open, we fetch the complete option chain $\mathcal{O}$ for the underlying symbol. Each option $o \in \mathcal{O}$ contains:
+
+\begin{align*}
+o = \langle K, T, \phi, \text{bid}, \text{ask}, \text{OI}_0 \rangle
+\end{align*}
+
+Where:
+\begin{itemize}
+    \item $K$ = strike price
+    \item $T$ = expiration timestamp (milliseconds)
+    \item $\phi \in \{\text{call}, \text{put}\}$ = option type
+    \item $\text{bid}, \text{ask}$ = current bid/ask prices
+    \item $\text{OI}_0$ = open interest at $t=0$
+\end{itemize}
+
+The market context includes the current spot price $S_0$, risk-free rate $r$, and dividend yield $q$.
+
+\subsection{Implied Volatility Surface Construction}
+
+Before calculating the actual dealer exposures, we first need to construct a smooth implied volatility (IV) surface for each expiration $T$. These per-strike IVs later have a direct affect on the vanna exposure calculation, but also through the gamma and charm calculations themselves via the greeks formulas.
+
+For each option with observed market price $P_{\text{mkt}}$, we solve for $\sigma_{\text{IV}}$:
+
+\begin{align}
+\text{BS}(S, K, \tau, \sigma_{\text{IV}}, r, q, \phi) = P_{\text{mkt}}
+\end{align}
+
+Using bisection search with bounds $\sigma \in [0.0001, 5.0]$ (0.01\% to 500\% volatility).
+
+\subsection{Total Variance Smoothing}
+
+To ensure arbitrage-free and smooth IV surfaces, we apply total variance smoothing:
+
+\begin{enumerate}
+    \item Convert IV to total variance: $w(K) = \sigma^2 \tau$
+    \item Apply cubic spline interpolation to $w(K)$
+    \item Enforce convexity via convex hull projection
+    \item Convert back to IV: $\sigma_{\text{smooth}}(K) = \sqrt{w(K)/\tau}$
+\end{enumerate}
+
+The convexity constraint ensures no calendar spread arbitrage exists in the surface.
+
+\subsection{Dealer Position Assumption}
+
+We assume dealers are net short options (standard market-maker hedging assumption):
+\begin{itemize}
+    \item \textbf{Short calls}: Dealers sold calls to retail buyers
+    \item \textbf{Long puts}: Dealers bought puts from retail sellers (equivalently, short put exposure is negative)
+\end{itemize}
+
+\subsection{Calculate Greeks for Each Option}
+
+For each option $o$ with strike $K$, expiration $T$, and smoothed IV $\sigma_{\text{IV}}(K)$, we compute the following Greeks using the Black-Scholes-Merton formulas (see Section~\ref{sec:black-scholes-greeks-calculation}).
+
+We now have all necessary components to compute dealer exposures.
+
+\subsection{Exposure Formulas}
+
+For each strike $K$ with call open interest $\text{OI}_C$ and put open interest $\text{OI}_P$:
+
+\textbf{Gamma Exposure (GEX)}:
+\begin{align}
+\text{GEX}_K = \left(-\text{OI}_C \cdot \Gamma_C + \text{OI}_P \cdot \Gamma_P\right) \cdot (S \cdot 100) \cdot S \cdot 0.01
+\end{align}
+
+Because the share multiplier and 1\% move resolve to unity, this simplifies to:
+\begin{align}
+\text{GEX}_K = \left(-\text{OI}_C \cdot \Gamma_C + \text{OI}_P \cdot \Gamma_P\right) \cdot S^2
+\end{align}
+
+Where $\Gamma_C$ and $\Gamma_P$ are the gamma of the call and put contracts at that expiration and strike, respectively.
+
+\textbf{Vanna Exposure (VEX)}:
+\begin{align}
+\text{VEX}_K = \left(-\text{OI}_C \cdot \text{Vanna}_C + \text{OI}_P \cdot \text{Vanna}_P\right) \cdot (S \cdot 100) \cdot \sigma_{\text{IV}} \cdot 0.01
+\end{align}
+
+Reducing constants:
+
+\begin{align}
+\text{VEX}_K = \left(-\text{OI}_C \cdot \text{Vanna}_C + \text{OI}_P \cdot \text{Vanna}_P\right) \cdot S \cdot \sigma_{\text{IV}}
+\end{align}
+
+Where $\text{Vanna}_C$ and $\text{Vanna}_P$ are the vanna of the call and put contracts at that expiration and strike, respectively, and $\sigma_{\text{IV}}$ is the smoothed implied volatility at that strike.
+
+\textbf{Charm Exposure (CEX)}:
+\begin{align}
+\text{CEX}_K = \left(-\text{OI}_C \cdot \text{Charm}_C + \text{OI}_P \cdot \text{Charm}_P\right) \cdot (S \cdot 100) \cdot 365\tau
+\end{align}
+
+The factor of 100 accounts for contract multiplier. The $0.01$ factor normalizes to a 1\% move.
+
+\subsection{Total Exposures}
+
+Sum across all strikes for each expiration:
+\begin{align}
+\text{GEX}_{\text{total}} &= \sum_K \text{GEX}_K \\
+\text{VEX}_{\text{total}} &= \sum_K \text{VEX}_K \\
+\text{CEX}_{\text{total}} &= \sum_K \text{CEX}_K \\
+\text{Net Exposure} &= \text{NEX}_{\text{total}} &= \text{GEX}_{\text{total}} + \text{VEX}_{\text{total}} + \text{CEX}_{\text{total}}
+\end{align}
+
+\subsection{Real-Time Update Process}
+
+The system subscribes to streaming quote data from brokers. On each update event:
+
+\begin{algorithm}
+\caption{Real-Time Exposure Update}
+\begin{algorithmic}[1]
+\State \textbf{Input:} New quote event (spot price $S'$ or option quote)
+\State Update spot price $S \leftarrow S'$
+\State Recalculate IV surface $\Sigma$ for expiration $T$ if option quote received
+\State Update live open interest if trade data available
+\For{each expiration $T$}
+    \For{each strike $K$}
+        \State $\sigma \leftarrow \text{getIVForStrike}(\Sigma, T, K)$
+        \State $\tau \leftarrow (T - \text{now}) / \text{MS\_PER\_YEAR}$
+        \State Compute $\Gamma, \text{Vanna}, \text{Charm}$ using updated $S, \sigma, \tau$
+        \State Compute $\text{GEX}_K, \text{VEX}_K, \text{CEX}_K$
+    \EndFor
+    \State Aggregate total exposures for expiration $T$
+\EndFor
+\State \textbf{Output:} Updated exposure metrics
+\end{algorithmic}
+\end{algorithm}
+
+\subsection{Live Open Interest Tracking}
+
+When intraday trade data is available, we estimate live open interest:
+
+\begin{align}
+\text{OI}_{\text{live}}(t) = \text{OI}_0 + \sum_{i=1}^{n} \delta_i
+\end{align}
+
+Where $\delta_i$ represents the estimated OI change from trade $i$, inferred by comparing trade price to NBBO:
+\begin{itemize}
+    \item Trade at ask $\Rightarrow$ buyer-initiated $\Rightarrow$ potential OI increase
+    \item Trade at bid $\Rightarrow$ seller-initiated $\Rightarrow$ potential OI decrease or close
+\end{itemize}
+
+
+\subsection{Minimum Broker Requirements}
+
+Note for this process to function effectively, brokers must provide a minimum:
+
+\begin{itemize}
+    \item Real-time streaming quotes for underlying and options
+    \item Open interest data before or at market open
+    \item Trade prints with timestamps to estimate live OI changes
+\end{itemize}
+
+\texttt{floe} itself could potentially be used to do the rest of all calculations: IV surface construction, Greeks calculation, exposure aggregation, and real-time updates.
+
+\section{Black-Scholes Greeks Calculation}
+\label{sec:black-scholes-greeks-calculation}
+
+For any option, one can compute Greeks with \texttt{floe} using the Black-Scholes-Merton model with continuous dividend yield \cite{black1973pricing, merton1973theory}.
+
+\subsection{Core Parameters}
+
+Given spot $S$, strike $K$, time to expiry $\tau$ (in years), volatility $\sigma$, risk-free rate $r$, and dividend yield $q$:
+
+\begin{align}
+d_1 &= \frac{\ln(S/K) + (r - q + \sigma^2/2)\tau}{\sigma\sqrt{\tau}} \\
+d_2 &= d_1 - \sigma\sqrt{\tau}
+\end{align}
+
+\subsection{First-Order Greeks}
+
+For a \textbf{call} option:
+\begin{align}
+\Delta_C &= e^{-q\tau} N(d_1) \\
+\Gamma &= \frac{e^{-q\tau} n(d_1)}{S \sigma \sqrt{\tau}} \\
+\Theta_C &= -\frac{S \sigma e^{-q\tau} n(d_1)}{2\sqrt{\tau}} - rKe^{-r\tau}N(d_2) + qSe^{-q\tau}N(d_1) \\
+\mathcal{V} &= S e^{-q\tau} \sqrt{\tau} \cdot n(d_1)
+\end{align}
+
+For a \textbf{put} option:
+\begin{align}
+\Delta_P &= -e^{-q\tau} N(-d_1) \\
+\Theta_P &= -\frac{S \sigma e^{-q\tau} n(d_1)}{2\sqrt{\tau}} + rKe^{-r\tau}N(-d_2) - qSe^{-q\tau}N(-d_1)
+\end{align}
+
+Where $N(\cdot)$ is the cumulative normal distribution and $n(\cdot)$ is the standard normal PDF:
+\begin{align}
+n(x) &= \frac{1}{\sqrt{2\pi}} e^{-x^2/2} \\
+N(x) &\approx 1 - n(x) \cdot t \cdot (a_1 + t(a_2 + t(a_3 + t(a_4 + t \cdot a_5)))) \quad \text{for } x > 0
+\end{align}
+
+using the Abramowitz-Stegun approximation \cite{abramowitz1964handbook} with $t = 1/(1 + 0.2316419|x|)$.
+
+\subsection{Second-Order Greeks}
+
+\begin{align}
+\text{Vanna} &= -e^{-q\tau} n(d_1) \frac{d_2}{\sigma} \\
+\text{Charm}_C &= -q e^{-q\tau} N(d_1) - \frac{e^{-q\tau} n(d_1) \left(2(r-q)\tau - d_2 \sigma \sqrt{\tau}\right)}{2\tau \sigma \sqrt{\tau}} \\
+\end{align}
+
+\section{Implied Probability Distribution}
+
+\texttt{floe} provides functionality to extract the risk-neutral probability distribution implied by option prices, following the Breeden-Litzenberger approach \cite{breeden1978prices}.
+
+\subsection{Theoretical Foundation}
+
+Breeden and Litzenberger demonstrated that the risk-neutral probability density function $f(K)$ of the underlying asset at expiration can be recovered from the second derivative of call option prices with respect to strike:
+
+\begin{align}
+f(K) = e^{r\tau} \frac{\partial^2 C}{\partial K^2}
+\end{align}
+
+where $C(K)$ is the call option price as a function of strike $K$, $r$ is the risk-free rate, and $\tau$ is time to expiration.
+
+\subsection{Numerical Implementation}
+
+In practice, we estimate the second derivative using central finite differences on the mid-prices of observed call options:
+
+\begin{align}
+\frac{\partial^2 C}{\partial K^2} \bigg|_{K_i} \approx \frac{C_{i+1} - 2C_i + C_{i-1}}{(\Delta K)^2}
+\end{align}
+
+where $C_i$ is the mid-price at strike $K_i$ and $\Delta K = K_{i+1} - K_{i-1}$.
+
+The resulting density values are normalized to sum to unity, yielding a proper probability distribution. From this distribution, we compute summary statistics including the mode (most likely price), median, expected value, and expected move (standard deviation).
+
+
+\section{Exposure-Adjusted Implied Probability Distribution}
+\label{sec:exposure-adjusted-pdf}
+
+While the Breeden-Litzenberger approach recovers the market-implied probability distribution under risk-neutral pricing assumptions, this distribution implicitly assumes frictionless markets with continuous hedging and no feedback effects from dealer positioning. In practice, the mechanical realities of dealer hedging create systematic deviations from these idealized conditions. We introduce an exposure-adjusted probability density function that modifies the baseline distribution to account for the mechanical effects of gamma, vanna, and charm exposures.
+
+\subsection{Theoretical Motivation}
+
+Standard option pricing theory posits that asset prices follow:
+
+\begin{align}
+dS_t = \mu S_t \, dt + \sigma S_t \, dW_t
+\end{align}
+
+However, this formulation neglects the endogenous price pressure created by hedging flows. A more complete model incorporates these flows explicitly:
+
+\begin{align}
+S_{t+\Delta t} = S_t + \mathcal{F}(\Gamma, \text{Vanna}, \text{Charm}) + \epsilon_t
+\end{align}
+
+where $\mathcal{F}(\cdot)$ represents the aggregate hedging flow function and $\epsilon_t$ captures residual noise. The exposure-adjusted PDF attempts to capture how $\mathcal{F}$ distorts the probability distribution relative to the market-implied baseline. This approach builds upon empirical findings that option order flow and dealer positioning significantly impact both implied volatility surfaces \cite{bollen2004does} and underlying asset prices \cite{garleanu2009demand, ni2008volatility}.
+
+\subsection{Adjustment Framework}
+
+Let $p_0(K)$ denote the baseline Breeden-Litzenberger probability density at strike $K$. The exposure-adjusted density $p^*(K)$ is defined as:
+
+\begin{align}
+p^*(K) = \frac{p_0(K) \cdot M_\Gamma(K) \cdot M_V(K)}{\int p_0(K') \cdot M_\Gamma(K') \cdot M_V(K') \, dK'}
+\end{align}
+
+where $M_\Gamma(K)$ is the gamma modifier, $M_V(K)$ is the vanna modifier, and the denominator ensures normalization. Charm effects are incorporated as a translation of the distribution mean rather than a multiplicative modifier.
+
+\subsection{Gamma Modifier: Kurtosis Adjustment}
+
+Gamma exposure creates zones of price ``stickiness'' (positive GEX) where dealer counter-trading suppresses volatility, and zones of ``slipperiness'' (negative GEX) where dealer hedging amplifies directional moves.
+
+The gamma modifier at each price level $K$ is computed by aggregating the influence of GEX at all strikes $K_i$:
+
+\begin{align}
+M_\Gamma(K) = \prod_i \left(1 + \alpha_\Gamma \cdot \text{sgn}(\text{GEX}_{K_i}) \cdot \frac{|\text{GEX}_{K_i}|}{\max_j |\text{GEX}_{K_j}|} \cdot \psi(K, K_i)\right)
+\end{align}
+
+where $\alpha_\Gamma \in [0, 1]$ is the adjustment strength parameter and $\psi(K, K_i)$ is a spatial decay function:
+
+\begin{align}
+\psi(K, K_i) = \frac{1}{1 + \lambda \left(\frac{K - K_i}{S}\right)^2}
+\end{align}
+
+with decay rate $\lambda > 0$. This formulation treats GEX concentrations analogously to charges in an electrostatic field, where influence decays with the square of normalized distance---consistent with the ``local hedge pressure field'' concept.
+
+For strikes with substantial positive GEX, the modifier increases probability density (attractor effect), while negative GEX decreases density (repellent effect). The net result is increased kurtosis around major GEX concentrations and reduced probability mass in negative gamma regions.
+
+\subsection{Vanna Modifier: Tail Adjustment}
+
+Vanna measures the sensitivity of delta to implied volatility ($\partial \Delta / \partial \sigma$). In declining markets, implied volatility typically spikes, creating a feedback loop: spot decline $\rightarrow$ IV increase $\rightarrow$ negative vanna forces dealer selling $\rightarrow$ further spot decline.
+
+We model this cascade by estimating the IV response to a hypothetical move to strike $K$:
+
+\begin{align}
+\Delta\sigma(K) = \beta_{S\sigma} \cdot \frac{K - S}{S}
+\end{align}
+
+where $\beta_{S\sigma}$ is the spot-volatility beta (empirically, $\beta_{S\sigma} \approx -2$ to $-4$ for equity indices, reflecting the leverage effect).
+
+The vanna-induced flow for a move to $K < S$ is:
+
+\begin{align}
+\mathcal{F}_V(K) = \text{VEX}_{<S} \cdot \Delta\sigma(K)
+\end{align}
+
+where $\text{VEX}_{<S}$ is the cumulative vanna exposure below current spot. To capture the cascade dynamics, we iterate the feedback process $n$ times with geometric decay:
+
+\begin{align}
+\mathcal{E}_V(K) = \sum_{i=0}^{n-1} |\mathcal{F}_V(K)| \cdot \rho^i
+\end{align}
+
+where $\rho \in (0, 1)$ is the feedback dampening factor (typically $\rho = 0.5$). The vanna modifier is then:
+
+\begin{align}
+M_V(K) = 1 + \min\left(\alpha_V^{\max} - 1, \frac{\mathcal{E}_V(K)}{S \cdot \kappa}\right)
+\end{align}
+
+where $\alpha_V^{\max}$ bounds the maximum tail fattening and $\kappa$ is a normalization constant.
+
+This adjustment systematically fattens the left tail of the distribution when negative vanna exposure is present below spot, reflecting the mechanical reality that downside cascades are more probable than the baseline distribution suggests.
+
+\subsection{Charm Adjustment: Mean Shift}
+
+Charm ($\partial \Delta / \partial t$) represents the deterministic component of delta evolution due to time decay. Net charm exposure translates directly to expected hedging flow over a given time horizon:
+
+\begin{align}
+\mathcal{F}_C = \text{CEX}_{\text{total}} \cdot \tau_H
+\end{align}
+
+where $\tau_H$ is the time horizon multiplier (e.g., $\tau_H = 0.25$ for intraday, $\tau_H = 1$ for daily).
+
+Rather than modifying the probability density shape, charm induces a parallel shift in the distribution mean:
+
+\begin{align}
+\mu^* = \mu_0 + \eta \cdot \frac{\mathcal{F}_C}{S \cdot \xi}
+\end{align}
+
+where $\mu_0$ is the baseline expected value, $\eta$ is the shift scale parameter, and $\xi$ is a flow-to-price-impact conversion factor. This shift is implemented by translating the strike axis of the probability distribution.
+
+\subsection{Summary Statistics}
+
+From the adjusted distribution $p^*(K)$, we recompute the standard summary statistics:
+
+\begin{align}
+\mu^* &= \int K \cdot p^*(K) \, dK \\
+(\sigma^*)^2 &= \int (K - \mu^*)^2 \cdot p^*(K) \, dK \\
+\gamma_1^* &= \frac{1}{(\sigma^*)^3} \int (K - \mu^*)^3 \cdot p^*(K) \, dK \\
+\gamma_2^* &= \frac{1}{(\sigma^*)^4} \int (K - \mu^*)^4 \cdot p^*(K) \, dK - 3
+\end{align}
+
+where $\gamma_1^*$ is skewness and $\gamma_2^*$ is excess kurtosis.
+
+The comparison between baseline and adjusted distributions yields actionable metrics:
+
+\begin{itemize}
+    \item \textbf{Mean shift}: $\Delta\mu = \mu^* - \mu_0$ indicates charm-driven directional bias
+    \item \textbf{Tail ratios}: $p^*(K_{0.05})/p_0(K_{0.05})$ quantifies left tail fattening from vanna
+    \item \textbf{Kurtosis change}: $\Delta\gamma_2 = \gamma_2^* - \gamma_{2,0}$ reflects gamma-induced peakedness
+\end{itemize}
+
+\subsection{Configuration by Market Regime}
+
+The adjustment parameters $(\alpha_\Gamma, \lambda, \beta_{S\sigma}, n, \alpha_V^{\max}, \tau_H, \eta)$ should be calibrated to prevailing market conditions. We identify four canonical regimes:
+
+\begin{center}
+\begin{tabular}{l|ccc}
+\textbf{Regime} & \textbf{Gamma Effect} & \textbf{Vanna Effect} & \textbf{Charm Effect} \\
+\hline
+Low Volatility & Strong pinning & Moderate & Elevated \\
+Normal & Balanced & Balanced & Balanced \\
+Crisis & Weak pinning & Amplified cascade & Reduced \\
+OPEX Week & Strong pinning & Moderate & Accelerated \\
+\end{tabular}
+\end{center}
+
+In low volatility environments, positive GEX strikes act as strong attractors due to reduced noise overwhelming hedging flows. During crisis periods, the vanna cascade dominates as IV-spot correlations strengthen and feedback iterations compound. Approaching options expiration, both gamma pinning effects and charm decay accelerate.
+
+\subsection{Interpretation and Application}
+
+The exposure-adjusted PDF enables several analytical applications:
+
+\begin{enumerate}
+    \item \textbf{Edge identification}: Where $p^*(K) > p_0(K)$, mechanical flows suggest the market is underpricing the probability of reaching level $K$.
+    \item \textbf{Risk-adjusted VaR}: The adjusted 5th percentile provides a flow-informed downside risk estimate.
+    \item \textbf{Pin probability}: Elevated density at major GEX strikes quantifies magnetic price effects.
+    \item \textbf{Cascade risk}: Significant vanna-driven left tail fattening signals elevated crash risk.
+\end{enumerate}
+
+It bears emphasis that this adjustment framework represents a heuristic correction rather than a rigorous arbitrage-free pricing model. The parameters require empirical calibration, and the assumption of static exposures over the adjustment horizon introduces model error. Nevertheless, the framework provides a principled approach to incorporating dealer positioning into probability assessments.
+
+
+\section{Shares Needed to Cover}
+
+\section{Hedging Pressure Field and IV Path Dynamics}
+\label{sec:pressure-field}
+
+The exposure-adjusted PDF framework treats dealer positioning as a static modifier to the probability distribution. However, the dynamics of how hedging flows evolve through time and across price levels---and crucially, how these flows affect implied volatility itself---reveal additional predictive structure. This section develops a pressure field framework that captures these dynamics, building upon the observation that the path of implied volatility is often more predictable than the path of spot prices \cite{bollen2004does, ni2008volatility}.
+
+\subsection{Regime Derivation from the IV Surface}
+
+Rather than relying on external regime indicators such as VIX levels, we derive market regime parameters directly from the IV surface itself. The surface encodes three key pieces of information:
+
+\begin{enumerate}
+    \item \textbf{ATM implied volatility} $\sigma_{\text{ATM}}$: The base level of expected volatility
+    \item \textbf{Skew} $\partial \sigma / \partial K$: Encodes the implied spot-volatility correlation
+    \item \textbf{Curvature} $\partial^2 \sigma / \partial K^2$: Encodes the implied volatility-of-volatility
+\end{enumerate}
+
+Given an IV surface $\sigma(K)$ with strikes $\{K_1, \ldots, K_n\}$, we compute the ATM IV by interpolation at spot $S$:
+
+\begin{align}
+\sigma_{\text{ATM}} = \sigma(S) \approx \sigma(K_i) + \frac{S - K_i}{K_{i+1} - K_i} \left(\sigma(K_{i+1}) - \sigma(K_i)\right)
+\end{align}
+
+where $K_i \leq S < K_{i+1}$.
+
+The skew at ATM is estimated via finite differences:
+
+\begin{align}
+\text{Skew} = \left.\frac{\partial \sigma}{\partial K}\right|_{K=S} \approx \frac{\sigma(K_{i+1}) - \sigma(K_{i-1})}{K_{i+1} - K_{i-1}} \cdot S
+\end{align}
+
+The normalization by $S$ makes the skew dimensionless and comparable across underlyings.
+
+From stochastic volatility models such as SABR and Heston, the skew relates to the instantaneous spot-volatility correlation $\rho_{S\sigma}$:
+
+\begin{align}
+\rho_{S\sigma} \approx \kappa_{\text{skew}} \cdot \text{Skew}
+\end{align}
+
+where $\kappa_{\text{skew}} \approx 0.15$ is an empirically calibrated constant. For equity indices, $\rho_{S\sigma}$ is typically in the range $[-0.9, -0.5]$, reflecting the leverage effect.
+
+Similarly, the curvature (the ``smile'' component) encodes the volatility-of-volatility $\nu$:
+
+\begin{align}
+\text{Curvature} &= \left.\frac{\partial^2 \sigma}{\partial K^2}\right|_{K=S} \cdot S^2 \\
+\nu &\approx \kappa_{\text{curv}} \cdot \sigma_{\text{ATM}} \cdot \sqrt{|\text{Curvature}|}
+\end{align}
+
+where $\kappa_{\text{curv}} \approx 2.0$. Higher curvature indicates greater expected volatility of volatility.
+
+The regime is then classified by $\sigma_{\text{ATM}}$:
+
+\begin{center}
+\begin{tabular}{l|c|l}
+\textbf{Regime} & $\sigma_{\text{ATM}}$ & \textbf{Interpretation} \\
+\hline
+Calm & $< 0.15$ & Low volatility, strong gamma pinning \\
+Normal & $[0.15, 0.20)$ & Balanced Greek effects \\
+Stressed & $[0.20, 0.35)$ & Elevated vanna importance \\
+Crisis & $\geq 0.35$ & Vanna-dominated dynamics \\
+\end{tabular}
+\end{center}
+
+\subsection{Normalizing Greek Exposures}
+
+A key challenge in comparing gamma, vanna, and charm exposures is that they respond to different market variables with different frequencies. Raw exposure values are denominated in incomparable units:
+
+\begin{itemize}
+    \item Gamma exposure: dollars per 1\% spot move squared
+    \item Vanna exposure: dollars per (1\% spot move $\times$ 1 vol point move)
+    \item Charm exposure: dollars per day
+\end{itemize}
+
+To convert these to a common basis---expected daily hedging flow---we multiply each by its expected trigger frequency:
+
+\begin{align}
+\text{GEX}_{\text{eff}} &= \text{GEX} \cdot \mathbb{E}[\Delta S_{\text{daily}}] \\
+\text{VEX}_{\text{eff}} &= \text{VEX} \cdot \mathbb{E}[\Delta S_{\text{daily}}] \cdot \mathbb{E}[\Delta \sigma_{\text{daily}}] \cdot (1 + |\rho_{S\sigma}|) \cdot \chi_{\text{regime}} \\
+\text{CEX}_{\text{eff}} &= \text{CEX}
+\end{align}
+
+where:
+\begin{align}
+\mathbb{E}[\Delta S_{\text{daily}}] &= \frac{\sigma_{\text{ATM}}}{\sqrt{252}} \\
+\mathbb{E}[\Delta \sigma_{\text{daily}}] &= \frac{\nu}{\sqrt{252}}
+\end{align}
+
+The correlation amplifier $(1 + |\rho_{S\sigma}|)$ reflects that when spot and volatility move together (as they typically do for equities), vanna's effect is amplified. The regime multiplier $\chi_{\text{regime}}$ captures the empirical observation that volatility-of-volatility increases nonlinearly with the volatility level:
+
+\begin{center}
+\begin{tabular}{l|c}
+\textbf{Regime} & $\chi_{\text{regime}}$ \\
+\hline
+Calm & 0.5 \\
+Normal & 1.0 \\
+Stressed & 2.5 \\
+Crisis & 5.0 \\
+\end{tabular}
+\end{center}
+
+The relative weights of each Greek are then:
+
+\begin{align}
+w_\Gamma &= \frac{|\text{GEX}_{\text{eff}}|}{|\text{GEX}_{\text{eff}}| + |\text{VEX}_{\text{eff}}| + |\text{CEX}_{\text{eff}}|} \\
+w_V &= \frac{|\text{VEX}_{\text{eff}}|}{|\text{GEX}_{\text{eff}}| + |\text{VEX}_{\text{eff}}| + |\text{CEX}_{\text{eff}}|} \\
+w_C &= \frac{|\text{CEX}_{\text{eff}}|}{|\text{GEX}_{\text{eff}}| + |\text{VEX}_{\text{eff}}| + |\text{CEX}_{\text{eff}}|}
+\end{align}
+
+This normalization reveals the dominant Greek under current market conditions. In calm markets, charm often dominates due to stable day-over-day decay. In crisis conditions, vanna can exceed gamma in importance despite lower notional exposure, because vol-of-vol amplifies its effect.
+
+\subsection{The Hedging Pressure Field}
+
+We define a hedging pressure field $P(S', t')$ over the space of hypothetical spot levels $S'$ and times-to-expiry $t'$. At each point, the pressure represents the net hedging flow that would be required if spot were at $S'$ with $t'$ time remaining:
+
+\begin{align}
+P(S', t') = P_\Gamma(S', t') + P_V(S', t') + P_C(S', t')
+\end{align}
+
+where each component is computed by re-evaluating the Greeks at the hypothetical $(S', t')$ coordinate and applying the exposure formulas from Section~\ref{sec:realtime-dealer-exposure-calculations}.
+
+For computational efficiency, we discretize this field on a grid:
+
+\begin{align}
+S'_i &= S \cdot (1 + i \cdot \delta_S), \quad i \in \{-N_S, \ldots, N_S\} \\
+t'_j &= t - j \cdot \delta_t, \quad j \in \{0, \ldots, N_t\}
+\end{align}
+
+where $\delta_S$ is the spot step (e.g., 0.1\% of spot) and $\delta_t$ is the time step (e.g., 15 minutes converted to years).
+
+The pressure gradient reveals the directional tendency:
+
+\begin{align}
+\nabla P = \left(\frac{\partial P}{\partial S'}, \frac{\partial P}{\partial t'}\right)
+\end{align}
+
+Regions where $P > 0$ indicate net buying pressure (supportive), while $P < 0$ indicates net selling pressure (resistive). The zero-crossings of $P$ define key support and resistance levels.
+
+\subsection{Key Level Identification}
+
+From the pressure field, we identify three types of key levels:
+
+\textbf{Support levels}: Points where pressure transitions from negative to positive as price decreases:
+\begin{align}
+K_{\text{support}} = \{S' : P(S' - \epsilon, t) < 0 \text{ and } P(S' + \epsilon, t) \geq 0\}
+\end{align}
+
+\textbf{Resistance levels}: Points where pressure transitions from positive to negative as price increases:
+\begin{align}
+K_{\text{resistance}} = \{S' : P(S' - \epsilon, t) \geq 0 \text{ and } P(S' + \epsilon, t) < 0\}
+\end{align}
+
+\textbf{Pinning levels}: Strikes with locally maximal positive gamma exposure, which act as attractors:
+\begin{align}
+K_{\text{pin}} = \{K : \text{GEX}_K > 0 \text{ and } \text{GEX}_K = \max_{|K' - K| < \epsilon S} \text{GEX}_{K'}\}
+\end{align}
+
+The path of least resistance is determined by comparing average pressure above and below current spot:
+
+\begin{align}
+\bar{P}_{\text{above}} &= \frac{1}{N} \sum_{S' > S} P(S', t) \\
+\bar{P}_{\text{below}} &= \frac{1}{N} \sum_{S' < S} P(S', t)
+\end{align}
+
+If $\bar{P}_{\text{above}} > 0$ and $\bar{P}_{\text{below}} < 0$, the path favors upward movement. The converse suggests downward pressure. Strong positive pressure at current spot suggests pinning behavior.
+
+\subsection{IV Pressure and Surface Evolution}
+
+A key observation, emphasized by practitioners such as Cem Karsan, is that the reflexive effects on implied volatility are often stronger and more predictable than the effects on spot price. This is because:
+
+\begin{enumerate}
+    \item IV is less liquid than spot, so hedging flows have larger impact
+    \item Fewer non-dealer flows compete with hedging in vol space
+    \item Vol dynamics are more mechanically determined by positioning
+\end{enumerate}
+
+We define IV pressure at each strike as the expected change in IV from dealer hedging:
+
+\begin{align}
+\Delta \sigma_K^{\text{vanna}} &= -\frac{\text{Vanna}_K \cdot \Delta S}{\text{Liquidity}_K} \cdot \xi_{\text{IV}} \\
+\Delta \sigma_K^{\text{vomma}} &= \frac{\text{Vomma}_K \cdot (\Delta \sigma)^2}{\text{Liquidity}_K} \cdot \xi_{\text{IV}} \\
+\Delta \sigma_K^{\text{veta}} &= \frac{\text{Veta}_K \cdot \Delta t}{\text{Liquidity}_K} \cdot \xi_{\text{IV}}
+\end{align}
+
+where $\xi_{\text{IV}}$ is an IV impact coefficient (vol points per million dollars of flow) and $\text{Liquidity}_K$ is a relative liquidity score that decreases with distance from ATM:
+
+\begin{align}
+\text{Liquidity}_K = \max\left(0.1, 1 - 0.4 \cdot \frac{|\ln(K/S)|}{\sigma_{\text{ATM}}}\right)
+\end{align}
+
+The total IV pressure at strike $K$ is:
+
+\begin{align}
+\Delta \sigma_K = \Delta \sigma_K^{\text{vanna}} + \Delta \sigma_K^{\text{vomma}} + \Delta \sigma_K^{\text{veta}}
+\end{align}
+
+The predicted IV surface after a spot move $\Delta S$ and time step $\Delta t$ is:
+
+\begin{align}
+\sigma'(K) = \sigma(K) + \Delta \sigma_K
+\end{align}
+
+subject to floor and ceiling constraints (typically 5\% $\leq \sigma' \leq$ 200\%).
+
+\subsection{Cascade Simulation}
+
+The feedback between IV changes and hedging flows creates a dynamic cascade that can be simulated iteratively:
+
+\begin{algorithm}
+\caption{Cascade Simulation}
+\begin{algorithmic}[1]
+\State \textbf{Input:} Initial surface $\Sigma_0$, exposures $E_0$, spot $S_0$, shock $\Delta S_0$
+\State Initialize: $S \leftarrow S_0 \cdot (1 + \Delta S_0)$, $\Sigma \leftarrow \Sigma_0$, $E \leftarrow E_0$
+\State $\text{IV}_{\text{cum}} \leftarrow 0$, $\text{Spot}_{\text{cum}} \leftarrow \Delta S_0$
+\For{$i = 1$ to $N_{\text{iter}}$}
+    \State Compute IV pressure: $\Delta \sigma \leftarrow \textsc{IVPressure}(\Sigma, E, S, \Delta S_0 \cdot \rho^{i-1})$
+    \State Update surface: $\Sigma \leftarrow \Sigma + \Delta \sigma \cdot \rho^{i-1}$
+    \State Estimate spot pressure from IV change: $\Delta S \leftarrow \text{VEX} \cdot \Delta \sigma_{\text{ATM}} / (S \cdot 10^9)$
+    \State Update spot: $S \leftarrow S \cdot (1 + \Delta S \cdot \rho^{i-1})$
+    \State Accumulate: $\text{IV}_{\text{cum}} \leftarrow \text{IV}_{\text{cum}} + \Delta \sigma_{\text{ATM}} \cdot \rho^{i-1}$
+    \State Accumulate: $\text{Spot}_{\text{cum}} \leftarrow \text{Spot}_{\text{cum}} + \Delta S \cdot \rho^{i-1}$
+\EndFor
+\State \textbf{Output:} Terminal $(S, \Sigma)$, cumulative moves, convergence status
+\end{algorithmic}
+\end{algorithm}
+
+The dampening factor $\rho \in (0, 1)$ (typically 0.5) ensures the cascade converges. The simulation outcome is classified as:
+
+\begin{itemize}
+    \item \textbf{Converged}: Successive iterations decrease in magnitude
+    \item \textbf{Diverged}: Successive iterations increase (unstable positioning)
+    \item \textbf{Oscillating}: Alternating signs suggest conflicting pressures
+\end{itemize}
+
+\subsection{IV Path of Least Resistance}
+
+Analogous to the spot path of least resistance, we can determine the likely direction of IV evolution:
+
+\begin{align}
+\Delta \sigma_{\text{up}} &= \sum_K \Delta \sigma_K \big|_{\Delta S = +1\%} \\
+\Delta \sigma_{\text{down}} &= \sum_K \Delta \sigma_K \big|_{\Delta S = -1\%} \\
+\Delta \sigma_{\text{neutral}} &= \sum_K \Delta \sigma_K \big|_{\Delta S = 0}
+\end{align}
+
+The IV bias is:
+
+\begin{align}
+\text{Bias}_{\text{IV}} = (\Delta \sigma_{\text{down}} + \Delta \sigma_{\text{neutral}}) - \Delta \sigma_{\text{up}}
+\end{align}
+
+Positive bias indicates IV is likely to increase (positioning implies volatility buying on down moves exceeds selling on up moves). This provides a separate, often more reliable, signal than spot direction.
+
+\subsection{Applications}
+
+The pressure field framework enables several practical applications:
+
+\begin{enumerate}
+    \item \textbf{Intraday level identification}: Real-time detection of support, resistance, and pin levels that evolve with positioning
+    \item \textbf{Regime-aware Greek weighting}: Automatic adjustment of which Greek matters most under current conditions
+    \item \textbf{Volatility forecasting}: IV path prediction that is mechanically grounded in positioning
+    \item \textbf{Cascade risk assessment}: Identification of unstable positioning that could amplify market moves
+    \item \textbf{Cross-asset consistency}: The framework applies to any optionable underlying, enabling comparison of hedging dynamics across assets
+\end{enumerate}
+
+The pressure field complements the exposure-adjusted PDF by providing dynamic, path-dependent insights rather than static distributional adjustments.
+
+
+As a sort of global heuristic across all exposures at all strikes for a given expiration, one can estimate the total hedging flow required to neutralize dealer exposure:
+
+\begin{align}
+\text{Shares to Cover} &= \frac{-\text{Net Exposure}}{S} \\
+\text{Implied Move} &= \frac{\text{Shares to Cover}}{\text{Shares Outstanding}} \times 100\%
+\end{align}
+
+The sign indicates directional pressure:
+\begin{itemize}
+    \item Negative net exposure $\Rightarrow$ dealers must buy $\Rightarrow$ upward price pressure
+    \item Positive net exposure $\Rightarrow$ dealers must sell $\Rightarrow$ downward price pressure
+\end{itemize}
+
+This method assumes equal weighting of exposure across all strikes, and that the hedge will be perfectly (and exclusively) executed by buying or selling shares of the underlying.
+
+\section{Future Work}
+
+\begin{itemize}
+    \item Explore concepts of instantaneous local hedge pressure by net exposure at nearest price and how price velocity impacts immediate dealer hedging needs.
+    \item Improve nuances of live open interest estimation by weighing the confidence of each change in OI by how far the trade price is from the mid. Trades clearly at the bid or ask have higher signal; trades near mid price are ambiguous as to aggressor side.
+    \item Develop a dynamic volatility surface evolution model to replace the static $\beta_{S\sigma}$ parameter in the exposure-adjusted PDF. This would involve estimating the IV surface transition function $\Sigma(t+\Delta t, S+\Delta S) = f(\Sigma(t, S), \Delta S, \Delta t)$ from empirical surface dynamics, enabling more accurate cascade simulation.
+    \item Implement forward price projection via iterative cascade simulation: given an initial perturbation, project the sequence of hedging flows and resulting price movements until convergence or divergence is detected.
+    \item Backtest the exposure-adjusted PDF against realized price distributions to calibrate adjustment parameters and validate the framework's predictive utility across different market regimes.
+\end{itemize}
+
+\section{Summary}
+
+The complete pipeline for real-time dealer exposure calculation:
+
+\begin{enumerate}
+    \item \textbf{Initialize}: Fetch option chain with $\text{OI}_0$ at market open
+    \item \textbf{Build IV Surface}: Calculate IV for each option, apply total variance smoothing
+    \item \textbf{Compute Greeks}: For each option using smoothed IV and current spot
+    \item \textbf{Aggregate Exposures}: Calculate GEX, VEX, CEX, and sum them for NEX across strikes per expiration
+    \item \textbf{Stream Updates}: On each new quote, recalculate IV $\rightarrow$ Greeks $\rightarrow$ Exposures
+    \item \textbf{Track Live OI}: Adjust open interest based on observed trades
+\end{enumerate}
+
+This methodology enables sub-second exposure updates, providing actionable insight into market-maker hedging dynamics as market conditions evolve.
+
+\begin{thebibliography}{9}
+
+\bibitem{black1973pricing}
+F. Black and M. Scholes,
+``The pricing of options and corporate liabilities,''
+\textit{Journal of Political Economy}, vol. 81, no. 3, pp. 637--654, 1973.
+
+\bibitem{merton1973theory}
+R. C. Merton,
+``Theory of rational option pricing,''
+\textit{Bell Journal of Economics and Management Science}, vol. 4, no. 1, pp. 141--183, 1973.
+
+\bibitem{breeden1978prices}
+D. T. Breeden and R. H. Litzenberger,
+``Prices of state-contingent claims implicit in option prices,''
+\textit{Journal of Business}, vol. 51, no. 4, pp. 621--651, 1978.
+
+\bibitem{abramowitz1964handbook}
+M. Abramowitz and I. A. Stegun,
+\textit{Handbook of Mathematical Functions with Formulas, Graphs, and Mathematical Tables}.
+Washington, DC: National Bureau of Standards, Applied Mathematics Series 55, 1964.
+
+
+\bibitem{bollen2004does}
+N. P. B. Bollen and R. E. Whaley,
+``Does net buying pressure affect the shape of implied volatility functions?''
+\textit{Journal of Finance}, vol. 59, no. 2, pp. 711--753, 2004.
+
+\bibitem{garleanu2009demand}
+N. G\^{a}rleanu, L. H. Pedersen, and A. M. Poteshman,
+``Demand-based option pricing,''
+\textit{Review of Financial Studies}, vol. 22, no. 10, pp. 4259--4299, 2009.
+
+\bibitem{ni2008volatility}
+S. X. Ni, J. Pan, and A. M. Poteshman,
+``Volatility information trading in the option market,''
+\textit{Journal of Finance}, vol. 63, no. 3, pp. 1059--1091, 2008.
+
+\end{thebibliography}
+
+\appendix
+\section{Repository}
+
+For the full source, examples, and license, see the project repository: \href{https://github.com/FullStackCraft/floe}{https://github.com/FullStackCraft/floe}.
+
+\end{document}

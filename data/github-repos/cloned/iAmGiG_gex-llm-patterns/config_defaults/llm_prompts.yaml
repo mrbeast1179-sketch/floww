@@ -1,0 +1,570 @@
+# LLM Prompt Templates Configuration
+# Issue #90: Config-based prompt system to test for prompt bias
+# Created: 2025-10-16
+
+# Prompt template selection
+# Options: standard, unbiased, reasoning
+default_template: "standard"
+
+# Template definitions
+prompt_templates:
+
+  # STANDARD: Current prompt (baseline with regime labels)
+  # Used for: Q1-Q4 2024 validation
+  # Detection Rate: 100% (may be inflated by regime labels)
+  standard:
+    name: "Standard Prompt (with regime labels)"
+    description: "Original prompt including regime classification labels"
+
+    # Data inclusion flags
+    include_regime_label: true         # Show "NEGATIVE_GAMMA" / "POSITIVE_GAMMA"
+    include_pattern_hints: true        # Show detected patterns from rule-based system
+    include_flip_point: true           # Show gamma flip point
+    include_spot_price: true           # Show current spot price
+    include_gex_magnitude: true        # Show total GEX value
+
+    # Question framing
+    question_style: "leading"          # "What patterns do you see?" (presumes patterns)
+    null_hypothesis_allowed: false     # LLM must provide WHO/WHOM/WHAT for every day
+
+    # Response structure
+    response_format: "json"
+    required_fields:
+      - "who"          # Must identify forcing party
+      - "whom"         # Must identify forced party
+      - "what"         # Must identify forced action
+      - "confidence"   # 0-100 numeric
+      - "mechanics"    # Brief explanation
+
+    # Use case
+    use_for:
+      - "Baseline detection"
+      - "Pattern discovery"
+      - "High-confidence signals"
+
+
+  # UNBIASED: No regime labels (tests for prompt bias)
+  # Used for: Issue #90 validation
+  # Detection Rate: TBD (expected 70-85%)
+  unbiased:
+    name: "Unbiased Prompt (no regime labels)"
+    description: "Prompt without regime labels to test for bias"
+
+    # Data inclusion flags
+    include_regime_label: false        # ⚠️ NO REGIME LABELS
+    include_pattern_hints: false       # ⚠️ NO PATTERN HINTS
+    include_flip_point: true           # Still show flip point (structural data)
+    include_spot_price: true           # Still show spot price
+    include_gex_magnitude: true        # Still show raw GEX value (no classification)
+
+    # Question framing
+    question_style: "neutral"          # "Do you detect any mechanics?" (open-ended)
+    null_hypothesis_allowed: true      # LLM can say "no pattern detected"
+
+    # Response structure
+    response_format: "json"
+    required_fields:
+      - "pattern_detected"  # Boolean: true/false
+      - "who"               # Only if pattern_detected=true
+      - "whom"              # Only if pattern_detected=true
+      - "what"              # Only if pattern_detected=true
+      - "confidence"        # 0 if no pattern, 1-100 if pattern
+      - "reasoning"         # Why pattern detected or not
+
+    # Use case
+    use_for:
+      - "Bias testing"
+      - "Academic validation"
+      - "Baseline comparison"
+
+
+  # REASONING: Optimized for o3-mini reasoning models
+  # Used for: Advanced validation with chain-of-thought
+  # Detection Rate: TBD (expected higher accuracy)
+  reasoning:
+    name: "Reasoning Model Prompt (o3-mini optimized)"
+    description: "Prompt optimized for reasoning models with CoT"
+
+    # Data inclusion flags
+    include_regime_label: false        # No labels - let model reason
+    include_pattern_hints: false       # No hints - let model discover
+    include_flip_point: true           # Structural data provided
+    include_spot_price: true
+    include_gex_magnitude: true
+    include_velocity_metrics: true     # Add GEX change over time
+
+    # Question framing
+    question_style: "chain_of_thought"  # "Reason through the mechanics step-by-step"
+    null_hypothesis_allowed: true       # Can conclude no pattern
+    require_evidence: true              # Must cite specific data points
+
+    # Response structure
+    response_format: "json_with_reasoning"
+    required_fields:
+      - "step_1_data_analysis"    # What does the data show?
+      - "step_2_mechanism_inference"  # What mechanism could cause this?
+      - "step_3_constraint_identification"  # What constraints exist?
+      - "step_4_confidence_assessment"  # How confident?
+      - "pattern_detected"        # Final boolean
+      - "who"                     # If pattern detected
+      - "whom"
+      - "what"
+      - "confidence"              # 0-100
+
+    # Use case
+    use_for:
+      - "High-accuracy validation"
+      - "Complex pattern detection"
+      - "Causal reasoning"
+
+# Question templates by style
+question_templates:
+
+  leading:
+    overall_analysis: "Analyze the following {n} trading days for {symbol}. Look for patterns across all dates and provide comparative analysis."
+    individual_days: |
+      QUESTIONS TO ANSWER:
+      1. What patterns do you see across these dates?
+      2. Are there consistent mechanics (WHO forcing WHOM to do WHAT)?
+      3. What is the highest confidence signal across all dates?
+      4. Do you see any temporal patterns (e.g., weekly effects)?
+
+  neutral:
+    overall_analysis: "Analyze the following {n} trading days for {symbol}. Determine if any consistent market mechanics are present."
+    individual_days: |
+      QUESTIONS TO ANSWER:
+      1. Do you detect any consistent mechanics across these dates? If yes, what?
+      2. If mechanics exist, identify: WHO is forcing WHOM to do WHAT
+      3. Confidence level (0-100): How certain are you a pattern exists?
+      4. For days with no clear pattern, set confidence to 0 and explain why
+
+  chain_of_thought:
+    overall_analysis: "Analyze the following {n} trading days for {symbol}. Reason through the market mechanics step-by-step using the framework below."
+    individual_days: |
+      REASONING FRAMEWORK:
+      For each day, work through these steps:
+
+      STEP 1 - DATA ANALYSIS:
+      - What is the GEX magnitude and direction?
+      - Where is spot price relative to flip point?
+      - Are there any velocity indicators (GEX change over time)?
+
+      STEP 2 - MECHANISM INFERENCE:
+      - What market mechanisms could produce this data?
+      - Consider: dealer hedging, pinning, gamma squeeze, normal flow
+
+      STEP 3 - CONSTRAINT IDENTIFICATION:
+      - What constraints exist for dealers? (delta neutrality, risk limits)
+      - Are dealers FORCED to act, or is this discretionary?
+      - What alternative actions could dealers take?
+
+      STEP 4 - CONFIDENCE ASSESSMENT:
+      - How strong is the evidence for this mechanism?
+      - Could this be normal market activity?
+      - Assign confidence 0-100 (0 = no pattern, 100 = certain pattern)
+
+# Data formatting by template
+data_formatting:
+
+  standard:
+    show_regime: true
+    regime_format: "Regime: {regime}"
+    show_patterns: true
+    pattern_format: "Patterns Detected: {patterns}"
+    gex_format: "Total GEX: ${total_gex:,.0f}"
+
+  unbiased:
+    show_regime: false
+    show_patterns: false
+    gex_format: "Net GEX: ${net_gex:,.0f} (raw value, unclassified)"
+    flip_format: "Zero-gamma level: ${flip_point:.0f}"
+
+  reasoning:
+    show_regime: false
+    show_patterns: false
+    gex_format: |
+      GEX Data:
+      - Current: ${net_gex:,.0f}
+      - 1-day change: ${gex_change_1d:+,.0f} ({gex_change_1d_pct:+.1f}%)
+      - Spot: ${spot_price:.2f}
+      - Zero-gamma: ${flip_point:.0f}
+      - Distance: {distance_pct:.1f}%
+
+# Validation metadata
+# Track which prompt was used for each validation run
+metadata:
+  version: "1.0"
+  created: "2025-10-16"
+  issue: "#90"
+  purpose: "Test for prompt bias in pattern detection"
+
+  validation_runs:
+    - run_id: "Q1_2024_standard"
+      template: "standard"
+      dates: "2024-01-02 to 2024-03-29"
+      detection_rate: 100.0
+      note: "Baseline with regime labels"
+
+    - run_id: "Q2_2024_standard"
+      template: "standard"
+      dates: "2024-04-01 to 2024-06-28"
+      detection_rate: 100.0
+      note: "Baseline with regime labels"
+
+    # Future runs to be added
+    # - run_id: "Q2_2024_unbiased"
+    #   template: "unbiased"
+    #   dates: "2024-04-01 to 2024-06-28"
+    #   detection_rate: TBD
+    #   note: "Test without regime labels"
+
+# Usage examples
+usage_examples:
+  command_line: |
+    # Use standard prompt (default)
+    python scripts/validation/validate_pattern_taxonomy.py --pattern gamma_positioning --prompt-template standard
+
+    # Use unbiased prompt (Issue #90 testing)
+    python scripts/validation/validate_pattern_taxonomy.py --pattern gamma_positioning --prompt-template unbiased
+
+    # Use reasoning prompt (o3-mini)
+    python scripts/validation/validate_pattern_taxonomy.py --pattern gamma_positioning --prompt-template reasoning
+
+  programmatic: |
+    from src.utils.config_manager import get_config
+
+    # Load prompt config
+    config = get_config()
+    prompt_config = config.get('llm_prompts.prompt_templates.unbiased')
+
+    # Check if regime labels should be included
+    include_regime = prompt_config.get('include_regime_label', False)
+
+# Agent Workflow Prompts
+# Extracted from src/agents/market_mechanics_agent.py (November 2025)
+# These prompts are for agent internal workflows, not pattern detection
+agent_prompts:
+
+  # Batch Analysis Prompt - for multi-day comparative analysis
+  batch_analysis:
+    header: |
+      Analyze the following {batch_size} trading days for {symbol}.
+      Look for patterns across all dates and provide comparative analysis.
+
+      DATA FOR EACH DAY:
+
+    day_section_divider: "============================================================"
+
+    error_message: "  ERROR: {error}"
+
+    data_fields:
+      - "  Total GEX: ${total_gamma:,.0f}"
+      - "  Spot Price: ${spot_price:.2f}"
+      - "  Flip Point: ${flip_point:.2f}"
+      - "  Regime: {regime}"
+
+    patterns_line: "  Patterns Detected: {patterns}"
+
+    footer: |
+      ============================================================
+      QUESTIONS TO ANSWER:
+      1. What patterns do you see across these dates?
+      2. Are there consistent mechanics (WHO forcing WHOM to do WHAT)?
+      3. What is the highest confidence signal across all dates?
+      4. Do you see any temporal patterns (e.g., weekly effects)?
+
+      IMPORTANT: Return your analysis in JSON format with this structure:
+      {{
+        "overall_analysis": "Your overall analysis here",
+        "individual_days": {{
+          "DATE_KEY": {{
+            "who": "Identify the forcing party",
+            "whom": "Who is being forced",
+            "what": "Specific forced action",
+            "mechanics": "Brief causal chain",
+            "confidence": 0-100 (numeric)
+          }}
+        }}
+      }}
+
+      Use the obfuscated date keys (e.g., "Day T+0") as the DATE_KEY.
+      Confidence must be a number 0-100.
+
+  # Experiment Planning Prompt - for autonomous tool selection
+  experiment_planning:
+    header: |
+      You are an autonomous market analysis agent. Analyze this experiment request and decide what tools and data are needed.
+
+      EXPERIMENT REQUEST: {experiment_description}
+      DATE: {date}
+
+    tools_section: |
+      AVAILABLE TOOLS:
+      1. fetch_options_data(symbol, date) - Get options chain data
+      2. calculate_gamma_exposure(options_data) - Calculate GEX metrics
+      3. fetch_market_data(symbol, date) - Get underlying price/volume data
+      4. enhanced_pattern_detector - Detect strike-level patterns
+      5. daily_analysis - Full comprehensive analysis
+
+    decision_framework: |
+      DECISION FRAMEWORK:
+      - For gamma/GEX analysis: Need options data + GEX calculation
+      - For pattern detection: Need options data + pattern analysis
+      - For volatility analysis: Need market data + options data
+      - For timing studies: Need intraday data consideration
+      - For strike analysis: Need detailed strike-level data
+
+    response_format: |
+      Respond with a JSON plan:
+      {{
+          "experiment_type": "gamma_pinning|volatility_analysis|pattern_detection|comprehensive",
+          "required_tools": ["tool1", "tool2", ...],
+          "data_requirements": ["options_chain", "market_data", "strike_details"],
+          "analysis_focus": "What to focus the analysis on",
+          "reasoning": "Why these tools are needed"
+      }}
+
+  # Experiment Analysis Prompt - for interpreting experiment results
+  experiment_analysis:
+    header: |
+      You are analyzing market data for this experiment: {experiment_description}
+
+      TOOL PLAN EXECUTED: {tool_plan_reasoning}
+      EXPERIMENT FOCUS: {analysis_focus}
+
+      DATA COLLECTED:
+
+    gex_metrics_section: |
+      GEX METRICS:
+      - Total Gamma: ${total_gamma:,.0f}
+      - Net GEX: ${net_gex:,.0f}
+      - Spot Price: ${spot_price:.2f}
+      - Gamma Flip Point: ${gamma_flip_point:.2f}
+
+    patterns_section: |
+      PATTERNS DETECTED: {pattern_count} patterns found
+      Key Patterns: {key_patterns}
+
+    analysis_requirements: |
+      ANALYSIS REQUIREMENTS:
+      1. Interpret findings specifically for: {experiment_description}
+      2. Provide WHO/WHOM/WHAT market mechanics
+      3. Generate confidence score (0-100%)
+      4. Suggest actionable trading signal if applicable
+      5. Explain reasoning in context of the experiment
+
+    response_format: |
+      Respond with JSON:
+      {{
+          "experiment_type": "{experiment_type}",
+          "mechanics_interpretation": {{
+              "who": "Primary market actor",
+              "whom": "Who they're acting against",
+              "what": "What action is being forced",
+              "confidence": 85
+          }},
+          "key_findings": ["finding1", "finding2"],
+          "actionable_signal": {{
+              "action": "buy|sell|wait",
+              "confidence": 80,
+              "rationale": "Why this signal makes sense"
+          }},
+          "experiment_specific_insights": "Analysis specific to the experiment request"
+      }}
+
+# ==============================================================================
+# Paper #2 Regime Detection Prompts
+# Extracted from src/llm/mechanics_prompt_builder.py (November 2025, Issue #149)
+# ==============================================================================
+
+paper2_prompts:
+
+  # 30-Day Regime Classification Prompt
+  # Used by: validate_regime_windows_batch.py, batch_regime_validator.py
+  # Model: o4-mini (validated with 1,418 windows across 2020-2025)
+  regime_classification:
+    name: "30-Day Regime Classification (Paper #2)"
+    description: "Persistent regime detection from dealer gamma constraints"
+
+    # Header section
+    header: |
+      You are a market structure analyst specializing in dealer gamma positioning regimes.
+
+      TASK: Analyze this 30-day period and determine if it represents a PERSISTENT regime where dealer constraints create forced, directional flows.
+
+    # Data section (GEX data table inserted here by prompt builder)
+    data_section_title: "30-DAY GEX DATA"
+
+    # Classification framework
+    framework:
+      title: "REGIME CLASSIFICATION FRAMEWORK"
+
+      persistent_regimes:
+        title: "PERSISTENT REGIMES (Detect These)"
+
+        persistent_positive:
+          title: "1. PERSISTENT POSITIVE REGIME"
+          definition: "Dealers are LONG gamma, forced to sell into strength"
+          criteria:
+            - ">70% of days (21+/30) have positive net GEX"
+            - "Average magnitude >$5B"
+            - "≤5 sign flips across 30 days"
+            - "Stable directional constraint"
+          mechanism: |
+            **Mechanism**: When dealers hold long gamma:
+            - Price rises → Dealers MUST sell shares (rebalance)
+            - Price falls → Dealers MUST buy shares (rebalance)
+            - Creates dampening, mean-reverting flows
+            - Constraint is STRUCTURAL (dealers cannot avoid)
+
+        persistent_negative:
+          title: "2. PERSISTENT NEGATIVE REGIME"
+          definition: "Dealers are SHORT gamma, forced to buy into strength"
+          criteria:
+            - ">70% of days (21+/30) have negative net GEX"
+            - "Average magnitude >$5B"
+            - "≤5 sign flips across 30 days"
+            - "Stable directional constraint"
+          mechanism: |
+            **Mechanism**: When dealers hold short gamma:
+            - Price rises → Dealers MUST buy shares (chase)
+            - Price falls → Dealers MUST sell shares (chase)
+            - Creates amplifying, momentum flows
+            - Constraint is STRUCTURAL (dealers cannot avoid)
+
+      non_regimes:
+        title: "NON-REGIMES (Reject These)"
+
+        transitional:
+          title: "3. TRANSITIONAL (Reject)"
+          characteristics:
+            - "Frequent sign flips between positive/negative GEX"
+            - "No dominant regime direction (less than 70% same sign)"
+            - "Market in regime change period"
+            - "Example: 15 positive days, 15 negative days (50/50 split)"
+          rejection_reason: "No persistent constraint. Dealers face mixed conditions daily. Not a structural regime."
+
+        low_conviction:
+          title: "4. LOW CONVICTION (Reject)"
+          characteristics:
+            - "Consistent sign BUT weak magnitude (<$5B average)"
+            - "Example: 25 days positive, avg $2B GEX"
+            - "Insufficient constraint to create persistent forced flows"
+          rejection_reason: "Even if sign is consistent, magnitude too weak to force dealers into meaningful positions. Not a structural constraint."
+
+    # Analysis methodology
+    analysis_steps:
+      title: "ANALYSIS QUESTIONS"
+      intro: "Systematically evaluate the 30-day window:"
+
+      steps:
+        step1:
+          title: "Sign Persistence"
+          questions:
+            - "Count days with positive net GEX"
+            - "Count days with negative net GEX"
+            - "Calculate persistence percentage: max(positive_days, negative_days) / 30 * 100"
+            - "Does it meet 70% threshold (21+ days)?"
+
+        step2:
+          title: "Magnitude Assessment"
+          questions:
+            - "Calculate average GEX magnitude (absolute value): sum(|net_gex|) / 30"
+            - "Is average magnitude ≥$5B?"
+            - "Check for extreme outliers that might distort average"
+
+        step3:
+          title: "Stability Check"
+          questions:
+            - "Count sign flips: How many times does GEX switch from pos→neg or neg→pos?"
+            - "Are there ≤5 sign flips across 30 days?"
+            - "Stable regime should have low flip count"
+
+        step4:
+          title: "Regime Classification"
+          rules:
+            - "If Steps 1, 2, 3 all pass AND positive dominates → PERSISTENT POSITIVE"
+            - "If Steps 1, 2, 3 all pass AND negative dominates → PERSISTENT NEGATIVE"
+            - "If Step 1 passes but Step 2 fails → LOW CONVICTION (reject)"
+            - "If Step 1 fails → TRANSITIONAL (reject)"
+
+    # Confidence calibration
+    confidence_calibration:
+      title: "CONFIDENCE CALIBRATION (Mechanical Guidance)"
+      intro: "Use these concrete anchors to calibrate confidence:"
+
+      ranges:
+        very_high:
+          range: "90-100"
+          label: "Very High Confidence"
+          criteria:
+            - "25-30 days same sign (83-100% persistence)"
+            - "Average magnitude >$10B"
+            - "0-2 sign flips (highly stable)"
+            - 'Example: "29 negative days, avg $15B, 1 flip"'
+
+        high:
+          range: "70-89"
+          label: "High Confidence"
+          criteria:
+            - "21-24 days same sign (70-80% persistence)"
+            - "Average magnitude $5-10B"
+            - "2-4 sign flips (moderately stable)"
+            - 'Example: "23 negative days, avg $7B, 3 flips"'
+
+        borderline:
+          range: "50-69"
+          label: "Borderline - Use with Caution"
+          criteria:
+            - "18-20 days same sign (60-67% persistence)"
+            - "Average magnitude $3-5B"
+            - "5-7 sign flips"
+            - 'Example: "20 negative days, avg $4B, 6 flips"'
+            - "**Note**: Borderline cases should generally be REJECTED unless other factors strengthen confidence"
+
+        reject:
+          range: "0-49"
+          label: "Reject - Not Persistent"
+          criteria:
+            - "<18 days same sign (<60% persistence)"
+            - "OR average magnitude <$3B"
+            - "OR >7 sign flips"
+            - "These are NOT persistent regimes"
+
+      note: "**Important**: Confidence is a FILTER, not a probability. Use it to distinguish clear regimes (70+) from borderline (50-69) from noise (<50)."
+
+    # Output format specification
+    output_format:
+      format: "json"
+      title: "OUTPUT FORMAT (JSON)"
+      intro: "Provide your analysis in this exact JSON structure:"
+
+      schema:
+        regime_detected: "true/false"
+        regime_type: "persistent_positive|persistent_negative|transitional|low_conviction"
+        positive_days: "<count as integer>"
+        negative_days: "<count as integer>"
+        avg_magnitude_billions: "<value as number>"
+        sign_flips: "<count as integer>"
+        persistence_pct: "<percentage as number>"
+        confidence: "<integer 0-100>"
+        reasoning: "Explain step-by-step why this is/isn't a persistent regime. Reference specific metrics (persistence %, avg magnitude, sign flips). If rejecting, state which criterion failed."
+
+      validation_rules:
+        numeric_fields: "All numeric fields (confidence, positive_days, negative_days, sign_flips, avg_magnitude_billions, persistence_pct) MUST be numbers (integers or decimals), NOT words like 'thirty-five' or 'fifty'."
+        regime_detected_rules:
+          true_condition: "true ONLY if regime_type is 'persistent_positive' or 'persistent_negative'"
+          false_condition: "false if regime_type is 'transitional' or 'low_conviction'"
+
+    # Key principles
+    key_principles:
+      title: "KEY PRINCIPLES"
+      principles:
+        - "**Selectivity is Expected**: Most windows will NOT be persistent regimes (expect 30-50% detection rate)"
+        - "**ALL Criteria Must Pass**: Persistence + Magnitude + Stability required for detection"
+        - "**Rejection is Valid**: Saying 'no persistent regime' is a correct answer for transitional/weak periods"
+        - "**Mechanical Over Qualitative**: Use concrete thresholds (70%, $5B, 5 flips) rather than subjective judgment"
+        - "**Structural Focus**: Only detect when dealers are FORCED into directional positions by constraints"
+
+    # Final instruction
+    closing: "Analyze the 30-day GEX data above and provide your regime classification in JSON format."

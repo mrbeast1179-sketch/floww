@@ -1,0 +1,50 @@
+\RequirePackage{silence}
+\WarningFilter{latex}{Command \showhyphens has changed}
+
+% JFDS: Removed IEEE-specific commands for PM-Research format
+% \IEEEoverridecommandlockouts
+
+% JFDS: Chicago Author-Date citation format (PM-Research requirement)
+% Replaced \usepackage{cite} (IEEE numerical) with natbib for Author-Date
+\usepackage[round,authoryear]{natbib}
+\setcitestyle{aysep={}} % Remove comma between author and year: (Author 2024)
+\usepackage{amsmath,amssymb,amsfonts}
+\usepackage{algorithmic}
+\usepackage{graphicx}
+\usepackage{textcomp}
+\usepackage{xcolor}
+\usepackage{booktabs} % for professional tables
+\usepackage{multirow}
+\usepackage{url}
+\usepackage[utf8]{inputenc}  % UTF-8 encoding support
+\usepackage[T1]{fontenc}
+\usepackage{gensymb} % Degree symbol and others
+
+% JFDS: Times New Roman font (PM-Research requirement)
+% Replaced lmodern with newtx for Times New Roman
+\usepackage{newtxtext}  % Times New Roman text font
+\usepackage{newtxmath}  % Times New Roman math font
+\usepackage{microtype} % Better typography
+\usepackage[pdfpagelabels=false]{hyperref}
+\hypersetup{
+    colorlinks=true,
+    linkcolor=blue,
+    citecolor=blue,
+    urlcolor=blue
+}
+\usepackage{array}
+\usepackage{adjustbox}
+\usepackage{float}
+% \usepackage[font=footnotesize,labelfont=bf]{caption}
+% \captionsetup{compatibility=false}
+
+% JFDS: Rename "Figure" to "Exhibit" and "Table" to "Exhibit" per PM-Research style
+\renewcommand{\figurename}{Exhibit}
+\renewcommand{\tablename}{Exhibit}
+
+\setlength{\tabcolsep}{5pt} % default is 6pt
+% % Adjust header height to avoid fancyhdr warning
+% \setlength{\headheight}{14.5pt}
+% \addtolength{\topmargin}{-2.5pt}
+\def\BibTeX{{\rm B\kern-.05em{\sc i\kern-.025em b}\kern-.08em
+    T\kern-.1667em\lower.7ex\hbox{E}\kern-.125emX}}

@@ -1,0 +1,56 @@
+{
+    "name": "kyos/options-calculator",
+    "description": "A collection of methods to calculate option prices, greeks & implied volatilities",
+    "keywords": [
+        "options",
+        "black-76",
+        "black-scholes"
+    ],
+    "homepage": "https://github.com/kyosenergy/options-calculator",
+    "license": "MIT",
+    "authors": [
+        {
+            "name": "Zois Pagoulatos",
+            "email": "zpagoulatos@hotmail.com",
+            "role": "Developer"
+        },
+        {
+            "name": "Emilian Enev",
+            "email": "enev@kyos.com",
+            "role": "Quantitative Developer"
+        }
+    ],
+    "require": {
+        "php": "^7.4|^8.0|^8.1|^8.2|^8.3"
+    },
+    "require-dev": {
+        "friendsofphp/php-cs-fixer": "^3.0",
+        "pestphp/pest": "^1.15",
+        "phpunit/phpunit": "^9.5",
+        "vimeo/psalm": "^4.8"
+    },
+    "autoload": {
+        "psr-4": {
+            "Kyos\\OptionsCalculator\\": "src"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Kyos\\OptionsCalculator\\Tests\\": "tests"
+        }
+    },
+    "scripts": {
+        "psalm": "vendor/bin/psalm",
+        "test": "vendor/bin/pest",
+        "test-coverage": "vendor/bin/pest --coverage",
+        "format": "vendor/bin/php-cs-fixer fix --config .php_cs.dist.php --allow-risky=yes"
+    },
+    "config": {
+        "sort-packages": true,
+        "allow-plugins": {
+            "pestphp/pest-plugin": true
+        }
+    },
+    "minimum-stability": "dev",
+    "prefer-stable": true
+}

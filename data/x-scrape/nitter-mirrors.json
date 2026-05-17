@@ -1,0 +1,11 @@
+{
+  "working": [
+    "https://nitter.net"
+  ],
+  "tested": [
+    "https://nitter.net",
+    "https://nitter.privacydev.net",
+    "https://nitter.poast.org",
+    "https://nitter.1d4.us"
+  ]
+}
