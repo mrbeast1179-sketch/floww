@@ -151,10 +151,18 @@ function PositionForm({ onAdd }) {
 }
 
 // ============ CSV Export Helper ============
+function sanitizeCSVField(value) {
+  const s = value == null ? "" : String(value);
+  // Prevent CSV/Excel injection: prefix dangerous characters with single quote
+  if (s && /^[=+\-@]/.test(s)) {
+    return "'" + s;
+  }
+  return s;
+}
+
 function downloadCSV(filename, headers, rows) {
   const csv = [headers.join(","), ...rows.map(r => headers.map(h => {
-    const v = r[h];
-    const s = v == null ? "" : String(v);
+    const s = sanitizeCSVField(r[h]);
     return s.includes(",") || s.includes('"') || s.includes("\n") ? `"${s.replace(/"/g, '""')}"` : s;
   }).join(","))].join("\n");
   const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
