@@ -132,6 +132,35 @@ export function MorningBriefing({ ticker, spot }) {
           </div>
         )}
       </div>
+
+      {/* Pre-Market Checklist */}
+      <div>
+        <div className="label mb-1">Pre-Market Checklist</div>
+        <div className="bg-slate-800/40 rounded p-2 border border-slate-700/40 space-y-1">
+          <CheckItem label="GEX regime identified" done={!!data.regime?.gex_regime && data.regime.gex_regime !== "unknown"} />
+          <CheckItem label="Gamma flip level noted" done={!!data.key_levels?.gamma_flip} />
+          <CheckItem label="Call/Put walls confirmed" done={!!data.key_levels?.call_wall && !!data.key_levels?.put_wall} />
+          <CheckItem label="Max pain identified" done={!!data.key_levels?.max_pain} />
+          <CheckItem label="Strategy selected" done={data.strategy?.recommended_strategies?.length > 0} />
+          <CheckItem label="Position size calculated" done={!!data.strategy?.position_sizing_note} />
+          <CheckItem label="Stop loss set" done={!!data.risk_management?.stop_suggestion?.below_put_wall} />
+          <CheckItem label="Risk/reward ≥ 1:2" done={(() => {
+            const s = data.strategy?.recommended_strategies || [];
+            return s.some(str => str.toLowerCase().includes("defined") || str.toLowerCase().includes("spread") || str.toLowerCase().includes("condor"));
+          })()} />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function CheckItem({ label, done }) {
+  return (
+    <div className="flex items-center gap-1.5 text-[9px]">
+      <span className={`w-3 h-3 rounded-sm border flex items-center justify-center text-[7px] flex-shrink-0 ${done ? "bg-emerald-500/20 border-emerald-500/50 text-emerald-400" : "border-slate-600 text-slate-600"}`}>
+        {done ? "✓" : ""}
+      </span>
+      <span className={done ? "text-slate-300" : "text-slate-500"}>{label}</span>
     </div>
   );
 }

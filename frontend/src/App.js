@@ -362,9 +362,11 @@ export default function App() {
         case "1": setPage("trinity"); break;
         case "2": setPage("heatseeker"); break;
         case "3": setPage("portfolio"); break;
+        case "4": setPage("journal"); break;
         case "g": setView("grid"); break;
         case "b": setView("bar"); break;
         case "c": setView("chain"); break;
+        case "j": setPage("journal"); break;
         case "d": setMode("day"); break;
         case "s": setMode("swing"); break;
         case "x": setMode("scalp"); break;

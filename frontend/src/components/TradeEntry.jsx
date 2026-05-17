@@ -168,25 +168,94 @@ export function TradeEntry({ ticker, spot }) {
       </div>
 
       {/* Risk Preview */}
-      {formData.contracts > 0 && (
-        <div className="bg-slate-800/50 rounded p-2 border border-slate-700/50 text-[10px]">
-          <div className="label mb-1">Risk Preview</div>
-          <div className="grid grid-cols-2 gap-x-3 gap-y-0.5">
-            <div className="flex justify-between">
-              <span className="text-slate-500">Contracts</span>
-              <span className="mono text-slate-200">{formData.contracts}</span>
+      {formData.contracts > 0 && (() => {
+        const c = parseInt(formData.contracts) || 0;
+        let maxProfit = null, maxRisk = null, breakeven = null;
+
+        if (selectedTemplate === "iron_condor") {
+          const credit = parseFloat(formData.credit) || 0;
+          const ps = parseFloat(formData.put_short) || 0;
+          const pl = parseFloat(formData.put_long) || 0;
+          const cs = parseFloat(formData.call_short) || 0;
+          const cl = parseFloat(formData.call_long) || 0;
+          const wingPut = ps - pl;
+          const wingCall = cl - cs;
+          const maxWing = Math.max(wingPut, wingCall);
+          maxProfit = credit * c * 100;
+          maxRisk = (maxWing - credit) * c * 100;
+          breakeven = `${ps - credit} / ${cs + credit}`;
+        } else if (selectedTemplate === "long_straddle") {
+          const callP = parseFloat(formData.call_premium) || 0;
+          const putP = parseFloat(formData.put_premium) || 0;
+          const total = callP + putP;
+          maxProfit = "Unlimited";
+          maxRisk = total * c * 100;
+          const strike = parseFloat(formData.strike) || 0;
+          breakeven = `${(strike - total).toFixed(1)} / ${(strike + total).toFixed(1)}`;
+        } else if (selectedTemplate === "call_spread") {
+          const debit = parseFloat(formData.debit) || 0;
+          const ls = parseFloat(formData.long_strike) || 0;
+          const ss = parseFloat(formData.short_strike) || 0;
+          const width = ss - ls;
+          maxProfit = (width - debit) * c * 100;
+          maxRisk = debit * c * 100;
+          brekeven = `${(ls + debit).toFixed(1)}`;
+        } else if (selectedTemplate === "put_spread") {
+          const debit = parseFloat(formData.debit) || 0;
+          const ls = parseFloat(formData.long_strike) || 0;
+          const ss = parseFloat(formData.short_strike) || 0;
+          const width = ls - ss;
+          maxProfit = (width - debit) * c * 100;
+          maxRisk = debit * c * 100;
+          brekeven = `${(ls - debit).toFixed(1)}`;
+        } else if (selectedTemplate === "single_leg") {
+          const premium = parseFloat(formData.premium) || 0;
+          const action = formData.action || "";
+          if (action.startsWith("Buy")) {
+            maxProfit = "Unlimited";
+            maxRisk = premium * c * 100;
+          } else {
+            maxProfit = premium * c * 100;
+            maxRisk = "Unlimited";
+          }
+        }
+
+        return (
+          <div className="bg-slate-800/50 rounded p-2 border border-slate-700/50 text-[10px]">
+            <div className="label mb-1">Risk Preview</div>
+            <div className="grid grid-cols-2 gap-x-3 gap-y-0.5">
+              <div className="flex justify-between">
+                <span className="text-slate-500">Contracts</span>
+                <span className="mono text-slate-200">{c}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-500">Max Profit</span>
+                <span className="mono text-emerald-400">
+                  {typeof maxProfit === "number" ? `+$${maxProfit.toFixed(0)}` : maxProfit || "—"}
+                </span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-500">Max Risk</span>
+                <span className="mono text-rose-400">
+                  {typeof maxRisk === "number" ? `$${maxRisk.toFixed(0)}` : maxRisk || "—"}
+                </span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-500">Breakeven</span>
+                <span className="mono text-amber-400">{breakeven || "—"}</span>
+              </div>
             </div>
-            <div className="flex justify-between">
-              <span className="text-slate-500">Max Risk</span>
-              <span className="mono text-rose-400">
-                ${formData.credit ? (formData.contracts * 100 * (formData.credit || 0)).toFixed(0) :
-                  formData.debit ? (formData.contracts * 100 * (formData.debit || 0)).toFixed(0) :
-                  "TBD"}
-              </span>
-            </div>
+            {typeof maxProfit === "number" && typeof maxRisk === "number" && maxRisk > 0 && (
+              <div className="mt-1 pt-1 border-t border-slate-700/50 flex justify-between">
+                <span className="text-slate-500">Risk/Reward</span>
+                <span className={`mono ${(maxProfit / maxRisk) >= 2 ? "text-emerald-400" : (maxProfit / maxRisk) >= 1 ? "text-amber-400" : "text-rose-400"}`}>
+                  1:{(maxProfit / maxRisk).toFixed(2)}
+                </span>
+              </div>
+            )}
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       {/* Save Button */}
       <button onClick={handleSave} className="btn w-full text-[11px]">

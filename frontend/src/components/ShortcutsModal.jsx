@@ -5,6 +5,7 @@ const SHORTCUTS = [
     { key: "1", desc: "Trinity view" },
     { key: "2", desc: "Heatseeker" },
     { key: "3", desc: "Portfolio" },
+    { key: "4 / J", desc: "Trade Journal" },
     { key: "↑/↓", desc: "Cycle tickers" },
   ]},
   { category: "Views", items: [

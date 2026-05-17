@@ -175,3 +175,70 @@ input, select, button {
 }
 .btn:hover { border-color: var(--accent); color: var(--accent); }
 .btn.active { border-color: var(--accent); color: var(--accent); background: rgba(94,234,212,0.06); }
+
+/* Fade-in animation for panels */
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(4px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+.panel, .panel-2 {
+    animation: fadeIn 150ms ease-out;
+}
+
+/* Smooth hover for interactive rows */
+.row-hover {
+    transition: background 100ms ease;
+}
+.row-hover:hover {
+    background: rgba(255,255,255,0.02);
+}
+
+/* Tooltip */
+.tooltip-container {
+    position: relative;
+}
+.tooltip-container .tooltip-text {
+    visibility: hidden;
+    opacity: 0;
+    position: absolute;
+    bottom: 100%;
+    left: 50%;
+    transform: translateX(-50%);
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    color: var(--text-dim);
+    font-size: 9px;
+    padding: 3px 6px;
+    border-radius: 3px;
+    white-space: nowrap;
+    transition: opacity 120ms;
+    pointer-events: none;
+    z-index: 50;
+}
+.tooltip-container:hover .tooltip-text {
+    visibility: visible;
+    opacity: 1;
+}
+
+/* Number input spinner hide */
+input[type="number"]::-webkit-inner-spin-button,
+input[type="number"]::-webkit-outer-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+}
+input[type="number"] {
+    -moz-appearance: textfield;
+}
+
+/* Focus ring */
+input:focus, select:focus, textarea:focus, button:focus-visible {
+    outline: none;
+    border-color: var(--accent) !important;
+    box-shadow: 0 0 0 1px rgba(94, 234, 212, 0.3);
+}
+
+/* Scrollbar for Firefox */
+* {
+    scrollbar-width: thin;
+    scrollbar-color: var(--border-2) var(--bg-2);
+}
