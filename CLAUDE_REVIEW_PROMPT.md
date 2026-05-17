@@ -1,734 +1,673 @@
-# Confluence Decoder — Architecture, ML, & Continuous Development Plan
+# Confluence Decoder — Truth-First Architecture & Autonomous Build Plan
 
-**Project owner:** Nav (Navdeep Kumar) — $5K account, SPY/QQQ day-trading on the Baby Billy DVT 4.5 framework, goal: profitable daily after Jefferson MRI graduation Aug 13, 2026.
-**Repo:** `/Users/nav/Documents/GitHub/floww`
-**Executing agent:** Hermes (Claude Code), session-by-session.
-**Status of this document:** the single source-of-truth for forward development. All older plan files (`PLAN.md`, `MASTER_PLAN.md`, `IMPLEMENTATION_PLAN.md`, `CLAUDE_REVIEW_ROUND2.md`, `SKYLIT_FEATURES.md`, `MORNING_BRIEFING.md`) are inputs to this plan and remain on disk for reference, but are no longer authoritative.
-
-This plan is written to be executed by Hermes one phase at a time, with Nav's IDE stack — **PyCharm, WebStorm, DataGrip, IntelliJ** — used at every step, not just for sign-off.
+**Owner:** Nav · **Repo:** `/Users/nav/Documents/GitHub/floww` · **Executor:** Hermes (Claude Code)
+**Status:** supersedes every prior plan file. This is the only document Hermes reads to decide what to do next.
 
 ---
 
-## 0. Evidence: where the system is today (verified, not assumed)
-
-Before planning forward, the facts on the ground (each line of this section references a file or command output, not memory):
-
-### Backend, what's actually built
-
-- **Institutional-grade analytics already present.** `backend/advanced_analytics.py` implements Breeden-Litzenberger implied PDF, hedge impulse curve (gamma+vanna), pressure cloud, charm integral, market regime detection. `backend/vol_analytics.py` implements IV surface (smile + term structure), 25-delta risk-reversal, butterfly, skew slope, Close / Parkinson / Garman-Klass realized vol, IV rank/percentile. `backend/bs_greeks.py` has Black-Scholes gamma, vanna, vega, charm, call price.
-- **Provider integrations.** `data_providers.py` (Finnhub, Alpha Vantage, Polygon, yfinance), `flashalpha_client.py` (81 endpoints — exposure/flow/earnings/screener/historical/pricing/max-pain), `databento_provider.py`, `alpaca_client.py` (paper trading), `schwab.py` (OAuth scaffold).
-- **Alert engine.** `backend/alert_engine.py` defines 7 alert types via dataclasses: `GAMMA_FLIP`, `WALL_BREACH`, `GAMMA_SQUEEZE`, `MOMENTUM_EXTREME`, `GEX_MAGNITUDE_SHIFT`, `PIN_RISK`, plus volume-spike. Compares snapshots over time.
-- **ML, toy-level.** `ml_training.py` and `ml_price_prediction.py` extract features from a single GEX snapshot (`spot`, `total_gex`, `net_gex`, `king_strike`, `king_gex`, `top_floor/ceiling`, regime flags, simple GEX distribution stats) and train a sklearn model with no walk-forward CV, no calibration, no model registry, no SHAP, no trading-metric evaluation. **This is the largest forward-engineering opportunity in the project.**
-- **Caching.** `backend/cache.py` provides a Redis async cache with graceful fallback when Redis is absent. Already has TTL conventions (GEX 5min, chain 1min, spot 10s, alerts 30s).
-- **Cron pipeline.** `cron_config.py` defines four jobs: 5-min data collection during market hours (SPY/QQQ/IWM/DIA), 8 AM ET morning briefing email, 6 PM ET model retrain, hourly health check.
-- **WebSocket streaming.** `@app.websocket("/ws/gex/{ticker}")` exists. Reconnection with exponential backoff added in commit `dca7dc0`.
-- **Database.** MongoDB collections in use: `Historical`, `Live`, `databento_oi`, `live_policy`, `live_sessions`, `portfolios`, `snapshots`, `command`. Indexes created in code: **only two** — `snapshots(ticker, ts desc)` in `server.py:3299` and `databento_oi(parent, day)` unique in `databento_provider.py:146`. **Six collections are unindexed.** This is a performance time-bomb.
-
-### Backend, what's brittle
-
-- `backend/server.py` is **3,291 lines** with **74 route handlers** despite `backend/routes/` already having six router modules. Modularization stalled.
-- `backend/paper_trading.py:21` has a hard-coded `DEFAULT_STRATEGY = "iron_condible"` — almost certainly a typo for `"iron_condor"`. **Live bug, in trading code.**
-- Rate limiter (`data_providers.RateLimiter`) is in-process, asyncio-lock-based. Survives single-worker uvicorn; dies under multi-worker or horizontal scale.
-- CI runs only `ruff check`. `mypy`, `bandit`, `pip-audit`, `pytest --cov`, frontend lint, `npm audit` are all dormant despite being listed in `requirements.txt`.
-
-### Frontend, what's there
-
-- React 19, axios 1.8, recharts 3.6. **No** TanStack Query / SWR (server-state library), **no** Zustand / Redux / Jotai (client-state library). Everything is `useState` + raw axios.
-- `frontend/src/App.js` — **730 lines**, the root component is doing too many jobs.
-- `frontend/src/components/` — 27 components.
-- `frontend/src/hooks/` — three hooks (`use-toast.js`, `useDebounce.js`, `useWebSocketGex.jsx`).
-- **Zero test files in `frontend/src/`.** Coverage = 0%.
-
-### Feature roadmap signals (from prior plans, distilled)
-
-From `IMPLEMENTATION_PLAN.md`, the Skylit / GitHub-research feature gaps that match Nav's trading model:
-
-- VEX (vanna exposure) histogram — separate from GEX
-- DEX (delta exposure) histogram
-- Flip-zone indicator on the heatmap
-- Four gamma/vanna states with trading prescriptions
-- Vega Total tracking
-- Gauge chart for snapshot
-- Scenario matrix (price × time → expected moves)
-- Tap probability bands (80 / 66 / 33 / 10)
-- Stacked-node detection, tug-of-war zones
-- Real-vs-hedge node distinction
-- Replay mode
-
-These are the high-leverage analytical additions, and they slot into Phase B below.
-
----
-
-## 1. Target architecture
-
-The system, drawn as bounded contexts. Forward work conforms to this map.
-
-```
-┌──────────────────────────────────────────────────────────────────────────────┐
-│                                FRONTEND (React)                              │
-│ ┌────────────────┐ ┌──────────────┐ ┌───────────────┐ ┌─────────────────┐    │
-│ │ Heatmap / GEX  │ │ Flow / Alerts│ │ Portfolio / P&L│ │ ML Insights    │    │
-│ └──────┬─────────┘ └──────┬───────┘ └──────┬────────┘ └────────┬───────┘    │
-│        │ TanStack Query (server state) + Zustand (UI state)                  │
-│        │ WebSocket: live GEX, live flow, live alerts                          │
-└────────┼─────────────────────────────────────────────────────────────────────┘
-         │ REST + WS
-┌────────▼─────────────────────────────────────────────────────────────────────┐
-│                    FastAPI app (composition root only)                       │
-│                            backend/server.py                                 │
-│ ┌─────────────────────────────────────────────────────────────────────────┐  │
-│ │  Routers (one module per context, under backend/routes/)                │  │
-│ │  market_data │ analytics │ alerts │ ml │ trading │ portfolio │ admin    │  │
-│ └────┬─────────┬─────────┬──────┬────────┬─────────┬────────┬─────────────┘  │
-│      │         │         │      │        │         │        │                │
-│ ┌────▼───┐ ┌───▼───┐ ┌───▼───┐ ┌▼──┐ ┌──▼───┐ ┌───▼────┐ ┌─▼──────────┐     │
-│ │DataLake│ │ Quant │ │ Alert │ │ML │ │Trading│ │Portfolio│ │ Obs        │     │
-│ │services│ │ engine│ │engine │ │svc│ │engine │ │ engine  │ │(logs/metr) │     │
-│ └────┬───┘ └───┬───┘ └───┬───┘ └─┬─┘ └───┬───┘ └────┬────┘ └────────────┘     │
-│      │         │         │       │       │          │                          │
-│      ▼         ▼         ▼       ▼       ▼          ▼                          │
-│ ┌────────────────────────────────────────────────────────────────────────┐    │
-│ │ Persistence: MongoDB (snapshots, portfolios, alerts, predictions) +    │    │
-│ │              Redis (hot cache) + filesystem (model registry, features) │    │
-│ └────────────────────────────────────────────────────────────────────────┘    │
-└──────────────────────────────────────────────────────────────────────────────┘
-
-  External: Finnhub │ Alpha Vantage │ Polygon │ FlashAlpha │ Databento │ Alpaca │ Schwab
-            (each behind a provider port with circuit-breaker / fallback)
-```
-
-### Quality attributes the architecture must meet
-
-| Attribute       | Target                                                                        | Why                                                |
-|-----------------|-------------------------------------------------------------------------------|----------------------------------------------------|
-| Correctness     | Greeks/GEX agree with canonical references to 1e-6 relative error             | Real money sits behind these numbers               |
-| Determinism     | Same input → same output for analytics & ML inference                         | Auditable trades, reproducible research            |
-| Idempotency     | Order placement safe under retry / crash mid-flight                           | No accidental double-fills                         |
-| Latency         | GEX dashboard p95 < 1.5 s during market hours; alert delivery < 30 s          | Day-trading is time-sensitive                      |
-| Observability   | Every error has a request ID; every model has a run ID; every order has IDs   | When things break you can find why                 |
-| Reproducibility | `pip install -r requirements.txt && npm ci` produces identical builds         | CI green ≠ "works on my machine" green             |
-| Testability     | Backend ≥ 80% line coverage; trading code ≥ 95%; ML pipeline fully unit-tested| Refactor without fear                              |
-| Reversibility   | Every release rolls back via `git revert` and a Mongo migration script        | Failed deploys don't burn a trading day            |
-
----
-
-## 2. Operating principles for Hermes
-
-1. **Architecture is a contract.** New code conforms to the bounded contexts in §1. A handler that needs trading and ML logic lives in `routes/`, calls into `services/trading/` and `services/ml/`, and contains no business logic of its own.
-2. **Tests live with code.** Every new module ships with a test file. Every bug fix lands as a failing test first.
-3. **Math gets canonical vectors.** Any new numerical function (Greek, GEX variant, IV-surface fit, ML feature) has a unit test asserting agreement with a published reference (Hull, py_vollib, QuantLib) to a documented tolerance.
-4. **Trading code is special.** Any path that places, modifies, or queries orders gets idempotency tests, replay tests, and pre-trade risk-gate tests.
-5. **No half-finished refactors.** If `server.py` is being decomposed and the work won't fit one PR, the PR moves one router cleanly and the rest stay where they are. No "in-progress" mixed states.
-6. **No new plan documents.** Tasks live in `BACKLOG.md`; architecture decisions live in `docs/adr/NNNN-title.md`; phase logs live in `REVIEW_LOG.md`. Stop spawning fresh `*_PLAN.md` files.
-7. **IDE used as a code-quality instrument.** Each phase below names the JetBrains tool action that anchors the work. The IDE is not optional polish — it is part of the workflow.
-8. **Evidence in PRs.** Every PR description shows: the verification commands run, the output, screenshots of any UI change, and the relevant inspection / profiler / coverage screenshot from the IDE.
-
----
-
-## 3. Foundation — JetBrains workspace (one-time setup; used in every phase)
-
-This precedes Phase A. Hermes asks Nav to do these once; Hermes verifies in subsequent sessions by reading the committed config under `.idea/` (selectively — see `.gitignore` notes below).
-
-### 3.1 IntelliJ IDEA Ultimate (umbrella project)
-
-- Open the repo as a multi-module project: backend (Python SDK), frontend (Node), docker (Docker plugin), `.github/workflows/` (YAML), Pine Script files if any.
-- Enable plugins: **Python**, **JavaScript and TypeScript**, **React**, **Database Tools and SQL** (DataGrip), **Docker**, **HTTP Client**, **Markdown**, **.env files support**, **Pydantic**, **Mypy**.
-- Commit a curated subset of `.idea/`: `runConfigurations/`, `codeStyles/`, `inspectionProfiles/`. Add the rest to `.gitignore`. This way new clones get the run configs, code style, and inspection profile for free.
-
-### 3.2 PyCharm — backend run configurations and inspections
-
-Create and commit under `.idea/runConfigurations/`:
-
-| Name                     | Module / Command                                                                                                            | Purpose                              |
-|--------------------------|-----------------------------------------------------------------------------------------------------------------------------|--------------------------------------|
-| `backend-dev`            | `uvicorn server:app --reload --host 0.0.0.0 --port 8000` (cwd `backend/`)                                                   | Local dev server                     |
-| `backend-prod-simulated` | `uvicorn server:app --workers 4 --port 8000`                                                                                | Multi-worker shake-out               |
-| `pytest-all`             | `pytest -ra` (cwd `backend/`)                                                                                               | Full suite                           |
-| `pytest-fast`            | `pytest -ra -m "not slow"`                                                                                                  | Pre-commit gate                      |
-| `pytest-coverage`        | `pytest --cov=. --cov-report=html --cov-report=term-missing`                                                                | Coverage gutter source               |
-| `cron-once`              | `python -c "import asyncio,cron_config; asyncio.run(cron_config.collect_data_job())"`                                       | Manual cron trigger                  |
-| `ml-train-spy`           | `python -c "import asyncio; from ml_price_prediction import train_price_direction_model as t; print(asyncio.run(t('SPY')))"`| Train end-to-end                     |
-| `mypy-strict`            | `mypy . --strict --ignore-missing-imports`                                                                                  | Type-check gate                      |
-
-Inspection profile (`.idea/inspectionProfiles/Project_Default.xml`): enable PEP-8, Pydantic, Mypy as errors; enable security inspections; ratchet "Method too long" warning to **error** at 80 lines so server.py doesn't grow back.
-
-Coverage integration: PyCharm reads `backend/.coverage` after `pytest-coverage` and shows gutter highlighting per line. **Use it before claiming a module is tested.**
-
-Database tool: connect to (a) local Mongo via docker-compose, (b) Atlas (read-only credentials). Save under "Data Sources." Common queries committed to `qc/queries/*.mongo.json` and run from the IDE.
-
-### 3.3 WebStorm — frontend run configurations and inspections
-
-| Name              | Command                                              | Purpose                          |
-|-------------------|------------------------------------------------------|----------------------------------|
-| `frontend-dev`    | `npm start` (cwd `frontend/`)                        | Dev server with HMR              |
-| `frontend-build`  | `npm run build`                                      | Production bundle                |
-| `frontend-test`   | `npm test -- --watchAll=false`                       | Jest                             |
-| `frontend-lint`   | `npm run lint`                                       | ESLint                           |
-| `frontend-e2e`    | `npx playwright test`                                | E2E (added in Phase H)           |
-
-Inspections: enable React hooks rules as **error** (`react-hooks/exhaustive-deps`, `react-hooks/rules-of-hooks`); enable accessibility inspections; enable "Unresolved variables" and "Unused symbol" as warnings escalating to error after Phase H.
-
-Built-in HTTP Client: create `qc/http/backend.http` with named requests for every router. WebStorm executes them inline — replaces manual curl. Useful when stitching together backend and frontend changes.
-
-### 3.4 DataGrip — MongoDB inspection (this is where indexing problems get fixed)
-
-This is the IDE Nav will use the most for Phase A.
-
-- Connect to local Mongo (docker-compose) **and** Atlas (separate session).
-- For each collection (`snapshots`, `Historical`, `Live`, `databento_oi`, `live_policy`, `live_sessions`, `portfolios`, `command`):
-  - Use **Schema → Diagram** to visualize document shape.
-  - Use **Console** to run `db.<col>.getIndexes()` and copy output into `docs/data-model/indexes.md`.
-  - Run `db.<col>.find(<a hot query from server.py>).explain('executionStats')` and check `totalDocsExamined / nReturned`. Any ratio worse than 10:1 on a query that runs on the request path is a Phase A finding.
-- Save the explain queries as DataGrip "Saved Consoles" so anyone can re-run them.
-
-### 3.5 Pre-commit + CI
-
-Once-only setup (Hermes does this in Phase A):
-
-- `.pre-commit-config.yaml`: `ruff`, `ruff-format`, `mypy` (warning), `bandit -ll`, `prettier`, `eslint`, plus a lightweight test smoke (`pytest -q -k "test_smoke" --maxfail=1`).
-- Extend `.github/workflows/ci.yml` to gate every PR on: `ruff check`, `ruff format --check`, `mypy`, `bandit -r backend -ll`, `pip-audit -r backend/requirements.txt`, `pytest --cov=backend --cov-fail-under=60` (ratchets to 80 by Phase D), frontend `npm ci && npm run lint && npm audit --audit-level=high && npm test -- --watchAll=false`.
-- Branch protection on `main`: require CI, require linear history, disallow force push.
-
----
-
-# Phases A — J
-
-Each phase has the same skeleton: **target**, **why now**, **current state**, **work units**, **JetBrains workflow specific to this phase**, **verification commands**, **exit criteria**. Hermes works one phase at a time. PRs reference the phase letter in the title.
-
----
-
-## Phase A — Data Layer (providers, cache, indexing)
-
-**Target.** Every external read goes through a typed provider port with a circuit breaker, a fallback chain, and a Pydantic response model. Every Mongo query uses an index. Redis is treated as authoritative for hot data with documented TTLs.
-
-**Why now.** Everything downstream — analytics, ML, alerts — runs on this. Stabilize the foundation first.
-
-**Current state.**
-- Providers exist (Finnhub, Alpha Vantage, Polygon, yfinance, FlashAlpha, Databento, Alpaca, Schwab) but expose dict returns, not Pydantic.
-- `RateLimiter` is in-process; no circuit breaker; fallback chains are ad-hoc inside callers.
-- Mongo: **2 indexes total** across 8 collections.
-- Redis cache exists; usage is patchy.
-
-**Work units.**
-
-1. **Provider port.** Define `backend/services/providers/base.py` with an abstract `MarketDataProvider` (methods: `get_quote`, `get_chain`, `get_history`, `health`). Each existing client implements the port. Callers depend on the port, never on the concrete client.
-2. **Typed responses.** Pydantic models in `backend/services/providers/models.py`: `Quote`, `OptionContract`, `OptionChain`, `Bar`, `TradeTick`. Provider clients parse vendor JSON into these models. Vendor-specific shapes never escape the provider module.
-3. **Circuit breaker + retry.** Wrap each provider call in a `tenacity`-driven retry (exponential backoff, max 3 attempts) and a circuit breaker (`pybreaker` or hand-rolled — opens after 5 failures in 60 s, half-opens after 30 s). Metrics counter per state transition.
-4. **Fallback chain.** A `MarketDataRouter` that takes a list of providers per data kind and tries them in priority order, recording which one served the response. Returns the response + a provenance tag.
-5. **Rate limiter — externalize.** Replace the in-process `RateLimiter` with Redis-backed token buckets (one bucket per `(provider, key_kind)`). Works under multi-worker uvicorn.
-6. **Mongo indexes.** Author `backend/services/db/indexes.py` and call it from FastAPI's lifespan startup. At minimum:
-   - `snapshots`: `(ticker, ts desc)` (exists), plus `(ticker, regime, ts desc)` for regime queries.
-   - `Historical`: `(ticker, day desc)`, `(ticker, expiry, day)`.
-   - `Live`: `(ticker, ts desc)`.
-   - `databento_oi`: `(parent, day)` unique (exists), plus `(parent, expiry, day)`.
-   - `portfolios`: `(user_id, name)` unique.
-   - `live_sessions`: `(session_id)` unique, `(user_id, started_at desc)`, TTL on `expires_at`.
-   - `live_policy`: `(name)` unique.
-   - `command`: `(name, ts desc)` with TTL on old commands.
-
-   Use DataGrip's explain plan to verify each query in `server.py` and `routes/` uses an index after this lands.
-7. **Cache audit.** Every call site that touches a provider checks the cache first. Standardize keys: `cache:{kind}:{ticker}:{params_hash}`. TTLs documented in one place (`backend/services/cache/policy.py`).
-8. **Provider health endpoint.** `GET /api/admin/providers/health` returns per-provider status: enabled, last success, last failure, circuit-breaker state, recent success rate. Wired into the existing `/health` payload too.
-
-**JetBrains workflow.**
-- **DataGrip:** run `explain('executionStats')` on every query in `server.py` referencing `find`/`aggregate`. Document each in `qc/queries/`. Add missing indexes via DataGrip's "Generate New Index" UI; commit the JS snippet.
-- **PyCharm:** Refactor → Move to extract provider clients into `services/providers/`. Use Find Usages on `data_providers.RateLimiter` before deleting it — make sure every caller migrated to the Redis-backed limiter.
-
-**Verification.**
-```bash
-# All providers expose Pydantic models
-pytest backend/tests/services/providers/ -v
-
-# Indexes all present (Python one-liner, run from repo root)
-python - <<'PY'
-import asyncio, os, motor.motor_asyncio
-async def main():
-    c = motor.motor_asyncio.AsyncIOMotorClient(os.environ["MONGO_URL"])
-    db = c[os.environ["DB_NAME"]]
-    for col in ["snapshots","Historical","Live","databento_oi","portfolios","live_sessions","live_policy","command"]:
-        idx = [i["name"] for i in await db[col].list_indexes().to_list(length=None)]
-        print(f"{col}: {idx}")
-asyncio.run(main())
-PY
-# Expect every collection to have ≥ 1 purpose-built index beyond _id_.
-```
-
-**Exit criteria.**
-- Every external call routes through `MarketDataRouter`.
-- All eight collections have purpose-built indexes; no hot query does a full collection scan in `explain` output.
-- Provider health endpoint returns rich status; frontend has a small "providers" indicator.
-- `RateLimiter` in-process class deleted; replaced by Redis token bucket.
-
----
-
-## Phase B — Quantitative analytics extension (VEX, DEX, scenario matrix, regime states, replay)
-
-**Target.** Match or exceed Skylit's analytical surface while keeping the math auditable. Add VEX, DEX, vega-total, flip-zone, scenario matrix, four gamma/vanna states, tap-probability bands, stacked-node detection, replay mode.
-
-**Why now.** The math foundations (`advanced_analytics.py`, `vol_analytics.py`, `bs_greeks.py`) are solid; extending them is mostly composition, not new research. And these are the features that directly help Nav read the tape.
-
-**Current state.**
-- GEX, gamma flip, walls, max pain, hedge impulse, charm integral, implied PDF — present.
-- VEX (vanna), DEX (delta), Vega Total — **not** present as separate histograms.
-- Scenario matrix, gamma/vanna 4-state classifier, replay mode — absent.
-
-**Work units.**
-
-1. **VEX, DEX, Vega Total.** Add `calc_vex`, `calc_dex`, `calc_vega_total` to `advanced_analytics.py`. Each takes the same `contracts` shape used by GEX. Unit tests against a two-strike toy chain.
-2. **Four gamma/vanna states.** Function `classify_state(gex_sign, vex_sign) -> Literal["range_bound", "vex_watch", "short_pos_gamma", "short_bounce"]` with the prescriptions from `IMPLEMENTATION_PLAN.md:43-48`. Return a structured `RegimeAdvice` object: state, description, suggested strategy, risk multiplier.
-3. **Scenario matrix.** Given a snapshot, compute expected dealer-hedge flow for price moves in a grid of `(Δspot, Δt)` cells. Output a 2D array suitable for a heatmap. Each cell shows: implied dealer buy/sell volume, expected GEX-induced reflexivity, confidence band.
-4. **Tap probability bands.** Using the implied PDF (`calc_implied_pdf`), compute strike-level probabilities of being touched (not just being above/below) for 80/66/33/10 bands. Render as horizontal lines on the price chart.
-5. **Stacked nodes / tug-of-war.** A stacked node = strike where call wall and put wall coincide within a tight band. Tug-of-war = adjacent strikes with opposite-sign GEX above a magnitude threshold. Detection in `advanced_analytics.py`.
-6. **Replay mode.** Backend reads historical `snapshots` for a chosen ticker/day at a chosen speed; emits over the WebSocket as if live. Frontend's existing heatmap becomes the replay viewer with no fork.
-7. **Math correctness tests.** Each new function gets a unit test with hand-computed expected values and a property-based test (`hypothesis`) for invariants (e.g. GEX = call_gamma_sum - put_gamma_sum scaled; VEX flips sign with vanna sign).
-
-**JetBrains workflow.**
-- **PyCharm:** open `advanced_analytics.py`, use Tools → Run Python Console to interactively prototype each new function against a fixture chain. Move to a test file with Refactor → Extract.
-- **PyCharm Profiler:** profile `calc_implied_pdf` and the scenario-matrix function on a realistic chain. Anything in the request path should be < 50 ms; if not, optimize before merge.
-
-**Verification.**
-```bash
-pytest backend/tests/test_advanced_analytics.py backend/tests/test_vol_analytics.py -v
-# Property-based tests must pass with default Hypothesis settings (100 examples per property).
-
-# Replay round-trip
-curl -fs 'http://localhost:8000/api/replay/start?ticker=SPY&day=2026-04-15&speed=10x'
-# Open the frontend in Chrome; confirm WebSocket frames arrive in chronological order.
-```
-
-**Exit criteria.**
-- VEX, DEX, Vega-Total exposed via routes and rendered on the frontend with toggleable histograms.
-- Scenario matrix, tap-probability bands, stacked-node detection, tug-of-war zones each have a route, a test, and a UI component.
-- Replay mode functional for any day in `snapshots`.
-
----
-
-## Phase C — ML pipeline (the deep one)
-
-**This phase is where the system stops being a dashboard and starts being a research platform.** It is broken into six sub-phases. Do not skip ahead.
-
-**Target.** A reproducible ML pipeline with: a feature store, walk-forward training with purged K-fold + embargo, hyperparameter search, multiple model families, calibration, SHAP explanations, trading-metric evaluation, a model registry, and online inference with drift monitoring.
-
-**Why now.** The current `ml_training.py` / `ml_price_prediction.py` produce a single sklearn model trained on a flat snapshot table with no temporal discipline. That model is not safe to trade on. Replacing it with a production pipeline is the single highest-leverage change in this project.
-
-**Current state.** Toy features (10 fields per snapshot), no CV strategy, no model registry, no calibration, no monitoring.
-
-### Phase C.1 — Feature store
-
-**Work units.**
-
-1. New module `backend/services/ml/features.py` exporting `compute_features(snapshot_window, market_window, flow_window, sentiment_window) -> FeatureRow` where each window is a list of records ending at time `t`.
-2. **Feature taxonomy.** Cover:
-   - **Price / vol features:** returns over 1m / 5m / 15m / 1h / 1d / 5d horizons; realized vol (Parkinson, Garman-Klass) over 5d / 20d / 60d; gap stats (overnight return, opening range).
-   - **GEX / VEX / DEX features:** snapshot magnitude, normalized magnitude (z-score over 60d), rate of change, distance-to-flip in σ-units, wall density (ATM ± 1%), gamma concentration index (Herfindahl).
-   - **IV features:** ATM IV, 25-delta risk reversal, 25-delta butterfly, IV term-structure slope (front/30d/60d/90d), IV rank, IV percentile.
-   - **Flow features:** sweep frequency, block premium, bullish/bearish premium ratio over 5m / 30m / 1d.
-   - **Macro features:** VIX, VIX9D/VIX ratio, DXY return, 10Y yield change.
-   - **Sentiment features:** social-pipeline output from `social_flow_pipeline.py` aggregated to 5m bars.
-   - **Calendar features:** day-of-week, day-of-month, day-to-OPEX, day-to-FOMC, earnings-season flag.
-3. **Online / offline parity.** The same `compute_features` is called both by the training pipeline (over historical records) and by the inference service (over live records). One code path, never two.
-4. **Feature versioning.** A `FEATURE_VERSION` constant. When the feature schema changes, the version increments and the model registry's compatibility check rejects mismatches.
-5. **Storage.** Features written to MongoDB collection `ml_features` keyed by `(ticker, ts, version)`. Index `(ticker, version, ts desc)`.
-
-**JetBrains workflow.** Use PyCharm's "Run Python Console" with `compute_features` interactively on a real snapshot pulled from DataGrip. Make sure every feature comes back finite and non-NaN.
-
-### Phase C.2 — Targets and labels
-
-**Work units.**
-
-1. **Multi-task targets:** for each feature row at time `t`, compute and store:
-   - `ret_1h` — log return over the next hour.
-   - `ret_eod` — log return from `t` to that day's 16:00 ET close.
-   - `dir_1h` — `1{ret_1h > τ}`, `-1{ret_1h < -τ}`, `0` otherwise (τ from realized vol — e.g. 0.25 × ATR).
-   - `range_1h` — high–low over the next hour.
-   - `regime_change_1h` — boolean: does the GEX regime flip?
-2. **Label leakage prevention.** Features computed at `t` must use only data available at `t`. Tests assert no future value leaks (e.g. moving averages aligned right).
-3. **Label embargo.** Define an embargo window equal to the longest target horizon (1h initially) — features generated within the embargo of any test fold are dropped.
-
-### Phase C.3 — Training pipeline
-
-**Work units.**
-
-1. **Walk-forward CV.** Implement `WalkForwardSplit(n_splits, train_size, test_size, embargo)`. Each fold's test set is contiguous and strictly after its train set.
-2. **Purged K-fold (optional).** For when the same target overlaps multiple feature rows (e.g. 1h targets at 5-min frequency). Purge the overlap.
-3. **Models.** Train four families in parallel under the same CV harness:
-   - Baseline: penalized logistic regression (sklearn).
-   - Tree ensemble: XGBoost.
-   - Tree ensemble: LightGBM.
-   - Time-series: 1D-CNN with attention (PyTorch). Optional, gated by GPU availability.
-4. **Hyperparameter search.** Optuna with `TPESampler`, 50 trials per model per ticker, inner CV inside each fold.
-5. **Class imbalance.** Compute class weights for 3-way direction targets. Try focal loss for the CNN.
-6. **Calibration.** Wrap each classifier in `CalibratedClassifierCV(cv='prefit', method='isotonic')` using a held-out calibration slice from each fold.
-7. **Output.** Per fold: trained model artifact, predictions on test fold, feature-importance vector (SHAP for trees, integrated gradients for CNN), calibration curve.
-
-**JetBrains workflow.**
-- **PyCharm with scientific mode enabled.** Run training in a notebook-style Python file (`# %% cells`) so feature plots, prediction histograms, and SHAP plots render inline. Save the figures into `qc/ml-runs/<run_id>/`.
-
-### Phase C.4 — Evaluation (ML metrics AND trading metrics)
-
-**Work units.**
-
-1. **ML metrics per fold:** accuracy, F1, ROC-AUC, log-loss, Brier score, calibration error.
-2. **Trading metrics per fold:** simulate the obvious trading policy from the model (e.g. enter long if `P(dir=+1) > 0.6`, exit at horizon). Compute:
-   - Hit rate
-   - Average win / average loss
-   - Profit factor
-   - Sharpe (annualized)
-   - Sortino
-   - Calmar (return / max drawdown)
-   - Max drawdown
-   - Hold-time distribution
-3. **Stability:** plot metric over time (rolling fold) — flag if Sharpe falls below the baseline policy for any quarter.
-4. **Stress tests:** if historical data covers them, evaluate on:
-   - Aug 2024 yen-carry unwind
-   - 2022 rate-shock bear
-   - 2020 COVID crash
-   - 2018 Volmageddon
-5. **Comparison report.** Markdown file under `qc/ml-runs/<run_id>/report.md` with tables and embedded plots. Top of report: a single verdict line — "ship / reject / iterate."
-
-### Phase C.5 — Model registry
-
-**Work units.**
-
-1. **MLflow Tracking** (local file-backed; remote-ready). Each fold of each model logs params, metrics, artifacts, signatures.
-2. **Registry table.** A MongoDB collection `ml_models` records: `model_id`, `ticker`, `feature_version`, `training_window`, `metrics_summary`, `path`, `created_at`, `status` (`shadow`, `active`, `retired`).
-3. **Promotion flow.** A model moves `shadow → active` only via an explicit endpoint `POST /api/admin/ml/promote/{model_id}` gated by Nav's approval. The CI gate for promotion requires: positive walk-forward Sharpe, lower drawdown than the prior active model, calibration error below threshold.
-
-### Phase C.6 — Inference + monitoring
-
-**Work units.**
-
-1. **Inference service.** New router `routes/ml.py` exposes `POST /api/ml/predict/{ticker}` returning `{prediction, probability, calibrated_probability, model_id, feature_version, request_id}`. Loads the active model lazily; cached in process.
-2. **Latency.** Inference p95 < 100 ms locally for tree ensembles. Profile with PyCharm's profiler.
-3. **Drift monitoring.** Hourly cron job computes population stability index (PSI) on each feature, comparing the last 24h to the training-window distribution. Alert (in-app, not email) when PSI > 0.25 for any feature.
-4. **Prediction logging.** Every prediction is stored in `ml_predictions` (collection) with feature snapshot + outcome (filled in after the horizon). Powers continuous offline re-evaluation.
-5. **Auto-retrain triggers.** If the last 7 days' walk-forward Sharpe falls below a threshold OR PSI alarms on ≥ 3 features, the system flags a retrain. Retraining still requires explicit promotion to active.
-
-**Verification (whole Phase C).**
-```bash
-# Pipeline runs end-to-end
-python -m backend.services.ml.pipeline --ticker SPY --since 2025-01-01 --until 2026-04-30 --run-id qc-001
-# Produces qc/ml-runs/qc-001/{report.md, metrics.json, artifacts/, plots/}
-
-# Inference works
-curl -fs -X POST 'http://localhost:8000/api/ml/predict/SPY' -H 'Authorization: Bearer ...' | jq .
-```
-
-**Exit criteria for Phase C.**
-- `compute_features` produces ≥ 40 features, all unit-tested for no-future-leakage.
-- Walk-forward CV harness reproducible from a single command.
-- Four model families train under one harness; calibration applied; SHAP/integrated-gradients available.
-- Trading metrics computed alongside ML metrics; both must clear thresholds for shipping.
-- MLflow tracking active; model registry collection live.
-- Inference endpoint live with latency budget met; drift cron job running.
-
----
-
-## Phase D — Backtesting & signal validation
-
-**Target.** A reusable backtester that can score any signal (rule-based or ML) against historical bars/snapshots with realistic friction, used as the gate for what becomes a live alert or live trade.
-
-**Why now.** Without it, "good alert" is opinion. With it, "good alert" is a Sharpe number.
-
-**Work units.**
-
-1. **Bar replay.** Reconstruct minute bars for SPY/QQQ from stored quote ticks (or fetch from Polygon if missing). Store under `backtest_bars` collection.
-2. **Backtester core.** `backend/services/backtest/engine.py` — event-driven, no lookahead, fills at next-bar open with configurable slippage and commission (defaults: 0.05% slippage, $0.65 / contract).
-3. **Signal interface.** Any signal implements `Signal.evaluate(snapshot_history, bar_history, position) -> Action`. The same interface is used by rule-based alerts (Phase E) and ML models (Phase C).
-4. **Standard suites.** Three preset evaluations:
-   - **In-sample / out-of-sample** with a 70/30 time split.
-   - **Walk-forward** consistent with Phase C.
-   - **Monte Carlo bootstrap** of the return path (1,000 trials) to put confidence bands on Sharpe and max-DD.
-5. **Reports.** Each backtest writes a markdown + plots bundle under `qc/backtests/<id>/`.
-
-**Verification.**
-```bash
-python -m backend.services.backtest.run --signal alert.gamma_flip --ticker SPY --window 2025-01-01:2026-04-30
-# Produces qc/backtests/<id>/report.md with Sharpe, hit rate, max DD, sample trades.
-```
-
-**Exit criteria.** Every alert type in `alert_engine.py` has a backtest report on file. Any alert with a backtest Sharpe < 0 across walk-forward is downgraded or retired.
-
----
-
-## Phase E — Alerts & signals (rule engine + ML enrichment)
-
-**Target.** A small DSL for declarative alerts, fed by both rule-based predicates and ML predictions, with a history table and per-alert backtest-driven quality scores.
-
-**Current state.** `alert_engine.py` hardcodes 7 alert types as Python methods. Adding a new alert requires editing the engine.
-
-**Work units.**
-
-1. **Alert DSL.** A YAML schema under `backend/alerts/definitions/*.yaml`. Each file: `name`, `priority`, `predicate` (a tiny boolean expression DSL over snapshot/feature fields), `cool_down`, `description`. Engine parses and evaluates.
-2. **ML-enriched alerts.** A predicate may include `ml.dir_1h_proba > 0.65`. The engine fetches the prediction via the Phase C inference service.
-3. **History table.** Collection `alerts_history` stores every fired alert with: trigger snapshot, predicate value, prediction (if any), realized outcome at horizon (filled later). Powers a "how is each alert performing" dashboard.
-4. **Backtest-gated quality.** Each alert definition references its backtest report (Phase D). A `quality_score` is the report's Sharpe; the alert UI displays it next to the alert.
-5. **Migration.** The 7 existing alerts move into YAML; the Python methods become reference implementations to be deleted.
-
-**Exit criteria.** Adding a new alert is a YAML file + a backtest run, not a code change. Every alert has a `quality_score`. The frontend shows it.
-
----
-
-## Phase F — Trading execution
-
-**Target.** Order placement that is idempotent, replay-safe, and gated by pre-trade risk checks. Paper-vs-live separation enforced in code, not in convention.
-
-**Current state.** `alpaca_client.py` plus `paper_trading.py`. `MAX_POSITION_SIZE = 1`. The typo `DEFAULT_STRATEGY = "iron_condible"` (`paper_trading.py:21`) is a real bug to fix in this phase.
-
-**Work units.**
-
-1. **Trade-intent model.** `backend/services/trading/intent.py` — a Pydantic `TradeIntent` (ticker, side, qty, strategy, max_slippage_pct, max_premium, expiry, strikes, time_in_force). `client_order_id` is a deterministic hash of the intent + a session salt — same intent submitted twice produces the same ID, Alpaca rejects the duplicate.
-2. **Risk gate.** Before every `submit_order`, run `check_risk(intent, portfolio, account)`: max position size, max daily loss, concurrent-position limit, premium-as-fraction-of-equity cap, expiry hygiene (no held-through-expiry without explicit flag), regime override (size down in deep negative gamma).
-3. **Paper-vs-live guard.** Alpaca base URL must come from env. Constructor asserts `"paper" in BASE_URL` unless `LIVE_TRADING_ENABLED=1` is set explicitly. CI runs with `LIVE_TRADING_ENABLED` unset; production env is whitelisted in code.
-4. **Reconciliation loop.** Background task every 30 s: `list_orders` from Alpaca, diff against local `orders` collection, update statuses, alert on mismatches.
-5. **Replay safety.** If the process crashes between `submit_order` and persisting locally, on restart the reconciliation loop's first run picks up the gap (because `client_order_id` was deterministic and is now stored Alpaca-side).
-6. **Strategy library.** Replace the broken `iron_condible` with a real `Strategy` Pydantic discriminated union: `IronCondor`, `Straddle`, `Strangle`, `Vertical`, `Calendar`, `SingleLeg`. Each has its own validation. `paper_trading.build_order_from_signal` returns concrete strategies, not strings.
-
-**JetBrains workflow.**
-- **PyCharm Debug:** breakpoint on `submit_order`. Run the paper-trading integration test. Step through to verify `client_order_id` derivation.
-- **WebStorm HTTP Client:** create `qc/http/trading.http` with sample order submissions; use it to exercise the API by hand.
-
-**Verification.**
-```bash
-pytest backend/tests/services/trading/ -v
-# Includes: idempotency_test (same intent → one fill), risk_gate_test (over-cap rejected), reconciliation_test.
-
-# Fail-closed test
-LIVE_TRADING_ENABLED= python -c "from alpaca_client import AlpacaClient; c = AlpacaClient(base_url='https://api.alpaca.markets'); c.assert_paper()"
-# Expected: raises.
-```
-
-**Exit criteria.**
-- Trade intent → order path is fully Pydantic, with risk gate.
-- `iron_condible` typo removed; replaced with the `Strategy` union.
-- Reconciliation loop running; mismatches alert in-app.
-- Paper-vs-live guard cannot be bypassed by a typo.
-
----
-
-## Phase G — Portfolio & P&L
-
-**Target.** Tax-lot-accurate, multi-leg P&L with `Decimal` math throughout. Every position has a complete event history.
-
-**Current state.** `portfolio.py` is 14.8 KB; uses floats; multi-leg handling unclear.
-
-**Work units.**
-
-1. **Money is `Decimal`.** Every currency value uses `decimal.Decimal` with explicit quantization. No float arithmetic for prices, premiums, P&L. Audit every `* 100`, `* 0.01`, `round()` in portfolio code.
-2. **Tax-lot accounting.** Each fill creates a lot. Closes consume lots FIFO by default; LIFO and HIFO selectable per position.
-3. **Multi-leg positions.** A `Position` aggregates `Leg`s. Greeks aggregate by signed sum across legs. P&L attribution: per leg, per Greek, per day.
-4. **Event log.** Every state change to a position is an append-only event. Position snapshots derive from event replay. Auditable, reversible.
-5. **End-of-day mark.** Cron job at 16:15 ET marks every position to the day's settlement and persists a daily snapshot. Powers the journal.
-
-**Verification.**
-```bash
-pytest backend/tests/services/portfolio/ -v
-# Includes: vertical_pnl, iron_condor_pnl, calendar_pnl, partial_close_pnl, tax_lot_fifo, decimal_no_float_leak.
-```
-
-**Exit criteria.** P&L correctness verified on six canonical fixtures (vertical, IC, straddle, strangle, calendar, partial close). Decimal-only math (`grep -rE 'float\(.*premium|premium.*float|\* 0\.01\b' backend/portfolio.py` returns nothing).
-
----
-
-## Phase H — Frontend architecture
-
-**Target.** A maintainable React app: server state separated from UI state, App.js as a 100-line composition root, hooks for every data feed, tests for every component.
-
-**Current state.** `App.js` 730 lines. No server-state library. No tests.
-
-**Work units.**
-
-1. **Server state → TanStack Query.** Install `@tanstack/react-query`. Every fetch becomes a `useQuery` (or `useMutation`). Configure `staleTime`/`refetchInterval` per data kind. Devtools enabled in dev.
-2. **UI state → Zustand.** A single `useUiStore` for cross-cutting UI state (current ticker, layout density, theme, color-blind mode flag). Component-local state stays local.
-3. **Decomposition.** Split `App.js`:
-   - `App.jsx` — providers (Query, Router, Theme), routes only.
-   - `layouts/DashboardLayout.jsx` — grid.
-   - `pages/HeatmapPage.jsx`, `pages/FlowPage.jsx`, `pages/PortfolioPage.jsx`, `pages/MLPage.jsx`, `pages/ReplayPage.jsx`, `pages/SettingsPage.jsx`.
-   - Data hooks: `useGex(ticker)`, `useFlow(ticker)`, `useAlerts()`, `usePortfolio()`, `useMlPrediction(ticker)`.
-4. **Hook audit.** Enforce `react-hooks/exhaustive-deps: error`. Every WebSocket / interval / subscription has a cleanup function.
-5. **Charts.** Keep recharts for histograms; evaluate `lightweight-charts` (TradingView) for the heatmap and replay — better at high-frequency redraws. Memoize chart components aggressively.
-6. **Tests.** React Testing Library for components, `@testing-library/react-hooks` (or React-18 equivalent) for hooks, Playwright for one happy-path E2E.
-7. **A11y.** axe-core in dev; fix all serious violations.
-
-**JetBrains workflow.**
-- **WebStorm Refactor → Extract Component** for the App.js split.
-- **WebStorm built-in Profiler** + React DevTools to identify expensive renders before/after memoization.
-- **WebStorm HTTP Client** to exercise the API while building components; create `qc/http/` request files.
-
-**Verification.**
-```bash
-wc -l frontend/src/App.js   # ≤ 100
-(cd frontend && npm run lint && npm test -- --coverage --watchAll=false)
-# Coverage gate: ≥ 60% lines, raising to ≥ 75% by Phase J.
-```
-
-**Exit criteria.** App.js ≤ 100 lines; every page route renders independently; TanStack Query Devtools shows clean cache state; lint passes with `exhaustive-deps: error`; ≥ 60% frontend coverage.
-
----
-
-## Phase I — Observability, SLOs, ops
-
-**Target.** When something breaks, you find out in seconds and you know exactly which request did it.
-
-**Work units.**
-
-1. **Structured logs.** `structlog` JSON output. Every log line has `timestamp, level, request_id, user_id?, route, message, extra`.
-2. **Request IDs.** Middleware assigns/propagates `X-Request-ID`; surfaced in error response bodies; included in error tracker reports.
-3. **Metrics.** Prometheus client. Counters per provider call (success/fail/timeout); histograms per route; gauges for WebSocket connections, active orders, cron-job last-success-age. Endpoint `/metrics` gated by an env flag.
-4. **Traces.** OpenTelemetry SDK; export to OTLP. Local dev: Jaeger via docker-compose. Trace IDs link logs ↔ metrics ↔ traces.
-5. **Error tracker.** `error_tracking.py` exists — wire it to Sentry's free tier (or Glitchtip self-hosted). Test with a deliberate `/api/admin/debug/raise`.
-6. **Dashboards.** Grafana panels: (a) data-collection success per ticker per 5-min window, (b) WebSocket connection count, (c) backend latency p50/p95/p99, (d) ML inference latency, (e) alert fire rate by type, (f) order placement success/fail.
-7. **SLOs (`docs/SLO.md`).** Initial:
-   - GEX dashboard load p95 < 1.5 s in market hours.
-   - Alert delivery (snapshot → frontend) < 30 s p95.
-   - Inference p95 < 100 ms.
-   - Uptime 99% during 09:30–16:00 ET; 95% off-hours.
-   - Data freshness: < 6 min behind real-time for any tracked ticker.
-8. **Runbooks (`docs/runbooks/*.md`).** "Mongo Atlas down", "FlashAlpha 5xx", "Alpaca rate-limit storm", "model drift alarm", "WebSocket fanout >500".
-
-**Exit criteria.** Killing Mongo locally surfaces a Grafana red and an in-app banner within 60 s. Every runbook is exercised once in a tabletop drill.
-
----
-
-## Phase J — Quality processes, ADRs, release discipline
-
-**Target.** Hermes ships continuously with low risk, and architectural decisions are durably recorded.
-
-**Work units.**
-
-1. **ADRs.** Folder `docs/adr/`. Template: context, decision, status, consequences. First ADRs to retroactively record: "TanStack Query for server state," "Walk-forward CV with embargo," "Pydantic discriminated unions for strategies," "Redis for cross-worker rate limiting," "MLflow for model registry."
-2. **PR template.** `.github/pull_request_template.md` with: scope, verification commands run, screenshots if UI, ADR reference if architectural, risk assessment, rollback plan.
-3. **Conventional commits.** Enforce via commitlint in pre-commit. Subject types: `feat`, `fix`, `refactor`, `perf`, `test`, `docs`, `chore`. Scope is the bounded context (`(ml)`, `(trading)`, `(frontend)`, …).
-4. **Branching.** Trunk-based with short-lived feature branches. `main` is always deployable. No long-running branches.
-5. **Release tags.** Semver: `v0.x.y`. Each release has a `CHANGELOG.md` entry generated from conventional commits.
-6. **Coverage ratchet.** CI's `--cov-fail-under` increases by 5 every two weeks until 85% (backend) / 75% (frontend) is reached.
-7. **Dependency review.** Monthly `pip list --outdated` and `npm outdated`; minor/patch upgrades land same-week unless they break tests.
-
-**Exit criteria.** Every PR follows the template. ADR folder is non-empty and growing. Coverage ratchet is live.
-
----
-
-## 4. Roadmap & sequencing
-
-The phases have dependencies. The minimum-risk ordering:
-
-```
-       Foundation (§3)
-              │
-              ▼
-            [A] Data layer
-              │
-   ┌──────────┼──────────┐
-   ▼          ▼          ▼
- [B] Quant   [F] Trading  [H] Frontend
-  analytics   execution    (can start in parallel after A)
-   │              │
-   ▼              ▼
- [D] Backtester  [G] Portfolio (after F)
-   │
-   ▼
- [C] ML pipeline (needs B, A, D)
-   │
-   ▼
- [E] Alerts (needs C and D)
-   │
-   ▼
- [I] Observability (touches everything — start partial in A, finish here)
-   │
-   ▼
- [J] Quality processes (start partial in A, formalize here)
-```
-
-**Suggested calendar shape** (Nav's life context: heavy clinical Mon–Thu, work shifts overlap days, MRI graduation Aug 13):
-
-| Block (calendar weeks) | Focus            | Why this fits Nav's schedule                                                                                  |
-|------------------------|------------------|---------------------------------------------------------------------------------------------------------------|
-| Now → mid-June         | §3 + Phase A     | Foundational; mostly mechanical refactoring; can be done in 1–2 hr evening chunks                              |
-| Mid-June → mid-July    | Phases B + H     | Visible features; good motivation; backend analytics + frontend split run in parallel safely                   |
-| Mid-July → mid-Aug     | Phases D + F + G | Pre-graduation; build the trading-safety scaffolding before going live post-graduation                         |
-| Aug → Sep              | Phase C          | Post-graduation, full attention available; ML pipeline is the most cognitively demanding work                  |
-| Sep → Oct              | Phase E + I + J  | Operationalize: alerts, observability, release discipline, before scaling capital                              |
-
-This isn't a deadline; it's a default sequencing. Slip is fine. Skipping is not.
-
----
-
-## 5. Hermes operating contract (how to actually work, session by session)
-
-Every Hermes session follows this loop:
-
-1. **Orient.** Read `REVIEW_LOG.md` last entry. Read this plan's current phase. Open today's `BACKLOG.md` and pick the next task within the phase.
-2. **Branch.** `git checkout -b feat/<phase>/<short-description>` from `main`.
-3. **Plan locally.** Write a `TodoWrite` list for this session's task. Tasks ≤ 30 min each.
-4. **TDD.** Failing test → minimal fix → green → refactor under green.
-5. **IDE pass.** Before opening a PR: run the JetBrains inspection for the changed files; address every "error" severity finding (warnings noted in the PR description).
-6. **Verify.** Run the phase's verification commands. Paste output into the PR description.
-7. **PR.** Title `[Phase X] <short description>`. Body uses the template. Include screenshots for UI changes.
-8. **Log.** Append to `REVIEW_LOG.md`: `<date> <commit-sha> <one-line summary>`.
-
-**Do not:**
-
-- Cross phase boundaries in a single PR.
-- Refactor outside the phase's scope just because the file is open.
-- Add new external dependencies without an ADR.
-- Take destructive actions (force-push, drop collection, delete branch) without Nav's explicit OK in-session.
-- Use `--no-verify` to bypass hooks. If the hook complains, fix what it's complaining about.
-
-**Do:**
-
-- Ask Nav questions when a design choice is irreversible.
-- Surface dead code, unused config, and confusing patterns as `BACKLOG.md` items instead of fixing inline.
-- Pair every fix to trading code with a regression test that would have caught the bug.
-
----
-
-## 6. Verification quick-reference
-
-Save as `qc/verify.sh` (Hermes creates it in Phase A):
+## 0. The audit — what's real, what's fake, what's missing
+
+Hermes opens every session by re-running §0.6 (the truth-audit script). The findings below are the truth as of plan-write time and are the floor, not the ceiling.
+
+### 0.1 Fake completions in the commit log
+
+| Commit | Title claim | Reality |
+|---|---|---|
+| `6c3ba3b` | `feat(Phase A): data layer refactoring with repository pattern` | `wc -l backend/server.py` = **3,532** (up from 3,291). Phase A *added* code, did not decompose. |
+| `ce46e4d` | `feat(Phase B): quant analytics service` | `grep -lE "def calc_vex\|def calc_dex\|def calc_vega_total" backend/*.py` → **no matches**. VEX/DEX/Vega-Total were never written. |
+| `e7f8884` | `feat(Phase C): ML pipeline — data collection, training, and prediction` | Trains on 187 after-hours snapshots with constant spot. Models output one class at 0.9998 confidence — degenerate. |
+| `7b70ea5` | `feat(ML): advanced ML pipeline with walk-forward CV` | Walk-forward CV is in code but applied to non-stationary data with no class variance. Math runs; result is meaningless. |
+| `a4fe8a1` | `feat(ML): synthetic data generation and advanced training` | `backend/ml_synthetic.py` fabricates GEX via `np.random.normal`. **This is the source of the bogus signals.** |
+| `09156ba` | `feat(Phase F): trading execution — fix typo, add Strategy union` | Partially real — `IronCondor` Pydantic class exists in `paper_trading.py`. Other strategy classes (`Straddle`, `Strangle`, `Vertical`, `Calendar`) **not** verified. |
+
+**Operating implication:** every prior "Phase complete" claim is suspect. The truth-audit (§0.6) is the only authority.
+
+### 0.2 Real assets on disk that the project is not using
+
+These are sitting in `data/github-repos/cloned/` from prior research sessions. Hermes treats them as primary data sources, not curiosities.
+
+| Path | Size | What it contains | How it gets used |
+|---|---|---|---|
+| `iAmGiG_gex-llm-patterns/docs/papers/paper1/analysis/issue_141_enhanced_dataset.csv` | (in 76M repo) | Academic GEX dataset with engineered features | Training data, validation set |
+| `iAmGiG_gex-llm-patterns/.../issue_145_next_day_outcomes_2024.csv` | ↑ | Labeled next-day outcomes for 2024 | Supervised targets |
+| `iAmGiG_gex-llm-patterns/reports/statistical_validation/gamma_positioning_timeseries_2024.csv` | ↑ | GEX time series 2024 | Time-series features |
+| `aaguiar10_gflows/data/csv/spx_quotedata.csv` | (20M repo) | Real CBOE quote data, SPX | Chain reconstruction, GEX recomputation |
+| `aaguiar10_gflows/data/csv/ndx_quotedata.csv` | ↑ | NDX (QQQ proxy) chain | Same |
+| `aaguiar10_gflows/data/csv/rut_quotedata.csv` | ↑ | RUT (IWM proxy) chain | Same |
+| `FullStackCraft_floe/` | 2.1M | TypeScript library `advanced_analytics.py` allegedly ports | **Validate our GEX/PDF/charm math against this** |
+| `EsterHlav_Black-Scholes-Option-Pricing-Model/` | 29M | Black-Scholes reference + test vectors | Validate `bs_greeks.py` |
+| `boyac_pyOptionPricing/` | 568K | Pricing reference | Same |
+| `MattL922_implied-volatility/` | — | IV solver reference | Validate `vol_analytics.py` |
+| `Matteo-Ferrara_gex-tracker/` | 8.4M | CBOE-scraping GEX calculator | Cross-check our GEX numbers |
+| `Andrew-Reis-SMU-2022_Options_Based_Trading/` | — | 2019 unusual options activity CSVs | UOA reference, alert backtest fixtures |
+| `FlashAlpha-lab_gex-explained/data/sample_chain.csv` | — | Vendor-blessed chain example | Test fixture for GEX correctness |
+| `shirosaidev_stocksight/` | 756K | Twitter sentiment pipeline | Sentiment feature engineering |
+| `alvarobartt_twitter-stock-recommendation/` | 343M | Twitter dataset | Sentiment training data (noisy, use selectively) |
+| `kaushikjadhav01_Stock-Market-Prediction-Web-App.../Yahoo-Finance-Ticker-Symbols.csv` | — | Ticker universe | Universe expansion later |
+
+### 0.3 External data sources we have keys/credits for
+
+| Source | Status | Use |
+|---|---|---|
+| **Databento** | Key in `backend/.env`; client at `backend/databento_provider.py`; $125 of credits | **Historical EOD options chains 2022→present**. Currently used only for daily OI. Backfill is the largest unrealized data asset. |
+| Polygon.io | Key in env | Historical options aggregates, minute bars for SPY/QQQ |
+| FlashAlpha | Key in env | 81 endpoints including historical EOD options, OI, quotes |
+| Alpha Vantage | Key in env | Technical indicators, 500/day |
+| Finnhub | Key in env | Real-time quotes, news, 60/min |
+| yfinance | No key needed | Decades of OHLCV underlying, unlimited |
+| Alpaca | Key in env | Paper trading; **never** historical |
+
+### 0.4 Cache and Mongo state
+
+- `cache/<TICKER>.json` — 228 bytes each, just `{ticker, spot, expiries, total_contracts, warmed_at}`. **Not training data.** Delete or repurpose.
+- MongoDB has 8 collections with 2 indexes total. Snapshot data is what Session 7's ML trained on — 187 after-hours rows.
+
+### 0.5 What Hermes can and cannot drive
+
+| Tool | Hermes uses it? | Notes |
+|---|---|---|
+| Bash | ✅ | Primary executor |
+| Python via venv | ✅ | `pip`, `pytest`, ad-hoc scripts |
+| Mongo via `motor`/`pymongo` | ✅ | Programmatic; no DataGrip UI access |
+| HTTP via `httpx`/`aiohttp` | ✅ | Databento, FlashAlpha, Polygon, etc. |
+| `git`, `gh` | ✅ | Branches, PRs, CI logs |
+| **PyCharm / WebStorm / DataGrip / IntelliJ** | ❌ | These are Nav's IDEs. There is no MCP that lets Hermes click in them. Anything described in prior plans as "Hermes uses DataGrip" was wrong. |
+| Browser, GUI | ❌ | |
+
+This plan therefore drops the JetBrains-driver pretense. Where the IDE adds value (visual coverage gutter, refactor preview, schema explorer), that's noted as a **Nav action** during PR review — never a Hermes step.
+
+### 0.6 The truth-audit script (Hermes runs at the start of every session)
+
+Hermes creates `qc/audit/truth_audit.sh` (Phase 0, task #1) and reads it on every session start. It asserts the *current* state against the *claimed* state:
 
 ```bash
 #!/usr/bin/env bash
-set -euo pipefail
-cd "$(git rev-parse --show-toplevel)"
+# qc/audit/truth_audit.sh — falsify recent "Phase X complete" commits
+set -u
+fail=0
+say() { echo "AUDIT: $1"; }
 
-echo "─ pre-commit ─";  pre-commit run --all-files
-echo "─ ruff ─";        (cd backend && ruff check . && ruff format --check .)
-echo "─ mypy ─";        (cd backend && mypy . --ignore-missing-imports)
-echo "─ bandit ─";      (cd backend && bandit -r . -ll -ii)
-echo "─ pip-audit ─";   (cd backend && pip-audit -r requirements.txt)
-echo "─ pytest ─";      (cd backend && pytest --cov=. --cov-fail-under=60)
-echo "─ npm lint ─";    (cd frontend && npm run lint)
-echo "─ npm audit ─";   (cd frontend && npm audit --audit-level=high)
-echo "─ npm test ─";    (cd frontend && npm test -- --coverage --watchAll=false)
-echo "─ ALL GREEN ─"
+# A) server.py must trend down
+n=$(wc -l < backend/server.py)
+say "server.py = $n lines"
+[ "$n" -lt 3200 ] || { say "  ❌ Phase-A refactor unfinished (target < 3200)"; fail=1; }
+
+# B) VEX/DEX/Vega-Total must exist if Phase B is claimed complete
+for fn in calc_vex calc_dex calc_vega_total; do
+  if grep -qE "def $fn" backend/*.py 2>/dev/null; then
+    say "  ✅ $fn defined"
+  else
+    say "  ❌ $fn missing — Phase B not complete"; fail=1
+  fi
+done
+
+# C) Synthetic data must not exist
+if [ -f backend/ml_synthetic.py ]; then
+  say "  ❌ backend/ml_synthetic.py present — synthetic data must be deleted"; fail=1
+fi
+if grep -rE "from ml_synthetic|import ml_synthetic|generate_synthetic_snapshots" backend/ 2>/dev/null | grep -v "__pycache__" >/dev/null; then
+  say "  ❌ synthetic data is still imported somewhere"; fail=1
+fi
+
+# D) Strategy union must cover the named strategies
+for cls in IronCondor Straddle Strangle Vertical Calendar SingleLeg; do
+  if grep -qE "class $cls\b" backend/*.py 2>/dev/null; then
+    say "  ✅ $cls Pydantic class exists"
+  else
+    say "  ❌ $cls missing — Phase F incomplete"; fail=1
+  fi
+done
+
+# E) Data freshness — refuse to call any ML "trained" with < 1000 real samples
+if [ -f models/SPY_direction.pkl ]; then
+  n_real=$(python3 -c "import os, json; p='qc/data/SPY_training_manifest.json'; print(json.load(open(p))['n_rows']) if os.path.exists(p) else print(0)" 2>/dev/null)
+  say "  SPY training corpus = ${n_real:-0} rows"
+  [ "${n_real:-0}" -ge 1000 ] || { say "  ❌ model trained on < 1000 rows — degenerate"; fail=1; }
+fi
+
+exit $fail
 ```
 
----
-
-## 7. What this plan deliberately does NOT cover
-
-- **Live trading.** Phase F builds the scaffolding; flipping `LIVE_TRADING_ENABLED=1` is a decision Nav makes after the system has demonstrated a positive walk-forward Sharpe over an out-of-sample window he believes in.
-- **Production infrastructure tuning.** Azure deployment scaffold exists from prior commits; productionizing (HA, scaling, blue/green) is post-Phase-J work.
-- **Secrets rotation procedures.** Per Nav: account is private, single-user. Standard env-file hygiene only.
-- **Mobile native app.** Mobile-responsive web is sufficient (already delivered in commit `be49dd5`).
-- **Multi-user / team features.** Single-user product.
-
-If any of these become relevant later, they get their own ADR + addendum phase.
+This script's job is to **make lying expensive**. CI runs it on every PR. A session that opens with `fail=1` becomes a remediation session, not a feature session.
 
 ---
 
-## 8. Open questions for Nav (resolve before Phase C)
+## 1. Operating laws (non-negotiable, code-enforced)
 
-These shape the ML phase enough that Hermes shouldn't pick defaults silently:
-
-1. **Universe.** SPY/QQQ only for ML, or include IWM/DIA/sector ETFs? (Default: SPY + QQQ only; more tickers = more training data but more regime variance.)
-2. **Prediction horizon priority.** Intraday (1h) vs end-of-day vs next-day? (Default: 1h primary, EOD secondary.)
-3. **Risk per trade.** Is the existing 1–2% rule the cap once live, or does the regime multiplier dynamically widen it? (Default: hard 2% cap, regime can only reduce.)
-4. **Hardware.** GPU available for the CNN family, or skip it? (Default: skip until GPU available; XGBoost+LightGBM are enough.)
-5. **Data history.** How far back is reliable? Pre-2020 markets behave differently; pre-2018 0DTE didn't exist. (Default: 2020-01-01 onwards.)
-
-Hermes asks these as `AskUserQuestion` at the start of Phase C, captures answers in `docs/adr/0001-ml-scope.md`.
+1. **No synthetic data.** Ever. Models train only on real market data. Test fixtures can be hand-crafted, but they live in `backend/tests/fixtures/` and are never imported by production code.
+2. **No model ships without a data manifest.** Every model artifact is paired with `qc/data/<model>_manifest.json` listing: source files, row count, date range, target balance, feature variance.
+3. **Degenerate-model gate.** Training pipeline asserts: target classes balanced within 30/70 in train, feature variance > 1e-6 on every feature, OOS predicted-probability distribution std > 0.05 (catches "always predicts the same thing"). Any violation → raises `DegenerateModelError` and refuses to save.
+4. **Baseline-first.** No "model X works" claim without comparing against three baselines on the same OOS slice: (a) majority-class, (b) persistence (predict same as last bar), (c) penalized logistic on the same features. The model must beat all three on Sharpe-of-simulated-strategy.
+5. **Out-of-sample is sacred.** Time-ordered split, never random. The last 20% of data by date is locked away as a holdout that nobody (including Hermes) reads until promotion.
+6. **Truth-audit on every session.** §0.6 must pass green before any feature work. A red audit becomes the session's only task.
+7. **No "Phase X complete" without the audit.** Commit titles `feat(Phase X): ...` are reserved for commits that flip a §0.6 check from ❌ to ✅. Anything else uses `feat(<scope>): ...` without the phase tag.
+8. **Self-resumption.** Every session ends by writing 3+ specific next tasks to `NEXT_TASKS.md`. No vague entries. No "improve ML" — instead "run `python scripts/backfill_databento.py --ticker SPY --start 2022-01-01 --end 2022-12-31` and verify ≥ 200 days land in `databento_eod_chains` collection."
+9. **Reality over story.** Numbers in reports come from script output, not from prose. PR descriptions paste the verification command and its output verbatim.
+10. **Hermes uses CLI; Nav uses JetBrains.** Tool boundaries respected.
 
 ---
 
-*This document supersedes all prior plan files. Treat it as code: PR changes against it, ADRs justify major edits, version it with the rest of the repo.*
+## 2. Hermes's actual toolbox
+
+Everything Hermes needs lives in these primitives. The plan never asks Hermes to do something its toolbox can't.
+
+| Capability | Tool / Library |
+|---|---|
+| File edits | `Read`, `Write`, `Edit` |
+| Shell | `Bash` (pip, pytest, git, gh, curl, jq, find) |
+| Python ad-hoc | `python -c "..."` with the project venv |
+| Mongo | `motor` (async) and `pymongo` from Python scripts |
+| HTTP | `httpx`/`aiohttp` to vendor APIs |
+| Data | `pandas`, `pyarrow` (read CSVs in `data/github-repos/cloned/...`) |
+| ML | `scikit-learn`, `xgboost`, `lightgbm`, `optuna`, `mlflow`, `shap` |
+| Stats | `scipy`, `statsmodels` |
+| CI | GitHub Actions via `.github/workflows/` |
+| Tracking | Markdown files: `REVIEW_LOG.md`, `NEXT_TASKS.md`, `BACKLOG.md`, `docs/adr/` |
+
+What Nav adds during PR review (the JetBrains pass):
+
+| Action | Tool |
+|---|---|
+| Visual coverage gutter | PyCharm (`pytest --cov` + Run with Coverage) |
+| Refactor preview before merge | PyCharm Refactor → Move/Extract |
+| Mongo schema visualization + explain plans | DataGrip Console |
+| React DevTools profiler | WebStorm + Chrome |
+| Inspect Code (deep static analysis) | PyCharm / WebStorm Code → Inspect Code |
+
+---
+
+## 3. The bounded contexts (target architecture)
+
+Same shape as a hedge-fund research/exec stack:
+
+```
+                          ┌──────────────────────────┐
+                          │       Frontend           │
+                          │ (heatmap, flow, alerts,  │
+                          │  portfolio, ML insights) │
+                          └────────────┬─────────────┘
+                                       │ REST + WS
+                          ┌────────────▼─────────────┐
+                          │ FastAPI composition root │
+                          │     server.py (small)    │
+                          └────────────┬─────────────┘
+                                       │
+       ┌─────────────────┬─────────────┼─────────────┬──────────────┐
+       ▼                 ▼             ▼             ▼              ▼
+┌────────────┐  ┌────────────────┐ ┌─────────┐ ┌───────────┐ ┌────────────┐
+│ Data layer │  │ Quant analytics│ │ Signals │ │ ML / RL   │ │ Execution  │
+│ providers, │  │ Greeks, GEX,   │ │ alerts, │ │ pipeline  │ │ paper/live │
+│ cache,     │  │ VEX, DEX, IV,  │ │ rules + │ │ + registry│ │ risk gate, │
+│ DB, idx,   │  │ regime, PDF    │ │ ML enr. │ │ + drift   │ │ idempotent │
+│ backfill   │  │ scenario mtx   │ │         │ │ monitor   │ │ recon loop │
+└─────┬──────┘  └────────┬───────┘ └────┬────┘ └─────┬─────┘ └─────┬──────┘
+      │                  │              │             │             │
+      └──────────────────┴──────────────┴─────────────┴─────────────┘
+                                  │
+                ┌─────────────────▼──────────────────┐
+                │  Mongo + Redis + filesystem        │
+                │  (snapshots, chains, features,     │
+                │   labels, predictions, models,     │
+                │   orders, portfolio, audit)        │
+                └────────────────────────────────────┘
+```
+
+Quality attributes:
+
+| Attribute | Target | Enforcement |
+|---|---|---|
+| Truth | Audit ✅ on every PR | `qc/audit/truth_audit.sh` in CI |
+| Determinism | Same input ⇒ same output | seed=0 everywhere; test asserts |
+| Reproducibility | `pip install -r requirements.txt && pytest` matches CI | Pinned versions; hash-verified deps where feasible |
+| Real data | No synthetic generators in `backend/` | CI grep guard |
+| Non-degenerate models | Class balance, variance, prob-distribution checks | `DegenerateModelError` at train time |
+| Out-of-sample | Locked holdout slice | Code refuses to peek at holdout outside promotion |
+| Numerical correctness | Greeks/GEX agree with `floe`, `pyOptionPricing`, Hull to rel-err < 1e-6 | Fixture-based unit tests |
+| Idempotency | Same `TradeIntent` ⇒ same `client_order_id` ⇒ one fill | Integration test |
+| Coverage | Backend ≥ 80%; trading code ≥ 95% | `pytest --cov-fail-under` |
+
+---
+
+# Phase plan — reordered around reality
+
+The old A–J plan assumed prior phases delivered. They didn't. The new plan does the audit, fixes the lie, lands real data, then builds.
+
+Every phase has the same skeleton: **claim under audit** (what Hermes pretends is done) · **truth** (what the audit shows) · **work** (commands and code) · **proof** (the verification that flips the audit green) · **exit**.
+
+---
+
+## Phase 0 — Truth audit & synthetic-data demolition
+
+**Claim:** Phases A, B, C, F complete.
+**Truth:** §0.1. Three of four phases are not actually done; ML trained on fake data.
+
+**Work units.**
+
+1. Create `qc/audit/truth_audit.sh` from §0.6. Make it executable. Wire it into CI as a required check.
+2. **Delete** `backend/ml_synthetic.py`. Find all imports and remove their callers. Replace any code that called `generate_synthetic_snapshots` with a clear `raise InsufficientRealDataError("collect more data — synthetic data is banned")`.
+3. **Quarantine** Session 7's degenerate model. Move `models/SPY_direction.pkl` and `models/QQQ_direction.pkl` (if they exist) to `models/_quarantine/` with a `README.md` explaining why. Add a CI guard that refuses to load anything in `_quarantine/` at inference time.
+4. **Re-baseline metrics.** Run `cloc backend frontend/src`, `radon cc backend -a`, `grep -c "^@(api|app)\." backend/server.py`. Write the numbers into `REVIEW_LOG.md` as the new floor.
+5. **Honest commit hygiene.** Add a commit-message hook that rejects `feat(Phase X)` unless `truth_audit.sh` flipped a check from ❌ to ✅ in this commit. Implementation: hook diffs the audit output before/after.
+
+**Proof.**
+```bash
+test ! -f backend/ml_synthetic.py
+! grep -rE "from ml_synthetic|import ml_synthetic|generate_synthetic_snapshots" backend/ --include="*.py" | grep -v __pycache__
+bash qc/audit/truth_audit.sh   # exits 0 OR exits with the truthful remaining red items
+```
+
+**Exit:** synthetic generator deleted, quarantine in place, audit script is the project's authority. Hermes's first action in every subsequent session is `bash qc/audit/truth_audit.sh`.
+
+---
+
+## Phase 1 — Real data acquisition (the only way Phase C can ever work)
+
+**Target.** Years of real options chains and underlying bars for SPY/QQQ — and supplementary tickers — landed in Mongo and queryable, with manifests that prove provenance.
+
+**Strategy.** Three parallel data tracks; each is independent so one stalling doesn't block the others.
+
+### Track 1.A — Databento historical EOD chains (highest-quality, has credits)
+
+Databento has the deepest options history. We have ~$125 of credit. Used right, that backfills years of EOD chains for SPY+QQQ.
+
+1. Build `scripts/backfill_databento.py`:
+   - Args: `--ticker SPY --start 2022-01-01 --end 2025-12-31 --schema opra-pillar.options.eod`
+   - Streams DBN files to `data/databento/<ticker>/<year>/<month>.dbn.zst`
+   - Parses to Mongo collection `databento_eod_chains` with index `(ticker, day desc)`
+   - Cost-meter: queries Databento's `usage` endpoint before each request; halts if projected cost would exceed `DATABENTO_BUDGET_USD` (env var, default $100).
+2. Run for SPY for 2022, 2023, 2024, 2025 — confirm row count in `qc/data/<ticker>_databento_manifest.json`.
+3. Repeat for QQQ.
+4. Document the schema in `docs/data-model/databento_eod.md`.
+
+### Track 1.B — Yahoo Finance OHLCV underlying (free, deep, instant)
+
+`yfinance` gives decades of bar data with no API key.
+
+1. `scripts/backfill_yfinance.py --tickers SPY,QQQ,IWM,DIA,VIX,VIX9D,DXY,TLT --interval 1d --start 2015-01-01`
+2. Also pull minute bars for the last 60 days (`--interval 1m --period 60d`) — yfinance limit.
+3. Land in collection `underlying_bars` with `(ticker, ts desc)` index.
+
+### Track 1.C — Ingest the cloned research-repo CSVs
+
+These files are already on disk. Wasting them is the single biggest project sin.
+
+1. `scripts/ingest_research_csvs.py` reads:
+   - `data/github-repos/cloned/iAmGiG_gex-llm-patterns/.../issue_141_enhanced_dataset.csv`
+   - `data/github-repos/cloned/iAmGiG_gex-llm-patterns/.../issue_145_next_day_outcomes_2024.csv`
+   - `data/github-repos/cloned/iAmGiG_gex-llm-patterns/.../gamma_positioning_timeseries_2024.csv`
+   - `data/github-repos/cloned/aaguiar10_gflows/data/csv/{spx,ndx,rut}_quotedata.csv`
+   - `data/github-repos/cloned/FlashAlpha-lab_gex-explained/data/sample_chain.csv`
+2. Lands each into its own collection with a `_source` field documenting provenance.
+3. Manifest per file: `qc/data/<basename>_manifest.json` with row count, date range, columns, sha256.
+
+### Cross-cutting
+
+4. **One ingestion contract.** All three tracks land rows that pass `validate_ingested_row(row, kind)` — checks types, finite numerics, monotonic timestamps, no nulls in required fields.
+5. **Data freshness dashboard.** `/api/admin/data/freshness` returns per-collection: `last_row_ts`, `row_count`, `oldest_row_ts`, `source`. Powers the audit.
+
+**Proof.**
+```bash
+python scripts/backfill_databento.py --ticker SPY --start 2024-01-01 --end 2024-12-31
+python scripts/backfill_yfinance.py --tickers SPY,QQQ --interval 1d --start 2020-01-01
+python scripts/ingest_research_csvs.py --all
+
+python - <<'PY'
+import asyncio, os
+from motor.motor_asyncio import AsyncIOMotorClient
+async def main():
+    db = AsyncIOMotorClient(os.environ["MONGO_URL"])[os.environ["DB_NAME"]]
+    for col, threshold in [("databento_eod_chains", 250),
+                           ("underlying_bars", 5000),
+                           ("gex_llm_patterns_outcomes", 200)]:
+        n = await db[col].count_documents({})
+        assert n >= threshold, f"{col}: {n} < {threshold}"
+        print(f"  ✅ {col}: {n}")
+asyncio.run(main())
+PY
+```
+
+**Exit:** ≥ 250 days of SPY EOD chains, ≥ 5000 SPY underlying bars, ≥ 200 labeled outcomes from the research CSVs. Manifests written. Truth-audit gains a section that checks these thresholds.
+
+---
+
+## Phase 2 — Data-quality gates as code
+
+**Target.** The pipeline refuses to produce a degenerate model. Detection is in Python, not policy.
+
+**Work units.**
+
+1. New module `backend/services/ml/quality.py`:
+   ```python
+   def assert_class_balance(y, min_ratio=0.20): ...
+   def assert_feature_variance(X, min_var=1e-6): ...
+   def assert_temporal_ordering(ts): ...
+   def assert_no_future_leakage(X, ts, lookahead_cols): ...
+   def assert_holdout_untouched(holdout_idx, train_idx, val_idx): ...
+   def assert_prediction_distribution(p, min_std=0.05): ...
+   class DegenerateModelError(Exception): pass
+   ```
+2. The training entrypoint calls **every** gate before model.fit and after model.predict. Failures raise `DegenerateModelError` with a precise message ("feature `regime_changed` has variance 0; collected during 2026-05-17 16:00–24:00 ET; all rows after-hours").
+3. Unit tests for each gate, including positive and negative cases.
+4. The gates also surface as a `/api/admin/ml/data-quality?ticker=SPY` endpoint that returns a structured "go / no-go" verdict before any human-triggered retrain.
+
+**Proof.**
+```bash
+pytest backend/tests/services/ml/test_quality.py -v
+# All gates have positive + negative tests; all pass.
+```
+
+**Exit:** every entry into `train_*` calls the gates; degenerate models cannot be saved.
+
+---
+
+## Phase 3 — Math correctness vs. references on disk
+
+**Target.** `bs_greeks.py`, `advanced_analytics.py`, `vol_analytics.py` produce numerical outputs that agree with the cloned reference libraries (`FullStackCraft_floe`, `boyac_pyOptionPricing`, `EsterHlav_Black-Scholes...`, `MattL922_implied-volatility`) and with hand-computed Hull-textbook examples.
+
+**Work units.**
+
+1. `backend/tests/test_bs_greeks_canonical.py` — Hull 10e examples: ATM 30-day call, OTM put, deep-ITM, zero-vol edge case. Rel-err < 1e-6.
+2. `backend/tests/test_gex_reference.py` — feed `FlashAlpha-lab_gex-explained/data/sample_chain.csv` through `calc_gex` and assert known totals.
+3. `backend/tests/test_floe_parity.py` — port one or two `floe` TypeScript test cases to Python and assert our Python implementations match.
+4. `backend/tests/test_pdf_breeden_litzenberger.py` — synthetic risk-neutral PDF (lognormal) should be recovered to within 1% by `calc_implied_pdf` when fed corresponding call prices.
+5. Add VEX, DEX, Vega-Total (the missing Phase B work). Each gets reference tests.
+
+**Proof.**
+```bash
+pytest backend/tests/test_bs_greeks_canonical.py backend/tests/test_gex_reference.py \
+       backend/tests/test_floe_parity.py backend/tests/test_pdf_breeden_litzenberger.py -v
+grep -lE "def calc_vex|def calc_dex|def calc_vega_total" backend/*.py   # non-empty
+bash qc/audit/truth_audit.sh    # Phase B section now green
+```
+
+**Exit:** numerical agreement to documented tolerance with all three reference libraries; Phase B audit flips green.
+
+---
+
+## Phase 4 — Feature engineering on real data
+
+**Target.** `compute_features(ticker, as_of)` returns a row of ~50 features computed from real Mongo collections, with zero future leakage.
+
+**Work units.**
+
+1. Module `backend/services/ml/features.py`.
+2. Feature families (the same taxonomy as before, but now powered by Phase 1 data):
+   - **Underlying:** returns over 1m/5m/15m/1h/1d/5d horizons; realized vol (Parkinson, Garman-Klass) over 5d/20d/60d; overnight gap; opening range; ATR.
+   - **GEX / VEX / DEX:** magnitude, z-score over 60d, rate of change, distance-to-flip in σ, wall density ATM±1%, Herfindahl gamma concentration.
+   - **IV:** ATM IV, 25Δ RR, 25Δ butterfly, term-structure slope, IV rank, IV percentile.
+   - **Flow:** sweep frequency, block premium, bull/bear premium ratio (5m / 30m / 1d).
+   - **Macro:** VIX level, VIX9D/VIX ratio, DXY return, 10Y change.
+   - **Sentiment:** rolling sentiment from `social_flow_pipeline` aggregated to 5m bars (when available).
+   - **Calendar:** dow, dom, days-to-OPEX, days-to-FOMC, earnings-season flag.
+3. **No-leakage guarantee.** Every feature at time `t` depends only on rows with `ts <= t`. Unit test asserts this by deliberately corrupting future rows and confirming features at `t` don't change.
+4. `FEATURE_VERSION = "v1.0"`. Stored alongside every feature row. Model artifacts pin their feature version; mismatched versions refuse inference.
+5. Lands in collection `ml_features` with index `(ticker, version, ts desc)`.
+
+**Proof.**
+```bash
+python -m backend.services.ml.features --ticker SPY --start 2024-01-01 --end 2024-12-31
+# Writes ~50 feature rows per market day × 252 days into ml_features.
+# Manifest qc/data/SPY_features_v1.0_manifest.json shows row count, variance per column, null rates.
+
+pytest backend/tests/services/ml/test_features_no_leakage.py -v   # passes
+```
+
+**Exit:** ml_features collection populated for SPY+QQQ across the available real-data window; manifest shows variance > 1e-6 on every feature; no-leakage test green.
+
+---
+
+## Phase 5 — Targets, baselines, and the real model bake-off
+
+**Target.** Multi-task targets computed honestly; three baselines beat each model that gets promoted.
+
+**Work units.**
+
+1. **Targets** (multi-task, all stored alongside features):
+   - `ret_1h`, `ret_eod`, `range_1h`
+   - `dir_1h ∈ {-1,0,+1}` with threshold τ = 0.25 × rolling-ATR
+   - `regime_change_1h` boolean
+2. **Walk-forward CV** (`WalkForwardSplit(n_splits=8, train_size_months=12, test_size_months=2, embargo_hours=2)`).
+3. **Baselines** (these are gates, not afterthoughts):
+   - `baseline_majority` — always predicts the train-set majority class
+   - `baseline_persistence` — predicts the same as the last bar's realized direction
+   - `baseline_linear` — penalized logistic regression on the same features
+4. **Models** (four families, same harness):
+   - Logistic regression (the baseline above doubles as the simplest model)
+   - XGBoost
+   - LightGBM
+   - 1D-CNN (PyTorch) — optional, gated by GPU
+5. **Optuna search**, 50 trials each, inner CV inside each fold.
+6. **Calibration** via `CalibratedClassifierCV(method='isotonic')` on a held-out fold slice.
+7. **SHAP** for tree models, `IntegratedGradients` for the CNN. Feature importance per fold + average.
+8. **Reports** under `qc/ml-runs/<run_id>/`:
+   - `report.md` opening with a one-line verdict: `SHIP / REJECT / ITERATE`.
+   - Per-model: ML metrics (accuracy, F1, AUC, Brier, calibration error) + trading metrics (hit rate, profit factor, Sharpe, Sortino, Calmar, max-DD).
+   - **The model is rejected if it doesn't beat all three baselines on Sharpe.**
+   - Calibration plot, SHAP summary plot, prediction distribution plot.
+9. The training entrypoint refuses to save a model that doesn't beat baselines or that fails any §2 gate.
+
+**Proof.**
+```bash
+python -m backend.services.ml.pipeline --ticker SPY --run-id qc-001
+# Produces qc/ml-runs/qc-001/report.md
+head -3 qc/ml-runs/qc-001/report.md   # must contain SHIP / REJECT / ITERATE verdict line
+```
+
+**Exit:** at least one model passes all gates on at least one ticker, with trading metrics that beat the three baselines on the held-out slice. If nothing passes, the verdict is `REJECT` and Hermes goes back to Phase 4 (feature engineering) — **this is a feature, not a failure**.
+
+---
+
+## Phase 6 — Model registry, inference, drift
+
+**Target.** Active model identifiable by ID; promotion gated; drift monitored.
+
+**Work units.**
+
+1. MLflow tracking, local file backend at `mlruns/`. Each Optuna trial logs params, metrics, artifacts.
+2. Mongo collection `ml_models` rows: `model_id`, `ticker`, `feature_version`, `training_window`, `metrics_summary`, `artifact_path`, `created_at`, `status` ∈ {`shadow`, `active`, `retired`}.
+3. Endpoint `POST /api/admin/ml/promote/{model_id}` flips `shadow → active` only if:
+   - `metrics_summary.beats_baselines == true`
+   - `metrics_summary.holdout_sharpe > prior_active.holdout_sharpe`
+   - `metrics_summary.calibration_error < 0.05`
+4. Inference endpoint `POST /api/ml/predict/{ticker}` loads the active model, runs `compute_features` over the latest window, returns `{prediction, calibrated_probability, model_id, feature_version, request_id, ts}`. Latency p95 < 100 ms (XGBoost/LightGBM) — profile and assert.
+5. PSI drift monitor. Hourly cron computes PSI per feature over rolling 24h vs the training-window distribution; logs alarms when PSI > 0.25.
+6. Every prediction logged to `ml_predictions` with feature snapshot + (later, after horizon) realized outcome. Powers online evaluation.
+
+**Proof.**
+```bash
+curl -fs -X POST localhost:8000/api/admin/ml/promote/<id> | jq .status     # "active"
+curl -fs -X POST localhost:8000/api/ml/predict/SPY | jq .
+# Returns prediction with model_id, feature_version, calibrated_probability
+```
+
+**Exit:** an active SPY model with provenance, monitored for drift, returning calibrated probabilities at latency budget.
+
+---
+
+## Phase 7 — server.py decomposition (the real one)
+
+**Target.** `server.py` ≤ 200 lines, every handler in `backend/routes/<context>.py`.
+
+**Why now.** Earlier phases produced real tests (math, features, ML). With those passing, decomposition is safe.
+
+**Work units.**
+
+1. Build the route inventory: `grep -nE "^@(api|app)\." backend/server.py > qc/audit/routes_before.txt`.
+2. For each of the 74 handlers, decide its target module: `market_data`, `analytics`, `alerts`, `ml`, `trading`, `portfolio`, `briefings`, `auth`, `admin`.
+3. Move one router per PR. Each PR: extract, register in `server.py`, run full pytest, run integration smoke (`curl /health`, `curl /api/admin/data/freshness`), commit.
+4. Extract shared deps (`get_db`, `get_redis`, `get_current_user`, `rate_limit`) into `backend/deps.py`.
+5. Final `server.py` is composition root: app, middleware, routers include, lifespan.
+
+**Proof.**
+```bash
+wc -l backend/server.py    # ≤ 200
+pytest -ra                  # all green
+diff <(grep -nE "^@(api|app)\." backend/server.py | wc -l) <(echo 0) && echo "no handlers left in server.py"
+```
+
+**Exit:** truth-audit Phase A check flips green; tests still pass.
+
+---
+
+## Phase 8 — Alerts & signals (rule DSL + ML enrichment + history)
+
+Same shape as the prior plan's Phase E, but now ML-enriched predicates resolve to a *calibrated* model. Each alert ties to a backtest report (Phase 9) with a quality score.
+
+**Work units.**
+
+1. YAML alert DSL at `backend/alerts/definitions/*.yaml` (predicate, priority, cooldown, description).
+2. Predicate evaluator supports rule-only and ML-enriched predicates (`ml.dir_1h_proba > 0.65`).
+3. `alerts_history` collection — every fire stored with predicate value, model prediction (if used), realized outcome at horizon.
+4. Migrate the 7 hardcoded alerts in `alert_engine.py` to YAML; delete the Python methods.
+
+**Exit:** new alert = YAML file + Phase 9 backtest run. No code change.
+
+---
+
+## Phase 9 — Backtester (gates alerts & ML for "live use")
+
+**Target.** Event-driven, no-lookahead backtester with realistic slippage/commission, used to grade every alert and ML model before it goes live.
+
+**Work units.**
+
+1. `backend/services/backtest/engine.py` — event-driven; fills at next-bar open; slippage 0.05%, commission $0.65/contract default.
+2. `Signal.evaluate(snapshot_history, bar_history, position) -> Action` interface — same shape for rule alerts and ML predictions.
+3. Three preset evaluations: 70/30 IS-OOS, walk-forward (same splits as Phase 5), Monte Carlo bootstrap (1000 paths).
+4. Reports under `qc/backtests/<id>/`.
+
+**Exit:** every alert in `alerts/definitions/` has a backtest report with Sharpe, hit rate, max-DD. Alerts with Sharpe < 0 are auto-downgraded.
+
+---
+
+## Phase 10 — Trading execution (idempotency, risk gate, reconciliation)
+
+**Work units.** (Same as prior plan's Phase F, now after the data/ML foundation is real.)
+
+1. `TradeIntent` Pydantic; `client_order_id` = deterministic hash(intent + session_salt).
+2. `check_risk(intent, portfolio, account)` runs before every submit: max position, max daily loss, concurrent-position limit, premium-as-fraction-of-equity, expiry hygiene, regime-aware sizing.
+3. Paper-vs-live URL guard: constructor asserts `"paper" in BASE_URL` unless `LIVE_TRADING_ENABLED=1`.
+4. 30-second reconciliation loop diffs Alpaca `list_orders` against local `orders` collection.
+5. `Strategy` Pydantic discriminated union covers `IronCondor`, `Straddle`, `Strangle`, `Vertical`, `Calendar`, `SingleLeg`. Phase F's typo (`iron_condible`) gone, *and* the union is complete (truth-audit covers this).
+
+**Exit:** integration tests prove same-intent → one fill; risk-cap rejections work; live URL refused without explicit flag.
+
+---
+
+## Phase 11 — Portfolio & P&L (Decimal math, tax-lot, event log)
+
+Same as prior plan. Tax-lot FIFO/LIFO/HIFO; multi-leg aggregation; event-sourced position state; EOD mark cron at 16:15 ET.
+
+---
+
+## Phase 12 — Frontend architecture
+
+`TanStack Query` + `Zustand`. `App.js` ≤ 100 lines. Page-per-route. Hooks for every data feed. Tests for every component (≥ 60% coverage at exit). React Testing Library + Playwright happy-path E2E. `react-hooks/exhaustive-deps: error`.
+
+---
+
+## Phase 13 — Observability & SLOs
+
+`structlog` JSON logs with request IDs; Prometheus metrics; OpenTelemetry traces; Sentry-style error tracker via existing `error_tracking.py`; Grafana dashboards; runbooks; SLOs in `docs/SLO.md`.
+
+---
+
+## Phase 14 — Quality processes
+
+ADRs under `docs/adr/`. PR template requires verification output and risk assessment. Conventional commits enforced via commitlint. Trunk-based; main always deployable. Coverage ratchet to 85% backend / 75% frontend.
+
+---
+
+## 4. Self-resumption — how Hermes never runs out of work
+
+**`NEXT_TASKS.md`** is the resumption file. It lives at the repo root. Every Hermes session:
+
+1. Opens by reading `NEXT_TASKS.md` and `REVIEW_LOG.md` (last 5 entries).
+2. Picks the first non-blocked task and works it.
+3. When done (or blocked), writes the next 3 tasks to `NEXT_TASKS.md`.
+
+Task format is strict — example:
+
+```markdown
+- [ ] **task-id**: <imperative summary>
+  - **Phase:** <0..14>
+  - **Estimate:** <minutes>
+  - **Run:** `<exact bash command>`
+  - **Proof:** `<exact bash command whose output proves it worked, with expected text>`
+  - **On failure:** <fallback or escalation>
+```
+
+Vague tasks ("improve ML") are forbidden. Tasks must be runnable cold by a fresh session.
+
+If a task is impossible (data missing, key revoked, API down): Hermes appends to `BLOCKERS.md` with the specific reason and the exact symptom (curl output, traceback), and moves to the next non-blocking task.
+
+---
+
+## 5. Anti-stall protocol
+
+Hermes commonly stops because of:
+
+1. **Ambiguity.** Solution: every task in `NEXT_TASKS.md` has exact commands.
+2. **A single failing tool call.** Solution: on the first failure, try the documented fallback. On a second failure, log to `BLOCKERS.md` and move on. Never spin.
+3. **End of stated scope.** Solution: a session never ends without writing ≥ 3 new entries to `NEXT_TASKS.md`. If genuinely no next tasks exist within the current phase, the next task is "promote next phase: re-read `CLAUDE_REVIEW_PROMPT.md` §<next-phase>, write 3 seed tasks."
+4. **Lost context.** Solution: `REVIEW_LOG.md` is append-only with one line per action. `NEXT_TASKS.md` is the queue. A fresh session reads both and is oriented in under a minute.
+5. **Fake completion.** Solution: §0.6 truth-audit gates every PR. Lies can't merge.
+
+---
+
+## 6. The week-one runway (what `NEXT_TASKS.md` looks like at hand-off)
+
+Seeded by Hermes immediately after reading this plan, before doing anything else:
+
+```markdown
+- [ ] **phase0-1**: create truth-audit script
+  - **Run:** write `qc/audit/truth_audit.sh` from CLAUDE_REVIEW_PROMPT.md §0.6, chmod +x
+  - **Proof:** `bash qc/audit/truth_audit.sh; echo "exit=$?"` runs and prints its checks
+- [ ] **phase0-2**: delete synthetic data and its callers
+  - **Run:** `git rm backend/ml_synthetic.py`; grep for `generate_synthetic_snapshots` / `import ml_synthetic` and replace each caller with `raise InsufficientRealDataError(...)`
+  - **Proof:** `test ! -f backend/ml_synthetic.py && ! grep -rE "ml_synthetic" backend/ --include='*.py' | grep -v __pycache__`
+- [ ] **phase0-3**: quarantine the degenerate Session-7 model
+  - **Run:** `mkdir -p models/_quarantine && git mv models/SPY_direction.pkl models/_quarantine/ 2>/dev/null; git mv models/QQQ_direction.pkl models/_quarantine/ 2>/dev/null; echo 'Quarantined: trained on flat after-hours data, predicts one class at 0.9998 confidence.' > models/_quarantine/README.md`
+  - **Proof:** `test -f models/_quarantine/README.md`
+- [ ] **phase0-4**: wire truth-audit into CI
+  - **Run:** add a job to `.github/workflows/ci.yml` that runs `bash qc/audit/truth_audit.sh`
+  - **Proof:** open a PR; the new CI job is required and runs the audit
+- [ ] **phase1-1**: scaffold `scripts/backfill_databento.py`
+  - **Run:** create the script per §Phase 1 Track 1.A; dry-run with `--ticker SPY --start 2024-12-01 --end 2024-12-31`
+  - **Proof:** dry-run prints projected request count + cost; no API calls made
+- [ ] **phase1-2**: ingest research-CSVs
+  - **Run:** `python scripts/ingest_research_csvs.py --all`
+  - **Proof:** Mongo collection `gex_llm_patterns_outcomes` count ≥ 200; manifest at `qc/data/issue_145_next_day_outcomes_2024_manifest.json` exists with non-empty `row_count`
+- [ ] **phase1-3**: yfinance backfill
+  - **Run:** `python scripts/backfill_yfinance.py --tickers SPY,QQQ,IWM,DIA,VIX --interval 1d --start 2015-01-01`
+  - **Proof:** Mongo `underlying_bars` count ≥ 10000
+```
+
+Hermes seeds this file as its first action. The file is the loop's fuel.
+
+---
+
+## 7. What this plan is NOT
+
+- **Not a feature list.** Features go in `BACKLOG.md`. This plan is about getting to a state where features can be built safely.
+- **Not a story.** Numbers come from script output, not prose. Each phase passes or fails by its proof commands.
+- **Not aspirational about Hermes tooling.** Hermes drives CLI + Python + files. Nav drives JetBrains for visual passes.
+- **Not security theater.** Account is private; standard env-file hygiene only. No key rotation.
+- **Not infrastructure-first.** Azure deploy is post-Phase-14.
+
+---
+
+## 8. The five questions for Nav that gate Phase 5
+
+(Same as prior plan, kept here because they still apply.)
+
+1. **Universe.** SPY+QQQ only for ML, or include IWM/DIA/sector ETFs? (Default: SPY+QQQ.)
+2. **Horizon priority.** 1h primary or EOD primary? (Default: 1h primary, EOD secondary.)
+3. **Risk cap.** Hard 2% per trade, regime can only reduce? Or dynamic widening allowed? (Default: hard cap.)
+4. **GPU.** Available for CNN? (Default: skip CNN until available.)
+5. **Data window.** From 2020-01-01 onward? (Default: yes — pre-2020 regime is different enough to hurt.)
+
+Hermes asks these via `AskUserQuestion` at the start of Phase 5 and writes the answers to `docs/adr/0001-ml-scope.md`.
+
+---
+
+*This plan is the contract. Every PR proves a piece of it true. The truth-audit script is the umpire. Lying is expensive, fixing is cheap, building on truth is the only thing that compounds.*

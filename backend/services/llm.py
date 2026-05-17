@@ -59,6 +59,23 @@ class LLMService:
             except Exception as e:
                 logger.warning(f"Gemini init failed: {e}")
         
+        # Deepseek
+        deepseek_key = os.environ.get("DEEPSEEK_API_KEY")
+        if deepseek_key:
+            try:
+                from openai import OpenAI
+                self.providers["deepseek"] = {
+                    "client": OpenAI(
+                        api_key=deepseek_key,
+                        base_url="https://api.deepseek.com",
+                    ),
+                    "model": "deepseek-chat",
+                    "max_tokens": 2048,
+                }
+                logger.info("Deepseek provider initialized")
+            except Exception as e:
+                logger.warning(f"Deepseek init failed: {e}")
+        
         # OpenRouter
         openrouter_key = os.environ.get("OPENROUTER_API_KEY")
         if openrouter_key:
@@ -100,6 +117,8 @@ class LLMService:
                 return self._generate_cerebras(prompt, system_prompt, max_tokens, temperature)
             elif provider == "gemini":
                 return self._generate_gemini(prompt, system_prompt, max_tokens, temperature)
+            elif provider == "deepseek":
+                return self._generate_deepseek(prompt, system_prompt, max_tokens, temperature)
             elif provider == "openrouter":
                 return self._generate_openrouter(prompt, system_prompt, max_tokens, temperature)
             else:
@@ -186,6 +205,32 @@ class LLMService:
         return {
             "status": "ok",
             "provider": "openrouter",
+            "model": model,
+            "text": completion.choices[0].message.content,
+        }
+    
+    def _generate_deepseek(
+        self, prompt: str, system_prompt: str, max_tokens: int, temperature: float
+    ) -> Dict[str, Any]:
+        """Generate using Deepseek."""
+        client = self.providers["deepseek"]["client"]
+        model = self.providers["deepseek"]["model"]
+        
+        messages = []
+        if system_prompt:
+            messages.append({"role": "system", "content": system_prompt})
+        messages.append({"role": "user", "content": prompt})
+        
+        completion = client.chat.completions.create(
+            model=model,
+            messages=messages,
+            max_tokens=max_tokens,
+            temperature=temperature,
+        )
+        
+        return {
+            "status": "ok",
+            "provider": "deepseek",
             "model": model,
             "text": completion.choices[0].message.content,
         }
