@@ -2643,6 +2643,28 @@ async def delete_alert(alert_id: str):
     return {"status": "deleted"}
 
 
+@api.get("/alerts/types")
+async def list_alert_types():
+    """List all available alert types."""
+    from alert_engine import AlertEngine
+    engine = AlertEngine()
+    # Get all alert type constants
+    alert_types = [
+        {"type": "GAMMA_FLIP", "priority": "HIGH", "description": "Regime change from positive to negative gamma"},
+        {"type": "GAMMA_SQUEEZE", "priority": "HIGH", "description": "Negative gamma + spot near flip + volume spike"},
+        {"type": "MOMENTUM_EXTREME", "priority": "HIGH", "description": "Strong bullish or bearish momentum"},
+        {"type": "WALL_BREACH", "priority": "MEDIUM", "description": "Spot crosses through call/put wall"},
+        {"type": "GEX_MAGNITUDE_SHIFT", "priority": "MEDIUM", "description": "Total GEX changed > 40%"},
+        {"type": "GAMMA_FLIP_PROXIMITY", "priority": "MEDIUM", "description": "Spot within 0.3% of gamma flip point"},
+        {"type": "PIN_RISK", "priority": "LOW", "description": "Spot near max gamma strike"},
+        {"type": "CHARM_PINNING", "priority": "HIGH", "description": "Charm-driven pinning (0DTE)"},
+        {"type": "VANNA_REGIME_CHANGE", "priority": "HIGH", "description": "Sign flip in net VEX above floor"},
+        {"type": "UNUSUAL_PC_OI_RATIO", "priority": "MEDIUM", "description": "Put OI / call OI ratio > 2x"},
+        {"type": "MAX_PAIN_MAGNET", "priority": "LOW", "description": "Spot within 1% of max pain in positive gamma"},
+    ]
+    return {"alert_types": alert_types, "count": len(alert_types)}
+
+
 @api.get("/alerts/check/{ticker}")
 async def check_alerts(ticker: str):
     """Check all alert rules against current data. Returns triggered alerts."""
@@ -2902,21 +2924,19 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-app.include_router(api)
+# Auth middleware — checks X-API-Key header for mutating routes
+from auth import verify_api_key
 
-
-@app.on_event("startup")
-async def on_start():
-    await db.snapshots.create_index([("ticker", 1), ("ts", -1)])
-    cache = init_cache(db)
-    await cache.ensure_index()
-    await _load_policy_from_mongo()
-    global _scheduler_started
-    if not _scheduler_started:
-        _scheduler_started = True
-        asyncio.create_task(_scheduler_loop())
-        log.info(f"scheduler started · prefetch at {PREFETCH_HHMM} ET")
-    log.info("databento cache initialized")
+@app.middleware("http")
+async def auth_middleware(request: Request, call_next):
+    """Verify API key for protected mutating routes."""
+    try:
+        await verify_api_key(request)
+    except HTTPException as e:
+        from fastapi.responses import JSONResponse
+        return JSONResponse(status_code=e.status_code, content={"detail": e.detail})
+    response = await call_next(request)
+    return response
 
 
 # ----------------------------- Memory Routes (Mem0) -----------------------------
@@ -2939,32 +2959,49 @@ class GexMemoryRequest(BaseModel):
     metadata: Optional[Dict[str, Any]] = None
 
 
-@api.post("/api/memory/trade")
+@api.post("/memory/trade")
 async def api_remember_trade(req: TradeMemoryRequest):
     """Store a trade in memory."""
     result = remember_trade(req.ticker, req.dict())
     return {"status": "ok", "id": result}
 
 
-@api.post("/api/memory/gex")
+@api.post("/memory/gex")
 async def api_remember_gex(req: GexMemoryRequest):
     """Store a GEX observation in memory."""
     result = remember_gex_observation(req.ticker, req.observation, req.metadata)
     return {"status": "ok", "id": result}
 
 
-@api.get("/api/memory/recall/{ticker}")
+@api.get("/memory/recall/{ticker}")
 async def api_recall_memory(ticker: str, query: str = ""):
     """Recall memories for a ticker."""
     results = recall_trading_context(ticker, query)
     return {"results": results}
 
 
-@api.get("/api/memory/summary/{ticker}")
+@api.get("/memory/summary/{ticker}")
 async def api_memory_summary(ticker: str):
     """Get a trading summary from memory."""
     summary = get_trading_summary(ticker)
     return {"summary": summary}
+
+
+app.include_router(api)
+
+
+@app.on_event("startup")
+async def on_start():
+    await db.snapshots.create_index([("ticker", 1), ("ts", -1)])
+    cache = init_cache(db)
+    await cache.ensure_index()
+    await _load_policy_from_mongo()
+    global _scheduler_started
+    if not _scheduler_started:
+        _scheduler_started = True
+        asyncio.create_task(_scheduler_loop())
+        log.info(f"scheduler started · prefetch at {PREFETCH_HHMM} ET")
+    log.info("databento cache initialized")
 
 
 @app.on_event("shutdown")

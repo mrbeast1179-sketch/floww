@@ -1,0 +1,83 @@
+"""
+Simple API key authentication for mutating routes.
+
+Usage: Add X-API-Key header to requests.
+The API key is stored in the .env file as API_SECRET_KEY.
+"""
+
+import os
+import logging
+from fastapi import Request, HTTPException
+from functools import wraps
+
+logger = logging.getLogger(__name__)
+
+# Routes that require authentication
+PROTECTED_METHODS = {"POST", "PUT", "DELETE", "PATCH"}
+
+# Routes that are always public (no auth needed)
+PUBLIC_PATHS = {
+    "/health",
+    "/api/spot/",
+    "/api/data/",
+    "/api/chain/",
+    "/api/advanced/",
+    "/api/movers",
+    "/api/history/",
+    "/api/gamma-flip/",
+    "/api/daily-checklist/",
+    "/api/gex/",
+    "/api/alerts/check",
+    "/api/memory/recall/",
+    "/api/memory/summary/",
+}
+
+
+def get_api_key() -> str:
+    """Get the API secret key from environment."""
+    return os.environ.get("API_SECRET_KEY", "")
+
+
+def is_public_path(path: str) -> bool:
+    """Check if a path is public (no auth required)."""
+    for public_path in PUBLIC_PATHS:
+        if path.startswith(public_path):
+            return True
+    return False
+
+
+async def verify_api_key(request: Request):
+    """Verify the API key for protected routes."""
+    # Only protect mutating methods
+    if request.method not in PROTECTED_METHODS:
+        return True
+    
+    # Public paths don't need auth
+    if is_public_path(request.url.path):
+        return True
+    
+    # Check for API key in header
+    api_key = request.headers.get("X-API-Key", "")
+    expected_key = get_api_key()
+    
+    # If no API key is configured, allow all (development mode)
+    if not expected_key:
+        return True
+    
+    if api_key != expected_key:
+        client_host = request.client.host if request.client else "unknown"
+        logger.warning(f"Invalid API key from {client_host} for {request.url.path}")
+        raise HTTPException(status_code=401, detail="Invalid or missing API key")
+    
+    return True
+
+
+def require_auth(func):
+    """Decorator to require auth for a specific route."""
+    @wraps(func)
+    async def wrapper(*args, **kwargs):
+        request = kwargs.get("request")
+        if request:
+            await verify_api_key(request)
+        return await func(*args, **kwargs)
+    return wrapper

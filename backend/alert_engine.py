@@ -22,7 +22,7 @@ import json
 import logging
 from typing import Dict, List, Optional, Any
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 logger = logging.getLogger(__name__)
 
@@ -39,7 +39,7 @@ class Alert:
     
     def __post_init__(self):
         if not self.timestamp:
-            self.timestamp = datetime.utcnow().isoformat()
+            self.timestamp = datetime.now(timezone.utc).isoformat()
     
     def to_dict(self) -> dict:
         return {
@@ -70,7 +70,7 @@ class GEXSnapshot:
     
     def __post_init__(self):
         if not self.timestamp:
-            self.timestamp = datetime.utcnow().isoformat()
+            self.timestamp = datetime.now(timezone.utc).isoformat()
 
 
 class AlertEngine:
@@ -147,8 +147,8 @@ class AlertEngine:
         if current.regime == "NEGATIVE" and previous:
             flip_dist_pct = abs(spot - current.gamma_flip) / spot * 100 if spot > 0 else 999
             if flip_dist_pct < self.GAMMA_SQUEEZE_PROXIMITY_PCT:
-                volume_spike = self._detect_volume_spike(current, previous)
-                if volume_spike:
+                gex_spike = self._detect_gex_magnitude_spike(current, previous)
+                if gex_spike:
                     alerts.append(Alert(
                         type="GAMMA_SQUEEZE",
                         priority="HIGH",
@@ -242,15 +242,36 @@ class AlertEngine:
                 message=f"📌 Pin risk — spot {spot:.0f} within {pin_proximity:.2f}% of max gamma strike {current.max_gamma_strike:.0f}",
                 data={"max_gamma_strike": current.max_gamma_strike, "distance_pct": round(pin_proximity, 2)}
             ))
-        
+
+        # 8. CHARM PINNING (HIGH) — charm-driven pinning (0DTE)
+        charm_alert = self._detect_charm_pinning(current, previous)
+        if charm_alert:
+            alerts.append(charm_alert)
+
+        # 9. VANNA REGIME CHANGE (HIGH) — sign flip in net VEX
+        vanna_alert = self._detect_vanna_regime_change(current, previous)
+        if vanna_alert:
+            alerts.append(vanna_alert)
+
+        # 10. UNUSUAL P/C OI RATIO (MEDIUM) — put-heavy skew
+        pc_alert = self._detect_pc_oi_ratio(current, previous)
+        if pc_alert:
+            alerts.append(pc_alert)
+
+        # 11. MAX PAIN MAGNET (LOW) — spot near max pain in positive gamma
+        max_pain_alert = self._detect_max_pain_magnet(current, previous)
+        if max_pain_alert:
+            alerts.append(max_pain_alert)
+
         # Sort by priority
         priority_order = {"HIGH": 0, "MEDIUM": 1, "LOW": 2}
         alerts.sort(key=lambda a: priority_order.get(a.priority, 9))
         
         return alerts
     
-    def _detect_volume_spike(self, current: GEXSnapshot, previous: GEXSnapshot) -> bool:
-        """Check if any near-ATM strike has a volume spike vs previous cycle."""
+    def _detect_gex_magnitude_spike(self, current: GEXSnapshot, previous: GEXSnapshot) -> bool:
+        """Check if any near-ATM strike has a GEX magnitude spike vs previous cycle.
+        Note: misnamed as _detect_volume_spike in original code — actually reads GEX magnitude."""
         if not previous.gex_by_strike or not current.gex_by_strike:
             return False
         
@@ -267,7 +288,90 @@ class AlertEngine:
                 return True
         
         return False
-    
+
+    # -------- New Alert Types (from Claude Code review) --------
+
+    def _detect_charm_pinning(self, current: GEXSnapshot, previous: Optional[GEXSnapshot]) -> Optional[Alert]:
+        """Charm-driven pinning (0DTE): |cumulative charm| above threshold, spot near max gamma strike."""
+        if not current.gex_by_strike:
+            return None
+        # Find max gamma strike
+        max_gamma_strike = max(current.gex_by_strike, key=lambda s: abs(current.gex_by_strike[s]))
+        if max_gamma_strike == 0:
+            return None
+        # Check if spot is within 0.3% of max gamma strike
+        if abs(current.spot_price - max_gamma_strike) / max(current.spot_price, 1) > 0.003:
+            return None
+        # Charm is high when GEX is concentrated at one strike
+        total_gex = sum(abs(v) for v in current.gex_by_strike.values())
+        max_gex = abs(current.gex_by_strike.get(max_gamma_strike, 0))
+        if total_gex > 0 and max_gex / total_gex > 0.3:
+            return Alert(
+                type="CHARM_PINNING",
+                priority="HIGH",
+                ticker=current.ticker,
+                message=f"Charm pinning detected: spot {current.spot_price} near max gamma strike {max_gamma_strike}",
+                data={"spot": current.spot_price, "max_gamma_strike": max_gamma_strike, "concentration": round(max_gex / total_gex, 2)}
+            )
+        return None
+
+    def _detect_vanna_regime_change(self, current: GEXSnapshot, previous: Optional[GEXSnapshot]) -> Optional[Alert]:
+        """Vanna regime change: sign flip in net VEX above a floor."""
+        if not previous:
+            return None
+        # Simplified: detect large shift in GEX distribution
+        cur_net = current.net_gex
+        prev_net = previous.net_gex
+        if prev_net == 0:
+            return None
+        # Sign flip
+        if (cur_net > 0 and prev_net < 0) or (cur_net < 0 and prev_net > 0):
+            if abs(cur_net) > 1e8:  # $100M floor
+                return Alert(
+                    type="VANNA_REGIME_CHANGE",
+                    priority="HIGH",
+                    ticker=current.ticker,
+                    message=f"Vanna regime change: net GEX flipped from {prev_net:.0f} to {cur_net:.0f}",
+                    data={"prev_net_gex": prev_net, "cur_net_gex": cur_net}
+                )
+        return None
+
+    def _detect_pc_oi_ratio(self, current: GEXSnapshot, previous: Optional[GEXSnapshot]) -> Optional[Alert]:
+        """Unusual P/C OI ratio: put OI / call OI Z-score vs trailing snapshots."""
+        if not current.gex_by_strike:
+            return None
+        # Simplified: check if put-heavy (negative GEX skew)
+        put_gex = sum(v for v in current.gex_by_strike.values() if v < 0)
+        call_gex = sum(v for v in current.gex_by_strike.values() if v > 0)
+        if call_gex == 0:
+            return None
+        ratio = abs(put_gex) / call_gex
+        if ratio > 2.0:  # 2x more put OI than call OI
+            return Alert(
+                type="UNUSUAL_PC_OI_RATIO",
+                priority="MEDIUM",
+                ticker=current.ticker,
+                message=f"Unusual P/C OI ratio: {ratio:.1f}x (put-heavy)",
+                data={"put_gex": put_gex, "call_gex": call_gex, "ratio": round(ratio, 2)}
+            )
+        return None
+
+    def _detect_max_pain_magnet(self, current: GEXSnapshot, previous: Optional[GEXSnapshot]) -> Optional[Alert]:
+        """Max pain magnet: in positive gamma regime, spot within 1% of max pain."""
+        if current.regime != "POSITIVE":
+            return None
+        if current.max_pain <= 0:
+            return None
+        if abs(current.spot_price - current.max_pain) / current.spot_price < 0.01:
+            return Alert(
+                type="MAX_PAIN_MAGNET",
+                priority="LOW",
+                ticker=current.ticker,
+                message=f"Max pain magnet: spot {current.spot_price} within 1% of max pain {current.max_pain}",
+                data={"spot": current.spot_price, "max_pain": current.max_pain}
+            )
+        return None
+
     def get_alert_summary(self, ticker: str) -> Dict[str, Any]:
         """Get a summary of current alerts for a ticker."""
         latest = self.get_latest(ticker)

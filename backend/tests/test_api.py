@@ -294,3 +294,72 @@ async def test_daily_checklist_endpoint(client):
     assert "risk_management" in d
     assert "hedging_flow" in d
     assert "recommended_strategies" in d["strategy"]
+
+
+# ----------------------------- Memory Tests -----------------------------
+
+@pytest.mark.asyncio
+async def test_memory_trade_endpoint(client):
+    """Test storing a trade in memory."""
+    r = await client.post("/memory/trade", json={
+        "ticker": "SPY",
+        "trade_type": "call",
+        "entry_price": 450.0,
+        "exit_price": 455.0,
+        "pnl": 5.0,
+        "notes": "Test trade"
+    })
+    assert r.status_code == 200
+    d = r.json()
+    assert d["status"] == "ok"
+
+
+@pytest.mark.asyncio
+async def test_memory_gex_endpoint(client):
+    """Test storing a GEX observation in memory."""
+    r = await client.post("/memory/gex", json={
+        "ticker": "SPY",
+        "observation": "GEX regime changed from positive to negative",
+        "metadata": {"regime": "NEGATIVE", "gamma_flip": 450.0}
+    })
+    assert r.status_code == 200
+    d = r.json()
+    assert d["status"] == "ok"
+
+
+@pytest.mark.asyncio
+async def test_memory_recall_endpoint(client):
+    """Test recalling memories for a ticker."""
+    r = await client.get("/memory/recall/SPY")
+    assert r.status_code == 200
+    d = r.json()
+    assert "results" in d
+
+
+@pytest.mark.asyncio
+async def test_memory_summary_endpoint(client):
+    """Test getting a trading summary from memory."""
+    r = await client.get("/memory/summary/SPY")
+    assert r.status_code == 200
+    d = r.json()
+    assert "summary" in d
+
+
+# ----------------------------- New Alert Type Tests -----------------------------
+
+@pytest.mark.asyncio
+async def test_alert_types_in_response(client):
+    """Test that all alert types are present in the alert system."""
+    r = await client.get("/alerts/types")
+    assert r.status_code == 200
+    d = r.json()
+    alert_types = [a["type"] for a in d.get("alert_types", [])]
+    # Check new alert types are registered
+    expected_types = [
+        "GAMMA_FLIP", "GAMMA_SQUEEZE", "MOMENTUM_EXTREME",
+        "WALL_BREACH", "GEX_MAGNITUDE_SHIFT", "GAMMA_FLIP_PROXIMITY",
+        "PIN_RISK", "CHARM_PINNING", "VANNA_REGIME_CHANGE",
+        "UNUSUAL_PC_OI_RATIO", "MAX_PAIN_MAGNET"
+    ]
+    for expected in expected_types:
+        assert expected in alert_types, f"Missing alert type: {expected}"
