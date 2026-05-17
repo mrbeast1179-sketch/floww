@@ -31,6 +31,8 @@ import { MorningBriefing } from "./components/MorningBriefing";
 import { PositionSizing } from "./components/PositionSizing";
 import { TradeEntry } from "./components/TradeEntry";
 import { TradeJournal } from "./components/TradeJournal";
+import { DashboardSummary } from "./components/DashboardSummary";
+import { SocialFlowPanel } from "./components/SocialFlowPanel";
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
@@ -627,6 +629,7 @@ export default function App() {
             <div className="p-2 space-y-2">
               {/* Morning Briefing — top priority */}
               {page === "heatseeker" && <MorningBriefing ticker={ticker} spot={livespot?.spot ?? data?.spot} />}
+              <DashboardSummary ticker={ticker} spot={livespot?.spot ?? data?.spot} />
               <FlipZonesPanel data={data} />
               <StackedNodesPanel data={data} />
               <TugOfWarPanel data={data} />

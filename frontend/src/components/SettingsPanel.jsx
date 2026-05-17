@@ -74,6 +74,7 @@ export function SettingsPanel({ refreshMs, onRefreshMsChange, defaultTicker, onD
                 <button key={t} className="btn flex-1 text-[9px] active">{t}</button>
               ))}
             </div>
+          </div>
           <div>
             <div className="label mb-0.5">Accessibility</div>
             <div className="flex gap-1">
