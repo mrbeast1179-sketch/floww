@@ -2471,6 +2471,82 @@ async def api_send_briefing(ticker: str, to_email: str = Query(...)):
     return result
 
 
+# ============ ML Training & Prediction ============
+
+from ml_training import train_regime_prediction_model, predict_regime, extract_features_from_snapshot
+
+
+@api.post("/api/ml/train/{ticker}")
+async def api_train_model(ticker: str):
+    """Train regime prediction model on historical GEX data."""
+    result = await train_regime_prediction_model(ticker)
+    return result
+
+
+@api.get("/api/ml/predict/{ticker}")
+async def api_predict_regime(ticker: str):
+    """Predict regime using trained model."""
+    result = await predict_regime(ticker)
+    return result
+
+
+@api.get("/api/ml/features/{ticker}")
+async def api_get_features(ticker: str):
+    """Get ML features from latest snapshot."""
+    from motor.motor_asyncio import AsyncIOMotorClient
+    from dotenv import load_dotenv
+    load_dotenv()
+    client = AsyncIOMotorClient(os.environ.get("MONGO_URL", ""))
+    db = client[os.environ.get("DB_NAME", "confluence_decoder")]
+    latest = await db.snapshots.find_one({"ticker": ticker}, sort=[("ts", -1)])
+    client.close()
+    
+    if not latest:
+        raise HTTPException(404, f"No snapshots for {ticker}")
+    
+    features = extract_features_from_snapshot(latest)
+    return {"ticker": ticker, "features": features, "timestamp": latest.get("ts", "")}
+
+
+@api.get("/api/ml/data/{ticker}")
+async def api_get_training_data(ticker: str, limit: int = Query(100, ge=1, le=10000)):
+    """Get raw training data for a ticker."""
+    from motor.motor_asyncio import AsyncIOMotorClient
+    from dotenv import load_dotenv
+    load_dotenv()
+    client = AsyncIOMotorClient(os.environ.get("MONGO_URL", ""))
+    db = client[os.environ.get("DB_NAME", "confluence_decoder")]
+    
+    cursor = db.snapshots.find(
+        {"ticker": ticker},
+        {"_id": 0, "ts": 1, "spot": 1, "regime": 1, "total_gex": 1, "net_gex": 1, "king": 1}
+    ).sort("ts", -1).limit(limit)
+    
+    data = await cursor.to_list(length=limit)
+    client.close()
+    
+    return {"ticker": ticker, "count": len(data), "data": data}
+
+
+# ============ Data Collection for ML ============
+
+from data_collector import collect_and_store, collect_multiple_tickers
+
+
+@api.post("/api/ml/collect/{ticker}")
+async def api_collect_data(ticker: str):
+    """Collect and store a GEX snapshot for ML training."""
+    result = await collect_and_store(ticker)
+    return result
+
+
+@api.post("/api/ml/collect-all")
+async def api_collect_all():
+    """Collect snapshots for all major tickers (SPY, QQQ, IWM, DIA)."""
+    results = await collect_multiple_tickers()
+    return {"results": results}
+
+
 # ============ Schwab API Integration ============
 
 from schwab import SchwabTokenManager, SchwabClient, import_schwab_positions, detect_sweeps
