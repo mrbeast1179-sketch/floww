@@ -237,6 +237,84 @@ input:focus, select:focus, textarea:focus, button:focus-visible {
     box-shadow: 0 0 0 1px rgba(94, 234, 212, 0.3);
 }
 
+/* ===== Mobile Responsive ===== */
+
+/* Small phones */
+@media (max-width: 480px) {
+    html { font-size: 13px; }
+    .panel, .panel-2 { padding: 4px !important; }
+    .label { font-size: 8px !important; }
+    .btn { font-size: 8px !important; padding: 3px 6px !important; }
+    .mono { font-size: 9px !important; }
+    table { font-size: 8px !important; }
+    th, td { padding: 2px 4px !important; }
+    input, select { font-size: 11px !important; padding: 4px 6px !important; }
+    button { min-height: 32px; min-width: 32px; }
+}
+
+/* Tablets and small laptops */
+@media (max-width: 768px) {
+    html { font-size: 14px; }
+    .panel, .panel-2 { padding: 6px !important; }
+    .label { font-size: 9px !important; }
+    .btn { font-size: 9px !important; padding: 4px 8px !important; }
+    .mono { font-size: 10px !important; }
+    table { font-size: 9px !important; }
+    th, td { padding: 3px 6px !important; }
+    aside { width: 200px !important; }
+    .grid-cols-2 { grid-template-columns: 1fr !important; }
+}
+
+/* Medium screens */
+@media (max-width: 1024px) {
+    aside { width: 240px !important; }
+    .grid-cols-3 { grid-template-columns: repeat(2, 1fr) !important; }
+}
+
+/* Large screens */
+@media (min-width: 1400px) {
+    html { font-size: 15px; }
+    aside { width: 320px !important; }
+}
+
+/* Touch device optimizations */
+@media (hover: none) and (pointer: coarse) {
+    .btn { min-height: 44px; min-width: 44px; }
+    button, a, input, select, textarea { min-height: 44px; }
+    .tooltip-container .tooltip-text { display: none; }
+}
+
+/* Print styles */
+@media print {
+    body { background: #fff; color: #000; }
+    .panel, .panel-2 { border: 1px solid #ccc; background: #fff; }
+    aside, nav, button { display: none !important; }
+    main { width: 100% !important; }
+}
+
+/* Reduced motion */
+@media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+    }
+    .flash-pulse { animation: none !important; }
+}
+
+/* High contrast mode */
+@media (prefers-contrast: high) {
+    :root {
+        --bg: #000;
+        --bg-2: #111;
+        --panel: #1a1a1a;
+        --panel-2: #222;
+        --border: #444;
+        --text: #fff;
+        --text-dim: #ccc;
+    }
+}
+
 /* Scrollbar for Firefox */
 * {
     scrollbar-width: thin;
