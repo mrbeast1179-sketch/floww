@@ -9,7 +9,6 @@ Uses Alpaca paper trading API to automatically place trades based on:
 All trades are placed in PAPER mode only.
 """
 
-import os
 import logging
 from typing import Dict, Any, List, Optional
 from datetime import datetime, timezone

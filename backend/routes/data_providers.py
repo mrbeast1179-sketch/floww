@@ -1,8 +1,6 @@
 """API routes for free data providers."""
 
-import os
 import logging
-from typing import Optional
 from fastapi import APIRouter, Query
 
 logger = logging.getLogger(__name__)

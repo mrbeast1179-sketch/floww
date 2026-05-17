@@ -1,7 +1,6 @@
 """Backend tests for Confluence Decoder (Heatseeker GEX)."""
 import os
 import math
-import json
 import pytest
 import requests
 

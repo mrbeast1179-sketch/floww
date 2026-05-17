@@ -1,6 +1,5 @@
 """V2 features: 2D grid heatmap, swing mode, contract drilldown, Databento usage."""
 import os
-import math
 import pytest
 import requests
 

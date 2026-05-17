@@ -98,7 +98,6 @@ CRON_JOBS = [
 
 def setup_cron_jobs():
     """Set up cron jobs using the system crontab."""
-    import subprocess
     
     for job_config in CRON_JOBS:
         name = job_config["name"]

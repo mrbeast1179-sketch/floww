@@ -187,7 +187,7 @@ def test_flow_spy_enforce_window_false_starts():
                               timeout=15, max_events=2)
     # Either 'ready' event or an error (e.g. DBN key missing) is acceptable.
     assert events, "no SSE output at all"
-    names = [e[0] for e in events]
+    [e[0] for e in events]
     # MUST NOT be a window-related error since enforce_window=false
     for name, data in events:
         if name == "error":

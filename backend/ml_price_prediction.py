@@ -8,10 +8,9 @@ Predicts next-day price direction (up/down) based on:
 """
 
 import os
-import json
 import logging
 import numpy as np
-from typing import Dict, Any, List, Optional, Tuple
+from typing import Dict, Any
 from datetime import datetime, timezone
 
 logger = logging.getLogger(__name__)
@@ -79,9 +78,9 @@ async def train_price_direction_model(
     """Train a price direction prediction model."""
     from motor.motor_asyncio import AsyncIOMotorClient
     from dotenv import load_dotenv
-    from sklearn.ensemble import RandomForestClassifier, GradientBoostingClassifier
+    from sklearn.ensemble import GradientBoostingClassifier
     from sklearn.preprocessing import StandardScaler
-    from sklearn.metrics import accuracy_score, classification_report
+    from sklearn.metrics import accuracy_score
     import joblib
     
     load_dotenv()
@@ -100,7 +99,6 @@ async def train_price_direction_model(
         }
     
     # Get price data for labels
-    from data_collector import collect_snapshot
     
     # Build training data
     X = []

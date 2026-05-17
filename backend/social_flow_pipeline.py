@@ -12,12 +12,10 @@ Integrates algorithms from scraped GitHub repos:
 Also handles X/Twitter data collection via xurl (when authenticated).
 """
 
-import os
 import json
 import time
-import asyncio
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime
 from typing import Dict, List, Optional, Any
 from dataclasses import dataclass, field, asdict
 
@@ -325,7 +323,6 @@ class OptionsFlowDetector:
         """Detect sweep orders (multiple strikes at once)."""
         # Group by timestamp (within 60 seconds)
         from collections import defaultdict
-        import re
         
         time_groups = defaultdict(list)
         for c in contracts:

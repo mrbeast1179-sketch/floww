@@ -13,7 +13,7 @@ Uses SendGrid (free tier: 100 emails/day) or SMTP.
 
 import os
 import logging
-from typing import Dict, Any, Optional
+from typing import Dict, Any
 from datetime import datetime, timezone
 
 logger = logging.getLogger(__name__)

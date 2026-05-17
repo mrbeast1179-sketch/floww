@@ -14,7 +14,7 @@ from motor.motor_asyncio import AsyncIOMotorClient
 from pydantic import BaseModel
 from pathlib import Path
 from typing import List, Optional, Dict, Any
-from datetime import datetime, timezone, date, timedelta
+from datetime import datetime, timezone, timedelta
 import os
 import json
 import logging
@@ -30,7 +30,7 @@ from scipy.stats import norm
 
 from databento_provider import init_cache, fetch_oi_for_ticker, PARENT_MAP, stream_live_trades
 from portfolio import Position, Portfolio, calc_position_size
-from schwab import SCHWAB_CLIENT_ID, SCHWAB_CLIENT_SECRET
+from schwab import SCHWAB_CLIENT_ID
 from vol_analytics import (
     calc_iv_surface_data,
     calc_skew_metrics,
@@ -390,7 +390,7 @@ async def fetch_spot_and_chains_merged(ticker: str, max_expiries: int = 4) -> Di
     """yfinance for spot+IV + Databento for OI (only if ticker is in PAID_TICKERS).
     Falls back to pure yfinance for free-tier tickers."""
     yf_data = await asyncio.to_thread(fetch_spot_and_chains, ticker, max_expiries)
-    spot = yf_data["spot"]
+    yf_data["spot"]
 
     # Free-tier short-circuit: use yfinance OI only
     short = ticker.upper().replace("^", "")
@@ -582,7 +582,6 @@ def calc_implied_move(spot: float, contracts: List[Dict[str, Any]]) -> Optional[
     if not atm_calls or not atm_puts:
         return None
     # Use IV to estimate straddle price via BS
-    from scipy.stats import norm as _norm
     call_iv = atm_calls[0].get("iv", 0.2)
     put_iv = atm_puts[0].get("iv", 0.2)
     T = atm_calls[0].get("T", 1/365)
@@ -691,7 +690,7 @@ def detect_opportunities(strikes: List[Dict[str, Any]], nodes: Dict[str, Any],
     king = nodes.get("king")
     if not king:
         return opportunities
-    max_abs = abs(king.get("gex", 0)) or 1.0
+    abs(king.get("gex", 0)) or 1.0
     total_gex = nodes.get("total_gex", 0)
     polarity = nodes.get("polarity_level", spot)
     regime = nodes.get("regime", "neutral")
@@ -778,7 +777,7 @@ def detect_opportunities(strikes: List[Dict[str, Any]], nodes: Dict[str, Any],
                 "direction": "neutral",
                 "risk": "medium",
                 "confidence": round(confidence, 2),
-                "description": f"Negative gamma regime. Dealers amplifying moves. Expect increased volatility.",
+                "description": "Negative gamma regime. Dealers amplifying moves. Expect increased volatility.",
                 "trigger": {"regime": regime, "total_gex": total_gex, "dist_to_flip_pct": round(dist_to_flip, 2)},
             })
 
@@ -793,7 +792,7 @@ def detect_opportunities(strikes: List[Dict[str, Any]], nodes: Dict[str, Any],
                 "direction": "neutral",
                 "risk": "low",
                 "confidence": round(confidence, 2),
-                "description": f"Positive gamma regime. Dealers dampening moves. Good for selling premium.",
+                "description": "Positive gamma regime. Dealers dampening moves. Good for selling premium.",
                 "trigger": {"regime": regime, "total_gex": total_gex, "dist_to_flip_pct": round(dist_to_flip, 2)},
             })
 
@@ -1792,8 +1791,8 @@ def _get_strategy_recommendation(gf: Dict, regime: Dict, skew: Dict) -> Dict[str
     """Generate strategy recommendations based on GEX regime and market conditions."""
     gex_regime = gf.get("regime", "unknown")
     dist_to_flip = gf.get("dist_to_flip")
-    call_wall = gf.get("call_wall")
-    put_wall = gf.get("put_wall")
+    gf.get("call_wall")
+    gf.get("put_wall")
     spot = gf.get("spot", 0)
 
     if gex_regime == "positive_gamma":
@@ -2389,7 +2388,7 @@ async def position_size(
 
 # ============ Paper Trading Automation ============
 
-from paper_trading import process_signals_for_ticker, execute_paper_trade, build_order_from_signal
+from paper_trading import process_signals_for_ticker, execute_paper_trade
 
 
 @api.post("/api/paper-trading/execute")
@@ -2911,7 +2910,7 @@ async def delete_alert(alert_id: str):
 async def list_alert_types():
     """List all available alert types."""
     from alert_engine import AlertEngine
-    engine = AlertEngine()
+    AlertEngine()
     # Get all alert type constants
     alert_types = [
         {"type": "GAMMA_FLIP", "priority": "HIGH", "description": "Regime change from positive to negative gamma"},

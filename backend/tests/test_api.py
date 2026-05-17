@@ -4,7 +4,6 @@ Run with: cd backend && source .venv/bin/activate && python -m pytest tests/ -v
 """
 import pytest
 import httpx
-import asyncio
 
 BASE = "http://localhost:8000/api"
 

@@ -12,8 +12,7 @@ Setup:
 
 import os
 import logging
-from typing import Dict, List, Optional, Any
-from datetime import datetime
+from typing import List, Optional, Any
 
 import aiohttp
 

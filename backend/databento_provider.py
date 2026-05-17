@@ -9,10 +9,9 @@ import re
 import asyncio
 import logging
 from datetime import datetime, timedelta, timezone, date as date_cls
-from typing import Dict, List, Optional, Any, AsyncIterator
+from typing import Dict, Optional, Any
 
 import databento as db
-from motor.motor_asyncio import AsyncIOMotorClient
 
 log = logging.getLogger("databento")
 

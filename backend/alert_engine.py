@@ -17,12 +17,10 @@ Based on research from:
 - Proshotv2/Gamma-Vanna: vanna exposure
 """
 
-import os
-import json
 import logging
 from typing import Dict, List, Optional, Any
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 
 logger = logging.getLogger(__name__)
 

@@ -11,11 +11,10 @@ Falls back gracefully when rate limits hit.
 """
 
 import os
-import json
 import time
 import asyncio
 import logging
-from typing import Dict, List, Optional, Any
+from typing import List, Optional
 from datetime import datetime, timedelta
 
 import aiohttp

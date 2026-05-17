@@ -2,7 +2,7 @@
 
 import logging
 from typing import Optional, Dict, Any, List
-from fastapi import APIRouter, Query
+from fastapi import APIRouter
 
 logger = logging.getLogger(__name__)
 
@@ -73,7 +73,7 @@ async def explain_signal(signal: Dict[str, Any]):
 async def get_ai_status():
     """Get AI service status."""
     try:
-        from gemini_analyzer import GeminiAnalyzer, GEMINI_API_KEY
+        from gemini_analyzer import GEMINI_API_KEY
         return {
             "gemini": {
                 "enabled": bool(GEMINI_API_KEY),

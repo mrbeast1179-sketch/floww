@@ -19,7 +19,7 @@ Sign up: https://flashalpha.com
 
 import os
 import logging
-from typing import Dict, List, Optional, Any
+from typing import Dict, Optional, Any
 from datetime import datetime
 
 import aiohttp

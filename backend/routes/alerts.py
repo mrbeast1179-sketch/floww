@@ -1,7 +1,7 @@
 """API routes for the alert system."""
 
 import logging
-from typing import Dict, Any, Optional
+from typing import Dict, Any
 from fastapi import APIRouter, Query
 
 logger = logging.getLogger(__name__)
@@ -35,7 +35,7 @@ async def get_alerts(ticker: str, momentum_score: int = Query(50, ge=0, le=100))
 async def add_snapshot(snapshot: Dict[str, Any]):
     """Add a GEX snapshot for alert detection."""
     try:
-        from alert_engine import GEXSnapshot, AlertEngine
+        from alert_engine import GEXSnapshot
         engine = get_alert_engine()
         
         snap = GEXSnapshot(

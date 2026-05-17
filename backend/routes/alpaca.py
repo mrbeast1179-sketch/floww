@@ -1,8 +1,7 @@
 """API routes for Alpaca paper trading."""
 
 import logging
-from typing import Optional
-from fastapi import APIRouter, Query
+from fastapi import APIRouter
 
 logger = logging.getLogger(__name__)
 
@@ -111,7 +110,7 @@ async def close_position(symbol: str):
 async def get_status():
     """Get Alpaca connection status."""
     try:
-        from alpaca_client import AlpacaClient, ALPACA_API_KEY, ALPACA_SECRET_KEY
+        from alpaca_client import ALPACA_API_KEY, ALPACA_SECRET_KEY
         return {
             "configured": bool(ALPACA_API_KEY and ALPACA_SECRET_KEY),
             "api_key_set": bool(ALPACA_API_KEY),

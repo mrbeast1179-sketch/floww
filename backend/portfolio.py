@@ -12,7 +12,7 @@ Features:
 """
 
 from typing import List, Dict, Any, Optional
-from datetime import datetime, timezone, date, timedelta
+from datetime import datetime, timezone, date
 import math
 import numpy as np
 from scipy.stats import norm
@@ -204,8 +204,8 @@ class Portfolio:
         if vol_shocks is None:
             vol_shocks = [-0.10, -0.05, 0, 0.05, 0.10, 0.20]
 
-        base_greeks = self.aggregate_greeks(spot, iv)
-        base_pnl = self.total_pnl(spot, iv)
+        self.aggregate_greeks(spot, iv)
+        self.total_pnl(spot, iv)
 
         scenarios = []
 

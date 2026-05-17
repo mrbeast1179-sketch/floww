@@ -6,9 +6,6 @@ import sys
 import os
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-import pytest
-import math
-from unittest.mock import MagicMock, patch
 
 
 # ----------------------------- BS Math Tests -----------------------------
@@ -265,18 +262,18 @@ def test_all_alert_types_registered():
 def test_verify_api_key_public_path():
     """Test that public paths don't require auth."""
     from auth import is_public_path
-    assert is_public_path("/health") == True
-    assert is_public_path("/api/spot/SPY") == True
-    assert is_public_path("/api/data/SPY") == True
-    assert is_public_path("/api/chain/SPY") == True
+    assert is_public_path("/health")
+    assert is_public_path("/api/spot/SPY")
+    assert is_public_path("/api/data/SPY")
+    assert is_public_path("/api/chain/SPY")
 
 
 def test_verify_api_key_protected_path():
     """Test that protected paths require auth."""
     from auth import is_public_path
-    assert is_public_path("/api/portfolio/test/position") == False
-    assert is_public_path("/api/alerts") == False
-    assert is_public_path("/api/memory/trade") == False
+    assert not is_public_path("/api/portfolio/test/position")
+    assert not is_public_path("/api/alerts")
+    assert not is_public_path("/api/memory/trade")
 
 
 def test_sanitize_csv_field():

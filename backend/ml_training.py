@@ -10,7 +10,6 @@ Uses scikit-learn and optionally PyTorch (via unsloth for fine-tuning).
 """
 
 import os
-import json
 import logging
 import numpy as np
 from typing import Dict, Any, List, Optional, Tuple
@@ -136,7 +135,7 @@ async def train_regime_prediction_model(
     # Train model
     from sklearn.ensemble import GradientBoostingClassifier
     from sklearn.preprocessing import StandardScaler
-    from sklearn.metrics import accuracy_score, classification_report
+    from sklearn.metrics import accuracy_score
     
     scaler = StandardScaler()
     X_train_scaled = scaler.fit_transform(X_train)

@@ -1,8 +1,7 @@
 """API routes for FlashAlpha integration."""
 
 import logging
-from typing import Dict, Any, Optional
-from fastapi import APIRouter, Query
+from fastapi import APIRouter
 
 logger = logging.getLogger(__name__)
 

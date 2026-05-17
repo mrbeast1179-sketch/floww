@@ -5,7 +5,6 @@ Fetches historical GEX snapshots to build a diverse training dataset.
 Runs as a cron job to continuously collect data.
 """
 
-import asyncio
 import logging
 from datetime import datetime, timezone
 from motor.motor_asyncio import AsyncIOMotorClient
@@ -18,7 +17,7 @@ logger = logging.getLogger(__name__)
 
 async def collect_snapshot(ticker: str = "SPY") -> dict:
     """Collect a single GEX snapshot."""
-    from server import fetch_spot_and_chains_merged, compute_gex_by_strike, classify_nodes, _sanitize
+    from server import fetch_spot_and_chains_merged, compute_gex_by_strike, classify_nodes
     
     t = ticker.strip().upper()
     if t == "SPX":

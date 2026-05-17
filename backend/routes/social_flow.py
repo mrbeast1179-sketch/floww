@@ -7,9 +7,8 @@ import os
 import json
 import logging
 from datetime import datetime
-from typing import Optional
 
-from fastapi import APIRouter, Query, HTTPException
+from fastapi import APIRouter
 
 logger = logging.getLogger(__name__)
 

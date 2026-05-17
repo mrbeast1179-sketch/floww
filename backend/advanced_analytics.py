@@ -10,12 +10,12 @@ Implements institutional-grade analytics from the floe library:
 - Enhanced opportunity detection
 """
 
-from typing import List, Dict, Any, Optional, Tuple
+from typing import List, Dict, Any
 from collections import defaultdict
 import math
 import numpy as np
 
-from bs_greeks import bs_gamma, bs_vanna, bs_vega, bs_charm, bs_call_price
+from bs_greeks import bs_gamma, bs_vanna, bs_charm, bs_call_price
 
 
 # ============================================================================
@@ -63,7 +63,7 @@ def calc_implied_pdf(spot: float, contracts: List[Dict[str, Any]],
 
     # Sort by strike
     sorted_calls = sorted(best_calls, key=lambda c: c["strike"])
-    n = len(sorted_calls)
+    len(sorted_calls)
 
     # Compute call prices using BS at each strike
     # Use mid-price approximation: since we don't have bid/ask, use BS price from IV
@@ -614,7 +614,7 @@ def calc_gamma_flip_levels(spot: float, contracts: List[Dict[str, Any]],
                 "max_pain": None, "zero_dte_magnet": None, "total_gex": 0,
                 "regime": "unknown", "hedging_flow": {}}
 
-    from datetime import datetime, timezone, date as date_type
+    from datetime import datetime, timezone
     q = {"SPY": 0.013, "QQQ": 0.006, "^SPX": 0.013, "IWM": 0.012}.get(ticker, 0.0)
     today = datetime.now(timezone.utc).date()
 
