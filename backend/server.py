@@ -2919,6 +2919,54 @@ async def on_start():
     log.info("databento cache initialized")
 
 
+# ----------------------------- Memory Routes (Mem0) -----------------------------
+
+from memory_integration import remember_trade, remember_gex_observation, recall_trading_context, get_trading_summary
+
+
+class TradeMemoryRequest(BaseModel):
+    ticker: str
+    trade_type: str = "unknown"
+    entry_price: float = 0
+    exit_price: float = 0
+    pnl: float = 0
+    notes: str = ""
+
+
+class GexMemoryRequest(BaseModel):
+    ticker: str
+    observation: str
+    metadata: Optional[Dict[str, Any]] = None
+
+
+@api.post("/api/memory/trade")
+async def api_remember_trade(req: TradeMemoryRequest):
+    """Store a trade in memory."""
+    result = remember_trade(req.ticker, req.dict())
+    return {"status": "ok", "id": result}
+
+
+@api.post("/api/memory/gex")
+async def api_remember_gex(req: GexMemoryRequest):
+    """Store a GEX observation in memory."""
+    result = remember_gex_observation(req.ticker, req.observation, req.metadata)
+    return {"status": "ok", "id": result}
+
+
+@api.get("/api/memory/recall/{ticker}")
+async def api_recall_memory(ticker: str, query: str = ""):
+    """Recall memories for a ticker."""
+    results = recall_trading_context(ticker, query)
+    return {"results": results}
+
+
+@api.get("/api/memory/summary/{ticker}")
+async def api_memory_summary(ticker: str):
+    """Get a trading summary from memory."""
+    summary = get_trading_summary(ticker)
+    return {"summary": summary}
+
+
 @app.on_event("shutdown")
 async def on_stop():
     client.close()
