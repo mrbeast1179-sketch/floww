@@ -103,6 +103,8 @@
 - [x] MongoDB Atlas: hermesterminal / fwBdadhctVpkG9TN
 - [x] Databento: db-PBRQ7ia8dQ8wi6Yj7imWDfxXxGFrN
 
+- [x] MarketStack: 2936a82c56aaab09794b1889b5e8147d
+
 ### Pending
 - [ ] Barchart OnDemand API key (need to sign up at barchartondemand.com)
 - [ ] Gemini student pack credits (2-3 days)
