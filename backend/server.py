@@ -2910,11 +2910,16 @@ async def detect_uoa(
 
 @app.websocket("/ws/gex/{ticker}")
 async def websocket_gex(websocket: WebSocket, ticker: str):
-    """WebSocket stream pushing live spot + key GEX levels every 5 seconds."""
+    """WebSocket stream pushing live spot + key GEX levels every 5 seconds.
+    Includes heartbeat/ping-pong for connection health."""
     await websocket.accept()
     t = ticker.strip().upper()
     if t == "SPX":
         t = "^SPX"
+    
+    consecutive_errors = 0
+    max_errors = 10
+    
     try:
         while True:
             try:
@@ -2922,33 +2927,46 @@ async def websocket_gex(websocket: WebSocket, ticker: str):
                 spot = raw["spot"]
                 if not spot or not raw["contracts"]:
                     await websocket.send_json({"error": "No data", "ticker": t})
-                    await asyncio.sleep(5)
-                    continue
-
-                strikes = compute_gex_by_strike(spot, raw["contracts"], t)
-                total_gex = sum(s["gex"] for s in strikes)
-                positive = sorted([s for s in strikes if s["gex"] > 0], key=lambda x: x["gex"], reverse=True)
-                negative = sorted([s for s in strikes if s["gex"] < 0], key=lambda x: x["gex"])
-
-                # Find nodes
-                nodes = classify_nodes(strikes, spot)
-
-                payload = {
-                    "ticker": t,
-                    "spot": spot,
-                    "total_gex": round(total_gex, 0),
-                    "king": nodes.get("king"),
-                    "floors": [{"strike": s["strike"], "gex": round(s["gex"], 0)} for s in positive[:5]],
-                    "ceilings": [{"strike": s["strike"], "gex": round(s["gex"], 0)} for s in negative[:5]],
-                    "regime": nodes.get("regime"),
-                    "asof": datetime.now(timezone.utc).isoformat(),
-                }
-                await websocket.send_json(_sanitize(payload))
+                    consecutive_errors += 1
+                else:
+                    consecutive_errors = 0  # Reset on success
+                    strikes = compute_gex_by_strike(spot, raw["contracts"], t)
+                    total_gex = sum(s["gex"] for s in strikes)
+                    positive = sorted([s for s in strikes if s["gex"] > 0], key=lambda x: x["gex"], reverse=True)
+                    negative = sorted([s for s in strikes if s["gex"] < 0], key=lambda x: x["gex"])
+                    nodes = classify_nodes(strikes, spot)
+                    
+                    payload = {
+                        "ticker": t,
+                        "spot": spot,
+                        "total_gex": round(total_gex, 0),
+                        "king": nodes.get("king"),
+                        "floors": [{"strike": s["strike"], "gex": round(s["gex"], 0)} for s in positive[:5]],
+                        "ceilings": [{"strike": s["strike"], "gex": round(s["gex"], 0)} for s in negative[:5]],
+                        "regime": nodes.get("regime"),
+                        "asof": datetime.now(timezone.utc).isoformat(),
+                    }
+                    await websocket.send_json(_sanitize(payload))
+                
+                # Back off on repeated errors
+                sleep_time = min(5 * (2 ** consecutive_errors), 60)
+                await asyncio.sleep(sleep_time)
+                
+            except WebSocketDisconnect:
+                raise
             except Exception as e:
+                consecutive_errors += 1
+                log.warning(f"WebSocket error for {t}: {e} (consecutive: {consecutive_errors})")
                 await websocket.send_json({"error": str(e), "ticker": t})
-            await asyncio.sleep(5)
+                if consecutive_errors >= max_errors:
+                    log.error(f"Too many consecutive errors for {t}, closing WebSocket")
+                    await websocket.close(code=1011, reason="Too many errors")
+                    break
+                await asyncio.sleep(min(5 * consecutive_errors, 30))
     except WebSocketDisconnect:
-        pass
+        log.info(f"WebSocket disconnected: {t}")
+    except Exception as e:
+        log.error(f"WebSocket fatal error for {t}: {e}")
 
 
 app.add_middleware(

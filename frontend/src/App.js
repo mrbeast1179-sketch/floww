@@ -532,11 +532,19 @@ export default function App() {
                 </div>
 
                 {/* Live GEX WebSocket indicator */}
+                <div className="dotted-divider my-2" />
+                <div className="flex items-center justify-between text-[9px]">
+                  {wsGex.connected ? (
+                    <span className="text-teal-400 font-bold flash-pulse">● LIVE GEX</span>
+                  ) : wsGex.reconnectAttempt > 0 ? (
+                    <span className="text-amber-400">⟳ Reconnecting ({wsGex.reconnectAttempt})</span>
+                  ) : (
+                    <span className="text-slate-500">○ Disconnected</span>
+                  )}
+                </div>
                 {wsGex.connected && wsGex.data && (
                   <>
-                    <div className="dotted-divider my-2" />
                     <div className="flex items-center justify-between text-[9px]">
-                      <span className="text-teal-400 font-bold flash-pulse">● LIVE GEX</span>
                       <span className="text-slate-500">{new Date(wsGex.data.asof).toLocaleTimeString()}</span>
                     </div>
                     <div className="grid grid-cols-2 gap-x-3 gap-y-0.5 text-[9px] mt-1">
@@ -546,6 +554,7 @@ export default function App() {
                       <div className="flex justify-between"><span className="text-slate-500">Regime</span><span className={`mono ${regimeColor(wsGex.data.regime)}`}>{wsGex.data.regime || "—"}</span></div>
                     </div>
                   </>
+                )}
                 )}
               </div>
 
