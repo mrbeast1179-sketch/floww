@@ -1,0 +1,30 @@
+{
+  "generated_at": "2026-05-18T19:37:34.364056+00:00",
+  "to_clone": [
+    {
+      "paper_id": "arxiv:2309.07843",
+      "paper_title": "Applying Deep Learning to Calibrate Stochastic Volatility Models",
+      "paper_url": "https://arxiv.org/abs/2309.07843",
+      "code_url": "https://github.com/asridi/DML-Calibration-Heston-Model",
+      "owner": "asridi",
+      "repo": "DML-Calibration-Heston-Model",
+      "local_path": "data/github-repos/cloned/asridi_DML-Calibration-Heston-Model"
+    },
+    {
+      "paper_id": "arxiv:2205.05600",
+      "paper_title": "RLOP: RL Methods in Option Pricing from a Mathematical Perspective",
+      "paper_url": "https://arxiv.org/abs/2205.05600",
+      "code_url": "https://github.com/owen8877/RLOP",
+      "owner": "owen8877",
+      "repo": "RLOP",
+      "local_path": "data/github-repos/cloned/owen8877_RLOP"
+    }
+  ],
+  "skip_already": [],
+  "skip_unparseable": [],
+  "counts": {
+    "to_clone": 2,
+    "skip_already": 0,
+    "skip_unparseable": 0
+  }
+}
