@@ -54,11 +54,14 @@ MODELS_DIR = Path(__file__).resolve().parent.parent / "models"
 FEATURE_VERSION = "v1.0"
 
 
-def load_features(ticker: str) -> pd.DataFrame:
+def load_features(ticker: str, version: str = None) -> pd.DataFrame:
     """Load feature matrix from MongoDB."""
     client = MongoClient(MONGO_URL)
     db = client[DB_NAME]
-    cursor = db["ml_features"].find({"ticker": ticker}).sort("date", 1)
+    query = {"ticker": ticker}
+    if version:
+        query["feature_version"] = version
+    cursor = db["ml_features"].find(query).sort("date", 1)
     docs = list(cursor)
     client.close()
 
