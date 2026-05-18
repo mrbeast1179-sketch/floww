@@ -43,6 +43,12 @@ from services.ml.quality import (
     assert_feature_variance,
     assert_prediction_distribution,
 )
+from services.ml.gate import (
+    DEFAULT_MAX_SHARPE as MAX_PLAUSIBLE_DAILY_SHARPE,
+    compute_trading_sharpe,
+    evaluate_baselines,
+    evaluate_ship_verdict,
+)
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 log = logging.getLogger("train_spy")
@@ -311,16 +317,8 @@ def train_model(
     }
 
 
-def compute_trading_sharpe(predictions: List[int], actuals: List[int]) -> float:
-    """Compute Sharpe ratio of a simple trading strategy based on predictions."""
-    rets = []
-    for pred, actual in zip(predictions, actuals):
-        if pred == 1:  # Predicted up
-            rets.append(1.0 if actual == 1 else -1.0)
-        # Skip flat predictions
-    if len(rets) < 2:
-        return 0.0
-    return float(np.mean(rets) / (np.std(rets) + 1e-8) * np.sqrt(252))
+# compute_trading_sharpe moved to services.ml.gate; imported above so existing
+# call sites continue to work. The function definition lives there now.
 
 
 def run_training(ticker: str, dry_run: bool = False) -> Dict[str, Any]:
@@ -359,31 +357,33 @@ def run_training(ticker: str, dry_run: bool = False) -> Dict[str, Any]:
             log.info(f"  {model_type}: acc={result['metrics']['accuracy']:.3f}, "
                      f"f1={result['metrics']['f1']:.3f}, sharpe={sharpe:.3f}")
 
-    # Baseline metrics
-    baseline_metrics = {}
-    for name, preds in baselines.items():
-        if len(preds) == len(y):
-            preds_arr = np.array(preds[:len(y)])
-            acc = np.mean(preds_arr == y[:len(preds_arr)])
-            sharpe = compute_trading_sharpe(preds[:len(y)], y[:len(preds)].tolist())
-            baseline_metrics[name] = {"accuracy": acc, "sharpe": sharpe}
-            log.info(f"  baseline {name}: acc={acc:.3f}, sharpe={sharpe:.3f}")
+    # Baseline metrics + SHIP verdict — both extracted to services.ml.gate for
+    # testability. See backend/tests/services/ml/test_gate.py for unit tests
+    # that pin each rejection path. See reports/multiticker_model_audit.md for
+    # the audit that motivated the extraction (three compounding bugs in the
+    # prior inline gate that made every model auto-pass).
+    test_actuals = None
+    for r in results.values():
+        if r.get("status") == "ok":
+            test_actuals = r.get("actuals")
+            break
 
-    # Determine best model
-    best_model = None
-    best_sharpe = -999
-    for model_type, result in results.items():
-        if result["status"] == "ok":
-            sharpe = result.get("sharpe", -999)
-            # Must beat all baselines on Sharpe
-            beats_all = all(
-                sharpe > baseline_metrics.get(b, {}).get("sharpe", -999)
-                for b in ["majority", "persistence", "logistic"]
+    if test_actuals is None:
+        log.warning("no successful model fold; cannot compute baseline metrics")
+        baseline_metrics: Dict[str, Dict[str, float]] = {}
+    else:
+        baseline_metrics = evaluate_baselines(baselines, test_actuals)
+        for name in set(baselines.keys()) - set(baseline_metrics.keys()):
+            log.warning(
+                f"baseline {name}: omitted from gate (length mismatch or empty)"
             )
-            result["beats_baselines"] = beats_all
-            if sharpe > best_sharpe:
-                best_sharpe = sharpe
-                best_model = model_type
+        for name, m in baseline_metrics.items():
+            log.info(f"  baseline {name}: acc={m['accuracy']:.3f}, sharpe={m['sharpe']:.3f}")
+
+    best_model = evaluate_ship_verdict(results, baseline_metrics)
+    for model_type, result in results.items():
+        if result.get("status") == "ok" and result.get("rejection_reason"):
+            log.warning(f"  {model_type}: REJECTED — {result['rejection_reason']}")
 
     # Generate report
     report = {
