@@ -47,19 +47,94 @@ def get_async_db():
 # ============================================================================
 
 async def load_gex_snapshots(db, ticker: str = "SPY") -> List[Dict]:
-    """Load GEX snapshots sorted by date."""
-    cursor = db["gex_enhanced_snapshots"].find(
-        {"_source": "issue_141_enhanced_dataset"}
-    ).sort("date", 1)
+    """
+    Load GEX snapshots for a ticker, sorted by date.
+
+    Snapshots may either carry an explicit `ticker` field (newer ingests) or
+    only an `_source` tag (legacy SPY backfill). We match either way; tickers
+    other than SPY get only docs with `ticker == <ticker>`.
+    """
+    if ticker == "SPY":
+        query = {"$or": [
+            {"ticker": "SPY"},
+            {"_source": "issue_141_enhanced_dataset"},
+        ]}
+    else:
+        query = {"ticker": ticker}
+    cursor = db["gex_enhanced_snapshots"].find(query).sort("date", 1)
     return await cursor.to_list(length=10000)
 
 
-async def load_outcomes(db) -> List[Dict]:
-    """Load labeled outcomes sorted by date."""
-    cursor = db["gex_llm_patterns_outcomes"].find(
-        {"_source": "issue_145_next_day_outcomes_2024"}
-    ).sort("date", 1)
+async def load_outcomes(db, ticker: str = "SPY") -> List[Dict]:
+    """
+    Load labeled outcomes for a ticker, sorted by date.
+
+    SPY outcomes were ingested without a ticker field (issue_145_*); other
+    tickers must carry an explicit ticker tag. Returns [] for tickers that
+    have no labeled outcomes — callers fall back to bar-derived targets.
+    """
+    if ticker == "SPY":
+        query = {"$or": [
+            {"ticker": "SPY"},
+            {"_source": "issue_145_next_day_outcomes_2024"},
+        ]}
+    else:
+        query = {"ticker": ticker}
+    cursor = db["gex_llm_patterns_outcomes"].find(query).sort("date", 1)
     return await cursor.to_list(length=10000)
+
+
+# Canonical materialization thresholds (from
+# data/github-repos/cloned/iAmGiG_gex-llm-patterns/scripts/validation/paper1/
+# 16_analyze_eod_latent_information.py — same definitions used to label SPY).
+DIRECTIONAL_MOVE_THRESHOLD = 0.005  # >0.5% abs next-day return
+RANGE_EXPANSION_THRESHOLD = 0.015   # >1.5% next-day intraday range
+GAP_MOVE_THRESHOLD = 0.003          # >0.3% overnight gap
+
+
+def derive_outcomes_from_bars(bars: List[Dict]) -> Dict[str, Dict]:
+    """
+    Derive next-day outcomes from OHLCV bars using the canonical thresholds.
+
+    Returns a dict keyed by the *snapshot date* (i.e. t0), with the outcome
+    measured on t1 — matching the convention in `gex_llm_patterns_outcomes`
+    where the row date is t0 and fields describe what happened on t1.
+    """
+    out: Dict[str, Dict] = {}
+    n = len(bars)
+    for i in range(n - 1):
+        t0 = bars[i]
+        t1 = bars[i + 1]
+        close_t0 = _safe_float(t0.get("close"))
+        open_t1 = _safe_float(t1.get("open"))
+        close_t1 = _safe_float(t1.get("close"))
+        high_t1 = _safe_float(t1.get("high"))
+        low_t1 = _safe_float(t1.get("low"))
+        if close_t0 <= 0 or open_t1 <= 0:
+            continue
+
+        return_pct = (close_t1 - open_t1) / open_t1 * 100.0
+        abs_return = abs(return_pct) / 100.0
+        gap = abs(open_t1 - close_t0) / close_t0
+        rng = (high_t1 - low_t1) / open_t1 if open_t1 > 0 else 0.0
+
+        directional = abs_return > DIRECTIONAL_MOVE_THRESHOLD
+        range_exp = rng > RANGE_EXPANSION_THRESHOLD
+        gap_move = gap > GAP_MOVE_THRESHOLD
+
+        out[t0["date"]] = {
+            "date": t0["date"],
+            "directional_move": directional,
+            "range_expansion": range_exp,
+            "gap_move": gap_move,
+            "any_materialization": directional or range_exp or gap_move,
+            "return_pct": return_pct,
+            "abs_return_pct": abs_return * 100.0,
+            "gap_pct": gap * 100.0,
+            "range_pct": rng * 100.0,
+            "_derived_from": "underlying_bars",
+        }
+    return out
 
 
 async def load_underlying_bars(db, ticker: str) -> List[Dict]:
@@ -302,70 +377,102 @@ def compute_calendar_features(dates: List[str]) -> Dict[str, List[float]]:
 # Main feature computation pipeline
 # ============================================================================
 
-async def compute_features(ticker: str = "SPY", as_of: Optional[str] = None) -> Dict[str, Any]:
+async def compute_features(
+    ticker: str = "SPY",
+    as_of: Optional[str] = None,
+    start: Optional[str] = None,
+    end: Optional[str] = None,
+) -> Dict[str, Any]:
     """
     Compute all features for a ticker.
 
     Args:
         ticker: Ticker symbol
-        as_of: Optional date string (YYYY-MM-DD) to compute features up to
+        as_of: Optional upper bound (YYYY-MM-DD) — features after this date are dropped.
+        start: Optional inclusive lower bound (YYYY-MM-DD) on the row date.
+        end: Optional inclusive upper bound (YYYY-MM-DD) on the row date.
 
     Returns:
-        Dict with feature matrix, dates, feature names, and metadata
+        Dict with feature matrix, dates, feature names, and metadata.
+
+    Tickers without GEX/outcomes data (e.g. QQQ today) get bar-anchored rows
+    with GEX features zeroed and targets derived from the next-day OHLCV
+    using the canonical materialization thresholds.
     """
     db = get_async_db()
 
-    # Load data
     snapshots = await load_gex_snapshots(db, ticker)
-    outcomes = await load_outcomes(db)
+    outcomes = await load_outcomes(db, ticker)
     bars = await load_underlying_bars(db, ticker)
 
-    if not snapshots:
-        log.warning(f"No GEX snapshots found for {ticker}")
-        return {"error": "no_data", "n_rows": 0}
+    has_snapshots = bool(snapshots)
+    has_outcomes = bool(outcomes)
+
+    if not bars:
+        log.warning(f"No underlying_bars rows for {ticker}; cannot compute features")
+        return {"error": "no_data", "n_rows": 0, "ticker": ticker}
+
+    if not has_snapshots:
+        log.warning(
+            f"No GEX snapshots for {ticker}; falling back to bar-anchored rows "
+            "with GEX features zeroed."
+        )
+
+    if not has_outcomes:
+        outcomes_by_date = derive_outcomes_from_bars(bars)
+        log.info(
+            f"No labeled outcomes for {ticker}; derived {len(outcomes_by_date)} "
+            "outcome rows from underlying_bars."
+        )
+    else:
+        outcomes_by_date = {o["date"]: o for o in outcomes}
 
     log.info(f"Loaded {len(snapshots)} snapshots, {len(outcomes)} outcomes, {len(bars)} bars for {ticker}")
-
-    # Build date-indexed lookups
-    bars_by_date = {b["date"]: b for b in bars}
-    outcomes_by_date = {o["date"]: o for o in outcomes}
 
     # Compute bar-based features
     bar_features = compute_technical_features(bars)
     bar_returns = compute_returns(bars)
     bar_vols = compute_realized_vol(bars)
 
-    # Compute GEX features
-    gex_features = compute_gex_features(snapshots)
+    # Row anchor: snapshots if available, else bars.
+    if has_snapshots:
+        row_dates = [s["date"] for s in snapshots]
+        gex_features = compute_gex_features(snapshots)
+    else:
+        row_dates = [b["date"] for b in bars]
+        n = len(row_dates)
+        # Zero-filled placeholders so the schema matches SPY rows.
+        zero_keys = [
+            "net_gex", "net_call_gex", "net_put_gex", "spot_price",
+            "put_call_ratio", "gex_concentration", "options_count",
+            "net_gex_zscore_60d",
+            "net_gex_roc_1d", "net_gex_roc_3d", "net_gex_roc_5d", "net_gex_roc_10d",
+            "dist_to_flip", "gex_regime_encoded",
+            "realized_vol_t1", "realized_vol_t3",
+            "realized_vol_rolling_3d", "realized_vol_rolling_5d",
+        ]
+        gex_features = {k: [0.0] * n for k in zero_keys}
+        # spot_price is informational — fill from bars so downstream consumers see real prices.
+        gex_features["spot_price"] = [_safe_float(b.get("close")) for b in bars]
 
-    # Build feature matrix aligned to snapshot dates
-    snapshot_dates = [s["date"] for s in snapshots]
-    calendar_features = compute_calendar_features(snapshot_dates)
+    calendar_features = compute_calendar_features(row_dates)
 
-    # Combine all features
-    all_features = {}
+    all_features: Dict[str, List[float]] = {}
     all_features.update(gex_features)
     all_features.update(calendar_features)
 
-    # Add bar-aligned features (match by date)
     bar_date_list = [b["date"] for b in bars]
     for feat_name, feat_values in {**bar_features, **bar_returns, **bar_vols}.items():
-        # Align to snapshot dates
         aligned = []
-        for sd in snapshot_dates:
-            # Find closest bar date <= sd
+        for sd in row_dates:
             idx = None
             for bi in range(len(bar_date_list) - 1, -1, -1):
                 if bar_date_list[bi] <= sd:
                     idx = bi
                     break
-            if idx is not None:
-                aligned.append(feat_values[idx])
-            else:
-                aligned.append(0.0)
+            aligned.append(feat_values[idx] if idx is not None else 0.0)
         all_features[feat_name] = aligned
 
-    # Add targets from outcomes
     targets = {
         "directional_move": [],
         "range_expansion": [],
@@ -373,12 +480,13 @@ async def compute_features(ticker: str = "SPY", as_of: Optional[str] = None) -> 
         "any_materialization": [],
         "return_pct": [],
     }
-    for sd in snapshot_dates:
+    for sd in row_dates:
         outcome = outcomes_by_date.get(sd, {})
         for key in targets:
             targets[key].append(float(_safe_float(outcome.get(key, 0))))
 
     all_features.update(targets)
+    snapshot_dates = row_dates
 
     # Build feature matrix (exclude targets from features)
     target_keys = set(targets.keys())
@@ -397,12 +505,17 @@ async def compute_features(ticker: str = "SPY", as_of: Optional[str] = None) -> 
     # Build output documents
     feature_docs = []
     for i in valid_rows:
-        if as_of and snapshot_dates[i] > as_of:
+        d = snapshot_dates[i]
+        if as_of and d > as_of:
+            continue
+        if start and d < start:
+            continue
+        if end and d > end:
             continue
 
         doc = {
             "ticker": ticker,
-            "date": snapshot_dates[i],
+            "date": d,
             "feature_version": FEATURE_VERSION,
             "target_directional_move": targets["directional_move"][i],
             "target_return_pct": targets["return_pct"][i],
@@ -427,11 +540,16 @@ async def compute_features(ticker: str = "SPY", as_of: Optional[str] = None) -> 
     }
 
 
-async def store_features(ticker: str = "SPY", as_of: Optional[str] = None) -> Dict[str, Any]:
+async def store_features(
+    ticker: str = "SPY",
+    as_of: Optional[str] = None,
+    start: Optional[str] = None,
+    end: Optional[str] = None,
+) -> Dict[str, Any]:
     """Compute and store features in MongoDB."""
     db = get_async_db()
 
-    result = await compute_features(ticker, as_of)
+    result = await compute_features(ticker, as_of, start=start, end=end)
     if result.get("error"):
         return result
 
@@ -441,6 +559,16 @@ async def store_features(ticker: str = "SPY", as_of: Optional[str] = None) -> Di
 
     # Upsert all feature documents
     collection = db[COLLECTION_FEATURES]
+    # Ensure (ticker, feature_version, date) is unique so SPY and QQQ rows
+    # coexist without collision.
+    try:
+        await collection.create_index(
+            [("ticker", 1), ("feature_version", 1), ("date", 1)],
+            unique=True,
+            name="ticker_version_date_unique",
+        )
+    except Exception as e:
+        log.debug(f"create_index ml_features: {e}")
     stored = 0
     for doc in docs:
         await collection.update_one(
@@ -474,10 +602,12 @@ async def main():
     import argparse
     parser = argparse.ArgumentParser(description="Compute ML features")
     parser.add_argument("--ticker", default="SPY")
-    parser.add_argument("--as-of", default=None)
+    parser.add_argument("--as-of", default=None, help="Upper-bound date (YYYY-MM-DD)")
+    parser.add_argument("--start", default=None, help="Inclusive start date (YYYY-MM-DD)")
+    parser.add_argument("--end", default=None, help="Inclusive end date (YYYY-MM-DD)")
     args = parser.parse_args()
 
-    result = await store_features(args.ticker, args.as_of)
+    result = await store_features(args.ticker, args.as_of, start=args.start, end=args.end)
     print(json.dumps(result, indent=2))
 
 
