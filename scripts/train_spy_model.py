@@ -376,10 +376,14 @@ def run_training(ticker: str, dry_run: bool = False) -> Dict[str, Any]:
         if result["status"] == "ok":
             sharpe = result.get("sharpe", -999)
             # Must beat all baselines on Sharpe
-            beats_all = all(
-                sharpe > baseline_metrics.get(b, {}).get("sharpe", -999)
-                for b in ["majority", "persistence", "logistic"]
-            )
+            # If any baseline is missing, beats_baselines = False (not True)
+            if baseline_metrics and all(b in baseline_metrics for b in ["majority", "persistence", "logistic"]):
+                beats_all = all(
+                    sharpe > baseline_metrics[b].get("sharpe", -999)
+                    for b in ["majority", "persistence", "logistic"]
+                )
+            else:
+                beats_all = False  # missing baselines = unverified
             result["beats_baselines"] = beats_all
             if sharpe > best_sharpe:
                 best_sharpe = sharpe
