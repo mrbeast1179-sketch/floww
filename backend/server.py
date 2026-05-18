@@ -2582,8 +2582,9 @@ async def api_model_info(ticker: str):
     if not os.path.exists(model_path):
         return {"status": "no_model", "ticker": ticker}
     
+    assert "_quarantine" not in str(model_path), f"refused to load quarantined model: {model_path}"
     model = joblib.load(model_path)
-    
+
     return {
         "status": "ok",
         "ticker": ticker,

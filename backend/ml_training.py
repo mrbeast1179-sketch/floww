@@ -202,7 +202,9 @@ async def predict_regime(
     if not os.path.exists(model_path):
         return {"status": "no_model", "message": f"No trained model for {ticker}"}
     
+    assert "_quarantine" not in str(model_path), f"refused to load quarantined model: {model_path}"
     model = joblib.load(model_path)
+    assert "_quarantine" not in str(scaler_path), f"refused to load quarantined scaler: {scaler_path}"
     scaler = joblib.load(scaler_path)
     
     if current_features is None:
