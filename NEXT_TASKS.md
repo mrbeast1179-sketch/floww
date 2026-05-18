@@ -4,39 +4,41 @@
 
 ---
 
-## Status: Databento backfill + GEX compute running
+## Status: MongoDB Atlas SSL blocked
 
-### Background processes
-- SPY Databento backfill: 170/252 days (Sep 5), proc_af36538c06cf
-- QQQ Databento backfill: 35/252 days (Mar), proc_d8071cddb57f
-- GEX feature compute: running, proc_58185fa92275
+### All background processes completed ✅
+- SPY Databento 2024: 252 days, $108.36
+- QQQ Databento 2024H1: 35 days, $15.05
+- GEX features: 229 rows (Jan-Nov 2024)
 
 ### Done ✅
-- 5 ticker models trained (SPY/QQQ/IWM/DIA/TLT), all SHIP
-- 4-ticker features: SPY(167×45), QQQ/IWM/DIA/TLT(2799×32)
-- Backtest 2024: 93% accuracy
-- Quality gates wired into ml_pipeline.py
-- calc_vex/dex/vega_total implemented (23 tests)
-- BS greeks d1 bug fixed (20 canonical tests)
+- 5 ticker models trained (SPY/QQQ/IWM/DIA/TLT)
+- SPY v1.0 and TLT v1.0 quarantined (audit findings)
+- SHIP-gate bug fixed
+- Model audit rules in truth_audit.sh
+- calc_vex/dex/vega_total (23 tests)
+- BS greeks d1 fix (20 tests)
 - ML quality gates (33 tests)
 
-### Live models (models/, NOT in quarantine)
-- SPY_direction_v1.0: acc=0.90, F1=0.88, Sharpe=31.47
+### Agent worktrees (pending merge)
+- agent-a681f0a845b9a734a: ml_pipeline.py gated persistence (319 lines)
+- agent-a8e5e9b132407cc03: features.py multi-ticker support (222 lines)
+
+### Live models (NOT in quarantine)
 - QQQ_direction_v1.0: acc=0.53, F1=0.57, Sharpe=2.87
-- IWM_direction_v1.0: acc=0.55, F1=0.48, Sharpe=5.81
+- IWM_direction_v1.0: acc=0.55, F1=0.48, Sharpe=5.81 (INVESTIGATE)
 - DIA_direction_v1.0: acc=0.53, F1=0.55, Sharpe=2.14
-- TLT_direction_v1.0: acc=0.52, F1=0.48, Sharpe=0.0
 
 ---
 
-## On-deck (after backfills complete)
+## On-deck (when MongoDB recovers)
 
-- [ ] **gex_features**: Compute GEX/VEX/DEX from Databento chains (running in background)
-- [ ] **retrain_spy_gex**: Retrain SPY model with GEX features from Databento
-- [ ] **paper_trade**: Paper trade via Alpaca (Claude working on paper_trading.py)
-- [ ] **expand_backfill**: IWM/DIA Databento backfill
+- [ ] **Merge agent worktrees** — review and merge ml_pipeline.py + features.py changes
+- [ ] **Retrain SPY v2.0** with GEX features (229 rows × 23 features)
+- [ ] **Paper trade dry-run** via Alpaca
+- [ ] **Expand Databento** to IWM/DIA
 
 ---
 
 ## Blocked
-- XGBoost/LightGBM: Need `brew install libomp`
+- MongoDB Atlas: SSL handshake failing (server-side RST, all 3 shards)
