@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+# .githooks/commit-msg
+# Rejects feat(Phase X) commits unless truth_audit.sh passes.
+
+set -euo pipefail
+
+REPO_ROOT="$(git rev-parse --show-toplevel)"
+cd "$REPO_ROOT"
+
+bash qc/audit/check_phase_claim.sh "$1"
