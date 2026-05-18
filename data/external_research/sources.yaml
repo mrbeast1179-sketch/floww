@@ -1,0 +1,77 @@
+# sources.yaml — curated research-discovery queries
+#
+# Schema:
+#   <source_name>:
+#     queries:           # for keyword-based sources (arxiv, HF)
+#       - "string"
+#     topics:            # for GitHub-topic-based discovery
+#       - "topic-slug"
+#
+# Source names must match `DiscoverySource.name` attributes in
+# backend/services/research/discovery.py.
+#
+# Run: `python scripts/discover_research.py` (when wired) reads this file and
+# searches each source. Findings are written to discoveries_<UTC-date>.json.
+
+arxiv:
+  queries:
+    # Core market-microstructure / options topics — peer-reviewed quant
+    - "gamma exposure dealer hedging"
+    - "options market making inventory"
+    - "implied volatility surface dynamics"
+    - "0DTE options dealer positioning"
+    - "vanna charm exposure dealer"
+    - "options flow informed trading"
+    - "machine learning options price prediction"
+    - "ETF options demand pressure"
+    # Risk / regime
+    - "market regime detection volatility"
+    - "VIX term structure forecasting"
+
+huggingface:
+  # SOURCE NOT YET WIRED — stub. Queries seeded for when it's implemented.
+  queries:
+    - "options trading"
+    - "stock market prediction"
+    - "financial sentiment"
+    - "intraday market data"
+
+github_topic:
+  # SOURCE NOT YET WIRED — stub. Topics seeded for when it's implemented.
+  topics:
+    - options-trading
+    - quantitative-finance
+    - gamma-exposure
+    - options-flow
+    - market-microstructure
+    - implied-volatility
+    - black-scholes
+
+# ────────────────────────────────────────────────────────────────────────────
+# Already-cloned reference repos
+# ────────────────────────────────────────────────────────────────────────────
+# These live under data/github-repos/cloned/ — kept here for inventory.
+# Run `ls data/github-repos/cloned/` for the current set.
+
+reference_repos:
+  - name: iAmGiG_gex-llm-patterns
+    purpose: "academic GEX dataset (243 rows) + statistical validation"
+    license: "check repo LICENSE"
+  - name: aaguiar10_gflows
+    purpose: "CBOE quote data CSV (SPX/NDX/RUT)"
+    license: "check repo LICENSE"
+  - name: FullStackCraft_floe
+    purpose: "TypeScript options analytics — reference for VEX/DEX/PDF math"
+    license: "check repo LICENSE"
+  - name: FlashAlpha-lab_gex-explained
+    purpose: "vendor sample chain (26 rows) — fixture for unit tests"
+    license: "check repo LICENSE"
+  - name: EsterHlav_Black-Scholes-Option-Pricing-Model
+    purpose: "BS reference for canonical Greeks tests"
+    license: "check repo LICENSE"
+  - name: MattL922_implied-volatility
+    purpose: "IV solver reference"
+    license: "check repo LICENSE"
+  - name: Matteo-Ferrara_gex-tracker
+    purpose: "CBOE-scraping GEX calculator — cross-check"
+    license: "check repo LICENSE"
