@@ -1,0 +1,29 @@
+{
+  "ticker": "QQQ",
+  "timestamp": "2026-05-18T04:59:15.477358+00:00",
+  "data": {
+    "n_samples": 2799,
+    "n_features": 32,
+    "positive_rate": 0.5619864237227581,
+    "date_range": "2015-03-31 to 2026-05-15"
+  },
+  "splits": 8,
+  "baselines": {},
+  "models": {
+    "lightgbm": {
+      "metrics": {
+        "accuracy": 0.53125,
+        "precision": 0.5869610169242522,
+        "recall": 0.5955710955710956,
+        "f1": 0.5732760973042303
+      },
+      "sharpe": 2.8678171405382265,
+      "beats_baselines": true,
+      "n_folds": 8
+    }
+  },
+  "verdict": "SHIP",
+  "best_model": "lightgbm",
+  "model_path": "/Users/nav/Documents/GitHub/floww/models/SPY_direction_v1.0.joblib",
+  "scaler_path": "/Users/nav/Documents/GitHub/floww/models/SPY_scaler_v1.0.joblib"
+}

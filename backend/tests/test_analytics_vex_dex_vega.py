@@ -314,3 +314,88 @@ def assert_close(actual, expected, label, tol=1e-6):
     else:
         rel_err = abs(actual - expected) / abs(expected)
         assert rel_err < tol, f"{label}: expected {expected}, got {actual}, rel_err={rel_err:.2e}"
+
+
+# ============================================================================
+# Spec-mandated assertions: two-strike hand-computed + sample-chain shape
+# ============================================================================
+
+class TestTwoStrikeHandComputed:
+    """Hand-computed two-strike tests for each calculator (spec Step 6.a)."""
+
+    def _setup(self):
+        spot = 100.0
+        T = 0.25
+        iv = 0.20
+        r = 0.045
+        # Two strikes, one call and one put, with distinct OI
+        contracts = [
+            {"strike": 95.0, "expiry": "2026-06-01", "type": "C", "oi": 200, "iv": iv, "T": T},
+            {"strike": 105.0, "expiry": "2026-06-01", "type": "P", "oi": 150, "iv": iv, "T": T},
+        ]
+        return spot, T, iv, r, contracts
+
+    def test_vex_two_strike(self):
+        spot, T, iv, r, contracts = self._setup()
+        v_call = bs_vanna(spot, 95.0, T, iv, q=0.0, r=r) * 200 * spot
+        v_put = bs_vanna(spot, 105.0, T, iv, q=0.0, r=r) * 150 * spot
+        expected = v_call + v_put
+        result = calc_vex(spot, contracts, risk_free_rate=r)
+        assert_close(result["total_vex"], expected, "vex_two_strike", tol=0.01)
+        assert len(result["vex_by_strike"]) == 2
+
+    def test_dex_two_strike(self):
+        spot, T, iv, r, contracts = self._setup()
+        d_call = bs_delta(spot, 95.0, T, iv, q=0.0, kind="call", r=r) * 200 * 100 * spot
+        d_put = bs_delta(spot, 105.0, T, iv, q=0.0, kind="put", r=r) * 150 * 100 * spot
+        expected = d_call + d_put
+        result = calc_dex(spot, contracts, multiplier=100.0, risk_free_rate=r)
+        assert_close(result["total_dex"], expected, "dex_two_strike", tol=0.01)
+        assert len(result["dex_by_strike"]) == 2
+
+    def test_vega_two_strike(self):
+        spot, T, iv, r, contracts = self._setup()
+        vg_call = bs_vega(spot, 95.0, T, iv, q=0.0, r=r) * 200
+        vg_put = bs_vega(spot, 105.0, T, iv, q=0.0, r=r) * 150
+        expected = vg_call + vg_put
+        result = calc_vega_total(spot, contracts, risk_free_rate=r)
+        assert_close(result["total_vega"], expected, "vega_two_strike", tol=0.01)
+        assert len(result["vega_by_strike"]) == 2
+        # Vega is one-sided (positive for both calls and puts)
+        assert result["total_vega"] >= 0
+
+
+class TestSampleChainShape:
+    """FlashAlpha sample-chain shape and finiteness checks (spec Step 6.b)."""
+
+    def _unique_strikes(self, contracts):
+        return {c["strike"] for c in contracts}
+
+    def test_vex_sample_chain(self, sample_chain):
+        contracts, spot = sample_chain
+        result = calc_vex(spot, contracts)
+        assert math.isfinite(result["total_vex"])
+        assert math.isfinite(result["abs_vex"])
+        assert len(result["vex_by_strike"]) == len(self._unique_strikes(contracts))
+        for v in result["vex_by_strike"].values():
+            assert math.isfinite(v)
+
+    def test_dex_sample_chain(self, sample_chain):
+        contracts, spot = sample_chain
+        result = calc_dex(spot, contracts)
+        assert math.isfinite(result["total_dex"])
+        assert math.isfinite(result["abs_dex"])
+        assert len(result["dex_by_strike"]) == len(self._unique_strikes(contracts))
+        for v in result["dex_by_strike"].values():
+            assert math.isfinite(v)
+
+    def test_vega_sample_chain(self, sample_chain):
+        contracts, spot = sample_chain
+        result = calc_vega_total(spot, contracts)
+        assert math.isfinite(result["total_vega"])
+        # Vega is one-sided — total must be non-negative
+        assert result["total_vega"] >= 0
+        assert len(result["vega_by_strike"]) == len(self._unique_strikes(contracts))
+        for v in result["vega_by_strike"].values():
+            assert math.isfinite(v)
+            assert v >= 0  # per-strike vega is also non-negative

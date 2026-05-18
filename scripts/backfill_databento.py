@@ -4,19 +4,17 @@ scripts/backfill_databento.py
 
 Backfill historical EOD options chains from Databento into MongoDB.
 
-Features:
-  --dry-run: prints projected cost without making API calls
-  --ticker: comma-separated tickers (default: SPY,QQQ)
-  --start / --end: date range (YYYY-MM-DD)
-  --schema: Databento schema (default: ohlcv-1d for underlying, opra-pillar for chains)
-  --budget-usd: max spend in USD (default: 100)
-  --db-name: MongoDB database name (default: confluence_decoder)
+Uses the same approach as databento_provider.py:
+- Tight pre-market window (10:00-13:30 UTC) where EOD OI is published
+- Filters stat_type=9 (OI), groups by symbol, takes latest
+- Parses OSI symbols into strike/expiry/type/OI
 
-Cost meter: queries Databento metadata before each request; halts if projected
-cost would exceed budget. Costs are approximate and based on Databento's
-published rates at time of writing (~$0.15/ticker/day for EOD chains).
+Cost: ~$0.43/ticker/day for SPY (~$109/yr), ~$0.36/ticker/day for QQQ
+Budget: controlled by --budget-usd (default $100)
 
-Idempotent: skips dates already present in MongoDB collection.
+Usage:
+  python scripts/backfill_databento.py --tickers SPY --start 2024-01-01 --end 2024-06-30 --budget-usd 50
+  python scripts/backfill_databento.py --tickers SPY,QQQ --start 2024-06-01 --end 2024-08-31
 """
 
 from __future__ import annotations
@@ -27,16 +25,15 @@ import hashlib
 import json
 import logging
 import os
+import re
 import sys
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-# Add backend to path so we can reuse the databento provider
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "backend"))
-
 import databento as db
 from dotenv import load_dotenv
+from pymongo import MongoClient
 
 load_dotenv(Path(__file__).resolve().parent.parent / "backend" / ".env")
 
@@ -47,29 +44,35 @@ MONGO_URL = os.environ.get("MONGO_URL", "mongodb://localhost:27017")
 DB_NAME = os.environ.get("DB_NAME", "confluence_decoder")
 BUDGET_USD = float(os.environ.get("DATABENTO_BUDGET_USD", "100"))
 
-# Databento parent symbol mapping (same as databento_provider.py)
+COLLECTION_EOD_CHAINS = "databento_eod_chains"
+
 PARENT_MAP = {
-    "SPY": "SPY.OPT",
-    "QQQ": "QQQ.OPT",
-    "IWM": "IWM.OPT",
-    "SPX": "SPXW.OPT",
-    "DIA": "DIA.OPT",
+    "SPY": "SPY.OPT", "QQQ": "QQQ.OPT", "IWM": "IWM.OPT",
+    "DIA": "DIA.OPT", "SPX": "SPXW.OPT",
 }
 
-# Collection names
-COLLECTION_EOD_CHAINS = "databento_eod_chains"
-COLLECTION_UNDERLYING = "underlying_bars"
+OSI_RE = re.compile(r'^([A-Z]+)(\d{2})(\d{2})(\d{2})([CP])(\d{8})$')
+
+
+def parse_osi(raw: str) -> Optional[Dict[str, Any]]:
+    m = OSI_RE.match(raw.strip())
+    if not m:
+        return None
+    und, yy, mm, dd, typ, strike = m.groups()
+    return {
+        "underlying": und,
+        "expiry": f"20{yy}-{mm}-{dd}",
+        "type": "call" if typ == "C" else "put",
+        "strike": int(strike) / 1000.0,
+    }
 
 
 def get_db():
-    """Get MongoDB database handle."""
-    from pymongo import MongoClient
     client = MongoClient(MONGO_URL)
     return client[DB_NAME]
 
 
 def date_range(start: date, end: date) -> List[date]:
-    """Generate list of dates from start to end inclusive."""
     dates = []
     d = start
     while d <= end:
@@ -79,63 +82,87 @@ def date_range(start: date, end: date) -> List[date]:
 
 
 def already_fetched(db_handle, collection: str, ticker: str, day: date) -> bool:
-    """Check if data for this ticker+day already exists."""
-    return db_handle[collection].count_documents({"ticker": ticker, "date": day.isoformat()}) > 0
+    return db_handle[collection].count_documents({"ticker": ticker, "day": day.isoformat()}) > 0
 
 
-def estimate_cost(ticker: str, start: date, end: date) -> float:
-    """
-    Estimate Databento cost for the request.
-    Uses a rough heuristic: ~$0.15 per ticker per day for EOD options chains.
-    For production use, replace with Databento metadata.get_cost() call.
-    """
-    num_days = (end - start).days + 1
-    # Rough estimate: ~252 trading days per year, ~$0.15/ticker/day
-    trading_days = int(num_days * 252 / 365)
-    cost_per_day = 0.15  # USD
-    return trading_days * cost_per_day
-
-
-async def fetch_eod_chain(client: db.Historical, parent: str, day: date) -> Optional[Dict[str, Any]]:
-    """Fetch EOD options chain for a single day."""
+def fetch_eod_chain(client: db.Historical, parent: str, day: date) -> Optional[Dict[str, Any]]:
+    """Fetch and aggregate EOD options chain for a single day."""
+    start = f"{day.isoformat()}T10:00:00"
+    end = f"{day.isoformat()}T13:30:00"
     try:
-        # Use Databento's timeseries.get_range for EOD data
-        # Schema: ohlcv-1d for underlying, or opra-pillar for options
-        # For now, we use the statistics schema (stat_type=9) for OI
         data = client.timeseries.get_range(
             dataset="OPRA.PILLAR",
-            schema="statistics",
             symbols=[parent],
-            start=day.isoformat(),
-            end=(day + timedelta(days=1)).isoformat(),
             stype_in="parent",
+            schema="statistics",
+            start=start,
+            end=end,
+            limit=300000,
         )
-        records = data.to_df() if hasattr(data, "to_df") else data
-        return {"raw": records, "count": len(records) if records is not None else 0}
+        df = data.to_df()
     except Exception as e:
-        log.warning(f"Failed to fetch {parent} for {day}: {e}")
+        log.warning(f"Fetch failed {parent} {day}: {e}")
         return None
+
+    if df is None or df.empty:
+        return None
+
+    # Filter for OI (stat_type=9)
+    df = df[df["stat_type"] == 9] if "stat_type" in df.columns else df
+    if df.empty:
+        return None
+
+    # Latest per symbol
+    df = df.sort_values("ts_event").groupby("symbol").last().reset_index()
+
+    # Parse OSI symbols
+    contracts = {}
+    total_oi = 0
+    for sym, qty in zip(df["symbol"], df.get("quantity", df.get("oi", [0]*len(df)))):
+        p = parse_osi(sym)
+        if not p:
+            continue
+        oi = int(qty) if qty == qty and qty is not None else 0  # NaN check
+        if oi <= 0:
+            continue
+        p["oi"] = oi
+        contracts[sym] = p
+        total_oi += oi
+
+    if not contracts:
+        return None
+
+    return {
+        "contracts": contracts,
+        "n_contracts": len(contracts),
+        "total_oi": total_oi,
+        "call_oi": sum(c["oi"] for c in contracts.values() if c["type"] == "call"),
+        "put_oi": sum(c["oi"] for c in contracts.values() if c["type"] == "put"),
+    }
 
 
 def store_eod_chain(db_handle, ticker: str, day: date, data: Dict[str, Any]) -> None:
-    """Store EOD chain data in MongoDB."""
+    """Store aggregated chain data in MongoDB."""
     doc = {
         "ticker": ticker,
-        "date": day.isoformat(),
+        "day": day.isoformat(),
         "source": "databento",
         "schema": "opra-pillar.statistics",
         "fetched_at": datetime.now(timezone.utc).isoformat(),
-        "data": data,
+        "n_contracts": data["n_contracts"],
+        "total_oi": data["total_oi"],
+        "call_oi": data["call_oi"],
+        "put_oi": data["put_oi"],
+        "contracts": data["contracts"],
     }
     db_handle[COLLECTION_EOD_CHAINS].update_one(
-        {"ticker": ticker, "date": day.isoformat()},
+        {"ticker": ticker, "day": day.isoformat()},
         {"$set": doc},
         upsert=True,
     )
 
 
 def write_manifest(db_handle, ticker: str, start: date, end: date, total_days: int, cost: float) -> None:
-    """Write a manifest documenting the backfill."""
     manifest = {
         "ticker": ticker,
         "source": "databento",
@@ -153,35 +180,41 @@ def write_manifest(db_handle, ticker: str, start: date, end: date, total_days: i
     )
 
 
-def run_dry_run(tickers: List[str], start: date, end: date) -> None:
-    """Print cost estimate without making API calls."""
-    print(f"=== Databento Backfill — DRY RUN ===")
-    print(f"Tickers: {', '.join(tickers)}")
-    print(f"Range: {start} → {end}")
-    print(f"Budget: ${BUDGET_USD:.2f}")
-    print()
-
-    total_cost = 0.0
-    for ticker in tickers:
+def estimate_cost(ticker: str, start: date, end: date) -> float:
+    """Use Databento cost API for accurate estimates."""
+    if not DBN_KEY:
+        return 0.0
+    try:
+        client = db.Historical(DBN_KEY)
         parent = PARENT_MAP.get(ticker, f"{ticker}.OPT")
-        cost = estimate_cost(ticker, start, end)
-        total_cost += cost
-        num_days = (end - start).days + 1
-        trading_days = int(num_days * 252 / 365)
-        print(f"  {ticker} ({parent}): ~{trading_days} trading days × $0.15 = ${cost:.2f}")
+        return client.metadata.get_cost(
+            dataset="OPRA.PILLAR", schema="statistics",
+            symbols=[parent], start=start.isoformat(), end=end.isoformat(),
+            stype_in="parent",
+        )
+    except Exception as e:
+        log.warning(f"Cost API failed: {e}")
+        trading_days = int((end - start).days * 252 / 365)
+        return trading_days * 0.43
 
-    print(f"\nTotal estimated cost: ${total_cost:.2f}")
-    if total_cost > BUDGET_USD:
-        print(f"  ⚠️  EXCEEDS BUDGET of ${BUDGET_USD:.2f}")
-        print(f"  Reduce date range or increase DATABENTO_BUDGET_USD")
+
+def run_dry_run(tickers: List[str], start: date, end: date) -> None:
+    print(f"=== Databento Backfill — DRY RUN ===")
+    total = 0.0
+    for ticker in tickers:
+        cost = estimate_cost(ticker, start, end)
+        total += cost
+        print(f"  {ticker}: ${cost:.2f}")
+    print(f"\nTotal: ${total:.2f} (budget: ${BUDGET_USD:.2f})")
+    if total > BUDGET_USD:
+        print(f"  ⚠️  OVER BUDGET by ${total - BUDGET_USD:.2f}")
     else:
-        print(f"  ✅ Within budget (${BUDGET_USD - total_cost:.2f} remaining)")
+        print(f"  ✅ Within budget (${BUDGET_USD - total:.2f} remaining)")
 
 
 def run_backfill(tickers: List[str], start: date, end: date, budget_usd: float) -> None:
-    """Execute the actual backfill."""
     if not DBN_KEY:
-        print("ERROR: DATABENTO_API_KEY not set in environment")
+        print("ERROR: DATABENTO_API_KEY not set")
         sys.exit(1)
 
     client = db.Historical(DBN_KEY)
@@ -197,63 +230,49 @@ def run_backfill(tickers: List[str], start: date, end: date, budget_usd: float) 
         print(f"\n--- {ticker} ({parent}) ---")
 
         for day in date_range(start, end):
-            # Skip weekends
             if day.weekday() >= 5:
                 continue
-
-            # Skip if already fetched
             if already_fetched(db_handle, COLLECTION_EOD_CHAINS, ticker, day):
                 total_skipped += 1
                 continue
-
-            # Check budget
             if total_cost >= budget_usd:
                 print(f"  Budget exhausted at {day}. Stopping.")
                 break
 
-            # Fetch
-            print(f"  Fetching {day}...", end=" ", flush=True)
+            print(f"  {day}...", end=" ", flush=True)
             try:
-                data = asyncio.run(fetch_eod_chain(client, parent, day))
+                data = fetch_eod_chain(client, parent, day)
                 if data is not None:
                     store_eod_chain(db_handle, ticker, day, data)
                     total_stored += 1
-                    total_cost += 0.15  # estimated
-                    print(f"OK ({data.get('count', 0)} records)")
+                    total_cost += 0.43  # estimated per-day cost
+                    print(f"OK ({data['n_contracts']} contracts, {data['total_oi']:,} OI)")
                 else:
                     total_failed += 1
-                    print("FAILED")
+                    print("NO DATA")
             except Exception as e:
                 total_failed += 1
                 print(f"ERROR: {e}")
 
-        # Write manifest
         write_manifest(db_handle, ticker, start, end, total_stored, total_cost)
 
     print(f"\n=== Summary ===")
-    print(f"Stored: {total_stored}")
-    print(f"Skipped (already present): {total_skipped}")
-    print(f"Failed: {total_failed}")
+    print(f"Stored: {total_stored} days | Skipped: {total_skipped} | Failed: {total_failed}")
     print(f"Estimated cost: ${total_cost:.2f}")
 
 
 def main():
     parser = argparse.ArgumentParser(description="Backfill Databento EOD options chains")
-    parser.add_argument("--tickers", default="SPY,QQQ", help="Comma-separated tickers")
+    parser.add_argument("--tickers", default="SPY", help="Comma-separated tickers")
     parser.add_argument("--start", required=True, help="Start date (YYYY-MM-DD)")
     parser.add_argument("--end", required=True, help="End date (YYYY-MM-DD)")
-    parser.add_argument("--dry-run", action="store_true", help="Print cost estimate only")
+    parser.add_argument("--dry-run", action="store_true", help="Cost estimate only")
     parser.add_argument("--budget-usd", type=float, default=BUDGET_USD, help="Max spend in USD")
-    parser.add_argument("--db-name", default=DB_NAME, help="MongoDB database name")
     args = parser.parse_args()
 
     tickers = [t.strip().upper() for t in args.tickers.split(",")]
     start = date.fromisoformat(args.start)
     end = date.fromisoformat(args.end)
-
-    if start > end:
-        print("ERROR: --start must be before --end")
-        sys.exit(1)
 
     if args.dry_run:
         run_dry_run(tickers, start, end)

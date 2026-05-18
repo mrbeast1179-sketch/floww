@@ -432,9 +432,9 @@ def run_training(ticker: str, dry_run: bool = False) -> Dict[str, Any]:
         final_model.fit(X_scaled, y)
 
         # Save model + scaler + feature info
-        model_path = MODELS_DIR / f"SPY_direction_{FEATURE_VERSION}.joblib"
-        scaler_path = MODELS_DIR / f"SPY_scaler_{FEATURE_VERSION}.joblib"
-        meta_path = MODELS_DIR / f"SPY_meta_{FEATURE_VERSION}.json"
+        model_path = MODELS_DIR / f"{ticker}_direction_{FEATURE_VERSION}.joblib"
+        scaler_path = MODELS_DIR / f"{ticker}_scaler_{FEATURE_VERSION}.joblib"
+        meta_path = MODELS_DIR / f"{ticker}_meta_{FEATURE_VERSION}.json"
 
         joblib.dump(final_model, model_path)
         joblib.dump(scaler, scaler_path)

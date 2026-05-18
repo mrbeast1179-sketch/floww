@@ -60,7 +60,7 @@ async def health_check_job():
     import httpx
     from dotenv import load_dotenv
     load_dotenv()
-    
+
     backend_url = os.environ.get("BACKEND_URL", "http://localhost:8000")
     try:
         async with httpx.AsyncClient() as client:
@@ -71,7 +71,27 @@ async def health_check_job():
         print(f"Health check failed: {e}")
 
 
+async def paper_trade_dry_run_job():
+    """Daily SPY paper-trade dry-run.
+
+    DRY-RUN ONLY — no Alpaca order submission. Intents are persisted to the
+    ``orders_dry_run`` Mongo collection. Live wiring stays disabled until the
+    SPY v1.0 model audit returns PASS.
+    """
+    from paper_trading import daily_paper_trade_dry_run
+    from dotenv import load_dotenv
+    load_dotenv()
+
+    ticker = os.environ.get("PAPER_TRADE_TICKER", "SPY")
+    result = await daily_paper_trade_dry_run(ticker)
+    print(f"Paper trade dry-run {ticker}: {result.get('action', 'unknown')}")
+
+
 # Cron schedule configuration
+# NOTE on TZ: schedules run in the system tz of the box that owns this
+# crontab. For paper-trade-dry-run we want America/New_York 09:35 weekdays —
+# install with `TZ=America/New_York` in the crontab header on prod, OR
+# express in UTC.
 CRON_JOBS = [
     {
         "name": "data-collection",
@@ -87,6 +107,12 @@ CRON_JOBS = [
         "name": "retrain-models",
         "schedule": "0 18 * * 1-5",  # 6:00 PM, Mon-Fri
         "job": retrain_models_job,
+    },
+    {
+        "name": "paper-trade-dry-run",
+        "schedule": "35 9 * * 1-5",  # 09:35 America/New_York, Mon-Fri
+        "tz": "America/New_York",
+        "job": paper_trade_dry_run_job,
     },
     {
         "name": "health-check",
