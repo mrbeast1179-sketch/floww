@@ -4,20 +4,14 @@
 
 ### All CLI work complete ✅
 
-**Tests: 223 pass, 0 fail**
+**Tests: 276 pass, 0 fail**
 
-**Merged branches:**
-- feat/ml-gate-module (gate.py + tests)
-- feat/rolling-oos-evaluator (rolling_oos.py + 22 tests)
-- fix/audit-pipefail-guards (truth_audit.sh fix)
-- fix/ci-test-failure-detection (CI workflow fix)
-- fix/training-baseline-gate (SHIP-gate bug fixes)
-- safety/audit-detect-suspect-models (model audit rules)
-- safety/quarantine-iwm-v1 (IWM quarantined, Sharpe 5.81)
-- safety/quarantine-spy-tlt-v1 (SPY/TLT quarantined)
-- feat/research-discovery-framework (arxiv discovery)
-- feat/research-extract-code-links (code link extraction)
-- feat/code-link-extractor (code link extraction from papers)
+**Merged branches (13):**
+- feat/ml-gate-module, feat/rolling-oos-evaluator
+- fix/audit-pipefail-guards, fix/ci-test-failure-detection, fix/training-baseline-gate
+- safety/audit-detect-suspect-models, safety/quarantine-iwm-v1, safety/quarantine-spy-tlt-v1
+- feat/research-discovery-framework, feat/research-extract-code-links, feat/code-link-extractor
+- docs/adr-live-trading-promotion, docs/adr-model-promotion-policy
 
 **Live models (NOT in quarantine):**
 - QQQ_direction_v1.0: acc=0.53, F1=0.57, Sharpe=2.87
