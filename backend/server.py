@@ -2577,7 +2577,7 @@ async def api_model_info(ticker: str):
     import os
     
     model_dir = os.path.join(os.path.dirname(__file__), "..", "models")
-    model_path = os.path.join(model_dir, f"price_model_{ticker}.joblib")
+    model_path = os.path.join(model_dir, f"{ticker}_direction_v1.0.joblib")
     
     if not os.path.exists(model_path):
         return {"status": "no_model", "ticker": ticker}

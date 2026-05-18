@@ -207,8 +207,8 @@ async def predict_price_direction(
     import joblib
     
     model_dir = os.path.join(os.path.dirname(__file__), "..", "models")
-    model_path = os.path.join(model_dir, f"price_model_{ticker}.joblib")
-    scaler_path = os.path.join(model_dir, f"price_scaler_{ticker}.joblib")
+    model_path = os.path.join(model_dir, f"{ticker}_direction_v1.0.joblib")
+    scaler_path = os.path.join(model_dir, f"{ticker}_scaler_v1.0.joblib")
     
     if not os.path.exists(model_path):
         return {"status": "no_model", "message": f"No trained model for {ticker}"}
