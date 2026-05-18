@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Compute GEX features from Databento chains — batch load for speed."""
+"""Compute GEX from Databento chains — one doc at a time, no bulk load."""
 import sys, os
 sys.path.insert(0, 'backend')
 from dotenv import load_dotenv
@@ -8,24 +8,26 @@ from pymongo import MongoClient
 import numpy as np
 from scipy.stats import norm
 from datetime import date as dt_date
+import time
 
 db = MongoClient(os.environ['MONGO_URL'])[os.environ['DB_NAME']]
-
-# Load all chains at once
-chains = list(db['databento_eod_chains'].find(
-    {'ticker': 'SPY'}, {'day': 1, 'contracts': 1}).sort('day', 1))
-print(f"Loaded {len(chains)} chains")
-
 bars = {b['date']: float(b['close']) for b in db['underlying_bars'].find({'ticker': 'SPY'})}
 iv = 0.20
 computed = 0
+errors = 0
 
-for doc in chains:
-    day = doc['day']
-    if db['gex_features'].find_one({'ticker': 'SPY', 'day': day}, {'_id': 1}):
-        continue
+# Get uncomputed days
+done = {d['day'] for d in db['gex_features'].find({'ticker': 'SPY'}, {'day': 1})}
+all_days = [d['day'] for d in db['databento_eod_chains'].find({'ticker': 'SPY'}, {'day': 1}).sort('day', 1)]
+pending = [d for d in all_days if d not in done]
+print(f"Total: {len(all_days)} chains, {len(done)} computed, {len(pending)} pending")
+
+for day in pending:
     spot = bars.get(day, 0)
     if spot <= 0:
+        continue
+    doc = db['databento_eod_chains'].find_one({'ticker': 'SPY', 'day': day}, {'contracts': 1})
+    if not doc:
         continue
     contracts = doc.get('contracts', {})
     strikes, ois, signs, Ts = [], [], [], []
@@ -61,7 +63,7 @@ for doc in chains:
         upsert=True
     )
     computed += 1
-    if computed % 10 == 0:
-        print(f"  {computed} computed")
+    if computed % 5 == 0:
+        print(f"  {computed}/{len(pending)} computed (day={day})")
 
-print(f"Done: {computed} GEX rows")
+print(f"Done: {computed} GEX rows, {errors} errors")
