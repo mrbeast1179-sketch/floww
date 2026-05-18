@@ -17,6 +17,7 @@
 - safety/quarantine-spy-tlt-v1 (SPY/TLT quarantined)
 - feat/research-discovery-framework (arxiv discovery)
 - feat/research-extract-code-links (code link extraction)
+- feat/code-link-extractor (code link extraction from papers)
 
 **Live models (NOT in quarantine):**
 - QQQ_direction_v1.0: acc=0.53, F1=0.57, Sharpe=2.87
