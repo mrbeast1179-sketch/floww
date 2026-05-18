@@ -4,25 +4,15 @@
 
 ---
 
-## Status: MongoDB Atlas SSL blocked
-
-### All background processes completed ✅
-- SPY Databento 2024: 252 days, $108.36
-- QQQ Databento 2024H1: 35 days, $15.05
-- GEX features: 229 rows (Jan-Nov 2024)
+## Status: MongoDB Atlas SSL blocked — all other work complete
 
 ### Done ✅
-- 5 ticker models trained (SPY/QQQ/IWM/DIA/TLT)
-- SPY v1.0 and TLT v1.0 quarantined (audit findings)
-- SHIP-gate bug fixed
-- Model audit rules in truth_audit.sh
-- calc_vex/dex/vega_total (23 tests)
-- BS greeks d1 fix (20 tests)
-- ML quality gates (33 tests)
-
-### Agent worktrees (pending merge)
-- agent-a681f0a845b9a734a: ml_pipeline.py gated persistence (319 lines)
-- agent-a8e5e9b132407cc03: features.py multi-ticker support (222 lines)
+- Phase 0-5: Audit, data, quality gates, math, features, models
+- SPY/TLT v1.0 quarantined (audit findings)
+- SHIP-gate bug fixed, model audit rules added
+- Agent work merged (gated persistence + multi-ticker features)
+- 102 tests pass
+- 50+ commits on main
 
 ### Live models (NOT in quarantine)
 - QQQ_direction_v1.0: acc=0.53, F1=0.57, Sharpe=2.87
@@ -31,14 +21,19 @@
 
 ---
 
-## On-deck (when MongoDB recovers)
+## Blocked on MongoDB Atlas SSL
 
-- [ ] **Merge agent worktrees** — review and merge ml_pipeline.py + features.py changes
+All remaining tasks require MongoDB:
+
 - [ ] **Retrain SPY v2.0** with GEX features (229 rows × 23 features)
 - [ ] **Paper trade dry-run** via Alpaca
 - [ ] **Expand Databento** to IWM/DIA
+- [ ] **Verify feature quality** (variance checks on v2.0 features)
 
 ---
 
-## Blocked
-- MongoDB Atlas: SSL handshake failing (server-side RST, all 3 shards)
+## MongoDB SSL Issue
+- All 3 shards: errno=54 Connection reset by peer
+- TCP connects, SSL handshake fails immediately
+- Likely Atlas-side TLS configuration issue
+- Check: IP allowlist, Atlas dashboard alerts, try different network
