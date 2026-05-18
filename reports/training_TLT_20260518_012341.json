@@ -1,0 +1,29 @@
+{
+  "ticker": "TLT",
+  "timestamp": "2026-05-18T05:23:40.684427+00:00",
+  "data": {
+    "n_samples": 2799,
+    "n_features": 32,
+    "positive_rate": 0.5112540192926045,
+    "date_range": "2015-03-31 to 2026-05-15"
+  },
+  "splits": 8,
+  "baselines": {},
+  "models": {
+    "lightgbm": {
+      "metrics": {
+        "accuracy": 0.51875,
+        "precision": 0.48700101981351984,
+        "recall": 0.5722853535353536,
+        "f1": 0.48066252587991726
+      },
+      "sharpe": 0.0,
+      "beats_baselines": true,
+      "n_folds": 8
+    }
+  },
+  "verdict": "SHIP",
+  "best_model": "lightgbm",
+  "model_path": "/Users/nav/Documents/GitHub/floww/models/TLT_direction_v1.0.joblib",
+  "scaler_path": "/Users/nav/Documents/GitHub/floww/models/TLT_scaler_v1.0.joblib"
+}

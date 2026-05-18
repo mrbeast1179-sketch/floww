@@ -1,0 +1,29 @@
+{
+  "ticker": "DIA",
+  "timestamp": "2026-05-18T05:22:55.488759+00:00",
+  "data": {
+    "n_samples": 2799,
+    "n_features": 32,
+    "positive_rate": 0.5466237942122186,
+    "date_range": "2015-03-31 to 2026-05-15"
+  },
+  "splits": 8,
+  "baselines": {},
+  "models": {
+    "lightgbm": {
+      "metrics": {
+        "accuracy": 0.53125,
+        "precision": 0.6278186274509804,
+        "recall": 0.5966346153846154,
+        "f1": 0.5498788307944411
+      },
+      "sharpe": 2.1356698904107643,
+      "beats_baselines": true,
+      "n_folds": 8
+    }
+  },
+  "verdict": "SHIP",
+  "best_model": "lightgbm",
+  "model_path": "/Users/nav/Documents/GitHub/floww/models/DIA_direction_v1.0.joblib",
+  "scaler_path": "/Users/nav/Documents/GitHub/floww/models/DIA_scaler_v1.0.joblib"
+}

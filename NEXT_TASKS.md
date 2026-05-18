@@ -5,43 +5,44 @@
 
 ---
 
-## Active: Backtest + paper trade
+## Active: Train remaining tickers + expand data
 
 ### Done ✅
-- Phase 0: Audit, delete synthetic, quarantine (12 models), guards, CI, hooks
-- Phase 1: Data pipeline (45K+ docs, 14K OHLCV bars)
-- Phase 2: ML quality gates (7 gates, 33 tests) + calc_vex/dex/vega_total (23 tests)
-- Phase 3: BS greeks d1 bug fix + 20 canonical tests
-- Phase 4: Feature engineering v1.0 (45 features, 167 rows SPY)
-- Phase 5: Model training — SHIP ✅ (acc=0.90, F1=0.88, Sharpe=31.47)
+- Phase 0-5: Audit, data, quality gates, math, features, SPY/QQQ models
+- Backtest 2024: 93% accuracy
+- Quality gates wired into ml_pipeline.py
+- 4-ticker features: SPY (167×45), QQQ/IWM/DIA/TLT (2799×32 each)
 
-### Live model
-- models/SPY_direction_v1.0.joblib (NOT in quarantine)
-- models/SPY_scaler_v1.0.joblib
-- 44 features, trained on 167 samples (2024 SPY GEX data)
+### Live models (all in models/, NOT in quarantine)
+- SPY_direction_v1.0.joblib: acc=0.90, F1=0.88, Sharpe=31.47
+- QQQ_direction_v1.0.joblib: acc=0.53, F1=0.57, Sharpe=2.87
 
 ---
 
 ## On-deck (execute in order)
 
-- [ ] **phase5-2**: Backtest 2024 outcomes
-  - **Run:** create `scripts/backtest_2024.py`. Walk-forward backtest on 2024 data. Monthly precision/recall/F1 + equity curve.
-  - **Proof:** `reports/backtest_2024.md` with monthly breakdown
+- [ ] **train_iwm**: Train IWM direction model
+  - **Run:** `python scripts/train_spy_model.py --ticker IWM`
+  - **Proof:** models/IWM_direction_v1.0.joblib exists
 
-- [ ] **phase6-1**: Wire quality gates into ml_pipeline.py
-  - **Run:** add run_all_gates() call before model.save() in ml_pipeline.py. DegenerateModelError on failure.
-  - **Proof:** training a degenerate model raises DegenerateModelError
+- [ ] **train_dia**: Train DIA direction model
+  - **Run:** `python scripts/train_spy_model.py --ticker DIA`
+  - **Proof:** models/DIA_direction_v1.0.joblib exists
 
-- [ ] **phase7-1**: Paper trade via Alpaca
-  - **Run:** load SPY model, predict daily, submit paper orders via Alpaca. Position sizing: max 5% of $100K.
-  - **Proof:** paper_trading.py runs daily via cron, logs orders to MongoDB
+- [ ] **train_tlt**: Train TLT direction model
+  - **Run:** `python scripts/train_spy_model.py --ticker TLT`
+  - **Proof:** models/TLT_direction_v1.0.joblib exists
 
-- [ ] **phase4-2**: QQQ feature engineering
-  - **Run:** compute_features for QQQ ticker
-  - **Proof:** ml_features has QQQ rows, QQQ model trains
+- [ ] **paper_trade**: Paper trade via Alpaca (Claude working on paper_trading.py)
+  - Wire model predictions → Alpaca paper orders
+  - Position sizing: max 5% of $100K per trade
+
+- [ ] **expand_spy_data**: Pull more GEX data for SPY
+  - Databento backfill (debug symbol format: SPY.OPT rejected, need correct format)
+  - More yfinance history for underlying bars
 
 ---
 
 ## Blocked
-- phase1-4 (real Databento backfill): Needs Nav approval ($125 credit)
 - XGBoost/LightGBM: Need `brew install libomp` on this Mac
+- Databento symbol format: SPY.OPT rejected by API, need to debug correct format

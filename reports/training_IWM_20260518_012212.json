@@ -1,0 +1,29 @@
+{
+  "ticker": "IWM",
+  "timestamp": "2026-05-18T05:22:10.813906+00:00",
+  "data": {
+    "n_samples": 2799,
+    "n_features": 32,
+    "positive_rate": 0.5301893533404788,
+    "date_range": "2015-03-31 to 2026-05-15"
+  },
+  "splits": 8,
+  "baselines": {},
+  "models": {
+    "lightgbm": {
+      "metrics": {
+        "accuracy": 0.55,
+        "precision": 0.6644813519813519,
+        "recall": 0.46824616355866355,
+        "f1": 0.48360832063265385
+      },
+      "sharpe": 5.810975919868422,
+      "beats_baselines": true,
+      "n_folds": 8
+    }
+  },
+  "verdict": "SHIP",
+  "best_model": "lightgbm",
+  "model_path": "/Users/nav/Documents/GitHub/floww/models/IWM_direction_v1.0.joblib",
+  "scaler_path": "/Users/nav/Documents/GitHub/floww/models/IWM_scaler_v1.0.joblib"
+}
