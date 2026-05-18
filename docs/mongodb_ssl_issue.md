@@ -1,30 +1,29 @@
-# MongoDB Atlas SSL Issue — 2026-05-18
+# MongoDB Atlas SSL Issue — Update 2026-05-18
 
-## Symptoms
-- All 3 shards fail SSL handshake: `errno=54 Connection reset by peer`
-- TCP connection succeeds (`nc -zv` works)
-- SSL handshake fails immediately (0 bytes read)
-- Affects all connection methods: srv, direct, tlsInsecure
+## Status: Persistent SSL failure
 
-## Tried
-- certifi update
-- tlsInsecure flag
-- Direct connection string (bypassing SRV)
-- Different TLS versions
-- All fail with same error
+Even OpenSSL (`s_client`) fails with errno=54 (Connection reset by peer).
+The server sends RST immediately after TCP handshake.
+This is NOT a Python or certifi issue — it's server-side.
 
-## Likely cause
-- Atlas-side SSL certificate rotation or configuration change
-- May require IP allowlist update on Atlas dashboard
-- Or temporary Atlas service degradation
+## Possible causes
+1. IP allowlist changed on Atlas dashboard
+2. Cluster TLS certificate rotation
+3. Atlas service degradation
+4. Network policy change
 
-## Impact
-- Cannot retrain SPY v2.0 with GEX features
-- Cannot run paper-trade dry-run
-- Cannot verify feature quality
+## What works
+- TCP connection: `nc -zv` succeeds
+- DNS resolution: SRV records resolve correctly
+- Ping: host responds to ICMP
 
-## Next steps
+## What fails
+- SSL handshake: immediate RST from server
+- All Python MongoDB connection methods
+- OpenSSL s_client
+
+## Action needed
 1. Check MongoDB Atlas dashboard for alerts
 2. Verify IP allowlist includes current IP
-3. Try from different network (hotspot)
-4. Contact Atlas support if persistent
+3. Check if cluster needs TLS reconfiguration
+4. Try from different network (hotspot/VPN)
