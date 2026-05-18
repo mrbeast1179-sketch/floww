@@ -86,14 +86,17 @@ if echo "$COMMIT_MSG" | grep -qiE "vega.*total|total.*vega|calc_vega_total"; the
     fi
 fi
 
-# --- Rule 4: If commit claims "quarantine", models must be in _quarantine/ ---
+# --- Rule 4: If commit claims "quarantine", at least one model must be in _quarantine/ ---
+# Note: partial quarantine is the norm (e.g. quarantine SPY+TLT+IWM, keep DIA+QQQ live).
+# Prior version asserted LIVE_COUNT==0 which only made sense for "quarantine everything"
+# commits — a false-negative on every targeted quarantine since.
 if echo "$COMMIT_MSG" | grep -qiE "quarantine|degenerate"; then
     QUARANTINE_COUNT=$(ls models/_quarantine/*.joblib 2>/dev/null | wc -l)
     LIVE_COUNT=$(ls models/*.joblib 2>/dev/null | wc -l)
-    if [ "$QUARANTINE_COUNT" -gt 0 ] && [ "$LIVE_COUNT" -eq 0 ]; then
-        check "Quarantine commit: models in _quarantine/ ($QUARANTINE_COUNT files), none in models/" "pass"
+    if [ "$QUARANTINE_COUNT" -gt 0 ]; then
+        check "Quarantine commit: $QUARANTINE_COUNT files in _quarantine/, $LIVE_COUNT live (partial quarantine OK)" "pass"
     else
-        check "Quarantine commit: expected models in _quarantine/, found $QUARANTINE_COUNT quarantined, $LIVE_COUNT live" "fail"
+        check "Quarantine commit: nothing in models/_quarantine/" "fail"
     fi
 fi
 
