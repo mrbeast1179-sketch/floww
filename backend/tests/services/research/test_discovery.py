@@ -145,6 +145,7 @@ def test_arxiv_normalizes_whitespace_in_title_and_abstract():
 
 
 def test_arxiv_query_is_url_encoded_correctly():
+    """Default: phrase-quoted query AND category filter (quantitative finance)."""
     captured: Dict[str, str] = {}
 
     def fake_get(url: str, hdr: Dict[str, str]) -> str:
@@ -156,9 +157,47 @@ def test_arxiv_query_is_url_encoded_correctly():
     src.search("gamma exposure dealer")
 
     assert "export.arxiv.org/api/query" in captured["url"]
-    assert "search_query=all%3Agamma+exposure+dealer" in captured["url"]
+    # Each token is AND-ed individually within `all:` so the doc must
+    # contain every token (not as a consecutive phrase).
+    assert "all%3Agamma" in captured["url"]
+    assert "all%3Aexposure" in captured["url"]
+    assert "all%3Adealer" in captured["url"]
+    assert "AND" in captured["url"]  # tokens joined by AND
+    # Default category filter is applied (quantitative-finance categories).
+    assert "cat%3Aq-fin.PR" in captured["url"]
     assert "max_results=10" in captured["url"]
     assert "confluence-decoder" in captured["ua"]
+
+
+def test_arxiv_query_without_categories():
+    """`categories=None` disables the category filter — useful for cross-category
+    searches (e.g. ML conferences on stock prediction)."""
+    captured: Dict[str, str] = {}
+
+    def fake_get(url: str, hdr: Dict[str, str]) -> str:
+        captured["url"] = url
+        return _arxiv_xml_empty()
+
+    src = ArxivSource(http_get=fake_get, max_results=5, categories=None)
+    src.search("transformer prediction")
+
+    assert "cat%3Aq-fin" not in captured["url"]
+    assert "all%3Atransformer" in captured["url"]
+    assert "all%3Aprediction" in captured["url"]
+
+
+def test_arxiv_custom_categories_override_default():
+    captured: Dict[str, str] = {}
+
+    def fake_get(url: str, hdr: Dict[str, str]) -> str:
+        captured["url"] = url
+        return _arxiv_xml_empty()
+
+    src = ArxivSource(http_get=fake_get, categories=("cs.LG",))
+    src.search("transformers")
+
+    assert "cat%3Acs.LG" in captured["url"]
+    assert "cat%3Aq-fin" not in captured["url"]
 
 
 # ────────────────────────────────────────────────────────────────────────────

@@ -123,19 +123,61 @@ class ArxivSource(DiscoverySource):
 
     The API returns Atom XML. We use stdlib ElementTree to avoid adding a
     dependency.
+
+    Query construction (bug-fix 2026-05-18): unquoted multi-token queries
+    against `all:` returned wildly off-topic results (e.g. "gamma exposure
+    dealer hedging" returned Gaussian-splatting and gamma-ray-astronomy
+    papers). We now wrap the query as a phrase AND restrict to the
+    quantitative-finance category set by default. Pass `categories=None` to
+    disable the category filter, or a custom tuple to override.
     """
 
     name = "arxiv"
     base_url = "http://export.arxiv.org/api/query"
     rate_limit_seconds = 3.0  # arxiv asks for ≥ 3s between requests
 
-    def __init__(self, max_results: int = 25, **kwargs):
+    DEFAULT_CATEGORIES = (
+        "q-fin.PR",  # pricing of securities
+        "q-fin.TR",  # trading and market microstructure
+        "q-fin.RM",  # risk management
+        "q-fin.MF",  # mathematical finance
+        "q-fin.ST",  # statistical finance
+        "q-fin.PM",  # portfolio management
+        "q-fin.CP",  # computational finance
+        "q-fin.GN",  # general finance
+        "stat.AP",   # applied statistics (overlaps with finance ML)
+    )
+
+    def __init__(
+        self,
+        max_results: int = 25,
+        categories=DEFAULT_CATEGORIES,
+        **kwargs,
+    ):
         super().__init__(**kwargs)
         self.max_results = max_results
+        self.categories = categories
 
     def _fetch(self, query: str) -> str:
+        # Build a precise query: ALL terms must appear in the doc, but not
+        # necessarily as a consecutive phrase. Phrase-quoting (`all:"a b c"`)
+        # is too strict — 4-word phrases rarely match. Bare `all:a b c` is
+        # too loose — arxiv stems / fuzz-matches and returns unrelated papers.
+        # AND-ing each term wrapped in `all:` is the sweet spot.
+        tokens = [t for t in query.split() if t]
+        if tokens:
+            term_clause = " AND ".join(f"all:{t}" for t in tokens)
+        else:
+            term_clause = ""
+        if self.categories:
+            cat_clause = " OR ".join(f"cat:{c}" for c in self.categories)
+            search_query = (
+                f"({cat_clause}) AND ({term_clause})" if term_clause else f"({cat_clause})"
+            )
+        else:
+            search_query = term_clause or "all:*"
         params = {
-            "search_query": f"all:{query}",
+            "search_query": search_query,
             "start": "0",
             "max_results": str(self.max_results),
             "sortBy": "submittedDate",
