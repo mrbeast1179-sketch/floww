@@ -4,7 +4,7 @@
 
 ---
 
-## Status: MongoDB Atlas SSL blocked — all other work complete
+## Status: MongoDB Atlas SSL blocked
 
 ### Done ✅
 - Phase 0-5: Audit, data, quality gates, math, features, models
@@ -12,7 +12,9 @@
 - SHIP-gate bug fixed, model audit rules added
 - Agent work merged (gated persistence + multi-ticker features)
 - 102 tests pass
-- 50+ commits on main
+- SPY v2.0 training script written
+- Paper-trade dry-run script written
+- Agent worktrees cleaned up
 
 ### Live models (NOT in quarantine)
 - QQQ_direction_v1.0: acc=0.53, F1=0.57, Sharpe=2.87
@@ -23,12 +25,9 @@
 
 ## Blocked on MongoDB Atlas SSL
 
-All remaining tasks require MongoDB:
-
-- [ ] **Retrain SPY v2.0** with GEX features (229 rows × 23 features)
-- [ ] **Paper trade dry-run** via Alpaca
-- [ ] **Expand Databento** to IWM/DIA
-- [ ] **Verify feature quality** (variance checks on v2.0 features)
+- [ ] **Retrain SPY v2.0** — script ready (`scripts/train_spy_v2.py`), needs MongoDB
+- [ ] **Paper trade dry-run** — script ready (`scripts/paper_trade_dry_run.py`), needs MongoDB
+- [ ] **Expand Databento to IWM/DIA** — needs MongoDB for dedup check
 
 ---
 
