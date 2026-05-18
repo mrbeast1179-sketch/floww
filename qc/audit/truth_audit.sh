@@ -4,13 +4,21 @@
 # Returns 0 if claims match, 1 if they don't.
 # Designed to run in CI (no interactive input).
 
-set -euo pipefail
+set -u
+
+# Note (2026-05-18): `set -euo pipefail` was previously in effect but caused
+# the audit to silently exit early. `grep -rn ... | grep -v ... | wc -l`
+# inside a command substitution returns non-zero when the grep finds nothing,
+# and with pipefail+errexit that aborted the script before any check could
+# run — the audit was "passing" by never finishing. With just `set -u`, all
+# rules execute and the exit code reflects real findings.
 
 REPO_ROOT="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
 cd "$REPO_ROOT"
 
 PASS=0
 FAIL=0
+WARN=0
 
 check() {
     local description="$1"
@@ -22,6 +30,16 @@ check() {
         echo "  FAIL: $description"
         FAIL=$((FAIL + 1))
     fi
+}
+
+# warn() surfaces a rule violation visibly without failing the audit. Use it
+# for rules that flag legacy artifacts already on disk that the project
+# intends to clean up. Promote specific warn() calls to check(..., "fail")
+# once the legacy cohort is resolved.
+warn() {
+    local description="$1"
+    echo "  WARN: $description"
+    WARN=$((WARN + 1))
 }
 
 # Get the latest commit message
@@ -127,9 +145,65 @@ else
     check ".env file is git-ignored or absent" "pass"
 fi
 
+# --- Rule 9: Universal (WARN) — no live model has Sharpe > MAX_PLAUSIBLE ---
+# Catches "model shipped without the gate" scenarios at the artifact level.
+# Currently a warning so legacy artifacts surface without blocking CI.
+# Promote to check(..., "fail") once flagged models are quarantined.
+MAX_PLAUSIBLE_DAILY_SHARPE=10
+SUSPECT_META_FILES=""
+for meta in models/*_meta_v*.json; do
+    [ -f "$meta" ] || continue
+    sharpe=$(python3 -c "
+import json
+try:
+    d = json.load(open('$meta'))
+    print(d.get('sharpe', 0))
+except Exception:
+    print(0)
+" 2>/dev/null)
+    flag=$(python3 -c "print('1' if float('$sharpe') > $MAX_PLAUSIBLE_DAILY_SHARPE else '0')" 2>/dev/null)
+    if [ "$flag" = "1" ]; then
+        SUSPECT_META_FILES="$SUSPECT_META_FILES $meta(sharpe=$sharpe)"
+    fi
+done
+if [ -n "$SUSPECT_META_FILES" ]; then
+    warn "live model with Sharpe > $MAX_PLAUSIBLE_DAILY_SHARPE (likely in-sample):$SUSPECT_META_FILES"
+else
+    check "Universal: no live model has Sharpe > $MAX_PLAUSIBLE_DAILY_SHARPE" "pass"
+fi
+
+# --- Rule 10: Universal (WARN) — no SHIPped training report has empty baselines ---
+# The empty-baselines + SHIP combo was the smoking gun for the prior auto-pass bug.
+# Currently a warning so 12+ legacy reports surface without blocking CI.
+BAD_REPORTS=""
+for report in reports/training_*.json; do
+    [ -f "$report" ] || continue
+    is_bad=$(python3 -c "
+import json
+try:
+    d = json.load(open('$report'))
+    bad = d.get('verdict', '') == 'SHIP' and d.get('baselines', None) == {}
+    print('1' if bad else '0')
+except Exception:
+    print('0')
+" 2>/dev/null)
+    if [ "$is_bad" = "1" ]; then
+        BAD_REPORTS="$BAD_REPORTS $(basename $report)"
+    fi
+done
+if [ -n "$BAD_REPORTS" ]; then
+    warn "training report with verdict=SHIP and baselines={} (auto-pass bug):$BAD_REPORTS"
+else
+    check "Universal: no SHIPped training report has empty baselines" "pass"
+fi
+
 # --- Summary ---
 echo ""
-echo "=== Results: $PASS passed, $FAIL failed ==="
+if [ "$WARN" -gt 0 ]; then
+    echo "=== Results: $PASS passed, $FAIL failed, $WARN warnings ==="
+else
+    echo "=== Results: $PASS passed, $FAIL failed ==="
+fi
 
 if [ "$FAIL" -gt 0 ]; then
     echo ""
@@ -138,5 +212,9 @@ if [ "$FAIL" -gt 0 ]; then
     exit 1
 fi
 
-echo "TRUTH AUDIT PASSED — all claims verified."
+if [ "$WARN" -gt 0 ]; then
+    echo "TRUTH AUDIT PASSED with $WARN warnings — see notes above."
+else
+    echo "TRUTH AUDIT PASSED — all claims verified."
+fi
 exit 0
