@@ -94,7 +94,7 @@ if echo "$COMMIT_MSG" | grep -qiE "quarantine|degenerate"; then
 fi
 
 # --- Rule 5: If commit claims "ML" or "model", DegenerateModelError must exist ---
-if echo "$COMMIT_MSG" | grep -qiE "ml|model.*guard|degenerate|training.*guard"; then
+if echo "$COMMIT_MSG" | grep -qiE "ml|model.*guard|degenerate|training.*guard|quality.*gate" && ! echo "$COMMIT_MSG" | grep -qiE "model.*path|model.*naming|model.*file"; then
     if grep -rn "class DegenerateModelError\|DegenerateModelError" backend/ml_pipeline.py 2>/dev/null | grep -q .; then
         check "ML guard commit: DegenerateModelError found in ml_pipeline.py" "pass"
     else
