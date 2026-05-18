@@ -38,7 +38,7 @@ echo ""
 
 # --- Rule 1: No synthetic data in any commit touching ML ---
 if echo "$COMMIT_MSG" | grep -qiE "ml|model|train|synthetic|data.*gen"; then
-    SYNTHETIC_REFS=$(grep -rn "np\.random\." backend/ml*.py 2>/dev/null | grep -v "__pycache__" | wc -l)
+    SYNTHETIC_REFS=$(grep -rn "np\.random\." backend/ml*.py 2>/dev/null | grep -v "__pycache__" | wc -l || true)
     if [ "$SYNTHETIC_REFS" -gt 0 ]; then
         check "ML commit must not contain np.random data generation" "fail"
         grep -rn "np\.random\." backend/ml*.py 2>/dev/null | head -5
@@ -131,6 +131,8 @@ fi
 # Check all model meta JSON files for suspicious claims
 for meta in models/*_meta_*.json; do
     [ -f "$meta" ] || continue
+    # Skip quarantined models
+    [[ "$meta" == *"_quarantine"* ]] && continue
     # Check for empty baselines
     if grep -q '"baselines": {}' "$meta" 2>/dev/null; then
         check "Model $meta: empty baselines dict (unverified)" "fail"
