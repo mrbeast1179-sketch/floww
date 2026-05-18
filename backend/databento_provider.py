@@ -53,7 +53,7 @@ PARENT_MAP = {
 }
 
 
-OSI_RE = re.compile(r"^([A-Z]+)\s+(\d{6})([CP])(\d{8})$")
+OSI_RE = re.compile(r'^([A-Z]+)\s*(\d{2})(\d{2})(\d{2})([CP])(\d{8})$')
 
 
 def parse_osi(raw: str) -> Optional[Dict[str, Any]]:

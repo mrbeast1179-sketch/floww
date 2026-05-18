@@ -51,7 +51,7 @@ PARENT_MAP = {
     "DIA": "DIA.OPT", "SPX": "SPXW.OPT",
 }
 
-OSI_RE = re.compile(r'^([A-Z]+)(\d{2})(\d{2})(\d{2})([CP])(\d{8})$')
+OSI_RE = re.compile(r'^([A-Z]+)\s*(\d{2})(\d{2})(\d{2})([CP])(\d{8})$')
 
 
 def parse_osi(raw: str) -> Optional[Dict[str, Any]]:
@@ -97,7 +97,6 @@ def fetch_eod_chain(client: db.Historical, parent: str, day: date) -> Optional[D
             schema="statistics",
             start=start,
             end=end,
-            limit=300000,
         )
         df = data.to_df()
     except Exception as e:
