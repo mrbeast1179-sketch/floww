@@ -1,0 +1,11 @@
+{
+  "source_key": "spx_quotedata",
+  "file_path": "/Users/nav/Documents/GitHub/floww/data/github-repos/cloned/aaguiar10_gflows/data/csv/spx_quotedata.csv",
+  "file_name": "spx_quotedata.csv",
+  "collection": "cboe_quotes_spx",
+  "description": "Real CBOE quote data, SPX",
+  "row_count": 19156,
+  "file_size_bytes": 1321179,
+  "sha256": "c066b04cfbdf5010483e69ce81ed4cbb60165181974c7cb0192c4bf9bcfd90b4",
+  "ingested_at": "2026-05-18T00:43:54.864291+00:00"
+}

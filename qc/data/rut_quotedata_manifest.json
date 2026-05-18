@@ -1,0 +1,11 @@
+{
+  "source_key": "rut_quotedata",
+  "file_path": "/Users/nav/Documents/GitHub/floww/data/github-repos/cloned/aaguiar10_gflows/data/csv/rut_quotedata.csv",
+  "file_name": "rut_quotedata.csv",
+  "collection": "cboe_quotes_rut",
+  "description": "Real CBOE quote data, RUT (IWM proxy)",
+  "row_count": 7334,
+  "file_size_bytes": 525178,
+  "sha256": "9527cc63d51743a48d487d3c861795b6061847a1a4795106c059051dd6f82adf",
+  "ingested_at": "2026-05-18T00:44:57.758746+00:00"
+}

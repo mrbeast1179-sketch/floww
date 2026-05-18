@@ -1,0 +1,11 @@
+{
+  "source_key": "issue_141_enhanced_dataset",
+  "file_path": "/Users/nav/Documents/GitHub/floww/data/github-repos/cloned/iAmGiG_gex-llm-patterns/docs/papers/paper1/analysis/issue_141_enhanced_dataset.csv",
+  "file_name": "issue_141_enhanced_dataset.csv",
+  "collection": "gex_enhanced_snapshots",
+  "description": "Academic GEX dataset with engineered features for 2024",
+  "row_count": 242,
+  "file_size_bytes": 49342,
+  "sha256": "e3a542bc39f945255edb950a0b1fb7157a2cd9b3c68dafebeb57f21fa0d01f92",
+  "ingested_at": "2026-05-18T00:28:47.877383+00:00"
+}

@@ -1,0 +1,11 @@
+{
+  "source_key": "flashalpha_sample_chain",
+  "file_path": "/Users/nav/Documents/GitHub/floww/data/github-repos/cloned/FlashAlpha-lab_gex-explained/data/sample_chain.csv",
+  "file_name": "sample_chain.csv",
+  "collection": "flashalpha_sample_chain",
+  "description": "Vendor-blessed option chain fixture from FlashAlpha",
+  "row_count": 25,
+  "file_size_bytes": 1172,
+  "sha256": "6e1e6617916580ae60ff9d5e6327f16e1da36992744fa8e29ba98364918d4b54",
+  "ingested_at": "2026-05-18T00:44:59.966336+00:00"
+}

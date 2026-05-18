@@ -113,7 +113,7 @@ fi
 
 # --- Rule 7: If commit claims "MongoDB" or "load", verify pymongo/motor imports ---
 if echo "$COMMIT_MSG" | grep -qiE "mongo|load.*dataset|backfill"; then
-    if grep -rn "motor\|pymongo\|MongoClient" backend/scripts/*.py 2>/dev/null | grep -q .; then
+    if grep -rn "motor\|pymongo\|MongoClient" scripts/*.py backend/scripts/*.py 2>/dev/null | grep -q .; then
         check "MongoDB commit: motor/pymongo imports found" "pass"
     else
         check "MongoDB commit: motor/pymongo imports NOT found" "fail"

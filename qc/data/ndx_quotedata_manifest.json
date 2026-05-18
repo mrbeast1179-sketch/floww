@@ -1,0 +1,11 @@
+{
+  "source_key": "ndx_quotedata",
+  "file_path": "/Users/nav/Documents/GitHub/floww/data/github-repos/cloned/aaguiar10_gflows/data/csv/ndx_quotedata.csv",
+  "file_name": "ndx_quotedata.csv",
+  "collection": "cboe_quotes_ndx",
+  "description": "Real CBOE quote data, NDX (QQQ proxy)",
+  "row_count": 19118,
+  "file_size_bytes": 1374831,
+  "sha256": "205522243d65cb3a2b969946d194065c68cf684207c07851ddc1779827efea8a",
+  "ingested_at": "2026-05-18T00:38:42.331117+00:00"
+}

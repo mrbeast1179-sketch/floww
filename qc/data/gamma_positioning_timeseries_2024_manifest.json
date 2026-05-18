@@ -1,0 +1,11 @@
+{
+  "source_key": "gamma_positioning_timeseries_2024",
+  "file_path": "/Users/nav/Documents/GitHub/floww/data/github-repos/cloned/iAmGiG_gex-llm-patterns/reports/statistical_validation/gamma_positioning_timeseries_2024.csv",
+  "file_name": "gamma_positioning_timeseries_2024.csv",
+  "collection": "gex_llm_patterns_timeseries",
+  "description": "GEX time series 2024",
+  "row_count": 242,
+  "file_size_bytes": 26547,
+  "sha256": "76554fc19ad74d406ef2edba3ae2fe3a1a95cb72eebaf541789a01f256997134",
+  "ingested_at": "2026-05-18T00:29:14.502825+00:00"
+}

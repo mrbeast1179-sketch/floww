@@ -1,0 +1,11 @@
+{
+  "source_key": "issue_145_next_day_outcomes_2024",
+  "file_path": "/Users/nav/Documents/GitHub/floww/data/github-repos/cloned/iAmGiG_gex-llm-patterns/docs/papers/paper1/analysis/issue_145_next_day_outcomes_2024.csv",
+  "file_name": "issue_145_next_day_outcomes_2024.csv",
+  "collection": "gex_llm_patterns_outcomes",
+  "description": "Labeled next-day outcomes for 2024 (directional_move, range_expansion, gap_move)",
+  "row_count": 167,
+  "file_size_bytes": 18403,
+  "sha256": "168cfbbd99e91b01bbf23bb6f95af84d7e9b89a64de4ac4729f27078321173f0",
+  "ingested_at": "2026-05-18T00:28:58.277156+00:00"
+}
