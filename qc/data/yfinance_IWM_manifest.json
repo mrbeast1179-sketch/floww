@@ -1,0 +1,10 @@
+{
+  "source_key": "yfinance_IWM",
+  "ticker": "IWM",
+  "collection": "underlying_bars",
+  "start": "2015-01-01",
+  "end": "2026-05-17",
+  "row_count": 2859,
+  "source": "yfinance",
+  "ingested_at": "2026-05-18T01:05:11.165755+00:00"
+}

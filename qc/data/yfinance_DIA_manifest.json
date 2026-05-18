@@ -1,0 +1,10 @@
+{
+  "source_key": "yfinance_DIA",
+  "ticker": "DIA",
+  "collection": "underlying_bars",
+  "start": "2015-01-01",
+  "end": "2026-05-17",
+  "row_count": 2859,
+  "source": "yfinance",
+  "ingested_at": "2026-05-18T01:08:53.359269+00:00"
+}
