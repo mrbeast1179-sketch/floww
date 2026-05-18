@@ -38,10 +38,14 @@ echo ""
 
 # --- Rule 1: No synthetic data in any commit touching ML ---
 if echo "$COMMIT_MSG" | grep -qiE "ml|model|train|synthetic|data.*gen"; then
+    # `|| true` is required because pipefail+errexit would otherwise abort the
+    # entire script when grep finds nothing (exit 1). With this guard, the
+    # subsequent rules actually get a chance to run. Without it, the audit
+    # silently exits after this assignment with code 1 and reports zero rules.
     SYNTHETIC_REFS=$(grep -rn "np\.random\." backend/ml*.py 2>/dev/null | grep -v "__pycache__" | wc -l || true)
-    if [ "$SYNTHETIC_REFS" -gt 0 ]; then
+    if [ "${SYNTHETIC_REFS:-0}" -gt 0 ]; then
         check "ML commit must not contain np.random data generation" "fail"
-        grep -rn "np\.random\." backend/ml*.py 2>/dev/null | head -5
+        grep -rn "np\.random\." backend/ml*.py 2>/dev/null | head -5 || true
     else
         check "ML commit contains no np.random data generation" "pass"
     fi
