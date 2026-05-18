@@ -85,7 +85,12 @@ jobs:
           API_SECRET_KEY: ""
         run: |
           source .venv/bin/activate
-          python -m pytest tests/ -v --tb=short 2>&1 | head -100
+          # NOTE: previously this command piped pytest through `head -100`.
+          # That pipeline swallowed pytest's exit code (the shell's exit was
+          # head's exit = always 0), so test failures did NOT fail CI.
+          # Letting pytest's exit code propagate fixes that. GitHub Actions
+          # handles long output natively — no need to truncate.
+          python -m pytest tests/ -v --tb=short
 
   frontend-build:
     runs-on: ubuntu-latest
