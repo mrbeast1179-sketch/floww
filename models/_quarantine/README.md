@@ -41,6 +41,20 @@ a warning and exits cleanly. No downstream breakage.
 
 ---
 
+## IWM_direction_v1.0 — Quarantined 2026-05-18
+**Reason:** Sharpe 5.81 > qc/audit/truth_audit.sh Rule 9 threshold of 5.
+2,799 samples / 32 features (no GEX), reasonable sample-per-feature ratio,
+but Sharpe 5.81 for a daily-direction model is at the upper edge of
+plausibility (literature typical OOS for ETF direction prediction: 0.5–3).
+Precision 0.66 / recall 0.47 asymmetry also suggests threshold-tuning
+artifact rather than genuine edge.
+**Path forward:** Rolling-OOS over the last 250 trading days (i.e. don't
+trust the 8-fold walk-forward aggregate; verify per-fold Sharpe spread).
+If OOS Sharpe collapses below 1.0, IWM joins TLT in "no real edge".
+If OOS Sharpe ≥ 3 and consistent across folds, raise the Rule 9 threshold
+to 7 with explicit ADR justification, and un-quarantine.
+**Reversal:** `git mv models/_quarantine/IWM_* models/` once validated.
+
 ## Audit principles (from multiticker_model_audit.md §9)
 - **In-sample = useless.** Train/test must never overlap.
 - **Baseline-beat is the floor.** Must beat majority + persistence + logistic.
