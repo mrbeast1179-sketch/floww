@@ -359,31 +359,91 @@ def run_training(ticker: str, dry_run: bool = False) -> Dict[str, Any]:
             log.info(f"  {model_type}: acc={result['metrics']['accuracy']:.3f}, "
                      f"f1={result['metrics']['f1']:.3f}, sharpe={sharpe:.3f}")
 
-    # Baseline metrics
-    baseline_metrics = {}
-    for name, preds in baselines.items():
-        if len(preds) == len(y):
-            preds_arr = np.array(preds[:len(y)])
-            acc = np.mean(preds_arr == y[:len(preds_arr)])
-            sharpe = compute_trading_sharpe(preds[:len(y)], y[:len(preds)].tolist())
+    # Baseline metrics — compare against the SAME test-fold actuals the models saw.
+    # Bug fix (2026-05-18): prior version checked `len(preds) == len(y)` which is
+    # never true (baselines accumulate over test folds — sum of test_idx lengths,
+    # roughly n_splits * test_size — not the full dataset length). The condition
+    # was always False, so `baseline_metrics` was always {} (see every prior
+    # `reports/training_*.json` for the smoking gun). With baselines empty, the
+    # gate at the next block defaulted to -999 and every model auto-passed.
+    test_actuals = None
+    for r in results.values():
+        if r.get("status") == "ok":
+            test_actuals = r.get("actuals")
+            break
+
+    baseline_metrics: Dict[str, Dict[str, float]] = {}
+    if test_actuals is not None:
+        actuals_arr = np.array(test_actuals)
+        for name, preds in baselines.items():
+            if not preds or len(preds) != len(actuals_arr):
+                log.warning(
+                    f"baseline {name}: length mismatch "
+                    f"(preds={len(preds) if preds else 0}, actuals={len(actuals_arr)}); "
+                    f"omitting from gate"
+                )
+                continue
+            preds_arr = np.array(preds[: len(actuals_arr)])
+            acc = float(np.mean(preds_arr == actuals_arr))
+            sharpe = float(compute_trading_sharpe(preds_arr.tolist(), test_actuals))
             baseline_metrics[name] = {"accuracy": acc, "sharpe": sharpe}
             log.info(f"  baseline {name}: acc={acc:.3f}, sharpe={sharpe:.3f}")
+    else:
+        log.warning("no successful model fold; cannot compute baseline metrics")
 
-    # Determine best model
+    # Sharpe sanity cap — daily direction strategies almost never sustain Sharpe
+    # above ~3 out-of-sample. Anything above this ceiling with our sample sizes
+    # is overwhelmingly an in-sample artifact, a leakage bug, or a metric error.
+    # Bug fix (2026-05-18): without this cap the original SPY v1.0 model shipped
+    # with Sharpe 31.5 — a textbook in-sample fit.
+    MAX_PLAUSIBLE_DAILY_SHARPE = 10.0
+
+    # Determine best model. Required: beat ALL three baselines AND pass sanity cap.
+    # Bug fix (2026-05-18): missing-baseline default is now +inf (auto-fail) rather
+    # than -999 (auto-pass). The old default is how TLT v1.0 shipped with Sharpe
+    # 0.00 — `0 > -999` was always true.
     best_model = None
-    best_sharpe = -999
+    best_sharpe = -np.inf
+    REQUIRED_BASELINES = ("majority", "persistence", "logistic")
     for model_type, result in results.items():
-        if result["status"] == "ok":
-            sharpe = result.get("sharpe", -999)
-            # Must beat all baselines on Sharpe
-            beats_all = all(
-                sharpe > baseline_metrics.get(b, {}).get("sharpe", -999)
-                for b in ["majority", "persistence", "logistic"]
+        if result.get("status") != "ok":
+            continue
+        sharpe = result.get("sharpe", -np.inf)
+
+        # Hard ceiling on Sharpe — reject implausible values regardless of baselines.
+        if sharpe > MAX_PLAUSIBLE_DAILY_SHARPE:
+            result["beats_baselines"] = False
+            result["rejection_reason"] = (
+                f"sharpe {sharpe:.2f} > MAX_PLAUSIBLE_DAILY_SHARPE "
+                f"({MAX_PLAUSIBLE_DAILY_SHARPE}); likely in-sample or measurement artifact"
             )
-            result["beats_baselines"] = beats_all
-            if sharpe > best_sharpe:
-                best_sharpe = sharpe
-                best_model = model_type
+            log.warning(f"  {model_type}: REJECTED — {result['rejection_reason']}")
+            continue
+
+        # If any required baseline is missing, fail closed.
+        missing = [b for b in REQUIRED_BASELINES if b not in baseline_metrics]
+        if missing:
+            result["beats_baselines"] = False
+            result["rejection_reason"] = f"missing baselines: {missing}"
+            log.warning(f"  {model_type}: REJECTED — {result['rejection_reason']}")
+            continue
+
+        beats_all = all(
+            sharpe > baseline_metrics[b]["sharpe"]
+            for b in REQUIRED_BASELINES
+        )
+        result["beats_baselines"] = beats_all
+        if not beats_all:
+            result["rejection_reason"] = (
+                "did not beat all of "
+                + ", ".join(
+                    f"{b}({baseline_metrics[b]['sharpe']:.2f})"
+                    for b in REQUIRED_BASELINES
+                )
+            )
+        if beats_all and sharpe > best_sharpe:
+            best_sharpe = sharpe
+            best_model = model_type
 
     # Generate report
     report = {
@@ -407,6 +467,7 @@ def run_training(ticker: str, dry_run: bool = False) -> Dict[str, Any]:
                 "metrics": result["metrics"],
                 "sharpe": result.get("sharpe", 0),
                 "beats_baselines": result.get("beats_baselines", False),
+                "rejection_reason": result.get("rejection_reason"),
                 "n_folds": result["n_folds"],
             }
 
