@@ -1,0 +1,29 @@
+{
+  "ticker": "SPY",
+  "timestamp": "2026-05-18T02:24:34.403367+00:00",
+  "data": {
+    "n_samples": 167,
+    "n_features": 45,
+    "positive_rate": 0.5209580838323353,
+    "date_range": "2024-01-02 to 2024-12-30"
+  },
+  "splits": 6,
+  "baselines": {},
+  "models": {
+    "lightgbm": {
+      "metrics": {
+        "accuracy": 0.8999999999999999,
+        "precision": 0.937037037037037,
+        "recall": 0.8424704924704924,
+        "f1": 0.8797418403558755
+      },
+      "sharpe": 31.4732583909568,
+      "beats_baselines": true,
+      "n_folds": 6
+    }
+  },
+  "verdict": "SHIP",
+  "best_model": "lightgbm",
+  "model_path": "/Users/nav/Documents/GitHub/floww/models/SPY_direction_v1.0.joblib",
+  "scaler_path": "/Users/nav/Documents/GitHub/floww/models/SPY_scaler_v1.0.joblib"
+}
