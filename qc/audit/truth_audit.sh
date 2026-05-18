@@ -148,6 +148,49 @@ for meta in models/*_meta_*.json; do
     fi
 done
 
+# --- Rule 10: No model trained on too few samples ---
+# Flag models with fewer than 50 training samples
+for meta in models/*_meta_*.json; do
+    [ -f "$meta" ] || continue
+    [[ "$meta" == *"_quarantine"* ]] && continue
+    n_samples=$(python3 -c "import json; d=json.load(open('$meta')); print(d.get('n_samples', 0))" 2>/dev/null || echo 0)
+    if [ "$n_samples" -lt 50 ] 2>/dev/null; then
+        check "Model $meta: only $n_samples training samples (suspicious)" "fail"
+    else
+        check "Model $meta: $n_samples training samples (ok)" "pass"
+    fi
+done
+
+# --- Rule 11: Feature-to-sample ratio check ---
+# Flag models with more features than 20% of samples
+for meta in models/*_meta_*.json; do
+    [ -f "$meta" ] || continue
+    [[ "$meta" == *"_quarantine"* ]] && continue
+    n_samples=$(python3 -c "import json; d=json.load(open('$meta')); print(d.get('n_samples', 0))" 2>/dev/null || echo 0)
+    n_features=$(python3 -c "import json; d=json.load(open('$meta')); print(d.get('n_features_used', d.get('n_features', 0)))" 2>/dev/null || echo 0)
+    if [ "$n_samples" -gt 0 ] 2>/dev/null && [ "$n_features" -gt 0 ] 2>/dev/null; then
+        ratio=$(python3 -c "print($n_features / $n_samples)" 2>/dev/null || echo 0)
+        if [ "$(echo "$ratio > 0.2" | bc -l 2>/dev/null || echo 0)" -eq 1 ]; then
+            check "Model $meta: feature/sample ratio $ratio > 0.2 ($n_features features / $n_samples samples)" "fail"
+        else
+            check "Model $meta: feature/sample ratio $ratio (ok)" "pass"
+        fi
+    fi
+done
+
+# --- Rule 12: No model with accuracy > 95% on daily direction ---
+# Daily direction prediction > 95% is almost certainly overfit
+for meta in models/*_meta_*.json; do
+    [ -f "$meta" ] || continue
+    [[ "$meta" == *"_quarantine"* ]] && continue
+    acc=$(python3 -c "import json; d=json.load(open('$meta')); print(d.get('metrics', {}).get('accuracy', d.get('accuracy', 0)))" 2>/dev/null || echo 0)
+    if [ "$(echo "$acc > 0.95" | bc -l 2>/dev/null || echo 0)" -eq 1 ]; then
+        check "Model $meta: accuracy $acc > 0.95 (likely overfit)" "fail"
+    else
+        check "Model $meta: accuracy $acc (reasonable)" "pass"
+    fi
+done
+
 # --- Summary ---
 echo ""
 echo "=== Results: $PASS passed, $FAIL failed ==="
