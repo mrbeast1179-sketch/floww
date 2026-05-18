@@ -734,3 +734,205 @@ def calc_gamma_flip_levels(spot: float, contracts: List[Dict[str, Any]],
         "dist_to_put_wall_pct": round((spot - put_wall) / spot * 100, 2) if spot > 0 else None,
         "spot": spot,
     }
+
+
+# ============================================================================
+# VEX (Vanna-Exposure)
+# ============================================================================
+
+def calc_vex(spot: float, contracts: List[Dict[str, Any]],
+             risk_free_rate: float = 0.045) -> Dict[str, Any]:
+    """
+    Compute Vanna-Exposure (VEX) across all strikes.
+
+    VEX measures the sensitivity of delta to changes in implied volatility,
+    weighted by open interest. It captures the "volatility exposure" of the
+    options market.
+
+    Formula per strike: vanna_i * OI_i * spot
+    Total VEX = sum over all strikes
+
+    Positive VEX = dealers are short vanna (vol increases → delta increases → buy pressure)
+    Negative VEX = dealers are long vanna (vol increases → delta decreases → sell pressure)
+
+    Args:
+        spot: Current underlying price
+        contracts: List of contract dicts with keys: strike, expiry, type, oi, iv, T
+        risk_free_rate: Risk-free rate (default 4.5%)
+
+    Returns:
+        Dict with total_vex, vex_by_strike, call_vex, put_vex, abs_vex
+    """
+    if not spot or spot <= 0 or not contracts:
+        return {"total_vex": 0, "vex_by_strike": {}, "call_vex": 0, "put_vex": 0, "abs_vex": 0}
+
+    from bs_greeks import bs_vanna
+
+    vex_by_strike: Dict[float, float] = {}
+    call_vex = 0.0
+    put_vex = 0.0
+
+    for c in contracts:
+        strike = c.get("strike", 0)
+        oi = c.get("oi", 0) or 0
+        T = c.get("T", 0)
+        iv = c.get("iv", 0)
+        if oi <= 0 or T <= 0 or iv <= 0:
+            continue
+
+        vanna = bs_vanna(spot, strike, T, iv, q=0.0, r=risk_free_rate)
+        vex = vanna * oi * spot
+        vex_by_strike[strike] = vex_by_strike.get(strike, 0.0) + vex
+
+        if c.get("type", "").upper() in ("C", "CALL"):
+            call_vex += vex
+        else:
+            put_vex += vex
+
+    total_vex = sum(vex_by_strike.values())
+    abs_vex = sum(abs(v) for v in vex_by_strike.values())
+
+    return {
+        "total_vex": round(total_vex, 2),
+        "vex_by_strike": {k: round(v, 2) for k, v in sorted(vex_by_strike.items())},
+        "call_vex": round(call_vex, 2),
+        "put_vex": round(put_vex, 2),
+        "abs_vex": round(abs_vex, 2),
+        "spot": spot,
+    }
+
+
+# ============================================================================
+# DEX (Delta-Exposure)
+# ============================================================================
+
+def calc_dex(spot: float, contracts: List[Dict[str, Any]],
+             multiplier: float = 100.0,
+             risk_free_rate: float = 0.045) -> Dict[str, Any]:
+    """
+    Compute Delta-Exposure (DEX) across all strikes.
+
+    DEX measures the total delta of the options market, weighted by open
+    interest and contract multiplier. It represents the equivalent share
+    exposure of all outstanding options.
+
+    Formula per strike: delta_i * OI_i * multiplier * spot
+    Total DEX = sum over all strikes
+
+    Positive DEX = net long delta (options market is bullish)
+    Negative DEX = net short delta (options market is bearish)
+
+    Args:
+        spot: Current underlying price
+        contracts: List of contract dicts with keys: strike, expiry, type, oi, iv, T
+        multiplier: Contract multiplier (100 for standard options)
+        risk_free_rate: Risk-free rate (default 4.5%)
+
+    Returns:
+        Dict with total_dex, dex_by_strike, call_dex, put_dex, abs_dex
+    """
+    if not spot or spot <= 0 or not contracts:
+        return {"total_dex": 0, "dex_by_strike": {}, "call_dex": 0, "put_dex": 0, "abs_dex": 0}
+
+    from bs_greeks import bs_delta
+
+    dex_by_strike: Dict[float, float] = {}
+    call_dex = 0.0
+    put_dex = 0.0
+
+    for c in contracts:
+        strike = c.get("strike", 0)
+        oi = c.get("oi", 0) or 0
+        T = c.get("T", 0)
+        iv = c.get("iv", 0)
+        ctype = c.get("type", "").upper()
+        if oi <= 0 or T <= 0 or iv <= 0:
+            continue
+
+        kind = "call" if ctype in ("C", "CALL") else "put"
+        delta = bs_delta(spot, strike, T, iv, q=0.0, kind=kind, r=risk_free_rate)
+        dex = delta * oi * multiplier * spot
+        dex_by_strike[strike] = dex_by_strike.get(strike, 0.0) + dex
+
+        if kind == "call":
+            call_dex += dex
+        else:
+            put_dex += dex
+
+    total_dex = sum(dex_by_strike.values())
+    abs_dex = sum(abs(d) for d in dex_by_strike.values())
+
+    return {
+        "total_dex": round(total_dex, 2),
+        "dex_by_strike": {k: round(v, 2) for k, v in sorted(dex_by_strike.items())},
+        "call_dex": round(call_dex, 2),
+        "put_dex": round(put_dex, 2),
+        "abs_dex": round(abs_dex, 2),
+        "spot": spot,
+    }
+
+
+# ============================================================================
+# Vega-Total (Total Vega Exposure)
+# ============================================================================
+
+def calc_vega_total(spot: float, contracts: List[Dict[str, Any]],
+                    risk_free_rate: float = 0.045) -> Dict[str, Any]:
+    """
+    Compute total vega across all open interest.
+
+    Vega measures sensitivity to a 1 percentage point change in implied
+    volatility. Total vega = sum(vega_i * OI_i) for all strikes.
+
+    High total vega = options market is very sensitive to vol changes
+    Low total vega = options market is insensitive to vol changes
+
+    Args:
+        spot: Current underlying price
+        contracts: List of contract dicts with keys: strike, expiry, type, oi, iv, T
+        risk_free_rate: Risk-free rate (default 4.5%)
+
+    Returns:
+        Dict with total_vega, vega_by_strike, call_vega, put_vega, avg_vega_per_contract
+    """
+    if not spot or spot <= 0 or not contracts:
+        return {"total_vega": 0, "vega_by_strike": {}, "call_vega": 0, "put_vega": 0,
+                "avg_vega_per_contract": 0}
+
+    from bs_greeks import bs_vega
+
+    vega_by_strike: Dict[float, float] = {}
+    call_vega = 0.0
+    put_vega = 0.0
+    total_contracts = 0
+
+    for c in contracts:
+        strike = c.get("strike", 0)
+        oi = c.get("oi", 0) or 0
+        T = c.get("T", 0)
+        iv = c.get("iv", 0)
+        if oi <= 0 or T <= 0 or iv <= 0:
+            continue
+
+        vega = bs_vega(spot, strike, T, iv, q=0.0, r=risk_free_rate)
+        total = vega * oi
+        vega_by_strike[strike] = vega_by_strike.get(strike, 0.0) + total
+        total_contracts += oi
+
+        if c.get("type", "").upper() in ("C", "CALL"):
+            call_vega += total
+        else:
+            put_vega += total
+
+    total_vega = sum(vega_by_strike.values())
+    avg_vega = total_vega / total_contracts if total_contracts > 0 else 0
+
+    return {
+        "total_vega": round(total_vega, 2),
+        "vega_by_strike": {k: round(v, 2) for k, v in sorted(vega_by_strike.items())},
+        "call_vega": round(call_vega, 2),
+        "put_vega": round(put_vega, 2),
+        "avg_vega_per_contract": round(avg_vega, 4),
+        "total_contracts": total_contracts,
+        "spot": spot,
+    }
