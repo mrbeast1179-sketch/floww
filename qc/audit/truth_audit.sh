@@ -127,6 +127,25 @@ else
     check ".env file is git-ignored or absent" "pass"
 fi
 
+# --- Rule 9: Model audit — no model with Sharpe > 5 or empty baselines ---
+# Check all model meta JSON files for suspicious claims
+for meta in models/*_meta_*.json; do
+    [ -f "$meta" ] || continue
+    # Check for empty baselines
+    if grep -q '"baselines": {}' "$meta" 2>/dev/null; then
+        check "Model $meta: empty baselines dict (unverified)" "fail"
+    else
+        check "Model $meta: baselines present" "pass"
+    fi
+    # Check for Sharpe > 5 (suspicious for daily direction)
+    sharpe=$(python3 -c "import json; d=json.load(open('$meta')); print(d.get('sharpe', 0))" 2>/dev/null || echo 0)
+    if [ "$(echo "$sharpe > 5" | bc -l 2>/dev/null || echo 0)" -eq 1 ]; then
+        check "Model $meta: Sharpe $sharpe > 5 (suspicious)" "fail"
+    else
+        check "Model $meta: Sharpe $sharpe (reasonable)" "pass"
+    fi
+done
+
 # --- Summary ---
 echo ""
 echo "=== Results: $PASS passed, $FAIL failed ==="
