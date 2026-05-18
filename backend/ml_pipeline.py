@@ -45,15 +45,32 @@ async def collect_data():
 
 
 async def train_models():
-    """Step 2: Train ML models."""
+    """Step 2: Train ML models with quality gates."""
     from ml_price_prediction import train_price_direction_model
-    
+    from services.ml.quality import run_all_gates, DegenerateModelError
+
     tickers = os.environ.get("ML_TICKERS", "SPY,QQQ").split(",")
     results = {}
-    
+
     for ticker in tickers:
         try:
             result = await train_price_direction_model(ticker)
+
+            # Quality gate: validate training data and predictions
+            if result.get("status") == "ok" and result.get("X_train") is not None:
+                try:
+                    gate_results = run_all_gates(
+                        X=result["X_train"],
+                        y=result["y_train"],
+                        y_pred_proba=result.get("y_train_proba", result["y_train"]),
+                    )
+                    result["quality_gates"] = gate_results
+                    logger.info(f"  {ticker}: quality gates passed: {len(gate_results)}")
+                except DegenerateModelError as e:
+                    logger.warning(f"  {ticker}: quality gate FAILED: {e}")
+                    result["status"] = "rejected"
+                    result["rejection_reason"] = str(e)
+
             results[ticker] = result
             status = result.get("status", "unknown")
             accuracy = result.get("accuracy", 0)
@@ -61,7 +78,7 @@ async def train_models():
         except Exception as e:
             logger.error(f"Model training {ticker} failed: {e}")
             results[ticker] = {"status": "error", "message": str(e)}
-    
+
     return results
 
 
