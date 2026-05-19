@@ -1,40 +1,36 @@
-# SESSION STATE — 2026-05-17 19:30
+# SESSION STATE — 2026-05-18 22:00 (night session, post-Claude summary)
 
 ## What was done this session:
-1. Added Cerebras API key and integrated into LLM service
-2. Added Deepseek API key and integrated into LLM service  
-3. LLM service now has 4 providers: Cerebras, Gemini, Deepseek, OpenRouter
-4. Created trade analysis and briefing generation endpoints
-5. All 36 tests passing
+1. **Loaded and used skills properly** — machine-learning-pro, systematic-debugging, subagent-driven-development, writing-plans, test-runner
+2. **Wrote comprehensive ML test suite** — 87 tests (quality gates, training pipeline, SHIP gate)
+3. **Fixed registry mock bugs** — insert_one storage, find_one None return, drift test assertions
+4. **Wrote alert DSL system** — YAML-defined rules, ML-enriched predicates, cooldown, persistence
+5. **Fixed critical `_resolve_value` bug** — float literals like "0.5" were treated as nested paths (dot in "0.5" triggered nested resolution)
+6. **Fixed ALERT_DEFINITIONS_DIR path** — was double 'backend/backend/'
+7. **Wrote MORNING_QUEUE.md** — prioritized plan for WiFi-dependent tasks
+8. **Wrote 6 new scripts** — train_production, train_v4_bakeoff, cache_features_to_csv, merge_gex_into_features, compute_gex_all_tickers, backfill_gex_history
+9. **Claude (PyCharm) wrote major services** — gex_history.py (227 lines), ml/features.py (1008 lines), backtest engine, model registry, ML API routes, 290 heatseeker tests
 
-## PyCharm's NEXT_TASKS.md was discovered with Phase 0 tasks:
-- Phase 0-1: Write truth-audit script
-- Phase 0-2: Delete synthetic-data generator (models are degenerate)
-- Phase 0-3: Quarantine degenerate models
-- Phase 0-4: Add load-guard for quarantined models
-- Phase 0-5: Wire truth-audit into CI
-- Phase 0-6: Add commit-message hook
-- Phase 0-7: Log baseline measurements
+## Commits pushed (this session):
+- `51651d4` — Production training pipeline + GEX services + morning queue
+- `e965b08` — Fix registry mock and test assertions
+- `b89c8a3` — Fix alert resolve_value float literal bug + path fix
 
-## Key insight from PyCharm:
-The synthetic data approach produced degenerate models (output one class at 0.9998 confidence).
-Need to use real market data via Databento backfill instead.
+## Tests: 406 pass, 0 fail (97 deselected - need server)
 
-## Running processes:
-- Backend server on port 8000
-- Data collector running in background (187+ snapshots)
-- ML models trained: SPY, QQQ, IWM, DIA
+## ML Results:
+| Ticker | Version | Samples | Sharpe | Verdict |
+|--------|---------|---------|--------|---------|
+| QQQ | v3.0 | 2799 | 3.36 | SHIP |
+| SPY | v2.0_gex | 208 | 2.35 | REJECT |
+| DIA | v3.0 | 2799 | 1.90 | REJECT |
 
-## API Keys configured:
-- Cerebras: csk-te9ny... (working)
-- Deepseek: sk-5e05e... (insufficient balance)
-- Gemini: configured
-- MongoDB: configured
-- Alpaca: configured
+## Blockers (need morning WiFi):
+- Cache ml_features to CSV (large MongoDB queries timeout on hotspot)
+- Run model bake-off on QQQ (needs cached data)
+- Compute GEX for QQQ (35 databento chains)
+- Databento backfill for DIA/IWM/TLT
+- Paper trade dry-run
 
-## Next session should:
-1. Start with Phase 0-1 (truth-audit script)
-2. Follow PyCharm's NEXT_TASKS.md
-3. Delete synthetic data generator
-4. Quarantine degenerate models
-5. Set up Databento backfill for real training data
+## Key bug found and fixed:
+- `_resolve_value` in alert engine: float literals containing "." (like "0.5") were incorrectly treated as nested dict paths. Fixed by trying float() before dot-split.
