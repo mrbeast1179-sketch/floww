@@ -19,11 +19,13 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import math
 import os
 from datetime import datetime, timedelta, timezone, date
 from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
+import pandas as pd
 from motor.motor_asyncio import AsyncIOMotorClient
 from dotenv import load_dotenv
 
@@ -339,6 +341,343 @@ def compute_gex_features(snapshots: List[Dict]) -> Dict[str, List[float]]:
         features[key] = [_safe_float(s.get(key)) for s in snapshots]
 
     return features
+
+
+# ============================================================================
+# Row-wise GEX features (Phase 4 — SPY v3)
+#
+# These augment the snapshot-array features above with per-row aggregates that
+# depend on a pre-computed `gex_history` column (a list of dicts with keys
+# `ts` and `gex_total`, already trimmed to ts <= row.ts upstream so leakage
+# is impossible by construction).
+#
+# Designed for ingestion of a dataframe shaped one-row-per-(ticker, ts), as
+# produced by the v3 feature builder. Pure pandas/numpy — no Mongo, no I/O.
+# ============================================================================
+
+# Required and optional columns for `add_gex_features`. Documented here so the
+# contract is grep-able from the call site.
+GEX_FEATURE_REQUIRED_COLS: Tuple[str, ...] = ("ticker", "ts", "spot", "gex_total")
+GEX_FEATURE_OPTIONAL_COLS: Tuple[str, ...] = ("gamma_flip", "gex_by_strike")
+
+# Column names this function adds. Used by the idempotency guard.
+GEX_FEATURE_OUTPUT_COLS: Tuple[str, ...] = (
+    "gex_zscore_60d",
+    "gex_roc_5d",
+    "gex_regime_pos",
+    "gex_distance_to_flip_norm",
+    "gex_wall_density_pct",
+    "gex_herfindahl",
+)
+
+# ε used in safe division across all features (mirrors compute_gex_features
+# which uses 1e-10; we adopt 1e-9 per Phase 4 spec).
+_GEX_EPS = 1e-9
+
+# Wall-density band: fraction of |GEX| inside ±1% of spot.
+_GEX_WALL_BAND_PCT = 0.01
+
+# Minimum history length required for the 5-day rate-of-change.
+_GEX_ROC_LOOKBACK = 5
+
+
+def _extract_history_series(history: Any) -> List[float]:
+    """Pull the gex_total scalar series out of a history-column value.
+
+    Accepts None, NaN, empty list, or a list of ``(ts, gex_total)`` tuples /
+    ``{"ts": ..., "gex_total": ...}`` dicts. Skips entries we can't parse and
+    returns them in input order (the caller is responsible for upstream sort).
+    """
+    if history is None:
+        return []
+    # Pandas often hands us a float NaN where a list was expected.
+    if isinstance(history, float) and math.isnan(history):
+        return []
+    if not hasattr(history, "__iter__"):
+        return []
+
+    out: List[float] = []
+    for item in history:
+        val: Any = None
+        if isinstance(item, dict):
+            val = item.get("gex_total")
+        elif isinstance(item, (list, tuple)) and len(item) >= 2:
+            # Convention: (ts, gex_total).
+            val = item[1]
+        else:
+            val = item
+        if val is None:
+            continue
+        try:
+            f = float(val)
+        except (TypeError, ValueError):
+            continue
+        if f != f:  # NaN
+            continue
+        out.append(f)
+    return out
+
+
+def _gex_zscore_60d(gex_total: float, history_vals: List[float]) -> float:
+    """``(gex_total - mean(history)) / (std(history) + ε)``.
+
+    History is the trailing N (≤ 60) snapshots, *not* including the current row.
+    Leakage argument: the caller filtered ``gex_history`` to ``ts <= current_ts``
+    and we never look at the current value when computing mean/std — we only
+    use it as the numerator. So this depends solely on ``ts <= t`` data.
+    """
+    if not history_vals:
+        return float("nan")
+    arr = np.asarray(history_vals, dtype=float)
+    mean = float(np.mean(arr))
+    # ddof=0 (population) — matches numpy default and the existing
+    # compute_gex_features convention.
+    std = float(np.std(arr))
+    return (gex_total - mean) / (std + _GEX_EPS)
+
+
+def _gex_roc_5d(gex_total: float, history_vals: List[float]) -> float:
+    """``(gex_total - gex_5d_ago) / |gex_5d_ago + ε|``.
+
+    ``gex_5d_ago`` is the entry 5 positions before the most recent in history.
+    For a history sorted oldest-first, that is ``history[-5]``. If fewer than
+    5 entries exist we return NaN — the training pipeline drops NaN rows.
+    """
+    if len(history_vals) < _GEX_ROC_LOOKBACK:
+        return float("nan")
+    gex_5d_ago = float(history_vals[-_GEX_ROC_LOOKBACK])
+    return (gex_total - gex_5d_ago) / (abs(gex_5d_ago) + _GEX_EPS)
+
+
+def _gex_regime_pos(gex_total: float) -> float:
+    """1.0 if dealer GEX is net positive (long gamma regime), else 0.0.
+
+    Pure function of the current snapshot — no history dependency, hence no
+    leakage path. Kept as a feature because the v3 variance-floor assertion
+    will fail on monotone-sign training windows; this guarantees a binary
+    indicator distinct from gex_total itself.
+    """
+    if gex_total != gex_total:  # NaN
+        return float("nan")
+    return 1.0 if gex_total > 0.0 else 0.0
+
+
+def _gex_distance_to_flip_norm(spot: float, gamma_flip: Any) -> float:
+    """``(spot - gamma_flip) / spot``.
+
+    Returns 0.0 (with a warning logged once per call site, upstream) when
+    ``gamma_flip`` is missing or NaN. We intentionally do NOT raise — many
+    tickers will not have a flip on a given day and the model must still
+    train on those rows.
+    """
+    if gamma_flip is None:
+        return 0.0
+    try:
+        gf = float(gamma_flip)
+    except (TypeError, ValueError):
+        return 0.0
+    if gf != gf:  # NaN
+        return 0.0
+    if spot is None or spot == 0:
+        return 0.0
+    try:
+        s = float(spot)
+    except (TypeError, ValueError):
+        return 0.0
+    if s == 0:
+        return 0.0
+    return (s - gf) / s
+
+
+def _gex_wall_density_pct(spot: float, gex_by_strike: Any) -> float:
+    """Fraction of total |GEX| concentrated within ±1% of spot.
+
+    ``gex_by_strike`` is a ``Dict[float, float]`` (strike → signed GEX). High
+    value means the gamma wall is right at spot; low value means it's diffuse
+    or far away. Returns NaN when the dict is missing — that's the contract.
+    """
+    if not isinstance(gex_by_strike, dict) or not gex_by_strike:
+        return float("nan")
+    if spot is None or spot == 0:
+        return float("nan")
+    try:
+        s = float(spot)
+    except (TypeError, ValueError):
+        return float("nan")
+    if s == 0:
+        return float("nan")
+
+    low = s * (1.0 - _GEX_WALL_BAND_PCT)
+    high = s * (1.0 + _GEX_WALL_BAND_PCT)
+
+    total_abs = 0.0
+    band_abs = 0.0
+    for strike, gex in gex_by_strike.items():
+        try:
+            k = float(strike)
+            g = abs(float(gex))
+        except (TypeError, ValueError):
+            continue
+        if g != g:  # NaN
+            continue
+        total_abs += g
+        if low <= k <= high:
+            band_abs += g
+
+    if total_abs <= 0:
+        return float("nan")
+    return band_abs / total_abs
+
+
+def _gex_herfindahl(gex_by_strike: Any) -> float:
+    """HHI of GEX concentration across strikes.
+
+    ``HHI = Σ_k (|gex_k| / Σ|gex|)²``. Bounded in (0, 1]; 1.0 means everything
+    is concentrated at a single strike, 1/N means equal distribution across
+    N strikes. Returns NaN when ``gex_by_strike`` is missing.
+    """
+    if not isinstance(gex_by_strike, dict) or not gex_by_strike:
+        return float("nan")
+    abs_vals: List[float] = []
+    for gex in gex_by_strike.values():
+        try:
+            g = abs(float(gex))
+        except (TypeError, ValueError):
+            continue
+        if g != g:  # NaN
+            continue
+        abs_vals.append(g)
+    if not abs_vals:
+        return float("nan")
+    total = sum(abs_vals)
+    if total <= 0:
+        return float("nan")
+    return float(sum((g / total) ** 2 for g in abs_vals))
+
+
+def add_gex_features(
+    df: pd.DataFrame,
+    gex_history_col: str = "gex_history",
+) -> pd.DataFrame:
+    """Append GEX-derived features to a one-row-per-(ticker, ts) dataframe.
+
+    Adds these columns (see module docstrings on each ``_gex_*`` helper for
+    the formula and the leakage argument):
+
+      - ``gex_zscore_60d``           — 60-day rolling z-score of gex_total
+      - ``gex_roc_5d``               — 5-day rate of change of gex_total
+      - ``gex_regime_pos``           — 1 if gex_total > 0 else 0
+      - ``gex_distance_to_flip_norm``— (spot - gamma_flip) / spot
+      - ``gex_wall_density_pct``     — share of |GEX| within ±1% of spot
+      - ``gex_herfindahl``           — HHI of |GEX| across strikes
+
+    Required columns: ``ticker``, ``ts``, ``spot``, ``gex_total``, plus the
+    history column named by ``gex_history_col`` (default ``gex_history``).
+    Optional columns ``gamma_flip`` and ``gex_by_strike`` enable features
+    4–6; their absence yields the documented fallbacks (0.0 or NaN).
+
+    Leakage contract: per the calling builder, every row's ``gex_history``
+    is pre-filtered to ``ts <= row.ts``. This function never reads future
+    rows, never groups across rows, and never uses the current ``gex_total``
+    inside the history aggregates. The ``test_gex_no_future_leakage`` test
+    pins this guarantee.
+
+    Idempotent: re-running on output is a no-op (overwrites the same columns
+    deterministically; column count does not grow). Non-mutating: returns a
+    new dataframe, leaves ``df`` untouched.
+    """
+    if not isinstance(df, pd.DataFrame):
+        raise TypeError(f"add_gex_features expected DataFrame, got {type(df).__name__}")
+
+    out = df.copy()
+
+    # Empty-frame fast path — preserve the input columns plus the new ones so
+    # downstream code that introspects schema gets a stable answer.
+    if len(out) == 0:
+        for col in GEX_FEATURE_OUTPUT_COLS:
+            if col not in out.columns:
+                out[col] = pd.Series(dtype="float64")
+        return out
+
+    missing_required = [c for c in GEX_FEATURE_REQUIRED_COLS if c not in out.columns]
+    # The history column is required too but separately so its rename is honored.
+    if gex_history_col not in out.columns:
+        missing_required.append(gex_history_col)
+    if missing_required:
+        raise KeyError(
+            f"add_gex_features: missing required columns {missing_required}; "
+            f"have {list(out.columns)}"
+        )
+
+    has_gamma_flip = "gamma_flip" in out.columns
+    has_gex_by_strike = "gex_by_strike" in out.columns
+
+    if not has_gamma_flip:
+        log.warning(
+            "add_gex_features: 'gamma_flip' column absent — "
+            "gex_distance_to_flip_norm will be filled with 0.0 for all rows."
+        )
+
+    zscores: List[float] = []
+    rocs: List[float] = []
+    regimes: List[float] = []
+    dists: List[float] = []
+    walls: List[float] = []
+    hhis: List[float] = []
+
+    spot_arr = out["spot"].tolist()
+    gex_arr = out["gex_total"].tolist()
+    hist_arr = out[gex_history_col].tolist()
+    gamma_flip_arr = out["gamma_flip"].tolist() if has_gamma_flip else [None] * len(out)
+    gex_by_strike_arr = (
+        out["gex_by_strike"].tolist() if has_gex_by_strike else [None] * len(out)
+    )
+
+    for i in range(len(out)):
+        try:
+            spot_i = float(spot_arr[i]) if spot_arr[i] is not None else 0.0
+        except (TypeError, ValueError):
+            spot_i = 0.0
+        try:
+            gex_i = float(gex_arr[i])
+            if gex_i != gex_i:  # NaN propagates as NaN below
+                gex_i_is_nan = True
+            else:
+                gex_i_is_nan = False
+        except (TypeError, ValueError):
+            gex_i = float("nan")
+            gex_i_is_nan = True
+
+        history_vals = _extract_history_series(hist_arr[i])
+
+        if gex_i_is_nan:
+            zscores.append(float("nan"))
+            rocs.append(float("nan"))
+            regimes.append(float("nan"))
+        else:
+            zscores.append(_gex_zscore_60d(gex_i, history_vals))
+            rocs.append(_gex_roc_5d(gex_i, history_vals))
+            regimes.append(_gex_regime_pos(gex_i))
+
+        dists.append(
+            _gex_distance_to_flip_norm(spot_i, gamma_flip_arr[i] if has_gamma_flip else None)
+        )
+
+        if has_gex_by_strike:
+            walls.append(_gex_wall_density_pct(spot_i, gex_by_strike_arr[i]))
+            hhis.append(_gex_herfindahl(gex_by_strike_arr[i]))
+        else:
+            walls.append(float("nan"))
+            hhis.append(float("nan"))
+
+    out["gex_zscore_60d"] = zscores
+    out["gex_roc_5d"] = rocs
+    out["gex_regime_pos"] = regimes
+    out["gex_distance_to_flip_norm"] = dists
+    out["gex_wall_density_pct"] = walls
+    out["gex_herfindahl"] = hhis
+
+    return out
 
 
 def compute_calendar_features(dates: List[str]) -> Dict[str, List[float]]:
