@@ -1,54 +1,97 @@
 #!/usr/bin/env python3
-"""Cache features using aggregation $merge to a temp collection, then export."""
+"""
+scripts/cache_features_to_csv.py
+
+Cache ml_features from MongoDB to local CSV for fast local training.
+Uses small batches (50 docs) with retry logic for unreliable connections.
+"""
 import os, time
 from pathlib import Path
 from dotenv import load_dotenv
 load_dotenv(Path('backend/.env'))
 from pymongo import MongoClient
+from pymongo.errors import ConnectionFailure, ServerSelectionTimeoutError
 import pandas as pd
 
-client = MongoClient(os.environ['MONGO_URL'], serverSelectionTimeoutMS=60000)
-db = client['confluence_decoder']
+CACHE_DIR = Path('data/cached_features')
+CACHE_DIR.mkdir(parents=True, exist_ok=True)
 
-cache_dir = Path('data/cached_features')
-cache_dir.mkdir(parents=True, exist_ok=True)
+def fetch_with_retry(query, batch_size=50, max_retries=3):
+    """Fetch documents in small batches with retry logic."""
+    all_docs = []
+    last_id = None
+    total_fetched = 0
+    
+    while True:
+        for attempt in range(max_retries):
+            try:
+                client = MongoClient(
+                    os.environ['MONGO_URL'],
+                    serverSelectionTimeoutMS=10000,
+                    connectTimeoutMS=10000,
+                    socketTimeoutMS=30000,
+                    maxPoolSize=1
+                )
+                db = client['confluence_decoder']
+                
+                q = dict(query)
+                if last_id:
+                    q['_id'] = {'$gt': last_id}
+                
+                cursor = db['ml_features'].find(q).sort('_id', 1).limit(batch_size)
+                batch = list(cursor)
+                
+                client.close()
+                
+                if not batch:
+                    return all_docs
+                
+                last_id = batch[-1]['_id']
+                for doc in batch:
+                    doc.pop('_id', None)
+                    all_docs.append(doc)
+                
+                total_fetched += len(batch)
+                if total_fetched % 200 == 0:
+                    print(f"  Fetched {total_fetched}...")
+                
+                break  # Success, exit retry loop
+                
+            except (ConnectionFailure, ServerSelectionTimeoutError) as e:
+                wait = 2 ** attempt
+                print(f"  Connection error (attempt {attempt+1}/{max_retries}): {e}")
+                print(f"  Retrying in {wait}s...")
+                time.sleep(wait)
+            except Exception as e:
+                print(f"  Error: {e}")
+                time.sleep(1)
+    
+    return all_docs
 
-# Just do QQQ v1.0 - the one we need for the bake-off
-ticker = 'QQQ'
-version = 'v1.0'
+tickers = ['QQQ', 'DIA', 'IWM', 'TLT']
+versions = ['v1.0']
 
-count = db['ml_features'].count_documents({'ticker': ticker, 'feature_version': version})
-print(f"{ticker} {version}: {count} docs")
+for ticker in tickers:
+    for version in versions:
+        query = {'ticker': ticker, 'feature_version': version}
+        
+        # Check if already cached
+        csv_path = CACHE_DIR / f"{ticker}_{version}.csv"
+        if csv_path.exists():
+            existing = pd.read_csv(csv_path)
+            print(f"{ticker} {version}: already cached ({len(existing)} rows)")
+            continue
+        
+        print(f"\nFetching {ticker} {version}...")
+        t0 = time.time()
+        
+        docs = fetch_with_retry(query, batch_size=50)
+        
+        if docs:
+            df = pd.DataFrame(docs)
+            df.to_csv(csv_path, index=False)
+            print(f"  Saved {len(df)} rows to {csv_path} ({time.time()-t0:.1f}s)")
+        else:
+            print(f"  No data fetched for {ticker} {version}")
 
-# Use aggregation with $out to copy to a temp collection
-print("Copying via aggregation...")
-t0 = time.time()
-db['ml_features'].aggregate([
-    {'$match': {'ticker': ticker, 'feature_version': version}},
-    {'$project': {'_id': 0}},
-    {'$out': f'_cache_{ticker}_{version}'}
-], allowDiskUse=True)
-print(f"  Aggregation done in {time.time()-t0:.1f}s")
-
-# Now read from the temp collection
-temp_col = db[f'_cache_{ticker}_{version}']
-print(f"Temp collection count: {temp_col.count_documents({})}")
-
-# Read in batches
-all_docs = []
-batch_size = 500
-for i in range(0, count, batch_size):
-    batch = list(temp_col.find().skip(i).limit(batch_size))
-    all_docs.extend(batch)
-    print(f"  Read {len(all_docs)}/{count}")
-
-df = pd.DataFrame(all_docs)
-csv_path = cache_dir / f"{ticker}_{version}.csv"
-df.to_csv(csv_path, index=False)
-print(f"Saved {len(df)} rows to {csv_path}")
-
-# Clean up temp collection
-temp_col.drop()
-print("Cleaned up temp collection")
-
-client.close()
+print("\nDone!")
