@@ -20,11 +20,15 @@ from services.heatseeker import (  # noqa: E402
     calc_air_pockets,
     calc_flip_zones,
     calc_node_lifecycle,
+    calc_rolling_floors_ceilings,
+    calc_tug_of_war_zones,
     calc_trinity_confluence,
     calc_velocity_mode,
+    classify_nodes,
     detect_beach_ball,
     detect_rainbow_road,
     detect_reverse_rug,
+    detect_stacked_nodes,
 )
 
 
@@ -592,3 +596,332 @@ class TestTrinityConfluence:
         assert result["verdict"] == "divergence"
         assert "trend" in result["divergences"]
         assert "trend" not in result["aligned_dimensions"]
+
+
+# ===========================================================================
+# Wave 3 — Function 9: calc_rolling_floors_ceilings
+# ===========================================================================
+
+class TestRollingFloorsCeilings:
+    def test_happy_path_rising_floor_bullish(self):
+        """
+        Simulate 5 days of snapshots where the floor (largest positive GEX
+        strike below spot) rises each day. The trend should be 'bullish'.
+        """
+        spot = 100.0
+        # Build 5 daily snapshots with rising floor strikes
+        snapshots = [
+            {"spot": 100.0, "contracts": [
+                _c(90.0, "C", 0.05, 2000),
+                _c(95.0, "C", 0.05, 1000),
+                _c(105.0, "P", 0.05, 2000),
+                _c(110.0, "P", 0.05, 1000),
+            ]},
+            {"spot": 101.0, "contracts": [
+                _c(91.0, "C", 0.05, 2000),
+                _c(96.0, "C", 0.05, 1000),
+                _c(106.0, "P", 0.05, 2000),
+                _c(111.0, "P", 0.05, 1000),
+            ]},
+            {"spot": 102.0, "contracts": [
+                _c(92.0, "C", 0.05, 2000),
+                _c(97.0, "C", 0.05, 1000),
+                _c(107.0, "P", 0.05, 2000),
+                _c(112.0, "P", 0.05, 1000),
+            ]},
+            {"spot": 103.0, "contracts": [
+                _c(93.0, "C", 0.05, 2000),
+                _c(98.0, "C", 0.05, 1000),
+                _c(108.0, "P", 0.05, 2000),
+                _c(113.0, "P", 0.05, 1000),
+            ]},
+            {"spot": 104.0, "contracts": [
+                _c(94.0, "C", 0.05, 2000),
+                _c(99.0, "C", 0.05, 1000),
+                _c(109.0, "P", 0.05, 2000),
+                _c(114.0, "P", 0.05, 1000),
+            ]},
+        ]
+        result = calc_rolling_floors_ceilings(spot, snapshots, ticker="SPY", lookback_days=20)
+        assert result["ticker"] == "SPY"
+        assert len(result["floor_series"]) == 5
+        assert len(result["ceiling_series"]) == 5
+        # Floor is rising: 90→91→92→93→94
+        assert result["floor_trend"] == "rising"
+        assert result["signal"] == "bullish"
+        # Ceiling is also rising: 105→106→107→108→109
+        assert result["ceiling_trend"] == "rising"
+
+    def test_falling_ceiling_bearish(self):
+        """
+        Ceiling (largest negative GEX strike above spot) falls each day → bearish.
+        """
+        spot = 100.0
+        snapshots = [
+            {"spot": 100.0, "contracts": [
+                _c(90.0, "C", 0.05, 2000),
+                _c(110.0, "P", 0.05, 2000),
+            ]},
+            {"spot": 99.0, "contracts": [
+                _c(89.0, "C", 0.05, 2000),
+                _c(108.0, "P", 0.05, 2000),
+            ]},
+            {"spot": 98.0, "contracts": [
+                _c(88.0, "C", 0.05, 2000),
+                _c(106.0, "P", 0.05, 2000),
+            ]},
+        ]
+        result = calc_rolling_floors_ceilings(spot, snapshots, ticker="SPY", lookback_days=20)
+        assert result["ceiling_trend"] == "falling"
+        assert result["signal"] == "bearish"
+
+    def test_empty_snapshots(self):
+        """Empty snapshots should return empty series, neutral signal."""
+        result = calc_rolling_floors_ceilings(100.0, [], ticker="SPY")
+        assert result["floor_series"] == []
+        assert result["ceiling_series"] == []
+        assert result["signal"] == "neutral"
+        assert result["ticker"] == "SPY"
+
+    def test_neutral_when_no_trend(self):
+        """Flat floor and ceiling → neutral signal."""
+        spot = 100.0
+        snapshots = [
+            {"spot": 100.0, "contracts": [
+                _c(90.0, "C", 0.05, 2000),
+                _c(110.0, "P", 0.05, 2000),
+            ]},
+            {"spot": 100.5, "contracts": [
+                _c(90.0, "C", 0.05, 2000),
+                _c(110.0, "P", 0.05, 2000),
+            ]},
+            {"spot": 101.0, "contracts": [
+                _c(90.0, "C", 0.05, 2000),
+                _c(110.0, "P", 0.05, 2000),
+            ]},
+        ]
+        result = calc_rolling_floors_ceilings(spot, snapshots, ticker="SPY")
+        assert result["floor_trend"] == "flat"
+        assert result["ceiling_trend"] == "flat"
+        assert result["signal"] == "neutral"
+
+    def test_lookback_days_limits_history(self):
+        """Only snapshots within lookback_days should be considered."""
+        spot = 100.0
+        # 30 snapshots — with lookback_days=5 only last 5 should be used
+        # Keep calls below spot and puts above spot for all snapshots
+        snapshots = [
+            {"spot": 100.0, "contracts": [
+                _c(float(80 + i * 0.1), "C", 0.05, 2000),
+                _c(float(85 + i * 0.1), "C", 0.05, 1000),
+                _c(float(120 - i * 0.1), "P", 0.05, 2000),
+                _c(float(125 - i * 0.1), "P", 0.05, 1000),
+            ]}
+            for i in range(30)
+        ]
+        result = calc_rolling_floors_ceilings(spot, snapshots, ticker="SPY", lookback_days=5)
+        # With lookback=5, only the last 5 snapshots are used
+        assert len(result["floor_series"]) == 5
+        assert len(result["ceiling_series"]) == 5
+
+
+# ===========================================================================
+# Wave 3 — Function 10: classify_nodes
+# ===========================================================================
+
+class TestClassifyNodes:
+    def test_happy_path_real_vs_hedge(self):
+        """
+        Nodes with growing positive gamma (call, OI increasing) → 'real'.
+        Nodes with fading protection (put, OI decreasing) → 'hedge'.
+        """
+        nodes = [
+            {"strike": 100.0, "net_gex": 50000, "gamma_sign": "positive", "oi_trend": "growing", "taps": 0, "state": "fresh", "tap_probability": 80},
+            {"strike": 105.0, "net_gex": -30000, "gamma_sign": "negative", "oi_trend": "fading", "taps": 1, "state": "tested", "tap_probability": 66},
+            {"strike": 95.0, "net_gex": 20000, "gamma_sign": "positive", "oi_trend": "growing", "taps": 2, "state": "delivered", "tap_probability": 33},
+            {"strike": 110.0, "net_gex": -10000, "gamma_sign": "negative", "oi_trend": "fading", "taps": 3, "state": "decaying", "tap_probability": 10},
+        ]
+        result = classify_nodes(nodes)
+        classified = {n["strike"]: n for n in result["nodes"]}
+        assert classified[100.0]["classification"] == "real"
+        assert classified[95.0]["classification"] == "real"
+        assert classified[105.0]["classification"] == "hedge"
+        assert classified[110.0]["classification"] == "hedge"
+
+    def test_empty_nodes(self):
+        """Empty nodes list should return empty result."""
+        result = classify_nodes([])
+        assert result["nodes"] == []
+        assert result["real_count"] == 0
+        assert result["hedge_count"] == 0
+
+    def test_real_when_positive_gamma_growing(self):
+        """Positive gamma + growing OI → real (dealer positioning)."""
+        nodes = [
+            {"strike": 100.0, "net_gex": 50000, "gamma_sign": "positive", "oi_trend": "growing", "taps": 0, "state": "fresh", "tap_probability": 80},
+        ]
+        result = classify_nodes(nodes)
+        assert result["nodes"][0]["classification"] == "real"
+        assert result["real_count"] == 1
+        assert result["hedge_count"] == 0
+
+    def test_hedge_when_negative_gamma_fading(self):
+        """Negative gamma + fading OI → hedge (fading protection)."""
+        nodes = [
+            {"strike": 100.0, "net_gex": -50000, "gamma_sign": "negative", "oi_trend": "fading", "taps": 0, "state": "fresh", "tap_probability": 80},
+        ]
+        result = classify_nodes(nodes)
+        assert result["nodes"][0]["classification"] == "hedge"
+        assert result["real_count"] == 0
+        assert result["hedge_count"] == 1
+
+    def test_unknown_when_oi_trend_flat(self):
+        """Flat OI trend → classification is 'unknown'."""
+        nodes = [
+            {"strike": 100.0, "net_gex": 50000, "gamma_sign": "positive", "oi_trend": "flat", "taps": 0, "state": "fresh", "tap_probability": 80},
+        ]
+        result = classify_nodes(nodes)
+        assert result["nodes"][0]["classification"] == "unknown"
+
+
+# ===========================================================================
+# Wave 3 — Function 11: detect_stacked_nodes
+# ===========================================================================
+
+class TestStackedNodes:
+    def test_happy_path_stacked_at_strike(self):
+        """
+        Both call and put GEX are significant at the same strike.
+        A stacked node exists where both exceed threshold_pct of total.
+        """
+        spot = 100.0
+        contracts = [
+            _c(100.0, "C", 0.05, 2000),  # big call GEX at 100
+            _c(100.0, "P", 0.05, 2000),  # big put GEX at 100 → stacked
+            _c(95.0, "C", 0.01, 100),
+            _c(105.0, "P", 0.01, 100),
+        ]
+        result = detect_stacked_nodes(contracts, threshold_pct=0.3)
+        assert result["count"] >= 1
+        strikes = [n["strike"] for n in result["stacked_nodes"]]
+        assert 100.0 in strikes
+        stacked = [n for n in result["stacked_nodes"] if n["strike"] == 100.0][0]
+        assert stacked["call_gex"] > 0
+        assert stacked["put_gex"] > 0
+        assert stacked["conflict"] is True
+
+    def test_empty_contracts(self):
+        """Empty contracts → no stacked nodes."""
+        result = detect_stacked_nodes([], threshold_pct=0.3)
+        assert result["stacked_nodes"] == []
+        assert result["count"] == 0
+
+    def test_no_stacked_when_only_calls(self):
+        """Only calls at a strike → no conflict."""
+        spot = 100.0
+        contracts = [
+            _c(100.0, "C", 0.05, 2000),
+            _c(100.0, "C", 0.03, 1000),
+            _c(95.0, "C", 0.01, 100),
+        ]
+        result = detect_stacked_nodes(contracts, threshold_pct=0.3)
+        assert result["count"] == 0
+
+    def test_threshold_pct_filters_weak_stacks(self):
+        """
+        With a very high threshold_pct, even moderate dual GEX is not stacked.
+        """
+        spot = 100.0
+        contracts = [
+            _c(100.0, "C", 0.05, 100),
+            _c(100.0, "P", 0.05, 100),
+            _c(95.0, "C", 0.01, 10),
+        ]
+        # With threshold_pct=0.9, both call and put need to be > 90% of total
+        result = detect_stacked_nodes(contracts, threshold_pct=0.9)
+        assert result["count"] == 0
+
+
+# ===========================================================================
+# Wave 3 — Function 12: calc_tug_of_war_zones
+# ===========================================================================
+
+class TestTugOfWarZones:
+    def test_happy_path_conflict_near_spot(self):
+        """
+        Positive and negative GEX strikes within 1% of spot → tug-of-war zone.
+        """
+        spot = 100.0
+        contracts = [
+            _c(99.0, "C", 0.05, 2000),   # positive GEX, within 1% of spot
+            _c(100.5, "P", 0.05, 2000),  # negative GEX, within 1% of spot
+            _c(90.0, "C", 0.01, 100),    # far away
+            _c(110.0, "P", 0.01, 100),   # far away
+        ]
+        result = calc_tug_of_war_zones(contracts, spot)
+        assert result["in_tug_of_war"] is True
+        assert result["zone_low"] <= 99.0
+        assert result["zone_high"] >= 100.5
+        assert result["positive_strikes"] >= 1
+        assert result["negative_strikes"] >= 1
+
+    def test_no_tug_when_all_positive(self):
+        """All positive GEX near spot → no tug-of-war."""
+        spot = 100.0
+        contracts = [
+            _c(99.0, "C", 0.05, 2000),
+            _c(100.0, "C", 0.05, 2000),
+            _c(101.0, "C", 0.05, 2000),
+        ]
+        result = calc_tug_of_war_zones(contracts, spot)
+        assert result["in_tug_of_war"] is False
+        assert result["negative_strikes"] == 0
+
+    def test_no_tug_when_all_negative(self):
+        """All negative GEX near spot → no tug-of-war."""
+        spot = 100.0
+        contracts = [
+            _c(99.0, "P", 0.05, 2000),
+            _c(100.0, "P", 0.05, 2000),
+            _c(101.0, "P", 0.05, 2000),
+        ]
+        result = calc_tug_of_war_zones(contracts, spot)
+        assert result["in_tug_of_war"] is False
+        assert result["positive_strikes"] == 0
+
+    def test_empty_contracts(self):
+        """Empty contracts → no tug-of-war."""
+        result = calc_tug_of_war_zones([], 100.0)
+        assert result["in_tug_of_war"] is False
+        assert result["positive_strikes"] == 0
+        assert result["negative_strikes"] == 0
+
+    def test_gex_magnitude_balance(self):
+        """
+        When positive and negative GEX magnitudes are nearly equal,
+        the balance should be close to 0.
+        """
+        spot = 100.0
+        contracts = [
+            _c(99.5, "C", 0.05, 2000),
+            _c(100.5, "P", 0.05, 2000),
+        ]
+        result = calc_tug_of_war_zones(contracts, spot)
+        assert result["in_tug_of_war"] is True
+        # balance = (pos - neg) / (pos + neg); pos ≈ neg → balance ≈ 0
+        assert abs(result["gex_balance"]) < 0.1
+
+    def test_spot_at_boundary(self):
+        """
+        Strikes exactly at the 1% boundary should be included.
+        spot=100, boundary = 99.0 to 101.0.
+        """
+        spot = 100.0
+        contracts = [
+            _c(99.0, "C", 0.05, 2000),   # exactly at lower boundary
+            _c(101.0, "P", 0.05, 2000),  # exactly at upper boundary
+        ]
+        result = calc_tug_of_war_zones(contracts, spot)
+        assert result["in_tug_of_war"] is True
+        assert result["positive_strikes"] == 1
+        assert result["negative_strikes"] == 1

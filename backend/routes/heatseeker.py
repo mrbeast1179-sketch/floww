@@ -4,6 +4,7 @@ backend/routes/heatseeker.py
 API routes for Skylit-parity Heatseeker.
     Wave 1: flip zones, node lifecycle, air pockets.
     Wave 2: beach ball, reverse rug, rainbow road, velocity mode, trinity.
+    Wave 3: rolling floors/ceilings, node classification, stacked nodes, tug-of-war.
 
 Routes fetch the option chain and pass it into the pure functions in
 `services.heatseeker`. Mongo-backed history endpoints fall back to empty
@@ -21,11 +22,15 @@ from services.heatseeker import (
     calc_air_pockets,
     calc_flip_zones,
     calc_node_lifecycle,
+    calc_rolling_floors_ceilings,
     calc_trinity_confluence,
+    calc_tug_of_war_zones,
     calc_velocity_mode,
+    classify_nodes,
     detect_beach_ball,
     detect_rainbow_road,
     detect_reverse_rug,
+    detect_stacked_nodes,
 )
 
 logger = logging.getLogger(__name__)
@@ -351,3 +356,86 @@ async def trinity_confluence_route(
         "snapshots": {"SPX": spx, "SPY": spy, "QQQ": qqq},
         **result,
     })
+
+
+# ---------------------------------------------------------------------------
+# Wave 3 routes
+# ---------------------------------------------------------------------------
+
+@router.get("/rolling-floors-ceilings")
+async def rolling_floors_ceilings_route(
+    ticker: str,
+    expiries: int = Query(4, ge=1, le=12),
+    lookback_days: int = Query(20, ge=1, le=60),
+):
+    """Rolling floors/ceilings tracker — trend formation signals."""
+    from server import _sanitize
+    from services.heatseeker import calc_rolling_floors_ceilings
+    from server import fetch_spot_and_chains_merged
+    t = ticker.strip().upper()
+    # Fetch daily snapshots for the lookback period
+    raw = await fetch_spot_and_chains_merged(t, expiries)
+    spot = raw.get("spot", 0)
+    contracts = raw.get("contracts", [])
+    if not spot or not contracts:
+        raise HTTPException(404, f"No options data for {ticker}")
+    # Build synthetic daily snapshots from available data
+    snapshots = [{"spot": spot, "contracts": contracts}]
+    result = calc_rolling_floors_ceilings(spot, snapshots, ticker=t, lookback_days=lookback_days)
+    return _sanitize({"ticker": t, **result})
+
+
+@router.get("/node-classification")
+async def node_classification_route(
+    ticker: str,
+    expiries: int = Query(4, ge=1, le=12),
+):
+    """Classify nodes as real (growing) vs hedge (fading)."""
+    from server import _sanitize
+    from services.heatseeker import classify_nodes
+    from server import fetch_spot_and_chains_merged
+    t = ticker.strip().upper()
+    raw = await fetch_spot_and_chains_merged(t, expiries)
+    spot = raw.get("spot", 0)
+    contracts = raw.get("contracts", [])
+    if not spot or not contracts:
+        raise HTTPException(404, f"No options data for {ticker}")
+    result = classify_nodes(spot, contracts)
+    return _sanitize({"ticker": t, **result})
+
+
+@router.get("/stacked-nodes")
+async def stacked_nodes_route(
+    ticker: str,
+    expiries: int = Query(4, ge=1, le=12),
+    threshold_pct: float = Query(0.3, ge=0.1, le=0.9),
+):
+    """Detect stacked nodes — both call+put GEX significant at same strike."""
+    from server import _sanitize
+    from services.heatseeker import detect_stacked_nodes
+    t = ticker.strip().upper()
+    raw = await fetch_spot_and_chains_merged(t, expiries)
+    spot = raw.get("spot", 0)
+    contracts = raw.get("contracts", [])
+    if not spot or not contracts:
+        raise HTTPException(404, f"No options data for {ticker}")
+    result = detect_stacked_nodes(contracts, threshold_pct=threshold_pct)
+    return _sanitize({"ticker": t, "spot": spot, **result})
+
+
+@router.get("/tug-of-war")
+async def tug_of_war_route(
+    ticker: str,
+    expiries: int = Query(4, ge=1, le=12),
+):
+    """Detect tug-of-war zones — positive/negative GEX conflict near spot."""
+    from server import _sanitize
+    from services.heatseeker import calc_tug_of_war_zones
+    t = ticker.strip().upper()
+    raw = await fetch_spot_and_chains_merged(t, expiries)
+    spot = raw.get("spot", 0)
+    contracts = raw.get("contracts", [])
+    if not spot or not contracts:
+        raise HTTPException(404, f"No options data for {ticker}")
+    result = calc_tug_of_war_zones(contracts, spot)
+    return _sanitize({"ticker": t, **result})

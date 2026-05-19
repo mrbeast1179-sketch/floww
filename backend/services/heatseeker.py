@@ -714,3 +714,334 @@ def calc_trinity_confluence(
         "divergences": divergences,
         "verdict": verdict,
     }
+
+
+# ---------------------------------------------------------------------------
+# Wave 3 — Function 9: Rolling floors/ceilings tracker
+# ---------------------------------------------------------------------------
+
+def _trend_direction(values: List[float]) -> str:
+    """
+    Classify a series as 'rising', 'falling', or 'flat'.
+    Uses simple linear regression slope sign with a dead-zone of ±0.01
+    per step to avoid noise triggering.
+    """
+    if len(values) < 2:
+        return "flat"
+    n = len(values)
+    # Simple slope: (last - first) / (n - 1)
+    slope = (values[-1] - values[0]) / (n - 1)
+    # Dead-zone: if the per-step change is < 0.01 * first value, call it flat
+    deadzone = abs(values[0]) * 0.005 if values[0] != 0 else 0.005
+    if slope > deadzone:
+        return "rising"
+    elif slope < -deadzone:
+        return "falling"
+    return "flat"
+
+
+def calc_rolling_floors_ceilings(
+    spot: float,
+    snapshots: List[Dict[str, Any]],
+    ticker: str,
+    *,
+    lookback_days: int = 20,
+) -> Dict[str, Any]:
+    """
+    Track how gamma flip points (floors/ceilings) move over time.
+
+    Each snapshot: ``{"spot": float, "contracts": [...]}``.
+
+    Floor = largest positive-GEX strike below the snapshot spot.
+    Ceiling = largest (most negative) negative-GEX strike above the snapshot spot.
+
+    Trend detection:
+        rising floor  → bullish (dealers adding long gamma support higher)
+        falling ceiling → bearish (dealers adding short gamma resistance lower)
+
+    Returns
+    -------
+    dict with keys: ``ticker``, ``floor_series``, ``ceiling_series``,
+    ``floor_trend``, ``ceiling_trend``, ``signal``.
+    """
+    if not snapshots or not spot or spot <= 0:
+        return {
+            "ticker": ticker.upper(),
+            "floor_series": [],
+            "ceiling_series": [],
+            "floor_trend": "flat",
+            "ceiling_trend": "flat",
+            "signal": "neutral",
+        }
+
+    # Apply lookback: keep only the last ``lookback_days`` snapshots.
+    # Each snapshot is assumed to be one day's worth of data; the caller
+    # is responsible for supplying daily snapshots.
+    usable = snapshots[-lookback_days:] if len(snapshots) > lookback_days else snapshots
+
+    floor_series: List[float] = []
+    ceiling_series: List[float] = []
+
+    for snap in usable:
+        snap_spot = snap.get("spot", spot)
+        snap_contracts = snap.get("contracts", [])
+        if not snap_spot or snap_spot <= 0:
+            continue
+        gex = _gex_per_strike(snap_spot, snap_contracts)
+        if not gex:
+            continue
+
+        # Floor: largest positive-GEX strike below snap_spot
+        floor_strike: Optional[float] = None
+        floor_gex_val: float = 0.0
+        for strike, signed in gex.items():
+            if strike < snap_spot and signed > 0 and signed > floor_gex_val:
+                floor_strike = strike
+                floor_gex_val = signed
+
+        # Ceiling: most negative-GEX strike above snap_spot
+        ceiling_strike: Optional[float] = None
+        ceiling_gex_val: float = 0.0
+        for strike, signed in gex.items():
+            if strike > snap_spot and signed < 0 and signed < ceiling_gex_val:
+                ceiling_strike = strike
+                ceiling_gex_val = signed
+
+        if floor_strike is not None:
+            floor_series.append(round(floor_strike, 4))
+        if ceiling_strike is not None:
+            ceiling_series.append(round(ceiling_strike, 4))
+
+    floor_trend = _trend_direction(floor_series)
+    ceiling_trend = _trend_direction(ceiling_series)
+
+    # Signal logic
+    if floor_trend == "rising":
+        signal = "bullish"
+    elif ceiling_trend == "falling":
+        signal = "bearish"
+    else:
+        signal = "neutral"
+
+    return {
+        "ticker": ticker.upper(),
+        "floor_series": floor_series,
+        "ceiling_series": ceiling_series,
+        "floor_trend": floor_trend,
+        "ceiling_trend": ceiling_trend,
+        "signal": signal,
+    }
+
+
+# ---------------------------------------------------------------------------
+# Wave 3 — Function 10: Real-vs-hedge node classification
+# ---------------------------------------------------------------------------
+
+def classify_nodes(
+    nodes: List[Dict[str, Any]],
+) -> Dict[str, Any]:
+    """
+    Distinguish between "real" dealer positioning nodes (growing gamma
+    exposure) and "hedge" nodes (fading protection).
+
+    Classification rules:
+        - gamma_sign == "positive" AND oi_trend == "growing"  → "real"
+        - gamma_sign == "negative" AND oi_trend == "fading"   → "hedge"
+        - otherwise                                            → "unknown"
+
+    Each node dict must contain at least ``strike``, ``gamma_sign``,
+    ``oi_trend``. All other fields (``net_gex``, ``taps``, ``state``,
+    ``tap_probability``) are passed through.
+
+    Returns
+    -------
+    dict with keys: ``nodes`` (list with ``classification`` added),
+    ``real_count``, ``hedge_count``.
+    """
+    nodes = nodes or []
+    classified: List[Dict[str, Any]] = []
+    real_count = 0
+    hedge_count = 0
+
+    for node in nodes:
+        gamma_sign = str(node.get("gamma_sign", "")).lower()
+        oi_trend = str(node.get("oi_trend", "")).lower()
+
+        if gamma_sign == "positive" and oi_trend == "growing":
+            classification = "real"
+            real_count += 1
+        elif gamma_sign == "negative" and oi_trend == "fading":
+            classification = "hedge"
+            hedge_count += 1
+        else:
+            classification = "unknown"
+
+        classified.append({**node, "classification": classification})
+
+    return {
+        "nodes": classified,
+        "real_count": real_count,
+        "hedge_count": hedge_count,
+    }
+
+
+# ---------------------------------------------------------------------------
+# Wave 3 — Function 11: Stacked nodes detection
+# ---------------------------------------------------------------------------
+
+def detect_stacked_nodes(
+    contracts: List[Dict[str, Any]],
+    *,
+    threshold_pct: float = 0.3,
+) -> Dict[str, Any]:
+    """
+    Detect strikes where both call and put GEX are significant — a
+    "conflict zone" where dealers are active on both sides.
+
+    A strike is stacked when:
+        call_gex / total_abs_gex >= threshold_pct
+      AND
+        put_gex / total_abs_gex >= threshold_pct
+
+    Returns
+    -------
+    dict with keys: ``stacked_nodes`` (list of ``{strike, call_gex, put_gex,
+    conflict}``), ``count``.
+    """
+    if not contracts:
+        return {"stacked_nodes": [], "count": 0}
+
+    # Aggregate per-strike GEX, split by call/put
+    call_gex: Dict[float, float] = {}
+    put_gex: Dict[float, float] = {}
+    for c in contracts:
+        oi = _oi(c)
+        if oi <= 0:
+            continue
+        gamma = _gamma(c)
+        if gamma <= 0:
+            continue
+        strike = _strike(c)
+        if strike <= 0:
+            continue
+        gex_unit = gamma * oi * 100.0  # spot^2*0.1 factor omitted — same for all
+        if _is_call(c):
+            call_gex[strike] = call_gex.get(strike, 0.0) + gex_unit
+        else:
+            put_gex[strike] = put_gex.get(strike, 0.0) + gex_unit
+
+    # Total absolute GEX across all strikes (using the per-strike net)
+    all_strikes = set(call_gex.keys()) | set(put_gex.keys())
+    if not all_strikes:
+        return {"stacked_nodes": [], "count": 0}
+
+    total_abs = sum(
+        abs(call_gex.get(s, 0.0)) + abs(put_gex.get(s, 0.0))
+        for s in all_strikes
+    )
+    if total_abs <= 0:
+        return {"stacked_nodes": [], "count": 0}
+
+    stacked: List[Dict[str, Any]] = []
+    for strike in sorted(all_strikes):
+        cg = abs(call_gex.get(strike, 0.0))
+        pg = abs(put_gex.get(strike, 0.0))
+        if cg / total_abs >= threshold_pct and pg / total_abs >= threshold_pct:
+            stacked.append({
+                "strike": round(strike, 4),
+                "call_gex": round(call_gex.get(strike, 0.0), 4),
+                "put_gex": round(put_gex.get(strike, 0.0), 4),
+                "conflict": True,
+            })
+
+    return {"stacked_nodes": stacked, "count": len(stacked)}
+
+
+# ---------------------------------------------------------------------------
+# Wave 3 — Function 12: Tug-of-war zones
+# ---------------------------------------------------------------------------
+
+def calc_tug_of_war_zones(
+    contracts: List[Dict[str, Any]],
+    spot: float,
+    *,
+    band_pct: float = 0.01,
+) -> Dict[str, Any]:
+    """
+    Detect zones where positive and negative GEX are in conflict —
+    within ``band_pct`` of spot (default 1%).
+
+    When both signs of GEX exist near spot, price is in a tug-of-war
+    between dealers hedging calls (buying support) and puts (selling
+    resistance).
+
+    Returns
+    -------
+    dict with keys: ``in_tug_of_war`` (bool), ``zone_low``, ``zone_high``,
+    ``positive_strikes``, ``negative_strikes``, ``positive_gex``,
+    ``negative_gex``, ``gex_balance``.
+    """
+    if not contracts or not spot or spot <= 0:
+        return {
+            "in_tug_of_war": False,
+            "zone_low": 0.0,
+            "zone_high": 0.0,
+            "positive_strikes": 0,
+            "negative_strikes": 0,
+            "positive_gex": 0.0,
+            "negative_gex": 0.0,
+            "gex_balance": 0.0,
+        }
+
+    gex = _gex_per_strike(spot, contracts)
+    if not gex:
+        return {
+            "in_tug_of_war": False,
+            "zone_low": 0.0,
+            "zone_high": 0.0,
+            "positive_strikes": 0,
+            "negative_strikes": 0,
+            "positive_gex": 0.0,
+            "negative_gex": 0.0,
+            "gex_balance": 0.0,
+        }
+
+    low = spot * (1.0 - band_pct)
+    high = spot * (1.0 + band_pct)
+
+    pos_strikes: List[float] = []
+    neg_strikes: List[float] = []
+    pos_gex_total: float = 0.0
+    neg_gex_total: float = 0.0
+
+    for strike, signed in gex.items():
+        if low <= strike <= high:
+            if signed > 0:
+                pos_strikes.append(strike)
+                pos_gex_total += signed
+            elif signed < 0:
+                neg_strikes.append(strike)
+                neg_gex_total += signed  # neg_gex_total is negative
+
+    in_tug = len(pos_strikes) > 0 and len(neg_strikes) > 0
+
+    zone_low = min(pos_strikes + neg_strikes) if in_tug else 0.0
+    zone_high = max(pos_strikes + neg_strikes) if in_tug else 0.0
+
+    # balance: +1 = all positive, -1 = all negative, 0 = perfectly balanced
+    total_mag = pos_gex_total + abs(neg_gex_total)
+    if total_mag > 0:
+        gex_balance = (pos_gex_total - abs(neg_gex_total)) / total_mag
+    else:
+        gex_balance = 0.0
+
+    return {
+        "in_tug_of_war": in_tug,
+        "zone_low": round(zone_low, 4),
+        "zone_high": round(zone_high, 4),
+        "positive_strikes": len(pos_strikes),
+        "negative_strikes": len(neg_strikes),
+        "positive_gex": round(pos_gex_total, 4),
+        "negative_gex": round(neg_gex_total, 4),
+        "gex_balance": round(gex_balance, 6),
+    }
