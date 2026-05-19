@@ -119,8 +119,18 @@ if echo "$COMMIT_MSG" | grep -qiE "ci|audit|hook|pre-commit"; then
 fi
 
 # --- Rule 7: If commit claims "MongoDB" or "load", verify pymongo/motor imports ---
+# `set -euo pipefail` makes the grep below fragile: if the `backend/scripts/`
+# glob doesn't match (the directory has never existed), grep exits with status
+# 2 and pipefail propagates that as a pipe failure, turning a legitimate match
+# in `scripts/` into a FAIL. Enumerate paths defensively so a missing dir
+# can't poison the check.
 if echo "$COMMIT_MSG" | grep -qiE "mongo|load.*dataset|backfill"; then
-    if grep -rn "motor\|pymongo\|MongoClient" scripts/*.py backend/scripts/*.py 2>/dev/null | grep -q .; then
+    MONGO_PATHS=()
+    for p in scripts backend/scripts; do
+        [ -d "$p" ] && MONGO_PATHS+=("$p")
+    done
+    if [ ${#MONGO_PATHS[@]} -gt 0 ] && \
+        grep -rn "motor\|pymongo\|MongoClient" "${MONGO_PATHS[@]}" --include="*.py" 2>/dev/null | grep -q .; then
         check "MongoDB commit: motor/pymongo imports found" "pass"
     else
         check "MongoDB commit: motor/pymongo imports NOT found" "fail"
