@@ -64,6 +64,11 @@ class GEXSnapshot:
     net_gex: float
     regime: str  # "POSITIVE" or "NEGATIVE"
     gex_by_strike: Dict[float, float] = field(default_factory=dict)
+    # Per-strike contract volume for the current cycle.
+    # Should be populated by the caller from the chain's `total_volume` field
+    # (calls+puts per strike) so the volume-spike detector can fire on real
+    # liquidity changes rather than GEX magnitude proxies.
+    volume_by_strike: Dict[float, int] = field(default_factory=dict)
     timestamp: str = ""
     
     def __post_init__(self):
@@ -83,7 +88,10 @@ class AlertEngine:
     GEX_MAGNITUDE_SHIFT_PCT = 40.0      # 40% GEX change = significant
     GAMMA_FLIP_PROXIMITY_PCT = 0.3      # Within 0.3% of flip = inflection
     PIN_RISK_PROXIMITY_PCT = 0.2        # Within 0.2% of max gamma strike
-    VOLUME_SPIKE_MULTIPLIER = 2.0       # 2x volume = spike
+    VOLUME_SPIKE_MULTIPLIER = 2.0       # 2x volume = spike (used by GEX-magnitude proxy)
+    REAL_VOLUME_SPIKE_MULTIPLIER = 3.0  # 3x contract volume at a near-ATM strike
+    REAL_VOLUME_SPIKE_FLOOR = 50        # absolute current-volume floor to kill illiquid noise
+    REAL_VOLUME_SPIKE_BAND_PCT = 0.02   # within +/- 2% of spot
     MOMENTUM_EXTREME_HIGH = 80          # Score > 80 = extreme bullish
     MOMENTUM_EXTREME_LOW = 20           # Score < 20 = extreme bearish
     
@@ -261,6 +269,20 @@ class AlertEngine:
         if max_pain_alert:
             alerts.append(max_pain_alert)
 
+        # 12. VOLUME SPIKE (MEDIUM) — real contract-volume spike at near-ATM strike
+        if previous and self._detect_volume_spike(current, previous):
+            alerts.append(Alert(
+                type="VOLUME_SPIKE",
+                priority="MEDIUM",
+                ticker=ticker,
+                message=f"Volume spike at near-ATM strike (>= {self.REAL_VOLUME_SPIKE_MULTIPLIER:.0f}x prev cycle, floor {self.REAL_VOLUME_SPIKE_FLOOR})",
+                data={
+                    "multiplier": self.REAL_VOLUME_SPIKE_MULTIPLIER,
+                    "floor": self.REAL_VOLUME_SPIKE_FLOOR,
+                    "band_pct": self.REAL_VOLUME_SPIKE_BAND_PCT,
+                },
+            ))
+
         # Sort by priority
         priority_order = {"HIGH": 0, "MEDIUM": 1, "LOW": 2}
         alerts.sort(key=lambda a: priority_order.get(a.priority, 9))
@@ -284,7 +306,42 @@ class AlertEngine:
             prev_gex = abs(previous.gex_by_strike.get(strike, 0))
             if prev_gex > 0 and cur_gex / prev_gex > self.VOLUME_SPIKE_MULTIPLIER:
                 return True
-        
+
+        return False
+
+    def _detect_volume_spike(self, current: GEXSnapshot, previous: GEXSnapshot) -> bool:
+        """Real contract-volume spike at a near-ATM strike.
+
+        Distinct from _detect_gex_magnitude_spike (which inspects GEX magnitude
+        and was misnamed `_detect_volume_spike` in the original code). This
+        method reads `volume_by_strike` — actual options contract volume — and
+        fires when ANY strike within +/- REAL_VOLUME_SPIKE_BAND_PCT of spot has:
+
+            current_volume >= REAL_VOLUME_SPIKE_MULTIPLIER * previous_volume
+            AND
+            current_volume >= REAL_VOLUME_SPIKE_FLOOR
+
+        The absolute floor is required to avoid spurious 5x-on-tiny-base signals
+        at illiquid strikes.
+        """
+        if not current.volume_by_strike or not previous.volume_by_strike:
+            return False
+
+        spot = current.spot_price
+        if spot <= 0:
+            return False
+
+        for strike, cur_vol in current.volume_by_strike.items():
+            if abs(strike - spot) / spot > self.REAL_VOLUME_SPIKE_BAND_PCT:
+                continue
+            if cur_vol < self.REAL_VOLUME_SPIKE_FLOOR:
+                continue
+            prev_vol = previous.volume_by_strike.get(strike, 0)
+            if prev_vol <= 0:
+                continue
+            if cur_vol >= self.REAL_VOLUME_SPIKE_MULTIPLIER * prev_vol:
+                return True
+
         return False
 
     # -------- New Alert Types (from Claude Code review) --------
