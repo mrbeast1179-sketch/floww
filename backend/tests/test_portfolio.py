@@ -1,22 +1,14 @@
 """Tests for portfolio, Schwab, live policy, and position sizing endpoints."""
-import os
 import pytest
-import requests
+from fastapi.testclient import TestClient
+from server import app
 
-BASE_URL = os.environ.get("BACKEND_URL", "http://localhost:8000").rstrip("/")
-API = f"{BASE_URL}/api"
-
-
-@pytest.fixture(scope="module")
-def session():
-    s = requests.Session()
-    s.headers.update({"Content-Type": "application/json"})
-    return s
+client = TestClient(app)
 
 
 # ============ Portfolio Tests ============
 
-def test_portfolio_add_position(session):
+def test_portfolio_add_position():
     """Add a position to a portfolio."""
     pos = {
         "symbol": "SPY",
@@ -28,16 +20,16 @@ def test_portfolio_add_position(session):
         "entry_iv": 0.15,
         "underlying_price": 530.0,
     }
-    r = session.post(f"{API}/portfolio/test/position", json=pos, timeout=30)
+    r = client.post("/api/portfolio/test/position", json=pos)
     assert r.status_code == 200, r.text
     d = r.json()
     assert d["status"] == "added"
     assert d["positions"] >= 1
 
 
-def test_portfolio_get(session):
+def test_portfolio_get():
     """Get portfolio summary."""
-    r = session.get(f"{API}/portfolio/test?spot=530&iv=0.15", timeout=30)
+    r = client.get("/api/portfolio/test?spot=530&iv=0.15")
     assert r.status_code == 200, r.text
     d = r.json()
     assert d["name"] == "test"
@@ -49,9 +41,9 @@ def test_portfolio_get(session):
         assert k in g, f"missing greek {k}"
 
 
-def test_portfolio_scenario(session):
+def test_portfolio_scenario():
     """Run scenario analysis."""
-    r = session.get(f"{API}/portfolio/test/scenario?spot=530&iv=0.15", timeout=30)
+    r = client.get("/api/portfolio/test/scenario?spot=530&iv=0.15")
     assert r.status_code == 200, r.text
     d = r.json()
     assert "scenarios" in d
@@ -63,15 +55,15 @@ def test_portfolio_scenario(session):
     assert len(vol_scenarios) > 0
 
 
-def test_portfolio_hedge(session):
+def test_portfolio_hedge():
     """Calculate Greek-neutral hedge."""
     hedge_opts = [
         {"strike": 500, "expiry": "2026-06-15", "type": "call", "iv": 0.15},
         {"strike": 495, "expiry": "2026-06-15", "type": "put", "iv": 0.15},
     ]
-    r = session.post(f"{API}/portfolio/test/hedge", json={
+    r = client.post("/api/portfolio/test/hedge", json={
         "spot": 530, "iv": 0.15, "hedge_options": hedge_opts,
-    }, timeout=30)
+    })
     assert r.status_code == 200, r.text
     d = r.json()
     if "error" not in d:
@@ -80,27 +72,26 @@ def test_portfolio_hedge(session):
         assert "resulting_greeks" in d
 
 
-def test_portfolio_remove_position(session):
+def test_portfolio_remove_position():
     """Remove a position."""
-    r = session.delete(f"{API}/portfolio/test/position/0", timeout=30)
+    r = client.delete("/api/portfolio/test/position/0")
     assert r.status_code == 200, r.text
     d = r.json()
     assert d["status"] == "removed"
 
 
-def test_portfolio_not_found(session):
+def test_portfolio_not_found():
     """404 for nonexistent portfolio."""
-    r = session.get(f"{API}/portfolio/nonexistent_xyz?spot=530&iv=0.15", timeout=30)
+    r = client.get("/api/portfolio/nonexistent_xyz?spot=530&iv=0.15")
     assert r.status_code == 404
 
 
 # ============ Position Sizing Tests ============
 
-def test_position_size(session):
+def test_position_size():
     """Calculate position size."""
-    r = session.post(
-        f"{API}/position-size?account_size=100000&risk_per_trade_pct=0.02&spot=530&gex_level=1000000",
-        timeout=30,
+    r = client.post(
+        "/api/position-size?account_size=100000&risk_per_trade_pct=0.02&spot=530&gex_level=1000000",
     )
     assert r.status_code == 200, r.text
     d = r.json()
@@ -111,22 +102,22 @@ def test_position_size(session):
 
 # ============ Live Policy Tests ============
 
-def test_live_policy_get(session):
+def test_live_policy_get():
     """Get current live policy."""
-    r = session.get(f"{API}/live/policy", timeout=15)
+    r = client.get("/api/live/policy")
     assert r.status_code == 200, r.text
     d = r.json()
     assert "paid_tickers" in d
     assert "live_window_et" in d
 
 
-def test_live_policy_update(session):
+def test_live_policy_update():
     """Update live policy."""
-    r = session.post(f"{API}/live/policy", json={
+    r = client.post("/api/live/policy", json={
         "paid_tickers": ["SPY"],
         "window_start": "09:00",
         "window_stop": "10:30",
-    }, timeout=15)
+    })
     assert r.status_code == 200, r.text
     d = r.json()
     assert "SPY" in d["paid_tickers"]
@@ -134,20 +125,20 @@ def test_live_policy_update(session):
 
 # ============ Schwab Tests (scaffold - will fail without credentials) ============
 
-def test_schwab_auth_url_no_credentials(session):
+def test_schwab_auth_url_no_credentials():
     """Schwab auth URL should return error without credentials."""
-    r = session.get(f"{API}/schwab/auth-url", timeout=15)
+    r = client.get("/api/schwab/auth-url")
     # Without credentials, returns 500 or 200 with error
     assert r.status_code in (200, 500)
 
 
 # ============ History Tests ============
 
-def test_history_endpoint(session):
+def test_history_endpoint():
     """Get snapshot history."""
     # First trigger a snapshot by hitting heatmap
-    session.get(f"{API}/heatmap/SPY?expiries=2", timeout=120)
-    r = session.get(f"{API}/history/SPY?limit=5", timeout=30)
+    client.get("/api/heatmap/SPY?expiries=2")
+    r = client.get("/api/history/SPY?limit=5")
     assert r.status_code == 200, r.text
     d = r.json()
     assert "snapshots" in d
@@ -156,9 +147,9 @@ def test_history_endpoint(session):
 
 # ============ Patterns Glossary Tests ============
 
-def test_patterns_glossary(session):
+def test_patterns_glossary():
     """Get patterns glossary."""
-    r = session.get(f"{API}/patterns/glossary", timeout=15)
+    r = client.get("/api/patterns/glossary")
     assert r.status_code == 200, r.text
     d = r.json()
     assert "King Node" in d or "king" in str(d).lower()
