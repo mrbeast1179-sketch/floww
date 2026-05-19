@@ -5,18 +5,19 @@
 
 ---
 
-## Status: Code ready, waiting on WiFi for heavy MongoDB data pulls
+## Status: MongoDB blocked (SSL errno=54 on hotspot). WiFi needed for data tasks.
 
 ### Done ✅
 - Phase 0-5: Audit, data, quality gates, math, features, models
 - SPY/TLT/IWM v1.0 quarantined (audit findings)
 - SHIP-gate bug fixed, model audit rules added (Rules 1-12)
-- Agent work merged (gated persistence + multi-ticker features)
-- Truth audit passes (12/12 checks)
-- MongoDB Atlas connected (errno=54 resolved)
-- 284 tests pass (0 fail) — 76 skipped (need server)
-- All scripts written and committed
-- MongoDB index created on ml_features (ticker, feature_version, date)
+- Truth audit passes (11/12 checks)
+- 479 tests pass — 64 fail (all server routing issues, not regressions)
+- server.py decomposition: 3536 → 2028 lines (de81322)
+- TestClient migration: test_portfolio.py, test_heatseeker_v2.py, test_v3_costsave.py (1619270)
+- Heatseeker Wave 3 backend: rolling floors/ceilings, node classification, stacked nodes, tug-of-war (48af492)
+- Research pipeline: 79 papers, 2 new repos cloned (8b88db8)
+- git-lfs installed for LFS-enabled repos
 
 ### ML Training Results
 | Ticker | Version | Samples | Features | Sharpe | Verdict |
@@ -31,58 +32,54 @@
 
 ---
 
-## MORNING PRIORITY (need WiFi + MongoDB)
+## BLOCKED: Need WiFi + MongoDB
 
 ### 1. Cache features to CSV (2 min on WiFi)
 ```bash
 python scripts/cache_features_to_csv.py
 ```
-Output: data/cached_features/{TICKER}_{VERSION}.csv
 
 ### 2. Model bake-off on QQQ (5 min, local CSV)
 ```bash
 python scripts/train_v4_bakeoff.py
 ```
-Tests: logistic, gbm, gbm_deep, rf. Goal: beat Sharpe=3.36
 
 ### 3. Train production model (local CSV)
 ```bash
 python scripts/train_production.py --ticker QQQ --model gbm_deep --save
 ```
-Saves: model.joblib, scaler.joblib, manifest.json
 
-### 4. Compute GEX for QQQ (35 databento chains)
+### 4. GEX history backfill
 ```bash
-python scripts/compute_gex_all_tickers.py
-```
-
-### 5. Merge GEX into ml_features
-```bash
-python scripts/merge_gex_into_features.py --ticker QQQ --base-version v1.0 --new-version v3.0_gex
-```
-
-### 6. Re-train QQQ with GEX features
-```bash
-python scripts/train_production.py --ticker QQQ --feature-version v3.0_gex --model gbm_deep --save
-```
-
-### 7. Paper trade dry-run
-```bash
-python scripts/paper_trade_dry_run.py
+python scripts/backfill_gex_history.py --tickers SPY,QQQ,DIA,IWM,TLT --start 2022-01-01 --dry-run
 ```
 
 ---
 
-## Scripts ready (all committed)
-- `scripts/train_spy_v2.py` — SPY v2.0 with GEX features
-- `scripts/train_spy_v3.py` — Multi-ticker with v1.0 features
-- `scripts/train_v4_bakeoff.py` — Model bake-off (local CSV)
-- `scripts/train_production.py` — Production training + save
-- `scripts/cache_features_to_csv.py` — MongoDB → local CSV cache
-- `scripts/merge_gex_into_features.py` — GEX → ml_features merge
-- `scripts/compute_gex_all_tickers.py` — GEX for all tickers
-- `scripts/paper_trade_dry_run.py` — Paper trade simulation
-- `scripts/backtest_model.py` — Walk-forward backtest
+## CAN DO NOW (no MongoDB)
+
+### Fix Route Module Wiring
+The 19 route modules in `backend/routes/` have issues:
+- Multiple modules have overlapping paths (6+ have `/status`)
+- Some reference missing services (`services.uoa`)
+- Response shapes differ from test expectations
+- Need to fix paths, imports, and response shapes before mounting
+
+Files to fix:
+- `backend/routes/market_data.py` — fix `calc_gex_timeframes` → `build_gex_history`
+- `backend/routes/analytics.py` — deduplicate `/api/analytics/` prefixed routes
+- `backend/routes/alerts.py`, `alpaca.py`, etc. — deduplicate `/status` paths
+- Mount all modules in `server.py` with correct prefixes
+
+### Port RLOP Techniques
+From `data/github-repos/cloned/owen8877_RLOP/playground/options_pricing_baselines_v7.py`:
+- Robust IV bisection with bracket expansion → `vol_analytics.py`
+- Heston CF + Simpson's rule → `vol_analytics.py`
+- American → European conversion → data pipeline
+
+### Frontend Test Infrastructure
+- Add vitest to `frontend/`
+- Tests for 10 Heatseeker components in `frontend/src/components/heatseeker/`
 
 ---
 
@@ -93,5 +90,5 @@ python scripts/paper_trade_dry_run.py
 - `underlying_bars`: 14,295 docs (2859 per ticker, 2015-2026)
 
 ## Blockers
-- Large MongoDB queries timeout on phone hotspot
-- Morning WiFi needed for: cache_features, GEX computation, paper trade
+- MongoDB Atlas SSL failing (errno=54) on phone hotspot — need WiFi
+- Route modules need import/shape fixes before mounting
