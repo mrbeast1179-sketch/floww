@@ -3513,6 +3513,9 @@ async def api_memory_summary(ticker: str):
 
 app.include_router(api)
 
+from routes.heatseeker import router as heatseeker_router  # noqa: E402
+app.include_router(heatseeker_router)
+
 
 @app.on_event("startup")
 async def on_start():
