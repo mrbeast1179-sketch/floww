@@ -390,18 +390,49 @@ async def node_classification_route(
     ticker: str,
     expiries: int = Query(4, ge=1, le=12),
 ):
-    """Classify nodes as real (growing) vs hedge (fading)."""
+    """
+    Classify nodes as real (growing intent) vs hedge (fading protection).
+
+    Builds the top-|GEX| nodes from the current chain, attaches a
+    ``gamma_sign`` (positive/negative based on signed net GEX) and an
+    ``oi_trend`` (growing/fading based on 24h OI history when available),
+    then runs ``classify_nodes`` to assign real/hedge/unknown labels.
+    """
     from server import _sanitize
-    from services.heatseeker import classify_nodes
-    from server import fetch_spot_and_chains_merged
+    from services.heatseeker import _gex_per_strike, calc_node_lifecycle, classify_nodes
     t = ticker.strip().upper()
-    raw = await fetch_spot_and_chains_merged(t, expiries)
+    raw = await _fetch_chain(t, expiries)
     spot = raw.get("spot", 0)
     contracts = raw.get("contracts", [])
     if not spot or not contracts:
         raise HTTPException(404, f"No options data for {ticker}")
-    result = classify_nodes(spot, contracts)
-    return _sanitize({"ticker": t, **result})
+
+    history = await _fetch_history(t)
+
+    # Lifecycle nodes give us strike/net_gex/taps/state/tap_probability for the
+    # top-10 |GEX| strikes — the same set used by the lifecycle panel.
+    lifecycle = calc_node_lifecycle(spot, contracts, history)
+    raw_nodes = lifecycle.get("nodes", [])
+
+    # Attach gamma_sign + oi_trend so classify_nodes can apply its rules.
+    # gamma_sign comes straight from the signed net_gex. oi_trend is
+    # "growing" for fresh/tested nodes (no/few taps → intent forming) and
+    # "fading" for delivered/decaying nodes (protection has expired).
+    annotated = []
+    for n in raw_nodes:
+        net = float(n.get("net_gex") or 0.0)
+        state = str(n.get("state") or "").lower()
+        gamma_sign = "positive" if net > 0 else "negative" if net < 0 else "neutral"
+        if state in ("fresh", "tested"):
+            oi_trend = "growing"
+        elif state in ("delivered", "decaying"):
+            oi_trend = "fading"
+        else:
+            oi_trend = "unknown"
+        annotated.append({**n, "gamma_sign": gamma_sign, "oi_trend": oi_trend})
+
+    result = classify_nodes(annotated)
+    return _sanitize({"ticker": t, "spot": spot, **result})
 
 
 @router.get("/stacked-nodes")

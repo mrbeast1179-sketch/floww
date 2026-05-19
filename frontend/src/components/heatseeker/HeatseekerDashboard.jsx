@@ -7,14 +7,20 @@ import ReverseRugIndicator from "./ReverseRugIndicator";
 import RainbowRoadIndicator from "./RainbowRoadIndicator";
 import VelocityModeBadge from "./VelocityModeBadge";
 import TrinityConfluenceMeter from "./TrinityConfluenceMeter";
+import RollingFloorsCeilingsPanel from "./RollingFloorsCeilingsPanel";
+import NodeClassificationPanel from "./NodeClassificationPanel";
+import StackedNodesPanel from "./StackedNodesPanel";
+import TugOfWarZonesPanel from "./TugOfWarZonesPanel";
 
 /**
- * Composes all 8 Skylit Heatseeker (Wave 1 + Wave 2) panels.
+ * Composes all 12 Skylit Heatseeker panels.
  *
  * Layout:
  *   Row 1 — 3 pattern indicator cards (Beach Ball / Reverse Rug / Rainbow Road)
- *   Row 2 — 3 detail panels stacked vertically (Flip Zones, Node Lifecycle, Air Pockets)
+ *   Row 2 — 3 detail panels (Flip Zones, Node Lifecycle, Air Pockets)
  *   Row 3 — Velocity + Trinity Confluence (no ticker arg)
+ *   Row 4 — Wave 3: Rolling Floors/Ceilings + Tug-of-War
+ *   Row 5 — Wave 3: Node Classification (wide) + Stacked Nodes
  */
 export default function HeatseekerDashboard({ ticker = "SPY", spot = null }) {
   return (
@@ -25,7 +31,7 @@ export default function HeatseekerDashboard({ ticker = "SPY", spot = null }) {
           <div className="text-sm font-bold tracking-wider">
             {String(ticker).replace("^", "")}
             <span className="ml-2 text-[10px] uppercase tracking-widest text-slate-500">
-              Wave 1 + 2
+              Wave 1 + 2 + 3
             </span>
           </div>
         </div>
@@ -49,6 +55,20 @@ export default function HeatseekerDashboard({ ticker = "SPY", spot = null }) {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
         <VelocityModeBadge ticker={ticker} />
         <TrinityConfluenceMeter />
+      </div>
+
+      {/* Row 4 — Wave 3 trend formation + GEX conflict */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+        <RollingFloorsCeilingsPanel ticker={ticker} />
+        <TugOfWarZonesPanel ticker={ticker} spot={spot} />
+      </div>
+
+      {/* Row 5 — Wave 3 node-level intent */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
+        <div className="lg:col-span-2">
+          <NodeClassificationPanel ticker={ticker} />
+        </div>
+        <StackedNodesPanel ticker={ticker} />
       </div>
     </div>
   );
