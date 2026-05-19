@@ -1,0 +1,40 @@
+{
+  "ticker": "QQQ",
+  "version": "v1.0",
+  "n_samples": 2799,
+  "n_features": 32,
+  "splits": 8,
+  "baselines": {
+    "majority": {
+      "sharpe": 2.359078000566475,
+      "accuracy": 0.56125
+    },
+    "persistence": {
+      "sharpe": 2.024243283577688,
+      "accuracy": 0.52375
+    }
+  },
+  "models": {
+    "logistic": {
+      "sharpe": 1.0418467975650594,
+      "accuracy": 0.47,
+      "n_predictions": 800
+    },
+    "gbm": {
+      "sharpe": 2.1716651743235516,
+      "accuracy": 0.5125,
+      "n_predictions": 800
+    },
+    "gbm_deep": {
+      "sharpe": 1.958218773440377,
+      "accuracy": 0.5025,
+      "n_predictions": 800
+    },
+    "rf": {
+      "sharpe": 1.634387060343791,
+      "accuracy": 0.5025,
+      "n_predictions": 800
+    }
+  },
+  "timestamp": "2026-05-19T05:33:11.151633+00:00"
+}
