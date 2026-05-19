@@ -1,0 +1,80 @@
+# backend/alerts/definitions/gex_alerts.yaml
+# GEX-based trading alerts
+
+- id: gex_extreme_negative
+  name: Extreme Negative GEX
+  description: Net GEX is deeply negative — market vulnerable to gamma squeeze
+  predicate: "net_gex < -50000000000"
+  priority: high
+  cooldown_minutes: 120
+  actions: ["log", "notify"]
+
+- id: gextreme_positive
+  name: Extreme Positive GEX
+  description: Net GEX is strongly positive — dealers are short gamma
+  predicate: "net_gex > 50000000000"
+  priority: high
+  cooldown_minutes: 120
+  actions: ["log", "notify"]
+
+- id: gex_flip_approach
+  name: Approaching GEX Flip
+  description: Spot price is near the gamma flip point
+  predicate: "dist_to_flip < 0.02"
+  priority: medium
+  cooldown_minutes: 60
+  actions: ["log"]
+
+- id: gex_zscore_extreme
+  name: Extreme GEX Z-Score
+  description: GEX is more than 2 standard deviations from 60-day mean
+  predicate: "net_gex_zscore_60d > 2.0"
+  priority: medium
+  cooldown_minutes: 90
+  actions: ["log", "notify"]
+
+- id: ml_bullish_signal
+  name: ML Bullish Signal
+  description: ML model predicts upward direction with high confidence
+  predicate: "ml.dir_1h_proba > 0.65"
+  priority: high
+  cooldown_minutes: 30
+  ml_enriched: true
+  ml_model: direction
+  ml_threshold: 0.65
+  actions: ["log", "notify"]
+
+- id: ml_bearish_signal
+  name: ML Bearish Signal
+  description: ML model predicts downward direction with high confidence
+  predicate: "ml.dir_1h_proba < 0.35"
+  priority: high
+  cooldown_minutes: 30
+  ml_enriched: true
+  ml_model: direction
+  ml_threshold: 0.35
+  actions: ["log", "notify"]
+
+- id: rsi_overbought
+  name: RSI Overbought
+  description: RSI above 70 — potential reversal signal
+  predicate: "rsi_14 > 70"
+  priority: low
+  cooldown_minutes: 240
+  actions: ["log"]
+
+- id: rsi_oversold
+  name: RSI Oversold
+  description: RSI below 30 — potential reversal signal
+  predicate: "rsi_14 < 30"
+  priority: low
+  cooldown_minutes: 240
+  actions: ["log"]
+
+- id: vol_expansion
+  name: Volatility Expansion
+  description: 5-day realized vol is 2x the 20-day vol
+  predicate: "realized_vol_5d > realized_vol_20d * 2.0"
+  priority: medium
+  cooldown_minutes: 120
+  actions: ["log", "notify"]
