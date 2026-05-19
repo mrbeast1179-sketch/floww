@@ -1,0 +1,36 @@
+{
+  "ticker": "QQQ",
+  "version": "v3.0",
+  "feature_version": "v1.0",
+  "target": "target_directional_move",
+  "timestamp": "2026-05-19T00:37:38.434228+00:00",
+  "data": {
+    "n_samples": 2799,
+    "n_features": 32,
+    "positive_rate": 0.5619864237227581
+  },
+  "splits": 8,
+  "baselines": {
+    "majority": {
+      "accuracy": 0.56125,
+      "sharpe": 2.525948175122374
+    },
+    "persistence": {
+      "accuracy": 0.52375,
+      "sharpe": 2.573070057544193
+    },
+    "logistic": {
+      "accuracy": 0.47,
+      "sharpe": 1.4784425738966955
+    }
+  },
+  "metrics": {
+    "accuracy": 0.5125,
+    "precision": 0.6143559156617192,
+    "recall": 0.4497294201201417,
+    "f1": 0.47564628503571055
+  },
+  "sharpe": 3.3587214828806613,
+  "beats_baselines": true,
+  "verdict": "SHIP (dry-run)"
+}

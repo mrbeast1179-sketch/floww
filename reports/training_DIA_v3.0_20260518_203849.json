@@ -1,0 +1,36 @@
+{
+  "ticker": "DIA",
+  "version": "v3.0",
+  "feature_version": "v1.0",
+  "target": "target_directional_move",
+  "timestamp": "2026-05-19T00:38:49.544809+00:00",
+  "data": {
+    "n_samples": 2799,
+    "n_features": 32,
+    "positive_rate": 0.5466237942122186
+  },
+  "splits": 8,
+  "baselines": {
+    "majority": {
+      "accuracy": 0.55125,
+      "sharpe": 1.6357525414206162
+    },
+    "persistence": {
+      "accuracy": 0.53125,
+      "sharpe": 2.113932526623573
+    },
+    "logistic": {
+      "accuracy": 0.51375,
+      "sharpe": 1.7446315422882344
+    }
+  },
+  "metrics": {
+    "accuracy": 0.4975,
+    "precision": 0.5715566994949883,
+    "recall": 0.42560198122229687,
+    "f1": 0.4685150871618713
+  },
+  "sharpe": 1.8951429086747729,
+  "beats_baselines": false,
+  "verdict": "REJECT"
+}
