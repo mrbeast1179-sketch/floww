@@ -53,7 +53,7 @@ MONGO_URL = os.environ["MONGO_URL"]
 DB_NAME = os.environ["DB_NAME"]
 POLYGON_API_KEY = os.environ.get("POLYGON_API_KEY", "")
 
-client = AsyncIOMotorClient(MONGO_URL)
+client = AsyncIOMotorClient(MONGO_URL, serverSelectionTimeoutMS=5000, connectTimeoutMS=5000)
 db = client[DB_NAME]
 
 LOG_DIR = ROOT_DIR / "logs"
@@ -2014,10 +2014,15 @@ class GexMemoryRequest(BaseModel):
 
 @app.on_event("startup")
 async def on_start():
-    await db.snapshots.create_index([("ticker", 1), ("ts", -1)])
-    cache = init_cache(db)
-    await cache.ensure_index()
-    await _load_policy_from_mongo()
+    try:
+        await db.snapshots.create_index([("ticker", 1), ("ts", -1)])
+        cache = init_cache(db)
+        await cache.ensure_index()
+        await _load_policy_from_mongo()
+        log.info("MongoDB connected and indexes created")
+    except Exception as e:
+        log.warning(f"MongoDB unavailable during startup ({type(e).__name__}): {e}")
+        log.warning("Server running in degraded mode — DB-dependent endpoints will fail")
     global _scheduler_started
     if not _scheduler_started:
         _scheduler_started = True

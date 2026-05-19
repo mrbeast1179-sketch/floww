@@ -1,0 +1,11 @@
+[
+  {
+    "owner": "asridi",
+    "repo": "DML-Calibration-Heston-Model",
+    "code_url": "https://github.com/asridi/DML-Calibration-Heston-Model",
+    "paper_id": "arxiv:2309.07843",
+    "paper_title": "Applying Deep Learning to Calibrate Stochastic Volatility Models",
+    "cloned_at": "2026-05-19T17:27:07.772769+00:00",
+    "local_path": "data/github-repos/cloned/asridi_DML-Calibration-Heston-Model"
+  }
+]
