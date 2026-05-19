@@ -532,9 +532,10 @@ class TestTrinityConfluence:
         result = calc_trinity_confluence(spx, spy, qqq)
         assert result["score"] == 0
         assert result["verdict"] == "divergence"
-        assert set(result["divergences"]) == {"gex_regime", "trend"}
-        # Sides of flip: SPX above, SPY below, QQQ above → mixed → divergence.
-        assert "side_of_flip" in result["divergences"]
+        # All three dimensions diverge: regimes differ, sides differ
+        # (SPX above / SPY below / QQQ above → mixed), trends differ.
+        assert set(result["divergences"]) == {"gex_regime", "side_of_flip", "trend"}
+        assert result["aligned_dimensions"] == []
 
     def test_partial_alignment_two_of_three(self):
         """
