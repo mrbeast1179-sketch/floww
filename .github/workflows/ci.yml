@@ -107,11 +107,22 @@ jobs:
 
       - name: Install dependencies
         working-directory: ./frontend
-        run: npm ci
+        # react-day-picker@8 peers date-fns ^2||^3 but our pin is 4.x — npm 7+
+        # rejects this even though the lockfile already resolves it. Mirror the
+        # local install flow so CI matches dev.
+        run: npm ci --legacy-peer-deps
 
       - name: Lint
         working-directory: ./frontend
         run: npm run lint 2>&1 || true
+
+      - name: Tests
+        working-directory: ./frontend
+        env:
+          CI: true
+        # CRA's `react-scripts test` runs jest in watch mode by default; --watchAll=false
+        # forces single-run mode for CI.
+        run: npm test -- --watchAll=false
 
       - name: Build
         working-directory: ./frontend
