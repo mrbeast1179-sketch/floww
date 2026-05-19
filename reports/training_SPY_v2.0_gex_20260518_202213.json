@@ -1,0 +1,21 @@
+{
+  "ticker": "SPY",
+  "version": "v2.0_gex",
+  "timestamp": "2026-05-19T00:22:13.273929+00:00",
+  "data": {
+    "n_samples": 208,
+    "n_features": 22,
+    "positive_rate": 0.6009615384615384
+  },
+  "splits": 8,
+  "baselines": {},
+  "metrics": {
+    "accuracy": 0.45625000000000004,
+    "precision": 0.5104030225450504,
+    "recall": 0.5221597846597847,
+    "f1": 0.4829722097825546
+  },
+  "sharpe": 2.348381039253007,
+  "beats_baselines": true,
+  "verdict": "SHIP (dry-run)"
+}

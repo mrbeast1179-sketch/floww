@@ -1,0 +1,34 @@
+{
+  "ticker": "SPY",
+  "version": "v2.0_gex",
+  "timestamp": "2026-05-19T00:24:04.197947+00:00",
+  "data": {
+    "n_samples": 208,
+    "n_features": 22,
+    "positive_rate": 0.6009615384615384
+  },
+  "splits": 8,
+  "baselines": {
+    "majority": {
+      "accuracy": 0.61875,
+      "sharpe": 3.8812476276798016
+    },
+    "persistence": {
+      "accuracy": 0.58125,
+      "sharpe": 3.7271265852976687
+    },
+    "logistic": {
+      "accuracy": 0.3875,
+      "sharpe": 0.25200806186669444
+    }
+  },
+  "metrics": {
+    "accuracy": 0.45625000000000004,
+    "precision": 0.5104030225450504,
+    "recall": 0.5221597846597847,
+    "f1": 0.4829722097825546
+  },
+  "sharpe": 2.348381039253007,
+  "beats_baselines": false,
+  "verdict": "REJECT"
+}

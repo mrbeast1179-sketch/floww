@@ -34,7 +34,7 @@ from dotenv import load_dotenv
 from sklearn.preprocessing import StandardScaler
 from sklearn.ensemble import GradientBoostingClassifier
 
-load_dotenv(Path(__file__).resolve().resolve().parent / "backend" / ".env")
+load_dotenv(Path(__file__).resolve().parent.parent / "backend" / ".env")
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "backend"))
 
@@ -115,11 +115,18 @@ def build_feature_matrix(gex_df: pd.DataFrame, bars_df: pd.DataFrame) -> Tuple[n
     merged["target"] = (merged["close"].shift(-1) > merged["close"]).astype(int)
 
     # Drop rows with NaN
+    # First, fill/drop sparse columns that are mostly NaN
+    sparse_cols = [c for c in merged.columns if merged[c].isna().sum() > len(merged) * 0.5]
+    if sparse_cols:
+        log.info(f"Dropping sparse columns (>50% NaN): {sparse_cols}")
+        merged = merged.drop(columns=sparse_cols)
+    
     merged = merged.dropna().reset_index(drop=True)
 
-    # Feature columns
-    exclude = {"_id", "date", "ticker", "source", "computed_at", "target",
-               "open", "high", "low", "close", "adj_close", "volume"}
+    # Feature columns - exclude metadata and raw price columns
+    exclude = {'_id', '_id_x', '_id_y', 'date', 'ticker', 'ticker_x', 'ticker_y',
+               'source', 'source_x', 'source_y', 'computed_at', '_ingested_at',
+               'target', 'open', 'high', 'low', 'close', 'adj_close', 'volume'}
     feature_cols = [c for c in merged.columns if c not in exclude]
 
     X = merged[feature_cols].values.astype(float)
@@ -325,15 +332,50 @@ def run_training(ticker: str = "SPY", version: str = "v2.0_gex",
     result["sharpe"] = sharpe
     log.info(f"Model: acc={result['metrics']['accuracy']:.3f}, f1={result['metrics']['f1']:.3f}, sharpe={sharpe:.3f}")
 
-    # Baseline metrics
+    # Baseline metrics — compare on the same test folds
+    # Recompute baselines aligned with the actual test indices used
     baseline_metrics = {}
-    for name, preds in baselines.items():
-        if len(preds) == len(y):
-            preds_arr = np.array(preds[:len(y)])
-            acc = np.mean(preds_arr == y[:len(preds_arr)])
-            bp = compute_trading_sharpe(preds[:len(y)], y[:len(preds)].tolist())
-            baseline_metrics[name] = {"accuracy": acc, "sharpe": bp}
-            log.info(f"  baseline {name}: acc={acc:.3f}, sharpe={bp:.3f}")
+    test_idx_all = []
+    for fold_i, (train_idx, test_idx) in enumerate(splits):
+        test_idx_all.extend(test_idx.tolist())
+    
+    y_test_all = y[test_idx_all] if len(test_idx_all) <= len(y) else None
+    
+    if y_test_all is not None:
+        for name in ["majority", "persistence", "logistic"]:
+            # Recompute baseline predictions for each fold
+            fold_preds = []
+            for train_idx, test_idx in splits:
+                y_train = y[train_idx]
+                if name == "majority":
+                    majority_class = int(np.bincount(y_train).argmax())
+                    fold_preds.extend([majority_class] * len(test_idx))
+                elif name == "persistence":
+                    last_val = y_train[-1] if len(y_train) > 0 else 0
+                    fold_preds.extend([last_val] * len(test_idx))
+                elif name == "logistic":
+                    from sklearn.linear_model import LogisticRegression
+                    X_train, X_test = X[train_idx], X[test_idx]
+                    feature_stds = np.std(X_train, axis=0)
+                    valid_features = feature_stds > 1e-8
+                    if valid_features.sum() < 2:
+                        fold_preds.extend([0] * len(test_idx))
+                        continue
+                    scaler = StandardScaler()
+                    X_train_s = np.nan_to_num(scaler.fit_transform(X_train[:, valid_features]), nan=0.0)
+                    X_test_s = np.nan_to_num(scaler.transform(X_test[:, valid_features]), nan=0.0)
+                    try:
+                        lr = LogisticRegression(max_iter=1000, C=1.0, random_state=42)
+                        lr.fit(X_train_s, y_train)
+                        fold_preds.extend(lr.predict(X_test_s).tolist())
+                    except Exception:
+                        fold_preds.extend([0] * len(test_idx))
+            
+            if len(fold_preds) == len(y_test_all):
+                bp = compute_trading_sharpe(fold_preds, y_test_all.tolist())
+                acc = np.mean(np.array(fold_preds) == y_test_all)
+                baseline_metrics[name] = {"accuracy": acc, "sharpe": bp}
+                log.info(f"  baseline {name}: acc={acc:.3f}, sharpe={bp:.3f}")
 
     result["baselines"] = baseline_metrics
 
