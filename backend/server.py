@@ -1892,7 +1892,7 @@ def _get_position_sizing_note(gf: Dict, spot: float) -> str:
         return "Negative gamma — reduce position size vs normal. Max 1% account risk per trade."
     return "Unknown regime — use minimal position size until regime clarifies."
 
-@api.get("/api/movers")
+@api.get("/movers")
 async def movers(limit: int = 10):
     rows = await top_movers_polygon(limit=limit)
     return {"results": rows, "asof": datetime.now(timezone.utc).isoformat()}
