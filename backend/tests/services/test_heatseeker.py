@@ -573,3 +573,22 @@ class TestTrinityConfluence:
         # trend: SPY has None trend → undefined → 0
         assert result["score"] == 0
         assert result["verdict"] == "divergence"
+
+    def test_all_three_missing_trends_score_zero(self):
+        """Regression: three 'missing' trend strings should NOT count as aligned.
+
+        Bug surfaced 2026-05-18: prior version filtered "missing" only for
+        gex_regime; trend dimension accepted the literal string as a valid
+        aligned value, scoring +34 when all three were fully unavailable.
+        """
+        snap = {
+            "gex_regime": "missing",
+            "spot": None,
+            "gamma_flip": None,
+            "trend_direction": "missing",
+        }
+        result = calc_trinity_confluence(snap, snap, snap)
+        assert result["score"] == 0
+        assert result["verdict"] == "divergence"
+        assert "trend" in result["divergences"]
+        assert "trend" not in result["aligned_dimensions"]

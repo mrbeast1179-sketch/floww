@@ -668,11 +668,15 @@ def calc_trinity_confluence(
         and _all_equal_and_present(sides)
     )
 
-    # trend dimension
+    # trend dimension — exclude "missing" sentinel same as gex_regime above
+    # (bug fix 2026-05-18: previously three "missing" trends scored +34 because
+    # the `is not None` check accepted the literal string; CI agent surfaced
+    # via test_heatseeker_routes.py::test_trinity_confluence_all_missing.)
     trends = [s.get("trend_direction") for s in snaps]
+    trend_present = [t for t in trends if t not in (None, "missing", "")]
     trend_aligned = (
-        all(t is not None for t in trends)
-        and _all_equal_and_present(trends)
+        len(trend_present) == 3
+        and _all_equal_and_present(trend_present)
     )
 
     score = 0
