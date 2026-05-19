@@ -1,47 +1,181 @@
 """
-Integration tests for Confluence Decoder API endpoints.
-Run with: cd backend && source .venv/bin/activate && python -m pytest tests/ -v
-"""
-import pytest
-import httpx
+In-process API tests for the Confluence Decoder backend.
 
-BASE = "http://localhost:8000/api"
+Migrated from httpx-against-localhost to FastAPI's TestClient so the suite
+runs in CI without a live server. Heavy chain/yfinance endpoints either
+patch ``fetch_spot_and_chains_merged`` with a static contracts fixture or
+are skipped as integration-only — they remain in this file so the original
+intent is preserved and a developer can flip them on locally.
+"""
+from __future__ import annotations
+
+import sys
+from pathlib import Path
+from typing import Any, Dict, List
+from unittest.mock import AsyncMock, patch
+
+import pytest
+from fastapi.testclient import TestClient
+
+# Make ``server`` importable when pytest is invoked from the repo root.
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
+from server import app  # noqa: E402
+
+
+# ---------------------------------------------------------------------------
+# Fixtures
+# ---------------------------------------------------------------------------
+
+@pytest.fixture(scope="module")
+def client() -> TestClient:
+    return TestClient(app)
+
+
+def _fake_chain() -> Dict[str, Any]:
+    """
+    Static option-chain fixture wide enough to drive every chain-consuming
+    endpoint (heatmap, advanced, chain, regime, gamma-flip, gex-timeframes,
+    uoa). Shape mirrors what ``fetch_spot_and_chains_merged`` returns.
+    """
+    spot = 500.0
+    expiries = ["2026-05-22", "2026-05-29"]
+    contracts: List[Dict[str, Any]] = []
+    for exp in expiries:
+        for k in (485.0, 490.0, 495.0, 500.0, 505.0, 510.0, 515.0):
+            for typ in ("call", "put"):
+                contracts.append({
+                    "strike": k,
+                    "type": typ,
+                    "expiry": exp,
+                    "oi": 1500,
+                    "open_interest": 1500,
+                    "volume": 250,
+                    "iv": 0.18,
+                    "gamma": 0.04,
+                    "delta": 0.5 if typ == "call" else -0.5,
+                    "vega": 0.1,
+                    "theta": -0.02,
+                    "charm": 0.001,
+                    "vanna": 0.002,
+                    "bid": 1.0,
+                    "ask": 1.1,
+                    "last": 1.05,
+                })
+    return {
+        "ticker": "SPY",
+        "spot": spot,
+        "expiries": expiries,
+        "contracts": contracts,
+        "data_source": "fixture",
+    }
 
 
 @pytest.fixture
-def client():
-    return httpx.AsyncClient(base_url=BASE, timeout=30)
+def patched_chain():
+    """Patch the chain fetcher in server.py so chain-dependent routes work."""
+    fake = _fake_chain()
+    async_mock = AsyncMock(return_value=fake)
+    with patch("server.fetch_spot_and_chains_merged", async_mock):
+        yield fake
 
 
-@pytest.mark.asyncio
-async def test_root(client):
-    r = await client.get("/")
+# ---------------------------------------------------------------------------
+# Light routes — no external I/O, run unconditionally
+# ---------------------------------------------------------------------------
+
+def test_root(client):
+    r = client.get("/api/")
     assert r.status_code == 200
     d = r.json()
     assert d["app"] == "confluence-decoder"
 
 
-@pytest.mark.asyncio
-async def test_health(client):
-    r = await client.get("/health")
-    assert r.status_code == 200
-    d = r.json()
-    assert d["status"] in ("healthy", "degraded")
-    assert "dependencies" in d
-
-
-@pytest.mark.asyncio
-async def test_tickers(client):
-    r = await client.get("/tickers")
+def test_tickers(client):
+    r = client.get("/api/tickers")
     assert r.status_code == 200
     d = r.json()
     assert "trinity" in d
     assert "SPY" in d["trinity"]
 
 
-@pytest.mark.asyncio
-async def test_heatmap_spy(client):
-    r = await client.get("/heatmap/SPY?expiries=4")
+def test_404_handling(client):
+    r = client.get("/api/nonexistent")
+    assert r.status_code == 404
+
+
+def test_validation_error(client):
+    r = client.get("/api/heatmap/SPY?mode=invalid")
+    assert r.status_code == 422
+
+
+def test_alert_types_in_response(client):
+    """All registered alert types must surface in /alerts/types."""
+    r = client.get("/api/alerts/types")
+    assert r.status_code == 200
+    d = r.json()
+    alert_types = [a["type"] for a in d.get("alert_types", [])]
+    expected_types = [
+        "GAMMA_FLIP", "GAMMA_SQUEEZE", "MOMENTUM_EXTREME",
+        "WALL_BREACH", "GEX_MAGNITUDE_SHIFT", "GAMMA_FLIP_PROXIMITY",
+        "PIN_RISK", "CHARM_PINNING", "VANNA_REGIME_CHANGE",
+        "UNUSUAL_PC_OI_RATIO", "MAX_PAIN_MAGNET",
+    ]
+    for expected in expected_types:
+        assert expected in alert_types, f"Missing alert type: {expected}"
+
+
+def test_alerts_crud(client):
+    """In-memory alert store: create / list / delete round-trip."""
+    # Create
+    r = client.post("/api/alerts", json={
+        "ticker": "SPY",
+        "alert_type": "gex_cross",
+        "threshold": 1000000,
+        "direction": "above",
+    })
+    assert r.status_code == 200, r.text
+    d = r.json()
+    alert_id = d.get("rule", {}).get("id") or d.get("id")
+    assert alert_id
+
+    # List
+    r = client.get("/api/alerts")
+    assert r.status_code == 200
+    d = r.json()
+    alerts = d.get("rules", d) if isinstance(d, dict) else d
+    assert isinstance(alerts, list)
+
+    # Delete
+    r = client.delete(f"/api/alerts/{alert_id}")
+    assert r.status_code == 200
+
+
+# ---------------------------------------------------------------------------
+# Health — depends on Mongo + yfinance reachability. Skip in CI.
+# ---------------------------------------------------------------------------
+
+@pytest.mark.skip(reason="requires live Mongo and yfinance; integration only")
+def test_health(client):
+    r = client.get("/api/health")
+    assert r.status_code == 200
+    d = r.json()
+    assert d["status"] in ("healthy", "degraded")
+    assert "dependencies" in d
+
+
+# ---------------------------------------------------------------------------
+# Chain-dependent routes — patch the chain fetcher
+#
+# Some downstream helpers (yfinance realised-vol, IV-rank, Polygon tap counts,
+# Mongo snapshot inserts) still reach out to the network even when the chain
+# is mocked. Those are skipped for now and tracked as integration-only in a
+# follow-up PR. The fixtures are kept so the test still documents intent.
+# ---------------------------------------------------------------------------
+
+@pytest.mark.skip(reason="build_heatmap calls yfinance/Polygon/Mongo beyond chain fetch; integration only")
+def test_heatmap_spy(client, patched_chain):
+    r = client.get("/api/heatmap/SPY?expiries=4")
     assert r.status_code == 200
     d = r.json()
     assert d["ticker"] == "SPY"
@@ -52,32 +186,30 @@ async def test_heatmap_spy(client):
     assert len(d["strikes"]) > 0
 
 
-@pytest.mark.asyncio
-async def test_heatmap_modes(client):
+@pytest.mark.skip(reason="build_heatmap calls yfinance/Polygon/Mongo beyond chain fetch; integration only")
+def test_heatmap_modes(client, patched_chain):
     for mode in ["day", "swing", "scalp"]:
-        r = await client.get(f"/heatmap/SPY?expiries=2&mode={mode}")
+        r = client.get(f"/api/heatmap/SPY?expiries=2&mode={mode}")
         assert r.status_code == 200, f"Mode {mode} failed"
         d = r.json()
         assert d["mode"] == mode
 
 
-@pytest.mark.asyncio
-async def test_heatmap_dte_filter(client):
-    r = await client.get("/heatmap/SPY?expiries=4&dte=2")
+@pytest.mark.skip(reason="build_heatmap calls yfinance/Polygon/Mongo beyond chain fetch; integration only")
+def test_heatmap_dte_filter(client, patched_chain):
+    r = client.get("/api/heatmap/SPY?expiries=4&dte=2")
     assert r.status_code == 200
     d = r.json()
     assert "strikes" in d
 
 
-@pytest.mark.asyncio
-async def test_chain_spy(client):
-    r = await client.get("/chain/SPY?min_oi=100")
+def test_chain_spy(client, patched_chain):
+    r = client.get("/api/chain/SPY?min_oi=100")
     assert r.status_code == 200
     d = r.json()
     assert "rows" in d
     assert "count" in d
     assert d["count"] > 0
-    # Check row structure
     row = d["rows"][0]
     assert "type" in row
     assert "strike" in row
@@ -85,19 +217,18 @@ async def test_chain_spy(client):
     assert "gex" in row
 
 
-@pytest.mark.asyncio
-async def test_chain_filter_expiry(client):
-    r = await client.get("/chain/SPY?min_oi=100")
+def test_chain_filter_expiry(client, patched_chain):
+    r = client.get("/api/chain/SPY?min_oi=100")
+    assert r.status_code == 200
     d = r.json()
     if d["count"] > 0 and d.get("expiries"):
         first_exp = d["expiries"][0]
-        r2 = await client.get(f"/chain/SPY?min_oi=100&expiry={first_exp}")
+        r2 = client.get(f"/api/chain/SPY?min_oi=100&expiry={first_exp}")
         assert r2.status_code == 200
 
 
-@pytest.mark.asyncio
-async def test_advanced_spy(client):
-    r = await client.get("/advanced/SPY?expiries=4")
+def test_advanced_spy(client, patched_chain):
+    r = client.get("/api/advanced/SPY?expiries=4")
     assert r.status_code == 200
     d = r.json()
     assert "implied_pdf" in d
@@ -107,12 +238,10 @@ async def test_advanced_spy(client):
     assert "charm_integral" in d
 
 
-@pytest.mark.asyncio
-async def test_regime_spy(client):
-    # Try individual endpoint first, fall back to advanced
-    r = await client.get("/regime/SPY")
+def test_regime_spy(client, patched_chain):
+    r = client.get("/api/regime/SPY")
     if r.status_code == 404:
-        r = await client.get("/advanced/SPY?expiries=4")
+        r = client.get("/api/advanced/SPY?expiries=4")
         d = r.json()
         assert "regime" in d
     else:
@@ -122,11 +251,10 @@ async def test_regime_spy(client):
         assert "skew" in d
 
 
-@pytest.mark.asyncio
-async def test_implied_pdf_spy(client):
-    r = await client.get("/implied-pdf/SPY")
+def test_implied_pdf_spy(client, patched_chain):
+    r = client.get("/api/implied-pdf/SPY")
     if r.status_code == 404:
-        r = await client.get("/advanced/SPY?expiries=4")
+        r = client.get("/api/advanced/SPY?expiries=4")
         d = r.json()
         assert "implied_pdf" in d
     else:
@@ -136,11 +264,10 @@ async def test_implied_pdf_spy(client):
         assert "expected_move" in d
 
 
-@pytest.mark.asyncio
-async def test_hedge_impulse_spy(client):
-    r = await client.get("/hedge-impulse/SPY")
+def test_hedge_impulse_spy(client, patched_chain):
+    r = client.get("/api/hedge-impulse/SPY")
     if r.status_code == 404:
-        r = await client.get("/advanced/SPY?expiries=4")
+        r = client.get("/api/advanced/SPY?expiries=4")
         d = r.json()
         assert "hedge_impulse" in d
     else:
@@ -150,11 +277,10 @@ async def test_hedge_impulse_spy(client):
         assert "impulse_at_spot" in d
 
 
-@pytest.mark.asyncio
-async def test_pressure_cloud_spy(client):
-    r = await client.get("/pressure-cloud/SPY")
+def test_pressure_cloud_spy(client, patched_chain):
+    r = client.get("/api/pressure-cloud/SPY")
     if r.status_code == 404:
-        r = await client.get("/advanced/SPY?expiries=4")
+        r = client.get("/api/advanced/SPY?expiries=4")
         d = r.json()
         assert "pressure_cloud" in d
     else:
@@ -163,11 +289,10 @@ async def test_pressure_cloud_spy(client):
         assert "acceleration_zones" in d
 
 
-@pytest.mark.asyncio
-async def test_charm_integral_spy(client):
-    r = await client.get("/charm-integral/SPY")
+def test_charm_integral_spy(client, patched_chain):
+    r = client.get("/api/charm-integral/SPY")
     if r.status_code == 404:
-        r = await client.get("/advanced/SPY?expiries=4")
+        r = client.get("/api/advanced/SPY?expiries=4")
         d = r.json()
         assert "charm_integral" in d
     else:
@@ -177,9 +302,8 @@ async def test_charm_integral_spy(client):
         assert "buckets" in d
 
 
-@pytest.mark.asyncio
-async def test_gex_timeframes_spy(client):
-    r = await client.get("/gex-timeframes/SPY")
+def test_gex_timeframes_spy(client, patched_chain):
+    r = client.get("/api/gex-timeframes/SPY")
     assert r.status_code == 200
     d = r.json()
     assert "timeframes" in d
@@ -188,9 +312,8 @@ async def test_gex_timeframes_spy(client):
         assert key in tf, f"Missing timeframe {key}"
 
 
-@pytest.mark.asyncio
-async def test_uoa_spy(client):
-    r = await client.get("/uoa/SPY")
+def test_uoa_spy(client, patched_chain):
+    r = client.get("/api/uoa/SPY")
     assert r.status_code == 200
     d = r.json()
     assert "unusual" in d
@@ -201,78 +324,8 @@ async def test_uoa_spy(client):
         assert "signals" in row
 
 
-@pytest.mark.asyncio
-async def test_alerts_crud(client):
-    # Create
-    r = await client.post("/alerts", json={
-        "ticker": "SPY",
-        "alert_type": "gex_cross",
-        "threshold": 1000000,
-        "direction": "above",
-        "channel": "ui",
-    })
-    assert r.status_code == 200
-    d = r.json()
-    alert_id = d.get("rule", {}).get("id") or d.get("id")
-    assert alert_id
-
-    # List
-    r = await client.get("/alerts")
-    assert r.status_code == 200
-    d = r.json()
-    # Response is {count: N, rules: [...]}
-    alerts = d.get("rules", d) if isinstance(d, dict) else d
-    assert isinstance(alerts, list)
-
-    # Delete
-    r = await client.delete(f"/alerts/{alert_id}")
-    assert r.status_code == 200
-
-
-@pytest.mark.asyncio
-async def test_trinity(client):
-    r = await client.get("/trinity")
-    assert r.status_code == 200
-    d = r.json()
-    # Response has tickers nested under "tickers" key
-    tickers = d.get("tickers", d)
-    assert "SPY" in tickers or "^SPX" in tickers
-
-
-@pytest.mark.asyncio
-async def test_spot_spy(client):
-    r = await client.get("/spot/SPY")
-    assert r.status_code == 200
-    d = r.json()
-    assert "spot" in d
-    assert d["spot"] > 0
-
-
-@pytest.mark.asyncio
-async def test_multiple_tickers(client):
-    """Test heatmap for all major tickers."""
-    for ticker in ["SPY", "QQQ", "IWM", "AAPL", "NVDA"]:
-        r = await client.get(f"/heatmap/{ticker}?expiries=2")
-        assert r.status_code == 200, f"Ticker {ticker} failed: {r.status_code}"
-        d = r.json()
-        assert d["ticker"].replace("^", "") == ticker.replace("^", "")
-
-
-@pytest.mark.asyncio
-async def test_404_handling(client):
-    r = await client.get("/nonexistent")
-    assert r.status_code == 404
-
-
-@pytest.mark.asyncio
-async def test_validation_error(client):
-    r = await client.get("/heatmap/SPY?mode=invalid")
-    assert r.status_code == 422
-
-
-@pytest.mark.asyncio
-async def test_gamma_flip_endpoint(client):
-    r = await client.get("/gamma-flip/SPY?expiries=2")
+def test_gamma_flip_endpoint(client, patched_chain):
+    r = client.get("/api/gamma-flip/SPY?expiries=2")
     assert r.status_code == 200
     d = r.json()
     assert "gamma_flip" in d
@@ -282,9 +335,9 @@ async def test_gamma_flip_endpoint(client):
     assert d["regime"] in ("positive_gamma", "negative_gamma", "unknown")
 
 
-@pytest.mark.asyncio
-async def test_daily_checklist_endpoint(client):
-    r = await client.get("/daily-checklist/SPY?expiries=2")
+@pytest.mark.skip(reason="daily-checklist calls build_heatmap which reaches yfinance/Polygon/Mongo; integration only")
+def test_daily_checklist_endpoint(client, patched_chain):
+    r = client.get("/api/daily-checklist/SPY?expiries=2")
     assert r.status_code == 200
     d = r.json()
     assert "regime" in d
@@ -295,70 +348,76 @@ async def test_daily_checklist_endpoint(client):
     assert "recommended_strategies" in d["strategy"]
 
 
-# ----------------------------- Memory Tests -----------------------------
-
-@pytest.mark.asyncio
-async def test_memory_trade_endpoint(client):
-    """Test storing a trade in memory."""
-    r = await client.post("/memory/trade", json={
-        "ticker": "SPY",
-        "trade_type": "call",
-        "entry_price": 450.0,
-        "exit_price": 455.0,
-        "pnl": 5.0,
-        "notes": "Test trade"
-    })
+@pytest.mark.skip(reason="trinity fans out to build_heatmap × 3; integration only")
+def test_trinity(client, patched_chain):
+    r = client.get("/api/trinity")
     assert r.status_code == 200
+    d = r.json()
+    tickers = d.get("tickers", d)
+    assert "SPY" in tickers or "^SPX" in tickers
+
+
+@pytest.mark.skip(reason="hits live yfinance fast_info; integration only")
+def test_spot_spy(client):
+    r = client.get("/api/spot/SPY")
+    assert r.status_code == 200
+    d = r.json()
+    assert "spot" in d
+    assert d["spot"] > 0
+
+
+@pytest.mark.skip(reason="loops over 5 tickers, build_heatmap reaches yfinance/Polygon/Mongo; integration only")
+def test_multiple_tickers(client):
+    for ticker in ["SPY", "QQQ", "IWM", "AAPL", "NVDA"]:
+        r = client.get(f"/api/heatmap/{ticker}?expiries=2")
+        assert r.status_code == 200, f"Ticker {ticker} failed: {r.status_code}"
+        d = r.json()
+        assert d["ticker"].replace("^", "") == ticker.replace("^", "")
+
+
+# ---------------------------------------------------------------------------
+# Memory routes — depend on Chroma + a long-lived embedder. Mock the
+# memory_integration entry points so the routes stay green in CI.
+# ---------------------------------------------------------------------------
+
+def test_memory_trade_endpoint(client):
+    with patch("server.remember_trade", return_value="trade-1"):
+        r = client.post("/api/memory/trade", json={
+            "ticker": "SPY",
+            "trade_type": "call",
+            "entry_price": 450.0,
+            "exit_price": 455.0,
+            "pnl": 5.0,
+            "notes": "Test trade",
+        })
+    assert r.status_code == 200, r.text
     d = r.json()
     assert d["status"] == "ok"
 
 
-@pytest.mark.asyncio
-async def test_memory_gex_endpoint(client):
-    """Test storing a GEX observation in memory."""
-    r = await client.post("/memory/gex", json={
-        "ticker": "SPY",
-        "observation": "GEX regime changed from positive to negative",
-        "metadata": {"regime": "NEGATIVE", "gamma_flip": 450.0}
-    })
-    assert r.status_code == 200
+def test_memory_gex_endpoint(client):
+    with patch("server.remember_gex_observation", return_value="gex-1"):
+        r = client.post("/api/memory/gex", json={
+            "ticker": "SPY",
+            "observation": "GEX regime changed from positive to negative",
+            "metadata": {"regime": "NEGATIVE", "gamma_flip": 450.0},
+        })
+    assert r.status_code == 200, r.text
     d = r.json()
     assert d["status"] == "ok"
 
 
-@pytest.mark.asyncio
-async def test_memory_recall_endpoint(client):
-    """Test recalling memories for a ticker."""
-    r = await client.get("/memory/recall/SPY")
+def test_memory_recall_endpoint(client):
+    with patch("server.recall_trading_context", return_value=[]):
+        r = client.get("/api/memory/recall/SPY")
     assert r.status_code == 200
     d = r.json()
     assert "results" in d
 
 
-@pytest.mark.asyncio
-async def test_memory_summary_endpoint(client):
-    """Test getting a trading summary from memory."""
-    r = await client.get("/memory/summary/SPY")
+def test_memory_summary_endpoint(client):
+    with patch("server.get_trading_summary", return_value="no data yet"):
+        r = client.get("/api/memory/summary/SPY")
     assert r.status_code == 200
     d = r.json()
     assert "summary" in d
-
-
-# ----------------------------- New Alert Type Tests -----------------------------
-
-@pytest.mark.asyncio
-async def test_alert_types_in_response(client):
-    """Test that all alert types are present in the alert system."""
-    r = await client.get("/alerts/types")
-    assert r.status_code == 200
-    d = r.json()
-    alert_types = [a["type"] for a in d.get("alert_types", [])]
-    # Check new alert types are registered
-    expected_types = [
-        "GAMMA_FLIP", "GAMMA_SQUEEZE", "MOMENTUM_EXTREME",
-        "WALL_BREACH", "GEX_MAGNITUDE_SHIFT", "GAMMA_FLIP_PROXIMITY",
-        "PIN_RISK", "CHARM_PINNING", "VANNA_REGIME_CHANGE",
-        "UNUSUAL_PC_OI_RATIO", "MAX_PAIN_MAGNET"
-    ]
-    for expected in expected_types:
-        assert expected in alert_types, f"Missing alert type: {expected}"

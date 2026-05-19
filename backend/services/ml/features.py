@@ -147,6 +147,60 @@ async def load_underlying_bars(db, ticker: str) -> List[Dict]:
     return await cursor.to_list(length=100000)
 
 
+GEX_HISTORY_COLLECTION = "gex_history"
+
+
+def fetch_gex_history_from_mongo(
+    ticker: str,
+    *,
+    as_of: pd.Timestamp,
+    lookback_days: int = 60,
+    mongo_db: Any,
+) -> List[Dict[str, Any]]:
+    """Pull the last ``lookback_days`` of ``(ts, gex_total)`` for ``ticker``.
+
+    Reads from the ``gex_history`` collection populated by
+    ``scripts/backfill_gex_history.py``. Returns the exact shape expected by
+    ``add_gex_features``: a list of ``{"ts": iso8601, "gex_total": float}``
+    dicts sorted ascending by ``ts``.
+
+    Leakage guard: every returned row satisfies ``ts <= as_of``. This is the
+    SAME contract ``add_gex_features`` relies on — if the caller filters here
+    correctly, downstream feature computation cannot peek at the future.
+
+    ``lookback_days`` is calendar days (not trading days), matching how the
+    downstream 60-day z-score lookback is specified in the feature module.
+    ``mongo_db`` is a sync pymongo Database (or compatible mock) — we use
+    sync here so the same function is callable from training scripts and
+    backfills, neither of which run inside an event loop.
+    """
+    if not isinstance(as_of, pd.Timestamp):
+        as_of = pd.Timestamp(as_of)
+    if as_of.tzinfo is None:
+        as_of = as_of.tz_localize("UTC")
+
+    start_dt = as_of - pd.Timedelta(days=lookback_days)
+
+    as_of_iso = as_of.isoformat()
+    start_iso = start_dt.isoformat()
+
+    cursor = mongo_db[GEX_HISTORY_COLLECTION].find(
+        {
+            "ticker": ticker,
+            "ts": {"$gte": start_iso, "$lte": as_of_iso},
+        },
+        {"ts": 1, "gex_total": 1, "_id": 0},
+    )
+
+    rows = [
+        {"ts": r["ts"], "gex_total": _safe_float(r.get("gex_total"))}
+        for r in cursor
+        if r.get("ts") is not None
+    ]
+    rows.sort(key=lambda r: r["ts"])
+    return rows
+
+
 # ============================================================================
 # Feature computation
 # ============================================================================

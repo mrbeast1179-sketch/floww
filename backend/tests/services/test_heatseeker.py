@@ -20,6 +20,11 @@ from services.heatseeker import (  # noqa: E402
     calc_air_pockets,
     calc_flip_zones,
     calc_node_lifecycle,
+    calc_trinity_confluence,
+    calc_velocity_mode,
+    detect_beach_ball,
+    detect_rainbow_road,
+    detect_reverse_rug,
 )
 
 
@@ -282,3 +287,288 @@ class TestAirPockets:
         # Span from a single thin strike has width 0 → excluded.
         for p in result["air_pockets"]:
             assert (p["high"] - p["low"]) >= 0.5
+
+
+# ===========================================================================
+# Wave 2 — Function 4: detect_beach_ball
+# ===========================================================================
+
+class TestBeachBall:
+    def test_happy_path_spot_stretched_above_king(self):
+        """
+        King node sits at 100 (largest |GEX|). Spot=103.0 → 3% above king.
+        Active=True, direction='above', confidence capped at 1.0 because
+        distance (0.03) > 0.02.
+        """
+        spot = 103.0
+        contracts = [
+            _c(95.0, "C", 0.05, 100),
+            _c(100.0, "C", 0.05, 5000),   # king node by |GEX|
+            _c(105.0, "C", 0.05, 200),
+        ]
+        result = detect_beach_ball(spot, contracts)
+        assert result["pattern"] == "beach_ball"
+        assert result["active"] is True
+        assert result["king_node"] == pytest.approx(100.0)
+        assert result["direction"] == "above"
+        assert result["spot_distance_pct"] == pytest.approx(0.03)
+        assert result["confidence"] == pytest.approx(1.0)
+
+    def test_inactive_when_spot_at_king_node(self):
+        """
+        Spot sitting on top of the king node → not stretched, inactive.
+        """
+        spot = 100.0
+        contracts = [
+            _c(100.0, "C", 0.05, 5000),
+            _c(105.0, "C", 0.05, 200),
+        ]
+        result = detect_beach_ball(spot, contracts)
+        assert result["active"] is False
+        assert result["direction"] == "at"
+        assert result["spot_distance_pct"] == pytest.approx(0.0)
+        assert result["confidence"] == pytest.approx(0.0)
+
+    def test_empty_contracts_and_explicit_king(self):
+        """
+        Empty input must return inactive without crashing. Also exercise
+        the explicit ``king_node`` override path: spot 99.0, king=100 →
+        distance = 1% > 0.5% threshold → active=True, direction='below'.
+        """
+        empty = detect_beach_ball(100.0, [])
+        assert empty["active"] is False
+
+        result = detect_beach_ball(99.0, [], king_node=100.0)
+        assert result["active"] is True
+        assert result["king_node"] == pytest.approx(100.0)
+        assert result["direction"] == "below"
+        assert result["spot_distance_pct"] == pytest.approx(0.01)
+        # confidence = min(1.0, 0.01 / 0.02) = 0.5
+        assert result["confidence"] == pytest.approx(0.5)
+
+
+# ===========================================================================
+# Wave 2 — Function 5: detect_reverse_rug
+# ===========================================================================
+
+class TestReverseRug:
+    def test_happy_path_floor_below_ceiling_above(self):
+        """
+        Spot=100. Big positive (call) GEX at 95 → floor below. Big negative
+        (put) GEX at 105 → ceiling above. Pattern active.
+        """
+        spot = 100.0
+        contracts = [
+            _c(95.0, "C", 0.05, 2000),  # floor
+            _c(100.0, "C", 0.01, 100),
+            _c(105.0, "P", 0.05, 2000),  # ceiling
+        ]
+        result = detect_reverse_rug(spot, contracts)
+        assert result["pattern"] == "reverse_rug"
+        assert result["active"] is True
+        assert result["floor_strike"] == pytest.approx(95.0)
+        assert result["floor_gex"] > 0
+        assert result["ceiling_strike"] == pytest.approx(105.0)
+        assert result["ceiling_gex"] < 0
+
+    def test_empty_contracts(self):
+        """Empty input → inactive, missing strikes set to None."""
+        result = detect_reverse_rug(100.0, [])
+        assert result["active"] is False
+        assert result["floor_strike"] is None
+        assert result["ceiling_strike"] is None
+
+    def test_inactive_when_no_floor_below(self):
+        """
+        All positive GEX is ABOVE spot — there is no floor strike below spot
+        with positive GEX, so the pattern is inactive.
+        """
+        spot = 100.0
+        contracts = [
+            _c(95.0, "P", 0.05, 2000),   # negative GEX below — wrong side
+            _c(105.0, "C", 0.05, 2000),  # positive GEX above — wrong side
+            _c(108.0, "P", 0.05, 1500),  # negative ceiling above (good)
+        ]
+        result = detect_reverse_rug(spot, contracts)
+        assert result["active"] is False
+        # No positive GEX below spot → no floor.
+        assert result["floor_strike"] is None
+        # There IS a negative GEX above spot, so ceiling may be present.
+        assert result["ceiling_strike"] == pytest.approx(108.0)
+
+
+# ===========================================================================
+# Wave 2 — Function 6: detect_rainbow_road
+# ===========================================================================
+
+class TestRainbowRoad:
+    def test_happy_path_diffuse_gex(self):
+        """
+        10 strikes within ±5% of spot, all roughly equal |GEX|. Top share
+        ≈ 1/10 = 0.10 — well below max_dominant_share=0.15 → active=True.
+        """
+        spot = 100.0
+        contracts = [_c(95.0 + i, "C", 0.05, 1000) for i in range(10)]
+        result = detect_rainbow_road(spot, contracts, max_dominant_share=0.15)
+        assert result["pattern"] == "rainbow_road"
+        assert result["active"] is True
+        assert result["top_strike_share"] <= 0.15
+        # n_strikes_significant: with all equal |GEX|, mean = each value, so
+        # |gex| > 0.5*mean is satisfied by every strike → all 10 count.
+        assert result["n_strikes_significant"] == 10
+
+    def test_inactive_when_one_strike_dominates(self):
+        """
+        One huge strike + a few small ones — top share >> 0.15.
+        """
+        spot = 100.0
+        contracts = [
+            _c(99.0, "C", 0.05, 50),
+            _c(100.0, "C", 0.05, 50_000),  # dominant
+            _c(101.0, "C", 0.05, 50),
+            _c(102.0, "C", 0.05, 50),
+        ]
+        result = detect_rainbow_road(spot, contracts, max_dominant_share=0.15)
+        assert result["active"] is False
+        assert result["top_strike_share"] > 0.15
+
+    def test_empty_contracts(self):
+        """Empty input → inactive, zero shares."""
+        result = detect_rainbow_road(100.0, [])
+        assert result["active"] is False
+        assert result["top_strike_share"] == pytest.approx(0.0)
+        assert result["n_strikes_significant"] == 0
+
+
+# ===========================================================================
+# Wave 2 — Function 7: calc_velocity_mode
+# ===========================================================================
+
+class TestVelocityMode:
+    def test_happy_path_active_mode(self):
+        """
+        King node moves from 100 → 110 over 10 minutes → velocity = 1.0
+        strikes/min → falls in [0.5, 2.0) → mode='active'.
+        """
+        history = [
+            {"timestamp": "2026-05-18T13:30:00+00:00", "king_node_strike": 100.0, "spot": 100.0},
+            {"timestamp": "2026-05-18T13:40:00+00:00", "king_node_strike": 110.0, "spot": 100.0},
+        ]
+        result = calc_velocity_mode(history)
+        assert result["velocity_strikes_per_min"] == pytest.approx(1.0)
+        assert result["mode"] == "active"
+        assert result["n_snapshots"] == 2
+
+    def test_empty_history_returns_calm(self):
+        """Zero snapshots → velocity 0, mode 'calm'."""
+        result = calc_velocity_mode([])
+        assert result["velocity_strikes_per_min"] == pytest.approx(0.0)
+        assert result["mode"] == "calm"
+        assert result["n_snapshots"] == 0
+
+    def test_urgent_mode_high_velocity(self):
+        """
+        King node jumps 50 strikes in 10 min → velocity 5.0 → mode 'urgent'.
+        Negative direction still triggers urgent because |velocity| is used.
+        """
+        history = [
+            {"timestamp": "2026-05-18T13:30:00+00:00", "king_node_strike": 150.0, "spot": 100.0},
+            {"timestamp": "2026-05-18T13:40:00+00:00", "king_node_strike": 100.0, "spot": 100.0},
+        ]
+        result = calc_velocity_mode(history)
+        assert result["velocity_strikes_per_min"] == pytest.approx(-5.0)
+        assert result["mode"] == "urgent"
+        assert result["n_snapshots"] == 2
+
+    def test_single_snapshot_returns_calm(self):
+        """One snapshot is not enough to compute velocity → velocity 0, calm."""
+        history = [
+            {"timestamp": "2026-05-18T13:30:00+00:00", "king_node_strike": 100.0, "spot": 100.0},
+        ]
+        result = calc_velocity_mode(history)
+        assert result["velocity_strikes_per_min"] == pytest.approx(0.0)
+        assert result["mode"] == "calm"
+        assert result["n_snapshots"] == 1
+
+
+# ===========================================================================
+# Wave 2 — Function 8: calc_trinity_confluence
+# ===========================================================================
+
+class TestTrinityConfluence:
+    def test_full_alignment_score_100(self):
+        """All three regimes / sides / trends agree → score 100, high_confluence."""
+        snap = lambda spot, gflip, regime, trend: {
+            "gex_regime": regime,
+            "spot": spot,
+            "gamma_flip": gflip,
+            "trend_direction": trend,
+        }
+        spx = snap(5800.0, 5750.0, "positive", "up")
+        spy = snap(580.0, 575.0, "positive", "up")
+        qqq = snap(500.0, 490.0, "positive", "up")
+        result = calc_trinity_confluence(spx, spy, qqq)
+        assert result["score"] == 100
+        assert result["verdict"] == "high_confluence"
+        assert set(result["aligned_dimensions"]) == {"gex_regime", "side_of_flip", "trend"}
+        assert result["divergences"] == []
+
+    def test_full_divergence_score_zero(self):
+        """
+        Regimes differ, sides differ, trends differ → score 0, divergence.
+        SPX above its flip with positive regime + up trend.
+        SPY below its flip with negative regime + down trend.
+        QQQ above its flip with neutral regime + flat trend.
+        """
+        snap = lambda spot, gflip, regime, trend: {
+            "gex_regime": regime,
+            "spot": spot,
+            "gamma_flip": gflip,
+            "trend_direction": trend,
+        }
+        spx = snap(5800.0, 5750.0, "positive", "up")
+        spy = snap(560.0, 580.0, "negative", "down")
+        qqq = snap(500.0, 490.0, "neutral", "flat")
+        result = calc_trinity_confluence(spx, spy, qqq)
+        assert result["score"] == 0
+        assert result["verdict"] == "divergence"
+        assert set(result["divergences"]) == {"gex_regime", "trend"}
+        # Sides of flip: SPX above, SPY below, QQQ above → mixed → divergence.
+        assert "side_of_flip" in result["divergences"]
+
+    def test_partial_alignment_two_of_three(self):
+        """
+        Regimes all positive (+33). Sides all above flip (+33). Trends mixed
+        (no +34). Total = 66 → 'high_confluence' (boundary at 66).
+        """
+        snap = lambda spot, gflip, regime, trend: {
+            "gex_regime": regime,
+            "spot": spot,
+            "gamma_flip": gflip,
+            "trend_direction": trend,
+        }
+        spx = snap(5800.0, 5750.0, "positive", "up")
+        spy = snap(580.0, 575.0, "positive", "up")
+        qqq = snap(500.0, 490.0, "positive", "down")  # trend differs
+        result = calc_trinity_confluence(spx, spy, qqq)
+        assert result["score"] == 66
+        assert result["verdict"] == "high_confluence"
+        assert "gex_regime" in result["aligned_dimensions"]
+        assert "side_of_flip" in result["aligned_dimensions"]
+        assert "trend" in result["divergences"]
+
+    def test_missing_data_does_not_crash(self):
+        """A snapshot with regime='missing' should not crash; dimension flagged."""
+        snap_full = {
+            "gex_regime": "positive",
+            "spot": 5800.0,
+            "gamma_flip": 5750.0,
+            "trend_direction": "up",
+        }
+        snap_missing = {"gex_regime": "missing", "spot": None, "gamma_flip": None, "trend_direction": None}
+        result = calc_trinity_confluence(snap_full, snap_missing, snap_full)
+        # gex_regime not unanimous → 0
+        # side_of_flip: SPY has None spot/flip → undefined → 0
+        # trend: SPY has None trend → undefined → 0
+        assert result["score"] == 0
+        assert result["verdict"] == "divergence"

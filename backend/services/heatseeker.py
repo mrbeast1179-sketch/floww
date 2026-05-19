@@ -1,7 +1,9 @@
 """
 backend/services/heatseeker.py
 
-Skylit-parity Heatseeker Wave 1: flip zones, node lifecycle, air pockets.
+Skylit-parity Heatseeker.
+    Wave 1: flip zones, node lifecycle, air pockets.
+    Wave 2: beach ball, reverse rug, rainbow road, velocity mode, trinity.
 
 Pure functions. No DB access — the route layer fetches the chain and passes
 it in. Input shape mirrors backend/advanced_analytics.py: each contract is a
@@ -13,14 +15,15 @@ at line 633):
     gex_unit = gamma * oi * 100.0 * spot * spot * 0.01
     signed_gex = gex_unit if type=="call" else -gex_unit
 
-All three functions return JSON-serializable dicts and never raise on empty or
+All functions return JSON-serializable dicts and never raise on empty or
 degenerate input.
 """
 
 from __future__ import annotations
 
+from datetime import datetime
 from statistics import median
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 
 # ---------------------------------------------------------------------------
@@ -317,3 +320,393 @@ def calc_air_pockets(
         _flush(run_start_idx, len(strikes) - 1, run_max)
 
     return {"air_pockets": pockets}
+
+
+# ---------------------------------------------------------------------------
+# Wave 2 — Function 4: Beach ball
+# ---------------------------------------------------------------------------
+
+def _king_node_strike(gex: Dict[float, float]) -> Optional[float]:
+    """Strike with max |net_gex|. None if dict is empty."""
+    if not gex:
+        return None
+    return max(gex.keys(), key=lambda k: abs(gex[k]))
+
+
+def detect_beach_ball(
+    spot: float,
+    contracts: List[Dict[str, Any]],
+    *,
+    king_node: Optional[float] = None,
+) -> Dict[str, Any]:
+    """
+    Beach Ball: spot is stretched past the King Node (largest |GEX| strike).
+    Overshoot/reversion setup.
+
+    Active when ``abs(spot - king_node) / king_node > 0.005`` (50bps).
+    Confidence = ``min(1.0, distance_pct / 0.02)`` — capped at 2% stretch.
+    """
+    inactive: Dict[str, Any] = {
+        "pattern": "beach_ball",
+        "active": False,
+        "king_node": None,
+        "spot_distance_pct": 0.0,
+        "direction": "at",
+        "confidence": 0.0,
+    }
+
+    if not spot or spot <= 0:
+        return inactive
+
+    if king_node is None:
+        gex = _gex_per_strike(spot, contracts)
+        king_node = _king_node_strike(gex)
+    if king_node is None or king_node <= 0:
+        return inactive
+
+    raw_distance = (spot - king_node) / king_node
+    distance_pct = abs(raw_distance)
+    if raw_distance > 0:
+        direction = "above"
+    elif raw_distance < 0:
+        direction = "below"
+    else:
+        direction = "at"
+
+    active = distance_pct > 0.005
+    confidence = min(1.0, distance_pct / 0.02)
+
+    return {
+        "pattern": "beach_ball",
+        "active": active,
+        "king_node": round(float(king_node), 4),
+        "spot_distance_pct": round(distance_pct, 6),
+        "direction": direction,
+        "confidence": round(confidence, 4),
+    }
+
+
+# ---------------------------------------------------------------------------
+# Wave 2 — Function 5: Reverse rug
+# ---------------------------------------------------------------------------
+
+def detect_reverse_rug(
+    spot: float,
+    contracts: List[Dict[str, Any]],
+    *,
+    min_strength: float = 0.0,
+) -> Dict[str, Any]:
+    """
+    Reverse Rug: positive floor below spot, negative ceiling above.
+    Support holds, bounce runs.
+
+    Finds the largest positive-GEX strike below spot (the floor) and the
+    largest negative-GEX strike above spot (the ceiling).
+
+    Pattern active when both exist AND ``abs(floor_gex) > min_strength``
+    AND ``abs(ceiling_gex) > min_strength``.
+    """
+    inactive: Dict[str, Any] = {
+        "pattern": "reverse_rug",
+        "active": False,
+        "floor_strike": None,
+        "floor_gex": 0.0,
+        "ceiling_strike": None,
+        "ceiling_gex": 0.0,
+    }
+
+    if not spot or spot <= 0:
+        return inactive
+
+    gex = _gex_per_strike(spot, contracts)
+    if not gex:
+        return inactive
+
+    floor_strike: Optional[float] = None
+    floor_gex: float = 0.0
+    ceiling_strike: Optional[float] = None
+    ceiling_gex: float = 0.0
+
+    for strike, signed in gex.items():
+        if strike < spot and signed > 0 and signed > floor_gex:
+            floor_strike = strike
+            floor_gex = signed
+        elif strike > spot and signed < 0 and signed < ceiling_gex:
+            ceiling_strike = strike
+            ceiling_gex = signed
+
+    active = (
+        floor_strike is not None
+        and ceiling_strike is not None
+        and abs(floor_gex) > min_strength
+        and abs(ceiling_gex) > min_strength
+    )
+
+    return {
+        "pattern": "reverse_rug",
+        "active": bool(active),
+        "floor_strike": round(floor_strike, 4) if floor_strike is not None else None,
+        "floor_gex": round(floor_gex, 4),
+        "ceiling_strike": round(ceiling_strike, 4) if ceiling_strike is not None else None,
+        "ceiling_gex": round(ceiling_gex, 4),
+    }
+
+
+# ---------------------------------------------------------------------------
+# Wave 2 — Function 6: Rainbow road
+# ---------------------------------------------------------------------------
+
+def detect_rainbow_road(
+    spot: float,
+    contracts: List[Dict[str, Any]],
+    *,
+    max_dominant_share: float = 0.15,
+    window_pct: float = 0.05,
+) -> Dict[str, Any]:
+    """
+    Rainbow Road: no dominant structure within ±window_pct of spot. Chaos.
+
+    Active when the top |GEX| strike's share of the local total is below
+    ``max_dominant_share`` — i.e. GEX is spread across many strikes and
+    no single node dominates.
+
+    ``n_strikes_significant`` is the count of strikes with
+    ``|gex| > 0.5 * mean(|gex|)`` in the same window.
+    """
+    inactive: Dict[str, Any] = {
+        "pattern": "rainbow_road",
+        "active": False,
+        "top_strike_share": 0.0,
+        "n_strikes_significant": 0,
+    }
+
+    if not spot or spot <= 0:
+        return inactive
+
+    gex = _gex_per_strike(spot, contracts)
+    if not gex:
+        return inactive
+
+    low = spot * (1.0 - window_pct)
+    high = spot * (1.0 + window_pct)
+    local = {k: abs(v) for k, v in gex.items() if low <= k <= high}
+    if not local:
+        return inactive
+
+    total = sum(local.values())
+    if total <= 0:
+        return inactive
+
+    top_share = max(local.values()) / total
+    mean_abs = total / len(local)
+    n_significant = sum(1 for v in local.values() if v > 0.5 * mean_abs)
+
+    active = top_share < max_dominant_share
+
+    return {
+        "pattern": "rainbow_road",
+        "active": bool(active),
+        "top_strike_share": round(top_share, 6),
+        "n_strikes_significant": n_significant,
+    }
+
+
+# ---------------------------------------------------------------------------
+# Wave 2 — Function 7: Velocity mode
+# ---------------------------------------------------------------------------
+
+def _parse_ts(value: Any) -> Optional[datetime]:
+    """Parse an iso8601 (or datetime) value. Returns None on failure."""
+    if value is None:
+        return None
+    if isinstance(value, datetime):
+        return value
+    try:
+        s = str(value)
+        # Handle the trailing 'Z' since fromisoformat doesn't accept it pre-3.11.
+        if s.endswith("Z"):
+            s = s[:-1] + "+00:00"
+        return datetime.fromisoformat(s)
+    except (TypeError, ValueError):
+        return None
+
+
+def calc_velocity_mode(history: List[Dict[str, Any]]) -> Dict[str, Any]:
+    """
+    Dealer urgency: rate at which the King Node is moving across the recent
+    snapshots in ``history``. Caller passes the last ~30 minutes of data.
+
+    Each entry: ``{"timestamp": iso8601, "king_node_strike": float, "spot": float}``.
+
+    Velocity = ``(king_node[-1] - king_node[0]) / minutes_elapsed`` (signed,
+    so an observer can tell which way the node is drifting).
+
+    Mode bands (use ``abs(velocity)``):
+        |v| < 0.5     → "calm"
+        |v| < 2.0     → "active"
+        |v| ≥ 2.0     → "urgent"
+    """
+    history = history or []
+    n = len(history)
+    if n < 2:
+        return {
+            "velocity_strikes_per_min": 0.0,
+            "mode": "calm",
+            "n_snapshots": n,
+        }
+
+    first = history[0]
+    last = history[-1]
+    try:
+        kn0 = float(first.get("king_node_strike"))
+        kn1 = float(last.get("king_node_strike"))
+    except (TypeError, ValueError):
+        return {
+            "velocity_strikes_per_min": 0.0,
+            "mode": "calm",
+            "n_snapshots": n,
+        }
+
+    t0 = _parse_ts(first.get("timestamp"))
+    t1 = _parse_ts(last.get("timestamp"))
+    if t0 is None or t1 is None:
+        return {
+            "velocity_strikes_per_min": 0.0,
+            "mode": "calm",
+            "n_snapshots": n,
+        }
+    minutes = (t1 - t0).total_seconds() / 60.0
+    if minutes <= 0:
+        return {
+            "velocity_strikes_per_min": 0.0,
+            "mode": "calm",
+            "n_snapshots": n,
+        }
+
+    velocity = (kn1 - kn0) / minutes
+    mag = abs(velocity)
+    if mag < 0.5:
+        mode = "calm"
+    elif mag < 2.0:
+        mode = "active"
+    else:
+        mode = "urgent"
+
+    return {
+        "velocity_strikes_per_min": round(velocity, 6),
+        "mode": mode,
+        "n_snapshots": n,
+    }
+
+
+# ---------------------------------------------------------------------------
+# Wave 2 — Function 8: Trinity confluence
+# ---------------------------------------------------------------------------
+
+def _side_of_flip(spot: Any, gamma_flip: Any) -> Optional[str]:
+    """Return 'above', 'below', or None if either input is missing/invalid."""
+    try:
+        s = float(spot)
+        gf = float(gamma_flip)
+    except (TypeError, ValueError):
+        return None
+    if s <= 0 or gf <= 0:
+        return None
+    if s > gf:
+        return "above"
+    if s < gf:
+        return "below"
+    return "at"
+
+
+def _all_equal_and_present(values: List[Any]) -> bool:
+    """True when every value is non-None and they all compare equal."""
+    if not values or any(v is None for v in values):
+        return False
+    first = values[0]
+    return all(v == first for v in values)
+
+
+def calc_trinity_confluence(
+    spx_snapshot: Dict[str, Any],
+    spy_snapshot: Dict[str, Any],
+    qqq_snapshot: Dict[str, Any],
+) -> Dict[str, Any]:
+    """
+    Cross-index alignment quantified.
+
+    Each snapshot:
+        {"gex_regime": "positive"|"negative"|"neutral"|"missing",
+         "spot": float, "gamma_flip": float,
+         "trend_direction": "up"|"down"|"flat"}
+
+    Score 0–100:
+        +33 if all three ``gex_regime`` agree (and none is 'missing')
+        +33 if all three are on the same side of ``gamma_flip``
+        +34 if all three ``trend_direction`` agree (and none is None)
+        Missing fields contribute 0 — function does not crash.
+
+    Verdict bands:
+        score ≥ 66 → "high_confluence"
+        33 ≤ score < 66 → "partial"
+        score < 33 → "divergence"
+    """
+    snaps = [spx_snapshot or {}, spy_snapshot or {}, qqq_snapshot or {}]
+
+    # gex_regime dimension
+    regimes = [s.get("gex_regime") for s in snaps]
+    regime_present = [r for r in regimes if r not in (None, "missing", "")]
+    regime_aligned = (
+        len(regime_present) == 3
+        and _all_equal_and_present(regime_present)
+    )
+
+    # side_of_flip dimension
+    sides = [_side_of_flip(s.get("spot"), s.get("gamma_flip")) for s in snaps]
+    side_aligned = (
+        all(side is not None for side in sides)
+        and _all_equal_and_present(sides)
+    )
+
+    # trend dimension
+    trends = [s.get("trend_direction") for s in snaps]
+    trend_aligned = (
+        all(t is not None for t in trends)
+        and _all_equal_and_present(trends)
+    )
+
+    score = 0
+    aligned: List[str] = []
+    divergences: List[str] = []
+
+    if regime_aligned:
+        score += 33
+        aligned.append("gex_regime")
+    else:
+        divergences.append("gex_regime")
+
+    if side_aligned:
+        score += 33
+        aligned.append("side_of_flip")
+    else:
+        divergences.append("side_of_flip")
+
+    if trend_aligned:
+        score += 34
+        aligned.append("trend")
+    else:
+        divergences.append("trend")
+
+    if score >= 66:
+        verdict = "high_confluence"
+    elif score >= 33:
+        verdict = "partial"
+    else:
+        verdict = "divergence"
+
+    return {
+        "score": int(score),
+        "aligned_dimensions": aligned,
+        "divergences": divergences,
+        "verdict": verdict,
+    }

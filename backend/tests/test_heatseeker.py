@@ -1,11 +1,25 @@
-"""Backend tests for Confluence Decoder (Heatseeker GEX)."""
-import os
-import math
-import pytest
-import requests
+"""
+In-process tests for the legacy Heatseeker API surface (root / tickers /
+glossary / history / etc.).
 
-BASE_URL = os.environ.get("BACKEND_URL", "http://localhost:8000").rstrip("/")
-API = f"{BASE_URL}/api"
+Migrated from the requests-against-localhost driver to FastAPI's TestClient
+so the suite runs in CI without a backend on :8000. Heavy heatmap / movers /
+trinity tests are kept here (skipped) so the original intent is preserved
+and a developer can flip them on for a manual smoke run.
+"""
+from __future__ import annotations
+
+import math
+import sys
+from pathlib import Path
+
+import pytest
+from fastapi.testclient import TestClient
+
+# Make ``server`` importable when pytest is invoked from the repo root.
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
+from server import app  # noqa: E402
 
 
 def _has_nan_or_inf(obj):
@@ -19,23 +33,22 @@ def _has_nan_or_inf(obj):
 
 
 @pytest.fixture(scope="module")
-def session():
-    s = requests.Session()
-    s.headers.update({"Content-Type": "application/json"})
-    return s
+def client() -> TestClient:
+    return TestClient(app)
 
 
 # --------- Root + tickers ---------
-def test_root(session):
-    r = session.get(f"{API}/", timeout=15)
+
+def test_root(client):
+    r = client.get("/api/")
     assert r.status_code == 200
     d = r.json()
     assert d.get("app") == "confluence-decoder"
     assert "version" in d and "ts" in d
 
 
-def test_tickers_list(session):
-    r = session.get(f"{API}/tickers", timeout=15)
+def test_tickers_list(client):
+    r = client.get("/api/tickers")
     assert r.status_code == 200
     d = r.json()
     assert "trinity" in d and "default" in d and "popular" in d
@@ -44,22 +57,89 @@ def test_tickers_list(session):
     assert isinstance(d["popular"], list) and len(d["popular"]) > 10
 
 
-# --------- Heatmap SPY ---------
-def test_heatmap_spy(session):
-    r = session.get(f"{API}/heatmap/SPY?expiries=2", timeout=60)
+# --------- Glossary (static) ---------
+
+def test_glossary(client):
+    r = client.get("/api/patterns/glossary")
+    assert r.status_code == 200
+    d = r.json()
+    for k in ("Rug", "Reverse Rug", "Pika Cloud", "Beach Ball", "Whipsaw",
+              "Rainbow Road", "King Node", "Floor", "Ceiling", "Gatekeeper",
+              "Air Pocket"):
+        assert k in d, f"missing glossary entry {k}"
+
+
+# --------- History (depends on Mongo cursor; mock the snapshots collection) ---
+
+def test_history_spy(client):
+    """
+    /history/{ticker} streams snapshots from Mongo. Replace ``db.snapshots``
+    with a stub whose ``find`` returns an async cursor over a single doc.
+    """
+    from unittest.mock import patch
+    import server as srv
+
+    class _AsyncCursor:
+        def __init__(self, rows):
+            self._rows = list(rows)
+
+        def sort(self, *_, **__):
+            return self
+
+        def limit(self, _n):
+            return self
+
+        def __aiter__(self):
+            self._it = iter(self._rows)
+            return self
+
+        async def __anext__(self):
+            try:
+                return next(self._it)
+            except StopIteration:
+                raise StopAsyncIteration
+
+    class _Snapshots:
+        def find(self, *_, **__):
+            return _AsyncCursor([{"ticker": "SPY", "ts": "2026-05-18T00:00:00Z"}])
+
+    class _DB:
+        snapshots = _Snapshots()
+
+    with patch.object(srv, "db", _DB()):
+        r = client.get("/api/history/SPY")
+
+    assert r.status_code == 200
+    d = r.json()
+    assert d["ticker"] == "SPY"
+    assert isinstance(d["snapshots"], list)
+
+
+# --------- Heavy chain-dependent endpoints — integration only ---------
+#
+# /heatmap, /trinity, /movers all chain together yfinance + Polygon + Mongo
+# writes inside the route. The single chain mock isn't enough; they remain
+# skipped here and live in the QA smoke suite that runs against a real
+# backend. TODO: trim build_heatmap so its tap_counts / Mongo writes can be
+# stubbed in unit tests too.
+
+@pytest.mark.skip(reason="build_heatmap reaches yfinance/Polygon/Mongo; integration only")
+def test_heatmap_spy(client):
+    r = client.get("/api/heatmap/SPY?expiries=2")
     assert r.status_code == 200, r.text
     d = r.json()
-    # No NaN/Inf
     raw = r.content.decode()
     assert "NaN" not in raw and "Infinity" not in raw
     assert d["ticker"] == "SPY"
     assert isinstance(d["spot"], (int, float)) and d["spot"] > 0
     assert isinstance(d["strikes"], list) and len(d["strikes"]) > 0
     for s in d["strikes"]:
-        for k in ("strike", "gex", "call_gex", "put_gex", "lifecycle", "tap_prob", "taps"):
+        for k in ("strike", "gex", "call_gex", "put_gex", "lifecycle",
+                  "tap_prob", "taps"):
             assert k in s, f"missing {k}"
     nodes = d["nodes"]
-    for k in ("king", "floors", "ceilings", "gatekeepers", "air_pockets", "regime"):
+    for k in ("king", "floors", "ceilings", "gatekeepers", "air_pockets",
+              "regime"):
         assert k in nodes
     assert nodes["king"] and "strike" in nodes["king"]
     assert isinstance(d["patterns"], list)
@@ -70,8 +150,9 @@ def test_heatmap_spy(session):
     assert not _has_nan_or_inf(d)
 
 
-def test_heatmap_qqq(session):
-    r = session.get(f"{API}/heatmap/QQQ?expiries=2", timeout=60)
+@pytest.mark.skip(reason="build_heatmap reaches yfinance/Polygon/Mongo; integration only")
+def test_heatmap_qqq(client):
+    r = client.get("/api/heatmap/QQQ?expiries=2")
     assert r.status_code == 200
     d = r.json()
     assert d["ticker"] == "QQQ"
@@ -80,9 +161,9 @@ def test_heatmap_qqq(session):
     assert not _has_nan_or_inf(d)
 
 
-def test_heatmap_spx(session):
-    # URL-encoded ^SPX
-    r = session.get(f"{API}/heatmap/%5ESPX?expiries=2", timeout=90)
+@pytest.mark.skip(reason="build_heatmap reaches yfinance/Polygon/Mongo; integration only")
+def test_heatmap_spx(client):
+    r = client.get("/api/heatmap/%5ESPX?expiries=2")
     assert r.status_code == 200, r.text
     d = r.json()
     assert d["ticker"] == "^SPX"
@@ -90,9 +171,9 @@ def test_heatmap_spx(session):
     assert len(d["strikes"]) > 0
 
 
-# --------- Trinity ---------
-def test_trinity(session):
-    r = session.get(f"{API}/trinity", timeout=120)
+@pytest.mark.skip(reason="trinity fans out to build_heatmap × 3; integration only")
+def test_trinity(client):
+    r = client.get("/api/trinity")
     assert r.status_code == 200
     d = r.json()
     assert "tickers" in d and "alignment" in d
@@ -103,9 +184,9 @@ def test_trinity(session):
     assert "confluence" in align and "regime" in align
 
 
-# --------- Movers ---------
-def test_movers(session):
-    r = session.get(f"{API}/movers?limit=5", timeout=60)
+@pytest.mark.skip(reason="hits Polygon for top movers; integration only")
+def test_movers(client):
+    r = client.get("/api/movers?limit=5")
     assert r.status_code == 200
     d = r.json()
     assert "results" in d
@@ -114,24 +195,3 @@ def test_movers(session):
         row = d["results"][0]
         for k in ("ticker", "pct", "close"):
             assert k in row
-
-
-# --------- History ---------
-def test_history_spy(session):
-    # ensure snapshot exists first
-    session.get(f"{API}/heatmap/SPY?expiries=2", timeout=60)
-    r = session.get(f"{API}/history/SPY", timeout=30)
-    assert r.status_code == 200
-    d = r.json()
-    assert d["ticker"] == "SPY"
-    assert isinstance(d["snapshots"], list)
-
-
-# --------- Glossary ---------
-def test_glossary(session):
-    r = session.get(f"{API}/patterns/glossary", timeout=15)
-    assert r.status_code == 200
-    d = r.json()
-    for k in ("Rug", "Reverse Rug", "Pika Cloud", "Beach Ball", "Whipsaw", "Rainbow Road",
-              "King Node", "Floor", "Ceiling", "Gatekeeper", "Air Pocket"):
-        assert k in d, f"missing glossary entry {k}"
