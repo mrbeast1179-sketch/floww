@@ -40,6 +40,9 @@ def _fake_chain() -> Dict[str, Any]:
     """
     spot = 500.0
     expiries = ["2026-05-22", "2026-05-29"]
+    # Time-to-expiry in years; the production fetcher always populates this
+    # field and the downstream BS Greek calls do c["T"] (not .get).
+    t_by_expiry = {"2026-05-22": 3 / 365.0, "2026-05-29": 10 / 365.0}
     contracts: List[Dict[str, Any]] = []
     for exp in expiries:
         for k in (485.0, 490.0, 495.0, 500.0, 505.0, 510.0, 515.0):
@@ -48,6 +51,7 @@ def _fake_chain() -> Dict[str, Any]:
                     "strike": k,
                     "type": typ,
                     "expiry": exp,
+                    "T": t_by_expiry[exp],
                     "oi": 1500,
                     "open_interest": 1500,
                     "volume": 250,
