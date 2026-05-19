@@ -94,17 +94,20 @@ async def trinity(
 @router.get("/spot/{ticker}")
 async def spot(ticker: str):
     from server import fetch_spot_and_chains_merged
+    from datetime import datetime, timezone
     t = ticker.strip().upper()
     if t == "SPX":
         t = "^SPX"
     raw = await fetch_spot_and_chains_merged(t, 1)
-    return {"ticker": t, "spot": raw.get("spot", 0)}
+    return {"ticker": t, "spot": raw.get("spot", 0), "ts": datetime.now(timezone.utc).isoformat()}
 
 
 @router.get("/chain/{ticker}")
 async def chain(
     ticker: str,
     expiries: int = Query(4, ge=1, le=12),
+    min_oi: int = Query(0, ge=0),
+    expiry: Optional[str] = None,
 ):
     from server import fetch_spot_and_chains_merged, _sanitize
     t = ticker.strip().upper()
@@ -113,7 +116,33 @@ async def chain(
     raw = await fetch_spot_and_chains_merged(t, expiries)
     if not raw.get("contracts"):
         raise HTTPException(404, f"No options data for {ticker}")
-    return _sanitize(raw)
+    contracts = raw["contracts"]
+    if expiry:
+        contracts = [c for c in contracts if c.get("expiry") == expiry]
+    if min_oi:
+        contracts = [c for c in contracts if (c.get("oi", 0) or c.get("open_interest", 0)) >= min_oi]
+    spot = raw["spot"]
+    rows = []
+    for c in contracts:
+        gamma = c.get("gamma", 0)
+        oi = c.get("oi", c.get("open_interest", 0))
+        gex = gamma * oi * 100 * spot * (1 if c["type"] == "call" else -1)
+        rows.append({
+            "type": c["type"],
+            "strike": c["strike"],
+            "expiry": c["expiry"],
+            "iv": c.get("iv", 0),
+            "delta": c.get("delta", 0),
+            "gamma": c.get("gamma", 0),
+            "vega": c.get("vega", 0),
+            "theta": c.get("theta", 0),
+            "oi": c.get("oi", c.get("open_interest", 0)),
+            "volume": c.get("volume", 0),
+            "bid": c.get("bid", 0),
+            "ask": c.get("ask", 0),
+            "gex": gex,
+        })
+    return _sanitize({"ticker": t, "spot": raw["spot"], "expiries": raw.get("expiries", []), "rows": rows, "count": len(rows)})
 
 
 @router.get("/gex-timeframes/{ticker}")

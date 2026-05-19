@@ -385,7 +385,7 @@ def test_multiple_tickers(client):
 # ---------------------------------------------------------------------------
 
 def test_memory_trade_endpoint(client):
-    with patch("server.remember_trade", return_value="trade-1"):
+    with patch("server.remember_trade", new_callable=AsyncMock, return_value="trade-1"):
         r = client.post("/api/memory/trade", json={
             "ticker": "SPY",
             "trade_type": "call",
@@ -400,7 +400,7 @@ def test_memory_trade_endpoint(client):
 
 
 def test_memory_gex_endpoint(client):
-    with patch("server.remember_gex_observation", return_value="gex-1"):
+    with patch("server.remember_gex_observation", new_callable=AsyncMock, return_value="gex-1"):
         r = client.post("/api/memory/gex", json={
             "ticker": "SPY",
             "observation": "GEX regime changed from positive to negative",

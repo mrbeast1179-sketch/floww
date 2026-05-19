@@ -1,0 +1,916 @@
+--- PAGE 1 ---
+From Concept to Code: A Master Directive
+for Building Project Oracle, an Open-
+Source Institutional Options Analytics
+Platform
+Architectural Blueprint for a Low-Latency
+Microstructure Engine
+The construction of "Project Oracle," a self-hosted options analytics terminal designed to
+rival proprietary systems like Skylit, necessitates an architectural foundation built upon
+three non-negotiable pillars: real-time data ingestion, high-performance analytical
+processing, and a flexible, columnar OLAP storage system. This blueprint rejects
+conventional approaches in favor of a specialized, low-latency stack optimized for the
+computational demands of market microstructure analysis. The entire system is
+predicated on the principle of minimizing latency at every stage, from the arrival of a
+new market tick to its transformation into a quantifiable signal. The core architecture is
+defined by a strict set of constraints and invariant rules that govern the interaction
+between its constituent parts. First, the system must operate on a "no polling" policy; all
+real-time state changes must be driven exclusively by asynchronous WebSocket streams
+from broker APIs, such as Schwab's Streamer service 11. This ensures that the system's
+internal state remains synchronized with the market with minimal delay, avoiding the
+inefficiencies and inherent lag of periodic REST API calls 1 . Second, the architecture is
+"OLAP-first," mandating that all raw tick data and options chain information be written to
+an in-memory DuckDB instance. This choice eliminates network overhead associated with
+client-server database architectures and enables sub-millisecond analytical query
+performance directly against the ingested data 3 122. Third, any computation-intensive
+logic, particularly the calculation of higher-order Greeks and VPIN, must be compiled
+using Just-In-Time (JIT) compilation via Numba. This transforms Python functions into
+highly optimized machine code, achieving C-level execution speeds necessary for real-
+time processing 8 10. Finally, all I/O operations, including network communication with
+the WebSocket server and database writes, must be managed through an asyncio-based
+event loop to maximize concurrency and throughput without blocking the main execution
+thread 74.
+
+--- PAGE 2 ---
+The physical implementation of this architecture begins with the creation of a monorepo
+structure, which logically organizes the distinct components of the application. The
+proposed directory layout consists of /ingestion, /analytics, /api, and /ui
+modules 74. The /ingestion module will house the WebSocket client responsible for
+connecting to the broker, subscribing to Level 2 options and underlying asset ticks, and
+parsing the incoming JSON messages 11. The /analytics module will contain the core
+mathematical kernels, where Numba-compiled functions will perform calculations for
+GEX, VEX, Vanna, Charm, and VPIN. The /api module, built with FastAPI, will expose
+endpoints for the UI to request processed data or trigger specific analyses. Lastly, the /ui
+module will implement the Dash/Plotly frontend, responsible for rendering the various
+charts and tables that visualize the analytical output 3 . For long-term maintenance and
+future expansion, an additional /research directory is recommended to house newly
+discovered open-source libraries and academic papers that are under consideration for
+integration 23. This modular structure promotes separation of concerns, simplifies
+testing, and facilitates team collaboration if the project expands beyond a solo developer.
+The cornerstone of the data pipeline is the real-time ingestion layer. Instead of relying on
+batch-oriented REST APIs, the system must establish a persistent WebSocket connection
+to a broker's streaming API, such as Schwab's 11. The reference repository
+tylerebowers/Schwabdev provides a concrete starting point for implementing this
+component, offering proven logic for managing the WebSocket connection, parsing the
+complex Level 2 options stream, and handling the automatic refresh of authentication
+tokens to maintain connectivity 11. All incoming data—ticks for the underlying asset
+(SPY, SPX, QQQ) and full options chains for various strikes and expirations—must be
+handled asynchronously. To manage the high throughput of this data, a bounded
+asynchronous queue is employed. Incoming WebSocket messages are placed into this
+queue, and a dedicated writer task processes the queue by batching messages and
+executing bulk INSERT statements into the DuckDB database. This batching strategy,
+with a target interval of 50-100 milliseconds, is a critical optimization. Writing each
+individual tick to the database would introduce prohibitive I/O overhead; instead, bulk
+inserts are far more efficient and align with DuckDB's strengths in vectorized, columnar
+data loading 122.
+Once ingested, the data must be stored in a format conducive to fast, ad-hoc analytical
+queries. While Pandas DataFrames are a common tool in quantitative analysis, their
+performance degrades significantly when data size exceeds single-core memory capacity,
+leading to linear slowdowns 2 . DuckDB offers a superior alternative for this use case. It
+is an in-process analytical database that requires no separate server installation, allowing
+it to run within the same process as the Python application 3 . Its SQL-native interface
+
+--- PAGE 3 ---
+allows for direct querying of various data sources, including Pandas DataFrames, CSV
+files, and Parquet files, making it incredibly versatile 3 . The proposed schema for the in-
+memory DuckDB instance is designed to capture the essential elements of market
+microstructure. It includes a ticks table to store per-tick data for the underlying asset,
+with columns for timestamp, symbol, bid, ask, last, volume, and oi. A second
+table, chains, is designed to hold the complete options chain snapshot for a given
+moment, with columns for timestamp, symbol, expiry, strike, type (Call/Put),
+oi, and the first-order Greeks (delta, gamma, theta, vega) 75. A third table,
+lob_snapshots, is also included to capture Limit Order Book (LOB) data, storing top-
+of-book bid/ask sizes and prices, which is crucial for calculating metrics like Quote
+Imbalance 126. By writing all data to this DuckDB instance, the system creates a unified,
+time-indexed repository of market state that can be queried with SQL for any analytical
+purpose, from simple lookups to complex aggregations required for VPIN calculations 3 .
+The final piece of the architectural puzzle is performance optimization through JIT
+compilation. As detailed in the subsequent sections, the calculation of dealer gamma
+exposure and volume-synchronized probability of informed trading (VPIN) involves
+intensive loops over large datasets. Standard Python implementations of these algorithms
+would be orders of magnitude too slow for real-time processing. Numba addresses this by
+compiling Python functions to native machine code at runtime 10. By decorating the core
+mathematical functions with the @numba.njit decorator, the system can achieve near-C
+speeds, transforming computationally expensive tasks into manageable operations 8 .
+For example, a function that calculates the GEX for an entire options chain of thousands
+of strikes would iterate over arrays of open interest and gammas. Numba can vectorize
+this operation, applying the calculation across the entire array in a single, highly
+optimized CPU instruction set. Furthermore, for functions that are amenable to parallel
+execution, Numba's parallel=True option can automatically distribute the workload
+across multiple CPU cores, providing an additional performance boost 44 46. The strict
+adherence to using Numba for all quantitative logic is not merely an optimization but a
+fundamental requirement for meeting the project's real-time objectives. This combination
+of asynchronous ingestion, in-process OLAP storage, and JIT-compiled analytics forms a
+robust, scalable, and high-performance architectural blueprint for Project Oracle.
+
+--- PAGE 4 ---
+Component Technology Rationale
+Real-Time Python, WebSockets, Provides a persistent, low-latency data feed from the broker, avoiding polling delays.
+Ingestion schwab-trader library The library offers proven connection management and parsing logic 11.
+Database DuckDB (in-process, OLAP) Eliminates network latency, supports sub-millisecond analytical queries via SQL, and
+Backend runs entirely within the application process 3 122.
+Mathematical Python, Numba JIT Compiles computationally intensive functions (GEX, VPIN) to near-native speed,
+Kernels enabling real-time calculation on large datasets 8 10.
+Asynchronous I/ Python asyncio Manages concurrent network and database operations efficiently, preventing blocking
+O and maximizing resource utilization 74.
+Frontend Dash, Plotly Enables rapid development of interactive web-based dashboards and financial
+Framework charting capabilities 3 .
+CI/CD & GitHub Actions, Docker, Leverages GitHub Student Pack for automated testing, linting, and container registry
+Deployment GHCR services to streamline development and deployment 70 71.
+This architectural blueprint, while demanding in its initial setup, provides the necessary
+performance ceiling and flexibility to execute the ambitious goals of Project Oracle. It
+moves beyond retail-grade tools by building a system from the ground up with
+institutional requirements for speed, accuracy, and analytical depth.
+The Quantitative Core: Implementing Dealer Gamma
+Exposure and Flow Toxicity
+The heart of Project Oracle lies in its ability to calculate and interpret two of the most
+critical concepts in modern options market microstructure: dealer gamma exposure
+(GEX) and order flow toxicity, measured by Volume-Synchronized Probability of
+Informed Trading (VPIN). These metrics provide a window into the structural pressures
+and hidden risks embedded within the market, moving beyond simple price action to
+reveal the hedging behavior of market makers and the informational content of trades.
+The accurate and efficient implementation of these mathematical models is paramount,
+and they must be realized through the high-performance computing paradigm
+established by the Numba JIT compiler. The theoretical foundations for these metrics are
+well-established in academic literature and are actively used by professional traders to
+gauge market regimes and anticipate volatility shifts 21 22 42.
+Dealer Gamma Exposure (GEX) is a measure of the total hedging pressure exerted by
+dealers (market makers) in response to movements in the underlying asset's price. It is
+derived from the sum of all open option contracts multiplied by their respective gammas
+
+--- PAGE 5 ---
+75. The standard formula for GEX is expressed as GEX=∑(OIi×Γi×Δi×100×Spot),
+where OIi is the open interest at strike i, Γi is the gamma, Δi is the delta, and Spot is
+the current price of the underlying asset 75. The factor of 100 represents the typical
+contract multiplier for stock options. A crucial aspect of this calculation is the sign
+convention: for dealer positioning, call options are typically assigned a positive value and
+put options a negative value, reflecting the assumption that dealers are short customer
+positions 41 75. The resulting GEX figure has profound implications for market dynamics.
+A positive GEX indicates that dealers are net long gamma, meaning they hedge against
+price moves by selling into rallies and buying into dips, which tends to stabilize the
+market and compress volatility 75 97. Conversely, a negative GEX signifies that dealers
+are net short gamma, causing them to chase price moves by selling into dips and buying
+into rallies, which amplifies volatility and encourages trending behavior 75 97. The "Zero
+Gamma" (ZG) level, the strike price where the cumulative net GEX flips from positive to
+negative, acts as a powerful structural support or resistance level. Zones of extremely
+high positive or negative GEX, known as "Gamma Walls," represent areas where dealer
+hedging activity is so intense that it can halt or reverse price movement 75. The
+implementation of GEX calculation must pull the entire options chain (strikes, OI, deltas,
+gammas) from the DuckDB chains table, pass this data as NumPy arrays to a Numba-
+compiled function, and return a 1D array of GEX values corresponding to each strike
+price. This vectorized approach is essential for performance 9 .
+Flow toxicity, or the presence of informed trading, is quantified by the VPIN metric.
+Developed by Easley, Lopez de Prado, and O'Hara, VPIN measures the imbalance
+between aggressive buying and selling volume, providing a real-time indicator of liquidity
+risk and potential price disruption 22 69. Unlike traditional volume imbalance which uses
+fixed time windows, VPIN employs a "volume clock" that divides the total trading volume
+into equal-sized buckets 68. This volume-synchronization makes the metric more robust
+to periods of high or low trading activity. The VPIN algorithm proceeds in several steps.
+First, the total volume for a period is partitioned into N buckets, each containing a
+volume V 43. Second, the volume within each bucket is classified as either buy or sell
+aggressiveness. This is achieved using the "Bulk Volume Classification" method, which
+classifies volume based on the path of the price within the bucket 126. The Buy Volume
+B S
+(Vτ ) and Sell Volume (Vτ ) for bucket τ are estimated using the properties of a
+random walk, where the classification depends on the observed price change and an
+estimate of volatility 43. Third, the absolute difference between buy and sell volume is
+summed across all buckets, and this sum is normalized by the total volume to produce
+n B S
+∑
+τ=1
+|Vτ −Vτ |
+the VPIN value: VPIN= n over a rolling window of n buckets 68.
+∑
+τ=1
+Vτ
+
+--- PAGE 6 ---
+Simply observing the VPIN value is insufficient for generating reliable signals; its true
+power comes from analyzing its statistical distribution. By calculating the Cumulative
+Distribution Function (CDF) of the rolling VPIN time series, one can determine the
+percentile rank of the current VPIN reading. This allows for the generation of z-scores,
+creating a standardized signal that flags statistically significant deviations from normal
+flow conditions 29 68. The implementation of the VPIN engine requires maintaining a
+rolling state of volume buckets in memory. New trade data from the WebSocket stream is
+continuously fed into this state, buckets are filled and processed, and the VPIN value and
+its CDF/z-score are updated in real-time. Reference implementations found in
+repositories like yt-feng/VPIN and theopenstreet/VPIN_HFT provide the
+necessary algorithmic details for this complex calculation 68.
+To further enrich the analysis of dealer behavior, the project explicitly requests the
+implementation of higher-order Greeks, specifically Vanna and Charm. These metrics
+offer deeper insights into portfolio sensitivity beyond the first-order effects captured by
+Delta and Gamma.
+• Vanna, also known as DvegaDspot or DdeltaDvol, is the second derivative of an
+option's price with respect to both the underlying spot price (S) and implied
+2
+d V
+volatility (σ): Vanna= dSdσ 9 . It measures how an option's delta changes as the
+underlying asset's price moves, or equivalently, how its vega changes as the price
+changes. Vanna is a critical risk metric for portfolios with exposure to both
+directional moves and volatility shifts.
+• Charm, also known as DeltasDtime, is the second derivative of an option's price
+2
+d V
+with respect to the underlying spot price (S) and time (t): Charm= dSdt 9 . It
+represents the rate of change of an option's delta over time, often referred to as the
+"rho of delta." This is particularly important for traders who are concerned with
+how their delta-hedging needs will evolve as expiration approaches.
+These formulas can be derived analytically from the Black-Scholes model and are
+available in academic resources and open-source libraries like AmirDehkordi/
+OptionGreeks 9 . Their implementation follows the same pattern as GEX: the relevant
+chain data (prices, strikes, etc.) is pulled from DuckDB, passed as arrays to a Numba-
+compiled function decorated with @numba.njit, and a vectorized output of Vanna or
+Charm values for each strike is returned. This brings the platform's analytical capabilities
+to a level comparable to institutional-grade risk management systems. The combination
+of GEX, VPIN, and higher-order Greeks creates a multi-dimensional view of market
+structure, allowing the system to identify not only where dealers are structurally exposed
+but also how that exposure is changing dynamically due to shifts in price, time, and
+
+--- PAGE 7 ---
+volatility. This quantitative core, built on a foundation of rigorous mathematics and
+optimized for performance, is the engine that drives all subsequent analysis and
+visualization in Project Oracle.
+Metric Formula / Definition Significance
+Gamma Exposure (GEX) GEX=∑(OIi×Γi×Δi×100×SpoMt)easures dealer hedging pressure. Positive GEX stabilizes markets;
+Negative GEX amplifies volatility 75 97.
+Zero Gamma (ZG) Level Strike where cumulative net Acts as a major structural support/resistance level determined by dealer
+GEX flips sign. positioning 75.
+Volume-Synchronized $VPIN = \frac{\sum V^B_τ - V^S_τ
+PIN (VPIN)
+Quote Imbalance (QI) (BidSize−AskSize)/(BidSize+AsMkeSaiszuer)es top-of-book LOB imbalance, used alongside VPIN to confirm
+directional flow toxicity 126.
+Vanna
+d2V
+Measures change in Delta with respect to Price or Vega with respect to
+dSdσ
+Volatility; captures cross-gamma-vol risk 9 .
+Charm
+d2V
+Measures the change in Delta over time ("rho of delta"); critical for theta
+dSdt
+decay and time-based hedging 9 .
+UI/UX Synthesis: Replicating Heatseeker and
+Flowseeker Visualizations
+The ultimate utility of Project Oracle's sophisticated quantitative engine is realized
+through its user interface (UI) and user experience (UX). The goal of Phase 3 is to
+synthesize the real-time data and analytical outputs from the backend into intuitive,
+actionable visualizations that replicate the core functionality of established market tools
+like Skylit's Heatseeker and Flowseeker. This phase bridges the gap between abstract
+numerical results and concrete trader insight, requiring a focus on responsive design,
+real-time data streaming to the frontend, and the algorithmic detection of key market
+levels. The chosen technology stack of FastAPI for the backend and Dash with Plotly for
+the frontend provides a powerful and flexible framework for building these dynamic
+dashboards 3 . Dash, in particular, excels at creating interactive web applications with
+Python, allowing for the direct integration of Plotly graphs, which are ideal for financial
+charting.
+The centerpiece of the UI will be a "Heatseeker clone," a dynamic heatmap that visualizes
+Dealer Gamma Exposure (GEX) over time. This visualization will have the strike price on
+the Y-axis, time progressing along the X-axis, and the GEX value represented by a color
+
+--- PAGE 8 ---
+scale 75. In this representation, positive GEX (dealer stabilization) would be colored
+green (e.g., "Pika"), while negative GEX (dealer amplification) would be colored red
+("Barney") 75. Superimposed on this heatmap will be a line graph representing the price
+of the underlying asset, plotted on a secondary Y-axis. This allows the user to directly
+correlate price action with the prevailing dealer hedging regime. A critical enhancement
+to this classic visualization is the algorithmic identification and highlighting of key
+structural levels. The system will scan the GEX data in real-time to detect "King Nodes,"
+which are local maxima of absolute GEX values. These are points of maximum dealer
+hedging pressure and are often precursors to sharp reversals. Horizontal lines will be
+drawn on the heatmap at the strike prices of these King Nodes, labeled accordingly.
+Conversely, the system will also identify "Air Pockets," which are zones of near-zero GEX.
+These areas represent a lack of structural support or resistance from dealer hedging,
+suggesting that the market may be more susceptible to momentum-driven moves.
+Highlighting these nodes and pockets provides a powerful, at-a-glance summary of the
+market's structural integrity.
+Complementing the heat map will be a "Flowseeker clone," implemented as a real-time
+scrolling ticker table. This component will display a live feed of significant trades, with
+rows being color-coded to indicate their potential impact on the market. The primary
+logic for this coloring will be based on the "Flow Scanner," a simple yet effective filter for
+identifying potentially anomalous trades. A trade will be flagged as high-risk if its size is
+greater than the remaining open interest (OI) for that option, or if its size exceeds the
+daily volume 75. Such trades could represent large block orders or attempts to
+manipulate the market. A bright yellow or red highlight will draw the user's attention to
+these events. The table might include columns for the option symbol, trade size, price,
+and the calculated color code. By presenting this information in a clean, uncluttered
+format, the Flowseeker clone provides traders with immediate feedback on the character
+of recent order flow.
+Beyond these core replicants, the dashboard will feature a "Toxicity and Liquidity Gauge"
+widget. This compact widget will display two key real-time metrics: the VPIN CDF z-score
+and the Quote Imbalance (QI) z-score 29126. The VPIN CDF z-score, as discussed
+previously, quantifies the extremity of order flow imbalance, while the Quote Imbalance
+measures the relative depth of the top of the book 126. The widget will trigger a strong
+visual alert (e.g., a flashing border or a change in background color) when a confluence
+of signals is detected. Specifically, an alert would activate when VPIN CDF > 0.5
+(indicating toxic flow) AND Quote Imbalance z-score > 1.5 (indicating a severe
+imbalance in the top-of-book quotes) 29. This dual confirmation mechanism helps reduce
+false positives and focuses the trader's attention on moments of high informational
+
+--- PAGE 9 ---
+asymmetry and potential liquidity crisis. The entire dashboard will be built using Dash
+callbacks, which allow Python functions to update the figure and children properties
+of components in response to changes in other components or to timed intervals. This
+ensures that the UI remains fully synchronized with the backend analytics engine without
+requiring a full page reload.
+Finally, to provide a richer context, the UI can be extended to incorporate real-time 3D
+visualizations of the implied volatility (IV) surface. By fetching the iv and other chain
+data from DuckDB, a PyTorch-based module can be used to render a mesh plot showing
+how IV varies with strike price and time to expiration 78. Integrating open-source
+implementations of Stochastic Volatility models like SABR or SVI could further enhance
+this visualization by providing a smoothed, interpolated surface that better reflects the
+true volatility landscape 23. This would require an additional research task to find and
+adapt a suitable open-source library for IV surface interpolation 68. The overall design
+philosophy for the UI/UX is centered on clarity, responsiveness, and actionability. Every
+element is designed to answer a specific question for the trader: Where are the structural
+supports and resistances? Is the flow of money informed or noise? Are there signs of
+liquidity stress? By synthesizing the complex backend analytics into these intuitive, real-
+time visualizations, Project Oracle can deliver a user experience that is not only
+competitive with existing commercial products but also customizable and extensible in
+ways that closed-source platforms cannot match.
+Advanced Applications: Developing an Institutional
+Edge with Novel Analytics
+While replicating existing tools like Heatseeker and Flowseeker establishes a solid
+baseline, the true ambition of Project Oracle is to surpass them by developing novel,
+institutional-grade features that provide a unique analytical edge. Phase 4 of the project
+is dedicated to this goal, focusing on the creation of custom metrics and machine learning
+models that analyze dealer hedging behavior, inter-market relationships, and latent
+patterns in order flow. These advanced applications move the platform from a descriptive
+analytics tool to a prescriptive one, capable of identifying subtle market dynamics that
+are invisible to conventional retail-grade indicators. The development of these features
+requires a deep understanding of market microstructure theory and the application of
+cutting-edge techniques from computational physics and machine learning 16117.
+
+--- PAGE 10 ---
+One of the most powerful custom metrics to be developed is the Trinity Alignment
+Index. This index is designed to quantify the degree of structural alignment between the
+three most liquid equity indices: SPX (S&P 500 Index), SPY (S&P 500 ETF), and QQQ
+(Nasdaq 100 ETF). The core idea is that when dealers are simultaneously hedging large
+gamma exposures in the same relative position across these three markets, it signals a
+broad, systemic shift in market sentiment. The index will be calculated in real-time by
+tracking the "Zero Gamma" (ZG) strike levels for each of the three instruments 75. The
+ZG level represents the boundary between dealer-stabilizing and dealer-amplifying
+regimes 75. The system will compute the cross-correlation between the time series of
+these ZG levels. A high correlation would indicate that the ZG levels are moving in
+tandem, suggesting synchronized dealer positioning. The final output will be a
+normalized score from 0 to 100, where a high score denotes a high degree of alignment
+and a potential precursor to a broad market turn. This metric directly addresses the need
+for signal coherence across different but related markets, a concept highlighted in
+systematic trading frameworks 58.
+Another innovative feature is the Node Lifecycle Tracker. This component adds a
+historical and dynamic dimension to the static GEX heatmap. The tracker implements a
+state machine that monitors how many times the price of the underlying asset has
+"tapped" or crossed a "King Node"—a local maximum of absolute GEX 75. Each time the
+spot price touches such a node, the node's "lifecycle counter" is incremented. More
+importantly, its visual representation on the heatmap decays over time. On each
+successive tap, the node's opacity is reduced, and its contribution to the overall GEX
+aggregation is diminished. This visual metaphor communicates the concept of "structural
+fatigue." A node that has held the market off for an extended period becomes weaker
+with each subsequent test, signaling increased risk of a break. This feature provides
+traders with a dynamic sense of which structural levels are currently "live" and which
+have lost their potency, adding a crucial temporal dimension to the otherwise static
+picture of dealer exposure.
+Perhaps the most technologically advanced feature is the implementation of an Anomaly
+Detection System using a 1D-CNN Autoencoder. Traditional methods for detecting "toxic
+flow," like VPIN thresholds, are reactive and rely on pre-defined statistical assumptions.
+An autoencoder-based approach offers a more adaptive and powerful alternative. The
+system will ingest multivariate time series data, primarily the VPIN readings and the
+Quote Imbalance values, as input sequences 109110. A 1D-CNN Autoencoder is trained on
+a large dataset of "normal" market conditions, learning to reconstruct the input time
+series with minimal error 111. During training, the model identifies the underlying
+patterns and correlations in the data. Once trained, it is deployed to run in inference
+
+--- PAGE 11 ---
+mode. When presented with new data, if the reconstruction error—the difference
+between the input and the output—is significantly larger than the error observed during
+training, it is flagged as an anomaly 113141. This method can detect novel forms of toxic
+flow that do not conform to traditional patterns, acting as a real-time alarm for
+unexpected market behavior. The Hugging Face directive ensures that the necessary
+infrastructure is in place to acquire state-of-the-art transformer and autoencoder models
+and datasets like FI-2010 for training and validation 78111. Other advanced research
+areas to explore include modeling the Limit Order Book (LOB) itself using Hawkes
+Processes, which are stochastic models that describe the clustering of events like trades
+and cancellations, and using Transformer-based architectures like LiT to forecast short-
+term market movements directly from LOB data 16106117.
+By integrating these advanced applications, Project Oracle transcends the role of a mere
+data viewer. It becomes an active participant in the analytical process, surfacing insights
+that require a synthesis of microstructure theory, quantitative modeling, and machine
+learning. The Trinity Alignment Index provides a macro perspective on market structure,
+the Node Lifecycle Tracker adds a crucial historical context to key levels, and the
+Anomaly Detection system offers a proactive defense against unforeseen market shocks.
+Together, these features constitute the "institutional edge" that was a core objective of the
+project, empowering users with a level of analytical depth previously accessible only
+through expensive, proprietary platforms.
+Feature Description Underlying Technology / Theory
+Trinity Alignment A 0-100 score measuring the cross-correlation of Zero-Gamma Cross-correlation of time series, Market
+Index (ZG) strike levels across SPX, SPY, and QQQ to gauge systemic Structure Analysis 58 75
+dealer positioning.
+Node Lifecycle A state machine that tracks taps on King Nodes (high GEX levels) State Machine, Market Memory /
+Tracker and decays their visual weight and importance on successive tests. Structural Fatigue Concept 75
+Anomaly Detection A 1D-CNN Autoencoder trained to reconstruct normal VPIN and Unsupervised Machine Learning,
+(Autoencoder) Quote Imbalance time series, flagging significant reconstruction Reconstruction Error, Time Series Analysis
+errors as anomalies. 109110111
+Limit Order Book Simulates realistic LOB dynamics using event-based models, Event-Based Simulation, Stochastic
+(LOB) Simulation potentially incorporating Hawkes Processes for trade arrival. Processes, Reinforcement Learning 16106
+115
+Stochastic Volatility Renders a 3D mesh of the Implied Volatility (IV) surface, Stochastic Volatility Models, Surface
+Surface potentially using models like SABR or SVI for smoothing and Interpolation, 3D Visualization 23117
+interpolation.
+
+--- PAGE 12 ---
+Autonomous Research & Asset Acquisition Protocol
+A defining characteristic of Project Oracle is its mandate to evolve and improve through
+continuous, autonomous discovery and integration of cutting-edge knowledge. This
+protocol elevates the project from a static implementation of known formulas to a living
+research platform that stays abreast of the latest developments in quantitative finance.
+The directive granted to the AI agent includes explicit instructions to leverage its web
+search, GitHub scraping, and code analysis capabilities to proactively seek out, study, and
+adapt state-of-the-art open-source code and academic research 23. This self-improving
+capability is the key to maintaining the platform's "institutional edge" over time. The
+research mandate is focused on several key frontiers of market microstructure and
+algorithmic trading: Limit Order Book (LOB) dynamics, Hawkes Processes for modeling
+trade arrivals, advanced Stochastic Volatility models, and next-generation machine
+learning for flow toxicity and anomaly detection 16 18117.
+The first step in this protocol is the active discovery of relevant repositories and papers.
+The agent is instructed to search platforms like GitHub, arXiv, and QuantConnect for
+projects related to the aforementioned topics. For instance, regarding LOB dynamics, the
+agent would search for implementations of event-based simulators or deep learning
+models like the Limit Order Book Transformer (LiT) 117118. For Hawkes Processes, it
+would look for libraries like HawkesPyLib or hawkeslib that facilitate simulation and
+parameter estimation 13 14. Upon discovering a promising repository, the agent must
+perform a deep study of its methodology, extracting the core mathematical kernels rather
+than attempting to copy-paste the entire codebase 23. This extracted logic must then be
+translated into production-grade, Numba-optimized Python that adheres to the project's
+strict architectural constraints. For example, finding a research paper on a novel Hawkes
+Process model would lead to the extraction of the likelihood function and optimization
+routines, which would then be adapted for use in the VPIN and LOB engine modules.
+The second critical component of the protocol is the acquisition and organization of state-
+of-the-art machine learning assets. The project's advanced applications, particularly the
+anomaly detector, depend heavily on having access to pre-trained models and high-
+quality datasets. The Hugging Face ecosystem is central to this effort. The agent is tasked
+with provisioning the complete PyTorch/Hugging Face stack, including transformers,
+datasets, and accelerate 71. It will then execute a script to search the Hugging
+Face Hub for specific types of assets. This includes searching for: 1. Time-Series
+Forecasting Models: SOTA models like PatchTST, Informer, or Autoformer that are
+designed for forecasting tasks on sequential data 34 36. 2. Anomaly Detection Models:
+1D-CNN Autoencoders or Transformer-based architectures specifically used for financial
+
+--- PAGE 13 ---
+anomaly detection 111130131. 3. Limit Order Book Prediction Models: Specialized
+models like DeepLOB or LiT that are trained on high-frequency LOB data 31117.
+Simultaneously, the agent will search for relevant datasets, such as the FI-2010
+benchmark dataset or NASDAQ LOB snapshots, which are invaluable for pre-training and
+validating the deep learning models 40 78. All downloaded models and datasets must be
+organized into a strict local directory structure: ./project_oracle/models/ and ./
+project_oracle/datasets/ 78. This systematic approach to asset acquisition
+ensures that the project has access to the best available tools and data, completely
+bypassing the need for manual scraping and cleaning of messy raw data. The use of GPU-
+accelerated simulators like JAX-LOB, which can process thousands of books in parallel,
+further underscores the commitment to leveraging high-performance computing for
+research 17105.
+This autonomous research protocol is not just a one-time setup but a continuous process.
+As the project matures, the agent's search parameters can be refined, and it can be tasked
+with monitoring specific researchers or repositories for new publications and code
+updates. This ensures that Project Oracle does not become a static artifact but a dynamic
+platform that grows in sophistication over time. The integration of findings from
+academic papers, such as those examining the relationship between order-flow toxicity
+and price jumps in Bitcoin or the effect of monetary policy on traded value, can provide
+novel inputs for the analytical engine 21 92. The ultimate goal is to create a virtuous
+cycle: the system generates analytical signals, researchers analyze the effectiveness of
+these signals, and the system is automatically updated with improved models and
+methodologies discovered through this research. This approach embodies the spirit of
+open science and collaborative intelligence, using the power of automation to accelerate
+the pace of quantitative discovery. By combining rigorous engineering with an agile,
+research-driven development process, Project Oracle is positioned to become a truly
+unique and powerful tool in the field of options analytics.
+
+--- PAGE 14 ---
+Asset Type Target Examples Purpose in Project Oracle
+Time-Series Models PatchTST, Informer, Autoformer 34 36 Forecasting VPIN and Quote Imbalance time series to predict future
+flow toxicity.
+Anomaly Detection 1D-CNN Autoencoders, Transformer-based Training unsupervised models to detect novel "toxic flow" anomalies
+Models GANs 111130131 deviating from learned patterns.
+LOB Prediction LiT, DeepLOB, Neural Hawkes Process 31 Modeling and predicting Limit Order Book dynamics for advanced
+Models microstructure analysis.
+106117
+Datasets FI-2010, NASDAQ LOB, High-Frequency Providing benchmark data for training and validating deep learning
+Crypto Data 40 78 models on realistic order flow.
+Volatility Models SABR, SVI, Rough Bergomi 23 85 Improving the accuracy of the Implied Volatility (IV) surface used
+for Greek calculations.
+Execution Strategy and Phased Implementation
+Roadmap
+The successful realization of Project Oracle requires a disciplined, phased execution
+strategy that builds the system's capabilities incrementally, starting with a robust
+foundation and progressively layering on complexity. The roadmap is divided into four
+distinct phases, each with a clear objective and a set of deliverables. This structured
+approach ensures that each component is developed, tested, and integrated
+systematically, mitigating risk and providing tangible progress milestones. The entire
+process is designed to be executed by an autonomous AI agent, guided by the master
+directive provided in the conversation history, with the GitHub Student Developer Pack
+serving as the enabler for version control, CI/CD, and deployment 70 71.
+Phase 1: Foundational Infrastructure & Data Pipeline. The primary goal of this phase
+is to establish a reliable, real-time data ingestion and storage pipeline. Without this
+bedrock, no subsequent analysis can occur. The first action is to scaffold the monorepo
+with the designated directory structure: /ingestion, /analytics, /api, /ui, and /
+research 74. Following this, the core task is to implement the WebSocket client.
+Leveraging the logic from the tylerebowers/Schwabdev repository, the agent will
+write a Python class to manage the connection to the broker's streaming API, subscribe to
+Level 2 options and underlying asset ticks, and parse the incoming JSON payloads 11.
+Concurrently, the agent must define the DuckDB schema. This involves writing the SQL
+statements to create the ticks, chains, and lob_snapshots tables with appropriate
+data types 3 . The final piece of Phase 1 is the implementation of the async batching
+
+--- PAGE 15 ---
+writer. This will involve creating a bounded asyncio.Queue and a dedicated coroutine
+that consumes items from the queue, batches them, and executes bulk INSERT
+statements into the DuckDB tables every 50 milliseconds 122. The success criterion for this
+phase is a running script that can connect to the WebSocket feed, receive data, and see it
+appear reliably in the DuckDB tables.
+Phase 2: The Mathematical Engine & Continuous Research. With a stable data
+pipeline in place, Phase 2 focuses on building the core analytical engine. The first task is
+to implement the Greek calculator. Using the analytical formulas for Vanna and Charm
+from the AmirDehkordi/OptionGreeks repository, the agent will write Numba-
+compiled (@numba.njit) functions that accept NumPy arrays of chain data and return
+vectorized outputs of Vanna and Charm 9 . Next, the GEX/VEX aggregator will be
+implemented as another Numba function that queries the current chain state from
+DuckDB and computes the aggregate GEX array. Following this, the VPIN engine will be
+built, adapting the volume-bucketing and Bulk Volume Classification logic from
+repositories like theopenstreet/VPIN_HFT 68. This function must maintain a rolling
+state in memory to process the continuous stream of trade data. Immediately following
+these core implementations, the autonomous research mandate is triggered. The agent
+will execute its first research task: to find and summarize three advanced GitHub
+repositories related to Limit Order Book (LOB) imbalance predictive modeling and
+Hawkes Processes for trade arrival 16 18. Based on this research, it will begin drafting a
+Numba-optimized module for the /analytics folder. The success criterion for Phase 2
+is a set of working, Numba-compiled functions that can take raw tick data as input and
+produce GEX, VPIN, and higher-order Greeks as real-time output.
+Phase 3: Synthesis & UI (Dash/Plotly). This phase is about translating the analytical
+output into a usable and insightful user interface. The first deliverable is the Heatseeker
+clone. Using Dash and Plotly, the agent will create a server-side rendered heatmap where
+the Y-axis is strike price, the X-axis is time, and the color scale represents GEX 3 . The
+underlying spot price will be overlaid as a secondary y-axis line. Algorithmic functions
+will be written to detect and draw horizontal lines for "King Nodes" (local GEX maxima)
+and shade "Air Pockets" (zones of near-zero GEX). The second deliverable is the
+Flowseeker clone, a real-time scrolling DataTable that color-codes rows based on the
+"Flow Scanner" logic (Trade_Size > OI) 75. The final UI component is the Toxicity
+and Liquidity Dashboard, a small widget displaying the VPIN CDF z-score and Quote
+Imbalance, with a callback that triggers a visual alert when both are above specified
+thresholds 29. Before completing the UI, the agent's second research task is initiated: to
+find the best open-source implementations of Stochastic Volatility Surface interpolation
+(e.g., SABR) and integrate the math into the UI to render a real-time 3D IV surface mesh
+
+--- PAGE 16 ---
+23. The success criterion is a fully functional, single-page web application that displays
+all synthesized data visually.
+Phase 4: Advanced Applications & Institutional Edge. The final phase is dedicated to
+building the platform's unique, advanced features. The first task is to implement the
+Trinity Alignment Index by cross-correlating the Zero-Gamma strike time series of SPX,
+SPY, and QQQ 58. The second is the Node Lifecycle Tracker, a state machine that
+manages the tapping and decay of King Nodes on the heatmap 75. The third and most
+complex task is the Anomaly Detection system. This involves scaffolding a PyTorch neural
+network module to ingest the VPIN and Quote Imbalance time series. The agent will then
+execute the Hugging Face asset acquisition script to download a suitable 1D-CNN
+Autoencoder model and a benchmark dataset like FI-2010 for pre-training 78111. The
+final research task is to investigate and attempt to implement Kyle's Lambda and Amihud
+Illiquidity metrics to generate a real-time "Market Fragility" score 28. The success
+criterion for Phase 4 is a fully operational, self-hosted analytics terminal that not only
+replicates but demonstrably extends the capabilities of existing retail tools, embodying
+the "institutional edge" envisioned in the project's core objective. Throughout this
+roadmap, GitHub Actions will be configured for automated testing and linting, and the
+final product will be containerized using Docker and pushed to the GitHub Container
+Registry (GHCR) for easy deployment on a personal VPS 70 71.
+Reference
+1. Best Online Brokers Of 2026: Choose The Right Brokerage For You https://
+www.bankrate.com/investing/best-online-brokers/
+2. 向量化、并行化与大数据加速（Numba / Swifter / Polars） - 知乎专栏 https://
+zhuanlan.zhihu.com/p/1974827460886553112
+3. DuckDB + Python + Pandas 的组合，量化研究利器 大家好，我是花姐 https://
+juejin.cn/post/7534608368842440744
+4. Optimizing Pandas Function with Numba - python - Stack Overflow https://
+stackoverflow.com/questions/60915374/optimizing-pandas-function-with-numba
+5. Harshit Nayan - LinkedIn https://www.linkedin.com/posts/harshit-
+nayan-9913bb266_quantfinance-cryptotrading-marketmicrostructure-
+activity-7332464895487115264-5H7A
+
+--- PAGE 17 ---
+6. GPU-Accelerate Algorithmic Trading Simulations by over 100x with ... https://
+developer.nvidia.com/blog/gpu-accelerate-algorithmic-trading-simulations-by-
+over-100x-with-numba/
+7. Performance Tips - Numba https://numba.pydata.org/numba-doc/dev/user/
+performance-tips.html
+8. Real-Time Capable, Low-latency Upstream Scheduling in Multi ... https://arxiv.org/
+html/2506.12118
+9. ta-numba - PyPI https://pypi.org/project/ta-numba/
+10. A Map of the Numba Repository https://numba.readthedocs.io/en/stable/developer/
+repomap.html
+11. schwab-trader - PyPI https://pypi.org/project/schwab-trader/
+12. [PDF] a statistical learning toolkit for high-dimensional Hawkes processes ... https://
+arxiv.org/pdf/2502.18979?
+13. HawkesPyLib - PyPI https://pypi.org/project/HawkesPyLib/
+14. hawkeslib — hawkeslib documentation https://hawkeslib.readthedocs.io/
+15. Multivariate Hawkes Processes for Large-Scale Inference https://ojs.aaai.org/
+index.php/AAAI/article/view/10846
+16. Limit Order Book Simulations: A Review - arXiv https://arxiv.org/html/2402.17359v1
+17. JAX-LOB: A GPU-Accelerated limit order book simulator to unlock ... https://
+dl.acm.org/doi/10.1145/3604237.3626880
+18. Limit Order Book dynamics and order size modelling using ... https://
+www.sciencedirect.com/science/article/pii/S1544612324011863
+19. (PDF) Limit Order Book Simulation and Trade Evaluation with $K https://
+www.researchgate.net/publication/
+383918016_Limit_Order_Book_Simulation_and_Trade_Evaluation_with_K-Nearest-
+Neighbor_Resampling
+20. Dynamic Modeling of Limit Order Book and Market Maker Strategy ... https://
+www.mdpi.com/2227-7390/13/5/778
+21. Bitcoin wild moves: Evidence from order flow toxicity and price jumps https://
+www.researchgate.net/publication/
+396478814_Bitcoin_wild_moves_evidence_from_order_flow_toxicity_and_price_jump
+s
+22. A Rigorous Walk-Forward Validation Framework for Market ... - arXiv https://
+arxiv.org/html/2512.12924v1
+23. How I find Alpha in MFT: Books, Papers, Observation - LinkedIn https://
+www.linkedin.com/posts/pranay-gaurav-290a30150_quanttrading-mft-crypto-
+activity-7341299544204218369-utmy
+
+--- PAGE 18 ---
+24. Circuit breakers and market runs | Review of Finance https://academic.oup.com/rof/
+article/28/6/1953/7749880
+25. An Information Leakage Score Framework for Prediction Markets https://arxiv.org/
+html/2605.00493v1
+26. Published Research: RELIANCE.NS Stock Market Prediction System https://
+www.linkedin.com/posts/graceydas_stock-price-direction-prediction-under-market-
+activity-7457114544318869504-YFcI
+27. Toward Black–Scholes for Prediction Markets: A Unified Kernel and ... https://
+arxiv.org/html/2510.15205v1
+28. Junfan Zhu - Saturday Robotics | LinkedIn https://www.linkedin.com/in/junfan-zhu
+29. Albert Salvany Rebled's Post - LinkedIn https://www.linkedin.com/posts/
+asalvany_volatility-optionstrading-skew-activity-7449804070388793346-CG-D
+30. glove.6B.100d.txt-vocab.txt - CodaLab Worksheets https://worksheets.codalab.org/
+rest/bundles/0xadf98bb30a99476ab56ebff3e462d4fa/contents/blob/
+glove.6B.100d.txt-vocab.txt
+31. Detecting Multilevel Manipulation from Limit Order Book via ... - arXiv https://
+arxiv.org/html/2508.17086v2
+32. A Novel Transformer Model with Dual Attention for Stock Price Trend ... https://
+arxiv.org/html/2502.15757v2
+33. Representation Learning of Limit Order Book - arXiv https://arxiv.org/html/
+2505.02139v1
+34. Foundation Models for Time Series: A Survey - arXiv https://arxiv.org/html/
+2504.04011v1
+35. [PDF] A Deep Learning Approach to Anomaly Detection in High ... - arXiv https://
+arxiv.org/pdf/2504.00287
+36. [PDF] TLOB: A Novel Transformer Model with Dual Attention for Stock ... https://
+arxiv.org/pdf/2502.15757
+37. An Observability Perspective on Time Series Foundation Models https://arxiv.org/
+html/2505.14766v1
+38. MarS: a Financial Market Simulation Engine Powered by Generative ... https://
+arxiv.org/html/2409.07486v1
+39. Asset Pricing in Transformer - arXiv https://arxiv.org/html/2505.01575v1
+40. TimeDiT: General-purpose Diffusion Transformers for Time Series ... https://
+arxiv.org/html/2409.02322v1
+41. [PDF] Evaluating LLM Detection of Gamma Exposure Patterns via ... - arXiv https://
+arxiv.org/pdf/2512.17923
+
+--- PAGE 19 ---
+42. [PDF] 1 Flow Toxicity and Liquidity in a High Frequency World ... - NYU Stern
+https://www.stern.nyu.edu/sites/default/files/assets/documents/con_035928.pdf
+43. Assessing VPIN Measurement of Order Flow Toxicity via Perfect ... https://
+www.researchgate.net/publication/
+270415325_Assessing_VPIN_Measurement_of_Order_Flow_Toxicity_via_Perfect_Trad
+e_Classification
+44. Automatic parallelization with @jit - Numba https://numba.pydata.org/numba-doc/
+dev/user/parallel.html
+45. python - numba - guvectorize barely faster than jit - Stack Overflow https://
+stackoverflow.com/questions/41804003/numba-guvectorize-barely-faster-than-jit
+46. Performance Tips - Numba documentation - Read the Docs https://
+numba.readthedocs.io/en/0.51.2/user/performance-tips.html
+47. Optimizing Performance in Numba: Advanced Techniques for ... https://
+www.geeksforgeeks.org/data-visualization/optimizing-performance-in-numba-
+advanced-techniques-for-parallelization/
+48. Comparing numba njit/vectorize/guvectorize - python - Stack Overflow https://
+stackoverflow.com/questions/74681069/comparing-numba-njit-vectorize-guvectorize
+49. Numba documentation — Numba 0+untagged.855.g9e3087a.dirty ... https://
+numba.readthedocs.io/
+50. Arxiv今日论文| 2026-05-04 - 闲记算法 http://lonepatient.top/2026/05/04/
+arxiv_papers_2026-05-04.html
+51. Agentic Operator Generation for ML ASICs - arXiv https://arxiv.org/html/
+2512.10977v1
+52. The Challenge of Production LLM Serving: A Ray Serve Perspective https://
+www.linkedin.com/pulse/challenge-production-llm-serving-ray-serve-vinay-
+jayanna-08syc
+53. Toward Black–Scholes for Prediction Markets: A Unified Kernel and ... https://
+arxiv.org/html/2510.15205v2
+54. Evidence from the market events of May 2010 - ResearchGate https://
+www.researchgate.net/publication/
+265730661_Options_resilience_during_extreme_volatility_Evidence_from_the_market
+_events_of_May_2010
+55. 1 s2.0 S0275531925004192 Main | PDF | Volatility (Finance) - Scribd https://
+www.scribd.com/document/997497570/1-s2-0-S0275531925004192-main
+56. Amaanullah Bhatti, FMVA® - Risk Analyst | Top 5% SSRN researcher https://
+ae.linkedin.com/in/amaanullah-bhatti
+57. (PDF) Informed Trading Through the COVID-19 Pandemic https://
+www.researchgate.net/publication/
+
+--- PAGE 20 ---
+399674092_Informed_Trading_Through_the_COVID-19_Pandemic_Evidence_from_th
+e_Bitcoin_Market
+58. Strategic Complexity and Behavioral Distortion: Retail Investing ... https://
+www.mdpi.com/2227-7072/13/4/210
+59. Capital Asset Prices: A Theory Of Market Equilibrium Under ... https://
+ideas.repec.org/r/bla/jfinan/v19y1964i3p425-442.html
+60. Stephen A. Ross - IDEAS/RePEc https://ideas.repec.org/f/c/pro1047.html
+61. The arbitrage theory of capital asset pricing - IDEAS/RePEc https://ideas.repec.org/r/
+eee/jetheo/v13y1976i3p341-360.html
+62. Robert A Jarrow - IDEAS/RePEc https://ideas.repec.org/e/c/pja39.html
+63. Advances in Artificial Intelligence - Springer Nature https://link.springer.com/
+content/pdf/10.1007/978-3-030-18305-9.pdf
+64. William F. Sharpe - IDEAS/RePEc https://ideas.repec.org/e/c/psh27.html
+65. LSTM_notebook - Kaggle https://www.kaggle.com/code/mdumair1/lstm-notebook
+66. Just-in-Time compilation - Numba documentation https://numba.readthedocs.io/en/
+stable/reference/jit-compilation.html
+67. Function Types in Numba: Enhancing Performance and Flexibility https://
+www.geeksforgeeks.org/data-analysis/function-types-in-numba-enhancing-
+performance-and-flexibility/
+68. From PIN to VPIN: An introduction to order flow toxicity - ResearchGate https://
+www.researchgate.net/publication/
+251643350_From_PIN_to_VPIN_An_introduction_to_order_flow_toxicity
+69. VPIN算法 - 知乎专栏 https://zhuanlan.zhihu.com/p/32593118620
+70. 5 GitHub Actions CI/CD Best Practices - NetApp https://www.netapp.com/learn/cvo-
+blg-5-github-actions-cicd-best-practices/
+71. Thousands of Dollars in Free Tools for Students (2026 Guide) https://dev.to/
+yoga0022/thousands-of-dollars-in-free-tools-for-students-2026-guide-4bp6
+72. Real-Time UX Behavior Analytics using Flask, Javascript Event ... https://
+www.researchgate.net/publication/391493371_Real-
+Time_UX_Behavior_Analytics_using_Flask_Javascript_Event_Listeners_and_Heatmap_
+Rendering_for_Interface_Refinement
+73. How to Build a Real-Time Dashboard with Encore.ts and React https://dev.to/encore/
+how-to-build-a-real-time-dashboard-with-encorets-and-react-ii9
+74. Live Dashboard for async-fusion/data with Real-time Metrics and ... https://
+www.linkedin.com/posts/udayanmoudgil_dataengineering-nodejs-opensource-
+activity-7448812660432875520-g0I1
+
+--- PAGE 21 ---
+75. GEX Explained: Dealer Hedging and Gamma Walls in Indian Options https://
+www.linkedin.com/posts/shintals49_gex-gamma-exposure-is-the-single-most-
+activity-7453285408777412608-7oGI
+76. PolyBench: Benchmarking LLM Forecasting and Trading ... - arXiv https://arxiv.org/
+html/2604.14199v1
+77. Tokenize Everything, But Can You Sell It? RWA Liquidity ... - arXiv https://arxiv.org/
+html/2508.11651v1
+78. [PDF] PolyBench: Benchmarking LLM Forecasting and Trading ... - arXiv https://
+arxiv.org/pdf/2604.14199
+79. Episodic Memories Generation and Evaluation Benchmark for Large ... https://
+arxiv.org/html/2501.13121v1
+80. Foundation Models for Music: A Survey - arXiv https://arxiv.org/html/2408.14340v1
+81. Autonomous Indoor Drones and the Future of Objective Property ... https://arxiv.org/
+html/2508.01965v1
+82. [PDF] episodic memories generation and evaluation benchmark for ... - arXiv https://
+arxiv.org/pdf/2501.13121?
+83. Modelling the effect of non-pharmaceutical interventions on COVID ... https://
+www.sciencedirect.com/science/article/pii/S2468042722000550
+84. LNG Supply Chains: A Supplier-Specific Life-Cycle Assessment for ... https://
+pubs.acs.org/doi/10.1021/acssuschemeng.1c03307
+85. Synthetic data generation methods for longitudinal and time series ... https://
+pmc.ncbi.nlm.nih.gov/articles/PMC12849454/
+86. Python Backend — NVIDIA Triton Inference Server https://docs.nvidia.com/
+deeplearning/triton-inference-server/user-guide/docs/python_backend/README.html
+87. english-words.txt - Miller https://miller.readthedocs.io/en/6.13.0/data/english-
+words.txt
+88. https://www.researchgate.net/file.PostFileLoader.h... https://www.researchgate.net/
+file.PostFileLoader.html?
+id=563869346143256c208b45ba&assetKey=AS:291613667545089%401446537524
+905
+89. Adrien Libert - Data Engineer - LinkedIn https://hk.linkedin.com/in/adrien-
+libert-0925a81ba
+90. Simple Index https://mirrors.aliyun.com/pypi/simple/?
+spm=a2c6h.13046898.publish-article.23.ee036ffaRjpFiW
+91. awesome data science - Gitee https://gitee.com/awesome-lib/awesome-datascience
+
+--- PAGE 22 ---
+92. Spearman correlation of flow toxicity (VPIN) with limit order book and... https://
+www.researchgate.net/figure/Spearman-correlation-of-flow-toxicity-VPIN-with-limit-
+order-book-and-trade_tbl2_327934535
+93. GitHub Education: Free Tools for Students | Michael Ashley Ygaña ... https://
+www.linkedin.com/posts/michaelygana_github-githubeducation-freestuff-
+activity-7413429957378576384-ig7y
+94. Giotto Suite: a multiscale and technology-agnostic spatial multiomics ... https://
+www.nature.com/articles/s41592-025-02817-w
+95. OpenClaw Open-Source AI Dashboard Built with Next.js and React https://
+www.linkedin.com/posts/hotelnative_opensource-ai-nextjs-
+activity-7430109205480681472-SA3x
+96. Built a Real-Time 3D Cryptocurrency Order Book Visualizer with ... https://
+www.linkedin.com/posts/neelaksh-singh-7b020a17a_webdevelopment-nextjs-threejs-
+activity-7363951216147517441-bY3r
+97. Market Makers' Gamma Hedging and Option Liquidity. | 12 comments https://
+www.linkedin.com/posts/tribhuvan-bisen_market-makers-gamma-hedging-and-
+option-liquidity-activity-7294347624919224320-ixVv
+98. High-frequency trading in the stock market and the costs of options ... https://
+www.sciencedirect.com/science/article/pii/S0304405X24001235
+99. [PDF] Reinforcement Learning for systematic market making strategies https://
+theses.hal.science/tel-04913317v1/file/131459_RAGEL_2024_archivage.pdf
+100. Emergent symbolic cognition in Large Language Models via ... https://
+www.sciencedirect.com/science/article/pii/S2949882126000514
+101. words-333333 - cs.Princeton https://www.cs.princeton.edu/courses/archive/
+spring18/cos226/assignments/autocomplete/testing/words-333333.txt
+102. [PDF] PeopleTools 8.60: System and Server Administration https://docs.oracle.com/
+cd/F70250_01/psft/pdf/pt860tsvt-b092022.pdf
+103. [PDF] Fara-7B: An Efficient Agentic Model for Computer Use - Microsoft https://
+www.microsoft.com/en-us/research/wp-content/uploads/2025/11/Fara-7B-An-
+Efficient-Agentic-Model-for-Computer-Use.pdf
+104. The Memory of the World in the digital age - UNESCO Digital Library https://
+unesdoc.unesco.org/ark:/48223/pf0000373728
+105. [PDF] JAX-LOB: A GPU-Accelerated limit order book simulator to ... - arXiv https://
+arxiv.org/pdf/2308.13289
+106. Event-Based Limit Order Book Simulation under a Neural Hawkes ... https://
+arxiv.org/html/2502.17417v1
+
+--- PAGE 23 ---
+107. Pull Request #1365 · pymc-devs/pytensor | Thomas Wiecki, PhD https://
+www.linkedin.com/posts/twiecki_add-mlx-backend-by-williambdean-pull-request-
+activity-7383376970132324354-RasE
+108. TileLink: Generating Efficient Compute-Communication Overlapping ... https://
+arxiv.org/html/2503.20313v1
+109. Reconstruction Error-based Anomaly Detection with Few Outlying ... https://
+arxiv.org/abs/2305.10464
+110. Anomaly Detection with CNN Autoencoders - Kaggle https://www.kaggle.com/code/
+redpen12/anomaly-detection-with-cnn-autoencoders
+111. deepSignalAnomalyDetectorCNN - Detect signal anomalies using 1 ... https://
+www.mathworks.com/help/signal/ref/deepsignalanomalydetectorcnn.html
+112. Deep learning-based anomaly detection using one-dimensional ... https://
+pmc.ncbi.nlm.nih.gov/articles/PMC11623112/
+113. (PDF) Practical autoencoder based anomaly detection by using ... https://
+www.researchgate.net/publication/
+366852853_Practical_autoencoder_based_anomaly_detection_by_using_vector_recons
+truction_error
+114. Self-Supervised Autoencoders for Visual Anomaly Detection - MDPI https://
+www.mdpi.com/2227-7390/12/24/3988
+115. Event-Based Limit Order Book Simulation under a Neural Hawke https://
+ideas.repec.org/p/arx/papers/2502.17417.html
+116. State Dependent Parallel Neural Hawkes Process for Limit Order ... https://
+www.semanticscholar.org/paper/State-Dependent-Parallel-Neural-Hawkes-Process-
+for-Shi-Cartlidge/38c7bfb8caa30e63f67151e998a8d9c519f3617d
+117. (PDF) LiT: limit order book transformer - ResearchGate https://
+www.researchgate.net/publication/396547627_LiT_limit_order_book_transformer
+118. LiT: limit order book transformer - Frontiers https://www.frontiersin.org/journals/
+artificial-intelligence/articles/10.3389/frai.2025.1616485/full
+119. Electric Wheelchair Conversion Kit Review: How This 36V 350W ... https://
+www.aliexpress.com/s/wiki-ssr/article/electric-wheel-chair-kit
+120. Ayush Gupta's Post - LinkedIn https://www.linkedin.com/posts/ayush-gupta-
+dev_django-like-admin-dashboard-for-javascript-activity-7284552836934160384-KeUp
+121. Emma Muhleman CPA CFA CQF's Post - LinkedIn https://www.linkedin.com/posts/
+emmamuhleman_github-openbb-financeopenbb-financial-
+activity-7258330501650776064-g4DJ
+122. Fast Streaming Inserts in DuckDB with ADBC | Apache Arrow https://
+arrow.apache.org/blog/2025/03/10/fast-streaming-inserts-in-duckdb-with-adbc/
+
+--- PAGE 24 ---
+123. [PDF] Generation of time series and reinforcement learning - HAL theses https://
+theses.hal.science/tel-04189803v1/file/TH2022UEFL2069.pdf
+124. KDD: Knowledge Discovery and Data Mining - ACM Digital Library https://dl.acm.org/
+doi/proceedings/10.1145/3580305?tocHeading=heading2
+125. Financial Data Science and Machine Learning | PDF - Scribd https://www.scribd.com/
+document/891050026/Machine-Learning-and-Modeling-Techniques-in-Financial-
+Data-Science-Haojun-Chen-Z-Library
+126. BV-VPIN: Order Flow Toxicity in Equities | PDF | Market Liquidity https://
+www.scribd.com/document/686607104/BV-VPIN-Measuring-the-Impact-of-Order-
+Flow-Toxicity-and-Liquidity-on-International-Equities-Markets
+127. Pratyush Kumar - AI Engineer | AI Developer - LinkedIn https://www.linkedin.com/
+in/pratyush-kumar78
+128. Discerning Information from Trade Data | Request PDF https://
+www.researchgate.net/publication/
+291554301_Discerning_Information_from_Trade_Data
+129. Multivariate Physics-Informed Convolutional Autoencoder for ... - arXiv https://
+arxiv.org/html/2406.02927v1
+130. 1D CNN Based Network Intrusion Detection with Normalization on ... https://
+www.researchgate.net/publication/
+339641880_1D_CNN_Based_Network_Intrusion_Detection_with_Normalization_on_I
+mbalanced_Data
+131. Transformer-GAN architecture for anomaly detection in multivariate ... https://
+www.sciengine.com/doi/10.1360/SSI-2022-0133
+132. Time Series Anomaly Detection with a Transformer Residual ... https://
+www.researchgate.net/publication/
+375664802_Time_Series_Anomaly_Detection_with_a_Transformer_Residual_Autoenc
+oder-Decoder
+133. Transformer-Based GAN for Anomaly Detection of Time Series Data https://
+www.mdpi.com/2076-3417/12/16/8085
+134. Time Series Anomaly Detection with Association Discrepancy https://openreview.net/
+forum?id=LzQQ89U1qm_
+135. Self-Hosted projects - Best of JS https://bestofjs.org/projects?
+page=1&limit=30&tags=self-hosted&sort=daily
+136. 3 - CodaLab Worksheets https://worksheets.codalab.org/rest/bundles/
+0xd74f36104e7244e8ad99022123e78884/contents/blob/frequent-classes
+137. GitHub Charges for Self-Hosted Runners in Private Repos - LinkedIn https://
+www.linkedin.com/posts/joshua-geissler_the-self-hosted-tax-is-coming-to-github-
+activity-7407033601894146048-PBIX
+
+--- PAGE 25 ---
+138. 真香，浏览器直接运行DuckDB，论文来了 - 知乎专栏 https://zhuanlan.zhihu.com/p/
+1931614149663753313
+139. When to Use Context, Redux, Zustand, or Jotai - DEV Community https://dev.to/
+hijazi313/state-management-in-2025-when-to-use-context-redux-zustand-or-
+jotai-2d2k
+140. 告别状态混乱：Next.js四大状态管理方案实战对比（Redux/Zustand ... https://
+blog.csdn.net/gitblog_00175/article/details/152145752
+141. FIG. 2. Distribution of reconstruction error computed with a CNN... https://
+www.researchgate.net/figure/Distribution-of-reconstruction-error-computed-with-a-
+CNN-autoencoder-with-k-14-6-latent_fig2_340640909
+142. Fuzzy CNN Autoencoder for Unsupervised Anomaly Detection in ... https://
+www.mdpi.com/2227-7390/11/18/3995
+

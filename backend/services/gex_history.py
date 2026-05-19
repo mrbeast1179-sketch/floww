@@ -221,7 +221,78 @@ def build_gex_history(
     return rows
 
 
+def calc_gex_timeframes(
+    spot: float,
+    contracts: List[Dict[str, Any]],
+    ticker: str,
+) -> Dict[str, Any]:
+    """Aggregate GEX by timeframe buckets: 0DTE, 1DTE, weekly, monthly, all.
+
+    Returns:
+        {"timeframes": {"0DTE": {...}, "1DTE": {...}, "weekly": {...}, "monthly": {...}, "all": {...}}}
+        Each bucket contains: {"gex_total": float, "call_gex": float, "put_gex": float, "net_gex": float, "n_contracts": int}
+    """
+    from datetime import datetime, timezone, date
+
+    today = date.today()
+    buckets = {"0DTE": [], "1DTE": [], "weekly": [], "monthly": [], "all": []}
+
+    for c in contracts:
+        expiry_str = c.get("expiry", "")
+        try:
+            exp_date = date.fromisoformat(expiry_str)
+        except (ValueError, TypeError):
+            buckets["all"].append(c)
+            continue
+        dte = (exp_date - today).days
+        if dte <= 0:
+            buckets["0DTE"].append(c)
+        elif dte == 1:
+            buckets["1DTE"].append(c)
+        elif dte <= 7:
+            buckets["weekly"].append(c)
+        else:
+            buckets["monthly"].append(c)
+        buckets["all"].append(c)
+
+    def _agg(contract_list):
+        call_gex = 0.0
+        put_gex = 0.0
+        for c in contract_list:
+            gamma = c.get("gamma", 0)
+            oi = c.get("oi", c.get("open_interest", 0))
+            gex = gamma * oi * 100 * spot * 0.01
+            if c.get("type") == "call":
+                call_gex += gex
+            else:
+                put_gex += gex
+        net_gex = call_gex + put_gex  # put_gex is already negative from formula above
+        # Actually put_gex should be negative: sign = -1 for puts
+        # Let me recompute properly
+        call_gex2 = 0.0
+        put_gex2 = 0.0
+        for c in contract_list:
+            gamma = c.get("gamma", 0)
+            oi = c.get("oi", c.get("open_interest", 0))
+            gex = gamma * oi * 100 * spot * 0.01
+            if c.get("type") == "call":
+                call_gex2 += gex
+            else:
+                put_gex2 -= gex  # negative for puts
+        net_gex2 = call_gex2 + put_gex2
+        return {
+            "gex_total": round(abs(call_gex2) + abs(put_gex2), 2),
+            "call_gex": round(call_gex2, 2),
+            "put_gex": round(put_gex2, 2),
+            "net_gex": round(net_gex2, 2),
+            "n_contracts": len(contract_list),
+        }
+
+    return {"timeframes": {k: _agg(v) for k, v in buckets.items()}}
+
+
 __all__ = [
     "compute_gex_total_for_chain",
     "build_gex_history",
+    "calc_gex_timeframes",
 ]

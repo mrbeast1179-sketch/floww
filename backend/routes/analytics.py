@@ -134,16 +134,12 @@ async def daily_checklist(ticker: str, expiries: int = Query(4, ge=1, le=12)):
 
 
 @router.get("/movers")
-async def movers():
+async def movers(limit: int = Query(20, ge=1, le=100)):
     """Get top market movers."""
-    from server import db
-    from datetime import timedelta
-    cutoff = datetime.now(timezone.utc) - timedelta(hours=24)
-    cursor = db.snapshots.find(
-        {"ts": {"$gte": cutoff}},
-        {"ticker": 1, "spot": 1, "ts": 1, "_id": 0},
-    ).sort("ts", -1).limit(50)
-    return await cursor.to_list(length=50)
+    from server import _fetch_movers_sync
+    from datetime import datetime, timezone
+    data = _fetch_movers_sync()
+    return {"results": data[:limit], "asof": datetime.now(timezone.utc).isoformat()}
 
 
 @router.get("/history/{ticker}")
@@ -188,7 +184,7 @@ async def flow(ticker: str, days: int = Query(7, ge=1, le=30)):
     return await cursor.to_list(length=500)
 
 
-@router.get("/api/analytics/surface/{ticker}")
+@router.get("/surface/{ticker}")
 async def surface(ticker: str, expiries: int = Query(4, ge=1, le=12)):
     """Get IV surface data."""
     from server import fetch_spot_and_chains_merged, calc_iv_surface_data, _sanitize
@@ -197,7 +193,7 @@ async def surface(ticker: str, expiries: int = Query(4, ge=1, le=12)):
     return _sanitize(calc_iv_surface_data(raw["spot"], raw["contracts"]))
 
 
-@router.get("/api/analytics/regime-stats/{ticker}")
+@router.get("/regime-stats/{ticker}")
 async def regime_stats(ticker: str, days: int = Query(30, ge=1, le=365)):
     """Get regime statistics."""
     from server import db
@@ -211,7 +207,7 @@ async def regime_stats(ticker: str, days: int = Query(30, ge=1, le=365)):
     return {"ticker": ticker.upper(), "n_samples": len(docs), "data": docs}
 
 
-@router.get("/api/analytics/compare")
+@router.get("/compare")
 async def compare(tickers: str = Query(...)):
     """Compare analytics across multiple tickers."""
     from server import fetch_spot_and_chains_merged, calc_market_regime, _sanitize
@@ -227,7 +223,7 @@ async def compare(tickers: str = Query(...)):
     return out
 
 
-@router.get("/api/analytics/correlation")
+@router.get("/correlation")
 async def correlation(tickers: str = Query(...), days: int = Query(30, ge=1, le=365)):
     """Get correlation matrix for multiple tickers."""
     from server import db
