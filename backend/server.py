@@ -2034,3 +2034,9 @@ async def on_start():
 @app.on_event("shutdown")
 async def on_stop():
     client.close()
+
+
+# ============ Flowseeker route wiring ============
+# Skylit-parity live institutional options flow + drilldown.
+from routes.flowseeker import router as flowseeker_router
+app.include_router(flowseeker_router, tags=["flowseeker"])
