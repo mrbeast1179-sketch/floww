@@ -1,0 +1,40 @@
+{
+  "ticker": "TLT",
+  "version": "v1.0",
+  "n_samples": 2799,
+  "n_features": 32,
+  "splits": 8,
+  "baselines": {
+    "majority": {
+      "sharpe": 0.0,
+      "accuracy": 0.5
+    },
+    "persistence": {
+      "sharpe": -0.16838405189284003,
+      "accuracy": 0.4925
+    }
+  },
+  "models": {
+    "logistic": {
+      "sharpe": -0.05530180338032249,
+      "accuracy": 0.4975,
+      "n_predictions": 800
+    },
+    "gbm": {
+      "sharpe": 0.9739389410367091,
+      "accuracy": 0.54125,
+      "n_predictions": 800
+    },
+    "gbm_deep": {
+      "sharpe": 1.3647632195737758,
+      "accuracy": 0.55625,
+      "n_predictions": 800
+    },
+    "rf": {
+      "sharpe": 0.20565691670901426,
+      "accuracy": 0.50875,
+      "n_predictions": 800
+    }
+  },
+  "timestamp": "2026-05-19T06:10:26.108186+00:00"
+}

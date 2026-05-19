@@ -1,0 +1,40 @@
+{
+  "ticker": "DIA",
+  "version": "v1.0",
+  "n_samples": 2799,
+  "n_features": 32,
+  "splits": 8,
+  "baselines": {
+    "majority": {
+      "sharpe": 1.6357525414206162,
+      "accuracy": 0.55125
+    },
+    "persistence": {
+      "sharpe": 1.6656812935623464,
+      "accuracy": 0.53125
+    }
+  },
+  "models": {
+    "logistic": {
+      "sharpe": 1.342463748452212,
+      "accuracy": 0.51375,
+      "n_predictions": 800
+    },
+    "gbm": {
+      "sharpe": 1.210264891052385,
+      "accuracy": 0.4975,
+      "n_predictions": 800
+    },
+    "gbm_deep": {
+      "sharpe": 1.2242501402614383,
+      "accuracy": 0.49375,
+      "n_predictions": 800
+    },
+    "rf": {
+      "sharpe": 1.1832431044204772,
+      "accuracy": 0.50375,
+      "n_predictions": 800
+    }
+  },
+  "timestamp": "2026-05-19T06:02:28.037660+00:00"
+}

@@ -1,0 +1,40 @@
+{
+  "ticker": "IWM",
+  "version": "v1.0",
+  "n_samples": 2799,
+  "n_features": 32,
+  "splits": 8,
+  "baselines": {
+    "majority": {
+      "sharpe": 0.9142968915982251,
+      "accuracy": 0.52875
+    },
+    "persistence": {
+      "sharpe": 0.32410455844578206,
+      "accuracy": 0.48375
+    }
+  },
+  "models": {
+    "logistic": {
+      "sharpe": 0.8440932143104007,
+      "accuracy": 0.51125,
+      "n_predictions": 800
+    },
+    "gbm": {
+      "sharpe": 0.6406607351271075,
+      "accuracy": 0.4975,
+      "n_predictions": 800
+    },
+    "gbm_deep": {
+      "sharpe": 0.9549565799846803,
+      "accuracy": 0.50875,
+      "n_predictions": 800
+    },
+    "rf": {
+      "sharpe": 0.6193936551504936,
+      "accuracy": 0.49875,
+      "n_predictions": 800
+    }
+  },
+  "timestamp": "2026-05-19T06:03:49.725701+00:00"
+}

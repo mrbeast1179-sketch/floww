@@ -1,0 +1,91 @@
+{
+  "ticker": "IWM",
+  "version": "v1.0",
+  "results": {
+    "target_directional_move_logistic": {
+      "sharpe": 0.6870142284690021,
+      "accuracy": 0.50375,
+      "n_predictions": 800,
+      "verdict": "REJECT",
+      "target": "target_directional_move"
+    },
+    "target_directional_move_gbm": {
+      "sharpe": 1.3973653424310208,
+      "accuracy": 0.52875,
+      "n_predictions": 800,
+      "verdict": "SHIP",
+      "target": "target_directional_move"
+    },
+    "target_directional_move_gbm_deep": {
+      "sharpe": 0.9876904314760281,
+      "accuracy": 0.5125,
+      "n_predictions": 800,
+      "verdict": "SHIP",
+      "target": "target_directional_move"
+    },
+    "target_directional_move_rf": {
+      "sharpe": 0.6273370623693769,
+      "accuracy": 0.49875,
+      "n_predictions": 800,
+      "verdict": "REJECT",
+      "target": "target_directional_move"
+    },
+    "target_gap_move_logistic": {
+      "sharpe": -9.545658271686662,
+      "accuracy": 0.5275,
+      "n_predictions": 400,
+      "verdict": "REJECT",
+      "target": "target_gap_move"
+    },
+    "target_gap_move_gbm": {
+      "sharpe": -5.030812441237709,
+      "accuracy": 0.772,
+      "n_predictions": 500,
+      "verdict": "REJECT",
+      "target": "target_gap_move"
+    },
+    "target_gap_move_gbm_deep": {
+      "sharpe": -6.046243335833743,
+      "accuracy": 0.7125,
+      "n_predictions": 400,
+      "verdict": "REJECT",
+      "target": "target_gap_move"
+    },
+    "target_gap_move_rf": {
+      "sharpe": -1.2333396244551265,
+      "accuracy": 0.902,
+      "n_predictions": 500,
+      "verdict": "REJECT",
+      "target": "target_gap_move"
+    },
+    "target_any_materialization_logistic": {
+      "sharpe": -11.041230373185453,
+      "accuracy": 0.4625,
+      "n_predictions": 400,
+      "verdict": "REJECT",
+      "target": "target_any_materialization"
+    },
+    "target_any_materialization_gbm": {
+      "sharpe": -6.939655059197747,
+      "accuracy": 0.68,
+      "n_predictions": 500,
+      "verdict": "REJECT",
+      "target": "target_any_materialization"
+    },
+    "target_any_materialization_gbm_deep": {
+      "sharpe": -7.909506291348747,
+      "accuracy": 0.636,
+      "n_predictions": 500,
+      "verdict": "REJECT",
+      "target": "target_any_materialization"
+    },
+    "target_any_materialization_rf": {
+      "sharpe": -0.5369632157499932,
+      "accuracy": 0.9,
+      "n_predictions": 500,
+      "verdict": "REJECT",
+      "target": "target_any_materialization"
+    }
+  },
+  "timestamp": "2026-05-19T06:05:38.432605+00:00"
+}
