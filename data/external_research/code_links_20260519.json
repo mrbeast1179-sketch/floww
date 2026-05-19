@@ -1,0 +1,53 @@
+{
+  "generated_at": "2026-05-19T17:25:50.696512+00:00",
+  "scanned_files": [
+    "data/external_research/discoveries_20260518.json",
+    "data/external_research/discoveries_20260519.json"
+  ],
+  "candidates": [
+    {
+      "paper_id": "arxiv:2309.07843",
+      "title": "Applying Deep Learning to Calibrate Stochastic Volatility Models",
+      "url": "https://arxiv.org/abs/2309.07843",
+      "source": "arxiv",
+      "published": "2023-09-14T16:38:39Z",
+      "code_urls": [
+        "https://github.com/asridi/DML-Calibration-Heston-Model"
+      ],
+      "abstract_snippet": "Stochastic volatility models, where the volatility is a stochastic process, can capture most of the essential stylized facts of implied volatility surfaces and give more realistic dynamics of the volatility smile/skew. However, they come wi\u2026"
+    },
+    {
+      "paper_id": "arxiv:2205.05600",
+      "title": "RLOP: RL Methods in Option Pricing from a Mathematical Perspective",
+      "url": "https://arxiv.org/abs/2205.05600",
+      "source": "arxiv",
+      "published": "2022-05-11T16:16:45Z",
+      "code_urls": [
+        "https://github.com/owen8877/RLOP"
+      ],
+      "abstract_snippet": "Abstract In this work, we build two environments, namely the modified QLBS and RLOP models, from a mathematics perspective which enables RL methods in option pricing through replicating by portfolio. We implement the environment specificati\u2026"
+    },
+    {
+      "paper_id": "arxiv:2309.07843",
+      "title": "Applying Deep Learning to Calibrate Stochastic Volatility Models",
+      "url": "https://arxiv.org/abs/2309.07843",
+      "source": "arxiv",
+      "published": "2023-09-14T16:38:39Z",
+      "code_urls": [
+        "https://github.com/asridi/DML-Calibration-Heston-Model"
+      ],
+      "abstract_snippet": "Stochastic volatility models, where the volatility is a stochastic process, can capture most of the essential stylized facts of implied volatility surfaces and give more realistic dynamics of the volatility smile/skew. However, they come wi\u2026"
+    },
+    {
+      "paper_id": "arxiv:2205.05600",
+      "title": "RLOP: RL Methods in Option Pricing from a Mathematical Perspective",
+      "url": "https://arxiv.org/abs/2205.05600",
+      "source": "arxiv",
+      "published": "2022-05-11T16:16:45Z",
+      "code_urls": [
+        "https://github.com/owen8877/RLOP"
+      ],
+      "abstract_snippet": "Abstract In this work, we build two environments, namely the modified QLBS and RLOP models, from a mathematics perspective which enables RL methods in option pricing through replicating by portfolio. We implement the environment specificati\u2026"
+    }
+  ]
+}
