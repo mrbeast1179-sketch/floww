@@ -2040,3 +2040,57 @@ async def on_stop():
 # Skylit-parity live institutional options flow + drilldown.
 from routes.flowseeker import router as flowseeker_router
 app.include_router(flowseeker_router, tags=["flowseeker"])
+
+# ============ Route module wiring ============
+# Wired by Hermes/OWL on 2026-05-19 — all orphaned route modules.
+# NOTE: alerts.py NOT wired — inline handlers in server.py are more complete.
+# NOTE: market_data.py NOT wired — missing services.uoa dependency.
+# NOTE: ml_api.py NOT wired — missing services.ml dependency.
+
+from routes.admin import router as admin_router
+app.include_router(admin_router, tags=["admin"])
+
+from routes.alpaca import router as alpaca_router
+app.include_router(alpaca_router, tags=["alpaca"])
+
+from routes.analytics import router as analytics_router
+app.include_router(analytics_router, tags=["analytics"])
+
+from routes.briefing import router as briefing_router
+app.include_router(briefing_router, tags=["briefing"])
+
+from routes.data_providers import router as data_providers_router
+app.include_router(data_providers_router, tags=["data"])
+
+from routes.flashalpha import router as flashalpha_router
+app.include_router(flashalpha_router, tags=["flashalpha"])
+
+from routes.gemini import router as gemini_router
+app.include_router(gemini_router, tags=["ai"])
+
+from routes.heatseeker import router as heatseeker_router
+app.include_router(heatseeker_router, tags=["heatseeker"])
+
+from routes.live_trading import router as live_trading_router
+app.include_router(live_trading_router, tags=["live_trading"])
+
+from routes.llm import router as llm_router
+app.include_router(llm_router, tags=["llm"])
+
+from routes.memory import router as memory_router
+app.include_router(memory_router, tags=["memory"])
+
+from routes.ml_training import router as ml_training_router
+app.include_router(ml_training_router, tags=["ml_training"])
+
+from routes.paper_trading import router as paper_trading_router
+app.include_router(paper_trading_router, tags=["paper_trading"])
+
+from routes.portfolio import router as portfolio_router
+app.include_router(portfolio_router, tags=["portfolio"])
+
+from routes.schwab import router as schwab_router
+app.include_router(schwab_router, tags=["schwab"])
+
+from routes.social_flow import router as social_flow_router
+app.include_router(social_flow_router, tags=["social"])
