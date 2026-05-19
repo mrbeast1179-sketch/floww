@@ -34,6 +34,7 @@ import { TradeJournal } from "./components/TradeJournal";
 import { DashboardSummary } from "./components/DashboardSummary";
 import { TradeAnalytics } from "./components/TradeAnalytics";
 import { SocialFlowPanel } from "./components/SocialFlowPanel";
+import HeatseekerDashboard from "./components/heatseeker/HeatseekerDashboard";
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
@@ -450,6 +451,7 @@ export default function App() {
           <div className="flex gap-1">
             <button onClick={() => setPage("trinity")} className={`btn ${page === "trinity" ? "active" : ""}`}>Trinity</button>
             <button onClick={() => setPage("heatseeker")} className={`btn ${page === "heatseeker" ? "active" : ""}`}>Heatseeker</button>
+            <button onClick={() => setPage("skylit")} className={`btn ${page === "skylit" ? "active" : ""}`}>Skylit</button>
             <button onClick={() => setPage("portfolio")} className={`btn ${page === "portfolio" ? "active" : ""}`}>Portfolio</button>
             <button onClick={() => setPage("journal")} className={`btn ${page === "journal" ? "active" : ""}`}>Journal</button>
           </div>
@@ -696,6 +698,13 @@ export default function App() {
               <GreekReferencePanel />
             </div>
           </aside>
+        </div>
+      )}
+
+      {/* Skylit Heatseeker (Wave 1 + 2) */}
+      {page === "skylit" && (
+        <div className="flex-1 overflow-auto">
+          <HeatseekerDashboard ticker={ticker} spot={livespot?.spot ?? data?.spot} />
         </div>
       )}
 
