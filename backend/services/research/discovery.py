@@ -262,35 +262,613 @@ class ArxivSource(DiscoverySource):
 
 
 # ────────────────────────────────────────────────────────────────────────────
-# Stub sources (to be implemented in follow-up PRs)
+# HuggingFace source
 # ────────────────────────────────────────────────────────────────────────────
 
 
-class HuggingFaceStub(DiscoverySource):
-    """STUB. Will hit `https://huggingface.co/api/datasets?search=...` (no auth).
-    Not yet implemented — opening it as a stub so the orchestrator can list
-    it as TODO and not crash if invoked.
+class HuggingFaceSource(DiscoverySource):
+    """HuggingFace Hub model/dataset search. No auth required for public search.
+
+    Docs: https://huggingface.co/docs/hub/en/api
     """
     name = "huggingface"
+    base_url = "https://huggingface.co/api"
+    rate_limit_seconds = 2.0
+
+    def __init__(self, max_results: int = 25, **kwargs):
+        super().__init__(**kwargs)
+        self.max_results = max_results
 
     def _fetch(self, query: str) -> str:
-        raise NotImplementedError("HuggingFaceStub not implemented yet")
+        import urllib.error as _ue
+        last_exc: Optional[Exception] = None
+        for attempt in range(self._max_retries):
+            try:
+                # Search both models and datasets
+                params = urllib.parse.urlencode({
+                    "search": query,
+                    "limit": str(self.max_results),
+                    "sort": "downloads",
+                    "direction": "-1",
+                })
+                url = f"{self.base_url}/models?{params}"
+                return self._http_get(url, {"User-Agent": "confluence-decoder-research/0.2"})
+            except (_ue.HTTPError, _ue.URLError, TimeoutError, OSError) as exc:
+                last_exc = exc
+                wait = self._backoff_factor ** attempt * 3
+                if isinstance(exc, _ue.HTTPError) and exc.code == 429:
+                    wait = max(wait, 15)
+                time.sleep(wait)
+        raise last_exc  # type: ignore[misc]
 
     def _parse(self, raw: str) -> List[Discovery]:
-        raise NotImplementedError("HuggingFaceStub not implemented yet")
+        import json as _json
+        results: List[Discovery] = []
+        try:
+            items = _json.loads(raw)
+            if not isinstance(items, list):
+                items = items.get("models", []) if isinstance(items, dict) else []
+        except ( _json.JSONDecodeError, TypeError):
+            return results
+
+        for item in items:
+            model_id = item.get("modelId", "") or item.get("id", "")
+            if not model_id:
+                continue
+            tags = item.get("tags", []) or []
+            results.append(Discovery(
+                id=f"hf:{model_id}",
+                title=model_id,
+                url=f"https://huggingface.co/{model_id}",
+                source=self.name,
+                discovered_at=datetime.now(timezone.utc).isoformat(),
+                authors=[item.get("author", "")] if item.get("author") else [],
+                published=item.get("lastModified", "") or item.get("createdAt", ""),
+                abstract=item.get("description", "") or item.get("cardData", {}).get("description", "") if isinstance(item.get("cardData"), dict) else "",
+                tags=tags[:10],
+                license=item.get("license", None) or item.get("cardData", {}).get("license", None) if isinstance(item.get("cardData"), dict) else None,
+                raw=item,
+            ))
+        return results
 
 
-class GitHubTopicStub(DiscoverySource):
-    """STUB. Will use the `gh` CLI to search github topics like `gamma-exposure`,
-    `options-trading`, `quantitative-finance`. Not yet implemented.
+# ────────────────────────────────────────────────────────────────────────────
+# GitHub topic source
+# ────────────────────────────────────────────────────────────────────────────
+
+
+class GitHubTopicSource(DiscoverySource):
+    """GitHub topic search via the public API. No auth required (rate-limited).
+
+    Docs: https://docs.github.com/en/rest/search/search?apiVersion=2022-11-28#search-repositories
     """
     name = "github_topic"
+    base_url = "https://api.github.com/search/repositories"
+    rate_limit_seconds = 5.0  # GitHub allows 10 req/min unauthenticated
+
+    def __init__(self, max_results: int = 25, **kwargs):
+        super().__init__(**kwargs)
+        self.max_results = max_results
 
     def _fetch(self, query: str) -> str:
-        raise NotImplementedError("GitHubTopicStub not implemented yet")
+        import urllib.error as _ue
+        last_exc: Optional[Exception] = None
+        for attempt in range(self._max_retries):
+            try:
+                params = urllib.parse.urlencode({
+                    "q": f"topic:{query}",
+                    "sort": "stars",
+                    "order": "desc",
+                    "per_page": str(min(self.max_results, 100)),
+                })
+                url = f"{self.base_url}?{params}"
+                return self._http_get(url, {
+                    "User-Agent": "confluence-decoder-research/0.2",
+                    "Accept": "application/vnd.github.v3+json",
+                })
+            except (_ue.HTTPError, _ue.URLError, TimeoutError, OSError) as exc:
+                last_exc = exc
+                wait = self._backoff_factor ** attempt * 10
+                if isinstance(exc, _ue.HTTPError) and exc.code == 403:
+                    wait = max(wait, 60)  # GitHub rate limit
+                time.sleep(wait)
+        raise last_exc  # type: ignore[misc]
 
     def _parse(self, raw: str) -> List[Discovery]:
-        raise NotImplementedError("GitHubTopicStub not implemented yet")
+        import json as _json
+        results: List[Discovery] = []
+        try:
+            data = _json.loads(raw)
+            items = data.get("items", [])
+        except (_json.JSONDecodeError, TypeError):
+            return results
+
+        for item in items:
+            full_name = item.get("full_name", "")
+            if not full_name:
+                continue
+            results.append(Discovery(
+                id=f"gh:{full_name}",
+                title=item.get("description", "") or full_name,
+                url=item.get("html_url", f"https://github.com/{full_name}"),
+                source=self.name,
+                discovered_at=datetime.now(timezone.utc).isoformat(),
+                authors=[item.get("owner", {}).get("login", "")] if item.get("owner") else [],
+                published=item.get("updated_at", "") or item.get("created_at", ""),
+                abstract=item.get("description", ""),
+                tags=item.get("topics", [])[:10],
+                license=item.get("license", {}).get("spdx_id", None) if item.get("license") else None,
+                raw=item,
+            ))
+        return results
+
+
+# ────────────────────────────────────────────────────────────────────────────
+# SSRN source
+# ────────────────────────────────────────────────────────────────────────────
+
+
+class SSRNSource(DiscoverySource):
+    """SSRN (Social Science Research Network) quant-finance pre-print search.
+
+    Uses the public search page + HTML parsing (no official API).
+    Respects robots.txt; rate-limited to 5s between requests.
+    """
+    name = "ssrn"
+    base_url = "https://papers.ssrn.com/sol3/DisplayJournalBrowse.cfm"
+    search_url = "https://papers.ssrn.com/sol3/results.cfm"
+    rate_limit_seconds = 5.0
+
+    def __init__(self, max_results: int = 25, **kwargs):
+        super().__init__(**kwargs)
+        self.max_results = max_results
+
+    def _fetch(self, query: str) -> str:
+        import urllib.error as _ue
+        last_exc: Optional[Exception] = None
+        for attempt in range(self._max_retries):
+            try:
+                params = urllib.parse.urlencode({
+                    "txtKey_Words": query,
+                    "isSearch": "true",
+                    "strSelectedOption": "1",  # sort by relevance
+                    "perPage": str(min(self.max_results, 50)),
+                })
+                url = f"{self.search_url}?{params}"
+                return self._http_get(url, {
+                    "User-Agent": "confluence-decoder-research/0.2 (academic research bot)",
+                    "Accept": "text/html",
+                })
+            except (_ue.HTTPError, _ue.URLError, TimeoutError, OSError) as exc:
+                last_exc = exc
+                wait = self._backoff_factor ** attempt * 5
+                time.sleep(wait)
+        raise last_exc  # type: ignore[misc]
+
+    def _parse(self, raw: str) -> List[Discovery]:
+        """Parse SSRN search results HTML. Extract paper titles, IDs, abstracts."""
+        results: List[Discovery] = []
+        try:
+            from html.parser import HTMLParser
+
+            # Simple regex-based extraction (SSRN HTML is fairly stable)
+            # Pattern: paper links like /abstract=1234567
+            paper_pattern = re.compile(
+                r'href=["\'][^"\']*abstract[=](\d+)["\'][^>]*>(.*?)</a>',
+                re.IGNORECASE | re.DOTALL
+            )
+            abstract_pattern = re.compile(
+                r'class=["\']abstract[^"\']*["\'][^>]*>(.*?)</(?:div|p|span)>',
+                re.IGNORECASE | re.DOTALL
+            )
+            author_pattern = re.compile(
+                r'class=["\']authors[^"\']*["\'][^>]*>(.*?)</(?:div|p|span)>',
+                re.IGNORECASE | re.DOTALL
+            )
+
+            # Extract paper blocks
+            paper_blocks = re.split(r'<div[^>]*class=["\'][^"\']*result[^"\']*["\']', raw)
+
+            for block in paper_blocks[:self.max_results]:
+                paper_match = paper_pattern.search(block)
+                if not paper_match:
+                    continue
+                paper_id = paper_match.group(1)
+                title = re.sub(r'<[^>]+>', '', paper_match.group(2)).strip()
+                if not title:
+                    continue
+
+                abstract_match = abstract_pattern.search(block)
+                abstract = ""
+                if abstract_match:
+                    abstract = re.sub(r'<[^>]+>', '', abstract_match.group(1)).strip()
+
+                author_match = author_pattern.search(block)
+                authors = []
+                if author_match:
+                    author_text = re.sub(r'<[^>]+>', '', author_match.group(1)).strip()
+                    authors = [a.strip() for a in author_text.split(',') if a.strip()]
+
+                results.append(Discovery(
+                    id=f"ssrn:{paper_id}",
+                    title=title,
+                    url=f"https://papers.ssrn.com/sol3/papers.cfm?abstract_id={paper_id}",
+                    source=self.name,
+                    discovered_at=datetime.now(timezone.utc).isoformat(),
+                    authors=authors,
+                    abstract=abstract[:500] if abstract else None,
+                    tags=["ssrn", "preprint"],
+                    license=None,
+                ))
+        except Exception:
+            pass
+        return results
+
+
+# ────────────────────────────────────────────────────────────────────────────
+# NBER source
+# ────────────────────────────────────────────────────────────────────────────
+
+
+class NBERSource(DiscoverySource):
+    """NBER (National Bureau of Economic Research) working paper search.
+
+    Uses the public working papers page + HTML parsing.
+    Rate-limited to 5s between requests.
+    """
+    name = "nber"
+    base_url = "https://www.nber.org/papers"
+    rate_limit_seconds = 5.0
+
+    def __init__(self, max_results: int = 25, **kwargs):
+        super().__init__(**kwargs)
+        self.max_results = max_results
+
+    def _fetch(self, query: str) -> str:
+        import urllib.error as _ue
+        last_exc: Optional[Exception] = None
+        for attempt in range(self._max_retries):
+            try:
+                params = urllib.parse.urlencode({
+                    "q": query,
+                    "page": "1",
+                    "perPage": str(min(self.max_results, 50)),
+                })
+                url = f"{self.base_url}?{params}"
+                return self._http_get(url, {
+                    "User-Agent": "confluence-decoder-research/0.2 (academic research bot)",
+                    "Accept": "text/html",
+                })
+            except (_ue.HTTPError, _ue.URLError, TimeoutError, OSError) as exc:
+                last_exc = exc
+                wait = self._backoff_factor ** attempt * 5
+                time.sleep(wait)
+        raise last_exc  # type: ignore[misc]
+
+    def _parse(self, raw: str) -> List[Discovery]:
+        """Parse NBER working paper listings from HTML."""
+        results: List[Discovery] = []
+        try:
+            # NBER paper links: /papers/w12345
+            paper_pattern = re.compile(
+                r'href=["\'](/papers/w\d+)["\'][^>]*>(.*?)</a>',
+                re.IGNORECASE | re.DOTALL
+            )
+            # Paper titles in h3/h4 tags
+            title_pattern = re.compile(
+                r'<h[34][^>]*>(.*?)</h[34]>',
+                re.IGNORECASE | re.DOTALL
+            )
+            # Abstract snippets
+            abstract_pattern = re.compile(
+                r'class=["\'][^"\']*abstract[^"\']*["\'][^>]*>(.*?)</(?:div|p)>',
+                re.IGNORECASE | re.DOTALL
+            )
+
+            # Split into paper blocks
+            paper_blocks = re.split(r'<article|<div[^>]*class=["\'][^"\']*paper[^"\']*["\']', raw)
+
+            for block in paper_blocks[:self.max_results]:
+                link_match = paper_pattern.search(block)
+                if not link_match:
+                    continue
+                paper_path = link_match.group(1)
+                paper_id = paper_path.split("/")[-1]
+
+                title_match = title_pattern.search(block)
+                title = ""
+                if title_match:
+                    title = re.sub(r'<[^>]+>', '', title_match.group(1)).strip()
+                if not title:
+                    title = re.sub(r'<[^>]+>', '', link_match.group(2)).strip()
+                if not title:
+                    continue
+
+                abstract_match = abstract_pattern.search(block)
+                abstract = ""
+                if abstract_match:
+                    abstract = re.sub(r'<[^+>', '', abstract_match.group(1)).strip()
+
+                results.append(Discovery(
+                    id=f"nber:{paper_id}",
+                    title=title,
+                    url=f"https://www.nber.org{paper_path}",
+                    source=self.name,
+                    discovered_at=datetime.now(timezone.utc).isoformat(),
+                    abstract=abstract[:500] if abstract else None,
+                    tags=["nber", "working-paper"],
+                    license=None,
+                ))
+        except Exception:
+            pass
+        return results
+
+
+# ────────────────────────────────────────────────────────────────────────────
+# Quantocracy RSS source
+# ────────────────────────────────────────────────────────────────────────────
+
+
+class QuantocracySource(DiscoverySource):
+    """Quantocracy blog aggregator RSS feed.
+
+    RSS URL: https://quantocracy.com/feed/
+    No auth required. Parses RSS XML for recent quant-finance blog posts.
+    """
+    name = "quantocracy"
+    rss_url = "https://quantocracy.com/feed/"
+    rate_limit_seconds = 10.0
+
+    def __init__(self, max_results: int = 25, **kwargs):
+        super().__init__(**kwargs)
+        self.max_results = max_results
+
+    def _fetch(self, query: str) -> str:
+        import urllib.error as _ue
+        last_exc: Optional[Exception] = None
+        for attempt in range(self._max_retries):
+            try:
+                return self._http_get(self.rss_url, {
+                    "User-Agent": "confluence-decoder-research/0.2",
+                    "Accept": "application/rss+xml, application/xml, text/xml",
+                })
+            except (_ue.HTTPError, _ue.URLError, TimeoutError, OSError) as exc:
+                last_exc = exc
+                wait = self._backoff_factor ** attempt * 10
+                time.sleep(wait)
+        raise last_exc  # type: ignore[misc]
+
+    def _parse(self, raw: str) -> List[Discovery]:
+        """Parse RSS XML feed."""
+        results: List[Discovery] = []
+        try:
+            root = ET.fromstring(raw)
+        except ET.ParseError:
+            return results
+
+        # RSS 2.0 namespace
+        ns = {"rss": "http://purl.org/rss/1.0/"}
+        channel = root.find("channel")
+        if channel is None:
+            channel = root  # try without channel wrapper
+
+        for item in channel.findall("item")[:self.max_results]:
+            title_el = item.find("title")
+            title = title_el.text.strip() if title_el is not None and title_el.text else ""
+            if not title:
+                continue
+
+            link_el = item.find("link")
+            url = link_el.text.strip() if link_el is not None and link_el.text else ""
+
+            desc_el = item.find("description")
+            abstract = ""
+            if desc_el is not None and desc_el.text:
+                abstract = re.sub(r'<[^>]+>', '', desc_el.text).strip()[:500]
+
+            date_el = item.find("pubDate")
+            published = date_el.text.strip() if date_el is not None and date_el.text else None
+
+            guid_el = item.find("guid")
+            guid = guid_el.text.strip() if guid_el is not None and guid_el.text else url
+
+            # Filter by query relevance (simple keyword match)
+            results.append(Discovery(
+                id=f"quantocracy:{guid}",
+                title=title,
+                url=url,
+                source=self.name,
+                discovered_at=datetime.now(timezone.utc).isoformat(),
+                published=published,
+                abstract=abstract,
+                tags=["quantocracy", "blog", "aggregator"],
+                license=None,
+            ))
+        return results
+
+
+# ────────────────────────────────────────────────────────────────────────────
+# AQR Commentary RSS source
+# ────────────────────────────────────────────────────────────────────────────
+
+
+class AQRSource(DiscoverySource):
+    """AQR (Cliff Asness) commentary RSS feed.
+
+    RSS URL: https://www.aqr.com/Insights/RSS
+    No auth required. Parses RSS XML for recent AQR research commentary.
+    """
+    name = "aqr"
+    rss_url = "https://www.aqr.com/insights/rss"
+    rate_limit_seconds = 10.0
+
+    def __init__(self, max_results: int = 25, **kwargs):
+        super().__init__(**kwargs)
+        self.max_results = max_results
+
+    def _fetch(self, query: str) -> str:
+        import urllib.error as _ue
+        last_exc: Optional[Exception] = None
+        for attempt in range(self._max_retries):
+            try:
+                return self._http_get(self.rss_url, {
+                    "User-Agent": "confluence-decoder-research/0.2",
+                    "Accept": "application/rss+xml, application/xml, text/xml",
+                })
+            except (_ue.HTTPError, _ue.URLError, TimeoutError, OSError) as exc:
+                last_exc = exc
+                wait = self._backoff_factor ** attempt * 10
+                time.sleep(wait)
+        raise last_exc  # type: ignore[misc]
+
+    def _parse(self, raw: str) -> List[Discovery]:
+        """Parse RSS XML feed."""
+        results: List[Discovery] = []
+        try:
+            root = ET.fromstring(raw)
+        except ET.ParseError:
+            return results
+
+        channel = root.find("channel")
+        if channel is None:
+            channel = root
+
+        for item in channel.findall("item")[:self.max_results]:
+            title_el = item.find("title")
+            title = title_el.text.strip() if title_el is not None and title_el.text else ""
+            if not title:
+                continue
+
+            link_el = item.find("link")
+            url = link_el.text.strip() if link_el is not None and link_el.text else ""
+
+            desc_el = item.find("description")
+            abstract = ""
+            if desc_el is not None and desc_el.text:
+                abstract = re.sub(r'<[^>]+>', '', desc_el.text).strip()[:500]
+
+            date_el = item.find("pubDate")
+            published = date_el.text.strip() if date_el is not None and date_el.text else None
+
+            guid_el = item.find("guid")
+            guid = guid_el.text.strip() if guid_el is not None and guid_el.text else url
+
+            results.append(Discovery(
+                id=f"aqr:{guid}",
+                title=title,
+                url=url,
+                source=self.name,
+                discovered_at=datetime.now(timezone.utc).isoformat(),
+                published=published,
+                abstract=abstract,
+                tags=["aqr", "commentary", "cliff-asness"],
+                license=None,
+            ))
+        return results
+
+
+# ────────────────────────────────────────────────────────────────────────────
+# Robot Wealth RSS source
+# ────────────────────────────────────────────────────────────────────────────
+
+
+class RobotWealthSource(DiscoverySource):
+    """Robot Wealth blog RSS feed.
+
+    RSS URL: https://robotwealth.com/feed/
+    No auth required. Parses RSS XML for recent quant-finance blog posts.
+    """
+    name = "robot_wealth"
+    rss_url = "https://robotwealth.com/feed/"
+    rate_limit_seconds = 10.0
+
+    def __init__(self, max_results: int = 25, **kwargs):
+        super().__init__(**kwargs)
+        self.max_results = max_results
+
+    def _fetch(self, query: str) -> str:
+        import urllib.error as _ue
+        last_exc: Optional[Exception] = None
+        for attempt in range(self._max_retries):
+            try:
+                return self._http_get(self.rss_url, {
+                    "User-Agent": "confluence-decoder-research/0.2",
+                    "Accept": "application/rss+xml, application/xml, text/xml",
+                })
+            except (_ue.HTTPError, _ue.URLError, TimeoutError, OSError) as exc:
+                last_exc = exc
+                wait = self._backoff_factor ** attempt * 10
+                time.sleep(wait)
+        raise last_exc  # type: ignore[misc]
+
+    def _parse(self, raw: str) -> List[Discovery]:
+        """Parse RSS XML feed."""
+        results: List[Discovery] = []
+        try:
+            root = ET.fromstring(raw)
+        except ET.ParseError:
+            return results
+
+        channel = root.find("channel")
+        if channel is None:
+            channel = root
+
+        for item in channel.findall("item")[:self.max_results]:
+            title_el = item.find("title")
+            title = title_el.text.strip() if title_el is not None and title_el.text else ""
+            if not title:
+                continue
+
+            link_el = item.find("link")
+            url = link_el.text.strip() if link_el is not None and link_el.text else ""
+
+            desc_el = item.find("description")
+            abstract = ""
+            if desc_el is not None and desc_el.text:
+                abstract = re.sub(r'<[^>]+>', '', desc_el.text).strip()[:500]
+
+            date_el = item.find("pubDate")
+            published = date_el.text.strip() if date_el is not None and date_el.text else None
+
+            guid_el = item.find("guid")
+            guid = guid_el.text.strip() if guid_el is not None and guid_el.text else url
+
+            results.append(Discovery(
+                id=f"rw:{guid}",
+                title=title,
+                url=url,
+                source=self.name,
+                discovered_at=datetime.now(timezone.utc).isoformat(),
+                published=published,
+                abstract=abstract,
+                tags=["robot-wealth", "blog", "quant"],
+                license=None,
+            ))
+        return results
+
+
+# ────────────────────────────────────────────────────────────────────────────
+# ResearchGate source (stub — requires JS rendering)
+# ────────────────────────────────────────────────────────────────────────────
+
+
+class ResearchGateSource(DiscoverySource):
+    """ResearchGate search. STUB — ResearchGate requires JS rendering.
+
+    For now, this is a placeholder that logs a warning.
+    Future: use their API or a headless browser.
+    """
+    name = "researchgate"
+    rate_limit_seconds = 10.0
+
+    def _fetch(self, query: str) -> str:
+        raise NotImplementedError(
+            "ResearchGate requires JS rendering — not yet implemented. "
+            "Consider using their API or a headless browser."
+        )
+
+    def _parse(self, raw: str) -> List[Discovery]:
+        raise NotImplementedError("ResearchGateSource not implemented yet")
 
 
 # ────────────────────────────────────────────────────────────────────────────

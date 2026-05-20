@@ -31,8 +31,14 @@ sys.path.insert(0, str(REPO_ROOT / "backend"))
 from services.research.discovery import (  # noqa: E402
     ArxivSource,
     DiscoverySource,
-    GitHubTopicStub,
-    HuggingFaceStub,
+    HuggingFaceSource,
+    GitHubTopicSource,
+    SSRNSource,
+    NBERSource,
+    QuantocracySource,
+    AQRSource,
+    RobotWealthSource,
+    ResearchGateSource,
     discover_all,
 )
 
@@ -87,8 +93,14 @@ def build_sources(names: List[str]) -> List[DiscoverySource]:
     """Construct DiscoverySource instances for the requested names."""
     available = {
         "arxiv": ArxivSource,
-        "huggingface": HuggingFaceStub,
-        "github_topic": GitHubTopicStub,
+        "huggingface": HuggingFaceSource,
+        "github_topic": GitHubTopicSource,
+        "ssrn": SSRNSource,
+        "nber": NBERSource,
+        "quantocracy": QuantocracySource,
+        "aqr": AQRSource,
+        "robot_wealth": RobotWealthSource,
+        "researchgate": ResearchGateSource,
     }
     sources: List[DiscoverySource] = []
     for name in names:

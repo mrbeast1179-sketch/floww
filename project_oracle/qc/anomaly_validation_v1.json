@@ -1,0 +1,20 @@
+{
+  "model_path": "/Users/nav/Documents/GitHub/floww/project_oracle/models/anomaly_detector_v1.pt",
+  "threshold": 0.04476695,
+  "n_normal": 1951,
+  "n_toxic": 451,
+  "true_positives": 451,
+  "false_negatives": 0,
+  "false_positives": 0,
+  "true_negatives": 1951,
+  "recall": 1.0,
+  "false_positive_rate": 0.0,
+  "precision": 1.0,
+  "f1_score": 1.0,
+  "normal_error_mean": 0.0117302,
+  "normal_error_std": 0.00395335,
+  "toxic_error_mean": 0.1546138,
+  "toxic_error_std": 0.03532559,
+  "recall_target_met": true,
+  "validated_at": "2026-05-20T01:36:51.399346+00:00"
+}
