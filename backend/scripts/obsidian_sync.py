@@ -251,6 +251,18 @@ class ObsidianSync:
         last_hash = self.state.get_last_hash(key)
         last_mtime = self.state.get_last_mtime(key)
 
+        # If we have no prior state for this key, just sync (not a conflict)
+        if not last_hash:
+            # First sync — just copy if different
+            if src_hash != dst_hash:
+                content = self._convert_to_obsidian(src)
+                if not self.dry_run:
+                    dst.write_text(content)
+                    os.utime(dst, (src_mtime, src_mtime))
+                self.log(f"INITIAL SYNC: {dst.name}")
+            self.state.update(key, src_hash, max(src_mtime, dst_mtime))
+            return
+
         src_changed = src_hash != last_hash
         dst_changed = dst_hash != last_hash
 
@@ -328,6 +340,9 @@ class ObsidianSync:
         # Pass 1: Claude Code → Obsidian
         for md_file in sorted(self.memory_dir.glob("*.md")):
             if md_file.name in SKIP_FILES or md_file.name.startswith("."):
+                continue
+            # Skip files that start with _ (internal)
+            if md_file.name.startswith("_"):
                 continue
             obsidian_path = self.get_obsidian_path(md_file.name)
             key = f"claude→obsidian:{md_file.name}"

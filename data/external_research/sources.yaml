@@ -73,6 +73,58 @@ github_topic:
     - algorithmic-trading
 
 # ────────────────────────────────────────────────────────────────────────────
+# New sources — Round 2 expansion (2026-07-09)
+# ────────────────────────────────────────────────────────────────────────────
+
+ssrn:
+  queries:
+    - "options market microstructure"
+    - "gamma exposure dealer hedging"
+    - "implied volatility surface"
+    - "options flow informed trading"
+    - "market making inventory risk"
+    - "volatility forecasting machine learning"
+    - "limit order book dynamics"
+    - "high frequency trading"
+
+nber:
+  queries:
+    - "options market"
+    - "volatility forecasting"
+    - "market microstructure"
+    - "asset pricing"
+    - "financial econometrics"
+
+# RSS-based sources (queries are used as keyword filters on feed items)
+quantocracy:
+  queries:
+    - "options"
+    - "volatility"
+    - "gamma"
+    - "market microstructure"
+    - "quantitative finance"
+
+aqr:
+  queries:
+    - "options"
+    - "volatility"
+    - "factor investing"
+    - "market microstructure"
+
+robot_wealth:
+  queries:
+    - "options"
+    - "volatility"
+    - "quantitative"
+    - "market making"
+
+# ResearchGate requires JS rendering — stub for now
+researchgate:
+  queries:
+    - "options market microstructure"
+    - "volatility forecasting"
+
+# ────────────────────────────────────────────────────────────────────────────
 # Already-cloned reference repos
 # ────────────────────────────────────────────────────────────────────────────
 # These live under data/github-repos/cloned/ — kept here for inventory.

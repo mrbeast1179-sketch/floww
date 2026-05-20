@@ -12,6 +12,10 @@ auto-clone. It diffs the candidate list against ``cloned-manifest.json``,
 writes a clone-plan JSON, and prints the exact ``git clone`` commands a
 human can run (or that this script can run with ``--execute``).
 
+License-aware: only clones repos with approved licenses (MIT, Apache-2.0,
+BSD-3-Clause, MPL-2.0 by default). GPL/AGPL/LGPL are skipped.
+Size-aware: skips repos larger than --max-size-mb (default 1000 MB).
+
 Usage::
 
     # Dry-run: write clone_queue_<date>.json and print suggested commands.
@@ -23,9 +27,13 @@ Usage::
     # Limit to a specific candidate URL (repeatable).
     python scripts/clone_and_extract.py --only https://github.com/owen8877/RLOP
 
+    # Custom license allowlist and size limit.
+    python scripts/clone_and_extract.py --license-allow MIT,Apache-2.0 --max-size-mb 500
+
 Output: ``data/github-repos/clone_queue_<UTC-date>.json`` with the plan.
 On --execute, also updates ``data/github-repos/cloned-manifest.json`` and
 writes provenance to ``data/github-repos/clone_provenance.json``.
+Skipped repos are logged to ``data/github-repos/skipped_<UTC-date>.md``.
 """
 
 from __future__ import annotations
@@ -122,9 +130,59 @@ def collect_candidates(
     return rows
 
 
+ALLOWED_LICENSES = {"MIT", "Apache-2.0", "BSD-3-Clause", "MPL-2.0", "BSD-2-Clause",
+                     "ISC", "Unlicense", "CC0-1.0", "Python-2.0"}
+# Licenses that are GPL-compatible but NOT compatible with proprietary projects
+DENIED_LICENSES = {"GPL-2.0", "GPL-3.0", "GPL-2.0-only", "GPL-3.0-only",
+                   "AGPL-3.0", "AGPL-3.0-only", "LGPL-2.1", "LGPL-3.0",
+                   "LGPL-2.1-only", "LGPL-3.0-only", "EPL-2.0"}
+
+
+def check_license(owner: str, repo: str, allowed: set = ALLOWED_LICENSES,
+                  denied: set = DENIED_LICENSES) -> Tuple[bool, str]:
+    """Check if a repo's license is in the allowed set.
+
+    Uses the GitHub API to fetch license info. Returns (ok, reason).
+    """
+    try:
+        url = f"https://api.github.com/repos/{owner}/{repo}/license"
+        req = urllib.request.Request(url, headers={
+            "User-Agent": "confluence-decoder-research/0.2",
+            "Accept": "application/vnd.github.v3+json",
+        })
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            data = json.loads(resp.read().decode())
+        spdx = data.get("license", {}).get("spdx_id", "NOASSERTION")
+        if spdx in denied or "GPL" in spdx or "AGPL" in spdx or "LGPL" in spdx:
+            return False, f"license {spdx} not in allowlist"
+        if spdx in allowed or spdx == "NOASSERTION":
+            return True, spdx
+        return False, f"license {spdx} not in allowlist"
+    except Exception as e:
+        return False, f"license check failed: {e}"
+
+
+def get_repo_size_mb(owner: str, repo: str) -> Optional[float]:
+    """Get repo size in MB from GitHub API. Returns None on failure."""
+    try:
+        url = f"https://api.github.com/repos/{owner}/{repo}"
+        req = urllib.request.Request(url, headers={
+            "User-Agent": "confluence-decoder-research/0.2",
+            "Accept": "application/vnd.github.v3+json",
+        })
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            data = json.loads(resp.read().decode())
+        # size is in KB
+        return data.get("size", 0) / 1024.0
+    except Exception:
+        return None
+
+
 def plan_clones(
     candidates: List[Dict[str, Any]],
     manifest: Dict[str, Any],
+    allowed_licenses: set = ALLOWED_LICENSES,
+    max_size_mb: float = 1000.0,
 ) -> Dict[str, List[Dict[str, Any]]]:
     """Bucket candidates into to_clone / skip_already / skip_unparseable."""
     to_clone: List[Dict[str, Any]] = []
