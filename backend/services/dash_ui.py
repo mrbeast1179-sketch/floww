@@ -413,7 +413,7 @@ def _build_vol_surface(
 def _build_trinity_dashboard(
     score: float = 0, regime: str = "NONE",
     spy_zg: Optional[List[Dict]] = None, qqq_zg: Optional[List[Dict]] = None,
-    spx_zg: Optional[List[Dict]] = None, cross_corr: Optional[List[List[float]] = None,
+    spx_zg: Optional[List[Dict]] = None, cross_corr: Optional[List[List[float]]] = None,
     aligned_levels: Optional[List[Dict]] = None, dark: bool = True,
 ) -> go.Figure:
     try:
@@ -797,7 +797,7 @@ def create_dash_app(fastapi_app, url_base_pathname: str = "/dashboard/"):
             dcc.Store(id="store-theme", data={"dark": True}),
 
             # Help modal
-            html.Div(id="help-modal", style={"display": "none"}, children=[
+            html.Div(id="help-modal", children=[
                 html.Div([
                     html.H4("Keyboard Shortcuts", style={"color": ACCENT}),
                     html.Pre(children="""
@@ -808,7 +808,7 @@ T: Toggle theme  M: Mute alerts  ?: Show this help
                     html.Button("Close", id="help-close-btn", n_clicks=0),
                 ], style={"backgroundColor": BG_CARD, "padding": "20px", "borderRadius": "8px",
                           "border": f"1px solid {ACCENT}", "maxWidth": "400px", "margin": "100px auto"}),
-            ], style={"position": "fixed", "top": 0, "left": 0, "right": 0, "bottom": 0,
+            ], style={"display": "none", "position": "fixed", "top": 0, "left": 0, "right": 0, "bottom": 0,
                       "backgroundColor": "rgba(0,0,0,0.7)", "zIndex": 1000}),
         ], style={"backgroundColor": BG_DARK, "minHeight": "100vh", "fontFamily": "monospace"})
 
