@@ -2537,7 +2537,6 @@ from routes.microstructure import router as microstructure_router
 app.include_router(microstructure_router, tags=["microstructure"])
 
 # ============ DuckDB Engine Initialization ============
-from services.duckdb_engine import db as duckdb_engine
 
 @app.on_event("startup")
 async def startup_duckdb():
@@ -2558,7 +2557,6 @@ async def shutdown_duckdb():
         pass
 
 # ============ WebSocket Endpoint ============
-from services.websocket_streamer import manager as ws_manager
 
 @app.websocket("/ws/{topic}")
 async def websocket_endpoint(websocket: WebSocket, topic: str):
