@@ -1944,7 +1944,7 @@ async def calc_hedge_recommendation(portfolio: dict, hedge_request: dict) -> dic
     except np.linalg.LinAlgError:
         return {"error": "Matrix is singular - hedge options are linearly dependent"}
 
-    w1, w2 = float(weights[0]), float(weights[1])
+    w1, w2 = float(weights.flat[0]), float(weights.flat[1])
     new_delta = current["delta"] + w1 * option_greeks[0]["delta"] + w2 * option_greeks[1]["delta"]
     stock_hedge = -new_delta
 
