@@ -65,9 +65,10 @@ class MockSchwabFeed:
         self.rng = np.random.default_rng(seed)
 
         self._running = False
-        self._tick_handlers: List[Callable] = []
-        self._chain_handlers: List[Callable] = []
-        self._lob_handlers: List[Callable] = []
+        self._tick_handlers: List = []
+        self._chain_handlers: List = []
+        self._lob_handlers: List = []
+        self._lob_depth_handlers: List = []
 
         # Current state
         self._current_prices: Dict[str, float] = {
@@ -114,6 +115,9 @@ class MockSchwabFeed:
                 # Generate LOB snapshots (every 5 ticks)
                 if self._tick_count % 5 == 0:
                     await self._generate_lob()
+                # Generate Level-2 depth (every 20 ticks)
+                if self._tick_count % 20 == 0:
+                    await self._generate_lob_depth()
                 await asyncio.sleep(interval)
             except asyncio.CancelledError:
                 break
@@ -259,6 +263,32 @@ class MockSchwabFeed:
                     await h(lob) if asyncio.iscoroutinefunction(h) else h(lob)
                 except Exception as e:
                     logger.error(f"LOB handler error: {e}")
+
+    async def _generate_lob_depth(self):
+        """Generate Level-2 order book depth (top 5 levels) for each symbol."""
+        for symbol in self.symbols:
+            spot = self._current_prices[symbol]
+            spread = max(0.01, spot * 0.0001)
+            for level in range(5):
+                level_spread = spread * (1 + level * 0.5)
+                depth = {
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
+                    "symbol": symbol,
+                    "expiry": "",
+                    "strike": 0.0,
+                    "option_type": "C",
+                    "level": level,
+                    "bid_size": int(self.rng.integers(50, 5000) / (level + 1)),
+                    "bid_price": round(spot - level_spread / 2, 2),
+                    "ask_size": int(self.rng.integers(50, 5000) / (level + 1)),
+                    "ask_price": round(spot + level_spread / 2, 2),
+                    "source": "mock",
+                }
+                for h in self._lob_depth_handlers:
+                    try:
+                        await h(depth) if asyncio.iscoroutinefunction(h) else h(depth)
+                    except Exception as e:
+                        logger.error(f"LOB depth handler error: {e}")
 
     # ------------------------------------------------------------------
     # Metrics

@@ -233,4 +233,4 @@ def test_api_latency_buckets_cover_range():
 
     output = get_metrics_bytes().decode()
     # Both observations should be counted
-    assert "floww_api_request_duration_seconds_count 2.0" in output
+    assert 'floww_api_request_duration_seconds_count{method="GET",route="/api/test",status="200"} 2.0' in output

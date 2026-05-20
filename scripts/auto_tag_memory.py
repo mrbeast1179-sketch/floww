@@ -201,10 +201,13 @@ def main():
         print(f"[auto_tag] Auto-applying: {tags_to_apply}")
 
         # Add to mem0 with tags
-        result = client.add(memory_text, user_id=args.user_id, metadata={"tags": tags_to_apply})
+        result = client.add(messages=[{"role": "user", "content": memory_text}], user_id=args.user_id, metadata={"tags": tags_to_apply})
         print(f"[auto_tag] Added to mem0: {result}")
     else:
-        print(f"[auto_tag] Queuing for human review (confidence < {AUTO_APPLY_THRESHOLD})")
+        if not high_conf:
+            print(f"[auto_tag] Queuing for human review (no tags above {AUTO_APPLY_THRESHOLD} threshold)")
+        else:
+            print(f"[auto_tag] Dry run — would apply: {[t for t, s in high_conf]}")
         queue_for_review(memory_text, proposed)
 
 
