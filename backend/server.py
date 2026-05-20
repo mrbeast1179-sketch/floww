@@ -2418,7 +2418,8 @@ async def auth_middleware(request: Request, call_next):
 
 # ----------------------------- Observability Middleware ------------------------------
 
-from services.observability import metrics as obs_metrics, get_metrics_bytes, get_metrics_content_type
+import services.observability as obs_metrics
+from services.observability import get_metrics_bytes, get_metrics_content_type
 
 
 @app.middleware("http")
@@ -2561,6 +2562,9 @@ app.include_router(social_flow_router, tags=["social"])
 from routes.alerts import router as alerts_router
 app.include_router(alerts_router, tags=["alerts"])
 
+from routes.alerts_api import router as alerts_api_router
+app.include_router(alerts_api_router, tags=["alerts-api"])
+
 from routes.market_data import router as market_data_router
 app.include_router(market_data_router, prefix="/api", tags=["market_data"])
 
@@ -2591,6 +2595,16 @@ app.include_router(vol_surface_router, tags=["vol_surface"])
 # ============ Microstructure Combined API ============
 from routes.microstructure import router as microstructure_router
 app.include_router(microstructure_router, tags=["microstructure"])
+
+# ============ Replay, Agent Hub, Nexus ============
+from routes.replay import router as replay_router
+app.include_router(replay_router, tags=["replay"])
+
+from routes.agent_hub import router as agent_hub_router
+app.include_router(agent_hub_router, tags=["agent-hub"])
+
+from routes.nexus import router as nexus_router
+app.include_router(nexus_router, tags=["nexus"])
 
 # ============ DuckDB Engine Initialization ============
 
@@ -2636,6 +2650,7 @@ async def startup_ingestion():
         _mock_feed.on_tick(_ingestion_pipeline.enqueue_tick)
         _mock_feed.on_chain(_ingestion_pipeline.enqueue_chain)
         _mock_feed.on_lob(_ingestion_pipeline.enqueue_lob)
+        _mock_feed.on_lob_depth(_ingestion_pipeline.enqueue_lob_depth)
 
         # Run mock feed in background
         asyncio.create_task(_mock_feed.start())
@@ -2672,6 +2687,10 @@ async def websocket_endpoint(websocket: WebSocket, topic: str):
             # Echo back for now (could handle subscription changes)
     except WebSocketDisconnect:
         ws_manager.disconnect(websocket)
+
+# ============ Replay Route ============
+from routes.replay import router as replay_router
+app.include_router(replay_router, tags=["replay"])
 
 # ============ Dash UI Mount ============
 try:

@@ -1,0 +1,14 @@
+{
+  "model": "patchtst_vpin_v1",
+  "path": "project_oracle/models/patchtst_vpin_v1.pt",
+  "data_source": "synthetic_bootstrap",
+  "n_train": 7940,
+  "n_val": 1986,
+  "seq_len": 60,
+  "forecast_horizon": 15,
+  "epochs": 2,
+  "best_val_loss": 0.02566232718527317,
+  "persistence_baseline_mse": 0.03184814006090164,
+  "beats_persistence": true,
+  "trained_at": "2026-05-20T07:25:04.892042+00:00"
+}

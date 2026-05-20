@@ -1,14 +1,12 @@
 """Tests for portfolio, Schwab, live policy, and position sizing endpoints."""
 import pytest
-from fastapi.testclient import TestClient
-from server import app
 
-client = TestClient(app)
+pytestmark = pytest.mark.asyncio
 
 
 # ============ Portfolio Tests ============
 
-def test_portfolio_add_position():
+async def test_portfolio_add_position(aclient):
     """Add a position to a portfolio."""
     pos = {
         "symbol": "SPY",
@@ -20,16 +18,16 @@ def test_portfolio_add_position():
         "entry_iv": 0.15,
         "underlying_price": 530.0,
     }
-    r = client.post("/api/portfolio/test/position", json=pos)
+    r = await aclient.post("/api/portfolio/test/position", json=pos)
     assert r.status_code == 200, r.text
     d = r.json()
     assert d["status"] == "added"
     assert d["positions"] >= 1
 
 
-def test_portfolio_get():
+async def test_portfolio_get(aclient):
     """Get portfolio summary."""
-    r = client.get("/api/portfolio/test?spot=530&iv=0.15")
+    r = await aclient.get("/api/portfolio/test?spot=530&iv=0.15")
     assert r.status_code == 200, r.text
     d = r.json()
     assert d["name"] == "test"
@@ -41,9 +39,9 @@ def test_portfolio_get():
         assert k in g, f"missing greek {k}"
 
 
-def test_portfolio_scenario():
+async def test_portfolio_scenario(aclient):
     """Run scenario analysis."""
-    r = client.get("/api/portfolio/test/scenario?spot=530&iv=0.15")
+    r = await aclient.get("/api/portfolio/test/scenario?spot=530&iv=0.15")
     assert r.status_code == 200, r.text
     d = r.json()
     assert "scenarios" in d
@@ -55,13 +53,13 @@ def test_portfolio_scenario():
     assert len(vol_scenarios) > 0
 
 
-def test_portfolio_hedge():
+async def test_portfolio_hedge(aclient):
     """Calculate Greek-neutral hedge."""
     hedge_opts = [
         {"strike": 500, "expiry": "2026-06-15", "type": "call", "iv": 0.15},
         {"strike": 495, "expiry": "2026-06-15", "type": "put", "iv": 0.15},
     ]
-    r = client.post("/api/portfolio/test/hedge", json={
+    r = await aclient.post("/api/portfolio/test/hedge", json={
         "spot": 530, "iv": 0.15, "hedge_options": hedge_opts,
     })
     assert r.status_code == 200, r.text
@@ -72,25 +70,25 @@ def test_portfolio_hedge():
         assert "resulting_greeks" in d
 
 
-def test_portfolio_remove_position():
+async def test_portfolio_remove_position(aclient):
     """Remove a position."""
-    r = client.delete("/api/portfolio/test/position/0")
+    r = await aclient.delete("/api/portfolio/test/position/0")
     assert r.status_code == 200, r.text
     d = r.json()
     assert d["status"] == "removed"
 
 
-def test_portfolio_not_found():
+async def test_portfolio_not_found(aclient):
     """404 for nonexistent portfolio."""
-    r = client.get("/api/portfolio/nonexistent_xyz?spot=530&iv=0.15")
+    r = await aclient.get("/api/portfolio/nonexistent_xyz?spot=530&iv=0.15")
     assert r.status_code == 404
 
 
 # ============ Position Sizing Tests ============
 
-def test_position_size():
+async def test_position_size(aclient):
     """Calculate position size."""
-    r = client.post(
+    r = await aclient.post(
         "/api/position-size?account_size=100000&risk_per_trade_pct=0.02&spot=530&gex_level=1000000",
     )
     assert r.status_code == 200, r.text
@@ -102,18 +100,18 @@ def test_position_size():
 
 # ============ Live Policy Tests ============
 
-def test_live_policy_get():
+async def test_live_policy_get(aclient):
     """Get current live policy."""
-    r = client.get("/api/live/policy")
+    r = await aclient.get("/api/live/policy")
     assert r.status_code == 200, r.text
     d = r.json()
     assert "paid_tickers" in d
     assert "live_window_et" in d
 
 
-def test_live_policy_update():
+async def test_live_policy_update(aclient):
     """Update live policy."""
-    r = client.post("/api/live/policy", json={
+    r = await aclient.post("/api/live/policy", json={
         "paid_tickers": ["SPY"],
         "window_start": "09:00",
         "window_stop": "10:30",
@@ -125,20 +123,20 @@ def test_live_policy_update():
 
 # ============ Schwab Tests (scaffold - will fail without credentials) ============
 
-def test_schwab_auth_url_no_credentials():
+async def test_schwab_auth_url_no_credentials(aclient):
     """Schwab auth URL should return error without credentials."""
-    r = client.get("/api/schwab/auth-url")
+    r = await aclient.get("/api/schwab/auth-url")
     # Without credentials, returns 500 or 200 with error
     assert r.status_code in (200, 500)
 
 
 # ============ History Tests ============
 
-def test_history_endpoint():
+async def test_history_endpoint(aclient):
     """Get snapshot history."""
     # First trigger a snapshot by hitting heatmap
-    client.get("/api/heatmap/SPY?expiries=2")
-    r = client.get("/api/history/SPY?limit=5")
+    await aclient.get("/api/heatmap/SPY?expiries=2")
+    r = await aclient.get("/api/history/SPY?limit=5")
     assert r.status_code == 200, r.text
     d = r.json()
     assert "snapshots" in d
@@ -147,9 +145,9 @@ def test_history_endpoint():
 
 # ============ Patterns Glossary Tests ============
 
-def test_patterns_glossary():
+async def test_patterns_glossary(aclient):
     """Get patterns glossary."""
-    r = client.get("/api/patterns/glossary")
+    r = await aclient.get("/api/patterns/glossary")
     assert r.status_code == 200, r.text
     d = r.json()
     assert "King Node" in d or "king" in str(d).lower()

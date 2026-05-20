@@ -1,0 +1,25 @@
+name: squeeze_hunter
+description: >
+  Detects gamma squeeze conditions: VPIN elevated, GEX negative, spot near put wall.
+  Fires when all three conditions are met simultaneously.
+triggers:
+  - metric: vpin_cdf
+    op: gt
+    value: 0.6
+    window_seconds: 300
+  - metric: gex_total
+    op: lt
+    value: -1000000.0
+    window_seconds: 300
+  - metric: spot_to_put_wall_pct
+    op: lt
+    value: 0.02
+    window_seconds: 300
+logic: "all"
+action:
+  type: alert
+  params:
+    severity: high
+    message: "Gamma squeeze conditions detected"
+    sound: true
+enabled: true

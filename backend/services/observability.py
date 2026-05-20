@@ -160,4 +160,48 @@ class _MetricsNamespace:
             if not name.startswith("_") and not callable(obj) and not isinstance(obj, type):
                 setattr(self, name, obj)
 
+# ---------------------------------------------------------------------------
+# Cost / Budget metrics
+# ---------------------------------------------------------------------------
+cost_usd_daily = Gauge(
+    "floww_cost_usd_daily",
+    "Daily spend in USD per provider",
+    labelnames=["provider"],
+    registry=REGISTRY,
+)
+
+cost_budget_pct = Gauge(
+    "floww_cost_budget_pct",
+    "Budget utilization percentage per provider (0-100)",
+    labelnames=["provider"],
+    registry=REGISTRY,
+)
+
+cost_budget_usd = Gauge(
+    "floww_cost_budget_usd",
+    "Total budget in USD per provider",
+    labelnames=["provider"],
+    registry=REGISTRY,
+)
+
+llm_tokens_total = Counter(
+    "floww_llm_tokens_total",
+    "Total LLM tokens consumed per provider and model",
+    labelnames=["provider", "model"],
+    registry=REGISTRY,
+)
+
+hf_bytes_downloaded_total = Counter(
+    "floww_hf_bytes_downloaded_total",
+    "Total bytes downloaded from HuggingFace",
+    registry=REGISTRY,
+)
+
+schwab_api_calls_total = Counter(
+    "floww_schwab_api_calls_total",
+    "Total Schwab API calls made today",
+    registry=REGISTRY,
+)
+
+
 metrics = _MetricsNamespace()

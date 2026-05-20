@@ -69,3 +69,49 @@ async def databento_usage():
         "live_tape_state": "active" if _live_tape_session.get("active") else "stopped",
         "budget_usd": BUDGET_USD,
     }
+
+
+# ---------------------------------------------------------------------------
+# Schwab Health
+# ---------------------------------------------------------------------------
+
+@router.get("/api/admin/schwab/health")
+async def schwab_health():
+    """Return Schwab streamer health status.
+
+    All values cached in process memory; does not hit Schwab API.
+    Response time target: <50ms even under heavy ingestion load.
+    """
+    health = {
+        "connected": False,
+        "token_ttl_seconds": 0,
+        "last_message_at": None,
+        "messages_per_minute_5min": 0.0,
+        "reconnect_count_24h": 0,
+        "lob_depth_rows_24h": 0,
+    }
+
+    # Try to get health from the streamer instance
+    try:
+        from server import _schwab_streamer
+        if _schwab_streamer:
+            streamer_health = _schwab_streamer.get_health()
+            health.update(streamer_health)
+    except Exception:
+        pass
+
+    # Compute token TTL
+    try:
+        from schwab import SchwabTokenManager
+        tm = SchwabTokenManager()
+        token = tm.load()
+        if token:
+            expires_at = token.get("expires_at", 0)
+            now = __import__("datetime").datetime.now(__import__("datetime").timezone.utc).timestamp()
+            health["token_ttl_seconds"] = max(0, int(expires_at - now))
+        else:
+            health["token_ttl_seconds"] = 0
+    except Exception:
+        health["token_ttl_seconds"] = 0
+
+    return health

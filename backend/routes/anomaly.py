@@ -25,6 +25,9 @@ router = APIRouter(prefix="/api/anomaly", tags=["anomaly"])
 # Global anomaly detector registry (ticker -> FlowAnomalyDetector)
 _detectors: Dict[str, Any] = {}
 
+# Global ensemble registry (ticker -> ToxicityEnsemble)
+_ensembles: Dict[str, Any] = {}
+
 # Path to trained model checkpoints
 MODEL_BASE_PATH = Path(__file__).resolve().parents[2] / "project_oracle" / "models"
 
@@ -74,7 +77,21 @@ async def get_detector_status(ticker: str):
     return detector.get_state()
 
 
-@router.post("/{ticker}/load")
+@router.get("/ensemble")
+async def get_ensemble_prediction(
+    ticker: str,
+    horizon_minutes: int = Query(default=15, ge=1, le=1440),
+):
+    """Get ensemble toxicity prediction for a given horizon.
+    Returns P(toxic flow in next N minutes) from the calibrated ensemble.
+    """
+    t = ticker.upper()
+    from services.ml_ensemble import ToxicityEnsemble
+    if t not in _ensembles:
+        _ensembles[t] = ToxicityEnsemble()
+    ensemble = _ensembles[t]
+    state = ensemble.get_state()
+    return {"ticker": t, "horizon_minutes": horizon_minutes, **state}
 async def load_trained_model(
     ticker: str,
     model_path: str = Query(default="", description="Path to .pt checkpoint file"),

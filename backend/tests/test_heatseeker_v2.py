@@ -1,14 +1,12 @@
 """V2 features: 2D grid heatmap, swing mode, contract drilldown, Databento usage."""
 import pytest
-from fastapi.testclient import TestClient
-from server import app
 
-client = TestClient(app)
+pytestmark = pytest.mark.asyncio
 
 
 # --- Grid + data_source on heatmap SPY day ---
-def test_heatmap_spy_day_grid():
-    r = client.get("/api/heatmap/SPY?expiries=3&mode=day")
+async def test_heatmap_spy_day_grid(aclient):
+    r = await aclient.get("/api/heatmap/SPY?expiries=3&mode=day")
     assert r.status_code == 200, r.text
     d = r.json()
     assert d["ticker"] == "SPY"
@@ -32,10 +30,10 @@ def test_heatmap_spy_day_grid():
     assert d.get("data_source") in ("databento+yfinance", "yfinance")
 
 
-def test_heatmap_swing_more_expiries_wider_band():
+async def test_heatmap_swing_more_expiries_wider_band(aclient):
     # Day baseline
-    rd = client.get("/api/heatmap/SPY?expiries=4&mode=day").json()
-    rs = client.get("/api/heatmap/SPY?expiries=8&mode=swing").json()
+    rd = (await aclient.get("/api/heatmap/SPY?expiries=4&mode=day")).json()
+    rs = (await aclient.get("/api/heatmap/SPY?expiries=8&mode=swing")).json()
     assert rs.get("mode") == "swing"
     # Swing should have >= day expiries
     assert len(rs["grid"]["expiries"]) >= len(rd["grid"]["expiries"])
@@ -51,8 +49,8 @@ def test_heatmap_swing_more_expiries_wider_band():
         assert max_dev_d <= 0.16
 
 
-def test_heatmap_spx_via_spxw():
-    r = client.get("/api/heatmap/%5ESPX?expiries=2&mode=day")
+async def test_heatmap_spx_via_spxw(aclient):
+    r = await aclient.get("/api/heatmap/%5ESPX?expiries=2&mode=day")
     assert r.status_code == 200, r.text
     d = r.json()
     assert d["ticker"] == "^SPX"
@@ -60,16 +58,16 @@ def test_heatmap_spx_via_spxw():
     assert "grid" in d and len(d["grid"]["strikes"]) > 0
 
 
-def test_heatmap_qqq_grid():
-    r = client.get("/api/heatmap/QQQ?expiries=2&mode=day")
+async def test_heatmap_qqq_grid(aclient):
+    r = await aclient.get("/api/heatmap/QQQ?expiries=2&mode=day")
     assert r.status_code == 200, r.text
     d = r.json()
     assert d["ticker"] == "QQQ"
     assert len(d["grid"]["strikes"]) > 0
 
 
-def test_trinity_day_all_populated():
-    r = client.get("/api/trinity?mode=day")
+async def test_trinity_day_all_populated(aclient):
+    r = await aclient.get("/api/trinity?mode=day")
     assert r.status_code == 200, r.text
     d = r.json()
     for t in ("^SPX", "SPY", "QQQ"):
@@ -82,13 +80,13 @@ def test_trinity_day_all_populated():
     assert d["alignment"]["verdict"] in ("full_alignment", "partial_alignment", "divergence")
 
 
-def test_contract_drilldown_spy():
+async def test_contract_drilldown_spy(aclient):
     # Get a real expiry first
-    r = client.get("/api/heatmap/SPY?expiries=3").json()
+    r = (await aclient.get("/api/heatmap/SPY?expiries=3")).json()
     exp_list = r["grid"]["expiries"]
     assert exp_list
     exp = exp_list[1] if len(exp_list) > 1 else exp_list[0]
-    r2 = client.get(f"/api/contract/SPY?expiry={exp}")
+    r2 = await aclient.get(f"/api/contract/SPY?expiry={exp}")
     assert r2.status_code == 200, r2.text
     d = r2.json()
     assert d["ticker"] == "SPY"
@@ -105,8 +103,8 @@ def test_contract_drilldown_spy():
         assert any("oi_source" in r_ for r_ in d["rows"]), "missing oi_source despite databento data_source"
 
 
-def test_databento_usage():
-    r = client.get("/api/databento/usage")
+async def test_databento_usage(aclient):
+    r = await aclient.get("/api/databento/usage")
     assert r.status_code == 200
     d = r.json()
     assert "cached_days" in d
@@ -119,10 +117,10 @@ def test_databento_usage():
             assert k in item
 
 
-def test_databento_oi_collection_populated():
+async def test_databento_oi_collection_populated(aclient):
     """After hitting heatmap, Databento cache should have at least one record."""
-    client.get("/api/heatmap/SPY?expiries=2")
-    r = client.get("/api/databento/usage")
+    await aclient.get("/api/heatmap/SPY?expiries=2")
+    r = await aclient.get("/api/databento/usage")
     d = r.json()
     # Either databento active (cached_days >= 1) or env disabled — accept both but flag
     assert d.get("cached_days", 0) >= 0

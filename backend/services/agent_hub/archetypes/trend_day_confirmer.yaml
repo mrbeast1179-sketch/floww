@@ -1,0 +1,20 @@
+name: trend_day_confirmer
+description: >
+  Confirms trend day conditions: all three (SPY, QQQ, SPX) ZG levels moving
+  in same direction with strong Trinity alignment score.
+triggers:
+  - metric: trinity_score
+    op: gt
+    value: 75.0
+    window_seconds: 600
+  - metric: vpin_cdf
+    op: lt
+    value: 0.4
+    window_seconds: 600
+logic: "all"
+action:
+  type: annotate_chart
+  params:
+    label: "Trend Day Confirmed"
+    color: "#00ff88"
+enabled: true

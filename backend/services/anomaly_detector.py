@@ -119,6 +119,66 @@ class StatisticalAnomalyDetector:
         }
 
 
+class RegimeAwareThreshold:
+    """Three-regime threshold adapter based on 30-day realized vol percentile.
+
+    Regimes:
+        calm   (vol < 33rd pct)  → 99th-pct reconstruction error threshold
+        active (33rd–95th)       → 95th-pct
+        urgent (vol > 95th pct)  → 90th-pct
+    """
+
+    REGIMES = ["calm", "active", "urgent"]
+    PERCENTILES = {"calm": 99, "active": 95, "urgent": 90}
+
+    def __init__(self, window: int = 500):
+        self._errors: deque = deque(maxlen=window)
+        self._vol_history: deque = deque(maxlen=window * 2)
+
+    def update(self, error: float, realized_vol: float = 0.0) -> Dict[str, Any]:
+        """Update with new error and vol, return regime + threshold."""
+        self._errors.append(error)
+        if realized_vol > 0:
+            self._vol_history.append(realized_vol)
+
+        if len(self._errors) < 20:
+            return {"regime": "warming_up", "threshold": float("inf"), "percentile_used": 0}
+
+        errors = np.array(self._errors)
+
+        # Determine regime from vol percentile
+        if len(self._vol_history) >= 20:
+            vols = np.array(self._vol_history)
+            vol_pct = float(np.mean(vols <= realized_vol)) * 100 if realized_vol > 0 else 50.0
+            if vol_pct < 33:
+                regime = "calm"
+            elif vol_pct < 95:
+                regime = "active"
+            else:
+                regime = "urgent"
+        else:
+            regime = "active"  # default
+
+        pct = self.PERCENTILES[regime]
+        threshold = float(np.percentile(errors, pct))
+        is_anomaly = error > threshold
+
+        return {
+            "regime": regime,
+            "threshold": round(threshold, 8),
+            "percentile_used": pct,
+            "is_anomaly": bool(is_anomaly),
+            "zscore": round((error - np.mean(errors)) / (np.std(errors) + 1e-12), 4),
+        }
+
+    def get_state(self) -> Dict[str, Any]:
+        return {
+            "regime": "active",  # simplified
+            "n_errors": len(self._errors),
+            "n_vol": len(self._vol_history),
+        }
+
+
 class FlowAnomalyDetector:
     """Flow toxicity anomaly detector with optional 1D-CNN autoencoder.
 
@@ -138,6 +198,10 @@ class FlowAnomalyDetector:
         # Rolling buffer for input features: (VPIN, QI)
         self._buffer: deque = deque(maxlen=seq_len)
         self._errors: deque = deque(maxlen=500)
+
+        # Regime-aware threshold
+        self._regime_threshold = RegimeAwareThreshold(window=500)
+        self._current_regime = "active"
 
         if HAS_TORCH:
             self.model = Conv1DAutoencoder(
@@ -211,14 +275,20 @@ class FlowAnomalyDetector:
             is_anomaly = False
             zscore = 0.0
 
+        # Regime-aware threshold
+        regime_result = self._regime_threshold.update(error)
+        self._current_regime = regime_result["regime"]
+
         return {
             "anomaly_score": round(error, 8),
-            "is_anomaly": bool(is_anomaly),
-            "threshold": round(threshold, 8),
-            "zscore": round(zscore, 4),
+            "is_anomaly": regime_result["is_anomaly"],
+            "threshold": regime_result["threshold"],
+            "zscore": regime_result["zscore"],
             "latent_norm": round(torch.norm(latent).item(), 4),
             "trained": self._trained,
             "status": "active",
+            "regime": self._current_regime,
+            "regime_threshold_used": regime_result["percentile_used"],
         }
 
     def _train_step(self, x: "torch.Tensor"):

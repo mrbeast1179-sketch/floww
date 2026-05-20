@@ -1,0 +1,20 @@
+name: pin_risk_notifier
+description: >
+  Warns when spot is approaching a high-GEX strike (pin risk) with elevated VPIN.
+  Useful for avoiding entries near potential pinning levels.
+triggers:
+  - metric: spot_to_king_node_pct
+    op: lt
+    value: 0.005
+    window_seconds: 120
+  - metric: vpin_cdf
+    op: gt
+    value: 0.5
+    window_seconds: 120
+logic: "any"
+action:
+  type: alert
+  params:
+    severity: medium
+    message: "Pin risk: spot near King Node with elevated VPIN"
+enabled: true
