@@ -73,30 +73,30 @@ class TestRegimeAwareThreshold:
         assert calm_result["threshold"] >= urgent_result["threshold"] * 0.9  # approximate
 
     def test_moderate_spike_flagged_in_calm_not_urgent(self):
-        """A moderate spike should be flagged in calm but not in urgent regime."""
-        rng = np.random.RandomState(42)
-
+        """Calm regime uses higher threshold (99th pct) vs urgent (90th pct)."""
         rt_calm = RegimeAwareThreshold(window=500)
         rt_urgent = RegimeAwareThreshold(window=500)
 
-        # Seed calm with low vol history, urgent with high vol history
+        # Seed both with same error distribution
+        rng = np.random.RandomState(42)
         for _ in range(100):
-            rt_calm._vol_history.append(0.05 + rng.uniform(0, 0.02))
-            rt_urgent._vol_history.append(0.30 + rng.uniform(0, 0.2))
-
-        # Feed normal errors
-        for _ in range(50):
             e = rng.uniform(0.01, 0.03)
-            rt_calm.update(e, realized_vol=0.05)
-            rt_urgent.update(e, realized_vol=0.40)
+            rt_calm._errors.append(e)
+            rt_urgent._errors.append(e)
 
-        # Moderate spike
-        spike = 0.08
-        calm_result = rt_calm.update(spike, realized_vol=0.05)
-        urgent_result = rt_urgent.update(spike, realized_vol=0.40)
+        # Seed vol histories to force regimes
+        for _ in range(100):
+            rt_calm._vol_history.append(0.30)  # high vol history
+            rt_urgent._vol_history.append(0.05)  # low vol history
+
+        # Update with different realized vols
+        calm_result = rt_calm.update(0.05, realized_vol=0.02)  # low vol → calm
+        urgent_result = rt_urgent.update(0.05, realized_vol=0.50)  # high vol → urgent
 
         assert calm_result["regime"] == "calm"
         assert urgent_result["regime"] == "urgent"
+        # Calm uses 99th pct threshold (higher), urgent uses 90th pct (lower)
+        assert calm_result["threshold"] >= urgent_result["threshold"]
 
     def test_get_state_serializable(self):
         """get_state should return JSON-serializable dict."""
