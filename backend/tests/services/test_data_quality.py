@@ -27,7 +27,7 @@ class TestDataQualityChecker:
             {"gamma": 0.01, "oi": 1000, "spot": 500.0, "type": "call"},
             {"gamma": 0.01, "oi": 1000, "spot": 500.0, "type": "put"},
         ]
-        result = checker.check_gex_consistency(chain, chain, "SPY")
+        result = await checker.check_gex_consistency(chain, chain, "SPY")
         assert result["status"] == "OK"
         assert result["rel_err"] == 0.0
 
@@ -39,9 +39,9 @@ class TestDataQualityChecker:
             {"gamma": 0.01, "oi": 1000, "spot": 500.0, "type": "call"},
         ]
         yf_chain = [
-            {"gamma": 0.01, "oi": 1060, "spot": 500.0, "type": "call"},  # 6% more OI
+            {"gamma": 0.01, "oi": 1060, "spot": 500.0, "type": "call"},
         ]
-        result = checker.check_gex_consistency(schwab_chain, yf_chain, "SPY")
+        result = await checker.check_gex_consistency(schwab_chain, yf_chain, "SPY")
         assert result["status"] == "WARNING"
         assert 0.05 <= result["rel_err"] < 0.20
 
@@ -53,9 +53,9 @@ class TestDataQualityChecker:
             {"gamma": 0.01, "oi": 1000, "spot": 500.0, "type": "call"},
         ]
         yf_chain = [
-            {"gamma": 0.01, "oi": 1500, "spot": 500.0, "type": "call"},  # 50% more OI
+            {"gamma": 0.01, "oi": 1500, "spot": 500.0, "type": "call"},
         ]
-        result = checker.check_gex_consistency(schwab_chain, yf_chain, "SPY")
+        result = await checker.check_gex_consistency(schwab_chain, yf_chain, "SPY")
         assert result["status"] == "CRITICAL"
         assert result["rel_err"] > 0.20
 
@@ -63,7 +63,7 @@ class TestDataQualityChecker:
     async def test_empty_chains_ok(self):
         """Empty chains should not crash."""
         checker = DataQualityChecker()
-        result = checker.check_gex_consistency([], [], "SPY")
+        result = await checker.check_gex_consistency([], [], "SPY")
         assert result["status"] == "OK"
         assert result["rel_err"] == 0.0
 
@@ -71,7 +71,7 @@ class TestDataQualityChecker:
     async def test_yfinance_zero_gex(self):
         """If yfinance GEX is 0, rel_err should be 0 if Schwab is also 0."""
         checker = DataQualityChecker()
-        result = checker.check_gex_consistency([], [], "SPY")
+        result = await checker.check_gex_consistency([], [], "SPY")
         assert result["rel_err"] == 0.0
 
     @pytest.mark.asyncio
@@ -79,8 +79,8 @@ class TestDataQualityChecker:
         """Checker should track history."""
         checker = DataQualityChecker()
         chain = [{"gamma": 0.01, "oi": 1000, "spot": 500.0, "type": "call"}]
-        checker.check_gex_consistency(chain, chain, "SPY")
-        checker.check_gex_consistency(chain, chain, "QQQ")
+        await checker.check_gex_consistency(chain, chain, "SPY")
+        await checker.check_gex_consistency(chain, chain, "QQQ")
         history = checker.get_history()
         assert len(history) == 2
 
@@ -89,7 +89,7 @@ class TestDataQualityChecker:
         """Metrics should summarize history."""
         checker = DataQualityChecker()
         chain = [{"gamma": 0.01, "oi": 1000, "spot": 500.0, "type": "call"}]
-        checker.check_gex_consistency(chain, chain, "SPY")
+        await checker.check_gex_consistency(chain, chain, "SPY")
         metrics = checker.get_metrics()
         assert metrics["checks"] == 1
         assert metrics["warnings"] == 0
@@ -102,12 +102,10 @@ class TestDataQualityChecker:
         schwab_chain = [
             {"gamma": 0.01, "oi": 1000, "spot": 500.0, "type": "call"},
         ]
-        # yfinance has stale spot (480 vs 500)
         yf_chain = [
             {"gamma": 0.01, "oi": 1000, "spot": 480.0, "type": "call"},
         ]
-        result = checker.check_gex_consistency(schwab_chain, yf_chain, "SPY")
-        # GEX scales with spot^2, so (500^2 vs 480^2) = ~8.4% diff
+        result = await checker.check_gex_consistency(schwab_chain, yf_chain, "SPY")
         assert result["status"] in ("WARNING", "OK")
         assert result["rel_err"] > 0
 
