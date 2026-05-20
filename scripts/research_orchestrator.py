@@ -137,7 +137,7 @@ def step_auto_port() -> bool:
 
 def step_hf_search() -> bool:
     """Step 6: HuggingFace Hub search (every 2 hours)."""
-    log.info("=== Step 5: HF Hub search ===")
+    log.info("=== Step 6: HF Hub search ===")
     result = _run([str(VENV_PYTHON), "scripts/hf_search.py"])
     if result.returncode != 0:
         log.error(f"HF search failed: {result.stderr[:500]}")
@@ -147,7 +147,7 @@ def step_hf_search() -> bool:
 
 
 def step_digest(state: Dict[str, Any]) -> bool:
-    """Step 6: Write a research digest (every 4 hours)."""
+    """Step 7: Write a research digest (every 4 hours)."""
     log.info("=== Step 6: Research digest ===")
     ts = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M")
     digest_path = DIGEST_DIR / f"research_digest_{ts}.md"
@@ -322,6 +322,7 @@ def main() -> int:
     parser.add_argument("--skip-extract", action="store_true", help="Skip link extraction")
     parser.add_argument("--skip-clone", action="store_true", help="Skip clone step")
     parser.add_argument("--skip-patterns", action="store_true", help="Skip pattern extraction")
+    parser.add_argument("--skip-auto-port", action="store_true", help="Skip auto-port step")
     parser.add_argument("--skip-hf", action="store_true", help="Skip HF search")
     parser.add_argument("--skip-digest", action="store_true", help="Skip digest")
     parser.add_argument("--force-hf", action="store_true", help="Force HF search regardless of interval")

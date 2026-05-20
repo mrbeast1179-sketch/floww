@@ -1,13 +1,15 @@
 {
-  "generated_at": "2026-05-20T01:32:24.874596+00:00",
+  "generated_at": "2026-05-20T02:03:48.622682+00:00",
   "sources_run": [
     "arxiv"
   ],
   "queries_per_source": {
     "arxiv": [
+      "vanna charm exposure dealer",
       "options flow informed trading",
       "machine learning options price prediction",
-      "ETF options demand pressure"
+      "ETF options demand pressure",
+      "market regime detection volatility"
     ]
   },
   "errors": {
