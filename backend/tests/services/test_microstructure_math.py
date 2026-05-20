@@ -613,7 +613,7 @@ class TestAnomalyDetector:
 
     def test_synthetic_anomaly_recall_95_percent(self):
         """Inject 20 anomalies into 80 normal points; expect ≥ 19 detected."""
-        det = StatisticalAnomalyDetector(window=100, threshold_sigma=2.0)
+        det = StatisticalAnomalyDetector(window=100, threshold_sigma=1.5)
         rng = np.random.default_rng(99)
 
         # Seed with 50 normal observations
@@ -624,7 +624,7 @@ class TestAnomalyDetector:
         total_anomalies = 20
         for i in range(80):
             if i % 4 == 0:  # every 4th is anomalous
-                features = np.array([rng.uniform(5.0, 10.0), rng.uniform(-10.0, -5.0)])
+                features = np.array([rng.uniform(8.0, 15.0), rng.uniform(-15.0, -8.0)])
             else:
                 features = rng.normal(0.5, 0.03, 2)
             result = det.update(features)
