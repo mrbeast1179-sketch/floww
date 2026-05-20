@@ -1,19 +1,2044 @@
 {
-  "generated_at": "2026-05-20T02:03:48.622682+00:00",
+  "generated_at": "2026-05-20T02:47:42.058194+00:00",
   "sources_run": [
     "arxiv"
   ],
   "queries_per_source": {
     "arxiv": [
-      "vanna charm exposure dealer",
-      "options flow informed trading",
-      "machine learning options price prediction",
-      "ETF options demand pressure",
-      "market regime detection volatility"
+      "VIX term structure forecasting",
+      "options market microstructure",
+      "dealer gamma exposure",
+      "Hawkes process trade arrivals",
+      "limit order book transformer",
+      "1D-CNN financial anomaly",
+      "VPIN flow toxicity",
+      "SABR model calibration",
+      "SVI volatility surface",
+      "stochastic volatility jump diffusion"
     ]
   },
-  "errors": {
-    "arxiv": "HTTPError: HTTP Error 429: Unknown Error"
-  },
-  "discoveries": []
+  "errors": {},
+  "discoveries": [
+    {
+      "id": "arxiv:2604.23608",
+      "title": "Non-unique time and market incompleteness",
+      "url": "https://arxiv.org/abs/2604.23608",
+      "source": "arxiv",
+      "discovered_at": "2026-05-20T02:46:59.050081+00:00",
+      "authors": [
+        "Chris Angstmann",
+        "Tim Gebbie"
+      ],
+      "published": "2026-04-26T08:48:12Z",
+      "abstract": "Financial markets are often modelled as if time were unique and continuous across assets and markets. Financial markets are however asynchronous, order flow is event-driven, and waiting times between events are often random. Many of the most influential formulations of financial market models presuppose a unique global calendar time and advocate for this or that preferred single latent continuous-time price system. Here we critically contrast these assumptions with event-time, renewal, point-process, and order-flow descriptions. We revisit no-arbitrage, no-dynamic-arbitrage, and risk-neutral option pricing in settings where the market is represented as a discrete event system and where the continuum limit of a discrete-time random walk need not be unique. The central suggestion is then that such non-uniqueness points to a more foundational form of market incompleteness than is usually emphasized. This highlights the importance of operational time at the level of decision making but reminds market practitioners that managing risk itself often requires reconciling operational time with a global calendar time. At these longer time scales forms of effective or average completeness may still emerge at lower frequencies and remain useful for portfolio construction and risk management, even if high-frequency hedging and execution expose a clock mismatch between trading, pricing, and longer-horizon allocation.",
+      "tags": [
+        "q-fin.TR",
+        "q-fin.GN",
+        "q-fin.ST"
+      ],
+      "license": null,
+      "relevance_score": null
+    },
+    {
+      "id": "arxiv:2604.13334",
+      "title": "Against a Universal Trading Strategy: No-Arbitrage, No-Free-Lunch, and Adversarial Cantor Diagonalization",
+      "url": "https://arxiv.org/abs/2604.13334",
+      "source": "arxiv",
+      "discovered_at": "2026-05-20T02:46:59.050220+00:00",
+      "authors": [
+        "Karl Svozil"
+      ],
+      "published": "2026-04-14T22:52:12Z",
+      "abstract": "We investigate the impossibility of universally winning trading strategies -- those generating strict profit across all market trajectories -- through three distinct mathematical paradigms. Fundamentally, under standard admissibility constraints, the existence of such a strategy is a strict subset of strong arbitrage, which is mathematically precluded in competitive markets admitting an equivalent martingale measure. Beyond this rigorous measure-theoretic foundation, we explore analogous limitations in two alternative modeling regimes. Combinatorially, the No-Free-Lunch theorem demonstrates that outperformance requires exploitation of non-uniform market structure, as uniform averaging precludes universal dominance. Computationally, a Turing diagonalization argument constructs an adversarial environment that defeats any computable trading algorithm, shifting the impossibility from exogenous price paths to adaptive adversaries. These mathematical limits are framed by a time-reversal heuristic that establishes a formal analogy between financial martingale measures and thermodynamic detailed balance, resolving the Maxwell's Demon analogy for markets without relying on physically irrelevant Landauer erasure costs. Using the Wheel Options Strategy as a case study, we demonstrate that strategies succeeding ``for all practical purposes'' (FAPP) inherently depend on transient regime assumptions, meaning their automated execution systematically amplifies tail risks.",
+      "tags": [
+        "q-fin.TR"
+      ],
+      "license": null,
+      "relevance_score": null
+    },
+    {
+      "id": "arxiv:2603.29763",
+      "title": "Option Pricing on Automated Market Maker Tokens",
+      "url": "https://arxiv.org/abs/2603.29763",
+      "source": "arxiv",
+      "discovered_at": "2026-05-20T02:46:59.050286+00:00",
+      "authors": [
+        "Philip Z. Maymin"
+      ],
+      "published": "2026-03-31T14:03:00Z",
+      "abstract": "We derive the stochastic price process for tokens whose sole price discovery mechanism is a constant-product automated market maker (AMM). When the net flow into the pool follows a diffusion, the token price follows a constant elasticity of variance (CEV) process, nesting Black-Scholes as the limiting case of infinite liquidity. We obtain closed-form European option prices and introduce liquidity-adjusted Greeks. The CEV structure generates a leverage effect -- volatility rises as price falls -- whose normalized implied volatility skew depends only on the pool's weighting parameter, not on pool depth: Black-Scholes underprices 20%-out-of-the-money puts by roughly 6% in implied volatility terms at every pool depth, while the absolute pricing discrepancy vanishes as pools deepen. Empirically, after controlling for pool depth and flow volatility, realized return variance across 90 Bittensor subnets exhibits a strongly negative price elasticity, decisively rejecting geometric Brownian motion and consistent with the CEV prediction. A complementary delta-hedged backtest across 82 subnets confirms near-identical hedging errors at the money, consistent with the prediction that pricing differences are concentrated in the wings.",
+      "tags": [
+        "q-fin.PR",
+        "q-fin.ST",
+        "q-fin.TR"
+      ],
+      "license": null,
+      "relevance_score": null
+    },
+    {
+      "id": "arxiv:2603.16434",
+      "title": "From Natural Language to Executable Option Strategies via Large Language Models",
+      "url": "https://arxiv.org/abs/2603.16434",
+      "source": "arxiv",
+      "discovered_at": "2026-05-20T02:46:59.050360+00:00",
+      "authors": [
+        "Haochen Luo",
+        "Zhengzhao Lai",
+        "Junjie Xu",
+        "Yifan Li",
+        "Tang Pok Hin",
+        "Yuan Zhang",
+        "Chen Liu"
+      ],
+      "published": "2026-03-17T12:14:47Z",
+      "abstract": "Large Language Models (LLMs) excel at general code generation, yet translating natural-language trading intents into correct option strategies remains challenging. Real-world option design requires reasoning over massive, multi-dimensional option chain data with strict constraints, which often overwhelms direct generation methods. We introduce the Option Query Language (OQL), a domain-specific intermediate representation that abstracts option markets into high-level primitives under grammatical rules, enabling LLMs to function as reliable semantic parsers rather than free-form programmers. OQL queries are then validated and executed deterministically by an engine to instantiate executable strategies. We also present a new dataset for this task and demonstrate that our neuro-symbolic pipeline significantly improves execution accuracy and logical consistency over direct baselines.",
+      "tags": [
+        "cs.AI",
+        "q-fin.TR"
+      ],
+      "license": null,
+      "relevance_score": null
+    },
+    {
+      "id": "arxiv:2512.04603",
+      "title": "FX Market Making with Internal Liquidity",
+      "url": "https://arxiv.org/abs/2512.04603",
+      "source": "arxiv",
+      "discovered_at": "2026-05-20T02:46:59.050416+00:00",
+      "authors": [
+        "Alexander Barzykin",
+        "Robert Boyce",
+        "Eyal Neuman"
+      ],
+      "published": "2025-12-04T09:25:14Z",
+      "abstract": "As the FX markets continue to evolve, many institutions have started offering passive access to their internal liquidity pools. Market makers act as principal and have the opportunity to fill those orders as part of their risk management, or they may choose to adjust pricing to their external OTC franchise to facilitate the matching flow. It is, a priori, unclear how the strategies managing internal liquidity should depend on market condions, the market maker's risk appetite, and the placement algorithms deployed by participating clients. The market maker's actions in the presence of passive orders are relevant not only for their own objectives, but also for those liquidity providers who have certain expectations of the execution speed. In this work, we investigate the optimal multi-objective strategy of a market maker with an option to take liquidity on an internal exchange, and draw important qualitative insights for real-world trading.",
+      "tags": [
+        "q-fin.TR"
+      ],
+      "license": null,
+      "relevance_score": null
+    },
+    {
+      "id": "arxiv:2511.22766",
+      "title": "Beta-Dependent Gamma Feedback and Endogenous Volatility Amplification in Option Markets",
+      "url": "https://arxiv.org/abs/2511.22766",
+      "source": "arxiv",
+      "discovered_at": "2026-05-20T02:46:59.050466+00:00",
+      "authors": [
+        "Haoying Dai"
+      ],
+      "published": "2025-11-27T21:27:56Z",
+      "abstract": "We develop a theoretical framework that aims to link micro-level option hedging and stock-specific factor exposure with macro-level market turbulence and explain endogenous volatility amplification during gamma-squeeze events. By explicitly modeling market-maker delta-neutral hedging and incorporating beta-dependent volatility normalization, we derive a stability condition that characterizes the onset of a gamma-squeeze event. The model captures a nonlinear recursive feedback loop between market-maker hedging and price movements and the resulting self-reinforcing dynamics. From a complex-systems perspective, the dynamics represent a bounded nonlinear response in which effective gain depends jointly on beta-normalized shock perception and gamma-scaled sensitivity. Our analysis highlights that low-beta stocks exhibit disproportionately strong feedback even for modest absolute price movements.",
+      "tags": [
+        "q-fin.TR",
+        "nlin.CD"
+      ],
+      "license": null,
+      "relevance_score": null
+    },
+    {
+      "id": "arxiv:2511.02518",
+      "title": "Option market making with hedging-induced market impact",
+      "url": "https://arxiv.org/abs/2511.02518",
+      "source": "arxiv",
+      "discovered_at": "2026-05-20T02:46:59.050518+00:00",
+      "authors": [
+        "Paulin Aubert",
+        "Etienne Chevalier",
+        "Vathana Ly Vath"
+      ],
+      "published": "2025-11-04T12:13:44Z",
+      "abstract": "This paper develops a model for option market making in which the hedging activity of the market maker generates price impact on the underlying asset. The option order flow is modeled by Cox processes, with intensities depending on the state of the underlying and on the market maker's quoted prices. The resulting dynamics combine stochastic option demand with both permanent and transient impact on the underlying, leading to a coupled evolution of inventory and price. We first study market manipulation and arbitrage phenomena that may arise from the feedback between option trading and underlying impact. We then establish the well-posedness of the mixed control problem, which involves continuous quoting decisions and impulsive hedging actions. Finally, we implement a numerical method based on policy optimization to approximate optimal strategies and illustrate the interplay between option market liquidity, inventory risk, and underlying impact.",
+      "tags": [
+        "q-fin.TR",
+        "math.PR"
+      ],
+      "license": null,
+      "relevance_score": null
+    },
+    {
+      "id": "arxiv:2511.00308",
+      "title": "Asset Pricing in the Presence of Market Microstructure Noise",
+      "url": "https://arxiv.org/abs/2511.00308",
+      "source": "arxiv",
+      "discovered_at": "2026-05-20T02:46:59.050578+00:00",
+      "authors": [
+        "Peter Yegon",
+        "W. Brent Lindquist",
+        "Svetlozar T. Rachev"
+      ],
+      "published": "2025-10-31T23:12:25Z",
+      "abstract": "We present two models for incorporating the total effect of market microstructure noise into dynamic pricing of assets and European options. The first model is developed under a Black-Scholes-Merton, continuous-time framework. The second model is a discrete, binomial tree model developed as an extension of the static Grossman-Stiglitz model. Both models are market complete, providing a unique equivalent martingale measure that establishes a unique map between parameters governing the risk-neutral and real-world price dynamics. We provide empirical examples to extract the coefficients in the model, in particular those coefficients characterizing the influence of the microstructure noise on prices. In addition to isolating the impact of noise on the volatility, the discrete model enables us to extract the noise impact on the drift coefficient. We provide evidence for the primary microstructure noise we believe our empirical examples capture.",
+      "tags": [
+        "q-fin.PR"
+      ],
+      "license": null,
+      "relevance_score": null
+    },
+    {
+      "id": "arxiv:2510.15205",
+      "title": "Toward Black Scholes for Prediction Markets: A Unified Kernel and Market Maker's Handbook",
+      "url": "https://arxiv.org/abs/2510.15205",
+      "source": "arxiv",
+      "discovered_at": "2026-05-20T02:46:59.050632+00:00",
+      "authors": [
+        "Shaw Dalen"
+      ],
+      "published": "2025-10-17T00:18:29Z",
+      "abstract": "Prediction markets, such as Polymarket, aggregate dispersed information into tradable probabilities, but they still lack a unifying stochastic kernel comparable to the one options gained from Black-Scholes. As these markets scale with institutional participation, exchange integrations, and higher volumes around elections and macro prints, market makers face belief volatility, jump, and cross-event risks without standardized tools for quoting or hedging. We propose such a foundation: a logit jump-diffusion with risk-neutral drift that treats the traded probability p_t as a Q-martingale and exposes belief volatility, jump intensity, and dependence as quotable risk factors. On top, we build a calibration pipeline that filters microstructure noise, separates diffusion from jumps using expectation-maximization, enforces the risk-neutral drift, and yields a stable belief-volatility surface. We then define a coherent derivative layer (variance, correlation, corridor, and first-passage instruments) analogous to volatility and correlation products in option markets. In controlled experiments on synthetic risk-neutral paths and real event data, the model reduces short-horizon belief-variance forecast error relative to diffusion-only and probability-space baselines, supporting both causal calibration and economic interpretability. Conceptually, the logit jump-diffusion kernel supplies an implied-volatility analogue for prediction markets: a tractable, tradable language for quoting, hedging, and transferring belief risk across venues such as Polymarket.",
+      "tags": [
+        "cs.CE",
+        "q-fin.CP"
+      ],
+      "license": null,
+      "relevance_score": null
+    },
+    {
+      "id": "arxiv:2510.04569",
+      "title": "Risk-Sensitive Option Market Making with Arbitrage-Free eSSVI Surfaces: A Constrained RL and Stochastic Control Bridge",
+      "url": "https://arxiv.org/abs/2510.04569",
+      "source": "arxiv",
+      "discovered_at": "2026-05-20T02:46:59.050698+00:00",
+      "authors": [
+        "Jian'an Zhang"
+      ],
+      "published": "2025-10-06T08:11:16Z",
+      "abstract": "We formulate option market making as a constrained, risk-sensitive control problem that unifies execution, hedging, and arbitrage-free implied-volatility surfaces inside a single learning loop. A fully differentiable eSSVI layer enforces static no-arbitrage conditions (butterfly and calendar) while the policy controls half-spreads, hedge intensity, and structured surface deformations (state-dependent rho-shift and psi-scale). Executions are intensity-driven and respond monotonically to spreads and relative mispricing; tail risk is shaped with a differentiable CVaR objective via the Rockafellar--Uryasev program. We provide theory for (i) grid-consistency and rates for butterfly/calendar surrogates, (ii) a primal--dual grounding of a learnable dual action acting as a state-dependent Lagrange multiplier, (iii) differentiable CVaR estimators with mixed pathwise and likelihood-ratio gradients and epi-convergence to the nonsmooth objective, (iv) an eSSVI wing-growth bound aligned with Lee's moment constraints, and (v) policy-gradient validity under smooth surrogates. In simulation (Heston fallback; ABIDES-ready), the agent attains positive adjusted P\\&L on most intraday segments while keeping calendar violations at numerical zero and butterfly violations at the numerical floor; ex-post tails remain realistic and can be tuned through the CVaR weight. The five control heads admit clear economic semantics and analytic sensitivities, yielding a white-box learner that unifies pricing consistency and execution control in a reproducible pipeline.",
+      "tags": [
+        "q-fin.TR"
+      ],
+      "license": null,
+      "relevance_score": null
+    },
+    {
+      "id": "arxiv:2509.11970",
+      "title": "Sentiment Feedback in Equity Markets: Asymmetries, Retail Heterogeneity, and Structural Calibration",
+      "url": "https://arxiv.org/abs/2509.11970",
+      "source": "arxiv",
+      "discovered_at": "2026-05-20T02:46:59.050770+00:00",
+      "authors": [
+        "Lucas Marques Sneller"
+      ],
+      "published": "2025-09-15T14:22:04Z",
+      "abstract": "We study how sentiment shocks propagate through equity returns and investor clientele using four independent proxies with sign-aligned kappa-rho parameters. A structural calibration links a one standard deviation innovation in sentiment to a pricing impact of 1.06 basis points with persistence parameter rho = 0.940, yielding a half-life of 11.2 months. The impulse response peaks around the 12-month horizon, indicating slow-moving amplification. Cross-sectionally, a simple D10-D1 portfolio earns 4.0 basis points per month with Sharpe ratios of 0.18-0.85, consistent with tradable exposure to the sentiment factor. Three regularities emerge: (i) positive sentiment innovations transmit more strongly than negative shocks (amplification asymmetry); (ii) effects are concentrated in retail-tilted and non-optionable stocks (clientele heterogeneity); and (iii) responses are state-dependent across volatility regimes - larger on impact in high-VIX months but more persistent in low-VIX months. Baseline time-series fits are parsimonious (R2 ~ 0.001; 420 monthly observations), yet the calibrated dynamics reconcile modest impact estimates with sizable long-short payoffs. Consistent with Miller (1977), a one standard deviation sentiment shock has 1.72-8.69 basis points larger effects in low-breadth stocks across horizons of 1-12 months, is robust to institutional flows, and exhibits volatility state dependence - larger on impact but less persistent in high-VIX months, smaller on impact but more persistent in low-VIX months.",
+      "tags": [
+        "q-fin.TR"
+      ],
+      "license": null,
+      "relevance_score": null
+    },
+    {
+      "id": "arxiv:2509.05922",
+      "title": "Predicting Market Troughs: A Machine Learning Approach with Causal Interpretation",
+      "url": "https://arxiv.org/abs/2509.05922",
+      "source": "arxiv",
+      "discovered_at": "2026-05-20T02:46:59.050843+00:00",
+      "authors": [
+        "Peilin Rao",
+        "Randall R. Rojas"
+      ],
+      "published": "2025-09-07T04:38:40Z",
+      "abstract": "This paper provides robust, new evidence on the causal drivers of market troughs. We demonstrate that conclusions about these triggers are critically sensitive to model specification, moving beyond restrictive linear models with a flexible DML average partial effect causal machine learning framework. Our robust estimates identify the volatility of options-implied risk appetite and market liquidity as key causal drivers, relationships misrepresented or obscured by simpler models. These findings provide high-frequency empirical support for intermediary asset pricing theories. This causal analysis is enabled by a high-performance nowcasting model that accurately identifies capitulation events in real-time.",
+      "tags": [
+        "q-fin.ST",
+        "econ.EM",
+        "stat.ML"
+      ],
+      "license": null,
+      "relevance_score": null
+    },
+    {
+      "id": "arxiv:2508.16598",
+      "title": "Sizing the Risk: Kelly, VIX, and Hybrid Approaches in Put-Writing on Index Options",
+      "url": "https://arxiv.org/abs/2508.16598",
+      "source": "arxiv",
+      "discovered_at": "2026-05-20T02:46:59.050884+00:00",
+      "authors": [
+        "Maciej Wysocki"
+      ],
+      "published": "2025-08-09T08:31:00Z",
+      "abstract": "This paper examines systematic put-writing strategies applied to S&P 500 Index options, with a focus on position sizing as a key determinant of long-term performance. Despite the well-documented volatility risk premium, where implied volatility exceeds realized volatility, the practical implementation of short-dated volatility-selling strategies remains underdeveloped in the literature. This study evaluates three position sizing approaches: the Kelly criterion, VIX-based volatility regime scaling, and a novel hybrid method combining both. Using SPXW options with expirations from 0 to 5 days, the analysis explores a broad design space, including moneyness levels, volatility estimators, and memory horizons. Results show that ultra-short-dated, far out-of-the-money options deliver superior risk-adjusted returns. The hybrid sizing method consistently balances return generation with robust drawdown control, particularly under low-volatility conditions such as those seen in 2024. The study offers new insights into volatility harvesting, introducing a dynamic sizing framework that adapts to shifting market regimes. It also contributes practical guidance for constructing short-dated option strategies that are robust across market environments. These findings have direct applications for institutional investors seeking to enhance portfolio efficiency through systematic exposure to volatility premia.",
+      "tags": [
+        "q-fin.PM",
+        "q-fin.CP",
+        "q-fin.PR",
+        "q-fin.TR"
+      ],
+      "license": null,
+      "relevance_score": null
+    },
+    {
+      "id": "arxiv:2508.16595",
+      "title": "Empirical Analysis of the Model-Free Valuation Approach: Hedging Gaps, Conservatism, and Trading Opportunities",
+      "url": "https://arxiv.org/abs/2508.16595",
+      "source": "arxiv",
+      "discovered_at": "2026-05-20T02:46:59.050959+00:00",
+      "authors": [
+        "Zixing Chen",
+        "Yihan Qi",
+        "Shanlan Que",
+        "Julian Sester",
+        "Xiao Zhang"
+      ],
+      "published": "2025-08-09T00:06:12Z",
+      "abstract": "In this paper we study the quality of model-free valuation approaches for financial derivatives by systematically evaluating the difference between model-free super-hedging strategies and the realized payoff of financial derivatives using historical option prices from several constituents of the S&P 500 between 2018 and 2022. Our study allows in particular to describe the realized gap between payoff and model-free hedging strategy empirically so that we can quantify to which degree model-free approaches are overly conservative. Our results imply that the model-free hedging approach is only marginally more conservative than industry-standard models such as the Heston-model while being model-free at the same time. This finding, its statistical description and the model-independence of the hedging approach enable us to construct an explicit trading strategy which, as we demonstrate, can be profitably applied in financial markets, and additionally possesses the desirable feature with an explicit control of its downside risk due to its model-free construction preventing losses pathwise.",
+      "tags": [
+        "q-fin.PR",
+        "q-fin.MF",
+        "q-fin.RM",
+        "q-fin.TR"
+      ],
+      "license": null,
+      "relevance_score": null
+    },
+    {
+      "id": "arxiv:2508.16588",
+      "title": "Robust Market Making: To Quote, or not To Quote",
+      "url": "https://arxiv.org/abs/2508.16588",
+      "source": "arxiv",
+      "discovered_at": "2026-05-20T02:46:59.051017+00:00",
+      "authors": [
+        "Ziyi Wang",
+        "Carmine Ventre",
+        "Maria Polukarov"
+      ],
+      "published": "2025-08-07T21:49:24Z",
+      "abstract": "Market making is a popular trading strategy, which aims to generate profit from the spread between the quotes posted at either side of the market. It has been shown that training market makers (MMs) with adversarial reinforcement learning allows to overcome the risks due to changing market conditions and to lead to robust performances. Prior work assumes, however, that MMs keep quoting throughout the trading process, but in practice this is not required, even for ``registered'' MMs (that only need to satisfy quoting ratios defined by the market rules). In this paper, we build on this line of work and enrich the strategy space of the MM by allowing to occasionally not quote or provide single-sided quotes. Towards this end, in addition to the MM agents that provide continuous bid-ask quotes, we have designed two new agents with increasingly richer action spaces. The first has the option to provide bid-ask quotes or refuse to quote. The second has the option to provide bid-ask quotes, refuse to quote, or only provide single-sided ask or bid quotes. We employ a model-driven approach to empirically compare the performance of the continuously quoting MM with the two agents above in various types of adversarial environments. We demonstrate how occasional refusal to provide bid-ask quotes improves returns and/or Sharpe ratios. The quoting ratios of well-trained MMs can basically meet any market requirements, reaching up to 99.9$\\%$ in some cases.",
+      "tags": [
+        "q-fin.TR",
+        "cs.AI",
+        "econ.GN"
+      ],
+      "license": null,
+      "relevance_score": null
+    },
+    {
+      "id": "arxiv:2508.02971",
+      "title": "Modeling Loss-Versus-Rebalancing in Automated Market Makers via Continuous-Installment Options",
+      "url": "https://arxiv.org/abs/2508.02971",
+      "source": "arxiv",
+      "discovered_at": "2026-05-20T02:46:59.051117+00:00",
+      "authors": [
+        "Srisht Fateh Singh",
+        "Reina Ke Xin Li",
+        "Samuel Gaskin",
+        "Yuntao Wu",
+        "Jeffrey Klinck",
+        "Panagiotis Michalopoulos",
+        "Zissis Poulos",
+        "Andreas Veneris"
+      ],
+      "published": "2025-08-05T00:30:24Z",
+      "abstract": "This paper mathematically models a constant-function automated market maker (CFAMM) position as a portfolio of exotic options, known as perpetual American continuous-installment (CI) options. This model replicates an AMM position's delta at each point in time over an infinite time horizon, thus taking into account the perpetual nature and optionality to withdraw of liquidity provision. This framework yields two key theoretical results: (a) It proves that the AMM's adverse-selection cost, loss-versus-rebalancing (LVR), is analytically identical to the continuous funding fees (the time value decay or theta) earned by the at-the-money CI option embedded in the replicating portfolio. (b) A special case of this model derives an AMM liquidity position's delta profile and boundaries that suffer approximately constant LVR, up to a bounded residual error, over an arbitrarily long forward window. Finally, the paper describes how the constant volatility parameter required by the perpetual option can be calibrated from the term structure of implied volatilities and estimates the errors for both implied volatility calibration and LVR residual error. Thus, this work provides a practical framework enabling liquidity providers to choose an AMM liquidity profile and price boundaries for an arbitrarily long, forward-looking time window where they can expect an approximately constant, price-independent LVR. The results establish a rigorous option-theoretic interpretation of AMMs and their LVR, and provide actionable guidance for liquidity providers in estimating future adverse-selection costs and optimizing position parameters.",
+      "tags": [
+        "q-fin.MF",
+        "q-fin.PR",
+        "q-fin.TR"
+      ],
+      "license": null,
+      "relevance_score": null
+    },
+    {
+      "id": "arxiv:2507.16701",
+      "title": "Binary Tree Option Pricing Under Market Microstructure Effects: A Random Forest Approach",
+      "url": "https://arxiv.org/abs/2507.16701",
+      "source": "arxiv",
+      "discovered_at": "2026-05-20T02:46:59.051199+00:00",
+      "authors": [
+        "Akash Deep",
+        "Chris Monico",
+        "W. Brent Lindquist",
+        "Svetlozar T. Rachev",
+        "Frank J. Fabozzi"
+      ],
+      "published": "2025-07-22T15:37:08Z",
+      "abstract": "We propose a machine learning-based extension of the classical binomial option pricing model that incorporates key market microstructure effects. Traditional models assume frictionless markets, overlooking empirical features such as bid-ask spreads, discrete price movements, and serial return correlations. Our framework augments the binomial tree with path-dependent transition probabilities estimated via Random Forest classifiers trained on high-frequency market data. This approach preserves no-arbitrage conditions while embedding real-world trading dynamics into the pricing model. Using 46,655 minute-level observations of SPY from January to June 2025, we achieve an AUC of 88.25% in forecasting one-step price movements. Order flow imbalance is identified as the most influential predictor, contributing 43.2% to feature importance. After resolving time-scaling inconsistencies in tree construction, our model yields option prices that deviate by 13.79% from Black-Scholes benchmarks, highlighting the impact of microstructure on fair value estimation. While computational limitations restrict the model to short-term derivatives, our results offer a robust, data-driven alternative to classical pricing methods grounded in empirical market behavior.",
+      "tags": [
+        "q-fin.CP"
+      ],
+      "license": null,
+      "relevance_score": null
+    },
+    {
+      "id": "arxiv:2408.08866",
+      "title": "High-Frequency Options Trading | With Portfolio Optimization",
+      "url": "https://arxiv.org/abs/2408.08866",
+      "source": "arxiv",
+      "discovered_at": "2026-05-20T02:46:59.051259+00:00",
+      "authors": [
+        "Sid Bhatia"
+      ],
+      "published": "2024-08-16T17:49:21Z",
+      "abstract": "This paper explores the effectiveness of high-frequency options trading strategies enhanced by advanced portfolio optimization techniques, investigating their ability to consistently generate positive returns compared to traditional long or short positions on options. Utilizing SPY options data recorded in five-minute intervals over a one-month period, we calculate key metrics such as Option Greeks and implied volatility, applying the Binomial Tree model for American options pricing and the Newton-Raphson algorithm for implied volatility calculation. Investment universes are constructed based on criteria like implied volatility and Greeks, followed by the application of various portfolio optimization models, including Standard Mean-Variance and Robust Methods. Our research finds that while basic long-short strategies centered on implied volatility and Greeks generally underperform, more sophisticated strategies incorporating advanced Greeks, such as Vega and Rho, along with dynamic portfolio optimization, show potential in effectively navigating the complexities of the options market. The study highlights the importance of adaptability and responsiveness in dynamic portfolio strategies within the high-frequency trading environment, particularly under volatile market conditions. Future research could refine strategy parameters and explore less frequently traded options, offering new insights into high-frequency options trading and portfolio management.",
+      "tags": [
+        "q-fin.TR",
+        "q-fin.CP"
+      ],
+      "license": null,
+      "relevance_score": null
+    },
+    {
+      "id": "arxiv:2407.21791",
+      "title": "Deep Learning for Options Trading: An End-To-End Approach",
+      "url": "https://arxiv.org/abs/2407.21791",
+      "source": "arxiv",
+      "discovered_at": "2026-05-20T02:46:59.051334+00:00",
+      "authors": [
+        "Wee Ling Tan",
+        "Stephen Roberts",
+        "Stefan Zohren"
+      ],
+      "published": "2024-07-31T17:59:09Z",
+      "abstract": "We introduce a novel approach to options trading strategies using a highly scalable and data-driven machine learning algorithm. In contrast to traditional approaches that often require specifications of underlying market dynamics or assumptions on an option pricing model, our models depart fundamentally from the need for these prerequisites, directly learning non-trivial mappings from market data to optimal trading signals. Backtesting on more than a decade of option contracts for equities listed on the S&P 100, we demonstrate that deep learning models trained according to our end-to-end approach exhibit significant improvements in risk-adjusted performance over existing rules-based trading strategies. We find that incorporating turnover regularization into the models leads to further performance enhancements at prohibitively high levels of transaction costs.",
+      "tags": [
+        "q-fin.PM",
+        "cs.LG",
+        "q-fin.CP",
+        "q-fin.TR"
+      ],
+      "license": null,
+      "relevance_score": null
+    },
+    {
+      "id": "arxiv:2407.13908",
+      "title": "Construction and Hedging of Equity Index Options Portfolios",
+      "url": "https://arxiv.org/abs/2407.13908",
+      "source": "arxiv",
+      "discovered_at": "2026-05-20T02:46:59.051386+00:00",
+      "authors": [
+        "Maciej Wysocki",
+        "Robert \u015alepaczuk"
+      ],
+      "published": "2024-07-18T21:49:04Z",
+      "abstract": "This research presents a comprehensive evaluation of systematic index option-writing strategies, focusing on S&P500 index options. We compare the performance of hedging strategies using the Black-Scholes-Merton (BSM) model and the Variance-Gamma (VG) model, emphasizing varying moneyness levels and different sizing methods based on delta and the VIX Index. The study employs 1-minute data of S&P500 index options and index quotes spanning from 2018 to 2023. The analysis benchmarks hedged strategies against buy-and-hold and naked option-writing strategies, with a focus on risk-adjusted performance metrics including transaction costs. Portfolio delta approximations are derived using implied volatility for the BSM model and market-calibrated parameters for the VG model. Key findings reveal that systematic option-writing strategies can potentially yield superior returns compared to buy-and-hold benchmarks. The BSM model generally provided better hedging outcomes than the VG model, although the VG model showed profitability in certain naked strategies as a tool for position sizing. In terms of rehedging frequency, we found that intraday hedging in 130-minute intervals provided both reliable protection against adverse market movements and a satisfactory returns profile.",
+      "tags": [
+        "q-fin.PM",
+        "q-fin.RM",
+        "q-fin.TR"
+      ],
+      "license": null,
+      "relevance_score": null
+    },
+    {
+      "id": "arxiv:2407.05146",
+      "title": "Unified Approach for Hedging Impermanent Loss of Liquidity Provision",
+      "url": "https://arxiv.org/abs/2407.05146",
+      "source": "arxiv",
+      "discovered_at": "2026-05-20T02:46:59.051454+00:00",
+      "authors": [
+        "Alexander Lipton",
+        "Vladimir Lucic",
+        "Artur Sepp"
+      ],
+      "published": "2024-07-06T18:12:11Z",
+      "abstract": "We develop static and dynamic approaches for hedging of the impermanent loss (IL) of liquidity provision (LP) staked at Decentralised Exchanges (DEXes) which employ Uniswap V2 and V3 protocols. We provide detailed definitions and formulas for computing the IL to unify different definitions occurring in the existing literature. We show that the IL can be seen a contingent claim with a non-linear payoff for a fixed maturity date. Thus, we introduce the contingent claim termed as IL protection claim which delivers the negative of IL payoff at the maturity date. We apply arbitrage-based methods for valuation and risk management of this claim. First, we develop the static model-independent replication method for the valuation of IL protection claim using traded European vanilla call and put options. We extend and generalize an existing method to show that the IL protection claim can be hedged perfectly with options if there is a liquid options market. Second, we develop the dynamic model-based approach for the valuation and hedging of IL protection claims under a risk-neutral measure. We derive analytic valuation formulas using a wide class of price dynamics for which the characteristic function is available under the risk-neutral measure. As base cases, we derive analytic valuation formulas for IL protection claim under the Black-Scholes-Merton model and the log-normal stochastic volatility model. We finally discuss estimation of risk-reward of LP staking using our results.",
+      "tags": [
+        "q-fin.MF",
+        "q-fin.TR"
+      ],
+      "license": null,
+      "relevance_score": null
+    },
+    {
+      "id": "arxiv:2407.13688",
+      "title": "Deep learning for quadratic hedging in incomplete jump market",
+      "url": "https://arxiv.org/abs/2407.13688",
+      "source": "arxiv",
+      "discovered_at": "2026-05-20T02:46:59.051530+00:00",
+      "authors": [
+        "Nacira Agram",
+        "Bernt \u00d8ksendal",
+        "Jan Rems"
+      ],
+      "published": "2024-06-12T09:45:35Z",
+      "abstract": "We propose a deep learning approach to study the minimal variance pricing and hedging problem in an incomplete jump diffusion market. It is based upon a rigorous stochastic calculus derivation of the optimal hedging portfolio, optimal option price, and the corresponding equivalent martingale measure through the means of the Stackelberg game approach. A deep learning algorithm based on the combination of the feedforward and LSTM neural networks is tested on three different market models, two of which are incomplete. In contrast, the complete market Black-Scholes model serves as a benchmark for the algorithm's performance. The results that indicate the algorithm's good performance are presented and discussed. In particular, we apply our results to the special incomplete market model studied by Merton and give a detailed comparison between our results based on the minimal variance principle and the results obtained by Merton based on a different pricing principle. Using deep learning, we find that the minimal variance principle leads to typically higher option prices than those deduced from the Merton principle. On the other hand, the minimal variance principle leads to lower losses than the Merton principle.",
+      "tags": [
+        "q-fin.TR",
+        "math.PR"
+      ],
+      "license": null,
+      "relevance_score": null
+    },
+    {
+      "id": "arxiv:2404.11722",
+      "title": "Beyond the Bid-Ask: Strategic Insights into Spread Prediction and the Global Mid-Price Phenomenon",
+      "url": "https://arxiv.org/abs/2404.11722",
+      "source": "arxiv",
+      "discovered_at": "2026-05-20T02:46:59.051647+00:00",
+      "authors": [
+        "Yifan He",
+        "Abootaleb Shirvani",
+        "Barret Shao",
+        "Svetlozar Rachev",
+        "Frank Fabozzi"
+      ],
+      "published": "2024-04-17T20:19:48Z",
+      "abstract": "This research extends the conventional concepts of the bid--ask spread (BAS) and mid-price to include the total market order book bid--ask spread (TMOBBAS) and the global mid-price (GMP). Using high-frequency trading data, we investigate these new constructs, finding that they have heavy tails and significant deviations from normality in the distributions of their log returns, which are confirmed by three different methods. We shift from a static to a dynamic analysis, employing the ARMA(1,1)-GARCH(1,1) model to capture the temporal dependencies in the return time-series, with the normal inverse Gaussian distribution used to capture the heavy tails of the returns. We apply an option pricing model to address the risks associated with the low liquidity indicated by the TMOBBAS and GMP. Additionally, we employ the Rachev ratio to evaluate the risk--return performance at various depths of the limit order book and examine tail risk interdependencies across spread levels. This study provides insights into the dynamics of financial markets, offering tools for trading strategies and systemic risk management.",
+      "tags": [
+        "q-fin.TR",
+        "q-fin.RM"
+      ],
+      "license": null,
+      "relevance_score": null
+    },
+    {
+      "id": "arxiv:2403.00474",
+      "title": "Volatility-based strategy on Chinese equity index ETF options",
+      "url": "https://arxiv.org/abs/2403.00474",
+      "source": "arxiv",
+      "discovered_at": "2026-05-20T02:46:59.051701+00:00",
+      "authors": [
+        "Peng Yifeng"
+      ],
+      "published": "2024-03-01T12:00:09Z",
+      "abstract": "This study examines the performance of a volatility-based strategy using Chinese equity index ETF options. Initially successful, the strategy's effectiveness waned post-2018. By integrating GARCH models for volatility forecasting, the strategy's positions and exposures are dynamically adjusted. The results indicate that such an approach can enhance returns in volatile markets, suggesting potential for refined trading strategies in China's evolving derivatives landscape. The research underscores the importance of adaptive strategies in capturing market opportunities amidst changing trading dynamics.",
+      "tags": [
+        "q-fin.GN",
+        "q-fin.TR"
+      ],
+      "license": null,
+      "relevance_score": null
+    },
+    {
+      "id": "arxiv:2401.02049",
+      "title": "Forecasting Bitcoin Volatility: A Comparative Analysis of Volatility Approaches",
+      "url": "https://arxiv.org/abs/2401.02049",
+      "source": "arxiv",
+      "discovered_at": "2026-05-20T02:46:59.051739+00:00",
+      "authors": [
+        "Cristina Chinazzo",
+        "Vahidin Jeleskovic"
+      ],
+      "published": "2024-01-04T03:55:36Z",
+      "abstract": "This paper conducts an extensive analysis of Bitcoin return series, with a primary focus on three volatility metrics: historical volatility (calculated as the sample standard deviation), forecasted volatility (derived from GARCH-type models), and implied volatility (computed from the emerging Bitcoin options market). These measures of volatility serve as indicators of market expectations for conditional volatility and are compared to elucidate their differences and similarities. The central finding of this study underscores a notably high expected level of volatility, both on a daily and annual basis, across all the methodologies employed. However, it's crucial to emphasize the potential challenges stemming from suboptimal liquidity in the Bitcoin options market. These liquidity constraints may lead to discrepancies in the computed values of implied volatility, particularly in scenarios involving extreme moneyness or maturity. This analysis provides valuable insights into Bitcoin's volatility landscape, shedding light on the unique characteristics and dynamics of this cryptocurrency within the context of financial markets.",
+      "tags": [
+        "q-fin.TR"
+      ],
+      "license": null,
+      "relevance_score": null
+    },
+    {
+      "id": "arxiv:2512.17923",
+      "title": "Inferring Latent Market Forces: Evaluating LLM Detection of Gamma Exposure Patterns via Obfuscation Testing",
+      "url": "https://arxiv.org/abs/2512.17923",
+      "source": "arxiv",
+      "discovered_at": "2026-05-20T02:47:04.267372+00:00",
+      "authors": [
+        "Christopher Regan",
+        "Ying Xie"
+      ],
+      "published": "2025-12-08T15:48:57Z",
+      "abstract": "We introduce obfuscation testing, a novel methodology for validating whether large language models detect structural market patterns through causal reasoning rather than temporal association. Testing three dealer hedging constraint patterns (gamma positioning, stock pinning, 0DTE hedging) on 242 trading days (95.6% coverage) of S&P 500 options data, we find LLMs achieve 71.5% detection rate using unbiased prompts that provide only raw gamma exposure values without regime labels or temporal context. The WHO-WHOM-WHAT causal framework forces models to identify the economic actors (dealers), affected parties (directional traders), and structural mechanisms (forced hedging) underlying observed market dynamics. Critically, detection accuracy (91.2%) remains stable even as economic profitability varies quarterly, demonstrating that models identify structural constraints rather than profitable patterns. When prompted with regime labels, detection increases to 100%, but the 71.5% unbiased rate validates genuine pattern recognition. Our findings suggest LLMs possess emergent capabilities for detecting complex financial mechanisms through pure structural reasoning, with implications for systematic strategy development, risk management, and our understanding of how transformer architectures process financial market dynamics.",
+      "tags": [
+        "q-fin.ST",
+        "cs.AI",
+        "cs.LG"
+      ],
+      "license": null,
+      "relevance_score": null
+    },
+    {
+      "id": "arxiv:2408.03594",
+      "title": "Forecasting High Frequency Order Flow Imbalance",
+      "url": "https://arxiv.org/abs/2408.03594",
+      "source": "arxiv",
+      "discovered_at": "2026-05-20T02:47:09.549632+00:00",
+      "authors": [
+        "Aditya Nittur Anantha",
+        "Shashi Jain"
+      ],
+      "published": "2024-08-07T07:16:06Z",
+      "abstract": "Market information events are generated intermittently and disseminated at high speeds in real-time. Market participants consume this high-frequency data to build limit order books, representing the current bids and offers for a given asset. The arrival processes, or the order flow of bid and offer events, are asymmetric and possibly dependent on each other. The quantum and direction of this asymmetry are often associated with the direction of the traded price movement. The Order Flow Imbalance (OFI) is an indicator commonly used to estimate this asymmetry. This paper uses Hawkes processes to estimate the OFI while accounting for the lagged dependence in the order flow between bids and offers. Secondly, we develop a method to forecast the near-term distribution of the OFI, which can then be used to compare models for forecasting OFI. Thirdly, we propose a method to compare the forecasts of OFI for an arbitrarily large number of models. We apply the approach developed to tick data from the National Stock Exchange and observe that the Hawkes process modeled with a Sum of Exponential's kernel gives the best forecast among all competing models.",
+      "tags": [
+        "q-fin.TR"
+      ],
+      "license": null,
+      "relevance_score": null
+    },
+    {
+      "id": "arxiv:2401.09361",
+      "title": "Neural Hawkes: Non-Parametric Estimation in High Dimension and Causality Analysis in Cryptocurrency Markets",
+      "url": "https://arxiv.org/abs/2401.09361",
+      "source": "arxiv",
+      "discovered_at": "2026-05-20T02:47:09.549735+00:00",
+      "authors": [
+        "Timoth\u00e9e Fabre",
+        "Ioane Muni Toke"
+      ],
+      "published": "2024-01-17T17:29:48Z",
+      "abstract": "We propose a novel approach to marked Hawkes kernel inference which we name the moment-based neural Hawkes estimation method. Hawkes processes are fully characterized by their first and second order statistics through a Fredholm integral equation of the second kind. Using recent advances in solving partial differential equations with physics-informed neural networks, we provide a numerical procedure to solve this integral equation in high dimension. Together with an adapted training pipeline, we give a generic set of hyperparameters that produces robust results across a wide range of kernel shapes. We conduct an extensive numerical validation on simulated data. We finally propose two applications of the method to the analysis of the microstructure of cryptocurrency markets. In a first application we extract the influence of volume on the arrival rate of BTC-USD trades and in a second application we analyze the causality relationships and their directions amongst a universe of 15 cryptocurrency pairs in a centralized exchange.",
+      "tags": [
+        "q-fin.TR",
+        "q-fin.MF"
+      ],
+      "license": null,
+      "relevance_score": null
+    },
+    {
+      "id": "arxiv:2307.09077",
+      "title": "Estimation of an Order Book Dependent Hawkes Process for Large Datasets",
+      "url": "https://arxiv.org/abs/2307.09077",
+      "source": "arxiv",
+      "discovered_at": "2026-05-20T02:47:09.549797+00:00",
+      "authors": [
+        "Luca Mucciante",
+        "Alessio Sancetta"
+      ],
+      "published": "2023-07-18T08:53:17Z",
+      "abstract": "A point process for event arrivals in high frequency trading is presented. The intensity is the product of a Hawkes process and high dimensional functions of covariates derived from the order book. Conditions for stationarity of the process are stated. An algorithm is presented to estimate the model even in the presence of billions of data points, possibly mapping covariates into a high dimensional space. The large sample size can be common for high frequency data applications using multiple liquid instruments. Convergence of the algorithm is shown, consistency results under weak conditions is established, and a test statistic to assess out of sample performance of different model specifications is suggested. The methodology is applied to the study of four stocks that trade on the New York Stock Exchange (NYSE). The out of sample testing procedure suggests that capturing the nonlinearity of the order book information adds value to the self exciting nature of high frequency trading events.",
+      "tags": [
+        "q-fin.TR",
+        "stat.ML"
+      ],
+      "license": null,
+      "relevance_score": null
+    },
+    {
+      "id": "arxiv:2109.15110",
+      "title": "Deep Hawkes Process for High-Frequency Market Making",
+      "url": "https://arxiv.org/abs/2109.15110",
+      "source": "arxiv",
+      "discovered_at": "2026-05-20T02:47:09.549854+00:00",
+      "authors": [
+        "Pankaj Kumar"
+      ],
+      "published": "2021-09-30T13:26:39Z",
+      "abstract": "High-frequency market making is a liquidity-providing trading strategy that simultaneously generates many bids and asks for a security at ultra-low latency while maintaining a relatively neutral position. The strategy makes a profit from the bid-ask spread for every buy and sell transaction, against the risk of adverse selection, uncertain execution and inventory risk. We design realistic simulations of limit order markets and develop a high-frequency market making strategy in which agents process order book information to post the optimal price, order type and execution time. By introducing the Deep Hawkes process to the high-frequency market making strategy, we allow a feedback loop to be created between order arrival and the state of the limit order book, together with self- and cross-excitation effects. Our high-frequency market making strategy accounts for the cancellation of orders that influence order queue position, profitability, bid-ask spread and the value of the order. The experimental results show that our trading agent outperforms the baseline strategy, which uses a probability density estimate of the fundamental price. We investigate the effect of cancellations on market quality and the agent's profitability. We validate how closely the simulation framework approximates reality by reproducing stylised facts from the empirical analysis of the simulated order book data.",
+      "tags": [
+        "cs.CE",
+        "q-fin.TR"
+      ],
+      "license": null,
+      "relevance_score": null
+    },
+    {
+      "id": "arxiv:2107.09629",
+      "title": "Order Book Queue Hawkes-Markovian Modeling",
+      "url": "https://arxiv.org/abs/2107.09629",
+      "source": "arxiv",
+      "discovered_at": "2026-05-20T02:47:09.549920+00:00",
+      "authors": [
+        "Philip Protter",
+        "Qianfan Wu",
+        "Shihao Yang"
+      ],
+      "published": "2021-07-20T17:20:22Z",
+      "abstract": "This article presents a Hawkes process model with Markovian baseline intensities for high-frequency order book data modeling. We classify intraday order book trading events into a range of categories based on their order types and the price changes after their arrivals. To capture the stimulating effects between multiple types of order book events, we use the multivariate Hawkes process to model the self- and mutually-exciting event arrivals. We also integrate a Markovian baseline intensity into the event arrival dynamic, by including the impacts of order book liquidity state and time factor to the baseline intensity. A regression-based non-parametric estimation procedure is adopted to estimate the model parameters in our Hawkes+Markovian model. To eliminate redundant model parameters, LASSO regularization is incorporated in the estimation procedure. Besides, model selection method based on Akaike Information Criteria is applied to evaluate the effect of each part of the proposed model. An implementation example based on real LOB data is provided. Through the example, we study the empirical shapes of Hawkes excitement functions, the effects of liquidity state as well as time factors, the LASSO variable selection, and the explanatory power of Hawkes and Markovian elements to the dynamics of the order book.",
+      "tags": [
+        "q-fin.TR",
+        "stat.ME"
+      ],
+      "license": null,
+      "relevance_score": null
+    },
+    {
+      "id": "arxiv:1902.03714",
+      "title": "Hawkes processes for credit indices time series analysis: How random are trades arrival times?",
+      "url": "https://arxiv.org/abs/1902.03714",
+      "source": "arxiv",
+      "discovered_at": "2026-05-20T02:47:09.549987+00:00",
+      "authors": [
+        "Achraf Bahamou",
+        "Maud Doumergue",
+        "Philippe Donnat"
+      ],
+      "published": "2019-02-11T03:39:20Z",
+      "abstract": "Targeting a better understanding of credit market dynamics, the authors have studied a stochastic model named the Hawkes process. Describing trades arrival times, this kind of model allows for the capture of self-excitement and mutual interactions phenomena. The authors propose here a simple yet conclusive method for fitting multidimensional Hawkes processes with exponential kernels, based on a maximum likelihood non-convex optimization. The method was successfully tested on simulated data, then used on new publicly available real trading data for three European credit indices, thus enabling quantification of self-excitement as well as volume impacts or cross indices influences.",
+      "tags": [
+        "stat.AP",
+        "q-fin.ST",
+        "q-fin.TR"
+      ],
+      "license": null,
+      "relevance_score": null
+    },
+    {
+      "id": "arxiv:1710.01452",
+      "title": "Transform Analysis for Hawkes Processes with Applications in Dark Pool Trading",
+      "url": "https://arxiv.org/abs/1710.01452",
+      "source": "arxiv",
+      "discovered_at": "2026-05-20T02:47:09.550032+00:00",
+      "authors": [
+        "Xuefeng Gao",
+        "Xiang Zhou",
+        "Lingjiong Zhu"
+      ],
+      "published": "2017-10-04T03:25:47Z",
+      "abstract": "Hawkes processes are a class of simple point processes that are self-exciting and have clustering effect, with wide applications in finance, social networks and many other fields. This paper considers a self-exciting Hawkes process where the baseline intensity is time-dependent, the exciting function is a general function and the jump sizes of the intensity process are independent and identically distributed non-negative random variables. This Hawkes model is non-Markovian in general. We obtain closed-form formulas for the Laplace transform, moments and the distribution of the Hawkes process. To illustrate the applications of our results, we use the Hawkes process to model the clustered arrival of trades in a dark pool and analyze various performance metrics including time-to-first-fill, time-to-complete-fill and the expected fill rate of a resting dark order.",
+      "tags": [
+        "q-fin.TR",
+        "math.PR"
+      ],
+      "license": null,
+      "relevance_score": null
+    },
+    {
+      "id": "arxiv:1602.07663",
+      "title": "The role of volume in order book dynamics: a multivariate Hawkes process analysis",
+      "url": "https://arxiv.org/abs/1602.07663",
+      "source": "arxiv",
+      "discovered_at": "2026-05-20T02:47:09.550084+00:00",
+      "authors": [
+        "Marcello Rambaldi",
+        "Emmanuel Bacry",
+        "Fabrizio Lillo"
+      ],
+      "published": "2016-02-24T20:22:04Z",
+      "abstract": "We show that multivariate Hawkes processes coupled with the nonparametric estimation procedure first proposed in Bacry and Muzy (2015) can be successfully used to study complex interactions between the time of arrival of orders and their size, observed in a limit order book market. We apply this methodology to high-frequency order book data of futures traded at EUREX. Specifically, we demonstrate how this approach is amenable not only to analyze interplay between different order types (market orders, limit orders, cancellations) but also to include other relevant quantities, such as the order size, into the analysis, showing also that simple models assuming the independence between volume and time are not suitable to describe the data.",
+      "tags": [
+        "q-fin.TR",
+        "q-fin.ST"
+      ],
+      "license": null,
+      "relevance_score": null
+    },
+    {
+      "id": "arxiv:1405.6047",
+      "title": "Modeling FX market activity around macroeconomic news: a Hawkes process approach",
+      "url": "https://arxiv.org/abs/1405.6047",
+      "source": "arxiv",
+      "discovered_at": "2026-05-20T02:47:09.550132+00:00",
+      "authors": [
+        "Marcello Rambaldi",
+        "Paris Pennesi",
+        "Fabrizio Lillo"
+      ],
+      "published": "2014-05-23T12:56:08Z",
+      "abstract": "We present a Hawkes model approach to foreign exchange market in which the high frequency price dynamics is affected by a self exciting mechanism and an exogenous component, generated by the pre-announced arrival of macroeconomic news. By focusing on time windows around the news announcement, we find that the model is able to capture the increase of trading activity after the news, both when the news has a sizeable effect on volatility and when this effect is negligible, either because the news in not important or because the announcement is in line with the forecast by analysts. We extend the model by considering non-causal effects, due to the fact that the existence of the news (but not its content) is known by the market before the announcement.",
+      "tags": [
+        "q-fin.TR"
+      ],
+      "license": null,
+      "relevance_score": null
+    },
+    {
+      "id": "arxiv:1302.1405",
+      "title": "Critical reflexivity in financial markets: a Hawkes process analysis",
+      "url": "https://arxiv.org/abs/1302.1405",
+      "source": "arxiv",
+      "discovered_at": "2026-05-20T02:47:09.550181+00:00",
+      "authors": [
+        "Stephen J. Hardiman",
+        "Nicolas Bercot",
+        "Jean-Philippe Bouchaud"
+      ],
+      "published": "2013-02-06T15:24:17Z",
+      "abstract": "We model the arrival of mid-price changes in the E-Mini S&P futures contract as a self-exciting Hawkes process. Using several estimation methods, we find that the Hawkes kernel is power-law with a decay exponent close to -1.15 at short times, less than approximately 10^3 seconds, and crosses over to a second power-law regime with a larger decay exponent of approximately -1.45 for longer times scales in the range [10^3, 10^6] seconds. More importantly, we find that the Hawkes kernel integrates to unity independently of the analysed period, from 1998 to 2011. This suggests that markets are and have always been close to criticality, challenging a recent study which indicates that reflexivity (endogeneity) has increased in recent years as a result of increased automation of trading. However, we note that the scale over which market events are correlated has decreased steadily over time with the emergence of higher frequency trading.",
+      "tags": [
+        "q-fin.ST",
+        "cond-mat.stat-mech"
+      ],
+      "license": null,
+      "relevance_score": null
+    },
+    {
+      "id": "arxiv:1301.1135",
+      "title": "Hawkes model for price and trades high-frequency dynamics",
+      "url": "https://arxiv.org/abs/1301.1135",
+      "source": "arxiv",
+      "discovered_at": "2026-05-20T02:47:09.550237+00:00",
+      "authors": [
+        "E. Bacry",
+        "J. F Muzy"
+      ],
+      "published": "2013-01-07T09:27:26Z",
+      "abstract": "We introduce a multivariate Hawkes process that accounts for the dynamics of market prices through the impact of market order arrivals at microstructural level. Our model is a point process mainly characterized by 4 kernels associated with respectively the trade arrival self-excitation, the price changes mean reversion the impact of trade arrivals on price variations and the feedback of price changes on trading activity. It allows one to account for both stylized facts of market prices microstructure (including random time arrival of price moves, discrete price grid, high frequency mean reversion, correlation functions behavior at various time scales) and the stylized facts of market impact (mainly the concave-square-root-like/relaxation characteristic shape of the market impact of a meta-order). Moreover, it allows one to estimate the entire market impact profile from anonymous market data. We show that these kernels can be estimated from the empirical conditional mean intensities. We provide numerical examples, application to real data and comparisons to former approaches.",
+      "tags": [
+        "q-fin.TR",
+        "physics.data-an"
+      ],
+      "license": null,
+      "relevance_score": null
+    },
+    {
+      "id": "arxiv:2508.17086",
+      "title": "Detecting Multilevel Manipulation from Limit Order Book via Cascaded Contrastive Representation Learning",
+      "url": "https://arxiv.org/abs/2508.17086",
+      "source": "arxiv",
+      "discovered_at": "2026-05-20T02:47:14.712046+00:00",
+      "authors": [
+        "Yushi Lin",
+        "Peng Yang"
+      ],
+      "published": "2025-08-23T16:57:32Z",
+      "abstract": "Trade-based manipulation (TBM) undermines the fairness and stability of financial markets drastically. Spoofing, one of the most covert and deceptive TBM strategies, exhibits complex anomaly patterns across multilevel prices, while often being simplified as a single-level manipulation. These patterns are usually concealed within the rich, hierarchical information of the Limit Order Book (LOB), which is challenging to leverage due to high dimensionality and noise. To address this, we propose a representation learning framework combining a cascaded LOB representation architecture with supervised contrastive learning. Extensive experiments demonstrate that our framework consistently improves detection performance across diverse models, with Transformer-based architectures achieving state-of-the-art results. In addition, we conduct systematic analyses and ablation studies to investigate multilevel manipulation and the contributions of key components for detection, offering broader insights into representation learning and anomaly detection for complex time series data.",
+      "tags": [
+        "q-fin.CP",
+        "cs.CE",
+        "cs.LG",
+        "q-fin.TR"
+      ],
+      "license": null,
+      "relevance_score": null
+    },
+    {
+      "id": "arxiv:2508.02247",
+      "title": "ByteGen: A Tokenizer-Free Generative Model for Orderbook Events in Byte Space",
+      "url": "https://arxiv.org/abs/2508.02247",
+      "source": "arxiv",
+      "discovered_at": "2026-05-20T02:47:14.712254+00:00",
+      "authors": [
+        "Yang Li",
+        "Zhi Chen"
+      ],
+      "published": "2025-08-04T09:48:42Z",
+      "abstract": "Generative modeling of high-frequency limit order book (LOB) dynamics is a critical yet unsolved challenge in quantitative finance, essential for robust market simulation and strategy backtesting. Existing approaches are often constrained by simplifying stochastic assumptions or, in the case of modern deep learning models like Transformers, rely on tokenization schemes that affect the high-precision, numerical nature of financial data through discretization and binning. To address these limitations, we introduce ByteGen, a novel generative model that operates directly on the raw byte streams of LOB events. Our approach treats the problem as an autoregressive next-byte prediction task, for which we design a compact and efficient 32-byte packed binary format to represent market messages without information loss. The core novelty of our work is the complete elimination of feature engineering and tokenization, enabling the model to learn market dynamics from its most fundamental representation. We achieve this by adapting the H-Net architecture, a hybrid Mamba-Transformer model that uses a dynamic chunking mechanism to discover the inherent structure of market messages without predefined rules. Our primary contributions are: 1) the first end-to-end, byte-level framework for LOB modeling; 2) an efficient packed data representation; and 3) a comprehensive evaluation on high-frequency data. Trained on over 34 million events from CME Bitcoin futures, ByteGen successfully reproduces key stylized facts of financial markets, generating realistic price distributions, heavy-tailed returns, and bursty event timing. Our findings demonstrate that learning directly from byte space is a promising and highly flexible paradigm for modeling complex financial systems, achieving competitive performance on standard market quality metrics without the biases of tokenization.",
+      "tags": [
+        "q-fin.CP",
+        "cs.AI",
+        "cs.CE",
+        "cs.LG",
+        "q-fin.TR"
+      ],
+      "license": null,
+      "relevance_score": null
+    },
+    {
+      "id": "arxiv:2505.05595",
+      "title": "Trading Under Uncertainty: A Distribution-Based Strategy for Futures Markets Using FutureQuant Transformer",
+      "url": "https://arxiv.org/abs/2505.05595",
+      "source": "arxiv",
+      "discovered_at": "2026-05-20T02:47:14.712518+00:00",
+      "authors": [
+        "Wenhao Guo",
+        "Yuda Wang",
+        "Zeqiao Huang",
+        "Changjiang Zhang",
+        "Shumin ma"
+      ],
+      "published": "2025-05-08T18:52:04Z",
+      "abstract": "In the complex landscape of traditional futures trading, where vast data and variables like real-time Limit Order Books (LOB) complicate price predictions, we introduce the FutureQuant Transformer model, leveraging attention mechanisms to navigate these challenges. Unlike conventional models focused on point predictions, the FutureQuant model excels in forecasting the range and volatility of future prices, thus offering richer insights for trading strategies. Its ability to parse and learn from intricate market patterns allows for enhanced decision-making, significantly improving risk management and achieving a notable average gain of 0.1193% per 30-minute trade over state-of-the-art models with a simple algorithm using factors such as RSI, ATR, and Bollinger Bands. This innovation marks a substantial leap forward in predictive analytics within the volatile domain of futures trading.",
+      "tags": [
+        "q-fin.TR",
+        "cs.AI",
+        "cs.CE",
+        "cs.LG"
+      ],
+      "license": null,
+      "relevance_score": null
+    },
+    {
+      "id": "arxiv:2502.15757",
+      "title": "TLOB: A Novel Transformer Model with Dual Attention for Price Trend Prediction with Limit Order Book Data",
+      "url": "https://arxiv.org/abs/2502.15757",
+      "source": "arxiv",
+      "discovered_at": "2026-05-20T02:47:14.712657+00:00",
+      "authors": [
+        "Leonardo Berti",
+        "Gjergji Kasneci"
+      ],
+      "published": "2025-02-12T12:41:10Z",
+      "abstract": "Price Trend Prediction (PTP) based on Limit Order Book (LOB) data is a fundamental challenge in financial markets. Despite advances in deep learning, existing models fail to generalize across different market conditions and assets. Surprisingly, by adapting a simple MLP-based architecture to LOB, we show that we surpass SoTA performance; thus, challenging the necessity of complex architectures. Unlike past work that shows robustness issues, we propose TLOB, a transformer-based model that uses a dual attention mechanism to capture spatial and temporal dependencies in LOB data. This allows it to adaptively focus on the market microstructure, making it particularly effective for longer-horizon predictions and volatile market conditions. We also introduce a new labeling method that improves on previous ones, removing the horizon bias. We evaluate TLOB's effectiveness across four horizons, using the established FI-2010 benchmark, a NASDAQ and a Bitcoin dataset. TLOB outperforms SoTA methods in every dataset and horizon. Additionally, we empirically show how stock price predictability has declined over time, -6.68 in F1-score, highlighting the growing market efficiency. Predictability must be considered in relation to transaction costs, so we experimented with defining trends using an average spread, reflecting the primary transaction cost. The resulting performance deterioration underscores the complexity of translating trend classification into profitable trading strategies. We argue that our work provides new insights into the evolving landscape of stock price trend prediction and sets a strong foundation for future advancements in financial AI. We release the code at https://github.com/LeonardoBerti00/TLOB.",
+      "tags": [
+        "q-fin.ST",
+        "cs.AI",
+        "cs.LG",
+        "q-fin.TR"
+      ],
+      "license": null,
+      "relevance_score": null
+    },
+    {
+      "id": "arxiv:2502.07071",
+      "title": "TRADES: Generating Realistic Market Simulations with Diffusion Models",
+      "url": "https://arxiv.org/abs/2502.07071",
+      "source": "arxiv",
+      "discovered_at": "2026-05-20T02:47:14.712866+00:00",
+      "authors": [
+        "Leonardo Berti",
+        "Bardh Prenkaj",
+        "Paola Velardi"
+      ],
+      "published": "2025-01-31T19:43:13Z",
+      "abstract": "Financial markets are complex systems characterized by high statistical noise, nonlinearity, volatility, and constant evolution. Thus, modeling them is extremely hard. Here, we address the task of generating realistic and responsive Limit Order Book (LOB) market simulations, which are fundamental for calibrating and testing trading strategies, performing market impact experiments, and generating synthetic market data. We propose a novel TRAnsformer-based Denoising Diffusion Probabilistic Engine for LOB Simulations (TRADES). TRADES generates realistic order flows as time series conditioned on the state of the market, leveraging a transformer-based architecture that captures the temporal and spatial characteristics of high-frequency market data. There is a notable absence of quantitative metrics for evaluating generative market simulation models in the literature. To tackle this problem, we adapt the predictive score, a metric measured as an MAE, to market data by training a stock price predictive model on synthetic data and testing it on real data. We compare TRADES with previous works on two stocks, reporting a 3.27 and 3.48 improvement over SoTA according to the predictive score, demonstrating that we generate useful synthetic market data for financial downstream tasks. Furthermore, we assess TRADES's market simulation realism and responsiveness, showing that it effectively learns the conditional data distribution and successfully reacts to an experimental agent, giving sprout to possible calibrations and evaluations of trading strategies and market impact experiments. To perform the experiments, we developed DeepMarket, the first open-source Python framework for LOB market simulation with deep learning. In our repository, we include a synthetic LOB dataset composed of TRADES's generated simulations.",
+      "tags": [
+        "q-fin.TR",
+        "cs.AI",
+        "cs.LG",
+        "q-fin.CP"
+      ],
+      "license": null,
+      "relevance_score": null
+    },
+    {
+      "id": "arxiv:2412.19372",
+      "title": "Minimal Batch Adaptive Learning Policy Engine for Real-Time Mid-Price Forecasting in High-Frequency Trading",
+      "url": "https://arxiv.org/abs/2412.19372",
+      "source": "arxiv",
+      "discovered_at": "2026-05-20T02:47:14.713093+00:00",
+      "authors": [
+        "Adamantios Ntakaris",
+        "Gbenga Ibikunle"
+      ],
+      "published": "2024-12-26T22:49:53Z",
+      "abstract": "High-frequency trading (HFT) has transformed modern financial markets, making reliable short-term price forecasting models essential. In this study, we present a novel approach to mid-price forecasting using Level 1 limit order book (LOB) data from NASDAQ, focusing on 100 U.S. stocks from the S&P 500 index during the period from September to November 2022. Expanding on our previous work with Radial Basis Function Neural Networks (RBFNN), which leveraged automated feature importance techniques based on mean decrease impurity (MDI) and gradient descent (GD), we introduce the Adaptive Learning Policy Engine (ALPE) - a reinforcement learning (RL)-based agent designed for batch-free, immediate mid-price forecasting. ALPE incorporates adaptive epsilon decay to dynamically balance exploration and exploitation, outperforming a diverse range of highly effective machine learning (ML) and deep learning (DL) models in forecasting performance.",
+      "tags": [
+        "q-fin.ST",
+        "cs.LG"
+      ],
+      "license": null,
+      "relevance_score": null
+    },
+    {
+      "id": "arxiv:2411.16585",
+      "title": "MarketGPT: Developing a Pre-trained transformer (GPT) for Modeling Financial Time Series",
+      "url": "https://arxiv.org/abs/2411.16585",
+      "source": "arxiv",
+      "discovered_at": "2026-05-20T02:47:14.713255+00:00",
+      "authors": [
+        "Aaron Wheeler",
+        "Jeffrey D. Varner"
+      ],
+      "published": "2024-11-25T17:15:28Z",
+      "abstract": "This work presents a generative pre-trained transformer (GPT) designed for modeling financial time series. The GPT functions as an order generation engine within a discrete event simulator, enabling realistic replication of limit order book dynamics. Our model leverages recent advancements in large language models to produce long sequences of order messages in a steaming manner. Our results demonstrate that the model successfully reproduces key features of order flow data, even when the initial order flow prompt is no longer present within the model's context window. Moreover, evaluations reveal that the model captures several statistical properties, or 'stylized facts', characteristic of real financial markets and broader macro-scale data distributions. Collectively, this work marks a significant step toward creating high-fidelity, interactive market simulations.",
+      "tags": [
+        "q-fin.TR"
+      ],
+      "license": null,
+      "relevance_score": null
+    },
+    {
+      "id": "arxiv:2309.11400",
+      "title": "Transformers versus LSTMs for electronic trading",
+      "url": "https://arxiv.org/abs/2309.11400",
+      "source": "arxiv",
+      "discovered_at": "2026-05-20T02:47:14.713388+00:00",
+      "authors": [
+        "Paul Bilokon",
+        "Yitao Qiu"
+      ],
+      "published": "2023-09-20T15:25:43Z",
+      "abstract": "With the rapid development of artificial intelligence, long short term memory (LSTM), one kind of recurrent neural network (RNN), has been widely applied in time series prediction. Like RNN, Transformer is designed to handle the sequential data. As Transformer achieved great success in Natural Language Processing (NLP), researchers got interested in Transformer's performance on time series prediction, and plenty of Transformer-based solutions on long time series forecasting have come out recently. However, when it comes to financial time series prediction, LSTM is still a dominant architecture. Therefore, the question this study wants to answer is: whether the Transformer-based model can be applied in financial time series prediction and beat LSTM. To answer this question, various LSTM-based and Transformer-based models are compared on multiple financial prediction tasks based on high-frequency limit order book data. A new LSTM-based model called DLSTM is built and new architecture for the Transformer-based model is designed to adapt for financial prediction. The experiment result reflects that the Transformer-based model only has the limited advantage in absolute price sequence prediction. The LSTM-based models show better and more robust performance on difference sequence prediction, such as price difference and price movement.",
+      "tags": [
+        "q-fin.TR",
+        "cs.LG",
+        "econ.EM",
+        "q-fin.ST"
+      ],
+      "license": null,
+      "relevance_score": null
+    },
+    {
+      "id": "arxiv:2306.05479",
+      "title": "Deep Attentive Survival Analysis in Limit Order Books: Estimating Fill Probabilities with Convolutional-Transformers",
+      "url": "https://arxiv.org/abs/2306.05479",
+      "source": "arxiv",
+      "discovered_at": "2026-05-20T02:47:14.713583+00:00",
+      "authors": [
+        "Alvaro Arroyo",
+        "Alvaro Cartea",
+        "Fernando Moreno-Pino",
+        "Stefan Zohren"
+      ],
+      "published": "2023-06-08T18:03:58Z",
+      "abstract": "One of the key decisions in execution strategies is the choice between a passive (liquidity providing) or an aggressive (liquidity taking) order to execute a trade in a limit order book (LOB). Essential to this choice is the fill probability of a passive limit order placed in the LOB. This paper proposes a deep learning method to estimate the filltimes of limit orders posted in different levels of the LOB. We develop a novel model for survival analysis that maps time-varying features of the LOB to the distribution of filltimes of limit orders. Our method is based on a convolutional-Transformer encoder and a monotonic neural network decoder. We use proper scoring rules to compare our method with other approaches in survival analysis, and perform an interpretability analysis to understand the informativeness of features used to compute fill probabilities. Our method significantly outperforms those typically used in survival analysis literature. Finally, we carry out a statistical analysis of the fill probability of orders placed in the order book (e.g., within the bid-ask spread) for assets with different queue dynamics and trading activity.",
+      "tags": [
+        "q-fin.ST"
+      ],
+      "license": null,
+      "relevance_score": null
+    },
+    {
+      "id": "arxiv:2304.02472",
+      "title": "Learning to Predict Short-Term Volatility with Order Flow Image Representation",
+      "url": "https://arxiv.org/abs/2304.02472",
+      "source": "arxiv",
+      "discovered_at": "2026-05-20T02:47:14.713894+00:00",
+      "authors": [
+        "Artem Lensky",
+        "Mingyu Hao"
+      ],
+      "published": "2023-04-04T12:32:25Z",
+      "abstract": "Introduction: The paper addresses the challenging problem of predicting the short-term realized volatility of the Bitcoin price using order flow information. The inherent stochastic nature and anti-persistence of price pose difficulties in accurate prediction. Methods: To address this, we propose a method that transforms order flow data over a fixed time interval (snapshots) into images. The order flow includes trade sizes, trade directions, and limit order book, and is mapped into image colour channels. These images are then used to train both a simple 3-layer Convolutional Neural Network (CNN) and more advanced ResNet-18 and ConvMixer, with additionally supplementing them with hand-crafted features. The models are evaluated against classical GARCH, Multilayer Perceptron trained on raw data, and a naive guess method that considers current volatility as a prediction. Results: The experiments are conducted using price data from January 2021 and evaluate model performance in terms of root mean square error (RMSPE). The results show that our order flow representation with a CNN as a predictive model achieves the best performance, with an RMSPE of 0.85+/-1.1 for the model with aggregated features and 1.0+/-1.4 for the model without feature supplementation. ConvMixer with feature supplementation follows closely. In comparison, the RMSPE for the naive guess method was 1.4+/-3.0.",
+      "tags": [
+        "q-fin.RM",
+        "cs.LG",
+        "q-fin.TR"
+      ],
+      "license": null,
+      "relevance_score": null
+    },
+    {
+      "id": "arxiv:2112.09015",
+      "title": "Multivariate Realized Volatility Forecasting with Graph Neural Network",
+      "url": "https://arxiv.org/abs/2112.09015",
+      "source": "arxiv",
+      "discovered_at": "2026-05-20T02:47:14.714106+00:00",
+      "authors": [
+        "Qinkai Chen",
+        "Christian-Yann Robert"
+      ],
+      "published": "2021-12-16T16:49:32Z",
+      "abstract": "The existing publications demonstrate that the limit order book data is useful in predicting short-term volatility in stock markets. Since stocks are not independent, changes on one stock can also impact other related stocks. In this paper, we are interested in forecasting short-term realized volatility in a multivariate approach based on limit order book data and relational data. To achieve this goal, we introduce Graph Transformer Network for Volatility Forecasting. The model allows to combine limit order book features and an unlimited number of temporal and cross-sectional relations from different sources. Through experiments based on about 500 stocks from S&P 500 index, we find a better performance for our model than for other benchmarks.",
+      "tags": [
+        "q-fin.CP",
+        "cs.CE",
+        "cs.LG",
+        "q-fin.TR"
+      ],
+      "license": null,
+      "relevance_score": null
+    },
+    {
+      "id": "arxiv:2003.00130",
+      "title": "Transformers for Limit Order Books",
+      "url": "https://arxiv.org/abs/2003.00130",
+      "source": "arxiv",
+      "discovered_at": "2026-05-20T02:47:14.714230+00:00",
+      "authors": [
+        "James Wallbridge"
+      ],
+      "published": "2020-02-29T00:06:38Z",
+      "abstract": "We introduce a new deep learning architecture for predicting price movements from limit order books. This architecture uses a causal convolutional network for feature extraction in combination with masked self-attention to update features based on relevant contextual information. This architecture is shown to significantly outperform existing architectures such as those using convolutional networks (CNN) and Long-Short Term Memory (LSTM) establishing a new state-of-the-art benchmark for the FI-2010 dataset.",
+      "tags": [
+        "q-fin.CP",
+        "q-fin.TR"
+      ],
+      "license": null,
+      "relevance_score": null
+    },
+    {
+      "id": "arxiv:1701.00993",
+      "title": "Brownian trading excursions and avalanches",
+      "url": "https://arxiv.org/abs/1701.00993",
+      "source": "arxiv",
+      "discovered_at": "2026-05-20T02:47:14.714340+00:00",
+      "authors": [
+        "Friedrich Hubalek",
+        "Paul Kr\u00fchner",
+        "Thorsten Rheinl\u00e4nder"
+      ],
+      "published": "2017-01-04T13:14:27Z",
+      "abstract": "We study a parsimonious but non-trivial model of the latent limit order book where orders get placed with a fixed displacement from a center price process, i.e.\\ some process in-between best bid and best ask, and get executed whenever this center price reaches their level. This mechanism corresponds to the fundamental solution of the stochastic heat equation with multiplicative noise for the relative order volume distribution. We classify various types of trades, and introduce the trading excursion process which is a Poisson point process. This allows to derive the Laplace transforms of the times to various trading events under the corresponding intensity measure. As a main application, we study the distribution of order avalanches, i.e.\\ a series of order executions not interrupted by more than an $\\varepsilon$-time interval, which moreover generalizes recent results about Parisian options.",
+      "tags": [
+        "q-fin.MF"
+      ],
+      "license": null,
+      "relevance_score": null
+    },
+    {
+      "id": "arxiv:1601.03968",
+      "title": "A stochastic Stefan-type problem under first-order boundary conditions",
+      "url": "https://arxiv.org/abs/1601.03968",
+      "source": "arxiv",
+      "discovered_at": "2026-05-20T02:47:14.714476+00:00",
+      "authors": [
+        "Marvin S. Mueller"
+      ],
+      "published": "2016-01-15T15:43:20Z",
+      "abstract": "Moving boundary problems allow to model systems with phase transition at an inner boundary. Driven by problems in economics and finance, in particular modeling of limit order books, we consider a stochastic and non-linear extension of the classical Stefan-problem in one space dimension, where the paths of the moving interface might have unbounded variation. Working on the distribution space, Ito-Wentzell formula for SPDEs allows to transform these moving boundary problems into partial differential equations on fixed domains. Rewriting the equations into the framework of stochastic evolution equations, we apply results based on stochastic maximal $L^p$-regularity to obtain existence, uniqueness and regularity of local solutions. Moreover, we observe that explosion might take place due to the boundary interaction even when the coefficients of the original problem have linear growths.",
+      "tags": [
+        "math.PR",
+        "q-fin.TR"
+      ],
+      "license": null,
+      "relevance_score": null
+    },
+    {
+      "id": "arxiv:1601.01710",
+      "title": "A Semi-Markovian Modeling of Limit Order Markets",
+      "url": "https://arxiv.org/abs/1601.01710",
+      "source": "arxiv",
+      "discovered_at": "2026-05-20T02:47:14.714610+00:00",
+      "authors": [
+        "Anatoliy Swishchuk",
+        "Nelson Vadori"
+      ],
+      "published": "2016-01-07T21:45:10Z",
+      "abstract": "R. Cont and A. de Larrard (SIAM J. Finan. Math, 2013) introduced a tractable stochastic model for the dynamics of a limit order book, computing various quantities of interest such as the probability of a price increase or the diffusion limit of the price process. As suggested by empirical observations, we extend their framework to 1) arbitrary distributions for book events inter-arrival times (possibly non-exponential) and 2) both the nature of a new book event and its corresponding inter-arrival time depend on the nature of the previous book event. We do so by resorting to Markov renewal processes to model the dynamics of the bid and ask queues. We keep analytical tractability via explicit expressions for the Laplace transforms of various quantities of interest. We justify and illustrate our approach by calibrating our model to the five stocks Amazon, Apple, Google, Intel and Microsoft on June 21^{st} 2012. As in R. Cont and A. de Larrard, the bid-ask spread remains constant equal to one tick, only the bid and ask queues are modeled (they are independent from each other and get reinitialized after a price change), and all orders have the same size.",
+      "tags": [
+        "q-fin.MF",
+        "q-fin.TR"
+      ],
+      "license": null,
+      "relevance_score": null
+    },
+    {
+      "id": "arxiv:2605.06604",
+      "title": "A Geometry-Aware Residual Correction of Hagan's SABR Implied Volatility Formula",
+      "url": "https://arxiv.org/abs/2605.06604",
+      "source": "arxiv",
+      "discovered_at": "2026-05-20T02:47:30.887810+00:00",
+      "authors": [
+        "Adil Reghai",
+        "Lama Tarsissi",
+        "G\u00e9rard Biau",
+        "Alex Lipton"
+      ],
+      "published": "2026-05-07T17:22:39Z",
+      "abstract": "This paper proposes a hybrid methodology to improve the approximation of SABR (Stochastic Alpha Beta Rho) implied volatility by combining analytical structure with machine learning. The approach augments the neural-network input representation with geometric features derived from the stochastic differential equations of the SABR model. Unlike approaches that fully replace analytical formulas with black-box models, the proposed framework preserves the analytical backbone of the model. The hybridization operates along two complementary dimensions. First, geometry-aware variables reflecting intrinsic properties of the SABR dynamics are used as structured inputs to the network. Second, the neural network is trained to learn the residual error relative to Hagan's closed-form approximation rather than implied volatility directly. The resulting model acts as a structured residual correction to the analytical formula, retaining interpretability while capturing higher-order effects that are not included in the asymptotic expansion. Numerical experiments conducted over realistic parameter domains, as well as stressed environments, show that the method improves accuracy and robustness compared with both analytical approximations and standard neural-network approaches. Because the correction remains lightweight and structurally consistent with the underlying model, the framework is well suited for real-time pricing and calibration in practical trading environments.",
+      "tags": [
+        "q-fin.CP",
+        "stat.ML"
+      ],
+      "license": null,
+      "relevance_score": null
+    },
+    {
+      "id": "arxiv:2510.10343",
+      "title": "Learning the Exact SABR Model",
+      "url": "https://arxiv.org/abs/2510.10343",
+      "source": "arxiv",
+      "discovered_at": "2026-05-20T02:47:30.887907+00:00",
+      "authors": [
+        "Giorgia Rensi",
+        "Pietro Rossi",
+        "Marco Bianchetti"
+      ],
+      "published": "2025-10-11T21:06:13Z",
+      "abstract": "The SABR model is a cornerstone of interest rate volatility modeling, but its practical application relies heavily on the analytical approximation by Hagan et al., whose accuracy deteriorates for high volatility, long maturities, and out-of-the-money options, admitting arbitrage. While machine learning approaches have been proposed to overcome these limitations, they have often been limited by simplified SABR dynamics or a lack of systematic validation against the full spectrum of market conditions. We develop a novel SABR DNN, a specialized Artificial Deep Neural Network (DNN) architecture that learns the true SABR stochastic dynamics using an unprecedented large training dataset (more than 200 million points) of interest rate Cap/Floor volatility surfaces, including very long maturities (30Y) and extreme strikes consistently with market quotations. Our dataset is obtained via high-precision unbiased Monte Carlo simulation of a special scaled shifted-SABR stochastic dynamics, which allows dimensional reduction without any loss of generality. Our SABR DNN provides arbitrage-free calibration of real market volatility surfaces and Cap/Floor prices for any maturity and strike with negligible computational effort and without retraining across business dates. Our results fully address the gaps in the previous machine learning SABR literature in a systematic and self-consistent way, and can be extended to cover any interest rate European options in different rate tenors and currencies, thus establishing a comprehensive functional SABR framework that can be adopted for daily trading and risk management activities.",
+      "tags": [
+        "q-fin.CP",
+        "q-fin.PR",
+        "q-fin.RM"
+      ],
+      "license": null,
+      "relevance_score": null
+    },
+    {
+      "id": "arxiv:2509.11928",
+      "title": "Meta-Learning Neural Process for Implied Volatility Surfaces with SABR-induced Priors",
+      "url": "https://arxiv.org/abs/2509.11928",
+      "source": "arxiv",
+      "discovered_at": "2026-05-20T02:47:30.887996+00:00",
+      "authors": [
+        "Jirong Zhuang",
+        "Xuan Wu"
+      ],
+      "published": "2025-09-15T13:45:31Z",
+      "abstract": "We treat implied volatility surface (IVS) reconstruction as a learning problem guided by two principles. First, we adopt a meta-learning view that trains across trading days to learn a procedure that maps sparse option quotes to a full IVS via conditional prediction, avoiding per-day calibration at test time. Second, we impose a structural prior via transfer learning: pre-train on SABR-generated dataset to encode geometric prior, then fine-tune on historical market dataset to align with empirical patterns. We implement both principles in a single attention-based Neural Process (Volatility Neural Process, VolNP) that produces a complete IVS from a sparse context set in one forward pass. On SPX options, the VolNP outperforms SABR, SSVI, and Gaussian process. Relative to an ablation trained only on market data, the SABR-induced prior reduces RMSE by about 40% and suppresses large errors, with pronounced gains at long maturities where quotes are sparse. The resulting model is fast (single pass), stable (no daily recalibration), and practical for deployment at scale.",
+      "tags": [
+        "q-fin.CP"
+      ],
+      "license": null,
+      "relevance_score": null
+    },
+    {
+      "id": "arxiv:2506.22888",
+      "title": "SABR-Informed Multitask Gaussian Process: A Synthetic-to-Real Framework for Implied Volatility Surface Construction",
+      "url": "https://arxiv.org/abs/2506.22888",
+      "source": "arxiv",
+      "discovered_at": "2026-05-20T02:47:30.888055+00:00",
+      "authors": [
+        "Jirong Zhuang",
+        "Xuan Wu"
+      ],
+      "published": "2025-06-28T13:57:17Z",
+      "abstract": "This study introduces a SABR-informed multitask Gaussian process for constructing implied volatility surfaces from sparse option quotes. We treat a dense synthetic dataset generated by a calibrated SABR model as the source task and market option quotes as the target task. Within the multitask Gaussian process framework, we learn cross-task dependence via task embeddings with hierarchical regularization, enabling adaptive transfer of structural information. On Heston ground truth across ten market regimes and in a case study with SPX options, the model achieves lower error than the single-task Gaussian process and SABR at near-term maturities and remains competitive at long-term maturities, while satisfying standard no-arbitrage conditions. The framework combines the theory-driven structure with nonparametric Bayesian regression and yields reliable implied volatility surfaces for risk management.",
+      "tags": [
+        "q-fin.CP"
+      ],
+      "license": null,
+      "relevance_score": null
+    },
+    {
+      "id": "arxiv:2502.07766",
+      "title": "Mean-Reverting SABR Models: Closed-form Surfaces and Calibration for Equities",
+      "url": "https://arxiv.org/abs/2502.07766",
+      "source": "arxiv",
+      "discovered_at": "2026-05-20T02:47:30.888102+00:00",
+      "authors": [
+        "V. Perederiy"
+      ],
+      "published": "2025-02-11T18:50:03Z",
+      "abstract": "In this paper, we consider three stochastic-volatility models, each characterized by distinct dynamics of instantaneous volatility: (1) a CIR process for squared volatility (i.e., the classical Heston model); (2) a mean-reverting lognormal process for volatility; and (3) a CIR process for volatility. Previous research has provided semi-analytical approximations for these models in the form of simple (non-mean-reverting) SABR models, each suitably parameterized for a given expiry. First, using a computer algebra system, we derive closed-form expressions for these semi-analytical approximations, under the assumption that all parameters remain constant (but without the constraint of constant expected volatility). Although the resulting formulas are considerably lengthier than those in simpler SABR models, they remain tractable and are easily implementable even in Excel. Second, employing these closed-form expressions, we calibrate the three models to empirical volatility surfaces observed in EuroStoxx index options. The calibration is well-behaved and achieves excellent fits for the observed equity-volatility surfaces, with only five parameters per surface. Consequently, the approximate models offer a simpler, faster, and (numerically) more reliable alternative to the classical Heston model, or to more advanced models, which lack closed-form solutions and can be numerically challenging, particularly in less sophisticated implementation environments. Third, we examine the stability and correlations of our parameter estimates. In this analysis, we identify certain issues with the models - one of which appears to stem from the sub-lognormal behavior of the actual equity-volatility process. Notably, the CIR-volatility model (3), as opposed to the CIR-variance Heston model (1), seems to best capture this behavior, and also results in more stable parameters.",
+      "tags": [
+        "q-fin.PR"
+      ],
+      "license": null,
+      "relevance_score": null
+    },
+    {
+      "id": "arxiv:2411.04041",
+      "title": "Volatility Parametrizations with Random Coefficients: Analytic Flexibility for Implied Volatility Surfaces",
+      "url": "https://arxiv.org/abs/2411.04041",
+      "source": "arxiv",
+      "discovered_at": "2026-05-20T02:47:30.888191+00:00",
+      "authors": [
+        "Nicola F. Zaugg",
+        "Leonardo Perotti",
+        "Lech A. Grzelak"
+      ],
+      "published": "2024-11-06T16:40:55Z",
+      "abstract": "It is a market practice to express market-implied volatilities in some parametric form. The most popular parametrizations are based on or inspired by an underlying stochastic model, like the Heston model (SVI method) or the SABR model (SABR parametrization). Their popularity is often driven by a closed-form representation enabling efficient calibration. However, these representations indirectly impose a model-specific volatility structure on observable market quotes. When the market's volatility does not follow the parametric model regime, the calibration procedure will fail or lead to extreme parameters, indicating inconsistency. This article addresses this critical limitation - we propose an arbitrage-free framework for letting the parameters from the parametric implied volatility formula be random. The method enhances the existing parametrizations and enables a significant widening of the spectrum of permissible shapes of implied volatilities while preserving analyticity and, therefore, computation efficiency. We demonstrate the effectiveness of the novel method on real data from short-term index and equity options, where the standard parametrizations fail to capture market dynamics. Our results show that the proposed method is particularly powerful in modeling the implied volatility curves of short expiry options preceding an earnings announcement, when the risk-neutral probability density function exhibits a bimodal form.",
+      "tags": [
+        "q-fin.MF"
+      ],
+      "license": null,
+      "relevance_score": null
+    },
+    {
+      "id": "arxiv:2408.01470",
+      "title": "SABR/LIBOR market models: pricing and calibration for some interest rate derivatives",
+      "url": "https://arxiv.org/abs/2408.01470",
+      "source": "arxiv",
+      "discovered_at": "2026-05-20T02:47:30.888262+00:00",
+      "authors": [
+        "A. M. Ferreiro",
+        "J. A. Garc\u00eda",
+        "J. G. L\u00f3pez-Salas",
+        "C. V\u00e1zquez"
+      ],
+      "published": "2024-08-01T13:45:16Z",
+      "abstract": "In order to overcome the drawbacks of assuming deterministic volatility coefficients in the standard LIBOR market models to capture volatility smiles and skews in real markets, several extensions of LIBOR models to incorporate stochastic volatilities have been proposed. The efficient calibration to market data of these more complex models becomes a relevant target in practice. The main objective of the present work is to efficiently calibrate some recent SABR/LIBOR market models to real market prices of caplets and swaptions. For the calibration we propose a parallelized version of the simulated annealing algorithm for multi-GPUs. The numerical results clearly illustrate the advantages of using the proposed multi-GPUs tools when applied to real market data and popular SABR/LIBOR models.",
+      "tags": [
+        "q-fin.PR"
+      ],
+      "license": null,
+      "relevance_score": null
+    },
+    {
+      "id": "arxiv:2407.16813",
+      "title": "Short-maturity asymptotics for VIX and European options in local-stochastic volatility models",
+      "url": "https://arxiv.org/abs/2407.16813",
+      "source": "arxiv",
+      "discovered_at": "2026-05-20T02:47:30.888313+00:00",
+      "authors": [
+        "Dan Pirjol",
+        "Xiaoyu Wang",
+        "Lingjiong Zhu"
+      ],
+      "published": "2024-07-23T19:43:37Z",
+      "abstract": "We derive the short-maturity asymptotics for European and VIX option prices in local-stochastic volatility models where the volatility follows a continuous-path Markov process. Both out-of-the-money (OTM) and at-the-money (ATM) asymptotics are considered. Using large deviations theory methods, the asymptotics for the OTM options are expressed as a two-dimensional variational problem, which is reduced to an extremal problem for a function of two real variables. This extremal problem is solved explicitly in an expansion in log-moneyness. We derive series expansions for the implied volatility for European and VIX options which should be useful for model calibration. We give explicit results for two classes of local-stochastic volatility models relevant in practice, with Heston-type and SABR-type stochastic volatility. The leading-order asymptotics for at-the-money options are computed in closed-form. The asymptotic results reproduce known results in the literature for the Heston and SABR models and for the uncorrelated local-stochastic volatility model. The asymptotic results are tested against numerical simulations for a local-stochastic volatility model with bounded local volatility.",
+      "tags": [
+        "q-fin.PR"
+      ],
+      "license": null,
+      "relevance_score": null
+    },
+    {
+      "id": "arxiv:2310.16703",
+      "title": "No-Arbitrage Deep Calibration for Volatility Smile and Skewness",
+      "url": "https://arxiv.org/abs/2310.16703",
+      "source": "arxiv",
+      "discovered_at": "2026-05-20T02:47:30.888374+00:00",
+      "authors": [
+        "Kentaro Hoshisashi",
+        "Carolyn E. Phelan",
+        "Paolo Barucca"
+      ],
+      "published": "2023-10-25T15:19:58Z",
+      "abstract": "Volatility smile and skewness are two key properties of option prices that are represented by the implied volatility (IV) surface. However, IV surface calibration through nonlinear interpolation is a complex problem due to several factors, including limited input data, low liquidity, and noise. Additionally, the calibrated surface must obey the fundamental financial principle of the absence of arbitrage, which can be modeled by various differential inequalities over the partial derivatives of the option price with respect to the expiration time and the strike price. To address these challenges, we have introduced a Derivative-Constrained Neural Network (DCNN), which is an enhancement of a multilayer perceptron (MLP) that incorporates derivatives in the objective function. DCNN allows us to generate a smooth surface and incorporate the no-arbitrage condition thanks to the derivative terms in the loss function. In numerical experiments, we train the model using prices generated with the SABR model to produce smile and skewness parameters. We carry out different settings to examine the stability of the calibrated model under different conditions. The results show that DCNNs improve the interpolation of the implied volatility surface with smile and skewness by integrating the computation of the derivatives, which are necessary and sufficient no-arbitrage conditions. The developed algorithm also offers practitioners an effective tool for understanding expected market dynamics and managing risk associated with volatility smile and skewness.",
+      "tags": [
+        "q-fin.CP"
+      ],
+      "license": null,
+      "relevance_score": null
+    },
+    {
+      "id": "arxiv:2008.09108",
+      "title": "Analytic Calibration in Andreasen-Huge SABR Model",
+      "url": "https://arxiv.org/abs/2008.09108",
+      "source": "arxiv",
+      "discovered_at": "2026-05-20T02:47:30.888441+00:00",
+      "authors": [
+        "K. E. Feldman"
+      ],
+      "published": "2020-08-20T17:51:47Z",
+      "abstract": "We derive analytic formulae which link $\u03b1$, $\u03bd$ and $\u03c1$ parameters in Andreasen-Huge style SABR model to the ATM price and option prices at four strikes close to ATM. Based on these formulae we give a characterisation for the SABR parameters in terms of derivatives of the swap rate forward probability density function. We test the analytic result in the application to the interest rate futures option market.",
+      "tags": [
+        "q-fin.CP",
+        "math.PR",
+        "q-fin.MF",
+        "q-fin.PR",
+        "q-fin.RM"
+      ],
+      "license": null,
+      "relevance_score": null
+    },
+    {
+      "id": "arxiv:2006.15823",
+      "title": "Robust Product Markovian Quantization",
+      "url": "https://arxiv.org/abs/2006.15823",
+      "source": "arxiv",
+      "discovered_at": "2026-05-20T02:47:30.888485+00:00",
+      "authors": [
+        "Ralph Rudd",
+        "Thomas A. McWalter",
+        "Joerg Kienitz",
+        "Eckhard Platen"
+      ],
+      "published": "2020-06-29T06:03:46Z",
+      "abstract": "Recursive marginal quantization (RMQ) allows the construction of optimal discrete grids for approximating solutions to stochastic differential equations in d-dimensions. Product Markovian quantization (PMQ) reduces this problem to d one-dimensional quantization problems by recursively constructing product quantizers, as opposed to a truly optimal quantizer. However, the standard Newton-Raphson method used in the PMQ algorithm suffers from numerical instabilities, inhibiting widespread adoption, especially for use in calibration. By directly specifying the random variable to be quantized at each time step, we show that PMQ, and RMQ in one dimension, can be expressed as standard vector quantization. This reformulation allows the application of the accelerated Lloyd's algorithm in an adaptive and robust procedure. Furthermore, in the case of stochastic volatility models, we extend the PMQ algorithm by using higher-order updates for the volatility or variance process. We illustrate the technique for European options, using the Heston model, and more exotic products, using the SABR model.",
+      "tags": [
+        "q-fin.CP"
+      ],
+      "license": null,
+      "relevance_score": null
+    },
+    {
+      "id": "arxiv:2005.02505",
+      "title": "A generative adversarial network approach to calibration of local stochastic volatility models",
+      "url": "https://arxiv.org/abs/2005.02505",
+      "source": "arxiv",
+      "discovered_at": "2026-05-20T02:47:30.888545+00:00",
+      "authors": [
+        "Christa Cuchiero",
+        "Wahid Khosrawi",
+        "Josef Teichmann"
+      ],
+      "published": "2020-05-05T21:26:20Z",
+      "abstract": "We propose a fully data-driven approach to calibrate local stochastic volatility (LSV) models, circumventing in particular the ad hoc interpolation of the volatility surface. To achieve this, we parametrize the leverage function by a family of feed-forward neural networks and learn their parameters directly from the available market option prices. This should be seen in the context of neural SDEs and (causal) generative adversarial networks: we generate volatility surfaces by specific neural SDEs, whose quality is assessed by quantifying, possibly in an adversarial manner, distances to market prices. The minimization of the calibration functional relies strongly on a variance reduction technique based on hedging and deep hedging, which is interesting in its own right: it allows the calculation of model prices and model implied volatilities in an accurate way using only small sets of sample paths. For numerical illustration we implement a SABR-type LSV model and conduct a thorough statistical performance analysis on many samples of implied volatility smiles, showing the accuracy and stability of the method.",
+      "tags": [
+        "q-fin.CP",
+        "math.OC",
+        "stat.ML"
+      ],
+      "license": null,
+      "relevance_score": null
+    },
+    {
+      "id": "arxiv:1912.01387",
+      "title": "Pricing FX Options under Intermediate Currency",
+      "url": "https://arxiv.org/abs/1912.01387",
+      "source": "arxiv",
+      "discovered_at": "2026-05-20T02:47:30.888606+00:00",
+      "authors": [
+        "S. Maurer",
+        "T. E. Sharp",
+        "M. V. Tretyakov"
+      ],
+      "published": "2019-12-03T14:20:02Z",
+      "abstract": "We suggest an intermediate currency approach that allows us to price options on all FX markets simultaneously under the same risk-neutral measure which ensures consistency of FX option prices across all markets. In particular, it is sufficient to calibrate a model to the volatility smile on the domestic market as, due to the consistency of pricing formulas, the model automatically reproduces the correct smile for the inverse pair (the foreign market). We first consider the case of two currencies and then the multi-currency setting. We illustrate the intermediate currency approach by applying it to the Heston and SABR stochastic volatility models, to the model in which exchange rates are described by an extended skewed normal distribution, and also to the model-free approach of option pricing",
+      "tags": [
+        "q-fin.MF",
+        "math.PR",
+        "q-fin.PR"
+      ],
+      "license": null,
+      "relevance_score": null
+    },
+    {
+      "id": "arxiv:1910.08344",
+      "title": "Pricing and Hedging Performance on Pegged FX Markets Based on a Regime Switching Model",
+      "url": "https://arxiv.org/abs/1910.08344",
+      "source": "arxiv",
+      "discovered_at": "2026-05-20T02:47:30.888678+00:00",
+      "authors": [
+        "Samuel Drapeau",
+        "Yunbo Zhang"
+      ],
+      "published": "2019-10-18T11:25:09Z",
+      "abstract": "This paper investigates the hedging performance of pegged foreign exchange market in a regime switching (RS) model introduced in a recent paper by Drapeau, Wang and Wang (2019). We compare two prices, an exact solution and first order approximation and provide the bounds for the error. We provide exact RS delta, approximated RS delta as well as mean variance hedging strategies for this specific model and compare their performance. To improve the efficiency of the pricing and calibration procedure, the Fourier approach of this regime-switching model is developed in our work. It turns out that: 1 -- the calibration of the volatility surface with this regime switching model outperforms on real data the classical SABR model; 2 -- the Fourier approach is significantly faster than the direct approach; 3 -- in terms of hedging, the approximated RS delta hedge is a viable alternative to the exact RS delta hedge while significantly faster.",
+      "tags": [
+        "q-fin.MF"
+      ],
+      "license": null,
+      "relevance_score": null
+    },
+    {
+      "id": "arxiv:1905.05310",
+      "title": "On the consistency of jump-diffusion dynamics for FX rates under inversion",
+      "url": "https://arxiv.org/abs/1905.05310",
+      "source": "arxiv",
+      "discovered_at": "2026-05-20T02:47:30.888833+00:00",
+      "authors": [
+        "Federico Graceffa",
+        "Damiano Brigo",
+        "Andrea Pallavicini"
+      ],
+      "published": "2019-05-13T22:49:32Z",
+      "abstract": "In this note we investigate the consistency under inversion of jump diffusion processes in the Foreign Exchange (FX) market. In other terms, if the EUR/USD FX rate follows a given type of dynamics, under which conditions will USD/EUR follow the same type of dynamics? In order to give a numerical description of this property, we first calibrate a Heston model and a SABR model to market data, plotting their smiles together with the smiles of the reciprocal processes. Secondly, we determine a suitable local volatility structure ensuring consistency. We subsequently introduce jumps and analyze both constant jump size (Poisson process) and random jump size (compound Poisson process). In the first scenario, we find that consistency is automatically satisfied, for the jump size of the inverted process is a constant as well. The second case is more delicate, since we need to make sure that the distribution of jumps in the domestic measure is the same as the distribution of jumps in the foreign measure. We determine a fairly general class of admissible densities for the jump size in the domestic measure satisfying the condition.",
+      "tags": [
+        "q-fin.MF"
+      ],
+      "license": null,
+      "relevance_score": null
+    },
+    {
+      "id": "arxiv:1805.07403",
+      "title": "Asset Price Bubbles: An Option-based Indicator",
+      "url": "https://arxiv.org/abs/1805.07403",
+      "source": "arxiv",
+      "discovered_at": "2026-05-20T02:47:30.889018+00:00",
+      "authors": [
+        "Petteri Piiroinen",
+        "Lassi Roininen",
+        "Tobias Schoden",
+        "Martin Simon"
+      ],
+      "published": "2018-05-18T19:10:21Z",
+      "abstract": "We construct a statistical indicator for the detection of short-term asset price bubbles based on the information content of bid and ask market quotes for plain vanilla put and call options. Our construction makes use of the martingale theory of asset price bubbles and the fact that such scenarios where the price for an asset exceeds its fundamental value can in principle be detected by analysis of the asymptotic behavior of the implied volatility surface. For extrapolating this implied volatility, we choose the SABR model, mainly because of its decent fit to real option market quotes for a broad range of maturities and its ease of calibration. As main theoretical result, we show that under lognormal SABR dynamics, we can compute a simple yet powerful closed-form martingale defect indicator by solving an ill-posed inverse calibration problem. In order to cope with the ill-posedness and to quantify the uncertainty which is inherent to such an indicator, we adopt a Bayesian statistical parameter estimation perspective. We probe the resulting posterior densities with a combination of optimization and adaptive Markov chain Monte Carlo methods, thus providing a full-blown uncertainty estimation of all the underlying parameters and the martingale defect indicator. Finally, we provide real-market tests of the proposed option-based indicator with focus on tech stocks due to increasing concerns about a tech bubble 2.0.",
+      "tags": [
+        "q-fin.PR",
+        "math.PR"
+      ],
+      "license": null,
+      "relevance_score": null
+    },
+    {
+      "id": "arxiv:1301.3118",
+      "title": "A parallel implementation of a derivative pricing model incorporating SABR calibration and probability lookup tables",
+      "url": "https://arxiv.org/abs/1301.3118",
+      "source": "arxiv",
+      "discovered_at": "2026-05-20T02:47:30.889207+00:00",
+      "authors": [
+        "Qasim Nasar-Ullah"
+      ],
+      "published": "2013-01-14T20:33:00Z",
+      "abstract": "We describe a high performance parallel implementation of a derivative pricing model, within which we introduce a new parallel method for the calibration of the industry standard SABR (stochastic-\u03b1\u03b2\u03c1) stochastic volatility model using three strike inputs. SABR calibration involves a non-linear three dimensional minimisation and parallelisation is achieved by incorporating several assumptions unique to the SABR class of models. Our calibration method is based on principles of surface intersection, guarantees convergence to a unique solution and operates by iteratively refining a two dimensional grid with local mesh refinement. As part of our pricing model we additionally present a fast parallel iterative algorithm for the creation of dynamically sized cumulative probability lookup tables that are able to cap maximum estimated linear interpolation error. We optimise performance for probability distributions that exhibit clustering of linear interpolation error. We also make an empirical assessment of error propagation through our pricing model as a result of changes in accuracy parameters within the pricing model's multiple algorithmic steps. Algorithms are implemented on a GPU (graphics processing unit) using Nvidia's Fermi architecture. The pricing model targets the evaluation of spread options using copula methods, however the presented algorithms can be applied to a wider class of financial instruments.",
+      "tags": [
+        "cs.DC",
+        "cs.CE",
+        "q-fin.CP"
+      ],
+      "license": null,
+      "relevance_score": null
+    },
+    {
+      "id": "arxiv:1103.2567",
+      "title": "Interest Rates After The Credit Crunch: Multiple-Curve Vanilla Derivatives and SABR",
+      "url": "https://arxiv.org/abs/1103.2567",
+      "source": "arxiv",
+      "discovered_at": "2026-05-20T02:47:30.889403+00:00",
+      "authors": [
+        "Marco Bianchetti",
+        "Mattia Carlicchi"
+      ],
+      "published": "2011-03-13T23:51:37Z",
+      "abstract": "We present a quantitative study of the markets and models evolution across the credit crunch crisis. In particular, we focus on the fixed income market and we analyze the most relevant empirical evidences regarding the divergences between Libor and OIS rates, the explosion of Basis Swaps spreads, and the diffusion of collateral agreements and CSA-discounting, in terms of credit and liquidity effects. We also review the new modern pricing approach prevailing among practitioners, based on multiple yield curves reflecting the different credit and liquidity risk of Libor rates with different tenors and the overnight discounting of cash flows originated by derivative transactions under collateral with daily margination. We report the classical and modern no-arbitrage pricing formulas for plain vanilla interest rate derivatives, and the multiple-curve generalization of the market standard SABR model with stochastic volatility. We then report the results of an empirical analysis on recent market data comparing pre- and post-credit crunch pricing methodologies and showing the transition of the market practice from the classical to the modern framework. In particular, we prove that the market of Interest Rate Swaps has abandoned since March 2010 the classical Single-Curve pricing approach, typical of the pre-credit crunch interest rate world, and has adopted the modern Multiple-Curve CSA approach, thus incorporating credit and liquidity effects into market prices. The same analysis is applied to European Caps/Floors, finding that the full transition to the modern Multiple-Curve CSA approach has retarded up to August 2010. Finally, we show the robustness of the SABR model to calibrate the market volatility smile coherently with the new market evidences.",
+      "tags": [
+        "q-fin.PR"
+      ],
+      "license": null,
+      "relevance_score": null
+    },
+    {
+      "id": "arxiv:0602102v1",
+      "title": "Unifying the BGM and SABR Models: A short Ride in Hyperbolic Geometry",
+      "url": "https://arxiv.org/abs/0602102v1",
+      "source": "arxiv",
+      "discovered_at": "2026-05-20T02:47:30.889626+00:00",
+      "authors": [
+        "Pierre Henry-Labordere"
+      ],
+      "published": "2006-02-15T08:27:31Z",
+      "abstract": "In this short note, using our geometric method introduced in a previous paper \\cite{phl} and initiated by \\cite{ave}, we derive an asymptotic swaption implied volatility at the first-order for a general stochastic volatility Libor Market Model. This formula is useful to quickly calibrate a model to a full swaption matrix. We apply this formula to a specific model where the forward rates are assumed to follow a multi-dimensional CEV process correlated to a SABR process. For a caplet, this model degenerates to the classical SABR model and our asymptotic swaption implied volatility reduces naturally to the Hagan-al formula \\cite{sab}. The geometry underlying this model is the hyperbolic manifold $\\HH^{n+1}$ with $n$ the number of Libor forward rates.",
+      "tags": [
+        "physics.soc-ph",
+        "cond-mat.other",
+        "q-fin.CP"
+      ],
+      "license": null,
+      "relevance_score": null
+    },
+    {
+      "id": "arxiv:2505.22957",
+      "title": "Fast Derivative Valuation from Volatility Surfaces using Machine Learning",
+      "url": "https://arxiv.org/abs/2505.22957",
+      "source": "arxiv",
+      "discovered_at": "2026-05-20T02:47:36.364966+00:00",
+      "authors": [
+        "Lijie Ding",
+        "Egang Lu",
+        "Kin Cheung"
+      ],
+      "published": "2025-05-29T00:42:56Z",
+      "abstract": "We introduce a fast and flexible Machine Learning (ML) framework for pricing derivative products whose valuation depends on volatility surfaces. By parameterizing volatility surfaces with the 5-parameter stochastic volatility inspired (SVI) model augmented by a one-factor term structure adjustment, we first generate numerous volatility surfaces over realistic ranges for these parameters. From these synthetic market scenarios, we then compute high-accuracy valuations using conventional methodologies for two representative products: the fair strike of a variance swap and the price and Greeks of an American put. We then train the Gaussian Process Regressor (GPR) to learn the nonlinear mapping from the input risk factors, which are the volatility surface parameters, strike and interest rate, to the valuation outputs. Once trained, We use the GPR to perform out-of-sample valuations and compare the results against valuations using conventional methodologies. Our ML model achieves very accurate results of $0.5\\%$ relative error for the fair strike of variance swap and $1.7\\% \\sim 3.5\\%$ relative error for American put prices and first-order Greeks. More importantly, after training, the model computes valuations almost instantly, yielding a three to four orders of magnitude speedup over Crank-Nicolson finite-difference method for American puts, enabling real-time risk analytics, dynamic hedging and large-scale scenario analysis. Our approach is general and can be extended to other path-dependent derivative products with early-exercise features, paving the way for hybrid quantitative engines for modern financial systems.",
+      "tags": [
+        "q-fin.PR"
+      ],
+      "license": null,
+      "relevance_score": null
+    },
+    {
+      "id": "arxiv:2411.04041",
+      "title": "Volatility Parametrizations with Random Coefficients: Analytic Flexibility for Implied Volatility Surfaces",
+      "url": "https://arxiv.org/abs/2411.04041",
+      "source": "arxiv",
+      "discovered_at": "2026-05-20T02:47:36.365222+00:00",
+      "authors": [
+        "Nicola F. Zaugg",
+        "Leonardo Perotti",
+        "Lech A. Grzelak"
+      ],
+      "published": "2024-11-06T16:40:55Z",
+      "abstract": "It is a market practice to express market-implied volatilities in some parametric form. The most popular parametrizations are based on or inspired by an underlying stochastic model, like the Heston model (SVI method) or the SABR model (SABR parametrization). Their popularity is often driven by a closed-form representation enabling efficient calibration. However, these representations indirectly impose a model-specific volatility structure on observable market quotes. When the market's volatility does not follow the parametric model regime, the calibration procedure will fail or lead to extreme parameters, indicating inconsistency. This article addresses this critical limitation - we propose an arbitrage-free framework for letting the parameters from the parametric implied volatility formula be random. The method enhances the existing parametrizations and enables a significant widening of the spectrum of permissible shapes of implied volatilities while preserving analyticity and, therefore, computation efficiency. We demonstrate the effectiveness of the novel method on real data from short-term index and equity options, where the standard parametrizations fail to capture market dynamics. Our results show that the proposed method is particularly powerful in modeling the implied volatility curves of short expiry options preceding an earnings announcement, when the risk-neutral probability density function exhibits a bimodal form.",
+      "tags": [
+        "q-fin.MF"
+      ],
+      "license": null,
+      "relevance_score": null
+    },
+    {
+      "id": "arxiv:2406.11520",
+      "title": "Operator Deep Smoothing for Implied Volatility",
+      "url": "https://arxiv.org/abs/2406.11520",
+      "source": "arxiv",
+      "discovered_at": "2026-05-20T02:47:36.365415+00:00",
+      "authors": [
+        "Ruben Wiedemann",
+        "Antoine Jacquier",
+        "Lukas Gonon"
+      ],
+      "published": "2024-06-17T13:23:33Z",
+      "abstract": "We devise a novel method for nowcasting implied volatility based on neural operators. Better known as implied volatility smoothing in the financial industry, nowcasting of implied volatility means constructing a smooth surface that is consistent with the prices presently observed on a given option market. Option price data arises highly dynamically in ever-changing spatial configurations, which poses a major limitation to foundational machine learning approaches using classical neural networks. While large models in language and image processing deliver breakthrough results on vast corpora of raw data, in financial engineering the generalization from big historical datasets has been hindered by the need for considerable data pre-processing. In particular, implied volatility smoothing has remained an instance-by-instance, hands-on process both for neural network-based and traditional parametric strategies. Our general operator deep smoothing approach, instead, directly maps observed data to smoothed surfaces. We adapt the graph neural operator architecture to do so with high accuracy on ten years of raw intraday S&P 500 options data, using a single model instance. The trained operator adheres to critical no-arbitrage constraints and is robust with respect to subsampling of inputs (occurring in practice in the context of outlier removal). We provide extensive historical benchmarks and showcase the generalization capability of our approach in a comparison with classical neural networks and SVI, an industry standard parametrization for implied volatility. The operator deep smoothing approach thus opens up the use of neural networks on large historical datasets in financial engineering.",
+      "tags": [
+        "q-fin.CP"
+      ],
+      "license": null,
+      "relevance_score": null
+    },
+    {
+      "id": "arxiv:2112.06807",
+      "title": "Hedging Cryptocurrency Options",
+      "url": "https://arxiv.org/abs/2112.06807",
+      "source": "arxiv",
+      "discovered_at": "2026-05-20T02:47:36.365638+00:00",
+      "authors": [
+        "Jovanka Lili Matic",
+        "Natalie Packham",
+        "Wolfgang Karl H\u00e4rdle"
+      ],
+      "published": "2021-11-23T22:46:45Z",
+      "abstract": "The cryptocurrency market is volatile, non-stationary and non-continuous. Together with liquid derivatives markets, this poses a unique opportunity to study risk management, especially the hedging of options, in a turbulent market. We study the hedge behaviour and effectiveness for the class of affine jump diffusion models and infinite activity Levy processes. First, market data is calibrated to stochastic volatility inspired (SVI)-implied volatility surfaces to price options. To cover a wide range of market dynamics, we generate Monte Carlo price paths using an SVCJ model (stochastic volatility with correlated jumps), a close-to-actual-market GARCH-filtered kernel density estimation as well as a historical backtest. In all three settings, options are dynamically hedged with Delta, Delta-Gamma, Delta-Vega and Minimum Variance strategies. Including a wide range of market models allows to understand the trade-off in the hedge performance between complete, but overly parsimonious models, and more complex, but incomplete models. The calibration results reveal a strong indication for stochastic volatility, low jump frequency and evidence of infinite activity. Short-dated options are less sensitive to volatility or Gamma hedges. For longer-dated options, tail risk is consistently reduced by multiple-instrument hedges, in particular by employing complete market models with stochastic volatility.",
+      "tags": [
+        "q-fin.PR",
+        "stat.ME"
+      ],
+      "license": null,
+      "relevance_score": null
+    },
+    {
+      "id": "arxiv:1701.03897",
+      "title": "A Black--Scholes inequality: applications and generalisation",
+      "url": "https://arxiv.org/abs/1701.03897",
+      "source": "arxiv",
+      "discovered_at": "2026-05-20T02:47:36.365802+00:00",
+      "authors": [
+        "Michael R. Tehranchi"
+      ],
+      "published": "2017-01-14T10:16:22Z",
+      "abstract": "The space of call price functions has a natural noncommutative semigroup structure with an involution. A basic example is the Black--Scholes call price surface, from which an interesting inequality for Black--Scholes implied volatility is derived. The binary operation is compatible with the convex order, and therefore a one-parameter sub-semigroup gives rise to an arbitrage-free market model. It is shown that each such one-parameter semigroup corresponds to a unique log-concave probability density, providing a family of tractable call price surface parametrisations in the spirit of the Gatheral--Jacquier SVI surface. An explicit example is given to illustrate the idea. The key observation is an isomorphism linking an initial call price curve to the lift zonoid of the terminal price of the underlying asset.",
+      "tags": [
+        "q-fin.PR",
+        "math.PR"
+      ],
+      "license": null,
+      "relevance_score": null
+    },
+    {
+      "id": "arxiv:1210.7111",
+      "title": "Generalised arbitrage-free SVI volatility surfaces",
+      "url": "https://arxiv.org/abs/1210.7111",
+      "source": "arxiv",
+      "discovered_at": "2026-05-20T02:47:36.365939+00:00",
+      "authors": [
+        "Gaoyue Guo",
+        "Antoine Jacquier",
+        "Claude Martini",
+        "Leo Neufcourt"
+      ],
+      "published": "2012-10-26T12:17:52Z",
+      "abstract": "In this article we propose a generalisation of the recent work of Gatheral and Jacquier on explicit arbitrage-free parameterisations of implied volatility surfaces. We also discuss extensively the notion of arbitrage freeness and Roger Lee's moment formula using the recent analysis by Roper. We further exhibit an arbitrage-free volatility surface different from Gatheral's SVI parameterisation.",
+      "tags": [
+        "q-fin.PR",
+        "q-fin.CP"
+      ],
+      "license": null,
+      "relevance_score": null
+    },
+    {
+      "id": "arxiv:1204.0646",
+      "title": "Arbitrage-free SVI volatility surfaces",
+      "url": "https://arxiv.org/abs/1204.0646",
+      "source": "arxiv",
+      "discovered_at": "2026-05-20T02:47:36.366031+00:00",
+      "authors": [
+        "Jim Gatheral",
+        "Antoine Jacquier"
+      ],
+      "published": "2012-04-03T10:23:12Z",
+      "abstract": "In this article, we show how to calibrate the widely-used SVI parameterization of the implied volatility surface in such a way as to guarantee the absence of static arbitrage. In particular, we exhibit a large class of arbitrage-free SVI volatility surfaces with a simple closed-form representation. We demonstrate the high quality of typical SVI fits with a numerical example using recent SPX options data.",
+      "tags": [
+        "q-fin.PR"
+      ],
+      "license": null,
+      "relevance_score": null
+    },
+    {
+      "id": "arxiv:2604.27700",
+      "title": "Data-Driven Stochastic Optimal Control for Intraday Electricity Trading by Renewable Producers",
+      "url": "https://arxiv.org/abs/2604.27700",
+      "source": "arxiv",
+      "discovered_at": "2026-05-20T02:47:42.056235+00:00",
+      "authors": [
+        "Chiheb Ben Hammouda",
+        "Michael Samet",
+        "Ra\u00fal Tempone"
+      ],
+      "published": "2026-04-30T10:45:32Z",
+      "abstract": "The rapid growth of weather-dependent renewable generation increases price volatility and imbalance penalty risk in power markets, creating the need for advanced quantitative trading strategies. We develop a data-driven continuous-time stochastic optimal control framework for intraday electricity trading using stochastic differential equations with drift terms ensuring mean reversion to deterministic forecast trajectories. Production follows a Jacobi diffusion, while prices follow an asymmetric jump-diffusion to reflect the heavy-tailed behavior observed in intraday markets. The framework accounts for realistic market features by incorporating gate closure and energy-based imbalance settlement over the delivery window, where the path-dependent imbalance cost is handled by state augmentation to preserve the Markovian structure. The value function is characterized via the dynamic programming principle by a three-stage sequence of two linear Kolmogorov backward equations and a nonlinear Hamilton-Jacobi-Bellman partial integro-differential equation. To solve this problem efficiently, we propose a monotone IMEX finite-difference scheme with operator splitting, semi-implicit linearization, and a differential formulation for the jump operator. Numerical experiments based on German market data indicate that, under the provided forecasts, the computed strategy outperforms the TWAP benchmark and approaches the perfect-foresight benchmark. Sensitivity experiments further show how jump intensity, delivery-window length, and trading horizon affect the trading policy and the resulting profit-and-loss distribution.",
+      "tags": [
+        "q-fin.MF"
+      ],
+      "license": null,
+      "relevance_score": null
+    },
+    {
+      "id": "arxiv:2604.06068",
+      "title": "Beyond Black-Scholes: A Computational Framework for Option Pricing Using Heston, GARCH, and Jump Diffusion Models",
+      "url": "https://arxiv.org/abs/2604.06068",
+      "source": "arxiv",
+      "discovered_at": "2026-05-20T02:47:42.056327+00:00",
+      "authors": [
+        "Karmanpartap Singh Sidhu",
+        "Pranshi Saxena"
+      ],
+      "published": "2026-04-07T16:48:26Z",
+      "abstract": "This research addresses accurate option pricing by employing models beyond the traditional Black-Scholes framework. While Black-Scholes provides a closed-form solution, it is limited by assumptions of constant volatility, no dividends, and continuous price movements. To overcome these limitations, we use Monte Carlo simulation alongside the GARCH model, Heston stochastic volatility model, and Merton jump-diffusion model. The Black-Scholes-Monte Carlo method simulates diverse stock price paths using geometric Brownian motion. The GARCH model forecasts time-varying volatility from historical data. The Heston model incorporates stochastic volatility to capture volatility clustering and skew. The Merton jump-diffusion model adds sudden price jumps via a Poisson process. Results show the Heston model consistently produces estimates closer to market prices, while the Merton model performs well for volatile assets with sudden price movements. The GARCH model provides improved volatility forecasts for future option price prediction. All experiments used live market data from November 2024.",
+      "tags": [
+        "q-fin.CP"
+      ],
+      "license": null,
+      "relevance_score": null
+    },
+    {
+      "id": "arxiv:2604.05008",
+      "title": "Generative Path-Law Jump-Diffusion: Sequential MMD-Gradient Flows and Generalisation Bounds in Marcus-Signature RKHS",
+      "url": "https://arxiv.org/abs/2604.05008",
+      "source": "arxiv",
+      "discovered_at": "2026-05-20T02:47:42.056383+00:00",
+      "authors": [
+        "Daniel Bloch"
+      ],
+      "published": "2026-04-06T13:23:59Z",
+      "abstract": "This paper introduces a novel generative framework for synthesising forward-looking, c\u00e0dl\u00e0g stochastic trajectories that are sequentially consistent with time-evolving path-law proxies, thereby incorporating anticipated structural breaks, regime shifts, and non-autonomous dynamics. By framing path synthesis as a sequential matching problem on restricted Skorokhod manifolds, we develop the \\textit{Anticipatory Neural Jump-Diffusion} (ANJD) flow, a generative mechanism that effectively inverts the time-extended Marcus-sense signature. Central to this approach is the Anticipatory Variance-Normalised Signature Geometry (AVNSG), a time-evolving precision operator that performs dynamic spectral whitening on the signature manifold to ensure contractivity during volatile regime shifts and discrete aleatoric shocks. We provide a rigorous theoretical analysis demonstrating that the joint generative flow constitutes an infinitesimal steepest descent direction for the Maximum Mean Discrepancy functional relative to a moving target proxy. Furthermore, we establish statistical generalisation bounds within the restricted path-space and analyse the Rademacher complexity of the whitened signature functionals to characterise the expressive power of the model under heavy-tailed innovations. The framework is implemented via a scalable numerical scheme involving Nystr\u00f6m-compressed score-matching and an anticipatory hybrid Euler-Maruyama-Marcus integration scheme. Our results demonstrate that the proposed method captures the non-commutative moments and high-order stochastic texture of complex, discontinuous path-laws with high computational efficiency.",
+      "tags": [
+        "stat.ML",
+        "cs.LG",
+        "q-fin.MF",
+        "q-fin.ST"
+      ],
+      "license": null,
+      "relevance_score": null
+    },
+    {
+      "id": "arxiv:2604.04662",
+      "title": "Anticipatory Reinforcement Learning: From Generative Path-Laws to Distributional Value Functions",
+      "url": "https://arxiv.org/abs/2604.04662",
+      "source": "arxiv",
+      "discovered_at": "2026-05-20T02:47:42.056454+00:00",
+      "authors": [
+        "Daniel Bloch"
+      ],
+      "published": "2026-04-06T13:15:44Z",
+      "abstract": "This paper introduces Anticipatory Reinforcement Learning (ARL), a novel framework designed to bridge the gap between non-Markovian decision processes and classical reinforcement learning architectures, specifically under the constraint of a single observed trajectory. In environments characterised by jump-diffusions and structural breaks, traditional state-based methods often fail to capture the essential path-dependent geometry required for accurate foresight. We resolve this by lifting the state space into a signature-augmented manifold, where the history of the process is embedded as a dynamical coordinate. By utilising a self-consistent field approach, the agent maintains an anticipated proxy of the future path-law, allowing for a deterministic evaluation of expected returns. This transition from stochastic branching to a single-pass linear evaluation significantly reduces computational complexity and variance. We prove that this framework preserves fundamental contraction properties and ensures stable generalisation even in the presence of heavy-tailed noise. Our results demonstrate that by grounding reinforcement learning in the topological features of path-space, agents can achieve proactive risk management and superior policy stability in highly volatile, continuous-time environments.",
+      "tags": [
+        "cs.LG",
+        "q-fin.MF",
+        "q-fin.PR",
+        "q-fin.ST"
+      ],
+      "license": null,
+      "relevance_score": null
+    },
+    {
+      "id": "arxiv:2603.29430",
+      "title": "Ultra-short-term volatility surfaces",
+      "url": "https://arxiv.org/abs/2603.29430",
+      "source": "arxiv",
+      "discovered_at": "2026-05-20T02:47:42.056518+00:00",
+      "authors": [
+        "Federico M. Bandi",
+        "Nicola Fusari",
+        "Guido Gazzani",
+        "Roberto Ren\u00f2"
+      ],
+      "published": "2026-03-31T08:36:43Z",
+      "abstract": "Options with maturities below one week, hereafter \"ultra-short-term\" options, have seen a sharp increase in trading activity in recent years. Yet, these instruments are difficult to price jointly using classical pricing models due to the pronounced oscillations observed in the at-the-money implied-volatility term structure across ultra-short-term tenors. We propose Edgeworth++, a parsimonious jump-diffusion model featuring a nonparametric stochastic volatility component, which provides flexibility in capturing implied-volatility smiles for each tenor, combined with a deterministic shift extension, which allows the model to fit rich at-the-money implied-volatility shapes across tenors. We derive a local (in tenor) expansion of the process characteristic function suited to value ultra-short-term options. The expansion leads to fast and accurate option pricing in closed form via standard Fourier inversion. We discuss the benefits of the proposed approach relative to benchmarks.",
+      "tags": [
+        "q-fin.MF",
+        "q-fin.CP"
+      ],
+      "license": null,
+      "relevance_score": null
+    },
+    {
+      "id": "arxiv:2603.07600",
+      "title": "Differential Machine Learning for 0DTE Options with Stochastic Volatility and Jumps",
+      "url": "https://arxiv.org/abs/2603.07600",
+      "source": "arxiv",
+      "discovered_at": "2026-05-20T02:47:42.056567+00:00",
+      "authors": [
+        "Takayuki Sakuma"
+      ],
+      "published": "2026-03-08T12:10:24Z",
+      "abstract": "We present a differential machine learning method for zero-days-to-expiry (0DTE) options under a stochastic-volatility jump-diffusion model. To handle the ultra-short-maturity regime, we express the option price in Black-Scholes form with a maturity-gated variance correction, combining supervision on prices and Greeks with a PIDE-residual penalty. Prices and Greeks are derived from a single trained pricing network, while jump-term identifiability is ensured by a jump-operator network fitted jointly in a three-stage procedure. The method improves jump-term approximation relative to one-stage baselines while maintaining comparable pricing errors. Furthermore, it reduces errors in Greeks, produces stable one-day delta hedges, and offers significant speedups over Fourier-based benchmarks. Calibration experiments demonstrate the network's efficiency as a pricer; notably, incorporating jump-intensity price sensitivity into the learning process further improves the overall model fit.",
+      "tags": [
+        "q-fin.CP"
+      ],
+      "license": null,
+      "relevance_score": null
+    },
+    {
+      "id": "arxiv:2602.19092",
+      "title": "Finite Element Solution of the Two-Dimensional Bates Model for Option Pricing Under Stochastic Volatility and Jumps",
+      "url": "https://arxiv.org/abs/2602.19092",
+      "source": "arxiv",
+      "discovered_at": "2026-05-20T02:47:42.056617+00:00",
+      "authors": [
+        "Neda Bagheri Renani",
+        "Daniel Sevcovic"
+      ],
+      "published": "2026-02-22T08:26:58Z",
+      "abstract": "We propose a fourth--order compact finite--difference (HOC--FD) scheme for the transformed Bates partial integro--differential equation (PIDE). The method employs an implicit--explicit (IMEX) Crank--Nicolson framework for local terms and Simpson quadrature for the jump integral. Benchmarks against second--order finite differences (FD) and quadratic finite elements (FEM, p=2) confirm near--fourth--order spatial accuracy for HOC--FD, near--second--order for FEM, and second--order temporal convergence for all time integrators. Efficiency tests show that HOC--FD achieves similar accuracy at up to two orders of magnitude lower runtime than FEM, establishing it as a practical baseline for option pricing under stochastic volatility jump--diffusion models.",
+      "tags": [
+        "q-fin.PR"
+      ],
+      "license": null,
+      "relevance_score": null
+    },
+    {
+      "id": "arxiv:2510.15205",
+      "title": "Toward Black Scholes for Prediction Markets: A Unified Kernel and Market Maker's Handbook",
+      "url": "https://arxiv.org/abs/2510.15205",
+      "source": "arxiv",
+      "discovered_at": "2026-05-20T02:47:42.056662+00:00",
+      "authors": [
+        "Shaw Dalen"
+      ],
+      "published": "2025-10-17T00:18:29Z",
+      "abstract": "Prediction markets, such as Polymarket, aggregate dispersed information into tradable probabilities, but they still lack a unifying stochastic kernel comparable to the one options gained from Black-Scholes. As these markets scale with institutional participation, exchange integrations, and higher volumes around elections and macro prints, market makers face belief volatility, jump, and cross-event risks without standardized tools for quoting or hedging. We propose such a foundation: a logit jump-diffusion with risk-neutral drift that treats the traded probability p_t as a Q-martingale and exposes belief volatility, jump intensity, and dependence as quotable risk factors. On top, we build a calibration pipeline that filters microstructure noise, separates diffusion from jumps using expectation-maximization, enforces the risk-neutral drift, and yields a stable belief-volatility surface. We then define a coherent derivative layer (variance, correlation, corridor, and first-passage instruments) analogous to volatility and correlation products in option markets. In controlled experiments on synthetic risk-neutral paths and real event data, the model reduces short-horizon belief-variance forecast error relative to diffusion-only and probability-space baselines, supporting both causal calibration and economic interpretability. Conceptually, the logit jump-diffusion kernel supplies an implied-volatility analogue for prediction markets: a tractable, tradable language for quoting, hedging, and transferring belief risk across venues such as Polymarket.",
+      "tags": [
+        "cs.CE",
+        "q-fin.CP"
+      ],
+      "license": null,
+      "relevance_score": null
+    },
+    {
+      "id": "arxiv:2509.08096",
+      "title": "Joint calibration of the volatility surface and variance term structure",
+      "url": "https://arxiv.org/abs/2509.08096",
+      "source": "arxiv",
+      "discovered_at": "2026-05-20T02:47:42.056731+00:00",
+      "authors": [
+        "Jiwook Yoo"
+      ],
+      "published": "2025-09-09T19:09:12Z",
+      "abstract": "This article proposes a calibration framework for complex option pricing models that jointly fits market option prices and the term structure of variance. Calibrated models under the conventional objective function, the sum of squared errors in Black-Scholes implied volatilities, can produce model-implied variance term structures with large errors relative to those observed in the market and implied by option prices. I show that this can occur even when the model-implied volatility surface closely matches the volatility surface observed in the market. The proposed joint calibration addresses this issue by augmenting the conventional objective function with a penalty term for large deviations from the observed variance term structure. This augmented objective function features a hyperparameter that governs the relative weight placed on the volatility surface and the variance term structure. I test this framework on a jump-diffusion model with stochastic volatility in two calibration exercises: the first using volatility surfaces generated under a Bates model, and the second using a panel of S&P 500 equity index options covering the 1996-2023 period. I demonstrate that the proposed method is able to fit observed option prices well while delivering realistic term structures of variance. Finally, I provide guidance on the choice of hyperparameters based on the results of these numerical exercises.",
+      "tags": [
+        "q-fin.GN"
+      ],
+      "license": null,
+      "relevance_score": null
+    },
+    {
+      "id": "arxiv:2506.14614",
+      "title": "Pricing options on the cryptocurrency futures contracts",
+      "url": "https://arxiv.org/abs/2506.14614",
+      "source": "arxiv",
+      "discovered_at": "2026-05-20T02:47:42.056796+00:00",
+      "authors": [
+        "Julia Ko\u0144czal"
+      ],
+      "published": "2025-06-17T15:13:39Z",
+      "abstract": "The cryptocurrency options market is notable for its high volatility and lower liquidity compared to traditional markets. These characteristics introduce significant challenges to traditional option pricing methodologies. Addressing these complexities requires advanced models that can effectively capture the dynamics of the market. We explore which option pricing models are most effective in valuing cryptocurrency options. Specifically, we calibrate and evaluate the performance of the Black-Scholes, Merton Jump Diffusion, Variance Gamma, Kou, Heston, and Bates models. Our analysis focuses on pricing vanilla options on futures contracts for Bitcoin (BTC) and Ether (ETH). We find that the Black-Scholes model exhibits the highest pricing errors. In contrast, the Kou and Bates models achieve the lowest errors, with the Kou model performing the best for the BTC options and the Bates model for ETH options. The results highlight the importance of incorporating jumps and stochastic volatility into pricing models to better reflect the behavior of these assets.",
+      "tags": [
+        "q-fin.MF"
+      ],
+      "license": null,
+      "relevance_score": null
+    },
+    {
+      "id": "arxiv:2503.22282",
+      "title": "Short-time behavior of the At-The-Money implied volatility for the jump-diffusion stochastic volatility Bachelier model",
+      "url": "https://arxiv.org/abs/2503.22282",
+      "source": "arxiv",
+      "discovered_at": "2026-05-20T02:47:42.056858+00:00",
+      "authors": [
+        "Elisa Al\u00f2s",
+        "\u00d2scar Bur\u00e9s",
+        "Josep Vives"
+      ],
+      "published": "2025-03-28T09:55:54Z",
+      "abstract": "In this paper we use Malliavin Calculus techniques in order to obtain expressions for the short-time behavior of the at-the-money implied volatility (ATM-IV) level and skew for a jump-diffusion stock price. The diffusion part is assumed to be the stochastic volatility Bachelier model and the jumps are modeled by a pure-jump L\u00e9vy process with drift so that the stock price is a martingale. Regarding the level, we show that the short-time behavior of the ATM-IV level is the same for all pure-jump L\u00e9vy processes and, regarding the skew, we give conditions on the law of the jumps for the skew to exist. We also give several numerical examples of stochastic volatilities and L\u00e9vy processes that confirm the theoretical results found in the paper.",
+      "tags": [
+        "q-fin.MF",
+        "math.PR"
+      ],
+      "license": null,
+      "relevance_score": null
+    },
+    {
+      "id": "arxiv:2412.15172",
+      "title": "Option Pricing with a Compound CARMA(p,q)-Hawkes",
+      "url": "https://arxiv.org/abs/2412.15172",
+      "source": "arxiv",
+      "discovered_at": "2026-05-20T02:47:42.056908+00:00",
+      "authors": [
+        "Lorenzo Mercuri",
+        "Andrea Perchiazzo",
+        "Edit Rroji"
+      ],
+      "published": "2024-12-19T18:47:52Z",
+      "abstract": "A self-exciting point process with a continuous-time autoregressive moving average intensity process, named CARMA(p,q)-Hawkes model, has recently been introduced. The model generalizes the Hawkes process by substituting the Ornstein-Uhlenbeck intensity with a CARMA(p,q) model where the associated state process is driven by the counting process itself. The proposed model preserves the same degree of tractability as the Hawkes process, but it can reproduce more complex time-dependent structures observed in several market data. The paper presents a new model of asset price dynamics based on the CARMA(p,q) Hawkes model. It is constructed using a compound version of it with a random jump size that is independent of both the counting and the intensity processes and can be employed as the main block for pure jump and (stochastic volatility) jump-diffusion processes. The numerical results for pricing European options illustrate that the new model can replicate the volatility smile observed in financial markets. Through an empirical analysis, which is presented as a calibration exercise, we highlight the role of higher order autoregressive and moving average parameters in pricing options.",
+      "tags": [
+        "q-fin.MF"
+      ],
+      "license": null,
+      "relevance_score": null
+    },
+    {
+      "id": "arxiv:2412.04589",
+      "title": "Inverting the Markovian projection for pure jump processes",
+      "url": "https://arxiv.org/abs/2412.04589",
+      "source": "arxiv",
+      "discovered_at": "2026-05-20T02:47:42.056965+00:00",
+      "authors": [
+        "Martin Larsson",
+        "Shukun Long"
+      ],
+      "published": "2024-12-05T20:10:17Z",
+      "abstract": "Markovian projections arise in problems where we aim to mimic the one-dimensional marginal laws of an It\u00f4 semimartingale by using another It\u00f4 process with Markovian dynamics. In applications, Markovian projections are useful in calibrating jump-diffusion models with both local and stochastic features, leading to the study of the inversion problems. In this paper, we invert the Markovian projections for pure jump processes, which can be used to construct calibrated local stochastic intensity (LSI) models for credit risk applications. Such models are jump process analogues of the notoriously hard to construct local stochastic volatility (LSV) models used in equity modeling.",
+      "tags": [
+        "math.PR",
+        "q-fin.MF"
+      ],
+      "license": null,
+      "relevance_score": null
+    },
+    {
+      "id": "arxiv:2409.07477",
+      "title": "American option pricing using generalised stochastic hybrid systems",
+      "url": "https://arxiv.org/abs/2409.07477",
+      "source": "arxiv",
+      "discovered_at": "2026-05-20T02:47:42.057019+00:00",
+      "authors": [
+        "Evelyn Buckwar",
+        "Sascha Desmettre",
+        "Agnes Mallinger",
+        "Amira Meddah"
+      ],
+      "published": "2024-08-29T14:18:46Z",
+      "abstract": "This paper presents a novel approach to pricing American options using piecewise diffusion Markov processes (PDifMPs), a type of generalised stochastic hybrid system that integrates continuous dynamics with discrete jump processes. Standard models often rely on constant drift and volatility assumptions, which limits their ability to accurately capture the complex and erratic nature of financial markets. By incorporating PDifMPs, our method accounts for sudden market fluctuations, providing a more realistic model of asset price dynamics. We benchmark our approach with the Longstaff-Schwartz algorithm, both in its original form and modified to include PDifMP asset price trajectories. Numerical simulations demonstrate that our PDifMP-based method not only provides a more accurate reflection of market behaviour but also offers practical advantages in terms of computational efficiency. The results suggest that PDifMPs can significantly improve the predictive accuracy of American options pricing by more closely aligning with the stochastic volatility and jumps observed in real financial markets.",
+      "tags": [
+        "q-fin.CP",
+        "math.PR",
+        "q-fin.PR"
+      ],
+      "license": null,
+      "relevance_score": null
+    },
+    {
+      "id": "arxiv:2403.16006",
+      "title": "Crypto Inverse-Power Options and Fractional Stochastic Volatility",
+      "url": "https://arxiv.org/abs/2403.16006",
+      "source": "arxiv",
+      "discovered_at": "2026-05-20T02:47:42.057073+00:00",
+      "authors": [
+        "Boyi Li",
+        "Weixuan Xia"
+      ],
+      "published": "2024-03-24T04:30:51Z",
+      "abstract": "Recent empirical evidence has highlighted the crucial role of jumps in both price and volatility within the cryptocurrency market. In this paper, we integrate price--volatility co-jumps and volatility short-term dependency into a coherent model framework, featuring fractional stochastic volatility. We particularly focus on inverse options, including the emerging Quanto inverse options and their power-type generalizations, aiming at mitigating cryptocurrency exchange rate risk and adjusting inherent risk exposure. Characteristic function-based pricing--hedging formulas are derived for these inverse options. The model framework is applied to asymmetric Laplace jump-diffusions and Gaussian-mixed tempered stable-type processes, employing three types of fractional kernels, for an extensive empirical analysis involving model calibration on two independent Bitcoin options data sets, during and after the COVID-19 pandemic. Key insights from our theoretical analysis and empirical findings include: (1) the superior performance of fractional stochastic-volatility models compared to various benchmark models, including those incorporating jumps and stochastic volatility, along with high computational efficiency when utilizing a piecewise kernel, (2) the practical necessity of considering jumps in both price and volatility, along with rough volatility, in pricing and hedging cryptocurrency options, (3) stability of calibrated parameter values in line with stylized facts.",
+      "tags": [
+        "q-fin.PR",
+        "q-fin.MF"
+      ],
+      "license": null,
+      "relevance_score": null
+    },
+    {
+      "id": "arxiv:2401.09955",
+      "title": "Consistent asset modelling with random coefficients and switches between regimes",
+      "url": "https://arxiv.org/abs/2401.09955",
+      "source": "arxiv",
+      "discovered_at": "2026-05-20T02:47:42.057140+00:00",
+      "authors": [
+        "Felix L. Wolf",
+        "Griselda Deelstra",
+        "Lech A. Grzelak"
+      ],
+      "published": "2024-01-18T13:05:04Z",
+      "abstract": "We explore a stochastic model that enables capturing external influences in two specific ways. The model allows for the expression of uncertainty in the parametrisation of the stochastic dynamics and incorporates patterns to account for different behaviours across various times or regimes. To establish our framework, we initially construct a model with random parameters, where the switching between regimes can be dictated either by random variables or deterministically. Such a model is highly interpretable. We further ensure mathematical consistency by demonstrating that the framework can be elegantly expressed through local volatility models taking the form of standard jump diffusions. Additionally, we consider a Markov-modulated approach for the switching between regimes characterised by random parameters. For all considered models, we derive characteristic functions, providing a versatile tool with wide-ranging applications. In a numerical experiment, we apply the framework to the financial problem of option pricing. The impact of parameter uncertainty is analysed in a two-regime model, where the asset process switches between periods of high and low volatility imbued with high and low uncertainty, respectively.",
+      "tags": [
+        "q-fin.PR",
+        "q-fin.CP",
+        "q-fin.RM"
+      ],
+      "license": null,
+      "relevance_score": null
+    },
+    {
+      "id": "arxiv:2308.08760",
+      "title": "Semi-analytic pricing of American options in time-dependent jump-diffusion models with exponential jumps",
+      "url": "https://arxiv.org/abs/2308.08760",
+      "source": "arxiv",
+      "discovered_at": "2026-05-20T02:47:42.057197+00:00",
+      "authors": [
+        "Andrey Itkin"
+      ],
+      "published": "2023-08-17T03:19:34Z",
+      "abstract": "In this paper we propose a semi-analytic approach to pricing American options for time-dependent jump-diffusions models with exponential jumps The idea of the method is to further generalize our approach developed for pricing barrier, [Itkin et al., 2021], and American, [Carr and Itkin, 2021; Itkin and Muravey, 2023], options in various time-dependent one factor and even stochastic volatility models. Our approach i) allows arbitrary dependencies of the model parameters on time; ii) reduces solution of the pricing problem for American options to a simpler problem of solving a system of an algebraic nonlinear equation for the exercise boundary and a linear Fredholm-Volterra equation for the the option price; iii) the options Greeks solve a similar Fredholm-Volterra linear equation obtained by just differentiating Eq. (25) by the required parameter. Once done, the American option price is presented in close form.",
+      "tags": [
+        "q-fin.PR",
+        "q-fin.CP",
+        "q-fin.MF"
+      ],
+      "license": null,
+      "relevance_score": null
+    },
+    {
+      "id": "arxiv:2302.05421",
+      "title": "Some asymptotics for short maturity Asian options",
+      "url": "https://arxiv.org/abs/2302.05421",
+      "source": "arxiv",
+      "discovered_at": "2026-05-20T02:47:42.057251+00:00",
+      "authors": [
+        "Humayra Shoshi",
+        "Indranil SenGupta"
+      ],
+      "published": "2023-02-10T18:37:08Z",
+      "abstract": "Most of the existing methods for pricing Asian options are less efficient in the limit of small maturities and small volatilities. In this paper, we use the large deviations theory for the analysis of short-maturity Asian options. We present a local volatility model for the underlying market that incorporates a jump term in addition to the drift and diffusion terms. We estimate the asymptotics for the out-of-the-money, in-the-money, and at-the-money short-maturity Asian call and put options. Under appropriate assumptions, we show that the asymptotics for out-of-the-money Asian call and put options are governed by rare events. For the at-the-money Asian options, the result is more involved and in that case, we find the upper and lower bounds of the asymptotics of the Asian option price.",
+      "tags": [
+        "q-fin.PR",
+        "math.PR",
+        "q-fin.MF"
+      ],
+      "license": null,
+      "relevance_score": null
+    },
+    {
+      "id": "arxiv:2301.13235",
+      "title": "Joint calibration to SPX and VIX options with signature-based models",
+      "url": "https://arxiv.org/abs/2301.13235",
+      "source": "arxiv",
+      "discovered_at": "2026-05-20T02:47:42.057307+00:00",
+      "authors": [
+        "Christa Cuchiero",
+        "Guido Gazzani",
+        "Janka M\u00f6ller",
+        "Sara Svaluto-Ferro"
+      ],
+      "published": "2023-01-30T19:03:01Z",
+      "abstract": "We consider a stochastic volatility model where the dynamics of the volatility are described by a linear function of the (time extended) signature of a primary process which is supposed to be a polynomial diffusion. We obtain closed form expressions for the VIX squared, exploiting the fact that the truncated signature of a polynomial diffusion is again a polynomial diffusion. Adding to such a primary process the Brownian motion driving the stock price, allows then to express both the log-price and the VIX squared as linear functions of the signature of the corresponding augmented process. This feature can then be efficiently used for pricing and calibration purposes. Indeed, as the signature samples can be easily precomputed, the calibration task can be split into an offline sampling and a standard optimization. We also propose a Fourier pricing approach for both VIX and SPX options exploiting that the signature of the augmented primary process is an infinite dimensional affine process. For both the SPX and VIX options we obtain highly accurate calibration results, showing that this model class allows to solve the joint calibration problem without adding jumps or rough volatility.",
+      "tags": [
+        "q-fin.MF",
+        "math.PR"
+      ],
+      "license": null,
+      "relevance_score": null
+    },
+    {
+      "id": "arxiv:2208.12518",
+      "title": "On Randomization of Affine Diffusion Processes with Application to Pricing of Options on VIX and S&P 500",
+      "url": "https://arxiv.org/abs/2208.12518",
+      "source": "arxiv",
+      "discovered_at": "2026-05-20T02:47:42.057366+00:00",
+      "authors": [
+        "Lech A. Grzelak"
+      ],
+      "published": "2022-08-26T09:22:25Z",
+      "abstract": "The class of Affine (Jump) Diffusion (AD) has, due to its closed form characteristic function (ChF), gained tremendous popularity among practitioners and researchers. However, there is clear evidence that a linearity constraint is insufficient for precise and consistent option pricing. Any non-affine model must pass the strict requirement of quick calibration -- which is often challenging. We focus here on Randomized AD (RAnD) models, i.e., we allow for exogenous stochasticity of the model parameters. Randomization of a pricing model occurs outside the affine model and, therefore, forms a generalization that relaxes the affinity constraints. The method is generic and can apply to any model parameter. It relies on the existence of moments of the so-called randomizer- a random variable for the stochastic parameter. The RAnD model allows flexibility while benefiting from fast calibration and well-established, large-step Monte Carlo simulation, often available for AD processes. The article will discuss theoretical and practical aspects of the RAnD method, like derivations of the corresponding ChF, simulation, and computations of sensitivities. We will also illustrate the advantages of the randomized stochastic volatility models in the consistent pricing of options on the S&P 500 and VIX.",
+      "tags": [
+        "q-fin.CP",
+        "q-fin.GN",
+        "q-fin.MF",
+        "q-fin.PR"
+      ],
+      "license": null,
+      "relevance_score": null
+    },
+    {
+      "id": "arxiv:2206.09877",
+      "title": "Efficient Pricing and Calibration of High-Dimensional Basket Options",
+      "url": "https://arxiv.org/abs/2206.09877",
+      "source": "arxiv",
+      "discovered_at": "2026-05-20T02:47:42.057440+00:00",
+      "authors": [
+        "Lech A. Grzelak",
+        "Juliusz Jablecki",
+        "Dariusz Gatarek"
+      ],
+      "published": "2022-06-20T16:29:08Z",
+      "abstract": "This paper studies equity basket options -- i.e., multi-dimensional derivatives whose payoffs depend on the value of a weighted sum of the underlying stocks -- and develops a new and innovative approach to ensure consistency between options on individual stocks and on the index comprising them. Specifically, we show how to resolve a well-known problem that when individual constituent distributions of an equity index are inferred from the single-stock option markets and combined in a multi-dimensional local/stochastic volatility model, the resulting basket option prices will not generate a skew matching that of the options on the equity index corresponding to the basket. To address this ``insufficient skewness'', we proceed in two steps. First, we propose an ``effective'' local volatility model by mapping the general multi-dimensional basket onto a collection of marginal distributions. Second, we build a multivariate dependence structure between all the marginal distributions assuming a jump-diffusion model for the effective projection parameters, and show how to calibrate the basket to the index smile. Numerical tests and calibration exercises demonstrate an excellent fit for a basket of as many as 30 stocks with fast calculation time.",
+      "tags": [
+        "q-fin.CP",
+        "q-fin.PM",
+        "q-fin.PR",
+        "q-fin.RM",
+        "q-fin.TR"
+      ],
+      "license": null,
+      "relevance_score": null
+    },
+    {
+      "id": "arxiv:2112.06807",
+      "title": "Hedging Cryptocurrency Options",
+      "url": "https://arxiv.org/abs/2112.06807",
+      "source": "arxiv",
+      "discovered_at": "2026-05-20T02:47:42.057501+00:00",
+      "authors": [
+        "Jovanka Lili Matic",
+        "Natalie Packham",
+        "Wolfgang Karl H\u00e4rdle"
+      ],
+      "published": "2021-11-23T22:46:45Z",
+      "abstract": "The cryptocurrency market is volatile, non-stationary and non-continuous. Together with liquid derivatives markets, this poses a unique opportunity to study risk management, especially the hedging of options, in a turbulent market. We study the hedge behaviour and effectiveness for the class of affine jump diffusion models and infinite activity Levy processes. First, market data is calibrated to stochastic volatility inspired (SVI)-implied volatility surfaces to price options. To cover a wide range of market dynamics, we generate Monte Carlo price paths using an SVCJ model (stochastic volatility with correlated jumps), a close-to-actual-market GARCH-filtered kernel density estimation as well as a historical backtest. In all three settings, options are dynamically hedged with Delta, Delta-Gamma, Delta-Vega and Minimum Variance strategies. Including a wide range of market models allows to understand the trade-off in the hedge performance between complete, but overly parsimonious models, and more complex, but incomplete models. The calibration results reveal a strong indication for stochastic volatility, low jump frequency and evidence of infinite activity. Short-dated options are less sensitive to volatility or Gamma hedges. For longer-dated options, tail risk is consistently reduced by multiple-instrument hedges, in particular by employing complete market models with stochastic volatility.",
+      "tags": [
+        "q-fin.PR",
+        "stat.ME"
+      ],
+      "license": null,
+      "relevance_score": null
+    },
+    {
+      "id": "arxiv:2111.06042",
+      "title": "Correlation Estimation in Hybrid Systems",
+      "url": "https://arxiv.org/abs/2111.06042",
+      "source": "arxiv",
+      "discovered_at": "2026-05-20T02:47:42.057567+00:00",
+      "authors": [
+        "Baron Law"
+      ],
+      "published": "2021-11-11T03:44:04Z",
+      "abstract": "A simple method is proposed to estimate the instantaneous correlations between state variables in a hybrid system from the empirical correlations between observable market quantities such as spot rate, stock price and implied volatility. The new algorithm is extremely fast since only low-dimension linear systems are involved. If the resulting matrix from the linear systems is not positive semidefinite, the shrinking method, which requires only bisection-style iterations, is recommended to convert the matrix to positive semidefinite. The square of short-term at-the-money implied volatility is suggested as the proxy for the unobservable stochastic variance. When the implied volatility is not available, a simple trick is provided to fill in the missing correlations. Numerical study shows that the estimates are reasonably accurate, when using more than 1,000 data points. In addition, the algorithm is robust to misspecified interest rate model parameters and the short-sampling-period assumption. G2++ and Heston are used for illustration but the method can be extended to other affine term structure, local volatility and jump diffusion models, with or without stochastic interest rate.",
+      "tags": [
+        "q-fin.CP",
+        "q-fin.PR"
+      ],
+      "license": null,
+      "relevance_score": null
+    },
+    {
+      "id": "arxiv:2107.06605",
+      "title": "A General Approach for Parisian Stopping Times under Markov Processes",
+      "url": "https://arxiv.org/abs/2107.06605",
+      "source": "arxiv",
+      "discovered_at": "2026-05-20T02:47:42.057633+00:00",
+      "authors": [
+        "Gongqiu Zhang",
+        "Lingfei Li"
+      ],
+      "published": "2021-07-14T10:48:19Z",
+      "abstract": "We propose a method based on continuous time Markov chain approximation to compute the distribution of Parisian stopping times and price Parisian options under general one-dimensional Markov processes. We prove the convergence of the method under a general setting and obtain sharp estimate of the convergence rate for diffusion models. Our theoretical analysis reveals how to design the grid of the CTMC to achieve faster convergence. Numerical experiments are conducted to demonstrate the accuracy and efficiency of our method for both diffusion and jump models. To show the versality of our approach, we develop extensions for multi-sided Parisian stopping times, the joint distribution of Parisian stopping times and first passage times, Parisian bonds and for more sophisticated models like regime-switching and stochastic volatility models.",
+      "tags": [
+        "q-fin.CP",
+        "math.PR"
+      ],
+      "license": null,
+      "relevance_score": null
+    },
+    {
+      "id": "arxiv:2107.00554",
+      "title": "Robust Replication of Volatility and Hybrid Derivatives on Jump Diffusions",
+      "url": "https://arxiv.org/abs/2107.00554",
+      "source": "arxiv",
+      "discovered_at": "2026-05-20T02:47:42.057683+00:00",
+      "authors": [
+        "Peter Carr",
+        "Roger Lee",
+        "Matthew Lorig"
+      ],
+      "published": "2021-07-01T15:49:23Z",
+      "abstract": "We price and replicate a variety of claims written on the log price $X$ and quadratic variation $[X]$ of a risky asset, modeled as a positive semimartingale, subject to stochastic volatility and jumps. The pricing and hedging formulas do not depend on the dynamics of volatility process, aside from integrability and independence assumptions; in particular, the volatility process may be non-Markovian and exhibit jumps of unknown distribution. The jump risk may be driven by any finite activity Poisson random measure with bounded jump sizes. As hedging instruments, we use the underlying risky asset, a zero-coupon bond, and European calls and puts with the same maturity as the claim to be hedged. Examples of contracts that we price include variance swaps, volatility swaps, a claim that pays the realized Sharpe ratio, and a call on a leveraged exchange traded fund.",
+      "tags": [
+        "q-fin.MF"
+      ],
+      "license": null,
+      "relevance_score": null
+    }
+  ]
 }

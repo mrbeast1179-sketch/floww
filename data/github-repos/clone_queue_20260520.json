@@ -1,0 +1,45 @@
+{
+  "generated_at": "2026-05-20T02:48:05.316904+00:00",
+  "to_clone": [],
+  "skip_already": [
+    {
+      "paper_id": "arxiv:2309.07843",
+      "paper_title": "Applying Deep Learning to Calibrate Stochastic Volatility Models",
+      "paper_url": "https://arxiv.org/abs/2309.07843",
+      "code_url": "https://github.com/asridi/DML-Calibration-Heston-Model",
+      "owner": "asridi",
+      "repo": "DML-Calibration-Heston-Model",
+      "local_path": "data/github-repos/cloned/asridi_DML-Calibration-Heston-Model"
+    },
+    {
+      "paper_id": "arxiv:2205.05600",
+      "paper_title": "RLOP: RL Methods in Option Pricing from a Mathematical Perspective",
+      "paper_url": "https://arxiv.org/abs/2205.05600",
+      "code_url": "https://github.com/owen8877/RLOP",
+      "owner": "owen8877",
+      "repo": "RLOP",
+      "local_path": "data/github-repos/cloned/owen8877_RLOP"
+    }
+  ],
+  "skip_unparseable": [],
+  "skip_license": [
+    {
+      "paper_id": "arxiv:2502.15757",
+      "paper_title": "TLOB: A Novel Transformer Model with Dual Attention for Price Trend Prediction with Limit Order Book Data",
+      "paper_url": "https://arxiv.org/abs/2502.15757",
+      "code_url": "https://github.com/LeonardoBerti00/TLOB",
+      "owner": "LeonardoBerti00",
+      "repo": "TLOB",
+      "local_path": "data/github-repos/cloned/LeonardoBerti00_TLOB",
+      "skip_reason": "license check failed: name 'urllib' is not defined"
+    }
+  ],
+  "skip_size": [],
+  "counts": {
+    "to_clone": 0,
+    "skip_already": 2,
+    "skip_unparseable": 0,
+    "skip_license": 1,
+    "skip_size": 0
+  }
+}
