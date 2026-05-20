@@ -50,6 +50,27 @@
   "total_models_downloaded": 0,
   "total_datasets_downloaded": 0,
   "total_size_mb": 0,
-  "hf_assets": [],
-  "last_updated": null
+  "hf_assets": [
+    {
+      "id": "Wenyan0110/Multimodal-Dataset-Image_Text_Table_TimeSeries-for-Financial-Time-Series-Forecasting",
+      "type": "dataset",
+      "url": "https://huggingface.co/datasets/Wenyan0110/Multimodal-Dataset-Image_Text_Table_TimeSeries-for-Financial-Time-Series-Forecasting",
+      "likes": 10,
+      "downloads": 2438,
+      "author": "Wenyan0110",
+      "summary": "dataset: Wenyan0110/Multimodal-Dataset-Image_Text_Table_TimeSeries-for-Financial-Time-Series-Forecasting (10 likes, 2438 downloads)",
+      "discovered_at": "2026-05-20T02:48:16.815130+00:00"
+    },
+    {
+      "id": "Y123-wed/Multimodal-Dataset-Image_Text_Table_TimeSeries-for-Financial-Time-Series-Forecasting",
+      "type": "dataset",
+      "url": "https://huggingface.co/datasets/Y123-wed/Multimodal-Dataset-Image_Text_Table_TimeSeries-for-Financial-Time-Series-Forecasting",
+      "likes": 0,
+      "downloads": 20626,
+      "author": "Y123-wed",
+      "summary": "dataset: Y123-wed/Multimodal-Dataset-Image_Text_Table_TimeSeries-for-Financial-Time-Series-Forecasting (0 likes, 20626 downloads)",
+      "discovered_at": "2026-05-20T02:48:16.815224+00:00"
+    }
+  ],
+  "last_updated": "2026-05-20T02:48:27.816741+00:00"
 }
