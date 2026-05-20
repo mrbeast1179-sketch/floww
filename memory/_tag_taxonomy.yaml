@@ -1,0 +1,66 @@
+# Tag taxonomy for mem0 auto-tagging
+# Controlled vocabulary — no free-form tags allowed.
+# Proposed new tags must go through review.
+
+tags:
+  # Project tags (required on every entry)
+  - name: project:floww
+    description: "Floww trading terminal — options analytics platform"
+  - name: project:gflows
+    description: "Gflows project"
+  - name: project:baby-billy-dvt
+    description: "Baby Billy DVT project"
+  - name: project:personal
+    description: "Personal notes, preferences, and non-project items"
+
+  # Type tags (required on every entry)
+  - name: type:session
+    description: "Session summary, handoff, or daily log"
+  - name: type:reference
+    description: "Reference documentation or specification"
+  - name: type:feedback
+    description: "User feedback, correction, or preference"
+  - name: type:decision
+    description: "Architecture or design decision with rationale"
+  - name: type:blocker
+    description: "Blocked task, dependency, or unresolved issue"
+  - name: type:config
+    description: "Configuration, setup, or environment info"
+  - name: type:incident
+    description: "Incident report or failure analysis"
+
+  # Domain tags (optional, multiple allowed)
+  - name: domain:trading
+    description: "Trading strategy, market data, or order execution"
+  - name: domain:ml
+    description: "Machine learning models, training, or inference"
+  - name: domain:infra
+    description: "Infrastructure, deployment, CI/CD, or Docker"
+  - name: domain:security
+    description: "Security audit, hardening, or vulnerability"
+  - name: domain:frontend
+    description: "Frontend UI, React, or dashboard"
+  - name: domain:backend
+    description: "Backend API, FastAPI, or services"
+  - name: domain:research
+    description: "Research papers, arxiv, or literature review"
+  - name: domain:memory
+    description: "Memory system, consolidation, or sync"
+  - name: domain:database
+    description: "Database, DuckDB, MongoDB, or data storage"
+  - name: domain:testing
+    description: "Test infrastructure, CI, or quality gates"
+
+  # Status tags
+  - name: status:active
+    description: "Currently in progress or being worked on"
+  - name: status:completed
+    description: "Completed and verified"
+  - name: status:archived
+    description: "Archived for historical reference"
+
+rules:
+  max_tags_per_entry: 5
+  min_confidence_auto_apply: 0.8
+  require_project_tag: true
+  require_type_tag: true

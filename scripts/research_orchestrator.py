@@ -64,14 +64,24 @@ def _run(cmd: List[str], cwd: Path = REPO_ROOT, timeout: int = 600) -> subproces
 
 
 def step_discover() -> bool:
-    """Step 1: Run arxiv discovery."""
-    log.info("=== Step 1: Discovery ===")
+    """Step 1a: Run arxiv discovery."""
+    log.info("=== Step 1a: Arxiv Discovery ===")
     result = _run([str(VENV_PYTHON), "scripts/discover_research.py", "--sources", "arxiv"])
     if result.returncode != 0:
-        log.error(f"Discovery failed: {result.stderr[:500]}")
-        return False
-    log.info("Discovery complete")
-    return True
+        log.warning(f"Arxiv discovery had errors: {result.stderr[:300]}")
+    return True  # Non-fatal: arxiv may be rate-limited
+
+
+def step_expanded_sources() -> bool:
+    """Step 1b: Run expanded source discovery (SSRN, NBER, RSS feeds)."""
+    log.info("=== Step 1b: Expanded Sources ===")
+    result = _run([
+        str(VENV_PYTHON), "scripts/expanded_sources.py",
+        "--sources", "quantocracy,aqr,robot_wealth",
+    ], timeout=120)
+    if result.returncode != 0:
+        log.warning(f"Expanded sources had errors: {result.stderr[:300]}")
+    return True  # Non-fatal
 
 
 def step_extract_links() -> bool:
@@ -113,8 +123,20 @@ def step_pattern_extract() -> bool:
     return True
 
 
+def step_auto_port() -> bool:
+    """Step 5: Auto-port kernels from newly cloned repos."""
+    log.info("=== Step 5: Auto-port ===")
+    result = _run([
+        str(VENV_PYTHON), "scripts/auto_port.py",
+        "--since-days", "1",
+    ], timeout=120)
+    if result.returncode != 0:
+        log.warning(f"Auto-port had errors: {result.stderr[:300]}")
+    return True  # Non-fatal
+
+
 def step_hf_search() -> bool:
-    """Step 5: HuggingFace Hub search (every 2 hours)."""
+    """Step 6: HuggingFace Hub search (every 2 hours)."""
     log.info("=== Step 5: HF Hub search ===")
     result = _run([str(VENV_PYTHON), "scripts/hf_search.py"])
     if result.returncode != 0:
@@ -228,10 +250,10 @@ def run_full_pipeline(args: argparse.Namespace) -> int:
     run_num = state["run_count"]
     log.info(f"═══ Pipeline Run #{run_num} ═══")
 
-    # Step 1: Discovery (always)
+    # Step 1: Discovery (always) — arxiv + expanded sources
     if not args.skip_discover:
-        if not step_discover():
-            log.warning("Discovery step had errors — continuing")
+        step_discover()
+        step_expanded_sources()
 
     # Step 2: Extract code links (always)
     if not args.skip_extract:
@@ -248,7 +270,11 @@ def run_full_pipeline(args: argparse.Namespace) -> int:
         if not step_pattern_extract():
             log.warning("Pattern extraction had errors — continuing")
 
-    # Step 5: HF search (every 2 runs = ~2 hours with 60-min interval)
+    # Step 5: Auto-port (always, non-fatal)
+    if not args.skip_auto_port:
+        step_auto_port()
+
+    # Step 6: HF search (every 2 runs = ~2 hours with 60-min interval)
     if not args.skip_hf:
         last_hf = state.get("last_hf_run")
         do_hf = True

@@ -8,13 +8,15 @@ Endpoints:
   GET  /api/anomaly/{ticker}        — Current anomaly state
   POST /api/anomaly/{ticker}/update — Feed new (VPIN, QI) observation
   GET  /api/anomaly/{ticker}/status — Model status and configuration
+  POST /api/anomaly/{ticker}/load   — Load trained checkpoint for ticker
 """
 from __future__ import annotations
 
 import logging
+from pathlib import Path
 from typing import Any, Dict
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Query
 
 logger = logging.getLogger(__name__)
 
@@ -23,14 +25,27 @@ router = APIRouter(prefix="/api/anomaly", tags=["anomaly"])
 # Global anomaly detector registry (ticker -> FlowAnomalyDetector)
 _detectors: Dict[str, Any] = {}
 
+# Path to trained model checkpoints
+MODEL_BASE_PATH = Path(__file__).resolve().parents[2] / "project_oracle" / "models"
 
-def _get_detector(ticker: str, seq_len: int = 50, latent_dim: int = 8):
+
+def _get_detector(ticker: str, seq_len: int = 50, latent_dim: int = 8, device: str = "cpu"):
     """Get or create an anomaly detector for the given ticker."""
     if ticker not in _detectors:
-        from services.anomaly_detector import FlowAnomalyDetector
+        from services.anomaly_detector import FlowAnomalyDetector, HAS_TORCH
         _detectors[ticker] = FlowAnomalyDetector(
-            seq_len=seq_len, latent_dim=latent_dim, ticker=ticker
+            seq_len=seq_len, latent_dim=latent_dim, ticker=ticker, device=device
         )
+        # Auto-load trained checkpoint if available
+        ckpt_path = MODEL_BASE_PATH / f"anomaly_detector_v1.pt"
+        if ckpt_path.exists() and HAS_TORCH:
+            try:
+                import torch
+                checkpoint = torch.load(str(ckpt_path), map_location=device)
+                _detectors[ticker].load_checkpoint(checkpoint)
+                logger.info(f"Loaded trained checkpoint for {ticker}: {ckpt_path}")
+            except Exception as e:
+                logger.warning(f"Failed to load checkpoint for {ticker}: {e}")
     return _detectors[ticker]
 
 
@@ -57,3 +72,30 @@ async def get_detector_status(ticker: str):
     t = ticker.upper()
     detector = _get_detector(t)
     return detector.get_state()
+
+
+@router.post("/{ticker}/load")
+async def load_trained_model(
+    ticker: str,
+    model_path: str = Query(default="", description="Path to .pt checkpoint file"),
+    device: str = Query(default="cpu"),
+):
+    """Load a trained checkpoint for the given ticker."""
+    t = ticker.upper()
+    from services.anomaly_detector import HAS_TORCH
+    if not HAS_TORCH:
+        raise HTTPException(503, "PyTorch not available")
+
+    import torch
+
+    ckpt_path = Path(model_path) if model_path else MODEL_BASE_PATH / "anomaly_detector_v1.pt"
+    if not ckpt_path.exists():
+        raise HTTPException(404, f"Checkpoint not found: {ckpt_path}")
+
+    detector = _get_detector(t)
+    try:
+        checkpoint = torch.load(str(ckpt_path), map_location=device)
+        detector.load_checkpoint(checkpoint)
+        return {"status": "loaded", "ticker": t, "path": str(ckpt_path)}
+    except Exception as e:
+        raise HTTPException(500, f"Failed to load checkpoint: {e}")

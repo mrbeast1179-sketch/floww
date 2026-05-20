@@ -19,7 +19,7 @@ from datetime import datetime, timezone
 
 from fastapi import WebSocket, WebSocketDisconnect
 
-from services.observability import metrics as obs_metrics
+import services.observability as obs_metrics
 
 logger = logging.getLogger(__name__)
 

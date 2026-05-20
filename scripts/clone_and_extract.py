@@ -183,6 +183,7 @@ def plan_clones(
     manifest: Dict[str, Any],
     allowed_licenses: set = ALLOWED_LICENSES,
     max_size_mb: float = 1000.0,
+    log: logging.Logger = logging.getLogger("clone_and_extract"),
 ) -> Dict[str, List[Dict[str, Any]]]:
     """Bucket candidates into to_clone / skip_already / skip_unparseable / skip_license / skip_size."""
     to_clone: List[Dict[str, Any]] = []
@@ -273,10 +274,14 @@ def write_queue(plan: Dict[str, Any], out_path: Path) -> None:
         "to_clone": plan["to_clone"],
         "skip_already": plan["skip_already"],
         "skip_unparseable": plan["skip_unparseable"],
+        "skip_license": plan.get("skip_license", []),
+        "skip_size": plan.get("skip_size", []),
         "counts": {
             "to_clone": len(plan["to_clone"]),
             "skip_already": len(plan["skip_already"]),
             "skip_unparseable": len(plan["skip_unparseable"]),
+            "skip_license": len(plan.get("skip_license", [])),
+            "skip_size": len(plan.get("skip_size", [])),
         },
     }
     out_path.write_text(json.dumps(payload, indent=2) + "\n")
@@ -336,6 +341,17 @@ def main(argv: Optional[List[str]] = None) -> int:
         help="Restrict to a specific code URL (repeatable). Default: all.",
     )
     parser.add_argument(
+        "--license-allow",
+        default="MIT,Apache-2.0,BSD-3-Clause,MPL-2.0,BSD-2-Clause,ISC,Unlicense,CC0-1.0,Python-2.0",
+        help="Comma-separated SPDX license allowlist (default: permissive OSS licenses).",
+    )
+    parser.add_argument(
+        "--max-size-mb",
+        type=float,
+        default=1000.0,
+        help="Skip repos larger than this in MB (default: 1000).",
+    )
+    parser.add_argument(
         "--execute",
         action="store_true",
         help="Actually clone (default: dry-run). Requires --yes to confirm.",
@@ -349,6 +365,8 @@ def main(argv: Optional[List[str]] = None) -> int:
 
     logging.basicConfig(level=logging.INFO, format="%(message)s")
     log = logging.getLogger("clone_and_extract")
+
+    allowed_licenses = {s.strip() for s in args.license_allow.split(",") if s.strip()}
 
     code_links = args.code_links or find_latest_code_links(args.data_dir)
     if code_links is None or not code_links.exists():
@@ -364,7 +382,8 @@ def main(argv: Optional[List[str]] = None) -> int:
     log.info(f"reading {_rel(code_links)}")
     candidates = collect_candidates(code_links, only=args.only)
     manifest = load_cloned_manifest()
-    plan = plan_clones(candidates, manifest)
+    plan = plan_clones(candidates, manifest, allowed_licenses=allowed_licenses,
+                       max_size_mb=args.max_size_mb, log=log)
 
     out_path = (
         GITHUB_REPOS_DIR
@@ -375,7 +394,9 @@ def main(argv: Optional[List[str]] = None) -> int:
     log.info(
         f"  to_clone={len(plan['to_clone'])} "
         f"skip_already={len(plan['skip_already'])} "
-        f"skip_unparseable={len(plan['skip_unparseable'])}"
+        f"skip_unparseable={len(plan['skip_unparseable'])} "
+        f"skip_license={len(plan.get('skip_license', []))} "
+        f"skip_size={len(plan.get('skip_size', []))}"
     )
 
     if not plan["to_clone"]:

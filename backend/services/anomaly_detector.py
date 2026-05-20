@@ -22,6 +22,8 @@ from collections import deque
 
 import numpy as np
 
+import services.observability as obs_metrics
+
 logger = logging.getLogger(__name__)
 
 # PyTorch is optional — gracefully degrade if not available
@@ -241,4 +243,44 @@ class FlowAnomalyDetector:
             "buffer_fill": len(self._buffer) / self.seq_len,
             "n_errors": len(self._errors),
             "trained": self._trained,
+            "ticker": self.ticker,
+            "threshold_sigma": self.threshold_sigma,
         }
+
+    def load_checkpoint(self, checkpoint: dict) -> None:
+        """Load a trained checkpoint into the model.
+
+        Args:
+            checkpoint: dict with keys 'model_state_dict', 'config', 'threshold'
+        """
+        import torch
+
+        if not HAS_TORCH or self.model is None:
+            logger.warning("Cannot load checkpoint: PyTorch not available")
+            return
+
+        config = checkpoint.get("config", {})
+        # Verify config matches
+        if config.get("seq_len") != self.seq_len:
+            logger.warning(f"Checkpoint seq_len={config.get('seq_len')} != detector seq_len={self.seq_len}")
+        if config.get("latent_dim") != self.latent_dim:
+            logger.warning(f"Checkpoint latent_dim={config.get('latent_dim')} != detector latent_dim={self.latent_dim}")
+
+        self.model.load_state_dict(checkpoint["model_state_dict"])
+        self.model.eval()
+        self._trained = True
+
+        # Restore threshold if available
+        threshold_info = checkpoint.get("threshold", {})
+        if threshold_info:
+            self._errors.clear()
+            # Seed the error distribution from the training threshold
+            mean_err = threshold_info.get("mean_error", 0.0)
+            std_err = threshold_info.get("std_error", 0.0)
+            # Populate with synthetic errors around the training distribution
+            synthetic_errors = np.random.normal(mean_err, std_err, 100)
+            for e in synthetic_errors:
+                self._errors.append(float(e))
+
+        logger.info(f"Loaded checkpoint for {self.ticker}: trained={self._trained}, "
+                     f"threshold={threshold_info.get('threshold', 'N/A')}")
