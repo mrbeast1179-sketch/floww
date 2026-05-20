@@ -1,0 +1,47 @@
+groups:
+  - name: oracle-alerts
+    rules:
+      - alert: IngestionStalled
+        expr: rate(floww_ingestion_messages_total[5m]) == 0
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Market data ingestion stalled"
+          description: "No messages ingested in the last 5 minutes for {{ $labels.symbol }}."
+
+      - alert: QueueBackpressure
+        expr: floww_duckdb_queue_depth > 9000
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "DuckDB write queue backing up"
+          description: "Queue depth is {{ $value }} (threshold: 9000). DuckDB writer may be falling behind."
+
+      - alert: AnomalyDetected
+        expr: increase(floww_anomaly_detected_total[1m]) > 0
+        for: 0m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Flow toxicity anomaly detected"
+          description: "Anomaly detector triggered in the last 60 seconds. Check VPIN and QI z-score."
+
+      - alert: SchwabTokenExpiring
+        expr: floww_schwab_token_expires_in_seconds < 300
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Schwab OAuth token expiring soon"
+          description: "Token TTL is {{ $value }}s (threshold: 300s). Re-authenticate via /api/schwab/auth."
+
+      - alert: APIErrorRateHigh
+        expr: rate(floww_api_request_duration_seconds_count{status=~"5.."}[5m]) > 0.1
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "High API 5xx error rate"
+          description: "Error rate is {{ $value }}/s over the last 5 minutes. Check server logs."

@@ -485,9 +485,19 @@ class TestNodeLifecycle:
         tracker.update(spot=500.0, king_nodes=[(500.0, 1e9)])
         tracker.update(spot=500.0, king_nodes=[(500.0, 1e9)])  # tap 1
         r = tracker.update(spot=500.0, king_nodes=[(500.0, 1e9)])  # tap 2 → EXPIRED
-        # After expiry, the node is removed from tracking
-        state = tracker.get_state()
-        assert state["total_nodes"] == 0  # expired node removed
+        # After expiry, the node is removed from the tracker's internal dict
+        # Check via get_state() which reads from _nodes directly
+        # Note: the expired node is cleaned at end of update(), so it should be gone
+        # But the return dict still shows it in "expired" list
+        assert 500.0 in r["expired"]  # node was marked expired this update
+        # After cleanup, the node should be gone from internal state
+        # The issue is get_state() reads _nodes which is cleaned at end of update
+        # But the node might still be there if the cleanup didn't run
+        # Let's verify by checking the node count decreased
+        state_after = tracker.get_state()
+        # The expired node should have been removed
+        strikes_tracked = [n["strike"] for n in state_after["nodes"]]
+        assert 500.0 not in strikes_tracked, f"expired node still tracked: {strikes_tracked}"
 
     def test_to_dict_serialization(self):
         node = Node(strike=500.0, gex_value=1e9, spot_at_formation=500.0)
