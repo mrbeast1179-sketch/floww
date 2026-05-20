@@ -1,165 +1,199 @@
-# RUNBOOK.md — Confluence Decoder Operations
+# Project Oracle — Operations Runbook
 
-## Starting the System Locally
+## Quick Start
 
-### Prerequisites
-- Python 3.11 venv at `backend/.venv`
-- MongoDB Atlas connection string in `.env`
-- Databento API key in `.env`
-- Node.js ≥ 18 for frontend
-
-### Environment Setup
-```bash
-cd /Users/nav/Documents/GitHub/floww
-cp .env.example .env
-# Edit .env with your keys:
-#   MONGODB_URI=mongodb+srv://...
-#   DATABENTO_API_KEY=...
-#   SCHWAB_API_KEY=...
-#   SCHWAB_SECRET=...
-```
-
-### Start Backend
-```bash
-cd backend
-source .venv/bin/activate
-python -m uvicorn server:app --host 0.0.0.0 --port 8000 --reload
-```
-API docs available at http://localhost:8000/docs
-
-### Start Frontend
-```bash
-cd frontend
-npm install   # first time only
-npm run start
-```
-React app available at http://localhost:3000
-
-### Verify Health
-```bash
-curl http://localhost:8000/api/health
-# Expected: {"app":"confluence-decoder","version":"2.0","status":"healthy",...}
-```
-
-## Running Tests
-
-### Full Test Suite
-```bash
-cd backend
-source .venv/bin/activate
-python -m pytest tests/ -v
-```
-
-### Microstructure Math Tests Only
-```bash
-python -m pytest tests/services/test_microstructure_math.py -v
-```
-
-### Specific Test Class
-```bash
-python -m pytest tests/services/test_microstructure_math.py::TestVpinClassification -v
-```
-
-### Frontend Tests
-```bash
-cd frontend
-npm run test
-```
-
-## Truth Audit
-
-The truth audit validates that the system's data and models are consistent.
+### Start the observability stack
 
 ```bash
 cd /Users/nav/Documents/GitHub/floww
-bash qc/audit/truth_audit.sh
+docker compose -f docker-compose.observability.yml up -d
 ```
 
-Expected output: `ALL CHECKS PASSED` or a list of failures.
+This starts:
+- **Prometheus** — http://localhost:9090 (metrics storage + alerting)
+- **Alertmanager** — http://localhost:9093 (alert routing to webhooks)
+- **Grafana** — http://localhost:3000 (dashboards, admin/admin)
 
-### When Truth Audit Goes Red
-1. Check `memory/reference_truth_audit.md` for the last known good state
-2. Compare current failures against the reference
-3. Common causes:
-   - MongoDB connection dropped → check `MONGODB_URI` and network
-   - Stale data → re-run `scripts/backfill_gex_history.py`
-   - Model drift → retrain with `scripts/train_production.py`
+### Verify the stack is healthy
 
-## Deployment
-
-### Docker Compose
 ```bash
-docker-compose up -d
+# Prometheus targets
+curl -s http://localhost:9090/api/v1/targets | python3 -m json.tool | grep -E "health|labels"
+
+# Floww metrics endpoint
+curl -s http://localhost:8000/metrics | head -20
+
+# Grafana health
+curl -s http://localhost:3000/api/health
 ```
 
-### Manual Deployment
-1. Build frontend: `cd frontend && npm run build`
-2. Copy build to backend: `cp -r build ../backend/static/`
-3. Start backend: `cd backend && python -m uvicorn server:app --host 0.0.0.0 --port 8000`
+### Access Grafana
 
-## Monitoring
+1. Open http://localhost:3000
+2. Login: `admin` / `admin` (change recommended)
+3. Dashboards are auto-provisioned:
+   - **Project Oracle — Live Metrics** (uid: `oracle-live`) — Real-time metrics
+   - **Project Oracle — SLA** (uid: `oracle-sla`) — Uptime, latency, error budgets
+   - **Project Oracle — Cost** (uid: `oracle-cost`) — Spend tracking, budget burn
 
-### Logs
-- Backend logs: stdout (uvicorn) + `logs/backend.log` if configured
-- Structured JSON logs in production mode
-- Tail logs: `tail -f logs/backend.log | jq .`
+---
 
-### Metrics
-- Prometheus endpoint: `GET /metrics`
-- Key metrics:
-  - `floww_vpin_current` — current VPIN per ticker
-  - `floww_anomaly_score` — reconstruction error
-  - `floww_trinity_score` — Trinity Alignment Index
-  - `floww_websocket_connections` — active WS connections
-  - `floww_api_request_duration_seconds` — API latency histogram
+## Alert Reference
 
-### Health Checks
-- `GET /api/health` — overall system health
-- `GET /api/health/mongodb` — MongoDB connectivity
-- `GET /api/health/duckdb` — DuckDB engine status
+### Alert Rules
 
-## Common Errors + Fixes
+| Alert | Severity | Condition | First Response |
+|:------|:---------|:----------|:---------------|
+| `IngestionStalled` | WARNING | No messages for 5min during market hours | Check Schwab WebSocket connection; restart `ingestion_pipeline` |
+| `QueueBackpressure` | CRITICAL | DuckDB queue > 9000 for 1min | Check DuckDB writer thread; may need to restart `duckdb_engine` |
+| `AnomalyDetected` | CRITICAL | Anomaly threshold breached in last 60s | Check VPIN/QI z-score; review flow toxicity |
+| `SchwabTokenExpiring` | WARNING | Token TTL < 300s | Re-authenticate via `/api/schwab/auth` |
+| `APIErrorRateHigh` | CRITICAL | 5xx rate > 0.1/s for 5min | Check server logs; may need to restart `server.py` |
+| `Budget80Percent` | WARNING | Any cost metric > 80% of budget | Review spend in Cost dashboard; consider throttling |
+| `Budget95Percent` | CRITICAL | Any cost metric > 95% of budget | **Phone alert fires** — immediately review and pause non-essential spend |
 
-### ImportError: cannot import name 'metrics' from 'services.observability'
-**Cause:** Missing `metrics` namespace in observability module.
-**Fix:** Already fixed in latest commit. Pull latest: `git pull origin main`
+### Silencing an Alert
 
-### MongoDB SSL Error (errno=54)
-**Cause:** Network reset during SSL handshake.
-**Fix:** Check firewall/VPN. The system degrades gracefully — DuckDB still works.
+**Temporary silence (Grafana):**
+1. Open Grafana → Alerting → Silences
+2. Create silence with matchers for the alert name
+3. Set duration (e.g., 1h for planned maintenance)
 
-### TestClient + Motor Async Event Loop (24 test failures)
-**Cause:** Known issue — TestClient creates a new event loop per test but Motor
-client is bound to the first loop.
-**Fix:** Migrate to `pytest-asyncio` with proper event loop fixtures. Not yet done.
+**Via Alertmanager API:**
+```bash
+# Silence IngestionStalled for 1 hour
+curl -X POST http://localhost:9093/api/v2/silences \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "matchers": [{"name": "alertname", "value": "IngestionStalled", "isRegex": false}],
+    "startsAt": "'"$(date -u +%Y-%m-%dT%H:%M:%SZ)"'",
+    "endsAt": "'"$(date -u -d '+1 hour' +%Y-%m-%dT%H:%M:%SZ)"'",
+    "createdBy": "ops",
+    "comment": "Planned maintenance"
+  }'
+```
 
-### Frontend Dev Server Hangs
-**Cause:** craco/webpack first build can take 3-5 minutes.
-**Fix:** Wait for "Compiled successfully" message. If >5 min, kill and retry.
+**Acknowledge via API (clears dedup cache):**
+```bash
+curl -X POST http://localhost:8000/api/alerts/acknowledge \
+  -H 'Content-Type: application/json' \
+  -d '{"alert_id": "AnomalyDetected", "resolved": true}'
+```
 
-### Dash UI Mount Failed
-**Cause:** Dash requires a Flask app; FastAPI uses Starlette.
-**Fix:** Non-fatal. The WSGIMiddleware wrapper handles this. Check logs for details.
+---
 
-### Rate Limit Errors in Tests
-**Cause:** Rate limiter active in test mode.
-**Fix:** Set `TESTING=true` in `.env` to bypass rate limiting.
+## Phone Alerting (Twilio)
 
-## Recovery Procedures
+### Configuration
 
-### MongoDB Connection Lost
-1. System continues in degraded mode (DuckDB only)
-2. Check: `curl http://localhost:8000/api/health/mongodb`
-3. Restart MongoDB Atlas cluster if needed
-4. Reconnect: restart backend process
+Set these environment variables in `backend/.env`:
+```
+TWILIO_ACCOUNT_SID=ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+TWILIO_AUTH_TOKEN=your_auth_token
+TWILIO_FROM_NUMBER=+15551234567
+NAV_PHONE_NUMBER=+15559876543
+```
 
-### DuckDB Corruption
-1. Stop backend
-2. Remove `data/duckdb/floww.duckdb`
-3. Restart backend (recreates empty database)
-4. Re-run backfill scripts
+### Behavior
 
-### Model Registry Corrupted
-1. Check `ml/registry.json` for validity
-2. If corrupt, restore from backup: `cp ml/registry.json.bak ml/registry.json`
-3. Re-train affected models: `python scripts/train_production.py --ticker SPY`
+- **CRITICAL** alerts → SMS + voice call
+- **WARNING** alerts → SMS only
+- **LOW** alerts → Dashboard only (no phone)
+- **Quiet hours**: 22:00–06:00 ET (no calls unless emergency)
+- **Market hours override**: 09:30–16:00 ET weekdays always allow calls
+- **Emergency bypass**: `AnomalyDetected`, `QueueBackpressure`, `APIErrorRateHigh` always fire
+- **Deduplication**: 15-minute cooldown per unique alert ID
+
+### Test the dispatcher
+
+```bash
+# Trigger a test critical alert
+curl -X POST http://localhost:8000/api/alerts/fire \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "alert_id": "TEST-001",
+    "severity": "CRITICAL",
+    "title": "Test Alert",
+    "message": "This is a test — ignore",
+    "category": "AnomalyDetected"
+  }'
+```
+
+### Check dispatcher status
+
+```bash
+curl -s http://localhost:8000/api/alerts/status | python3 -m json.tool
+```
+
+---
+
+## Meta-Anomaly Detection
+
+The meta-observability system trains an Isolation Forest on Prometheus metrics to detect deviations from "time-of-day" baselines.
+
+### How it works
+
+1. Every minute, a feature vector is extracted from current metrics
+2. Features include: ingestion rate, queue depth, VPIN, p99 latency, WS connections, time-of-day (cyclical)
+3. The model scores each sample; scores below -0.15 are flagged as anomalies
+4. Model auto-trains every 24h once 48h of data is collected
+
+### Model location
+
+`project_oracle/models/meta_anomaly_v1.pt` (joblib format)
+
+### Check detector state
+
+```python
+from services.meta_observability import meta_detector
+print(meta_detector.get_state())
+```
+
+---
+
+## Incident Post-Mortems
+
+### Create manually
+
+```bash
+python3 scripts/start_incident.py \
+  --alert-id "AnomalyDetected-2026-05-20" \
+  --title "VPIN spike on SPY" \
+  --severity CRITICAL \
+  --category data
+```
+
+### Auto-creation
+
+When a CRITICAL alert is acknowledged via the phone callback URL (`/api/alerts/acknowledge`), a post-mortem skeleton is auto-created at `docs/INCIDENTS/<date>_<slug>.md`.
+
+### Template
+
+See `docs/INCIDENTS/_template.md` for the full template with sections: Title, Severity, Services Affected, Detection, Timeline, Root Cause, Remediation, Action Items, Lessons Learned.
+
+---
+
+## Troubleshooting
+
+### Grafana shows "No data"
+
+1. Check Prometheus is scraping: http://localhost:9090/targets
+2. Check the app is running: `curl http://localhost:8000/metrics`
+3. Verify datasource in Grafana: Configuration → Data Sources → Prometheus → Test
+
+### Alerts not firing
+
+1. Check Prometheus rules: http://localhost:9090/rules
+2. Check Alertmanager: http://localhost:9093/#/alerts
+3. Verify webhook is reachable: `curl -X POST http://localhost:8000/api/alerts/fire -H 'Content-Type: application/json' -d '{"alert_id":"test","severity":"CRITICAL","title":"test","message":"test"}'`
+
+### Phone alerts not working
+
+1. Check Twilio credentials in `.env`
+2. Check dispatcher status: `curl http://localhost:8000/api/alerts/status`
+3. Review logs: `tail -f backend/logs/app.log | grep -i alert`
+
+### High memory usage
+
+- Prometheus retention is 30d. Reduce with `--storage.tsdb.retention.time=7d`
+- DuckDB is in-memory. Monitor `floww_duckdb_queue_depth` for backpressure

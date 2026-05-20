@@ -142,7 +142,8 @@ class RegimeAwareThreshold:
             self._vol_history.append(realized_vol)
 
         if len(self._errors) < 20:
-            return {"regime": "warming_up", "threshold": float("inf"), "percentile_used": 0}
+            return {"regime": "warming_up", "threshold": float("inf"), "percentile_used": 0,
+                    "is_anomaly": False, "zscore": 0.0}
 
         errors = np.array(self._errors)
 

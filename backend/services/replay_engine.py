@@ -38,8 +38,8 @@ class ReplayEngine:
         mongo_client=None,
     ):
         self.db = db
-        self.start = start
-        self.end = end
+        self.start_dt = start
+        self.end_dt = end
         self.speed = speed
         self.mongo_client = mongo_client
 
@@ -69,7 +69,7 @@ class ReplayEngine:
         self._running = True
         self._metrics["start_time"] = time.monotonic()
         logger.info(
-            f"Replay engine starting: {self.start.isoformat()} -> {self.end.isoformat()} "
+            f"Replay engine starting: {self.start_dt.isoformat()} -> {self.end_dt.isoformat()} "
             f"at {self.speed}x speed"
         )
 
@@ -98,7 +98,7 @@ class ReplayEngine:
             WHERE timestamp >= ? AND timestamp <= ?
             ORDER BY timestamp ASC
             """,
-            [self.start.isoformat(), self.end.isoformat()],
+            [self.start_dt.isoformat(), self.end_dt.isoformat()],
         )
         if not rows:
             # Try Mongo if available
@@ -150,7 +150,7 @@ class ReplayEngine:
             ORDER BY timestamp ASC
             LIMIT 1000
             """,
-            [self.start.isoformat(), self.end.isoformat()],
+            [self.start_dt.isoformat(), self.end_dt.isoformat()],
         )
 
         for row in rows:
@@ -186,8 +186,8 @@ class ReplayEngine:
             snapshots = db.snapshots
             cursor = snapshots.find({
                 "timestamp": {
-                    "$gte": self.start.isoformat(),
-                    "$lte": self.end.isoformat(),
+                    "$gte": self.start_dt.isoformat(),
+                    "$lte": self.end_dt.isoformat(),
                 }
             }).sort("timestamp", 1)
             results = []
@@ -208,8 +208,8 @@ class ReplayEngine:
     def get_status(self) -> Dict[str, Any]:
         return {
             "running": self._running,
-            "start": self.start.isoformat(),
-            "end": self.end.isoformat(),
+            "start": self.start_dt.isoformat(),
+            "end": self.end_dt.isoformat(),
             "speed": self.speed,
             **self._metrics,
         }
