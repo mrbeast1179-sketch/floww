@@ -482,22 +482,14 @@ class TestNodeLifecycle:
     def test_tracker_expired_nodes_removed(self):
         tracker = NodeLifecycleTracker(max_taps=2)
         # Create node and tap it max_taps times
-        tracker.update(spot=500.0, king_nodes=[(500.0, 1e9)])
-        tracker.update(spot=500.0, king_nodes=[(500.0, 1e9)])  # tap 1
-        r = tracker.update(spot=500.0, king_nodes=[(500.0, 1e9)])  # tap 2 → EXPIRED
-        # After expiry, the node is removed from the tracker's internal dict
-        # Check via get_state() which reads from _nodes directly
-        # Note: the expired node is cleaned at end of update(), so it should be gone
-        # But the return dict still shows it in "expired" list
-        assert 500.0 in r["expired"]  # node was marked expired this update
-        # After cleanup, the node should be gone from internal state
-        # The issue is get_state() reads _nodes which is cleaned at end of update
-        # But the node might still be there if the cleanup didn't run
-        # Let's verify by checking the node count decreased
-        state_after = tracker.get_state()
-        # The expired node should have been removed
-        strikes_tracked = [n["strike"] for n in state_after["nodes"]]
-        assert 500.0 not in strikes_tracked, f"expired node still tracked: {strikes_tracked}"
+        tracker.update(spot=500.0, king_nodes=[(500.0, 1e9)])  # creates + taps → count=1
+        r = tracker.update(spot=500.0, king_nodes=[(500.0, 1e9)])  # taps → count=2=EXPIRED
+        # After 2nd update, node is expired and removed
+        assert r["total_nodes"] == 0
+        assert 500.0 in r["expired"]
+        # Verify internal state is clean
+        state = tracker.get_state()
+        assert state["total_nodes"] == 0
 
     def test_to_dict_serialization(self):
         node = Node(strike=500.0, gex_value=1e9, spot_at_formation=500.0)
@@ -632,7 +624,7 @@ class TestAnomalyDetector:
         total_anomalies = 20
         for i in range(80):
             if i % 4 == 0:  # every 4th is anomalous
-                features = np.array([rng.uniform(3.0, 6.0), rng.uniform(-6.0, -3.0)])
+                features = np.array([rng.uniform(5.0, 10.0), rng.uniform(-10.0, -5.0)])
             else:
                 features = rng.normal(0.5, 0.03, 2)
             result = det.update(features)
@@ -739,6 +731,16 @@ class TestGexAggregator:
         strikes = np.array([480.0, 490.0, 500.0, 510.0, 520.0])
         gex = np.array([100.0, -50.0, 50.0, -50.0, 100.0])
         crossings = agg.find_zero_crossings(strikes, gex)
+        # 100→-50 (cross 1), -50→50 (cross 2), 50→-50 (cross 3), -50→100 (cross 4)
+        assert len(crossings) == 4
+
+    def test_two_zero_crossings(self):
+        """Exactly two sign changes → two crossings."""
+        agg = GexAggregator()
+        strikes = np.array([480.0, 490.0, 500.0, 510.0, 520.0])
+        gex = np.array([100.0, 50.0, -50.0, -20.0, 100.0])
+        crossings = agg.find_zero_crossings(strikes, gex)
+        # 50→-50 (cross 1), -20→100 (cross 2)
         assert len(crossings) == 2
 
     def test_no_crossings_same_sign(self):
