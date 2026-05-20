@@ -1,0 +1,58 @@
+# Project Oracle — Kanban Board
+# Agent 8 (Hermes) maintains this file. Do not hand-edit card status.
+# Card state lives in kanban/cards/<id>.md frontmatter.
+
+columns:
+  - id: backlog
+    title: Backlog
+    wip_limit: null
+  - id: ready
+    title: Ready for swarm
+    wip_limit: 20
+  - id: in_progress
+    title: In progress
+    wip_limit: 6
+  - id: review
+    title: Awaiting architect review
+    wip_limit: 4
+  - id: done
+    title: Done (archive after 24h)
+    wip_limit: 20
+
+# Card registry — one entry per agent track
+# Status is source-oftruth in each card's frontmatter; this is the index.
+cards:
+  - id: O-PHASE1-SCHWAB
+    file: cards/O-PHASE1-SCHWAB.md
+  - id: O-PHASE2-ANOMALY
+    file: cards/O-PHASE2-ANOMALY.md
+  - id: O-PHASE3-DASH
+    file: cards/O-PHASE3-DASH.md
+  - id: O-TEST-INFRA
+    file: cards/O-TEST-INFRA.md
+  - id: O-MATH-VALID
+    file: cards/O-MATH-VALID.md
+  - id: O-RESEARCH-LOOP
+    file: cards/O-RESEARCH-LOOP.md
+  - id: O-SECURITY
+    file: cards/O-SECURITY.md
+  - id: O-KANBAN-ORCH
+    file: cards/O-KANBAN-ORCH.md
+  - id: O-MEMORY-SYNC
+    file: cards/O-MEMORY-SYNC.md
+  - id: O-OBSERVABILITY
+    file: cards/O-OBSERVABILITY.md
+
+# Watcher config
+watcher:
+  interval_seconds: 300
+  blocker_threshold_seconds: 1800
+  archive_after_hours: 24
+
+# Agent-hardening config (hermeshub:agent-hardening)
+hardening:
+  max_retries: 3
+  retry_delay_seconds: 60
+  timeout_graceful_exit: true
+  state_checkpoint_on_timeout: true
+  checkpoint_path: "kanban/cards/{card_id}.checkpoint.md"
