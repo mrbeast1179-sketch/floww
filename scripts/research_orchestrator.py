@@ -29,7 +29,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-REPO_ROOT = Path(__file__).resolve().parent
+REPO_ROOT = Path(__file__).resolve().parent.parent
 EXTERNAL_RESEARCH_DIR = REPO_ROOT / "data" / "external_research"
 DIGEST_DIR = REPO_ROOT / "memory"
 STATE_PATH = EXTERNAL_RESEARCH_DIR / ".orchestrator_state.json"

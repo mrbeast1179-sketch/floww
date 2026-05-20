@@ -11,24 +11,6 @@ import pytest
 pytestmark = pytest.mark.asyncio
 
 
-# --- Reset PAID_TICKERS to defaults (SPY) before & after the suite ---
-@pytest.fixture(autouse=True)
-async def _reset_policy(aclient):
-    """Reset policy to SPY-only before each test."""
-    try:
-        await aclient.post("/api/live/policy", json={"paid_tickers": ["SPY"]})
-    except Exception:
-        pass
-    yield
-    try:
-        await aclient.post(
-            "/api/live/policy",
-            json={"paid_tickers": ["SPY"], "window_start": "09:00", "window_stop": "10:30"},
-        )
-    except Exception:
-        pass
-
-
 # --- /api/databento/usage shape ---
 async def test_databento_usage_v3_shape(aclient):
     r = await aclient.get("/api/databento/usage")
