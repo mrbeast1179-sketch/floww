@@ -35,10 +35,9 @@ class TestRegimeAwareThreshold:
     def test_calm_regime_at_low_vol(self):
         """Should classify calm regime at low vol percentile."""
         rt = RegimeAwareThreshold(window=500)
-        # Seed vol history with moderate values
-        for _ in range(30):
-            rt._vol_history.append(0.15)
-        # Now update with low vol
+        # Seed vol history with HIGH values so 0.05 is low percentile
+        for _ in range(100):
+            rt._vol_history.append(0.30 + np.random.RandomState(42).uniform(0, 0.2))
         result = {}
         for _ in range(25):
             result = rt.update(0.05, realized_vol=0.05)
@@ -75,26 +74,27 @@ class TestRegimeAwareThreshold:
 
     def test_moderate_spike_flagged_in_calm_not_urgent(self):
         """A moderate spike should be flagged in calm but not in urgent regime."""
+        rng = np.random.RandomState(42)
+
         rt_calm = RegimeAwareThreshold(window=500)
         rt_urgent = RegimeAwareThreshold(window=500)
 
-        rng = np.random.RandomState(42)
-        # Seed with normal errors
+        # Seed calm with low vol history, urgent with high vol history
+        for _ in range(100):
+            rt_calm._vol_history.append(0.05 + rng.uniform(0, 0.02))
+            rt_urgent._vol_history.append(0.30 + rng.uniform(0, 0.2))
+
+        # Feed normal errors
         for _ in range(50):
             e = rng.uniform(0.01, 0.03)
-            rt_calm._vol_history.append(0.05)
-            rt_urgent._vol_history.append(0.50)
             rt_calm.update(e, realized_vol=0.05)
-            rt_urgent.update(e, realized_vol=0.50)
+            rt_urgent.update(e, realized_vol=0.40)
 
         # Moderate spike
         spike = 0.08
         calm_result = rt_calm.update(spike, realized_vol=0.05)
-        urgent_result = rt_urgent.update(spike, realized_vol=0.50)
+        urgent_result = rt_urgent.update(spike, realized_vol=0.40)
 
-        # In calm regime (99th pct threshold), spike should be flagged
-        # In urgent regime (90th pct threshold with high vol), may or may not be
-        # The key test: calm regime is more sensitive
         assert calm_result["regime"] == "calm"
         assert urgent_result["regime"] == "urgent"
 

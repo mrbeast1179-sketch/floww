@@ -13,7 +13,7 @@ router = APIRouter()
 @router.get("/portfolio/{name}")
 async def get_portfolio(name: str, spot: float = Query(0), iv: float = Query(0.15)):
     from server import db, calc_portfolio_summary
-    portfolio = db.portfolios.find_one({"name": name}, {"_id": 0})
+    portfolio = await db.portfolios.find_one({"name": name}, {"_id": 0})
     if not portfolio:
         raise HTTPException(404, f"Portfolio '{name}' not found")
     if spot > 0:
