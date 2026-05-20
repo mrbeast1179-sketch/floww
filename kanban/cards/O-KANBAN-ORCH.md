@@ -5,9 +5,9 @@ assignee: Agent 8
 skill: devops:kanban-orchestrator + autonomous-ai-agents:kanban-codex-lane + hermeshub:agent-hardening
 estimate_hours: -1
 dependencies: []
-status: in_progress
+status: done
 last_update: 2026-05-19T20:30:00Z
-commits: []
+commits: [11caa4e]
 blockers: []
 ---
 
@@ -30,9 +30,9 @@ Auto-scheduling kanban workflow that survives Nav going to sleep. Board state in
 - Surfaces blockers to Nav
 
 ## Acceptance Criteria
-- [ ] Board state fully YAML + markdown
-- [ ] Watcher loop running (5-min cadence)
-- [ ] WIP limit enforcement (max 6 in_progress)
-- [ ] Auto-archive after 24h
-- [ ] 10+ tests on schema + transitions
-- [ ] All commits conventional: `chore(kanban): ...` / `feat(kanban): ...`
+- [x] Board state fully YAML + markdown
+- [x] Watcher loop running (5-min cadence)
+- [x] WIP limit enforcement (max 6 in_progress)
+- [x] Auto-archive after 24h
+- [x] 23 tests on schema + transitions (run with --noconftest)
+- [x] All commits conventional: `feat(kanban): ...`

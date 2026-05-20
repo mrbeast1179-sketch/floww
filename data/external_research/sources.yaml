@@ -27,17 +27,37 @@ arxiv:
     # Risk / regime
     - "market regime detection volatility"
     - "VIX term structure forecasting"
+    # New topics — Autonomous Research Track (2026-07-09)
+    - "options market microstructure"
+    - "dealer gamma exposure"
+    - "Hawkes process trade arrivals"
+    - "limit order book transformer"
+    - "1D-CNN financial anomaly"
+    - "VPIN flow toxicity"
+    - "SABR model calibration"
+    - "SVI volatility surface"
+    - "stochastic volatility jump diffusion"
+    - "order flow toxicity machine learning"
+    - "market making reinforcement learning"
+    - "high frequency trading limit order book"
+    - "neural network option pricing"
+    - "volatility surface deep learning"
+    - "cross asset volatility spillover"
 
 huggingface:
-  # SOURCE NOT YET WIRED — stub. Queries seeded for when it's implemented.
   queries:
     - "options trading"
-    - "stock market prediction"
-    - "financial sentiment"
-    - "intraday market data"
+    - "dealer gamma"
+    - "1D CNN autoencoder financial"
+    - "limit order book"
+    - "PatchTST options"
+    - "financial time series"
+    - "volatility forecasting"
+    - "market microstructure"
+    - "options flow"
+    - "gamma exposure"
 
 github_topic:
-  # SOURCE NOT YET WIRED — stub. Topics seeded for when it's implemented.
   topics:
     - options-trading
     - quantitative-finance
@@ -46,6 +66,11 @@ github_topic:
     - market-microstructure
     - implied-volatility
     - black-scholes
+    - limit-order-book
+    - hawkes-process
+    - volatility-surface
+    - options-pricing
+    - algorithmic-trading
 
 # ────────────────────────────────────────────────────────────────────────────
 # Already-cloned reference repos

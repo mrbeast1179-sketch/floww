@@ -109,4 +109,9 @@ async def get_trinity_alignment(
         qqq_spot=spots.get("QQQ", 0),
         spx_spot=spots.get("^SPX", 0),
     )
+
+    # Emit Prometheus metric
+    from services.observability import metrics as obs_metrics
+    obs_metrics.trinity_score.set(result.get("score", 0.0))
+
     return result

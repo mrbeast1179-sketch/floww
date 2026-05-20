@@ -118,18 +118,20 @@ class StatisticalAnomalyDetector:
 
 
 class FlowAnomalyDetector:
-    """Main anomaly detector for flow toxicity.
+    """Flow toxicity anomaly detector with optional 1D-CNN autoencoder.
 
     Uses 1D-CNN Autoencoder when PyTorch is available,
     falls back to statistical method otherwise.
     """
 
     def __init__(self, seq_len: int = 50, latent_dim: int = 8,
-                 threshold_sigma: float = 2.5, device: str = "cpu"):
+                 threshold_sigma: float = 2.5, device: str = "cpu",
+                 ticker: str = ""):
         self.seq_len = seq_len
         self.latent_dim = latent_dim
         self.threshold_sigma = threshold_sigma
         self.device = device
+        self.ticker = ticker
 
         # Rolling buffer for input features: (VPIN, QI)
         self._buffer: deque = deque(maxlen=seq_len)
@@ -155,18 +157,26 @@ class FlowAnomalyDetector:
         self._update_count += 1
 
         if len(self._buffer) < self.seq_len:
-            return {
+            result = {
                 "anomaly_score": 0.0,
                 "is_anomaly": False,
                 "status": "warming_up",
                 "buffer_fill": len(self._buffer) / self.seq_len,
             }
-
-        if HAS_TORCH and self.model is not None:
-            return self._torch_update()
+        elif HAS_TORCH and self.model is not None:
+            result = self._torch_update()
         else:
             features = np.array(self._buffer)
-            return self._fallback.update(features)
+            result = self._fallback.update(features)
+
+        # Emit Prometheus metrics
+        if self.ticker:
+            score = result.get("anomaly_score", 0.0)
+            obs_metrics.anomaly_score.labels(ticker=self.ticker).set(score)
+            if result.get("is_anomaly", False):
+                obs_metrics.anomaly_detected_total.inc()
+
+        return result
 
     def _torch_update(self) -> Dict[str, Any]:
         """PyTorch-based anomaly detection."""

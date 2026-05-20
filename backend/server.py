@@ -2556,6 +2556,50 @@ async def shutdown_duckdb():
     except Exception:
         pass
 
+# ============ Ingestion Pipeline (Mock Feed for now) ============
+from services.ingestion_pipeline import IngestionPipeline
+from services.mock_schwab_feed import MockSchwabFeed
+
+_ingestion_pipeline: IngestionPipeline | None = None
+_mock_feed: MockSchwabFeed | None = None
+
+@app.on_event("startup")
+async def startup_ingestion():
+    """Launch ingestion pipeline with mock feed on startup."""
+    global _ingestion_pipeline, _mock_feed
+    try:
+        _ingestion_pipeline = IngestionPipeline(
+            db=duckdb_engine,
+            max_queue_size=10000,
+            flush_interval_ms=50.0,
+        )
+        await _ingestion_pipeline.start()
+
+        # Use mock feed (swap to SchwabStreamer when credentials available)
+        _mock_feed = MockSchwabFeed(rate=100.0, symbols=["SPY", "QQQ"], seed=42)
+        _mock_feed.on_tick(_ingestion_pipeline.enqueue_tick)
+        _mock_feed.on_chain(_ingestion_pipeline.enqueue_chain)
+        _mock_feed.on_lob(_ingestion_pipeline.enqueue_lob)
+
+        # Run mock feed in background
+        asyncio.create_task(_mock_feed.start())
+        log.info("Ingestion pipeline + mock feed started")
+    except Exception as e:
+        log.warning(f"Ingestion startup failed (non-fatal): {e}")
+
+@app.on_event("shutdown")
+async def shutdown_ingestion():
+    """Drain queue and stop ingestion on shutdown."""
+    global _ingestion_pipeline, _mock_feed
+    try:
+        if _mock_feed:
+            await _mock_feed.stop()
+        if _ingestion_pipeline:
+            await _ingestion_pipeline.stop()
+        log.info("Ingestion pipeline stopped")
+    except Exception as e:
+        log.warning(f"Ingestion shutdown error: {e}")
+
 # ============ WebSocket Endpoint ============
 
 @app.websocket("/ws/{topic}")

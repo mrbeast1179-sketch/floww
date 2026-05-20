@@ -75,9 +75,13 @@ class DiscoverySource(ABC):
     name: str = "abstract"
     rate_limit_seconds: float = 3.0
 
-    def __init__(self, http_get: Optional[Callable[[str, Dict[str, str]], str]] = None):
-        """`http_get` is injected for testability — defaults to urllib."""
+    def __init__(self, http_get: Optional[Callable[[str, Dict[str, str]], str]] = None,
+                 max_retries: int = 3, backoff_factor: float = 2.0):
+        """`http_get` is injected for testability — defaults to urllib.
+        `max_retries` and `backoff_factor` control retry on 429/timeout."""
         self._http_get = http_get or self._default_http_get
+        self._max_retries = max_retries
+        self._backoff_factor = backoff_factor
 
     @abstractmethod
     def _fetch(self, query: str) -> Any:
@@ -104,7 +108,7 @@ class DiscoverySource(ABC):
     @staticmethod
     def _default_http_get(url: str, headers: Dict[str, str]) -> str:
         req = urllib.request.Request(url, headers=headers)
-        with urllib.request.urlopen(req, timeout=20) as resp:
+        with urllib.request.urlopen(req, timeout=30) as resp:
             return resp.read().decode("utf-8", errors="replace")
 
 
@@ -134,7 +138,7 @@ class ArxivSource(DiscoverySource):
 
     name = "arxiv"
     base_url = "http://export.arxiv.org/api/query"
-    rate_limit_seconds = 3.0  # arxiv asks for ≥ 3s between requests
+    rate_limit_seconds = 5.0  # arxiv asks for ≥ 3s; use 5s to be safe
 
     DEFAULT_CATEGORIES = (
         "q-fin.PR",  # pricing of securities
@@ -159,11 +163,7 @@ class ArxivSource(DiscoverySource):
         self.categories = categories
 
     def _fetch(self, query: str) -> str:
-        # Build a precise query: ALL terms must appear in the doc, but not
-        # necessarily as a consecutive phrase. Phrase-quoting (`all:"a b c"`)
-        # is too strict — 4-word phrases rarely match. Bare `all:a b c` is
-        # too loose — arxiv stems / fuzz-matches and returns unrelated papers.
-        # AND-ing each term wrapped in `all:` is the sweet spot.
+        # Build a precise query
         tokens = [t for t in query.split() if t]
         if tokens:
             term_clause = " AND ".join(f"all:{t}" for t in tokens)
@@ -184,7 +184,21 @@ class ArxivSource(DiscoverySource):
             "sortOrder": "descending",
         }
         url = f"{self.base_url}?{urllib.parse.urlencode(params)}"
-        return self._http_get(url, {"User-Agent": "confluence-decoder-research/0.1"})
+
+        # Retry logic for 429 / timeout
+        import urllib.error as _ue
+        last_exc: Optional[Exception] = None
+        for attempt in range(self._max_retries):
+            try:
+                return self._http_get(url, {"User-Agent": "confluence-decoder-research/0.1"})
+            except (_ue.HTTPError, _ue.URLError, TimeoutError, OSError) as exc:
+                last_exc = exc
+                wait = self._backoff_factor ** attempt * 5
+                if isinstance(exc, _ue.HTTPError) and exc.code == 429:
+                    wait = max(wait, 30)  # arxiv 429 → wait at least 30s
+                import time as _t
+                _t.sleep(wait)
+        raise last_exc  # type: ignore[misc]
 
     def _parse(self, raw: str) -> List[Discovery]:
         results: List[Discovery] = []

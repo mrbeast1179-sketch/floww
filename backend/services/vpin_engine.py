@@ -51,7 +51,7 @@ class VpinEngine:
         Number of buckets in the rolling VPIN window. Default 50.
     """
 
-    def __init__(self, bucket_size: float = 50000.0, window: int = 50) -> None:
+    def __init__(self, bucket_size: float = 50000.0, window: int = 50, ticker: str = "") -> None:
         if bucket_size <= 0:
             raise ValueError("bucket_size must be positive")
         if window <= 0:
@@ -59,6 +59,7 @@ class VpinEngine:
 
         self.bucket_size = float(bucket_size)
         self.window = int(window)
+        self.ticker = ticker
 
         # Current bucket accumulators
         self._bucket_buy_volume: float = 0.0
@@ -208,6 +209,13 @@ class VpinEngine:
         self._vpin_history.append(self._current_vpin)
         self._current_vpin_cdf = self._compute_vpin_cdf_from_history()
 
+        # Emit Prometheus metrics
+        if self.ticker:
+            obs_metrics.vpin_current.labels(ticker=self.ticker).set(self._current_vpin)
+            obs_metrics.ingestion_messages_total.labels(
+                symbol=self.ticker, kind="vpin_bucket"
+            ).inc()
+
     # ------------------------------------------------------------------
     # VPIN computation
     # ------------------------------------------------------------------
@@ -292,6 +300,13 @@ class VpinEngine:
             self._current_qi = (bid_size - ask_size) / total
 
         self._qi_history.append(self._current_qi)
+
+        # Emit Prometheus metric
+        if self.ticker:
+            obs_metrics.qi_zscore_current.labels(ticker=self.ticker).set(
+                self._current_qi
+            )
+
         return self._current_qi
 
     def compute_qi_zscore(self) -> float:

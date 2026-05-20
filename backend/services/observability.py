@@ -1,0 +1,146 @@
+"""
+backend/services/observability.py
+
+Prometheus metrics exposition for Project Oracle.
+Central registry of all floww_ metrics. Import and call from any service.
+
+Usage:
+    from services.observability import metrics
+
+    # In VPIN engine:
+    metrics.vpin_current.labels(ticker="SPY").set(0.72)
+
+    # In FastAPI middleware:
+    metrics.api_request_duration_seconds.labels(
+        route="/api/vpin/{ticker}", method="GET", status="200"
+    ).observe(0.023)
+
+    # In WebSocket connect/disconnect:
+    metrics.websocket_connections.labels(topic="ticks").inc()
+    metrics.websocket_connections.labels(topic="ticks").dec()
+"""
+
+from prometheus_client import (
+    Counter,
+    Gauge,
+    Histogram,
+    generate_latest,
+    CONTENT_TYPE_LATEST,
+    CollectorRegistry,
+)
+
+# ---------------------------------------------------------------------------
+# Registry — isolated so tests don't pollute global
+# ---------------------------------------------------------------------------
+REGISTRY = CollectorRegistry()
+
+# ---------------------------------------------------------------------------
+# Ingestion metrics
+# ---------------------------------------------------------------------------
+ingestion_messages_total = Counter(
+    "floww_ingestion_messages_total",
+    "Total market data messages ingested",
+    labelnames=["symbol", "kind"],
+    registry=REGISTRY,
+)
+
+# ---------------------------------------------------------------------------
+# DuckDB metrics
+# ---------------------------------------------------------------------------
+duckdb_queue_depth = Gauge(
+    "floww_duckdb_queue_depth",
+    "Current number of items in the DuckDB write queue",
+    registry=REGISTRY,
+)
+
+duckdb_batch_size = Histogram(
+    "floww_duckdb_batch_size",
+    "Number of rows per DuckDB batch flush",
+    buckets=[1, 5, 10, 25, 50, 100, 250, 500, 1000],
+    registry=REGISTRY,
+)
+
+# ---------------------------------------------------------------------------
+# VPIN / Toxicity metrics
+# ---------------------------------------------------------------------------
+vpin_current = Gauge(
+    "floww_vpin_current",
+    "Current VPIN value (0-1) per ticker",
+    labelnames=["ticker"],
+    registry=REGISTRY,
+)
+
+qi_zscore_current = Gauge(
+    "floww_qi_zscore_current",
+    "Current Quote Imbalance z-score per ticker",
+    labelnames=["ticker"],
+    registry=REGISTRY,
+)
+
+# ---------------------------------------------------------------------------
+# Trinity Alignment
+# ---------------------------------------------------------------------------
+trinity_score = Gauge(
+    "floww_trinity_score",
+    "Trinity Alignment Index score (0-100)",
+    registry=REGISTRY,
+)
+
+# ---------------------------------------------------------------------------
+# Anomaly Detection
+# ---------------------------------------------------------------------------
+anomaly_score = Gauge(
+    "floww_anomaly_score",
+    "Current anomaly reconstruction error per ticker",
+    labelnames=["ticker"],
+    registry=REGISTRY,
+)
+
+anomaly_detected_total = Counter(
+    "floww_anomaly_detected_total",
+    "Total number of anomaly threshold breaches",
+    registry=REGISTRY,
+)
+
+# ---------------------------------------------------------------------------
+# API / HTTP metrics
+# ---------------------------------------------------------------------------
+api_request_duration_seconds = Histogram(
+    "floww_api_request_duration_seconds",
+    "HTTP request duration in seconds",
+    labelnames=["route", "method", "status"],
+    buckets=[0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1.0, 2.5, 5.0, 10.0],
+    registry=REGISTRY,
+)
+
+# ---------------------------------------------------------------------------
+# WebSocket metrics
+# ---------------------------------------------------------------------------
+websocket_connections = Gauge(
+    "floww_websocket_connections",
+    "Current number of active WebSocket connections per topic",
+    labelnames=["topic"],
+    registry=REGISTRY,
+)
+
+# ---------------------------------------------------------------------------
+# Schwab Auth Health
+# ---------------------------------------------------------------------------
+schwab_token_expires_in_seconds = Gauge(
+    "floww_schwab_token_expires_in_seconds",
+    "Seconds until Schwab OAuth token expires (0 if no token)",
+    registry=REGISTRY,
+)
+
+
+# ---------------------------------------------------------------------------
+# Helper: generate Prometheus exposition format
+# ---------------------------------------------------------------------------
+def get_metrics_bytes() -> bytes:
+    """Return all metrics in Prometheus text exposition format."""
+    return generate_latest(REGISTRY)
+
+
+def get_metrics_content_type() -> str:
+    """Return the content type for Prometheus metrics."""
+    return CONTENT_TYPE_LATEST

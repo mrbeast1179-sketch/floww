@@ -8,15 +8,13 @@
 |--------|-------|-----------|
 | Backlog | 0 | - |
 | Ready | 9 | 20 |
-| In Progress | 1 | 6 |
+| In Progress | 0 | 6 |
 | Review | 0 | 4 |
-| Done | 0 | 20 |
+| Done | 1 | 20 |
 
 ## In Progress
 
-| Card | Assignee | Last Update | Commits | Blockers |
-|------|----------|-------------|---------|----------|
-| O-KANBAN-ORCH | Agent 8 | 2026-05-19T20:30:00Z | - | - |
+None. All 9 ready cards awaiting dispatch.
 
 ## Ready (dispatch order)
 
@@ -32,6 +30,12 @@
 | O-MEMORY-SYNC | Agent 9 | 2h | obsidian, mem0, honcho-memory |
 | O-OBSERVABILITY | Agent 10 | 3h | coding-agent, evaluating-llms |
 
+## Done
+
+| Card | Assignee | Commits |
+|------|----------|---------|
+| O-KANBAN-ORCH | Agent 8 | 11caa4e |
+
 ## Blocked
 
 None.
@@ -41,5 +45,6 @@ None.
 None.
 
 ---
-*Next watcher run: 2026-05-19T21:00:00Z*
+*Next watcher run: continuous (5-min loop)*
 *See kanban/INCIDENTS.md for full incident log*
+*Run watcher: `cd /Users/nav/Documents/GitHub/floww && python3 kanban/watcher.py --loop &`*

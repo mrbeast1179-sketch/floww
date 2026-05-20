@@ -63,3 +63,40 @@ def _refresh_motor_client_per_test(monkeypatch):
         yield
     finally:
         fresh.close()
+
+
+@pytest.fixture(autouse=True)
+def _reset_event_loop_per_test():
+    """Reset the asyncio event loop before each test.
+
+    TestClient uses anyio.from_thread which creates a new event loop
+    per request. After a test completes, that loop is closed. The next
+    test's TestClient request may try to use asyncio.to_thread which
+    references the now-closed loop.
+
+    This fixture ensures each test starts with a fresh event loop.
+    """
+    # Close any existing loop and create a fresh one
+    try:
+        loop = asyncio.get_event_loop()
+        if not loop.is_closed():
+            loop.close()
+    except RuntimeError:
+        pass
+    new_loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(new_loop)
+    yield
+    # Clean up: close the loop we created
+    try:
+        new_loop.close()
+    except Exception:
+        pass
+
+
+@pytest.fixture(autouse=True)
+def _reset_error_tracking_per_test():
+    """Reset error tracking state between tests."""
+    from error_tracking import clear_error_log
+    clear_error_log()
+    yield
+    clear_error_log()
