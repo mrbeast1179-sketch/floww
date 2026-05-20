@@ -1,0 +1,29 @@
+{
+  "model": "anomaly_detector_v1",
+  "path": "project_oracle/models/anomaly_detector_v1.pt",
+  "size_mb": 0.02,
+  "data_source": "synthetic_gbm",
+  "n_train": 3960,
+  "n_val": 991,
+  "seq_len": 50,
+  "latent_dim": 8,
+  "epochs": 5,
+  "batch_size": 32,
+  "learning_rate": 0.001,
+  "final_train_loss": 0.027528,
+  "best_val_loss": 0.027862,
+  "threshold": {
+    "threshold": 0.04476695,
+    "mean_error": 0.02786232,
+    "std_error": 0.00676185,
+    "sigma": 2.5,
+    "n_samples": 991,
+    "min_error": 0.00979854,
+    "max_error": 0.05316204,
+    "p95_error": 0.04073998,
+    "p99_error": 0.04510115
+  },
+  "total_params": 2546,
+  "device": "cpu",
+  "trained_at": "2026-05-20T01:28:58.946135+00:00"
+}
