@@ -8,9 +8,6 @@ from httpx import AsyncClient, ASGITransport
 
 from server import app
 
-# Configure pytest-asyncio to auto-detect async tests
-pytest_plugins = ["pytest_asyncio"]
-
 
 @pytest.fixture(scope="session")
 def event_loop():
@@ -71,6 +68,12 @@ async def _reset_event_loop_and_motor(aclient, monkeypatch):
     try:
         from error_tracking import clear_error_log
         clear_error_log()
+    except Exception:
+        pass
+
+    # Step 5: Reset live policy to safe defaults
+    try:
+        await aclient.post("/api/live/policy", json={"paid_tickers": ["SPY"]})
     except Exception:
         pass
 

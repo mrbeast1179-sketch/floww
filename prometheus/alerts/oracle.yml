@@ -6,6 +6,7 @@ groups:
         for: 2m
         labels:
           severity: warning
+          category: IngestionStalled
         annotations:
           summary: "Market data ingestion stalled"
           description: "No messages ingested in the last 5 minutes for {{ $labels.symbol }}."
@@ -15,6 +16,7 @@ groups:
         for: 1m
         labels:
           severity: critical
+          category: QueueBackpressure
         annotations:
           summary: "DuckDB write queue backing up"
           description: "Queue depth is {{ $value }} (threshold: 9000). DuckDB writer may be falling behind."
@@ -24,6 +26,7 @@ groups:
         for: 0m
         labels:
           severity: critical
+          category: AnomalyDetected
         annotations:
           summary: "Flow toxicity anomaly detected"
           description: "Anomaly detector triggered in the last 60 seconds. Check VPIN and QI z-score."
@@ -33,6 +36,7 @@ groups:
         for: 1m
         labels:
           severity: warning
+          category: SchwabTokenExpiring
         annotations:
           summary: "Schwab OAuth token expiring soon"
           description: "Token TTL is {{ $value }}s (threshold: 300s). Re-authenticate via /api/schwab/auth."
@@ -42,6 +46,27 @@ groups:
         for: 5m
         labels:
           severity: critical
+          category: APIErrorRateHigh
         annotations:
           summary: "High API 5xx error rate"
           description: "Error rate is {{ $value }}/s over the last 5 minutes. Check server logs."
+
+      - alert: Budget80Percent
+        expr: floww_cost_budget_pct > 80
+        for: 5m
+        labels:
+          severity: warning
+          category: BudgetWarning
+        annotations:
+          summary: "Budget utilization above 80% for {{ $labels.provider }}"
+          description: "{{ $labels.provider }} has used {{ $value }}% of its allocated budget. Consider reducing usage or increasing the budget."
+
+      - alert: Budget95Percent
+        expr: floww_cost_budget_pct > 95
+        for: 1m
+        labels:
+          severity: critical
+          category: BudgetCritical
+        annotations:
+          summary: "CRITICAL: Budget utilization above 95% for {{ $labels.provider }}"
+          description: "{{ $labels.provider }} has used {{ $value }}% of its allocated budget. Immediate action required — phone alert dispatched."

@@ -209,8 +209,8 @@ def test_anomaly_detector_emits_metrics():
     from services.observability import anomaly_score, get_metrics_bytes
 
     detector = FlowAnomalyDetector(seq_len=5, latent_dim=4, ticker="SPY")
-    # Feed enough observations to warm up
-    for i in range(10):
+    # Feed enough observations to warm up buffer (5) + fallback errors (10)
+    for i in range(20):
         result = detector.update(vpin=0.5 + i * 0.01, qi=0.1)
 
     output = get_metrics_bytes().decode()

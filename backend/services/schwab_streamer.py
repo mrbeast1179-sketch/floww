@@ -60,6 +60,7 @@ class SchwabStreamer:
         self._reconnect_delay = initial_reconnect_delay
         self._tick_handlers: List[Callable] = []
         self._chain_handlers: List[Callable] = []
+        self._lob_depth_handlers: List[Callable] = []
         self._error_handlers: List[Callable] = []
         self._subscribed_symbols: Set[str] = set()
         self._metrics = {
@@ -68,6 +69,15 @@ class SchwabStreamer:
             "reconnects": 0,
             "errors": 0,
         }
+        # Health tracking
+        self._health = {
+            "connected": False,
+            "last_message_at": None,
+            "messages_per_minute_5min": 0.0,
+            "reconnect_count_24h": 0,
+            "lob_depth_rows_24h": 0,
+        }
+        self._message_timestamps: list = []  # for rate calculation
 
     # ------------------------------------------------------------------
     # Handler registration
@@ -87,6 +97,14 @@ class SchwabStreamer:
         last, volume, oi, delta, gamma, theta, vega, ...}
         """
         self._chain_handlers.append(handler)
+
+    def on_lob_depth(self, handler: Callable[[Dict[str, Any]], Any]):
+        """Register a handler for Level-2 LOB depth data.
+
+        Handler receives: {timestamp, symbol, expiry, strike, option_type,
+        level, bid_size, bid_price, ask_size, ask_price, ...}
+        """
+        self._lob_depth_handlers.append(handler)
 
     def on_error(self, handler: Callable[[str], Any]):
         """Register a handler for stream errors."""
@@ -149,7 +167,9 @@ class SchwabStreamer:
             close_timeout=5,
         ) as ws:
             self._ws = ws
-            self._reconnect_delay = self.initial_reconnect_delay  # reset on success
+            self._reconnect_delay = self.initial_reconnect_delay
+            self._health["connected"] = True
+            self._health["reconnect_count_24h"] = self._metrics["reconnects"]
             logger.info("Schwab WebSocket connected")
 
             # Subscribe to default symbols
@@ -160,7 +180,18 @@ class SchwabStreamer:
                 if not self._running:
                     break
                 self._metrics["messages_received"] += 1
+                now = datetime.now(timezone.utc)
+                self._health["last_message_at"] = now.isoformat()
+                self._message_timestamps.append(now.timestamp())
+                # Prune timestamps older than 5 min
+                cutoff = now.timestamp() - 300
+                self._message_timestamps = [t for t in self._message_timestamps if t > cutoff]
+                self._health["messages_per_minute_5min"] = round(
+                    len(self._message_timestamps) / 5.0, 1
+                )
                 await self._handle_message(raw_msg)
+
+        self._health["connected"] = False
 
     async def _get_valid_token(self) -> Optional[str]:
         """Get a valid access token, refreshing if needed."""
@@ -180,11 +211,12 @@ class SchwabStreamer:
 
     async def _subscribe_default(self):
         """Subscribe to default Level 1 options and equities."""
-        # Subscribe to underlyings
         await self._subscribe_equities(["SPY", "QQQ", "DIA", "IWM"])
-        # Subscribe to options chains (top strikes near ATM)
         await self._subscribe_options("SPY", num_strikes=20)
         await self._subscribe_options("QQQ", num_strikes=20)
+        # Level-2 order book depth (top 10 levels)
+        await self._subscribe_lob_depth("SPY")
+        await self._subscribe_lob_depth("QQQ")
 
     async def _subscribe_equities(self, symbols: List[str]):
         """Subscribe to Level 1 equities."""
@@ -228,6 +260,24 @@ class SchwabStreamer:
         self._subscribed_symbols.add(f"OPTIONS_{underlying}")
         logger.info(f"Subscribed to options: {underlying} ({num_strikes} strikes)")
 
+    async def _subscribe_lob_depth(self, underlying: str, num_levels: int = 10):
+        """Subscribe to Level 2 order book depth for an underlying."""
+        request = {
+            "service": "LEVEL_TWO_OPTIONS",
+            "requestid": "3",
+            "command": "SUBS",
+            "SchwabClientCustomerId": "",
+            "SchwabClientCorrelId": "",
+            "parameters": {
+                "keys": underlying,
+                "fields": "0,1,2,3,4,5,6,7,8,9,10",
+                # symbol, level, bid_size, bid_price, ask_size, ask_price, ...
+            },
+        }
+        await self._send(request)
+        self._subscribed_symbols.add(f"LOB_DEPTH_{underlying}")
+        logger.info(f"Subscribed to LOB depth: {underlying} ({num_levels} levels)")
+
     async def _send(self, data: Dict[str, Any]):
         """Send a JSON message over the WebSocket."""
         if self._ws:
@@ -252,6 +302,8 @@ class SchwabStreamer:
             await self._parse_equity(msg)
         elif service == "LEVELONE_OPTIONS":
             await self._parse_option(msg)
+        elif service == "LEVEL_TWO_OPTIONS":
+            await self._parse_lob_depth(msg)
         elif msg.get("responseid") == "0" or msg.get("command") == "LOGIN":
             logger.info(f"Schwab streamer login response: {msg.get('content', {}).get('code', '?')}")
         elif "heartbeat" in str(msg).lower():
@@ -327,6 +379,45 @@ class SchwabStreamer:
             except (ValueError, TypeError, IndexError) as e:
                 logger.debug(f"Option parse error: {e}")
 
+    async def _parse_lob_depth(self, msg: Dict[str, Any]):
+        """Parse a Level 2 options depth message."""
+        content = msg.get("content", [])
+        for item in content:
+            try:
+                depth = {
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
+                    "symbol": item.get("key", ""),
+                    "expiry": item.get("11", ""),
+                    "strike": float(item.get("10", 0)),
+                    "option_type": "C" if "C" in str(item.get("key", "")) else "P",
+                    "level": int(item.get("1", 0)),
+                    "bid_size": int(item.get("2", 0)),
+                    "bid_price": float(item.get("3", 0)),
+                    "ask_size": int(item.get("4", 0)),
+                    "ask_price": float(item.get("5", 0)),
+                    "source": "schwab",
+                }
+                self._metrics["messages_parsed"] += 1
+                self._health["lob_depth_rows_24h"] += 1
+                for h in self._lob_depth_handlers:
+                    try:
+                        await h(depth) if asyncio.iscoroutinefunction(h) else h(depth)
+                    except Exception as e:
+                        logger.error(f"LOB depth handler error: {e}")
+            except (ValueError, TypeError, IndexError) as e:
+                logger.debug(f"LOB depth parse error: {e}")
+
+    # ------------------------------------------------------------------
+    # Health
+    # ------------------------------------------------------------------
+
+    def get_health(self) -> Dict[str, Any]:
+        """Return health status for monitoring."""
+        return {
+            **self._health,
+            "connected": self._ws is not None and not getattr(self._ws, "closed", True),
+        }
+
     # ------------------------------------------------------------------
     # Metrics
     # ------------------------------------------------------------------
@@ -335,6 +426,6 @@ class SchwabStreamer:
         return {
             **self._metrics,
             "subscribed_symbols": list(self._subscribed_symbols),
-            "connected": self._ws is not None and not self._ws.closed,
+            "connected": self._ws is not None and not getattr(self._ws, "closed", True),
             "reconnect_delay": self._reconnect_delay,
         }

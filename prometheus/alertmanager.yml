@@ -1,0 +1,16 @@
+global:
+  resolve_timeout: 1m
+
+route:
+  receiver: "floww-dispatcher"
+  group_by: ["alertname"]
+  group_wait: 10s
+  group_interval: 30s
+  repeat_interval: 15m
+
+receivers:
+  - name: "floww-dispatcher"
+    webhook_configs:
+      - url: "http://host.docker.internal:8000/api/alerts/fire"
+        send_resolved: true
+        max_alerts: 10

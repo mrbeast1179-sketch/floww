@@ -18,6 +18,21 @@ services:
     extra_hosts:
       - "host.docker.internal:host-gateway"
 
+  alertmanager:
+    image: prom/alertmanager:v0.27.0
+    container_name: floww-alertmanager
+    ports:
+      - "9093:9093"
+    volumes:
+      - ../prometheus/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+      - alertmanager-data:/alertmanager
+    command:
+      - "--config.file=/etc/alertmanager/alertmanager.yml"
+      - "--storage.path=/alertmanager"
+    restart: unless-stopped
+    depends_on:
+      - prometheus
+
   grafana:
     image: grafana/grafana:11.6.0
     container_name: floww-grafana
@@ -30,6 +45,7 @@ services:
     volumes:
       - grafana-data:/var/lib/grafana
       - ../grafana/provisioning/datasources:/etc/grafana/provisioning/datasources:ro
+      - ../grafana/provisioning/dashboards:/etc/grafana/provisioning/dashboards:ro
       - ../grafana/dashboards:/var/lib/grafana/dashboards:ro
     restart: unless-stopped
     depends_on:
@@ -37,4 +53,5 @@ services:
 
 volumes:
   prometheus-data:
+  alertmanager-data:
   grafana-data:
