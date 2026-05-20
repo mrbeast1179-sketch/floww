@@ -183,9 +183,11 @@ class DuckDBEngine:
             buf = self._tick_buffer
             self._tick_buffer = []
         try:
-            self._conn.executemany(
-                """INSERT INTO ticks VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
-                buf,
+            await asyncio.to_thread(
+                lambda: self._conn.executemany(
+                    """INSERT INTO ticks VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                    buf,
+                )
             )
         except Exception as e:
             logger.error(f"DuckDB tick flush error: {e}")
@@ -197,9 +199,11 @@ class DuckDBEngine:
             buf = self._lob_buffer
             self._lob_buffer = []
         try:
-            self._conn.executemany(
-                """INSERT INTO lob_snapshots VALUES (?,?,?,?,?,?,?)""",
-                buf,
+            await asyncio.to_thread(
+                lambda: self._conn.executemany(
+                    """INSERT INTO lob_snapshots VALUES (?,?,?,?,?,?,?)""",
+                    buf,
+                )
             )
         except Exception as e:
             logger.error(f"DuckDB LOB flush error: {e}")
@@ -211,21 +215,27 @@ class DuckDBEngine:
             buf = self._flow_buffer
             self._flow_buffer = []
         try:
-            self._conn.executemany(
-                """INSERT INTO flow_prints VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
-                buf,
+            await asyncio.to_thread(
+                lambda: self._conn.executemany(
+                    """INSERT INTO flow_prints VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                    buf,
+                )
             )
         except Exception as e:
             logger.error(f"DuckDB flow flush error: {e}")
 
     def query(self, sql: str, params: Optional[List] = None) -> List[Dict[str, Any]]:
-        """Synchronous query returning list of dicts."""
+        """Synchronous query returning list of dicts. Non-blocking wrapper available as query_async."""
         try:
             result = self._conn.execute(sql, params or []).fetchdf()
             return result.replace({np.nan: None}).to_dict("records")
         except Exception as e:
             logger.error(f"DuckDB query error: {e}")
             return []
+
+    async def query_async(self, sql: str, params: Optional[List] = None) -> List[Dict[str, Any]]:
+        """Async wrapper for query — runs in thread pool to avoid blocking event loop."""
+        return await asyncio.to_thread(self.query, sql, params)
 
     def query_df(self, sql: str, params: Optional[List] = None):
         """Return result as pandas DataFrame."""

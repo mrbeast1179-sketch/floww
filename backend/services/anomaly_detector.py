@@ -73,8 +73,11 @@ class Conv1DAutoencoder(nn.Module):
         latent = self.fc_encode(encoded)
         decoded = self.fc_decode(latent)
         reconstructed = self.decoder(decoded)
-        # Trim or pad to match input size
-        if reconstructed.shape[-1] != self.seq_len:
+        # Pad or trim to exactly match input size
+        if reconstructed.shape[-1] < self.seq_len:
+            pad_size = self.seq_len - reconstructed.shape[-1]
+            reconstructed = torch.nn.functional.pad(reconstructed, (0, pad_size))
+        elif reconstructed.shape[-1] > self.seq_len:
             reconstructed = reconstructed[..., :self.seq_len]
         return reconstructed, latent
 
