@@ -8,6 +8,9 @@ from httpx import AsyncClient, ASGITransport
 
 from server import app
 
+# Configure pytest-asyncio to auto-detect async tests
+pytest_plugins = ["pytest_asyncio"]
+
 
 @pytest.fixture(scope="session")
 def event_loop():
@@ -25,8 +28,8 @@ async def aclient():
         yield client
 
 
-@pytest.fixture(autouse=True)
-def _reset_event_loop_and_motor(monkeypatch):
+@pytest_asyncio.fixture(autouse=True)
+async def _reset_event_loop_and_motor(aclient, monkeypatch):
     """Reset event loop AND motor client before each test.
 
     This fixes the 'Event loop is closed' RuntimeError that occurs when:

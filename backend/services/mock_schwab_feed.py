@@ -90,6 +90,9 @@ class MockSchwabFeed:
     def on_lob(self, handler: Callable[[Dict[str, Any]], Any]):
         self._lob_handlers.append(handler)
 
+    def on_lob_depth(self, handler: Callable[[Dict[str, Any]], Any]):
+        self._lob_depth_handlers.append(handler)
+
     # ------------------------------------------------------------------
     # Lifecycle
     # ------------------------------------------------------------------
