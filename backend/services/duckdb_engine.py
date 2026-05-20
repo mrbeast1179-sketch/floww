@@ -21,7 +21,7 @@ from datetime import datetime, timezone
 import duckdb
 import numpy as np
 
-from services.observability import metrics as obs_metrics
+import services.observability as obs_metrics
 
 logger = logging.getLogger(__name__)
 

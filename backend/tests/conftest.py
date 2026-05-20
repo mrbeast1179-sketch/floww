@@ -26,29 +26,33 @@ async def aclient():
 
 
 @pytest.fixture(autouse=True)
-def _refresh_motor_client_per_test(monkeypatch):
-    """Reset ``server.client`` (motor) and ``server.db`` before each test.
+def _reset_event_loop_and_motor(monkeypatch):
+    """Reset event loop AND motor client before each test.
 
-    Why this exists: ``backend/server.py:67`` instantiates a module-level
-    ``AsyncIOMotorClient`` that caches a reference to whichever event loop
-    handled its first request. ``fastapi.testclient.TestClient`` uses
-    ``anyio.from_thread`` internally, which spins up a fresh event loop
-    per call. After the first test runs a TestClient request, motor's
-    cached loop is closed; the next TestClient call (in another module)
-    explodes with ``RuntimeError: Event loop is closed``.
+    This fixes the 'Event loop is closed' RuntimeError that occurs when:
+    1. TestClient uses anyio.from_thread which creates a new event loop per request
+    2. After a test, that loop is closed
+    3. The next test's motor client still references the closed loop
+    4. Async iteration over motor cursors fails with 'Event loop is closed'
 
-    Fix: monkeypatch ``server.client``/``server.db`` to a fresh motor
-    handle at the start of every test. The fresh handle is unbound, so
-    the first request inside *this* test binds it to whatever loop runs
-    that request — then we discard it at teardown.
-
-    Pre-existing 24 failures in test_portfolio, test_v3_costsave,
-    test_heatseeker_v2 all matched this pattern. With this fixture they
-    pass in the full suite (not just individually).
+    Fix: Close old loop, create fresh one, AND create fresh motor client bound to new loop.
     """
     import server
     from motor.motor_asyncio import AsyncIOMotorClient
 
+    # Step 1: Close old event loop
+    try:
+        old_loop = asyncio.get_event_loop()
+        if not old_loop.is_closed():
+            old_loop.close()
+    except RuntimeError:
+        pass
+
+    # Step 2: Create fresh event loop
+    new_loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(new_loop)
+
+    # Step 3: Create fresh motor client bound to the new loop
     mongo_url = os.environ.get("MONGO_URL", "mongodb://localhost:27017")
     db_name = os.environ.get("DB_NAME", "test_confluence_decoder")
 
@@ -59,44 +63,19 @@ def _refresh_motor_client_per_test(monkeypatch):
     )
     monkeypatch.setattr(server, "client", fresh)
     monkeypatch.setattr(server, "db", fresh[db_name])
+
+    # Step 4: Reset error tracking
+    try:
+        from error_tracking import clear_error_log
+        clear_error_log()
+    except Exception:
+        pass
+
     try:
         yield
     finally:
         fresh.close()
-
-
-@pytest.fixture(autouse=True)
-def _reset_event_loop_per_test():
-    """Reset the asyncio event loop before each test.
-
-    TestClient uses anyio.from_thread which creates a new event loop
-    per request. After a test completes, that loop is closed. The next
-    test's TestClient request may try to use asyncio.to_thread which
-    references the now-closed loop.
-
-    This fixture ensures each test starts with a fresh event loop.
-    """
-    # Close any existing loop and create a fresh one
-    try:
-        loop = asyncio.get_event_loop()
-        if not loop.is_closed():
-            loop.close()
-    except RuntimeError:
-        pass
-    new_loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(new_loop)
-    yield
-    # Clean up: close the loop we created
-    try:
-        new_loop.close()
-    except Exception:
-        pass
-
-
-@pytest.fixture(autouse=True)
-def _reset_error_tracking_per_test():
-    """Reset error tracking state between tests."""
-    from error_tracking import clear_error_log
-    clear_error_log()
-    yield
-    clear_error_log()
+        try:
+            new_loop.close()
+        except Exception:
+            pass

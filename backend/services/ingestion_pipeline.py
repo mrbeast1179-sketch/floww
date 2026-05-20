@@ -62,6 +62,7 @@ class IngestionPipeline:
             "ticks_inserted": 0,
             "chains_inserted": 0,
             "lob_inserted": 0,
+            "lob_depth_inserted": 0,
             "flush_cycles": 0,
             "errors": 0,
             "last_flush_ms": 0,
@@ -109,6 +110,10 @@ class IngestionPipeline:
         """Enqueue a LOB snapshot. Drops oldest if queue full."""
         self._enqueue(("lob", lob))
 
+    def enqueue_lob_depth(self, depth: Dict[str, Any]):
+        """Enqueue a Level-2 LOB depth update. Drops oldest if queue full."""
+        self._enqueue(("lob_depth", depth))
+
     def _enqueue(self, item: tuple):
         """Put item into queue, dropping oldest if full (backpressure)."""
         try:
@@ -149,6 +154,7 @@ class IngestionPipeline:
         ticks = []
         chains = []
         lob = []
+        lob_depth = []
 
         # Drain queue (non-blocking)
         while not self._queue.empty():
@@ -161,6 +167,8 @@ class IngestionPipeline:
                     chains.append(data)
                 elif msg_type == "lob":
                     lob.append(data)
+                elif msg_type == "lob_depth":
+                    lob_depth.append(data)
             except asyncio.QueueEmpty:
                 break
 
@@ -175,6 +183,9 @@ class IngestionPipeline:
             if lob:
                 await self._insert_lob(lob)
                 self._metrics["lob_inserted"] += len(lob)
+            if lob_depth:
+                await self._insert_lob_depth(lob_depth)
+                self._metrics["lob_depth_inserted"] += len(lob_depth)
         except Exception as e:
             self._metrics["errors"] += 1
             logger.error(f"Bulk insert error: {e}")
@@ -258,6 +269,29 @@ class IngestionPipeline:
         await asyncio.to_thread(
             lambda: self.db.conn.executemany(
                 "INSERT INTO lob_snapshots VALUES (?,?,?,?,?,?,?)",
+                rows,
+            )
+        )
+
+    async def _insert_lob_depth(self, depth_rows: list):
+        """Bulk INSERT Level-2 LOB depth into DuckDB."""
+        rows = []
+        for d in depth_rows:
+            rows.append((
+                d.get("timestamp", datetime.now(timezone.utc).isoformat()),
+                d.get("symbol", ""),
+                d.get("expiry", ""),
+                d.get("strike", 0.0),
+                d.get("option_type", "C"),
+                d.get("level", 0),
+                d.get("bid_size", 0),
+                d.get("bid_price", 0.0),
+                d.get("ask_size", 0),
+                d.get("ask_price", 0.0),
+            ))
+        await asyncio.to_thread(
+            lambda: self.db.conn.executemany(
+                "INSERT INTO lob_depth VALUES (?,?,?,?,?,?,?,?,?,?)",
                 rows,
             )
         )

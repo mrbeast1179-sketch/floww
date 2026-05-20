@@ -38,6 +38,8 @@ from typing import Any, Dict, Tuple
 
 import numpy as np
 
+import services.observability as obs_metrics
+
 
 class VpinEngine:
     """Volume-Synchronized PIN (VPIN) engine with Bulk Volume Classification

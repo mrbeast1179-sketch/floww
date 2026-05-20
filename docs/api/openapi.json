@@ -1,0 +1,7450 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Confluence Decoder",
+    "version": "0.1.0"
+  },
+  "paths": {
+    "/health": {
+      "get": {
+        "summary": "Health Root",
+        "operationId": "health_root_health_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/": {
+      "get": {
+        "summary": "Root",
+        "operationId": "root_api__get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/tickers": {
+      "get": {
+        "tags": [
+          "market_data"
+        ],
+        "summary": "List Tickers",
+        "operationId": "list_tickers_api_tickers_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/health": {
+      "get": {
+        "summary": "Health",
+        "description": "Health check with dependency status.",
+        "operationId": "health_api_health_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/alerts": {
+      "post": {
+        "summary": "Create Alert",
+        "description": "Create a new GEX alert rule.",
+        "operationId": "create_alert_api_alerts_post",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AlertRule"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "summary": "List Alerts",
+        "description": "List alert rules.",
+        "operationId": "list_alerts_api_alerts_get",
+        "parameters": [
+          {
+            "name": "ticker",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Ticker"
+            }
+          },
+          {
+            "name": "active_only",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": true,
+              "title": "Active Only"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/alerts/{alert_id}": {
+      "delete": {
+        "summary": "Delete Alert",
+        "description": "Delete an alert rule.",
+        "operationId": "delete_alert_api_alerts__alert_id__delete",
+        "parameters": [
+          {
+            "name": "alert_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Alert Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/alerts/types": {
+      "get": {
+        "summary": "List Alert Types",
+        "description": "List all available alert types.",
+        "operationId": "list_alert_types_api_alerts_types_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/alerts/check/{ticker}": {
+      "get": {
+        "summary": "Check Alerts",
+        "description": "Check all alert rules against current data. Returns triggered alerts.",
+        "operationId": "check_alerts_api_alerts_check__ticker__get",
+        "parameters": [
+          {
+            "name": "ticker",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Ticker"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/metrics": {
+      "get": {
+        "summary": "Prometheus Metrics",
+        "description": "Prometheus metrics exposition endpoint.",
+        "operationId": "prometheus_metrics_metrics_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/flowseeker/live": {
+      "get": {
+        "tags": [
+          "flowseeker",
+          "flowseeker"
+        ],
+        "summary": "Live Flow",
+        "description": "Live institutional options flow with 20-column shape and Skylit-parity\nclassification (sweep / block / unusual / regular).\n\nReturns ``{\"ticker\": str|None, \"count\": int, \"prints\": List[Dict]}``.",
+        "operationId": "live_flow_api_flowseeker_live_get",
+        "parameters": [
+          {
+            "name": "ticker",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional ticker; omit for cross-ticker outliers",
+              "title": "Ticker"
+            },
+            "description": "Optional ticker; omit for cross-ticker outliers"
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 500,
+              "minimum": 1,
+              "default": 50,
+              "title": "Limit"
+            }
+          },
+          {
+            "name": "min_premium",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "number",
+              "minimum": 0.0,
+              "default": 0.0,
+              "title": "Min Premium"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/flowseeker/drilldown/{symbol}": {
+      "get": {
+        "tags": [
+          "flowseeker",
+          "flowseeker"
+        ],
+        "summary": "Drilldown",
+        "description": "Contract-level drilldown: chain volume, OI, chain ratio, recent prints,\nand 20-day vol/OI history (when the upstream tier exposes it).",
+        "operationId": "drilldown_api_flowseeker_drilldown__symbol__get",
+        "parameters": [
+          {
+            "name": "symbol",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Symbol"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/api/errors/summary": {
+      "get": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Errors Summary",
+        "operationId": "errors_summary_api_api_errors_summary_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/api/performance/stats": {
+      "get": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Performance Stats",
+        "operationId": "performance_stats_api_api_performance_stats_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/api/errors/clear": {
+      "post": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Errors Clear",
+        "operationId": "errors_clear_api_api_errors_clear_post",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/databento/usage": {
+      "get": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Databento Usage",
+        "operationId": "databento_usage_api_databento_usage_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/alpaca/account": {
+      "get": {
+        "tags": [
+          "alpaca",
+          "alpaca"
+        ],
+        "summary": "Get Account",
+        "description": "Get Alpaca account info.",
+        "operationId": "get_account_api_alpaca_account_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/alpaca/positions": {
+      "get": {
+        "tags": [
+          "alpaca",
+          "alpaca"
+        ],
+        "summary": "Get Positions",
+        "description": "Get all open positions.",
+        "operationId": "get_positions_api_alpaca_positions_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/alpaca/orders": {
+      "get": {
+        "tags": [
+          "alpaca",
+          "alpaca"
+        ],
+        "summary": "Get Orders",
+        "description": "Get orders.",
+        "operationId": "get_orders_api_alpaca_orders_get",
+        "parameters": [
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "open",
+              "title": "Status"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "default": 50,
+              "title": "Limit"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/alpaca/clock": {
+      "get": {
+        "tags": [
+          "alpaca",
+          "alpaca"
+        ],
+        "summary": "Get Clock",
+        "description": "Get market clock.",
+        "operationId": "get_clock_api_alpaca_clock_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/alpaca/bars/{ticker}": {
+      "get": {
+        "tags": [
+          "alpaca",
+          "alpaca"
+        ],
+        "summary": "Get Bars",
+        "description": "Get price bars for a ticker.",
+        "operationId": "get_bars_api_alpaca_bars__ticker__get",
+        "parameters": [
+          {
+            "name": "ticker",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Ticker"
+            }
+          },
+          {
+            "name": "timeframe",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "1Day",
+              "title": "Timeframe"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "default": 100,
+              "title": "Limit"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/alpaca/order": {
+      "post": {
+        "tags": [
+          "alpaca",
+          "alpaca"
+        ],
+        "summary": "Place Order",
+        "description": "Place a stock order.",
+        "operationId": "place_order_api_alpaca_order_post",
+        "parameters": [
+          {
+            "name": "symbol",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Symbol"
+            }
+          },
+          {
+            "name": "qty",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Qty"
+            }
+          },
+          {
+            "name": "side",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "buy",
+              "title": "Side"
+            }
+          },
+          {
+            "name": "order_type",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "market",
+              "title": "Order Type"
+            }
+          },
+          {
+            "name": "limit_price",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "number",
+              "default": 0,
+              "title": "Limit Price"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/alpaca/position/{symbol}": {
+      "delete": {
+        "tags": [
+          "alpaca",
+          "alpaca"
+        ],
+        "summary": "Close Position",
+        "description": "Close a position.",
+        "operationId": "close_position_api_alpaca_position__symbol__delete",
+        "parameters": [
+          {
+            "name": "symbol",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Symbol"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/alpaca/status": {
+      "get": {
+        "tags": [
+          "alpaca",
+          "alpaca"
+        ],
+        "summary": "Get Status",
+        "description": "Get Alpaca connection status.",
+        "operationId": "get_status_api_alpaca_status_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/implied-pdf/{ticker}": {
+      "get": {
+        "tags": [
+          "analytics"
+        ],
+        "summary": "Implied Pdf",
+        "operationId": "implied_pdf_api_implied_pdf__ticker__get",
+        "parameters": [
+          {
+            "name": "ticker",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Ticker"
+            }
+          },
+          {
+            "name": "expiries",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 12,
+              "minimum": 1,
+              "default": 4,
+              "title": "Expiries"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/regime/{ticker}": {
+      "get": {
+        "tags": [
+          "analytics"
+        ],
+        "summary": "Regime",
+        "operationId": "regime_api_regime__ticker__get",
+        "parameters": [
+          {
+            "name": "ticker",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Ticker"
+            }
+          },
+          {
+            "name": "expiries",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 12,
+              "minimum": 1,
+              "default": 4,
+              "title": "Expiries"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/hedge-impulse/{ticker}": {
+      "get": {
+        "tags": [
+          "analytics"
+        ],
+        "summary": "Hedge Impulse",
+        "operationId": "hedge_impulse_api_hedge_impulse__ticker__get",
+        "parameters": [
+          {
+            "name": "ticker",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Ticker"
+            }
+          },
+          {
+            "name": "expiries",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 12,
+              "minimum": 1,
+              "default": 4,
+              "title": "Expiries"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/pressure-cloud/{ticker}": {
+      "get": {
+        "tags": [
+          "analytics"
+        ],
+        "summary": "Pressure Cloud",
+        "operationId": "pressure_cloud_api_pressure_cloud__ticker__get",
+        "parameters": [
+          {
+            "name": "ticker",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Ticker"
+            }
+          },
+          {
+            "name": "expiries",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 12,
+              "minimum": 1,
+              "default": 4,
+              "title": "Expiries"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/charm-integral/{ticker}": {
+      "get": {
+        "tags": [
+          "analytics"
+        ],
+        "summary": "Charm Integral Endpoint",
+        "operationId": "charm_integral_endpoint_api_charm_integral__ticker__get",
+        "parameters": [
+          {
+            "name": "ticker",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Ticker"
+            }
+          },
+          {
+            "name": "expiries",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 12,
+              "minimum": 1,
+              "default": 4,
+              "title": "Expiries"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/advanced/{ticker}": {
+      "get": {
+        "tags": [
+          "analytics"
+        ],
+        "summary": "Advanced Analytics",
+        "operationId": "advanced_analytics_api_advanced__ticker__get",
+        "parameters": [
+          {
+            "name": "ticker",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Ticker"
+            }
+          },
+          {
+            "name": "expiries",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 12,
+              "minimum": 1,
+              "default": 4,
+              "title": "Expiries"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/gamma-flip/{ticker}": {
+      "get": {
+        "tags": [
+          "analytics"
+        ],
+        "summary": "Gamma Flip",
+        "operationId": "gamma_flip_api_gamma_flip__ticker__get",
+        "parameters": [
+          {
+            "name": "ticker",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Ticker"
+            }
+          },
+          {
+            "name": "expiries",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 12,
+              "minimum": 1,
+              "default": 4,
+              "title": "Expiries"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/daily-checklist/{ticker}": {
+      "get": {
+        "tags": [
+          "analytics"
+        ],
+        "summary": "Daily Checklist",
+        "operationId": "daily_checklist_api_daily_checklist__ticker__get",
+        "parameters": [
+          {
+            "name": "ticker",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Ticker"
+            }
+          },
+          {
+            "name": "expiries",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 12,
+              "minimum": 1,
+              "default": 4,
+              "title": "Expiries"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/movers": {
+      "get": {
+        "tags": [
+          "analytics"
+        ],
+        "summary": "Movers",
+        "description": "Get top market movers.",
+        "operationId": "movers_api_movers_get",
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 100,
+              "minimum": 1,
+              "default": 20,
+              "title": "Limit"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/history/{ticker}": {
+      "get": {
+        "tags": [
+          "analytics"
+        ],
+        "summary": "History",
+        "description": "Get historical snapshots for a ticker.",
+        "operationId": "history_api_history__ticker__get",
+        "parameters": [
+          {
+            "name": "ticker",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Ticker"
+            }
+          },
+          {
+            "name": "days",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 365,
+              "minimum": 1,
+              "default": 30,
+              "title": "Days"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/patterns/glossary": {
+      "get": {
+        "tags": [
+          "analytics"
+        ],
+        "summary": "Patterns Glossary",
+        "description": "Get pattern glossary.",
+        "operationId": "patterns_glossary_api_patterns_glossary_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/contract/{ticker}": {
+      "get": {
+        "tags": [
+          "analytics"
+        ],
+        "summary": "Contract",
+        "description": "Get contract details for a ticker.",
+        "operationId": "contract_api_contract__ticker__get",
+        "parameters": [
+          {
+            "name": "ticker",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Ticker"
+            }
+          },
+          {
+            "name": "expiry",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Expiry"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/flow/{ticker}": {
+      "get": {
+        "tags": [
+          "analytics"
+        ],
+        "summary": "Flow",
+        "description": "Get options flow data for a ticker.",
+        "operationId": "flow_api_flow__ticker__get",
+        "parameters": [
+          {
+            "name": "ticker",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Ticker"
+            }
+          },
+          {
+            "name": "days",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 30,
+              "minimum": 1,
+              "default": 7,
+              "title": "Days"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/surface/{ticker}": {
+      "get": {
+        "tags": [
+          "analytics"
+        ],
+        "summary": "Surface",
+        "description": "Get IV surface data.",
+        "operationId": "surface_api_surface__ticker__get",
+        "parameters": [
+          {
+            "name": "ticker",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Ticker"
+            }
+          },
+          {
+            "name": "expiries",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 12,
+              "minimum": 1,
+              "default": 4,
+              "title": "Expiries"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/regime-stats/{ticker}": {
+      "get": {
+        "tags": [
+          "analytics"
+        ],
+        "summary": "Regime Stats",
+        "description": "Get regime statistics.",
+        "operationId": "regime_stats_api_regime_stats__ticker__get",
+        "parameters": [
+          {
+            "name": "ticker",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Ticker"
+            }
+          },
+          {
+            "name": "days",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 365,
+              "minimum": 1,
+              "default": 30,
+              "title": "Days"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/compare": {
+      "get": {
+        "tags": [
+          "analytics"
+        ],
+        "summary": "Compare",
+        "description": "Compare analytics across multiple tickers.",
+        "operationId": "compare_api_compare_get",
+        "parameters": [
+          {
+            "name": "tickers",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Tickers"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/correlation": {
+      "get": {
+        "tags": [
+          "analytics"
+        ],
+        "summary": "Correlation",
+        "description": "Get correlation matrix for multiple tickers.",
+        "operationId": "correlation_api_correlation_get",
+        "parameters": [
+          {
+            "name": "tickers",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Tickers"
+            }
+          },
+          {
+            "name": "days",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 365,
+              "minimum": 1,
+              "default": 30,
+              "title": "Days"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/api/briefing/{ticker}": {
+      "get": {
+        "tags": [
+          "briefing"
+        ],
+        "summary": "Briefing",
+        "operationId": "briefing_api_api_briefing__ticker__get",
+        "parameters": [
+          {
+            "name": "ticker",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Ticker"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/api/briefing/{ticker}/html": {
+      "get": {
+        "tags": [
+          "briefing"
+        ],
+        "summary": "Briefing Html",
+        "operationId": "briefing_html_api_api_briefing__ticker__html_get",
+        "parameters": [
+          {
+            "name": "ticker",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Ticker"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/api/briefing/{ticker}/send": {
+      "post": {
+        "tags": [
+          "briefing"
+        ],
+        "summary": "Briefing Send",
+        "operationId": "briefing_send_api_api_briefing__ticker__send_post",
+        "parameters": [
+          {
+            "name": "ticker",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Ticker"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": true,
+                "title": "Request"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/data/quote/{ticker}": {
+      "get": {
+        "tags": [
+          "data",
+          "data"
+        ],
+        "summary": "Get Quote",
+        "description": "Get aggregated spot price from all available sources.",
+        "operationId": "get_quote_api_data_quote__ticker__get",
+        "parameters": [
+          {
+            "name": "ticker",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Ticker"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/data/full/{ticker}": {
+      "get": {
+        "tags": [
+          "data",
+          "data"
+        ],
+        "summary": "Get Full Data",
+        "description": "Get full aggregated data for a ticker (spot + news + earnings + technicals).",
+        "operationId": "get_full_data_api_data_full__ticker__get",
+        "parameters": [
+          {
+            "name": "ticker",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Ticker"
+            }
+          },
+          {
+            "name": "include_news",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": true,
+              "title": "Include News"
+            }
+          },
+          {
+            "name": "include_technicals",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": false,
+              "title": "Include Technicals"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/data/news/{ticker}": {
+      "get": {
+        "tags": [
+          "data",
+          "data"
+        ],
+        "summary": "Get News",
+        "description": "Get news for a ticker from Finnhub.",
+        "operationId": "get_news_api_data_news__ticker__get",
+        "parameters": [
+          {
+            "name": "ticker",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Ticker"
+            }
+          },
+          {
+            "name": "count",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 50,
+              "minimum": 1,
+              "default": 10,
+              "title": "Count"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/data/status": {
+      "get": {
+        "tags": [
+          "data",
+          "data"
+        ],
+        "summary": "Get Data Status",
+        "description": "Get status of all data providers.",
+        "operationId": "get_data_status_api_data_status_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/flashalpha/exposure/{symbol}": {
+      "get": {
+        "tags": [
+          "flashalpha",
+          "flashalpha"
+        ],
+        "summary": "Get Exposure",
+        "description": "Get full exposure data (GEX, DEX, VEX, CHEX).",
+        "operationId": "get_exposure_api_flashalpha_exposure__symbol__get",
+        "parameters": [
+          {
+            "name": "symbol",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Symbol"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/flashalpha/gex/{symbol}": {
+      "get": {
+        "tags": [
+          "flashalpha",
+          "flashalpha"
+        ],
+        "summary": "Get Gex",
+        "description": "Get Gamma Exposure data.",
+        "operationId": "get_gex_api_flashalpha_gex__symbol__get",
+        "parameters": [
+          {
+            "name": "symbol",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Symbol"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/flashalpha/flow/{symbol}": {
+      "get": {
+        "tags": [
+          "flashalpha",
+          "flashalpha"
+        ],
+        "summary": "Get Flow",
+        "description": "Get options flow data.",
+        "operationId": "get_flow_api_flashalpha_flow__symbol__get",
+        "parameters": [
+          {
+            "name": "symbol",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Symbol"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/flashalpha/flow-live/{symbol}": {
+      "get": {
+        "tags": [
+          "flashalpha",
+          "flashalpha"
+        ],
+        "summary": "Get Flow Live",
+        "description": "Get live options flow.",
+        "operationId": "get_flow_live_api_flashalpha_flow_live__symbol__get",
+        "parameters": [
+          {
+            "name": "symbol",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Symbol"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/flashalpha/flow-blocks/{symbol}": {
+      "get": {
+        "tags": [
+          "flashalpha",
+          "flashalpha"
+        ],
+        "summary": "Get Flow Blocks",
+        "description": "Get flow blocks (large trades).",
+        "operationId": "get_flow_blocks_api_flashalpha_flow_blocks__symbol__get",
+        "parameters": [
+          {
+            "name": "symbol",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Symbol"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/flashalpha/earnings-vrp/{symbol}": {
+      "get": {
+        "tags": [
+          "flashalpha",
+          "flashalpha"
+        ],
+        "summary": "Get Earnings Vrp",
+        "description": "Get Variance Risk Premium for earnings.",
+        "operationId": "get_earnings_vrp_api_flashalpha_earnings_vrp__symbol__get",
+        "parameters": [
+          {
+            "name": "symbol",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Symbol"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/flashalpha/max-pain/{symbol}": {
+      "get": {
+        "tags": [
+          "flashalpha",
+          "flashalpha"
+        ],
+        "summary": "Get Max Pain",
+        "description": "Get max pain data.",
+        "operationId": "get_max_pain_api_flashalpha_max_pain__symbol__get",
+        "parameters": [
+          {
+            "name": "symbol",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Symbol"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/flashalpha/volatility/{symbol}": {
+      "get": {
+        "tags": [
+          "flashalpha",
+          "flashalpha"
+        ],
+        "summary": "Get Volatility",
+        "description": "Get volatility data.",
+        "operationId": "get_volatility_api_flashalpha_volatility__symbol__get",
+        "parameters": [
+          {
+            "name": "symbol",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Symbol"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/flashalpha/zero-dte/{symbol}": {
+      "get": {
+        "tags": [
+          "flashalpha",
+          "flashalpha"
+        ],
+        "summary": "Get Zero Dte",
+        "description": "Get 0DTE exposure data.",
+        "operationId": "get_zero_dte_api_flashalpha_zero_dte__symbol__get",
+        "parameters": [
+          {
+            "name": "symbol",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Symbol"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/flashalpha/narrative/{symbol}": {
+      "get": {
+        "tags": [
+          "flashalpha",
+          "flashalpha"
+        ],
+        "summary": "Get Narrative",
+        "description": "Get AI-generated exposure narrative.",
+        "operationId": "get_narrative_api_flashalpha_narrative__symbol__get",
+        "parameters": [
+          {
+            "name": "symbol",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Symbol"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/flashalpha/dashboard/{symbol}": {
+      "get": {
+        "tags": [
+          "flashalpha",
+          "flashalpha"
+        ],
+        "summary": "Get Dashboard",
+        "description": "Get full dashboard (exposure + flow + earnings + max pain + volatility).",
+        "operationId": "get_dashboard_api_flashalpha_dashboard__symbol__get",
+        "parameters": [
+          {
+            "name": "symbol",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Symbol"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/flashalpha/status": {
+      "get": {
+        "tags": [
+          "flashalpha",
+          "flashalpha"
+        ],
+        "summary": "Get Status",
+        "description": "Get FlashAlpha connection status.",
+        "operationId": "get_status_api_flashalpha_status_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/ai/analyze-trade": {
+      "post": {
+        "tags": [
+          "ai",
+          "ai"
+        ],
+        "summary": "Analyze Trade",
+        "description": "AI analysis of a trade from the journal.",
+        "operationId": "analyze_trade_api_ai_analyze_trade_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_analyze_trade_api_ai_analyze_trade_post"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/ai/analyze-regime": {
+      "post": {
+        "tags": [
+          "ai",
+          "ai"
+        ],
+        "summary": "Analyze Regime",
+        "description": "AI analysis of current market regime.",
+        "operationId": "analyze_regime_api_ai_analyze_regime_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": true,
+                "type": "object",
+                "title": "Regime Data"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/ai/summarize-day": {
+      "post": {
+        "tags": [
+          "ai",
+          "ai"
+        ],
+        "summary": "Summarize Day",
+        "description": "AI end-of-day trading summary.",
+        "operationId": "summarize_day_api_ai_summarize_day_post",
+        "parameters": [
+          {
+            "name": "pnl",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "number",
+              "default": 0,
+              "title": "Pnl"
+            }
+          },
+          {
+            "name": "regime",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "unknown",
+              "title": "Regime"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "additionalProperties": true
+                },
+                "title": "Trades"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/ai/explain-signal": {
+      "post": {
+        "tags": [
+          "ai",
+          "ai"
+        ],
+        "summary": "Explain Signal",
+        "description": "AI explanation of an options flow signal.",
+        "operationId": "explain_signal_api_ai_explain_signal_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": true,
+                "type": "object",
+                "title": "Signal"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/ai/status": {
+      "get": {
+        "tags": [
+          "ai",
+          "ai"
+        ],
+        "summary": "Get Ai Status",
+        "description": "Get AI service status.",
+        "operationId": "get_ai_status_api_ai_status_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/heatseeker/flip-zones": {
+      "get": {
+        "tags": [
+          "heatseeker",
+          "heatseeker"
+        ],
+        "summary": "Flip Zones Route",
+        "description": "All cumulative-GEX sign changes within \u00b1window_pct of spot.",
+        "operationId": "flip_zones_route_api_heatseeker_flip_zones_get",
+        "parameters": [
+          {
+            "name": "ticker",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "SPY",
+              "title": "Ticker"
+            }
+          },
+          {
+            "name": "window_pct",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "number",
+              "maximum": 0.5,
+              "exclusiveMinimum": 0.0,
+              "default": 0.05,
+              "title": "Window Pct"
+            }
+          },
+          {
+            "name": "expiries",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 12,
+              "minimum": 1,
+              "default": 4,
+              "title": "Expiries"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/heatseeker/node-lifecycle": {
+      "get": {
+        "tags": [
+          "heatseeker",
+          "heatseeker"
+        ],
+        "summary": "Node Lifecycle Route",
+        "description": "Top 10 |GEX| nodes classified Fresh/Tested/Delivered/Decaying.",
+        "operationId": "node_lifecycle_route_api_heatseeker_node_lifecycle_get",
+        "parameters": [
+          {
+            "name": "ticker",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "SPY",
+              "title": "Ticker"
+            }
+          },
+          {
+            "name": "expiries",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 12,
+              "minimum": 1,
+              "default": 4,
+              "title": "Expiries"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/heatseeker/air-pockets": {
+      "get": {
+        "tags": [
+          "heatseeker",
+          "heatseeker"
+        ],
+        "summary": "Air Pockets Route",
+        "description": "Contiguous strike ranges with |GEX| below 20% of the local median.",
+        "operationId": "air_pockets_route_api_heatseeker_air_pockets_get",
+        "parameters": [
+          {
+            "name": "ticker",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "SPY",
+              "title": "Ticker"
+            }
+          },
+          {
+            "name": "min_gap_pct",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "number",
+              "maximum": 0.5,
+              "exclusiveMinimum": 0.0,
+              "default": 0.005,
+              "title": "Min Gap Pct"
+            }
+          },
+          {
+            "name": "expiries",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 12,
+              "minimum": 1,
+              "default": 4,
+              "title": "Expiries"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/heatseeker/beach-ball": {
+      "get": {
+        "tags": [
+          "heatseeker",
+          "heatseeker"
+        ],
+        "summary": "Beach Ball Route",
+        "description": "Beach Ball: spot stretched past the King Node (overshoot/reversion).",
+        "operationId": "beach_ball_route_api_heatseeker_beach_ball_get",
+        "parameters": [
+          {
+            "name": "ticker",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "SPY",
+              "title": "Ticker"
+            }
+          },
+          {
+            "name": "expiries",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 12,
+              "minimum": 1,
+              "default": 4,
+              "title": "Expiries"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/heatseeker/reverse-rug": {
+      "get": {
+        "tags": [
+          "heatseeker",
+          "heatseeker"
+        ],
+        "summary": "Reverse Rug Route",
+        "description": "Reverse Rug: positive floor below + negative ceiling above.",
+        "operationId": "reverse_rug_route_api_heatseeker_reverse_rug_get",
+        "parameters": [
+          {
+            "name": "ticker",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "SPY",
+              "title": "Ticker"
+            }
+          },
+          {
+            "name": "expiries",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 12,
+              "minimum": 1,
+              "default": 4,
+              "title": "Expiries"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/heatseeker/rainbow-road": {
+      "get": {
+        "tags": [
+          "heatseeker",
+          "heatseeker"
+        ],
+        "summary": "Rainbow Road Route",
+        "description": "Rainbow Road: no dominant structure \u2014 chaos, sit out.",
+        "operationId": "rainbow_road_route_api_heatseeker_rainbow_road_get",
+        "parameters": [
+          {
+            "name": "ticker",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "SPY",
+              "title": "Ticker"
+            }
+          },
+          {
+            "name": "max_dominant_share",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "number",
+              "maximum": 1.0,
+              "exclusiveMinimum": 0.0,
+              "default": 0.15,
+              "title": "Max Dominant Share"
+            }
+          },
+          {
+            "name": "expiries",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 12,
+              "minimum": 1,
+              "default": 4,
+              "title": "Expiries"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/heatseeker/velocity-mode": {
+      "get": {
+        "tags": [
+          "heatseeker",
+          "heatseeker"
+        ],
+        "summary": "Velocity Mode Route",
+        "description": "Velocity Mode: rate of King Node drift over the last ~30 minutes.\n\nHistory comes from Mongo ``db.snapshots`` (entries with a stored\n``king_node_strike``). If Mongo is unavailable or no usable rows exist,\nthe pure function returns ``velocity=0, mode=\"calm\", n_snapshots=0`` \u2014\nmatching Wave 1's node-lifecycle fallback shape.",
+        "operationId": "velocity_mode_route_api_heatseeker_velocity_mode_get",
+        "parameters": [
+          {
+            "name": "ticker",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "SPY",
+              "title": "Ticker"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/heatseeker/trinity-confluence": {
+      "get": {
+        "tags": [
+          "heatseeker",
+          "heatseeker"
+        ],
+        "summary": "Trinity Confluence Route",
+        "description": "Trinity Confluence: SPX/SPY/QQQ alignment, 0\u2013100.\n\nAlways queries the three tickers; if any individual snapshot fails to\nload, that dimension is recorded as ``\"missing\"`` rather than crashing\nthe request.",
+        "operationId": "trinity_confluence_route_api_heatseeker_trinity_confluence_get",
+        "parameters": [
+          {
+            "name": "expiries",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 12,
+              "minimum": 1,
+              "default": 4,
+              "title": "Expiries"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/heatseeker/rolling-floors-ceilings": {
+      "get": {
+        "tags": [
+          "heatseeker",
+          "heatseeker"
+        ],
+        "summary": "Rolling Floors Ceilings Route",
+        "description": "Rolling floors/ceilings tracker \u2014 trend formation signals.",
+        "operationId": "rolling_floors_ceilings_route_api_heatseeker_rolling_floors_ceilings_get",
+        "parameters": [
+          {
+            "name": "ticker",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Ticker"
+            }
+          },
+          {
+            "name": "expiries",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 12,
+              "minimum": 1,
+              "default": 4,
+              "title": "Expiries"
+            }
+          },
+          {
+            "name": "lookback_days",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 60,
+              "minimum": 1,
+              "default": 20,
+              "title": "Lookback Days"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/heatseeker/node-classification": {
+      "get": {
+        "tags": [
+          "heatseeker",
+          "heatseeker"
+        ],
+        "summary": "Node Classification Route",
+        "description": "Classify nodes as real (growing intent) vs hedge (fading protection).\n\nBuilds the top-|GEX| nodes from the current chain, attaches a\n``gamma_sign`` (positive/negative based on signed net GEX) and an\n``oi_trend`` (growing/fading based on 24h OI history when available),\nthen runs ``classify_nodes`` to assign real/hedge/unknown labels.",
+        "operationId": "node_classification_route_api_heatseeker_node_classification_get",
+        "parameters": [
+          {
+            "name": "ticker",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Ticker"
+            }
+          },
+          {
+            "name": "expiries",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 12,
+              "minimum": 1,
+              "default": 4,
+              "title": "Expiries"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/heatseeker/stacked-nodes": {
+      "get": {
+        "tags": [
+          "heatseeker",
+          "heatseeker"
+        ],
+        "summary": "Stacked Nodes Route",
+        "description": "Detect stacked nodes \u2014 both call+put GEX significant at same strike.",
+        "operationId": "stacked_nodes_route_api_heatseeker_stacked_nodes_get",
+        "parameters": [
+          {
+            "name": "ticker",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Ticker"
+            }
+          },
+          {
+            "name": "expiries",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 12,
+              "minimum": 1,
+              "default": 4,
+              "title": "Expiries"
+            }
+          },
+          {
+            "name": "threshold_pct",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "number",
+              "maximum": 0.9,
+              "minimum": 0.1,
+              "default": 0.3,
+              "title": "Threshold Pct"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/heatseeker/tug-of-war": {
+      "get": {
+        "tags": [
+          "heatseeker",
+          "heatseeker"
+        ],
+        "summary": "Tug Of War Route",
+        "description": "Detect tug-of-war zones \u2014 positive/negative GEX conflict near spot.",
+        "operationId": "tug_of_war_route_api_heatseeker_tug_of_war_get",
+        "parameters": [
+          {
+            "name": "ticker",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Ticker"
+            }
+          },
+          {
+            "name": "expiries",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 12,
+              "minimum": 1,
+              "default": 4,
+              "title": "Expiries"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/live/policy": {
+      "get": {
+        "tags": [
+          "live_trading"
+        ],
+        "summary": "Live Policy",
+        "operationId": "live_policy_api_live_policy_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "live_trading"
+        ],
+        "summary": "Live Policy Update",
+        "operationId": "live_policy_update_api_live_policy_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": true,
+                "type": "object",
+                "title": "Request"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/live/tape/stop": {
+      "post": {
+        "tags": [
+          "live_trading"
+        ],
+        "summary": "Live Tape Stop",
+        "operationId": "live_tape_stop_api_live_tape_stop_post",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/api/llm/analyze-trade": {
+      "post": {
+        "tags": [
+          "llm"
+        ],
+        "summary": "Llm Analyze Trade",
+        "operationId": "llm_analyze_trade_api_api_llm_analyze_trade_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": true,
+                "type": "object",
+                "title": "Request"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/api/llm/generate-briefing": {
+      "post": {
+        "tags": [
+          "llm"
+        ],
+        "summary": "Llm Generate Briefing",
+        "operationId": "llm_generate_briefing_api_api_llm_generate_briefing_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": true,
+                "type": "object",
+                "title": "Request"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/api/llm/providers": {
+      "get": {
+        "tags": [
+          "llm"
+        ],
+        "summary": "Llm Providers",
+        "operationId": "llm_providers_api_api_llm_providers_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/memory/trade": {
+      "post": {
+        "tags": [
+          "memory"
+        ],
+        "summary": "Memory Trade",
+        "operationId": "memory_trade_api_memory_trade_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": true,
+                "type": "object",
+                "title": "Request"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/memory/gex": {
+      "post": {
+        "tags": [
+          "memory"
+        ],
+        "summary": "Memory Gex",
+        "operationId": "memory_gex_api_memory_gex_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": true,
+                "type": "object",
+                "title": "Request"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/memory/recall/{ticker}": {
+      "get": {
+        "tags": [
+          "memory"
+        ],
+        "summary": "Memory Recall",
+        "operationId": "memory_recall_api_memory_recall__ticker__get",
+        "parameters": [
+          {
+            "name": "ticker",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Ticker"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "default": 50,
+              "title": "Limit"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/memory/summary/{ticker}": {
+      "get": {
+        "tags": [
+          "memory"
+        ],
+        "summary": "Memory Summary",
+        "operationId": "memory_summary_api_memory_summary__ticker__get",
+        "parameters": [
+          {
+            "name": "ticker",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Ticker"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/ml/train/{ticker}": {
+      "post": {
+        "tags": [
+          "ml_training"
+        ],
+        "summary": "Ml Train",
+        "operationId": "ml_train_api_ml_train__ticker__post",
+        "parameters": [
+          {
+            "name": "ticker",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Ticker"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": true,
+                "title": "Request"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/ml/predict/{ticker}": {
+      "get": {
+        "tags": [
+          "ml_training"
+        ],
+        "summary": "Ml Predict",
+        "operationId": "ml_predict_api_ml_predict__ticker__get",
+        "parameters": [
+          {
+            "name": "ticker",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Ticker"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "ml_api",
+          "ml"
+        ],
+        "summary": "Predict",
+        "description": "Get a prediction from the active model for a ticker.\n\nLoads the active model, computes features from the latest data,\nruns inference, logs the prediction, and returns the result.",
+        "operationId": "predict_api_ml_predict__ticker__post",
+        "parameters": [
+          {
+            "name": "ticker",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Ticker"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Predict Api Ml Predict  Ticker  Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/ml/features/{ticker}": {
+      "get": {
+        "tags": [
+          "ml_training"
+        ],
+        "summary": "Ml Features",
+        "operationId": "ml_features_api_ml_features__ticker__get",
+        "parameters": [
+          {
+            "name": "ticker",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Ticker"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/ml/data/{ticker}": {
+      "get": {
+        "tags": [
+          "ml_training"
+        ],
+        "summary": "Ml Data",
+        "operationId": "ml_data_api_ml_data__ticker__get",
+        "parameters": [
+          {
+            "name": "ticker",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Ticker"
+            }
+          },
+          {
+            "name": "days",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "default": 30,
+              "title": "Days"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/ml/collect/{ticker}": {
+      "post": {
+        "tags": [
+          "ml_training"
+        ],
+        "summary": "Ml Collect",
+        "operationId": "ml_collect_api_ml_collect__ticker__post",
+        "parameters": [
+          {
+            "name": "ticker",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Ticker"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/ml/collect-all": {
+      "post": {
+        "tags": [
+          "ml_training"
+        ],
+        "summary": "Ml Collect All",
+        "operationId": "ml_collect_all_api_ml_collect_all_post",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/ml/train-price/{ticker}": {
+      "post": {
+        "tags": [
+          "ml_training"
+        ],
+        "summary": "Ml Train Price",
+        "operationId": "ml_train_price_api_ml_train_price__ticker__post",
+        "parameters": [
+          {
+            "name": "ticker",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Ticker"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": true,
+                "title": "Request"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/ml/predict-price/{ticker}": {
+      "get": {
+        "tags": [
+          "ml_training"
+        ],
+        "summary": "Ml Predict Price",
+        "operationId": "ml_predict_price_api_ml_predict_price__ticker__get",
+        "parameters": [
+          {
+            "name": "ticker",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Ticker"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/ml/train-advanced/{ticker}": {
+      "post": {
+        "tags": [
+          "ml_training"
+        ],
+        "summary": "Ml Train Advanced",
+        "operationId": "ml_train_advanced_api_ml_train_advanced__ticker__post",
+        "parameters": [
+          {
+            "name": "ticker",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Ticker"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": true,
+                "title": "Request"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/ml/model-info/{ticker}": {
+      "get": {
+        "tags": [
+          "ml_training"
+        ],
+        "summary": "Ml Model Info",
+        "operationId": "ml_model_info_api_ml_model_info__ticker__get",
+        "parameters": [
+          {
+            "name": "ticker",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Ticker"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/api/paper-trading/execute": {
+      "post": {
+        "tags": [
+          "paper_trading"
+        ],
+        "summary": "Paper Trade Execute",
+        "operationId": "paper_trade_execute_api_api_paper_trading_execute_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": true,
+                "type": "object",
+                "title": "Request"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/api/paper-trading/signals": {
+      "post": {
+        "tags": [
+          "paper_trading"
+        ],
+        "summary": "Paper Trade Signals",
+        "operationId": "paper_trade_signals_api_api_paper_trading_signals_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": true,
+                "type": "object",
+                "title": "Request"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/api/paper-trading/status": {
+      "get": {
+        "tags": [
+          "paper_trading"
+        ],
+        "summary": "Paper Trade Status",
+        "operationId": "paper_trade_status_api_api_paper_trading_status_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/portfolio/{name}": {
+      "get": {
+        "tags": [
+          "portfolio"
+        ],
+        "summary": "Get Portfolio",
+        "operationId": "get_portfolio_api_portfolio__name__get",
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Name"
+            }
+          },
+          {
+            "name": "spot",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "number",
+              "default": 0,
+              "title": "Spot"
+            }
+          },
+          {
+            "name": "iv",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "number",
+              "default": 0.15,
+              "title": "Iv"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/portfolio/{name}/position": {
+      "post": {
+        "tags": [
+          "portfolio"
+        ],
+        "summary": "Add Position",
+        "operationId": "add_position_api_portfolio__name__position_post",
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Name"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": true,
+                "title": "Position"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/portfolio/{name}/position/{index}": {
+      "delete": {
+        "tags": [
+          "portfolio"
+        ],
+        "summary": "Remove Position",
+        "operationId": "remove_position_api_portfolio__name__position__index__delete",
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Name"
+            }
+          },
+          {
+            "name": "index",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "title": "Index"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/portfolio/{name}/scenario": {
+      "get": {
+        "tags": [
+          "portfolio"
+        ],
+        "summary": "Scenario",
+        "operationId": "scenario_api_portfolio__name__scenario_get",
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Name"
+            }
+          },
+          {
+            "name": "spot",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "number",
+              "default": 0,
+              "title": "Spot"
+            }
+          },
+          {
+            "name": "iv",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "number",
+              "default": 0.15,
+              "title": "Iv"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/portfolio/{name}/hedge": {
+      "post": {
+        "tags": [
+          "portfolio"
+        ],
+        "summary": "Hedge",
+        "operationId": "hedge_api_portfolio__name__hedge_post",
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Name"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": true,
+                "title": "Hedge Request"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/position-size": {
+      "post": {
+        "tags": [
+          "portfolio"
+        ],
+        "summary": "Position Size",
+        "operationId": "position_size_api_position_size_post",
+        "parameters": [
+          {
+            "name": "account_size",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "number",
+              "default": 100000,
+              "title": "Account Size"
+            }
+          },
+          {
+            "name": "risk_per_trade_pct",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "number",
+              "default": 0.02,
+              "title": "Risk Per Trade Pct"
+            }
+          },
+          {
+            "name": "spot",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "number",
+              "default": 0,
+              "title": "Spot"
+            }
+          },
+          {
+            "name": "gex_level",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "number",
+              "default": 0,
+              "title": "Gex Level"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/schwab/auth-url": {
+      "get": {
+        "tags": [
+          "schwab"
+        ],
+        "summary": "Schwab Auth Url",
+        "operationId": "schwab_auth_url_api_schwab_auth_url_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/schwab/auth": {
+      "post": {
+        "tags": [
+          "schwab"
+        ],
+        "summary": "Schwab Auth",
+        "operationId": "schwab_auth_api_schwab_auth_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": true,
+                "type": "object",
+                "title": "Request"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/schwab/accounts": {
+      "get": {
+        "tags": [
+          "schwab"
+        ],
+        "summary": "Schwab Accounts",
+        "operationId": "schwab_accounts_api_schwab_accounts_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/schwab/positions/{account_hash}": {
+      "get": {
+        "tags": [
+          "schwab"
+        ],
+        "summary": "Schwab Positions",
+        "operationId": "schwab_positions_api_schwab_positions__account_hash__get",
+        "parameters": [
+          {
+            "name": "account_hash",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Account Hash"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/schwab/sweeps/{account_hash}": {
+      "get": {
+        "tags": [
+          "schwab"
+        ],
+        "summary": "Schwab Sweeps",
+        "operationId": "schwab_sweeps_api_schwab_sweeps__account_hash__get",
+        "parameters": [
+          {
+            "name": "account_hash",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Account Hash"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/schwab/import-to-portfolio/{name}/{account_hash}": {
+      "post": {
+        "tags": [
+          "schwab"
+        ],
+        "summary": "Schwab Import",
+        "operationId": "schwab_import_api_schwab_import_to_portfolio__name___account_hash__post",
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Name"
+            }
+          },
+          {
+            "name": "account_hash",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Account Hash"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/social/sentiment/{ticker}": {
+      "get": {
+        "tags": [
+          "social",
+          "social"
+        ],
+        "summary": "Get Sentiment",
+        "description": "Get social sentiment for a ticker.",
+        "operationId": "get_sentiment_api_social_sentiment__ticker__get",
+        "parameters": [
+          {
+            "name": "ticker",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Ticker"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/social/flow/{ticker}": {
+      "get": {
+        "tags": [
+          "social",
+          "social"
+        ],
+        "summary": "Get Flow",
+        "description": "Get options flow signals for a ticker.",
+        "operationId": "get_flow_api_social_flow__ticker__get",
+        "parameters": [
+          {
+            "name": "ticker",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Ticker"
+            }
+          },
+          {
+            "name": "min_premium",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "number",
+              "default": 50000,
+              "title": "Min Premium"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/social/report/{ticker}": {
+      "get": {
+        "tags": [
+          "social",
+          "social"
+        ],
+        "summary": "Get Full Report",
+        "description": "Get combined social + flow + GEX report for a ticker.",
+        "operationId": "get_full_report_api_social_report__ticker__get",
+        "parameters": [
+          {
+            "name": "ticker",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Ticker"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/social/status": {
+      "get": {
+        "tags": [
+          "social",
+          "social"
+        ],
+        "summary": "Get Pipeline Status",
+        "description": "Get status of the social flow pipeline.",
+        "operationId": "get_pipeline_status_api_social_status_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/alerts/{ticker}": {
+      "get": {
+        "tags": [
+          "alerts",
+          "alerts"
+        ],
+        "summary": "Get Alerts",
+        "description": "Get current alerts for a ticker.",
+        "operationId": "get_alerts_api_alerts__ticker__get",
+        "parameters": [
+          {
+            "name": "ticker",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Ticker"
+            }
+          },
+          {
+            "name": "momentum_score",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 100,
+              "minimum": 0,
+              "default": 50,
+              "title": "Momentum Score"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/alerts/snapshot": {
+      "post": {
+        "tags": [
+          "alerts",
+          "alerts"
+        ],
+        "summary": "Add Snapshot",
+        "description": "Add a GEX snapshot for alert detection.",
+        "operationId": "add_snapshot_api_alerts_snapshot_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": true,
+                "type": "object",
+                "title": "Snapshot"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/alerts/status": {
+      "get": {
+        "tags": [
+          "alerts",
+          "alerts"
+        ],
+        "summary": "Get Alert Status",
+        "description": "Get alert system status.",
+        "operationId": "get_alert_status_api_alerts_status_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/heatmap/{ticker}": {
+      "get": {
+        "tags": [
+          "market_data"
+        ],
+        "summary": "Heatmap",
+        "operationId": "heatmap_api_heatmap__ticker__get",
+        "parameters": [
+          {
+            "name": "ticker",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Ticker"
+            }
+          },
+          {
+            "name": "expiries",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 12,
+              "minimum": 1,
+              "default": 4,
+              "title": "Expiries"
+            }
+          },
+          {
+            "name": "taps",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": true,
+              "title": "Taps"
+            }
+          },
+          {
+            "name": "mode",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "pattern": "^(day|swing|scalp)$",
+              "default": "day",
+              "title": "Mode"
+            }
+          },
+          {
+            "name": "dte",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "maximum": 30,
+                  "minimum": 0
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Dte"
+            }
+          },
+          {
+            "name": "scalp",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": false,
+              "title": "Scalp"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/trinity": {
+      "get": {
+        "tags": [
+          "market_data"
+        ],
+        "summary": "Trinity",
+        "operationId": "trinity_api_trinity_get",
+        "parameters": [
+          {
+            "name": "tickers",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "title": "Tickers"
+            }
+          },
+          {
+            "name": "mode",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "pattern": "^(day|swing)$",
+              "default": "day",
+              "title": "Mode"
+            }
+          },
+          {
+            "name": "dte",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "maximum": 30,
+                  "minimum": 0
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Dte"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/spot/{ticker}": {
+      "get": {
+        "tags": [
+          "market_data"
+        ],
+        "summary": "Spot",
+        "operationId": "spot_api_spot__ticker__get",
+        "parameters": [
+          {
+            "name": "ticker",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Ticker"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/chain/{ticker}": {
+      "get": {
+        "tags": [
+          "market_data"
+        ],
+        "summary": "Chain",
+        "operationId": "chain_api_chain__ticker__get",
+        "parameters": [
+          {
+            "name": "ticker",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Ticker"
+            }
+          },
+          {
+            "name": "expiries",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 12,
+              "minimum": 1,
+              "default": 4,
+              "title": "Expiries"
+            }
+          },
+          {
+            "name": "min_oi",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 0,
+              "title": "Min Oi"
+            }
+          },
+          {
+            "name": "expiry",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Expiry"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/gex-timeframes/{ticker}": {
+      "get": {
+        "tags": [
+          "market_data"
+        ],
+        "summary": "Gex Timeframes",
+        "operationId": "gex_timeframes_api_gex_timeframes__ticker__get",
+        "parameters": [
+          {
+            "name": "ticker",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Ticker"
+            }
+          },
+          {
+            "name": "expiries",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 12,
+              "minimum": 1,
+              "default": 4,
+              "title": "Expiries"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/uoa/{ticker}": {
+      "get": {
+        "tags": [
+          "market_data"
+        ],
+        "summary": "Uoa",
+        "operationId": "uoa_api_uoa__ticker__get",
+        "parameters": [
+          {
+            "name": "ticker",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Ticker"
+            }
+          },
+          {
+            "name": "min_premium",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "number",
+              "minimum": 0,
+              "default": 100000,
+              "title": "Min Premium"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 100,
+              "minimum": 1,
+              "default": 20,
+              "title": "Limit"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/ml/models": {
+      "get": {
+        "tags": [
+          "ml_api",
+          "ml"
+        ],
+        "summary": "List Models",
+        "description": "List all models, optionally filtered by ticker and/or status.\n\nQuery params:\n    ticker: Filter by ticker symbol (e.g. SPY)\n    status: Filter by lifecycle status (shadow, active, retired)",
+        "operationId": "list_models_api_ml_models_get",
+        "parameters": [
+          {
+            "name": "ticker",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Ticker"
+            }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Status"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response List Models Api Ml Models Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/ml/promote/{model_id}": {
+      "post": {
+        "tags": [
+          "ml_api",
+          "ml"
+        ],
+        "summary": "Promote Model",
+        "description": "Promote a shadow model to active.\n\nPromotion gate criteria (all must hold):\n    - beats_baselines == True\n    - holdout_sharpe > prior_active.holdout_sharpe\n    - calibration_error < 0.05\n\nReturns 200 on success, 400 on gate failure, 404 if model not found.",
+        "operationId": "promote_model_api_ml_promote__model_id__post",
+        "parameters": [
+          {
+            "name": "model_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Model Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Promote Model Api Ml Promote  Model Id  Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/ml/drift/{ticker}": {
+      "get": {
+        "tags": [
+          "ml_api",
+          "ml"
+        ],
+        "summary": "Drift Report",
+        "description": "Get the PSI drift report for a ticker's active model.\n\nCompares the rolling 24h feature distribution against the\ntraining distribution. Returns per-feature PSI values and\nany drift alerts (PSI >= 0.2).",
+        "operationId": "drift_report_api_ml_drift__ticker__get",
+        "parameters": [
+          {
+            "name": "ticker",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Ticker"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Drift Report Api Ml Drift  Ticker  Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/vpin/{ticker}": {
+      "get": {
+        "tags": [
+          "vpin",
+          "vpin"
+        ],
+        "summary": "Get Vpin State",
+        "description": "Return the current VPIN engine state for a ticker.",
+        "operationId": "get_vpin_state_api_vpin__ticker__get",
+        "parameters": [
+          {
+            "name": "ticker",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Ticker"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/vpin/{ticker}/history": {
+      "get": {
+        "tags": [
+          "vpin",
+          "vpin"
+        ],
+        "summary": "Get Vpin History",
+        "description": "Return VPIN bucket history from DuckDB.",
+        "operationId": "get_vpin_history_api_vpin__ticker__history_get",
+        "parameters": [
+          {
+            "name": "ticker",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Ticker"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 500,
+              "minimum": 1,
+              "default": 50,
+              "title": "Limit"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/vpin/{ticker}/ingest": {
+      "post": {
+        "tags": [
+          "vpin",
+          "vpin"
+        ],
+        "summary": "Ingest Trade",
+        "description": "Ingest a trade tick and update VPIN + QI engines.",
+        "operationId": "ingest_trade_api_vpin__ticker__ingest_post",
+        "parameters": [
+          {
+            "name": "ticker",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Ticker"
+            }
+          },
+          {
+            "name": "price_change",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "number",
+              "title": "Price Change"
+            }
+          },
+          {
+            "name": "volume",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "number",
+              "title": "Volume"
+            }
+          },
+          {
+            "name": "sigma",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "number",
+              "title": "Sigma"
+            }
+          },
+          {
+            "name": "dt",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "number",
+              "default": 1.0,
+              "title": "Dt"
+            }
+          },
+          {
+            "name": "bid_size",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "number",
+              "default": 0.0,
+              "title": "Bid Size"
+            }
+          },
+          {
+            "name": "ask_size",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "number",
+              "default": 0.0,
+              "title": "Ask Size"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/vpin/{ticker}/toxicity": {
+      "get": {
+        "tags": [
+          "vpin",
+          "vpin"
+        ],
+        "summary": "Get Toxicity",
+        "description": "Return the composite toxicity signal (VPIN CDF + QI z-score).",
+        "operationId": "get_toxicity_api_vpin__ticker__toxicity_get",
+        "parameters": [
+          {
+            "name": "ticker",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Ticker"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/trinity/{ticker}": {
+      "get": {
+        "tags": [
+          "trinity",
+          "trinity"
+        ],
+        "summary": "Get Trinity For Ticker",
+        "description": "Get zero-gamma levels and GEX data for a single ticker.",
+        "operationId": "get_trinity_for_ticker_api_trinity__ticker__get",
+        "parameters": [
+          {
+            "name": "ticker",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Ticker"
+            }
+          },
+          {
+            "name": "expiries",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 12,
+              "minimum": 1,
+              "default": 4,
+              "title": "Expiries"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/trinity/align": {
+      "get": {
+        "tags": [
+          "trinity",
+          "trinity"
+        ],
+        "summary": "Get Trinity Alignment",
+        "description": "Compute Trinity Alignment Index across SPX, SPY, and QQQ.",
+        "operationId": "get_trinity_alignment_api_trinity_align_get",
+        "parameters": [
+          {
+            "name": "expiries",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 12,
+              "minimum": 1,
+              "default": 4,
+              "title": "Expiries"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/anomaly/{ticker}": {
+      "get": {
+        "tags": [
+          "anomaly",
+          "anomaly"
+        ],
+        "summary": "Get Anomaly State",
+        "description": "Return the current anomaly detection state.",
+        "operationId": "get_anomaly_state_api_anomaly__ticker__get",
+        "parameters": [
+          {
+            "name": "ticker",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Ticker"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/anomaly/{ticker}/update": {
+      "post": {
+        "tags": [
+          "anomaly",
+          "anomaly"
+        ],
+        "summary": "Update Anomaly",
+        "description": "Feed a new (VPIN, QI) observation and get anomaly score.",
+        "operationId": "update_anomaly_api_anomaly__ticker__update_post",
+        "parameters": [
+          {
+            "name": "ticker",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Ticker"
+            }
+          },
+          {
+            "name": "vpin",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "number",
+              "title": "Vpin"
+            }
+          },
+          {
+            "name": "qi",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "number",
+              "title": "Qi"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/anomaly/{ticker}/status": {
+      "get": {
+        "tags": [
+          "anomaly",
+          "anomaly"
+        ],
+        "summary": "Get Detector Status",
+        "description": "Return model configuration and buffer status.",
+        "operationId": "get_detector_status_api_anomaly__ticker__status_get",
+        "parameters": [
+          {
+            "name": "ticker",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Ticker"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/anomaly/{ticker}/load": {
+      "post": {
+        "tags": [
+          "anomaly",
+          "anomaly"
+        ],
+        "summary": "Load Trained Model",
+        "description": "Load a trained checkpoint for the given ticker.",
+        "operationId": "load_trained_model_api_anomaly__ticker__load_post",
+        "parameters": [
+          {
+            "name": "ticker",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Ticker"
+            }
+          },
+          {
+            "name": "model_path",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "description": "Path to .pt checkpoint file",
+              "default": "",
+              "title": "Model Path"
+            },
+            "description": "Path to .pt checkpoint file"
+          },
+          {
+            "name": "device",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "cpu",
+              "title": "Device"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/liquidity/{ticker}": {
+      "get": {
+        "tags": [
+          "liquidity",
+          "liquidity"
+        ],
+        "summary": "Get Liquidity Metrics",
+        "description": "Return all liquidity metrics for a ticker.",
+        "operationId": "get_liquidity_metrics_api_liquidity__ticker__get",
+        "parameters": [
+          {
+            "name": "ticker",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Ticker"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/liquidity/{ticker}/kyle": {
+      "post": {
+        "tags": [
+          "liquidity",
+          "liquidity"
+        ],
+        "summary": "Update Kyle",
+        "description": "Update Kyle's Lambda with a new trade observation.",
+        "operationId": "update_kyle_api_liquidity__ticker__kyle_post",
+        "parameters": [
+          {
+            "name": "ticker",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Ticker"
+            }
+          },
+          {
+            "name": "price",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "number",
+              "title": "Price"
+            }
+          },
+          {
+            "name": "volume",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "number",
+              "title": "Volume"
+            }
+          },
+          {
+            "name": "sign",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Sign"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/liquidity/{ticker}/amihud": {
+      "post": {
+        "tags": [
+          "liquidity",
+          "liquidity"
+        ],
+        "summary": "Update Amihud",
+        "description": "Update Amihud Illiquidity with a new observation.",
+        "operationId": "update_amihud_api_liquidity__ticker__amihud_post",
+        "parameters": [
+          {
+            "name": "ticker",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Ticker"
+            }
+          },
+          {
+            "name": "price",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "number",
+              "title": "Price"
+            }
+          },
+          {
+            "name": "volume",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "number",
+              "title": "Volume"
+            }
+          },
+          {
+            "name": "dollar_volume",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "number",
+              "title": "Dollar Volume"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/liquidity/{ticker}/fragility": {
+      "get": {
+        "tags": [
+          "liquidity",
+          "liquidity"
+        ],
+        "summary": "Get Fragility",
+        "description": "Compute Market Fragility Index.",
+        "operationId": "get_fragility_api_liquidity__ticker__fragility_get",
+        "parameters": [
+          {
+            "name": "ticker",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Ticker"
+            }
+          },
+          {
+            "name": "vpin_cdf",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "number",
+              "default": 0.0,
+              "title": "Vpin Cdf"
+            }
+          },
+          {
+            "name": "qi_zscore",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "number",
+              "default": 0.0,
+              "title": "Qi Zscore"
+            }
+          },
+          {
+            "name": "spread",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "number",
+              "default": 0.0,
+              "title": "Spread"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/hawkes/{ticker}/fit": {
+      "post": {
+        "tags": [
+          "hawkes",
+          "hawkes"
+        ],
+        "summary": "Fit Hawkes",
+        "description": "Fit Hawkes process parameters to observed event times.",
+        "operationId": "fit_hawkes_api_hawkes__ticker__fit_post",
+        "parameters": [
+          {
+            "name": "ticker",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Ticker"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "array",
+                "items": {
+                  "type": "number"
+                },
+                "title": "Event Times"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/hawkes/{ticker}/intensity": {
+      "get": {
+        "tags": [
+          "hawkes",
+          "hawkes"
+        ],
+        "summary": "Get Intensity",
+        "description": "Compute conditional intensity at the latest event time.",
+        "operationId": "get_intensity_api_hawkes__ticker__intensity_get",
+        "parameters": [
+          {
+            "name": "ticker",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Ticker"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "array",
+                "items": {
+                  "type": "number"
+                },
+                "title": "Event Times"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/hawkes/{ticker}/simulate": {
+      "post": {
+        "tags": [
+          "hawkes",
+          "hawkes"
+        ],
+        "summary": "Simulate Hawkes",
+        "description": "Simulate event times using Ogata's thinning algorithm.",
+        "operationId": "simulate_hawkes_api_hawkes__ticker__simulate_post",
+        "parameters": [
+          {
+            "name": "ticker",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Ticker"
+            }
+          },
+          {
+            "name": "T",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "number",
+              "default": 100.0,
+              "title": "T"
+            }
+          },
+          {
+            "name": "n_events",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "default": 1000,
+              "title": "N Events"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/hawkes/{ticker}/state": {
+      "get": {
+        "tags": [
+          "hawkes",
+          "hawkes"
+        ],
+        "summary": "Get Hawkes State",
+        "description": "Return full Hawkes process state.",
+        "operationId": "get_hawkes_state_api_hawkes__ticker__state_get",
+        "parameters": [
+          {
+            "name": "ticker",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Ticker"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/vol-surface/{ticker}": {
+      "get": {
+        "tags": [
+          "vol_surface",
+          "vol_surface"
+        ],
+        "summary": "Get Vol Surface",
+        "description": "Return the full implied volatility surface for a ticker.",
+        "operationId": "get_vol_surface_api_vol_surface__ticker__get",
+        "parameters": [
+          {
+            "name": "ticker",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Ticker"
+            }
+          },
+          {
+            "name": "expiries",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 12,
+              "minimum": 1,
+              "default": 6,
+              "title": "Expiries"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/vol-surface/{ticker}/sabr": {
+      "post": {
+        "tags": [
+          "vol_surface",
+          "vol_surface"
+        ],
+        "summary": "Fit Sabr",
+        "description": "Fit SABR model to market volatility smile.",
+        "operationId": "fit_sabr_api_vol_surface__ticker__sabr_post",
+        "parameters": [
+          {
+            "name": "ticker",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Ticker"
+            }
+          },
+          {
+            "name": "F",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "number",
+              "title": "F"
+            }
+          },
+          {
+            "name": "T",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "number",
+              "title": "T"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_fit_sabr_api_vol_surface__ticker__sabr_post"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/vol-surface/{ticker}/svi": {
+      "post": {
+        "tags": [
+          "vol_surface",
+          "vol_surface"
+        ],
+        "summary": "Fit Svi",
+        "description": "Fit SVI model to market data.",
+        "operationId": "fit_svi_api_vol_surface__ticker__svi_post",
+        "parameters": [
+          {
+            "name": "ticker",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Ticker"
+            }
+          },
+          {
+            "name": "T",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "number",
+              "title": "T"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_fit_svi_api_vol_surface__ticker__svi_post"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/microstructure/vpin/{ticker}": {
+      "get": {
+        "tags": [
+          "microstructure",
+          "microstructure"
+        ],
+        "summary": "Vpin Endpoint",
+        "description": "Compute VPIN and toxicity signals for a ticker.",
+        "operationId": "vpin_endpoint_api_microstructure_vpin__ticker__get",
+        "parameters": [
+          {
+            "name": "ticker",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Ticker"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/microstructure/gex-surface/{ticker}": {
+      "get": {
+        "tags": [
+          "microstructure",
+          "microstructure"
+        ],
+        "summary": "Gex Surface Endpoint",
+        "description": "Compute GEX surface (strike x expiry) for a ticker.",
+        "operationId": "gex_surface_endpoint_api_microstructure_gex_surface__ticker__get",
+        "parameters": [
+          {
+            "name": "ticker",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Ticker"
+            }
+          },
+          {
+            "name": "expiries",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 20,
+              "minimum": 1,
+              "default": 5,
+              "title": "Expiries"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/microstructure/hawkes/{ticker}": {
+      "get": {
+        "tags": [
+          "microstructure",
+          "microstructure"
+        ],
+        "summary": "Hawkes Endpoint",
+        "description": "Fit Hawkes process to recent trade arrivals.",
+        "operationId": "hawkes_endpoint_api_microstructure_hawkes__ticker__get",
+        "parameters": [
+          {
+            "name": "ticker",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Ticker"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/microstructure/vol-surface/{ticker}": {
+      "get": {
+        "tags": [
+          "microstructure",
+          "microstructure"
+        ],
+        "summary": "Vol Surface Endpoint",
+        "description": "Build full IV surface using SABR and SVI.",
+        "operationId": "vol_surface_endpoint_api_microstructure_vol_surface__ticker__get",
+        "parameters": [
+          {
+            "name": "ticker",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Ticker"
+            }
+          },
+          {
+            "name": "expiries",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 20,
+              "minimum": 1,
+              "default": 5,
+              "title": "Expiries"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/microstructure/liquidity/{ticker}": {
+      "get": {
+        "tags": [
+          "microstructure",
+          "microstructure"
+        ],
+        "summary": "Liquidity Endpoint",
+        "description": "Compute Kyle's Lambda, Amihud Illiquidity, and Market Fragility.",
+        "operationId": "liquidity_endpoint_api_microstructure_liquidity__ticker__get",
+        "parameters": [
+          {
+            "name": "ticker",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Ticker"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/microstructure/anomaly/{ticker}": {
+      "get": {
+        "tags": [
+          "microstructure",
+          "microstructure"
+        ],
+        "summary": "Anomaly Endpoint",
+        "description": "Get flow toxicity anomaly detection status.",
+        "operationId": "anomaly_endpoint_api_microstructure_anomaly__ticker__get",
+        "parameters": [
+          {
+            "name": "ticker",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Ticker"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/microstructure/trinity": {
+      "get": {
+        "tags": [
+          "microstructure",
+          "microstructure"
+        ],
+        "summary": "Trinity Endpoint",
+        "description": "Compute Trinity Alignment Index across SPY, QQQ, SPX.",
+        "operationId": "trinity_endpoint_api_microstructure_trinity_get",
+        "parameters": [
+          {
+            "name": "spy_spot",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "number",
+              "default": 0.0,
+              "title": "Spy Spot"
+            }
+          },
+          {
+            "name": "qqq_spot",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "number",
+              "default": 0.0,
+              "title": "Qqq Spot"
+            }
+          },
+          {
+            "name": "spx_spot",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "number",
+              "default": 0.0,
+              "title": "Spx Spot"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/microstructure/nodes/{ticker}": {
+      "get": {
+        "tags": [
+          "microstructure",
+          "microstructure"
+        ],
+        "summary": "Nodes Endpoint",
+        "description": "Get node lifecycle status for a ticker.",
+        "operationId": "nodes_endpoint_api_microstructure_nodes__ticker__get",
+        "parameters": [
+          {
+            "name": "ticker",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Ticker"
+            }
+          },
+          {
+            "name": "expiries",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 20,
+              "minimum": 1,
+              "default": 5,
+              "title": "Expiries"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/microstructure/toxicity-dashboard": {
+      "get": {
+        "tags": [
+          "microstructure",
+          "microstructure"
+        ],
+        "summary": "Toxicity Dashboard",
+        "description": "Combined toxicity dashboard data.",
+        "operationId": "toxicity_dashboard_api_microstructure_toxicity_dashboard_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "AlertRule": {
+        "properties": {
+          "ticker": {
+            "type": "string",
+            "title": "Ticker"
+          },
+          "alert_type": {
+            "type": "string",
+            "title": "Alert Type"
+          },
+          "threshold": {
+            "type": "number",
+            "title": "Threshold"
+          },
+          "direction": {
+            "type": "string",
+            "title": "Direction",
+            "default": "above"
+          },
+          "expiry": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expiry"
+          },
+          "strike": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Strike"
+          },
+          "label": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Label"
+          }
+        },
+        "type": "object",
+        "required": [
+          "ticker",
+          "alert_type",
+          "threshold"
+        ],
+        "title": "AlertRule"
+      },
+      "Body_analyze_trade_api_ai_analyze_trade_post": {
+        "properties": {
+          "trade": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Trade"
+          },
+          "market_context": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Market Context"
+          }
+        },
+        "type": "object",
+        "required": [
+          "trade"
+        ],
+        "title": "Body_analyze_trade_api_ai_analyze_trade_post"
+      },
+      "Body_fit_sabr_api_vol_surface__ticker__sabr_post": {
+        "properties": {
+          "strikes": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array",
+            "title": "Strikes"
+          },
+          "market_vols": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array",
+            "title": "Market Vols"
+          }
+        },
+        "type": "object",
+        "required": [
+          "strikes",
+          "market_vols"
+        ],
+        "title": "Body_fit_sabr_api_vol_surface__ticker__sabr_post"
+      },
+      "Body_fit_svi_api_vol_surface__ticker__svi_post": {
+        "properties": {
+          "log_moneyness": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array",
+            "title": "Log Moneyness"
+          },
+          "market_vols": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array",
+            "title": "Market Vols"
+          }
+        },
+        "type": "object",
+        "required": [
+          "log_moneyness",
+          "market_vols"
+        ],
+        "title": "Body_fit_svi_api_vol_surface__ticker__svi_post"
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "type": "array",
+            "title": "Detail"
+          }
+        },
+        "type": "object",
+        "title": "HTTPValidationError"
+      },
+      "ValidationError": {
+        "properties": {
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Location"
+          },
+          "msg": {
+            "type": "string",
+            "title": "Message"
+          },
+          "type": {
+            "type": "string",
+            "title": "Error Type"
+          },
+          "input": {
+            "title": "Input"
+          },
+          "ctx": {
+            "type": "object",
+            "title": "Context"
+          }
+        },
+        "type": "object",
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError"
+      }
+    }
+  }
+}
