@@ -30,7 +30,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
-REPO_ROOT = Path(__file__).resolve().parent
+REPO_ROOT = Path(__file__).resolve().parent.parent
 CLONED_DIR = REPO_ROOT / "data" / "github-repos" / "cloned"
 PROVENANCE_PATH = REPO_ROOT / "data" / "github-repos" / "clone_provenance.json"
 MEMORY_DIR = REPO_ROOT / "memory"

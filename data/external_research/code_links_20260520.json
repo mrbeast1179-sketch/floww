@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-05-20T02:48:05.282033+00:00",
+  "generated_at": "2026-05-20T07:33:19.914755+00:00",
   "scanned_files": [
     "data/external_research/discoveries_20260518.json",
     "data/external_research/discoveries_20260519.json",
@@ -49,17 +49,6 @@
         "https://github.com/owen8877/RLOP"
       ],
       "abstract_snippet": "Abstract In this work, we build two environments, namely the modified QLBS and RLOP models, from a mathematics perspective which enables RL methods in option pricing through replicating by portfolio. We implement the environment specificati\u2026"
-    },
-    {
-      "paper_id": "arxiv:2502.15757",
-      "title": "TLOB: A Novel Transformer Model with Dual Attention for Price Trend Prediction with Limit Order Book Data",
-      "url": "https://arxiv.org/abs/2502.15757",
-      "source": "arxiv",
-      "published": "2025-02-12T12:41:10Z",
-      "code_urls": [
-        "https://github.com/LeonardoBerti00/TLOB"
-      ],
-      "abstract_snippet": "Price Trend Prediction (PTP) based on Limit Order Book (LOB) data is a fundamental challenge in financial markets. Despite advances in deep learning, existing models fail to generalize across different market conditions and assets. Surprisi\u2026"
     }
   ]
 }
