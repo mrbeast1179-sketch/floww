@@ -152,7 +152,8 @@ async def history(ticker: str, days: int = Query(30, ge=1, le=365)):
         {"ticker": ticker.upper(), "ts": {"$gte": cutoff}},
         {"_id": 0},
     ).sort("ts", -1)
-    return await cursor.to_list(length=1000)
+    snapshots = await cursor.to_list(length=1000)
+    return {"ticker": ticker.upper(), "snapshots": snapshots, "count": len(snapshots)}
 
 
 @router.get("/patterns/glossary")
@@ -168,7 +169,31 @@ async def contract(ticker: str, expiry: Optional[str] = None):
     from server import fetch_spot_and_chains_merged, _sanitize
     raw = await _fetch_chain(ticker, 12)
     _check_chain(raw, ticker)
-    return _sanitize(raw)
+    contracts = raw["contracts"]
+    if expiry:
+        contracts = [c for c in contracts if c.get("expiry") == expiry]
+    spot = raw["spot"]
+    rows = []
+    for c in contracts:
+        gamma = c.get("gamma", 0)
+        oi = c.get("oi", c.get("open_interest", 0))
+        gex = gamma * oi * 100 * spot * (1 if c["type"] == "call" else -1)
+        rows.append({
+            "type": c["type"],
+            "strike": c["strike"],
+            "expiry": c["expiry"],
+            "iv": c.get("iv", 0),
+            "delta": c.get("delta", 0),
+            "gamma": c.get("gamma", 0),
+            "vega": c.get("vega", 0),
+            "theta": c.get("theta", 0),
+            "oi": c.get("oi", c.get("open_interest", 0)),
+            "volume": c.get("volume", 0),
+            "bid": c.get("bid", 0),
+            "ask": c.get("ask", 0),
+            "gex": gex,
+        })
+    return _sanitize({"ticker": ticker.strip().upper(), "spot": spot, "rows": rows, "count": len(rows)})
 
 
 @router.get("/flow/{ticker}")

@@ -412,7 +412,7 @@ def test_memory_gex_endpoint(client):
 
 
 def test_memory_recall_endpoint(client):
-    with patch("server.recall_trading_context", return_value=[]):
+    with patch("server.recall_trading_context", new_callable=AsyncMock, return_value=[]):
         r = client.get("/api/memory/recall/SPY")
     assert r.status_code == 200
     d = r.json()
@@ -420,7 +420,7 @@ def test_memory_recall_endpoint(client):
 
 
 def test_memory_summary_endpoint(client):
-    with patch("server.get_trading_summary", return_value="no data yet"):
+    with patch("server.get_trading_summary", new_callable=AsyncMock, return_value="no data yet"):
         r = client.get("/api/memory/summary/SPY")
     assert r.status_code == 200
     d = r.json()

@@ -31,6 +31,7 @@ httpx==0.28.1
 duckdb>=1.0.0
 numba>=0.60.0
 dash>=2.17.0
+dash-bootstrap-components>=1.6.0
 plotly>=5.22.0
 torch>=2.3.0
 scikit-learn>=1.5.0

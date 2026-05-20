@@ -28,6 +28,17 @@ import pandas as pd
 import numpy as np
 from scipy.stats import norm
 
+from services.duckdb_engine import db as duckdb_engine
+from services.vpin_engine import VpinEngine
+from services.trinity_alignment import TrinityAlignmentIndex
+from services.node_lifecycle import NodeLifecycleTracker
+from services.anomaly_detector import FlowAnomalyDetector
+from services.liquidity_metrics import KyleLambda, AmihudIlliquidity, MarketFragilityIndex
+from services.numba_greeks import compute_all_greeks
+from services.gex_aggregator import GexAggregator
+from services.stochastic_vol import SABRModel, SVIProfile, VolSurfaceConstructor
+from services.hawkes_process import HawkesProcess
+from services.websocket_streamer import manager as ws_manager
 from databento_provider import init_cache, fetch_oi_for_ticker, PARENT_MAP, stream_live_trades
 from portfolio import Position, Portfolio, calc_position_size
 from schwab import SCHWAB_CLIENT_ID
@@ -2005,8 +2016,8 @@ def get_live_policy() -> dict:
     return {
         "paid_tickers": sorted(PAID_TICKERS),
         "live_window_et": {
-            "start": lw.get("start_hhmm", "09:30"),
-            "stop": lw.get("stop_hhmm", "16:00"),
+            "start_hhmm": lw.get("start_hhmm", "09:30"),
+            "stop_hhmm": lw.get("stop_hhmm", "16:00"),
         },
     }
 
@@ -2038,7 +2049,7 @@ async def update_live_policy(request: dict) -> dict:
 async def stop_live_tape() -> dict:
     """Stop live tape session."""
     _live_tape_session["active"] = False
-    return {"status": "stopped"}
+    return {"status": "stopped", "stopped": True}
 
 
 # ============ Schwab Stubs ============
@@ -2499,3 +2510,76 @@ app.include_router(market_data_router, prefix="/api", tags=["market_data"])
 
 from routes.ml_api import router as ml_api_router
 app.include_router(ml_api_router, tags=["ml_api"])
+
+# ============ Paper Blueprint Route Wiring ============
+# New API routes from the Project Oracle Master Directive
+
+from routes.vpin import router as vpin_router
+app.include_router(vpin_router, tags=["vpin"])
+
+from routes.trinity import router as trinity_router
+app.include_router(trinity_router, tags=["trinity"])
+
+from routes.anomaly import router as anomaly_router
+app.include_router(anomaly_router, tags=["anomaly"])
+
+from routes.liquidity import router as liquidity_router
+app.include_router(liquidity_router, tags=["liquidity"])
+
+from routes.hawkes import router as hawkes_router
+app.include_router(hawkes_router, tags=["hawkes"])
+
+from routes.vol_surface import router as vol_surface_router
+app.include_router(vol_surface_router, tags=["vol_surface"])
+
+# ============ Microstructure Combined API ============
+from routes.microstructure import router as microstructure_router
+app.include_router(microstructure_router, tags=["microstructure"])
+
+# ============ DuckDB Engine Initialization ============
+from services.duckdb_engine import db as duckdb_engine
+
+@app.on_event("startup")
+async def startup_duckdb():
+    """Start DuckDB async writer on server startup."""
+    try:
+        await duckdb_engine.start()
+        log.info("DuckDB engine started")
+    except Exception as e:
+        log.warning(f"DuckDB startup failed (non-fatal): {e}")
+
+@app.on_event("shutdown")
+async def shutdown_duckdb():
+    """Flush and stop DuckDB on shutdown."""
+    try:
+        await duckdb_engine.stop()
+        log.info("DuckDB engine stopped")
+    except Exception:
+        pass
+
+# ============ WebSocket Endpoint ============
+from services.websocket_streamer import manager as ws_manager
+
+@app.websocket("/ws/{topic}")
+async def websocket_endpoint(websocket: WebSocket, topic: str):
+    """WebSocket endpoint for real-time data streaming.
+
+    Topics: ticks, flow, toxicity, analytics
+    """
+    await ws_manager.connect(websocket, [topic])
+    try:
+        while True:
+            # Keep connection alive, handle client messages
+            data = await websocket.receive_text()
+            # Echo back for now (could handle subscription changes)
+    except WebSocketDisconnect:
+        ws_manager.disconnect(websocket)
+
+# ============ Dash UI Mount ============
+try:
+    from services.dash_ui import create_dash_app
+    _dash_app = create_dash_app(app, url_base_pathname="/dashboard/")
+    if _dash_app:
+        log.info("Dash UI mounted at /dashboard/")
+except Exception as e:
+    log.warning(f"Dash UI mount failed (non-fatal): {e}")

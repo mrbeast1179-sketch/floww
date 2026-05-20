@@ -99,6 +99,9 @@ def test_history_spy(client):
             except StopIteration:
                 raise StopAsyncIteration
 
+        async def to_list(self, length=None):
+            return self._rows[:length] if length else list(self._rows)
+
     class _Snapshots:
         def find(self, *_, **__):
             return _AsyncCursor([{"ticker": "SPY", "ts": "2026-05-18T00:00:00Z"}])
