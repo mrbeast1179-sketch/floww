@@ -184,10 +184,12 @@ def plan_clones(
     allowed_licenses: set = ALLOWED_LICENSES,
     max_size_mb: float = 1000.0,
 ) -> Dict[str, List[Dict[str, Any]]]:
-    """Bucket candidates into to_clone / skip_already / skip_unparseable."""
+    """Bucket candidates into to_clone / skip_already / skip_unparseable / skip_license / skip_size."""
     to_clone: List[Dict[str, Any]] = []
     skip_already: List[Dict[str, Any]] = []
     skip_unparseable: List[Dict[str, Any]] = []
+    skip_license: List[Dict[str, Any]] = []
+    skip_size: List[Dict[str, Any]] = []
     seen_urls: set[str] = set()
     for row in candidates:
         url = row["code_url"]
@@ -209,12 +211,28 @@ def plan_clones(
             entry["local_path"] = str(local)
         if already_cloned(owner, repo, manifest):
             skip_already.append(entry)
-        else:
-            to_clone.append(entry)
+            continue
+        # License check
+        license_ok, license_reason = check_license(owner, repo, allowed=allowed_licenses)
+        if not license_ok:
+            entry["skip_reason"] = license_reason
+            skip_license.append(entry)
+            log.info(f"  SKIP (license): {owner}/{repo} — {license_reason}")
+            continue
+        # Size check
+        size_mb = get_repo_size_mb(owner, repo)
+        if size_mb is not None and size_mb > max_size_mb:
+            entry["skip_reason"] = f"size {size_mb:.0f} MB > {max_size_mb:.0f} MB limit"
+            skip_size.append(entry)
+            log.info(f"  SKIP (size): {owner}/{repo} — {size_mb:.0f} MB")
+            continue
+        to_clone.append(entry)
     return {
         "to_clone": to_clone,
         "skip_already": skip_already,
         "skip_unparseable": skip_unparseable,
+        "skip_license": skip_license,
+        "skip_size": skip_size,
     }
 
 

@@ -72,6 +72,20 @@ class DuckDBEngine:
             )
         """)
         self._conn.execute("""
+            CREATE TABLE IF NOT EXISTS lob_depth (
+                timestamp    TIMESTAMP,
+                symbol       VARCHAR,
+                expiry       DATE,
+                strike       DOUBLE,
+                option_type  VARCHAR(1),
+                level        INTEGER,
+                bid_size     BIGINT,
+                bid_price    DOUBLE,
+                ask_size     BIGINT,
+                ask_price    DOUBLE
+            )
+        """)
+        self._conn.execute("""
             CREATE TABLE IF NOT EXISTS flow_prints (
                 timestamp       TIMESTAMP,
                 ticker          VARCHAR,
@@ -106,6 +120,8 @@ class DuckDBEngine:
         self._conn.execute("CREATE INDEX IF NOT EXISTS idx_ticks_symbol ON ticks(symbol)")
         self._conn.execute("CREATE INDEX IF NOT EXISTS idx_ticks_ts ON ticks(timestamp)")
         self._conn.execute("CREATE INDEX IF NOT EXISTS idx_lob_symbol ON lob_snapshots(symbol)")
+        self._conn.execute("CREATE INDEX IF NOT EXISTS idx_lob_depth_symbol ON lob_depth(symbol)")
+        self._conn.execute("CREATE INDEX IF NOT EXISTS idx_lob_depth_ts ON lob_depth(timestamp)")
         self._conn.execute("CREATE INDEX IF NOT EXISTS idx_flow_ticker ON flow_prints(ticker)")
         logger.info("DuckDB schema initialized")
 
