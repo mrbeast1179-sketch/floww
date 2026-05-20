@@ -122,6 +122,12 @@ def main() -> int:
         action="store_true",
         help="Load config, list what would be searched, but don't fetch.",
     )
+    parser.add_argument(
+        "--max-queries",
+        type=int,
+        default=10,
+        help="Max queries per run (default: 10). Rotates through full set across runs.",
+    )
     args = parser.parse_args()
 
     if not SOURCES_YAML.exists():
@@ -136,11 +142,38 @@ def main() -> int:
         source_names = [s.strip() for s in args.sources.split(",") if s.strip()]
 
     queries = collect_queries(yaml_data, source_names)
-    total_queries = sum(len(v) for v in queries.values())
-    log.info(f"Sources: {source_names}; total queries: {total_queries}")
+
+    # Rotate queries: use a state file to track offset, limit to max-queries per run
+    state_path = OUTPUT_DIR / ".discover_state.json"
+    offset = 0
+    if state_path.exists():
+        try:
+            d = json.loads(state_path.read_text())
+            offset = d.get("offset", 0)
+        except Exception:
+            pass
+
+    # Rotate queries for each source
+    rotated_queries: Dict[str, List[str]] = {}
+    for name, qs in queries.items():
+        if not qs:
+            rotated_queries[name] = []
+            continue
+        n = min(args.max_queries, len(qs))
+        start = offset % max(len(qs), 1)
+        selected = []
+        for i in range(n):
+            selected.append(qs[(start + i) % len(qs)])
+        rotated_queries[name] = selected
+
+    total_queries = sum(len(v) for v in rotated_queries.values())
+    log.info(f"Sources: {source_names}; queries this run: {total_queries} (offset={offset})")
+
+    # Save next offset
+    state_path.write_text(json.dumps({"offset": offset + total_queries}))
 
     if args.dry_run:
-        for name, qs in queries.items():
+        for name, qs in rotated_queries.items():
             log.info(f"  {name}: {len(qs)} queries")
             for q in qs[:3]:
                 log.info(f"    - {q}")
@@ -150,7 +183,7 @@ def main() -> int:
 
     sources = build_sources(source_names)
     log.info(f"Running discovery against {len(sources)} source(s)...")
-    discoveries, errors = discover_all(sources, queries)
+    discoveries, errors = discover_all(sources, rotated_queries)
     log.info(f"Got {len(discoveries)} discoveries; errors: {len(errors)}")
     for name, err in errors.items():
         log.warning(f"  {name}: {err}")
@@ -161,7 +194,7 @@ def main() -> int:
     payload = {
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "sources_run": source_names,
-        "queries_per_source": queries,
+        "queries_per_source": rotated_queries,
         "errors": errors,
         "discoveries": [d.to_dict() for d in discoveries],
     }

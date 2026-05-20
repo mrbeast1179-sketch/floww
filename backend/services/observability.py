@@ -144,3 +144,20 @@ def get_metrics_bytes() -> bytes:
 def get_metrics_content_type() -> str:
     """Return the content type for Prometheus metrics."""
     return CONTENT_TYPE_LATEST
+
+
+# ---------------------------------------------------------------------------
+# Metrics namespace — duckdb_engine does `from services.observability import metrics`
+# ---------------------------------------------------------------------------
+class _MetricsNamespace:
+    """Simple namespace that exposes all metric objects as attributes."""
+    def __init__(self):
+        # Copy all module-level metric objects into this namespace
+        import sys
+        mod = sys.modules[__name__]
+        for name in dir(mod):
+            obj = getattr(mod, name)
+            if not name.startswith("_") and not callable(obj) and not isinstance(obj, type):
+                setattr(self, name, obj)
+
+metrics = _MetricsNamespace()

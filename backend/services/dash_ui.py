@@ -253,7 +253,7 @@ def _build_flow_ticker(flow_data: List[Dict] = None) -> go.Figure:
         vol_oi = [f"{p.get('vol_oi_ratio', 0):.2f}" for p in sorted_data]
         classifications = [p.get("classification", "") for p in sorted_data]
 
-        # Compute row colors
+        # Compute row colors for cell backgrounds
         row_colors = []
         for p in sorted_data:
             size = p.get("size", 0)
@@ -262,8 +262,8 @@ def _build_flow_ticker(flow_data: List[Dict] = None) -> go.Figure:
             classification = p.get("classification", "")
             row_colors.append(_classify_row_color(size, daily_vol, oi, classification))
 
-        # Single fill color list for all cells (Plotly table requires uniform columns)
-        fill_colors = [[c] * len(sorted_data) for _ in range(10)]
+        # Build per-cell fill colors (list of lists: 10 columns × N rows)
+        fill_colors = [[row_colors[i] for i in range(len(sorted_data))] for _ in range(10)]
 
         fig = go.Figure(data=[go.Table(
             header=dict(

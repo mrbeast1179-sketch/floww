@@ -28,7 +28,7 @@ def _get_engine(ticker: str, bucket_size: float = 50000.0, window: int = 50):
     """Get or create a VPIN engine for the given ticker."""
     if ticker not in _vpin_engines:
         from services.vpin_engine import VpinEngine
-        _vpin_engines[ticker] = VpinEngine(bucket_size=bucket_size, window=window)
+        _vpin_engines[ticker] = VpinEngine(bucket_size=bucket_size, window=window, ticker=ticker)
     return _vpin_engines[ticker]
 
 

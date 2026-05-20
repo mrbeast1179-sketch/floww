@@ -2108,7 +2108,8 @@ async def _prefetch_paid_oi():
 
 async def _scheduler_loop():
     """Lightweight scheduler — fires once per day at PREFETCH_HHMM ET. No extra deps.
-    Also refreshes live policy from Mongo every 5 min for multi-worker sync."""
+    Also refreshes live policy from Mongo every 5 min for multi-worker sync.
+    Updates Schwab token TTL gauge every tick."""
     fired_for_date = None
     policy_refresh_counter = 0
     while True:
@@ -2118,6 +2119,21 @@ async def _scheduler_loop():
             if policy_refresh_counter >= 5:
                 policy_refresh_counter = 0
                 await _load_policy_from_mongo()
+
+            # Update Schwab token TTL metric
+            try:
+                from schwab import SchwabTokenManager
+                _tm = SchwabTokenManager()
+                _token = _tm.load()
+                if _token:
+                    _expires_at = _token.get("expires_at", 0)
+                    _now = datetime.now(timezone.utc).timestamp()
+                    _ttl = max(0, _expires_at - _now)
+                    obs_metrics.schwab_token_expires_in_seconds.set(_ttl)
+                else:
+                    obs_metrics.schwab_token_expires_in_seconds.set(0)
+            except Exception:
+                obs_metrics.schwab_token_expires_in_seconds.set(0)
 
             try:
                 from zoneinfo import ZoneInfo
@@ -2400,7 +2416,47 @@ async def auth_middleware(request: Request, call_next):
     return response
 
 
-# ----------------------------- Memory Routes (Mem0) -----------------------------
+# ----------------------------- Observability Middleware ------------------------------
+
+from services.observability import metrics as obs_metrics, get_metrics_bytes, get_metrics_content_type
+
+
+@app.middleware("http")
+async def metrics_middleware(request: Request, call_next):
+    """Record API request duration and emit metrics."""
+    # Skip metrics endpoint itself to avoid recursion
+    if request.url.path == "/metrics":
+        return await call_next(request)
+
+    start = time.time()
+    response = await call_next(request)
+    duration = time.time() - start
+
+    # Use path template if available, otherwise actual path
+    route = request.url.path
+    try:
+        if request.scope.get("route"):
+            route = request.scope["route"].path
+    except Exception:
+        pass
+
+    obs_metrics.api_request_duration_seconds.labels(
+        route=route,
+        method=request.method,
+        status=str(response.status_code),
+    ).observe(duration)
+
+    return response
+
+
+@app.get("/metrics")
+async def prometheus_metrics():
+    """Prometheus metrics exposition endpoint."""
+    from starlette.responses import Response
+    return Response(
+        content=get_metrics_bytes(),
+        media_type=get_metrics_content_type(),
+    )
 
 from memory_integration import remember_trade, remember_gex_observation, recall_trading_context, get_trading_summary
 
