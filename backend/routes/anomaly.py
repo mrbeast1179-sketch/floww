@@ -29,7 +29,7 @@ def _get_detector(ticker: str, seq_len: int = 50, latent_dim: int = 8):
     if ticker not in _detectors:
         from services.anomaly_detector import FlowAnomalyDetector
         _detectors[ticker] = FlowAnomalyDetector(
-            seq_len=seq_len, latent_dim=latent_dim
+            seq_len=seq_len, latent_dim=latent_dim, ticker=ticker
         )
     return _detectors[ticker]
 

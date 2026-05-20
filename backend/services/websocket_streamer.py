@@ -19,6 +19,8 @@ from datetime import datetime, timezone
 
 from fastapi import WebSocket, WebSocketDisconnect
 
+from services.observability import metrics as obs_metrics
+
 logger = logging.getLogger(__name__)
 
 
@@ -37,11 +39,14 @@ class ConnectionManager:
                 if topic not in self._active:
                     self._active[topic] = set()
                 self._active[topic].add(websocket)
+                obs_metrics.websocket_connections.labels(topic=topic).inc()
         logger.info(f"Client connected. Total: {len(self._all)}")
 
     def disconnect(self, websocket: WebSocket):
         self._all.discard(websocket)
         for topic in list(self._active.keys()):
+            if websocket in self._active[topic]:
+                obs_metrics.websocket_connections.labels(topic=topic).dec()
             self._active[topic].discard(websocket)
             if not self._active[topic]:
                 del self._active[topic]

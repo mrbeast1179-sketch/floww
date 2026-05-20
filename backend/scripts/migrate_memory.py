@@ -2,18 +2,19 @@
 """
 migrate_memory.py — Migrate Claude Code memory + PLUR engrams to mem0.
 
+Uses the mem0 Python SDK directly for reliable API calls.
+
 Usage:
-    python migrate_memory.py [--dry-run] [--verbose]
+    python migrate_memory.py [--dry-run] [--source claude|plur|all]
 
 Environment:
-    MEM0_API_KEY — mem0 Platform API key (required)
+    MEM0_API_KEY — mem0 Platform API key (or reads from ~/.mem0/config.json)
 """
 
 import os
 import sys
 import json
 import re
-import yaml
 import time
 import argparse
 from pathlib import Path
@@ -30,21 +31,18 @@ LOG_FILE = CLAUDE_MEMORY_DIR / "_migration_log_2026-05-20.md"
 # ── Helpers ────────────────────────────────────────────────────────────────
 
 def get_api_key():
-    """Read MEM0_API_KEY from config or env."""
     key = os.environ.get("MEM0_API_KEY", "")
+    if not key and MEM0_CONFIG.exists():
+        with open(MEM0_CONFIG) as f:
+            cfg = json.load(f)
+        key = cfg.get("platform", {}).get("api_key", "")
     if not key:
-        if MEM0_CONFIG.exists():
-            with open(MEM0_CONFIG) as f:
-                cfg = json.load(f)
-            key = cfg.get("platform", {}).get("api_key", "")
-    if not key:
-        print("ERROR: MEM0_API_KEY not found. Set it in ~/.mem0/config.json or environment.")
+        print("ERROR: MEM0_API_KEY not found.")
         sys.exit(1)
     return key
 
 
 def get_user_id():
-    """Read default user_id from mem0 config."""
     if MEM0_CONFIG.exists():
         with open(MEM0_CONFIG) as f:
             cfg = json.load(f)
@@ -53,95 +51,108 @@ def get_user_id():
 
 
 def parse_frontmatter(content: str) -> dict:
-    """Parse YAML frontmatter from a markdown file."""
     m = re.match(r"^---\s*\n(.*?)\n---", content, re.DOTALL)
     if m:
         try:
+            import yaml
             return yaml.safe_load(m.group(1)) or {}
-        except yaml.YAMLError:
+        except Exception:
             return {}
     return {}
 
 
 def extract_body(content: str) -> str:
-    """Extract body text after frontmatter."""
     m = re.match(r"^---\s*\n.*?\n---\s*\n?", content, re.DOTALL)
     if m:
         return content[m.end():].strip()
     return content.strip()
 
 
-def mem0_add(text: str, user_id: str, tags: list, metadata: dict, api_key: str, dry_run=False) -> dict:
-    """Add a memory entry via mem0 CLI."""
-    if dry_run:
-        print(f"  [DRY-RUN] Would add: {text[:80]}...")
-        return {"status": "dry_run"}
-
-    import subprocess
-    cmd = [
-        "mem0", "add", text,
-        "--user-id", user_id,
-        "--tags", ",".join(tags) if tags else "",
-        "--metadata", json.dumps(metadata) if metadata else "{}",
-        "--agent", "--json"
-    ]
-    env = {**os.environ, "MEM0_API_KEY": api_key}
-    try:
-        result = subprocess.run(cmd, capture_output=True, text=True, env=env, timeout=30)
-        if result.returncode == 0:
-            return json.loads(result.stdout)
-        else:
-            print(f"  ERROR: {result.stderr[:200]}")
-            return {"status": "error", "error": result.stderr[:200]}
-    except Exception as e:
-        print(f"  ERROR: {e}")
-        return {"status": "error", "error": str(e)}
+def make_memory_text(name: str, description: str, body: str) -> str:
+    """Build a clean memory text from Claude Code memory file."""
+    parts = []
+    if name:
+        parts.append(f"## {name}")
+    if description:
+        parts.append(f"**Description:** {description}")
+    if body:
+        parts.append(body)
+    return "\n\n".join(parts)
 
 
-def mem0_search(query: str, user_id: str, api_key: str, limit=3) -> list:
-    """Search mem0 for existing entries."""
-    import subprocess
-    cmd = [
-        "mem0", "search", query,
-        "--user-id", user_id,
-        "--limit", str(limit),
-        "--agent", "--json"
-    ]
-    env = {**os.environ, "MEM0_API_KEY": api_key}
-    try:
-        result = subprocess.run(cmd, capture_output=True, text=True, env=env, timeout=30)
-        if result.returncode == 0:
-            data = json.loads(result.stdout)
-            return data.get("data", [])
-        return []
-    except Exception:
-        return []
+# ── mem0 SDK wrapper ───────────────────────────────────────────────────────
 
+class Mem0Migrator:
+    def __init__(self, api_key: str, user_id: str):
+        self.api_key = api_key
+        self.user_id = user_id
+        self.client = None
+        self._init_client()
 
-def is_duplicate(text: str, user_id: str, api_key: str, threshold=0.85) -> bool:
-    """Check if a semantically equivalent memory already exists."""
-    results = mem0_search(text[:100], user_id, api_key, limit=3)
-    for r in results:
-        score = r.get("score", 0)
-        if score >= threshold:
-            return True
-    return False
+    def _init_client(self):
+        try:
+            from mem0 import MemoryClient
+            self.client = MemoryClient(api_key=self.api_key)
+            print(f"mem0 client initialized (Platform mode)")
+        except Exception as e:
+            print(f"ERROR initializing mem0 client: {e}")
+            sys.exit(1)
+
+    def add(self, text: str, categories: list = None, metadata: dict = None, dry_run=False) -> dict:
+        if dry_run:
+            print(f"  [DRY-RUN] {text[:80]}...")
+            return {"status": "dry_run", "id": "dry-run"}
+
+        try:
+            result = self.client.add(
+                messages=[{"role": "user", "content": text}],
+                user_id=self.user_id,
+                categories=categories or {},
+                metadata=metadata or {},
+            )
+            return {"status": "success", "result": result}
+        except Exception as e:
+            return {"status": "error", "error": str(e)}
+
+    def search(self, query: str, limit=3) -> list:
+        try:
+            results = self.client.search(
+                query=query,
+                user_id=self.user_id,
+                limit=limit,
+            )
+            return results if isinstance(results, list) else results.get("results", results.get("data", []))
+        except Exception:
+            return []
+
+    def is_duplicate(self, text: str, threshold=0.85) -> bool:
+        results = self.search(text[:100], limit=3)
+        for r in results:
+            score = r.get("score", 0)
+            if score >= threshold:
+                return True
+        return False
+
+    def count_memories(self) -> int:
+        try:
+            results = self.client.get_all(user_id=self.user_id, limit=1)
+            if isinstance(results, dict):
+                return results.get("total", len(results.get("results", results.get("data", []))))
+            return len(results) if isinstance(results, list) else 0
+        except Exception:
+            return -1
 
 
 # ── Migration Logic ────────────────────────────────────────────────────────
 
-def migrate_claude_memory(api_key: str, user_id: str, dry_run=False) -> dict:
-    """Migrate all Claude Code memory files to mem0."""
+def migrate_claude_memory(migrator: Mem0Migrator, dry_run=False) -> dict:
     stats = {"total": 0, "added": 0, "skipped": 0, "errors": 0, "files": []}
-
-    md_files = sorted(CLAUDE_MEMORY_DIR.glob("*.md"))
-    # Skip audit/log files
     skip_files = {"_migration_audit_2026-05-20.md", "_migration_log_2026-05-20.md"}
 
+    md_files = sorted(CLAUDE_MEMORY_DIR.glob("*.md"))
+
     for md_file in md_files:
-        if md_file.name in skip_files:
-            continue
-        if md_file.name.startswith("_"):
+        if md_file.name in skip_files or md_file.name.startswith("_"):
             continue
 
         stats["total"] += 1
@@ -153,60 +164,53 @@ def migrate_claude_memory(api_key: str, user_id: str, dry_run=False) -> dict:
         mem_type = fm.get("type", "unknown")
         description = fm.get("description", "")
 
-        # Build the memory text
-        memory_text = f"{name}: {description}\n\n{body}" if description else f"{name}\n\n{body}"
-
-        # Build tags
-        tags = ["claude-code", mem_type]
-        if "project" in mem_type:
-            tags.append("project")
-        if "reference" in mem_type:
-            tags.append("reference")
-
-        # Build metadata
+        memory_text = make_memory_text(name, description, body)
+        categories = [mem_type] if mem_type != "unknown" else []
         metadata = {
             "source": "claude-code",
             "file": md_file.name,
             "type": mem_type,
-            "origin_session": fm.get("originSessionId", ""),
             "migrated_at": datetime.now().isoformat()
         }
 
-        print(f"[{stats['total']}] Migrating: {md_file.name} ({mem_type})")
+        print(f"[{stats['total']}] {md_file.name} ({mem_type})")
 
-        # Check for duplicates
+        # Duplicate check
         if not dry_run:
-            existing = mem0_search(name, user_id, api_key, limit=2)
-            if existing and existing[0].get("score", 0) > 0.9:
-                print(f"  SKIP: Already exists (score={existing[0].get('score', 0):.2f})")
-                stats["skipped"] += 1
-                stats["files"].append({"file": md_file.name, "status": "skipped", "reason": "duplicate"})
-                continue
+            try:
+                existing = migrator.search(name, limit=2)
+                if existing and existing[0].get("score", 0) > 0.9:
+                    print(f"  SKIP: duplicate (score={existing[0].get('score', 0):.2f})")
+                    stats["skipped"] += 1
+                    stats["files"].append({"file": md_file.name, "status": "skipped"})
+                    continue
+            except Exception:
+                pass
 
-        result = mem0_add(memory_text, user_id, tags, metadata, api_key, dry_run)
+        result = migrator.add(memory_text, categories=categories, metadata=metadata, dry_run=dry_run)
 
-        if result.get("status") in ("success", "dry_run", "PENDING"):
+        if result.get("status") in ("success", "dry_run"):
             stats["added"] += 1
             stats["files"].append({"file": md_file.name, "status": "added"})
-            print(f"  OK: {result.get('status', 'ok')}")
+            print(f"  OK")
         else:
             stats["errors"] += 1
             stats["files"].append({"file": md_file.name, "status": "error", "error": result.get("error", "")})
             print(f"  FAIL: {result.get('error', 'unknown')}")
 
-        # Rate limit: be nice to the API
         if not dry_run:
-            time.sleep(1)
+            time.sleep(0.5)
 
     return stats
 
 
-def migrate_plur_engrams(api_key: str, user_id: str, dry_run=False) -> dict:
-    """Migrate PLUR engrams to mem0 with deduplication."""
+def migrate_plur_engrams(migrator: Mem0Migrator, dry_run=False) -> dict:
+    import yaml
+
     stats = {"total": 0, "added": 0, "skipped": 0, "errors": 0, "duplicates": 0}
 
     if not PLUR_ENGRAMS_FILE.exists():
-        print("WARNING: PLUR engrams file not found, skipping.")
+        print("WARNING: PLUR engrams file not found.")
         return stats
 
     with open(PLUR_ENGRAMS_FILE) as f:
@@ -214,57 +218,56 @@ def migrate_plur_engrams(api_key: str, user_id: str, dry_run=False) -> dict:
 
     engrams = data.get("engrams", [])
     stats["total"] = len(engrams)
-
     print(f"\nMigrating {len(engrams)} PLUR engrams...")
 
     for i, eng in enumerate(engrams):
         eng_id = eng.get("id", f"unknown-{i}")
-        abstract = eng.get("abstract", "") or ""
-        content = eng.get("content", "") or ""
+        statement = (eng.get("statement", "") or "").strip()
+        abstract = (eng.get("abstract", "") or "").strip()
+        summary = (eng.get("summary", "") or "").strip()
         tags_list = eng.get("tags", []) or []
-        created_at = eng.get("created_at", "")
-        updated_at = eng.get("updated_at", "")
+        eng_type = eng.get("type", "")
+        domain = eng.get("domain", "")
 
-        # Skip engrams with no meaningful text
-        memory_text = abstract or content
-        if not memory_text or len(memory_text.strip()) < 10:
+        memory_text = statement or abstract or summary
+        if not memory_text or len(memory_text) < 10:
             stats["skipped"] += 1
             continue
 
-        # Build tags
-        tags = ["plur"] + [str(t) for t in tags_list[:5]]
+        categories = ["plur"] + [str(t) for t in tags_list[:3]]
+        if eng_type:
+            categories.append(eng_type)
 
-        # Build metadata
         metadata = {
             "source": "plur",
             "engram_id": eng_id,
-            "created_at": created_at,
-            "updated_at": updated_at,
-            "activation": eng.get("activation", {}),
+            "type": eng_type,
+            "domain": domain,
+            "scope": eng.get("scope", ""),
             "migrated_at": datetime.now().isoformat()
         }
 
-        # Check for duplicates
+        # Duplicate check
         if not dry_run:
-            if is_duplicate(memory_text, user_id, api_key, threshold=0.85):
-                stats["duplicates"] += 1
-                if i % 10 == 0:
-                    print(f"  [{i+1}/{len(engrams)}] SKIP duplicate: {eng_id}")
-                continue
+            try:
+                if migrator.is_duplicate(memory_text, threshold=0.85):
+                    stats["duplicates"] += 1
+                    continue
+            except Exception:
+                pass
 
-        result = mem0_add(memory_text, user_id, tags, metadata, api_key, dry_run)
+        result = migrator.add(memory_text, categories=categories, metadata=metadata, dry_run=dry_run)
 
-        if result.get("status") in ("success", "dry_run", "PENDING"):
+        if result.get("status") in ("success", "dry_run"):
             stats["added"] += 1
             if i % 10 == 0 or dry_run:
                 print(f"  [{i+1}/{len(engrams)}] Added: {eng_id}")
         else:
             stats["errors"] += 1
-            print(f"  [{i+1}/{len(engrams)}] ERROR: {eng_id} - {result.get('error', '')}")
+            print(f"  [{i+1}/{len(engrams)}] ERROR: {eng_id}")
 
-        # Rate limit
-        if not dry_run and i % 5 == 0:
-            time.sleep(0.5)
+        if not dry_run:
+            time.sleep(0.3)
 
     return stats
 
@@ -273,42 +276,39 @@ def migrate_plur_engrams(api_key: str, user_id: str, dry_run=False) -> dict:
 
 def main():
     parser = argparse.ArgumentParser(description="Migrate memory systems to mem0")
-    parser.add_argument("--dry-run", action="store_true", help="Preview without writing")
-    parser.add_argument("--verbose", action="store_true", help="Verbose output")
-    parser.add_argument("--source", choices=["claude", "plur", "all"], default="all",
-                        help="Which source to migrate")
+    parser.add_argument("--dry-run", action="store_true")
+    parser.add_argument("--source", choices=["claude", "plur", "all"], default="all")
     args = parser.parse_args()
 
     api_key = get_api_key()
     user_id = get_user_id()
 
-    print(f"Migration starting — user_id: {user_id}")
-    print(f"Dry run: {args.dry_run}")
-    print(f"Source: {args.source}")
-    print()
+    print(f"Migration starting — user_id: {user_id}, dry_run: {args.dry_run}\n")
+
+    migrator = Mem0Migrator(api_key, user_id)
 
     log_lines = ["# Migration Log — 2026-05-20\n"]
+    start_count = migrator.count_memories()
+    print(f"Starting mem0 count: {start_count}\n")
 
-    # Migrate Claude Code memory
     if args.source in ("claude", "all"):
         print("=" * 60)
         print("PHASE 1: Claude Code Memory → mem0")
         print("=" * 60)
-        claude_stats = migrate_claude_memory(api_key, user_id, args.dry_run)
+        claude_stats = migrate_claude_memory(migrator, args.dry_run)
         print(f"\nClaude Code: {claude_stats['total']} files, {claude_stats['added']} added, "
               f"{claude_stats['skipped']} skipped, {claude_stats['errors']} errors")
         log_lines.append(f"\n## Claude Code Memory\n")
-        log_lines.append(f"- Total: {claude_stats['total']}")
+        log_lines.append(f"- Total files: {claude_stats['total']}")
         log_lines.append(f"- Added: {claude_stats['added']}")
         log_lines.append(f"- Skipped: {claude_stats['skipped']}")
         log_lines.append(f"- Errors: {claude_stats['errors']}")
 
-    # Migrate PLUR engrams
     if args.source in ("plur", "all"):
         print("\n" + "=" * 60)
         print("PHASE 2: PLUR Engrams → mem0")
         print("=" * 60)
-        plur_stats = migrate_plur_engrams(api_key, user_id, args.dry_run)
+        plur_stats = migrate_plur_engrams(migrator, args.dry_run)
         print(f"\nPLUR: {plur_stats['total']} engrams, {plur_stats['added']} added, "
               f"{plur_stats['duplicates']} duplicates, {plur_stats['skipped']} skipped, "
               f"{plur_stats['errors']} errors")
@@ -319,12 +319,17 @@ def main():
         log_lines.append(f"- Skipped: {plur_stats['skipped']}")
         log_lines.append(f"- Errors: {plur_stats['errors']}")
 
-    # Write log
+    end_count = migrator.count_memories()
+    print(f"\nEnding mem0 count: {end_count}")
+    log_lines.append(f"\n## Summary\n")
+    log_lines.append(f"- Starting count: {start_count}")
+    log_lines.append(f"- Ending count: {end_count}")
+
     if not args.dry_run:
         LOG_FILE.write_text("\n".join(log_lines))
-        print(f"\nLog written to: {LOG_FILE}")
+        print(f"Log: {LOG_FILE}")
 
-    print("\nMigration complete.")
+    print("\nDone.")
 
 
 if __name__ == "__main__":

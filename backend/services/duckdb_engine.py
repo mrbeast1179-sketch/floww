@@ -21,6 +21,8 @@ from datetime import datetime, timezone
 import duckdb
 import numpy as np
 
+from services.observability import metrics as obs_metrics
+
 logger = logging.getLogger(__name__)
 
 
@@ -126,6 +128,9 @@ class DuckDBEngine:
         ts = datetime.now(timezone.utc)
         self._tick_buffer.append((ts, symbol, bid, ask, last, volume, oi,
                                   delta, gamma, theta, vega, vanna, charm, vomma))
+        obs_metrics.duckdb_queue_depth.set(
+            len(self._tick_buffer) + len(self._lob_buffer) + len(self._flow_buffer)
+        )
         if len(self._tick_buffer) >= self._batch_size:
             await self._flush_ticks()
 
@@ -182,6 +187,10 @@ class DuckDBEngine:
         async with self._lock:
             buf = self._tick_buffer
             self._tick_buffer = []
+        obs_metrics.duckdb_batch_size.observe(len(buf))
+        obs_metrics.duckdb_queue_depth.set(
+            len(self._tick_buffer) + len(self._lob_buffer) + len(self._flow_buffer)
+        )
         try:
             await asyncio.to_thread(
                 lambda: self._conn.executemany(
@@ -198,6 +207,10 @@ class DuckDBEngine:
         async with self._lock:
             buf = self._lob_buffer
             self._lob_buffer = []
+        obs_metrics.duckdb_batch_size.observe(len(buf))
+        obs_metrics.duckdb_queue_depth.set(
+            len(self._tick_buffer) + len(self._lob_buffer) + len(self._flow_buffer)
+        )
         try:
             await asyncio.to_thread(
                 lambda: self._conn.executemany(
@@ -214,6 +227,10 @@ class DuckDBEngine:
         async with self._lock:
             buf = self._flow_buffer
             self._flow_buffer = []
+        obs_metrics.duckdb_batch_size.observe(len(buf))
+        obs_metrics.duckdb_queue_depth.set(
+            len(self._tick_buffer) + len(self._lob_buffer) + len(self._flow_buffer)
+        )
         try:
             await asyncio.to_thread(
                 lambda: self._conn.executemany(
