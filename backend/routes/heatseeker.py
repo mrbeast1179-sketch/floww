@@ -442,7 +442,7 @@ async def stacked_nodes_route(
     threshold_pct: float = Query(0.3, ge=0.1, le=0.9),
 ):
     """Detect stacked nodes — both call+put GEX significant at same strike."""
-    from server import _sanitize
+    from server import _sanitize, fetch_spot_and_chains_merged
     from services.heatseeker import detect_stacked_nodes
     t = ticker.strip().upper()
     raw = await fetch_spot_and_chains_merged(t, expiries)
@@ -460,7 +460,7 @@ async def tug_of_war_route(
     expiries: int = Query(4, ge=1, le=12),
 ):
     """Detect tug-of-war zones — positive/negative GEX conflict near spot."""
-    from server import _sanitize
+    from server import _sanitize, fetch_spot_and_chains_merged
     from services.heatseeker import calc_tug_of_war_zones
     t = ticker.strip().upper()
     raw = await fetch_spot_and_chains_merged(t, expiries)
