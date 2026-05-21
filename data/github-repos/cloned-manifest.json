@@ -20,7 +20,9 @@
     "kyosenergy/options-calculator",
     "Andrew-Reis-SMU-2022/Options_Based_Trading",
     "MattL922/implied-volatility",
-    "asridi/DML-Calibration-Heston-Model"
+    "asridi/DML-Calibration-Heston-Model",
+    "harryho71/option-strategy-pricer",
+    "George-Dros/Options_Portfolio"
   ],
-  "count": 21
+  "count": 23
 }
