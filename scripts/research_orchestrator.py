@@ -49,7 +49,7 @@ log = logging.getLogger("orchestrator")
 def _load_state() -> Dict[str, Any]:
     if STATE_PATH.exists():
         return json.loads(STATE_PATH.read_text())
-    return {"run_count": 0, "last_run": None, "last_hf_run": None, "last_digest_run": None}
+    return {"run_count": 0, "last_run": None, "last_hf_run": None, "last_digest_run": None, "last_kg_run": None}
 
 
 def _save_state(state: Dict[str, Any]) -> None:
@@ -242,6 +242,28 @@ def step_digest(state: Dict[str, Any]) -> bool:
     return True
 
 
+def step_kg_build() -> bool:
+    """Step 8: Rebuild knowledge graph from all data sources."""
+    log.info("=== Step 8: Knowledge Graph Build ===")
+    result = _run([
+        str(VENV_PYTHON), "scripts/build_kg.py",
+    ], timeout=120)
+    if result.returncode != 0:
+        log.warning(f"KG build had errors: {result.stderr[:300]}")
+    else:
+        try:
+            import sys as _sys
+            _sys.path.insert(0, str(REPO_ROOT / "backend"))
+            from services.research.knowledge_graph import KnowledgeGraph
+            kg = KnowledgeGraph(str(REPO_ROOT / "data" / "research_kg.duckdb"))
+            stats = kg.get_stats()
+            log.info(f"KG: {stats['papers']} papers, {stats['repos']} repos, {stats['edges']} edges")
+            kg.close()
+        except Exception:
+            pass
+    return True  # Non-fatal
+
+
 def run_full_pipeline(args: argparse.Namespace) -> int:
     """Run the full pipeline once."""
     state = _load_state()
@@ -308,6 +330,20 @@ def run_full_pipeline(args: argparse.Namespace) -> int:
         else:
             log.info("Skipping digest (last run < 4 hours ago)")
 
+    # Step 8: KG rebuild (every 8 runs = ~8 hours)
+    last_kg = state.get("last_kg_run")
+    do_kg = True
+    if last_kg:
+        try:
+            last_dt = datetime.fromisoformat(last_kg)
+            elapsed = (datetime.now(timezone.utc) - last_dt).total_seconds()
+            do_kg = elapsed > 28800  # 8 hours
+        except Exception:
+            pass
+    if do_kg:
+        step_kg_build()
+        state["last_kg_run"] = datetime.now(timezone.utc).isoformat()
+
     _save_state(state)
     log.info(f"═══ Pipeline Run #{run_num} Complete ═══")
     return 0
@@ -327,6 +363,7 @@ def main() -> int:
     parser.add_argument("--skip-digest", action="store_true", help="Skip digest")
     parser.add_argument("--force-hf", action="store_true", help="Force HF search regardless of interval")
     parser.add_argument("--force-digest", action="store_true", help="Force digest regardless of interval")
+    parser.add_argument("--kg-only", action="store_true", help="Only rebuild knowledge graph")
     args = parser.parse_args()
 
     if args.hf_only:
@@ -335,6 +372,9 @@ def main() -> int:
     if args.digest_only:
         state = _load_state()
         return 0 if step_digest(state) else 1
+
+    if args.kg_only:
+        return 0 if step_kg_build() else 1
 
     return run_full_pipeline(args)
 
