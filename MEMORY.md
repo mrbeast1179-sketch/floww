@@ -1,5 +1,8 @@
 # MEMORY.md — Project Oracle (floww)
 
+**CANONICAL FLOWW = /Users/nav/Documents/GitHub/floww**
+See [CONSOLIDATION_REPORT.md](CONSOLIDATION_REPORT.md) for the full consolidation record.
+
 This file is the canonical memory index for the floww project.
 It is synced bidirectionally with mem0 and Obsidian.
 
