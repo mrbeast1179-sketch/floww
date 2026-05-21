@@ -6,33 +6,27 @@ skill: devops:kanban-orchestrator + autonomous-ai-agents:kanban-codex-lane + her
 estimate_hours: -1
 dependencies: []
 status: done
-last_update: 2026-05-19T20:30:00Z
-commits: [11caa4e]
+last_update: 2026-05-19T22:30:00Z
+commits: [11caa4e, e38fdcc, d181391, 88a2bfea, 46a2dac]
 blockers: []
 ---
 
-## Deliverable
-Auto-scheduling kanban workflow that survives Nav going to sleep. Board state in kanban/ directory, watcher loop, worker dispatch hooks, auto-archive.
+## Round 1 (done)
+- kanban/board.yaml: 5 columns, WIP limit 6
+- kanban/cards/: 10 .md files with frontmatter
+- kanban/SWARM_STATUS.md: rendered status table
+- kanban/INCIDENTS.md: failure mode log
+- kanban/watcher.py: 5-min loop
+- backend/tests/test_kanban.py: 23 tests
 
-## Files
-- `kanban/board.yaml` (new)
-- `kanban/cards/*.md` (new)
-- `kanban/closed/` (new)
-- `kanban/SWARM_STATUS.md` (new)
-- `kanban/INCIDENTS.md` (new)
-- `backend/tests/test_kanban.py` (new)
+## Round 2 (done)
+- Inter-agent messaging, auto-spawn follow-ups
+- Phone alerts, sprint planner, architect brief
 
-## Job
-- Pulls tasks from the kanban board
-- Dispatches to swarm workers
-- Tracks completion via git log scanning
-- Archives done cards
-- Surfaces blockers to Nav
-
-## Acceptance Criteria
-- [x] Board state fully YAML + markdown
-- [x] Watcher loop running (5-min cadence)
-- [x] WIP limit enforcement (max 6 in_progress)
-- [x] Auto-archive after 24h
-- [x] 23 tests on schema + transitions (run with --noconftest)
-- [x] All commits conventional: `feat(kanban): ...`
+## Round 3 (done)
+- backend/services/kanban/throughput_model.py: Poisson regression on card-completion times
+- backend/services/kanban/bottleneck.py: per-agent metrics every 30min, bottleneck detection
+- backend/services/kanban/rebalancer.py: capacity rebalancing recommender
+- scripts/generate_retro.py: sprint retrospective generator (LLM-augmented)
+- backend/services/kanban/multi_repo.py: cross-repo coordination
+- backend/tests/services/kanban/: 26 tests (throughput, bottleneck, rebalancer)
