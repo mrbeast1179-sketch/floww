@@ -91,6 +91,8 @@ class ExponentialSmoother:
         """Forecast `steps_ahead` periods into the future."""
         if self.level is None or self.trend is None:
             return 0.0
+        if len(self._history) < 2:
+            return 0.0
         return float(self.level + steps_ahead * self.trend)
 
     @property

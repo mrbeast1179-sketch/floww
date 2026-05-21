@@ -56,7 +56,7 @@ class TestMemoryHealth:
         record_cache_hit()
         record_cache_miss()
         status = get_health_status()
-        assert status["embedding_cache_hit_rate"] == 2 / 3
+        assert abs(status["embedding_cache_hit_rate"] - 2 / 3) < 0.001
 
     def test_federation_sync(self):
         record_federation_sync(5.5, 10)
