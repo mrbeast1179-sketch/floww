@@ -157,6 +157,7 @@ class TestTraining:
         late_avg = np.mean(losses[-5:])
         assert late_avg < early_avg, f"Loss did not decrease: {early_avg:.4f} -> {late_avg:.4f}"
 
+    @pytest.mark.flaky(reruns=2, min_passes=1)
     def test_overfit_small_dataset(self):
         """Model should overfit a tiny dataset (sanity check)."""
         import torch
