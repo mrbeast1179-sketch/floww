@@ -1,14 +1,22 @@
-# Folder Consolidation Checkpoint
+# Folder Consolidation Checkpoint — COMPLETE
 
-TASK 1: COMPLETE
-TASK 2: IN_PROGRESS
-TASK 3: NOT_STARTED
-TASK 4: NOT_STARTED
-TASK 5: NOT_STARTED
+## Status: ALL TASKS COMPLETE
 
-NEXT ACTION: Task 2 — Move gex-repos out of /Applications/Claude everything/
+## Tasks
+- [x] T1: Identify canonical floww → `/Users/nav/Documents/GitHub/floww`
+- [x] T2: Move gex-repos → 2 MIT repos moved, 5 skipped (no license), 5 already in manifest
+- [x] T3: Archive duplicate → `~/.archive/floww_dup_20260709/`
+- [x] T4: Document non-floww directories → `memory/_directory_inventory_20260520.md`
+- [x] T5: Final report → `CONSOLIDATION_REPORT.md` + `MEMORY.md` updated
 
-## Context
-- Canonical floww: /Users/nav/Documents/GitHub/floww (commit c17ef32, SSH remote)
-- Loser: /Users/nav/GitHub/floww (to be archived in Task 3)
-- Unique file from loser (test_microstructure_property.py) preserved in canonical
+## Commits
+- `c17ef32` — canonical floww decision + preserve test file
+- `733dd92` — consolidate 2 gex-repos
+- `a54ead6` — preserve 3 new service files from loser
+- `a221988` — final consolidation report
+
+## Final State
+- Canonical: `/Users/nav/Documents/GitHub/floww` (SSH remote, 265 commits)
+- Archive: `~/.archive/floww_dup_20260709/floww/` (reversible)
+- Truth audit: GREEN (11/11)
+- All pushed to origin/main
