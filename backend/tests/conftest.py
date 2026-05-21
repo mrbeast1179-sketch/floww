@@ -21,24 +21,18 @@ def event_loop():
 async def aclient():
     """Async HTTP client for the app."""
     transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://test") as client:
+    async with AsyncClient(transport=transport, base_url="http://test", headers={"X-API-Key": "test-secret-key"}) as client:
         yield client
 
 
 @pytest_asyncio.fixture(autouse=True)
 async def _reset_event_loop_and_motor(aclient, monkeypatch):
-    """Reset event loop AND motor client before each test.
-
-    This fixes the 'Event loop is closed' RuntimeError that occurs when:
-    1. TestClient uses anyio.from_thread which creates a new event loop per request
-    2. After a test, that loop is closed
-    3. The next test's motor client still references the closed loop
-    4. Async iteration over motor cursors fails with 'Event loop is closed'
-
-    Fix: Close old loop, create fresh one, AND create fresh motor client bound to new loop.
-    """
+    """Reset event loop AND motor client before each test."""
     import server
     from motor.motor_asyncio import AsyncIOMotorClient
+
+    # Set API_SECRET_KEY for tests so auth doesn't block mutating routes
+    os.environ.setdefault("API_SECRET_KEY", "test-secret-key")
 
     # Step 1: Close old event loop
     try:

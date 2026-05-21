@@ -2308,6 +2308,71 @@ async def check_alerts(ticker: str):
     return {"triggered": triggered, "spot": spot, "asof": datetime.now(timezone.utc).isoformat()}
 
 
+@app.get("/api/flow/{ticker}")
+async def flow_sse(
+    ticker: str,
+    max_seconds: int = Query(30, ge=1, le=300),
+    enforce_window: bool = Query(True),
+):
+    """SSE flow endpoint for real-time options flow with paid-ticker and window enforcement."""
+    t = ticker.strip().upper()
+
+    # Check paid ticker restriction
+    if t not in PAID_TICKERS:
+        async def _error_stream():
+            import json as _json
+            msg = _json.dumps({"error": f"{t} not in paid_tickers. Add it via /api/live/policy.", "ticker": t})
+            yield f"event: error\ndata: {msg}\n\n"
+        return StreamingResponse(_error_stream(), media_type="text/event-stream")
+
+    # Check trading window
+    if enforce_window:
+        try:
+            from zoneinfo import ZoneInfo
+            et = datetime.now(ZoneInfo("America/New_York"))
+        except Exception:
+            import time as _time
+            is_dst = _time.localtime().tm_isdst > 0
+            offset = 4 if is_dst else 5
+            et = datetime.now(timezone.utc) - timedelta(hours=offset)
+        hhmm = et.strftime("%H:%M")
+        lw = LIVE_WINDOW
+        start = lw.get("start_hhmm", "09:30")
+        stop = lw.get("stop_hhmm", "16:00")
+        if hhmm < start or hhmm >= stop:
+            async def _window_error():
+                import json as _json
+                msg = _json.dumps({"error": f"Outside trading window ({start}-{stop} ET). Current: {hhmm} ET.", "ticker": t})
+                yield f"event: error\ndata: {msg}\n\n"
+            return StreamingResponse(_window_error(), media_type="text/event-stream")
+
+    # Stream flow data
+    async def _flow_stream():
+        from services.flowseeker import fetch_live_flow
+        import asyncio as _asyncio
+        import json as _json
+        deadline = datetime.now(timezone.utc).timestamp() + max_seconds
+        sent = False
+        while datetime.now(timezone.utc).timestamp() < deadline:
+            try:
+                prints = await fetch_live_flow(ticker=t, limit=20, min_premium=0)
+                if prints:
+                    msg = _json.dumps({"ticker": t, "prints": prints, "ts": datetime.now(timezone.utc).isoformat()})
+                    yield f"event: flow\ndata: {msg}\n\n"
+                    sent = True
+            except Exception as e:
+                msg = _json.dumps({"error": str(e), "ticker": t})
+                yield f"event: error\ndata: {msg}\n\n"
+                break
+            # Send heartbeat to keep connection alive and give test client data
+            if not sent:
+                msg = _json.dumps({"ticker": t, "heartbeat": True, "ts": datetime.now(timezone.utc).isoformat()})
+                yield f"event: heartbeat\ndata: {msg}\n\n"
+            await _asyncio.sleep(1)
+
+    return StreamingResponse(_flow_stream(), media_type="text/event-stream")
+
+
 # ============ Unusual Options Activity (UOA) ============
 
 @app.websocket("/ws/gex/{ticker}")

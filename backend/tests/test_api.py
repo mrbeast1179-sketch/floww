@@ -9,6 +9,7 @@ intent is preserved and a developer can flip them on locally.
 """
 from __future__ import annotations
 
+import os
 import sys
 from pathlib import Path
 from typing import Any, Dict, List
@@ -29,7 +30,8 @@ from server import app  # noqa: E402
 
 @pytest.fixture(scope="module")
 def client() -> TestClient:
-    return TestClient(app)
+    os.environ.setdefault("API_SECRET_KEY", "test-secret-key")
+    return TestClient(app, headers={"X-API-Key": "test-secret-key"})
 
 
 def _fake_chain() -> Dict[str, Any]:
