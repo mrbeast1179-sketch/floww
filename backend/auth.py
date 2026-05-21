@@ -7,7 +7,7 @@ The API key is stored in the .env file as API_SECRET_KEY.
 
 import os
 import logging
-from fastapi import Request, HTTPException
+from fastapi import Request, HTTPException, WebSocket
 from functools import wraps
 
 logger = logging.getLogger(__name__)
@@ -59,16 +59,24 @@ async def verify_api_key(request: Request):
     # Check for API key in header
     api_key = request.headers.get("X-API-Key", "")
     expected_key = get_api_key()
-    
-    # If no API key is configured, allow all (development mode)
+
+    # FAIL CLOSED: if no API key is configured, reject all mutating requests.
+    # This prevents accidental exposure when .env is missing or misconfigured.
     if not expected_key:
-        return True
-    
+        logger.critical(
+            "API_SECRET_KEY not set — mutating routes are DISABLED. "
+            "Set API_SECRET_KEY in environment to enable."
+        )
+        raise HTTPException(
+            status_code=503,
+            detail="Authentication not configured. Set API_SECRET_KEY."
+        )
+
     if api_key != expected_key:
         client_host = request.client.host if request.client else "unknown"
         logger.warning(f"Invalid API key from {client_host} for {request.url.path}")
         raise HTTPException(status_code=401, detail="Invalid or missing API key")
-    
+
     return True
 
 
@@ -81,3 +89,26 @@ def require_auth(func):
             await verify_api_key(request)
         return await func(*args, **kwargs)
     return wrapper
+
+
+def get_ws_token() -> str:
+    """Get the WebSocket token from environment."""
+    return os.environ.get("WS_API_TOKEN", "")
+
+
+async def verify_ws_token(websocket: WebSocket) -> bool:
+    """Verify the WebSocket connection token.
+
+    Token can be passed as a query parameter: /ws/{topic}?token=<token>
+    If WS_API_TOKEN is not set, connections are allowed (development mode).
+    """
+    expected = get_ws_token()
+    if not expected:
+        # No token configured — allow (dev mode)
+        return True
+
+    token = websocket.query_params.get("token", "")
+    if token != expected:
+        logger.warning(f"Invalid WS token from {websocket.client.host if websocket.client else 'unknown'}")
+        return False
+    return True
