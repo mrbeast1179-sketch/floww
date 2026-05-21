@@ -695,14 +695,21 @@ def create_dash_app(fastapi_app, url_base_pathname: str = "/dashboard/"):
 
     try:
         import dash
+        from flask import Flask
         from starlette.middleware.wsgi import WSGIMiddleware
 
+        flask_server = Flask(__name__)
         dash_app = dash.Dash(
-            __name__, server=fastapi_app, url_base_pathname=url_base_pathname,
+            __name__, server=flask_server, url_base_pathname=url_base_pathname,
             external_stylesheets=[dbc.themes.DARKLY] if 'dbc' in dir() else [],
             suppress_callback_exceptions=True, update_title=None,
             meta_tags=[{"name": "viewport", "content": "width=device-width, initial-scale=1"}],
         )
+        # Use WSGIMiddleware as an ASGI sub-application
+        wsgi_app = WSGIMiddleware(dash_app.server)
+        mount_path = url_base_pathname.rstrip('/')
+        fastapi_app.add_route(f"{mount_path}/{{path:path}}", wsgi_app, methods=["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS", "HEAD"])
+        fastapi_app.add_route(mount_path, wsgi_app, methods=["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS", "HEAD"])
 
         # ── Layout ──────────────────────────────────────────────────────────
         dash_app.layout = html.Div([
