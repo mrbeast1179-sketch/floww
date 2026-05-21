@@ -30,6 +30,10 @@ PUBLIC_PATHS = {
     "/api/alerts/check",
     "/api/memory/recall/",
     "/api/memory/summary/",
+    "/dashboard/_dash-update-component",
+    "/dashboard/_dash-layout",
+    "/dashboard/_dash-dependencies",
+    "/favicon.ico",
 }
 
 
