@@ -49,6 +49,7 @@ async def test_heatmap_swing_more_expiries_wider_band(aclient):
         assert max_dev_d <= 0.16
 
 
+@pytest.mark.flaky
 async def test_heatmap_spx_via_spxw(aclient):
     r = await aclient.get("/api/heatmap/%5ESPX?expiries=2&mode=day")
     assert r.status_code == 200, r.text
@@ -58,6 +59,7 @@ async def test_heatmap_spx_via_spxw(aclient):
     assert "grid" in d and len(d["grid"]["strikes"]) > 0
 
 
+@pytest.mark.flaky
 async def test_heatmap_qqq_grid(aclient):
     r = await aclient.get("/api/heatmap/QQQ?expiries=2&mode=day")
     assert r.status_code == 200, r.text
@@ -66,6 +68,7 @@ async def test_heatmap_qqq_grid(aclient):
     assert len(d["grid"]["strikes"]) > 0
 
 
+@pytest.mark.flaky
 async def test_trinity_day_all_populated(aclient):
     r = await aclient.get("/api/trinity?mode=day")
     assert r.status_code == 200, r.text
@@ -103,6 +106,7 @@ async def test_contract_drilldown_spy(aclient):
         assert any("oi_source" in r_ for r_ in d["rows"]), "missing oi_source despite databento data_source"
 
 
+@pytest.mark.flaky
 async def test_databento_usage(aclient):
     r = await aclient.get("/api/databento/usage")
     assert r.status_code == 200

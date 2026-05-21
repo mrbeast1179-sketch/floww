@@ -2314,6 +2314,10 @@ async def check_alerts(ticker: str):
 async def websocket_gex(websocket: WebSocket, ticker: str):
     """WebSocket stream pushing live spot + key GEX levels every 5 seconds.
     Includes heartbeat/ping-pong for connection health."""
+    from auth import verify_ws_token
+    if not await verify_ws_token(websocket):
+        await websocket.close(code=4001, reason="Unauthorized")
+        return
     await websocket.accept()
     t = ticker.strip().upper()
     if t == "SPX":
@@ -2371,12 +2375,20 @@ async def websocket_gex(websocket: WebSocket, ticker: str):
         log.error(f"WebSocket fatal error for {t}: {e}")
 
 
+# CORS — explicit origins only, no wildcard default
+_cors_origins_env = os.environ.get("CORS_ORIGINS", "")
+if not _cors_origins_env and os.environ.get("ENVIRONMENT") == "production":
+    raise RuntimeError(
+        "CORS_ORIGINS must be set in production — refusing to start with wildcard. "
+        "Set CORS_ORIGINS to a comma-separated list of allowed origins."
+    )
+_cors_origins = [o.strip() for o in _cors_origins_env.split(",") if o.strip()] if _cors_origins_env else ["*"]
 app.add_middleware(
     CORSMiddleware,
     allow_credentials=False,
-    allow_origins=os.environ.get("CORS_ORIGINS", "*").split(","),
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_origins=_cors_origins,
+    allow_methods=["GET", "POST", "PUT", "DELETE"],
+    allow_headers=["Authorization", "Content-Type", "X-API-Key"],
 )
 
 # Security headers middleware
@@ -2412,6 +2424,26 @@ async def auth_middleware(request: Request, call_next):
     except HTTPException as e:
         from fastapi.responses import JSONResponse
         return JSONResponse(status_code=e.status_code, content={"detail": e.detail})
+    response = await call_next(request)
+    return response
+
+
+# Dash UI auth middleware — protects /dashboard/ in production
+@app.middleware("http")
+async def dash_auth_middleware(request: Request, call_next):
+    """Require authentication for Dash UI routes in production."""
+    if request.url.path.startswith("/dashboard/"):
+        # In production, require a valid session token
+        if os.environ.get("ENVIRONMENT") == "production":
+            token = request.query_params.get("token", "") or request.cookies.get("session_token", "")
+            expected = os.environ.get("DASH_SESSION_TOKEN", "")
+            if not expected:
+                logger.critical("DASH_SESSION_TOKEN not set — /dashboard/ is INSECURE")
+                from fastapi.responses import JSONResponse
+                return JSONResponse(status_code=503, detail="Dashboard auth not configured")
+            if token != expected:
+                from fastapi.responses import JSONResponse
+                return JSONResponse(status_code=401, detail="Unauthorized")
     response = await call_next(request)
     return response
 
@@ -2671,6 +2703,27 @@ async def shutdown_ingestion():
     except Exception as e:
         log.warning(f"Ingestion shutdown error: {e}")
 
+# ============ Paper Trading Engine ============
+from services.paper_trading import PaperTradingEngine
+from routes.paper_trading import set_paper_engine as _set_paper_engine
+
+_paper_engine: PaperTradingEngine | None = None
+
+@app.on_event("startup")
+async def startup_paper_trading():
+    """Initialize paper trading engine on startup."""
+    global _paper_engine
+    try:
+        _paper_engine = PaperTradingEngine(
+            initial_capital=100_000.0,
+            max_position_pct=0.10,
+            max_delta_exposure=500.0,
+        )
+        _set_paper_engine(_paper_engine)
+        log.info("Paper trading engine started ($100K initial capital)")
+    except Exception as e:
+        log.warning(f"Paper trading startup failed (non-fatal): {e}")
+
 # ============ WebSocket Endpoint ============
 
 @app.websocket("/ws/{topic}")
@@ -2679,6 +2732,10 @@ async def websocket_endpoint(websocket: WebSocket, topic: str):
 
     Topics: ticks, flow, toxicity, analytics
     """
+    from auth import verify_ws_token
+    if not await verify_ws_token(websocket):
+        await websocket.close(code=4001, reason="Unauthorized")
+        return
     await ws_manager.connect(websocket, [topic])
     try:
         while True:

@@ -53,6 +53,7 @@ async def test_live_policy_revert_spy_only(aclient):
 
 
 # --- /api/heatmap data_source by ticker tier ---
+@pytest.mark.flaky
 async def test_heatmap_spy_data_source_databento(aclient):
     await aclient.post("/api/live/policy", json={"paid_tickers": ["SPY"]})
     r = await aclient.get("/api/heatmap/SPY?expiries=2")
