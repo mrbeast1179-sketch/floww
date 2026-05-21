@@ -418,7 +418,7 @@ export default function App() {
         case "ArrowUp":
           e.preventDefault();
           if (tickers) {
-            const all = [...tickers.trinity, ...tickers.default, ...tickers.popular];
+            const all = [...(tickers.trinity || []), ...(tickers.default || []), ...(tickers.popular || [])];
             const idx = all.indexOf(ticker);
             if (idx > 0) setTicker(all[idx - 1]);
           }
@@ -426,7 +426,7 @@ export default function App() {
         case "ArrowDown":
           e.preventDefault();
           if (tickers) {
-            const all = [...tickers.trinity, ...tickers.default, ...tickers.popular];
+            const all = [...(tickers.trinity || []), ...(tickers.default || []), ...(tickers.popular || [])];
             const idx = all.indexOf(ticker);
             if (idx < all.length - 1) setTicker(all[idx + 1]);
           }
@@ -454,12 +454,13 @@ export default function App() {
             <button onClick={() => setPage("skylit")} className={`btn ${page === "skylit" ? "active" : ""}`}>Skylit</button>
             <button onClick={() => setPage("portfolio")} className={`btn ${page === "portfolio" ? "active" : ""}`}>Portfolio</button>
             <button onClick={() => setPage("journal")} className={`btn ${page === "journal" ? "active" : ""}`}>Journal</button>
+            <button onClick={() => setPage("swarmspx")} className={`btn ${page === "swarmspx" ? "active" : ""}`}>SwarmSPX</button>
           </div>
         </div>
         <div className="flex items-center gap-3">
           {tickers && (
             <TickerSearch
-              tickers={[...tickers.trinity, ...tickers.default, ...tickers.popular]}
+              tickers={[...(tickers.trinity || []), ...(tickers.default || []), ...(tickers.popular || [])]}
               value={ticker}
               onChange={setTicker}
             />
@@ -716,6 +717,18 @@ export default function App() {
       {/* Trade Journal */}
       {page === "journal" && (
         <TradeJournal ticker={ticker} />
+      )}
+
+      {/* SwarmSPX Neural Intelligence */}
+      {page === "swarmspx" && (
+        <div className="flex-1 overflow-hidden" style={{ display: "flex", flexDirection: "column" }}>
+          <iframe
+            src="http://localhost:8099/"
+            style={{ flex: 1, border: "none", width: "100%", height: "100%" }}
+            title="SwarmSPX Neural Intelligence"
+            sandbox="allow-scripts allow-same-origin allow-forms allow-popups"
+          />
+        </div>
       )}
 
       {/* Drilldown Modal */}
