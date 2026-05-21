@@ -2566,6 +2566,9 @@ app.include_router(gemini_router, tags=["ai"])
 from routes.heatseeker import router as heatseeker_router
 app.include_router(heatseeker_router, tags=["heatseeker"])
 
+from routes.predictive import router as predictive_router
+app.include_router(predictive_router, tags=["predictive"])
+
 from routes.live_trading import router as live_trading_router
 app.include_router(live_trading_router, prefix="/api", tags=["live_trading"])
 
@@ -2744,6 +2747,10 @@ async def websocket_endpoint(websocket: WebSocket, topic: str):
             # Echo back for now (could handle subscription changes)
     except WebSocketDisconnect:
         ws_manager.disconnect(websocket)
+
+# ============ Paper Trading Routes ============
+from routes.paper_trading import router as paper_trading_router
+app.include_router(paper_trading_router, tags=["paper_trading"])
 
 # ============ Replay Route ============
 from routes.replay import router as replay_router
