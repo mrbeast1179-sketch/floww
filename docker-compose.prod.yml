@@ -1,0 +1,103 @@
+# docker-compose.prod.yml
+# Production deployment stack
+# Usage: docker compose -f docker-compose.prod.yml up -d
+
+version: "3.9"
+
+services:
+  # ── Caddy reverse proxy ─────────────────────────────────────────────────────
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp" # HTTP/3
+    volumes:
+      - ./infra/caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+      - ./frontend/build:/srv/static:ro
+      - caddy_logs:/var/log/caddy
+    environment:
+      - DOMAIN=${DOMAIN:-localhost}
+      - ADMIN_EMAIL=${ADMIN_EMAIL:-admin@localhost}
+    networks:
+      - floww_prod
+    depends_on:
+      backend:
+        condition: service_healthy
+
+  # ── FastAPI backend ─────────────────────────────────────────────────────────
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: production
+    restart: unless-stopped
+    expose:
+      - "8000"
+    environment:
+      - ENVIRONMENT=production
+      - MONGO_URL=${MONGO_URL}
+      - DB_NAME=confluence_decoder
+      - API_SECRET_KEY=${API_SECRET_KEY}
+      - WS_API_TOKEN=${WS_API_TOKEN}
+      - DASH_SESSION_TOKEN=${DASH_SESSION_TOKEN}
+      - CORS_ORIGINS=${CORS_ORIGINS:-https://localhost}
+      - RATE_LIMIT_PER_MINUTE=60
+      - LOG_LEVEL=INFO
+    networks:
+      - floww_prod
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: "1.0"
+
+  # ── Prometheus ──────────────────────────────────────────────────────────────
+  prometheus:
+    image: prom/prometheus:latest
+    restart: unless-stopped
+    expose:
+      - "9090"
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./prometheus/alerts:/etc/prometheus/alerts:ro
+      - prometheus_data:/prometheus
+    networks:
+      - floww_prod
+
+  # ── Grafana ─────────────────────────────────────────────────────────────────
+  grafana:
+    image: grafana/grafana:latest
+    restart: unless-stopped
+    expose:
+      - "3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD:-admin}
+      - GF_SERVER_ROOT_URL=http://localhost:3000
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+    networks:
+      - floww_prod
+    depends_on:
+      - prometheus
+
+volumes:
+  caddy_data:
+  caddy_config:
+  caddy_logs:
+  prometheus_data:
+  grafana_data:
+
+networks:
+  floww_prod:
+    driver: bridge
