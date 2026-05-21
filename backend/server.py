@@ -2581,9 +2581,6 @@ app.include_router(memory_router, prefix="/api", tags=["memory"])
 from routes.ml_training import router as ml_training_router
 app.include_router(ml_training_router, tags=["ml_training"])
 
-from routes.paper_trading import router as paper_trading_router
-app.include_router(paper_trading_router, prefix="/api", tags=["paper_trading"])
-
 from routes.portfolio import router as portfolio_router
 app.include_router(portfolio_router, prefix="/api", tags=["portfolio"])
 
