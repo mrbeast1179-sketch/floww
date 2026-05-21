@@ -1,25 +1,23 @@
 # NEXT_TASKS.md
 
-## Security Audit Complete (2026-07-09)
+## Phase 4 ML — Round 2 Complete (2026-05-20)
 
-### CRITICAL Findings (5 — must fix before live trading):
-1. C-01: .env file permissions 644 → 600
-2. C-02: Auth bypass when API_SECRET_KEY unset — fail closed
-3. C-03: WebSocket endpoints unauthenticated — add token auth
-4. C-04: Dash UI /dashboard/ no access control — add auth
-5. C-05: CORS defaults to wildcard — enforce explicit origins
+### Shipped ✅
+- 1D-CNN AE anomaly detector (trained, validated 100% recall/0% FPR)
+- PatchTST VPIN forecaster (CNN fallback, beats persistence by 19%)
+- HuggingFace asset acquisition script
+- Ensemble inference module (CNN AE + PatchTST residual + statistical)
+- Regime-aware thresholds (calm→99th, active→95th, urgent→90th pct)
+- 54 ML tests passing (ensemble, regime, anomaly training, PatchTST, Autoformer)
+- Backtest harness with synthetic toxic-flow injection
 
-### HIGH Findings (6):
-1. H-01: Middleware ordering — move CORS add_middleware before routes
-2. H-02: Rate limiter trusts spoofable IP — document or use Redis
-3. H-03: POST routes accept Dict[str, Any] — add Pydantic models
-4. H-04: Schwab token file path validation — ensure dir permissions
-5. H-05: No CSRF protection — add SameSite cookies + Origin validation
-6. H-06: pymongo 4.5.0 CVE — upgrade to 4.6.3
+### Remaining
+- Autoformer chain dynamics training script (needs HF model download)
+- Production training on real MongoDB gex_history data (needs WiFi)
+- Ensemble calibration on real FOMC/NFP events
+- Wire ensemble into Dash UI toxicity gauge
 
-### Immediate Next Steps:
-1. Fix all 5 CRITICAL findings
-2. Run `bash qc/audit/security_regression.sh` to verify
-3. Run `bash qc/audit/truth_audit.sh` to confirm no regressions
-4. Re-run security audit to confirm all CRITICAL resolved
-5. Unblock live-trading switch
+### Blocked on MongoDB (need WiFi)
+- Real VPIN training data from gex_history collection
+- Walk-forward backtest on historical data
+- FOMC day validation

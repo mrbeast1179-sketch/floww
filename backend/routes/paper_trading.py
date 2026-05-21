@@ -29,3 +29,8 @@ async def paper_trade_status():
     from server import db
     orders = db.orders_dry_run.find({}, {"_id": 0}).sort("date", -1).limit(50)
     return {"orders": await orders.to_list(length=50)}
+
+
+def set_paper_engine(engine):
+    """Set the paper trading engine (stub for forward reference)."""
+    pass
