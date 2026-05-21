@@ -1,5 +1,5 @@
 # SWARM STATUS — Project Oracle Kanban
-# Generated: 2026-05-19T22:10:00Z by Agent 8 (Hermes)
+# Generated: 2026-05-19T22:30:00Z by Agent 8 (Hermes)
 # This file IS the 30-minute report. Nav can `cat` it anytime.
 
 ## Board Summary
@@ -33,8 +33,8 @@ None. 8 ready cards awaiting dispatch.
 
 | Card | Assignee | Commits |
 |------|----------|---------|
-| O-KANBAN-ORCH | Agent 8 | 11caa4e, e38fdcc |
-| O-MEMORY-SYNC | Agent 9 | d181391, 88a2bfea |
+| O-KANBAN-ORCH | Agent 8 | 11caa4e, e38fdcc, b43bf2e |
+| O-MEMORY-SYNC | Agent 9 | d181391, 88a2bfea, 46a2dac |
 
 ## Blocked
 
@@ -42,19 +42,30 @@ None.
 
 ## Active Agents (detected from git)
 
-| Agent | Last Commit | File |
-|-------|-------------|------|
-| Agent 1 | mock_schwab_feed.py | Schwab WS ingestion |
-| Agent 6 | research_digest_20260520_0248.md | Research loop |
-| Agent 10 | test_observability.py | Observability |
+| Agent | Last Activity | File |
+|-------|--------------|------|
+| Agent 1 | paper_trading.py, execution_engine.py | Paper-trade execution |
+| Agent 2 | causal_inference.py | ML anomaly detector |
+| Agent 5 | microstructure_property_test.py | Math validation |
+| Agent 6 | knowledge_graph.py, build_kg.py | Research KG |
+| Agent 9 | memory/ (O-MEMORY-UNIFY card) | Federated memory |
 
-## Memory System (Agent 9)
+## Kanban ML System (Agent 8 Round 3)
+
+- Throughput model: Poisson regression on card-completion times
+- Bottleneck detector: per-agent metrics every 30min
+- Rebalancer: TF-IDF skill matching for card reassignment
+- Retro generator: weekly sprint retrospectives (LLM-augmented)
+- Multi-repo: cross-repo card tracking
+- Tests: 26 passing (throughput, bottleneck, rebalancer)
+
+## Memory System (Agent 9 Round 2)
 
 - Consolidation: daily @ 4am (launchd: com.hermes.memory.consolidate)
 - Pruning: nightly @ 3am (launchd: com.hermes.memory.prune)
 - Auto-tagger: on insert, queues low-conf to kanban/cards/tagging_*.md
 - CLI: `ask-hermes "query"` (install: `python3 scripts/install_ask_hermes.py`)
-- mem0 entries: 248 (pre-existing from Round 1 migration)
+- mem0 entries: 248+ (growing with auto-tagging)
 
 ## Recent Incidents
 
