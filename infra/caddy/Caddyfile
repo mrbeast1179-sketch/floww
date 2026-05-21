@@ -1,0 +1,77 @@
+# infra/caddy/Caddyfile
+# Production reverse proxy for Floww
+# Auto-HTTPS via Let's Encrypt, HSTS, CSP
+
+{
+    email {$ADMIN_EMAIL}
+    servers {
+        protocols h1 h2 h3
+    }
+}
+
+# ── Production domain ─────────────────────────────────────────────────────────
+{$DOMAIN:localhost} {
+    # Security headers
+    header {
+        Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+        X-Content-Type-Options "nosniff"
+        X-Frame-Options "DENY"
+        X-XSS-Protection "1; mode=block"
+        Referrer-Policy "strict-origin-when-cross-origin"
+        Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; connect-src 'self' ws: wss: https:; font-src 'self' data:;"
+        -Server
+    }
+
+    # API routes → FastAPI backend
+    handle /api/* {
+        reverse_proxy localhost:8000
+    }
+
+    # WebSocket routes → FastAPI backend
+    handle /ws/* {
+        reverse_proxy localhost:8000 {
+            transport http {
+                read_buffer 8192
+            }
+        }
+    }
+
+    # Dash UI → FastAPI backend (WSGI)
+    handle /dashboard/* {
+        reverse_proxy localhost:8000
+    }
+
+    # Static files (frontend build)
+    handle /static/* {
+        root * /srv/static
+        file_server {
+            cache_control public, max-age=31536000, immutable
+        }
+    }
+
+    # Health check
+    handle /health {
+        reverse_proxy localhost:8000
+    }
+
+    # Default → frontend
+    handle {
+        root * /srv/static
+        file_server
+        try_files {path} /index.html
+    }
+
+    log {
+        output file /var/log/caddy/access.log {
+            roll_size 10mb
+            roll_keep 5
+        }
+    }
+}
+
+# ── Health endpoint (no HTTPS for load balancer probes) ───────────────────────
+:80 {
+    handle /health {
+        reverse_proxy localhost:8000
+    }
+}
