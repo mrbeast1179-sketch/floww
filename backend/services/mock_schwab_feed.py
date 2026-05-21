@@ -274,7 +274,7 @@ class MockSchwabFeed:
                 depth = {
                     "timestamp": datetime.now(timezone.utc).isoformat(),
                     "symbol": symbol,
-                    "expiry": "",
+                    "expiry": (datetime.now(timezone.utc) + __import__("datetime").timedelta(days=7)).strftime("%Y-%m-%d"),
                     "strike": 0.0,
                     "option_type": "C",
                     "level": level,
