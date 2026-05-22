@@ -190,8 +190,8 @@ class SlippageModel:
             (fill_price, total_slippage, fixed_component, impact_component)
         """
         total_slippage, fixed, impact = self.compute_slippage(price, quantity, side)
-        fill_price = price + total_slippage
-        return max(fill_price, 0.0001, total_slippage, fixed, impact
+        fill_price = max(price + total_slippage, 0.0001)
+        return fill_price, total_slippage, fixed, impact
 
 
 # ── Paper Broker ──────────────────────────────────────────────────────────────

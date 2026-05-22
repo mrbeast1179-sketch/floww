@@ -67,16 +67,26 @@ class TestPositionTracker:
     async def test_hydrate(self):
         from services.order_router import PositionTracker
         pt = PositionTracker()
-        db = AsyncMock()
         docs = [
             {"ticker": "SPY", "qty": 100},
             {"ticker": "QQQ", "qty": 50},
         ]
         class MockCursor:
+            def __init__(self, docs):
+                self._docs = docs
             def __aiter__(self):
-                return iter(docs)
-        db.positions.find.return_value = MockCursor()
-        await pt.hydrate(db)
+                self._idx = 0
+                return self
+            async def __anext__(self):
+                if self._idx >= len(self._docs):
+                    raise StopAsyncIteration
+                doc = self._docs[self._idx]
+                self._idx += 1
+                return doc
+        mock_cursor = MockCursor(docs)
+        mock_db = MagicMock()
+        mock_db.positions.find = MagicMock(return_value=mock_cursor)
+        await pt.hydrate(mock_db)
         assert pt.get("SPY") == 100
         assert pt.get("QQQ") == 50
 
