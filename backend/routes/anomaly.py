@@ -124,6 +124,7 @@ async def get_ensemble_state(ticker: str):
     return {"ticker": t, **_ensembles[t].get_state()}
 
 
+@router.post("/{ticker}/load")
 async def load_trained_model(
     ticker: str,
     model_path: str = Query(default="", description="Path to .pt checkpoint file"),

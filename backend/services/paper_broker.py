@@ -95,25 +95,27 @@ class PaperBroker:
         Returns:
             tuple of (fill_price, slippage, market_impact)
         """
-        # Base slippage
-        slippage = self.config.slippage_per_contract * quantity
-
-        # Market impact proportional to size
-        market_impact = self.config.market_impact_pct * market_price * quantity
-
-        # Random component (optional)
-        random_component = 0.0
-        if self.config.random_slippage:
-            random_component = np.random.normal(0, slippage * 0.5)
-
-        # Total slippage
-        total_slippage = slippage + market_impact + random_component
-
-        # Apply slippage directionally (worsens fill)
-        if side == "buy":
-            fill_price = market_price + total_slippage / quantity
+        if quantity <= 0:
+            logger.warning(f"Zero or negative quantity: {quantity}")
+            fill_price = market_price
+            slippage = 0.0
+            market_impact = 0.0
         else:
-            fill_price = market_price - total_slippage / quantity
+            # Base slippage
+            slippage = self.config.slippage_per_contract * quantity
+            # Market impact proportional to size
+            market_impact = self.config.market_impact_pct * market_price * quantity
+            # Random component (optional)
+            random_component = 0.0
+            if self.config.random_slippage:
+                random_component = np.random.normal(0, slippage * 0.5)
+            # Total slippage
+            total_slippage = slippage + market_impact + random_component
+            # Apply slippage directionally (worsens fill)
+            if side == "buy":
+                fill_price = market_price + total_slippage / quantity
+            else:
+                fill_price = market_price - total_slippage / quantity
 
         return fill_price, slippage, market_impact
 
