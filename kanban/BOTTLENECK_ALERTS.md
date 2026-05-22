@@ -1,4 +1,4 @@
-# Bottleneck Alerts — 2026-05-22 02:18 UTC
+# Bottleneck Alerts — 2026-05-22 02:40 UTC
 
 ✅ No bottlenecks detected. All agents within normal parameters.
 
@@ -15,7 +15,7 @@
 | Agent 5 | 0 | 1 | 0 | 0 | 0.00 | — |
 | Agent 6 | 0 | 1 | 0 | 0 | 0.00 | — |
 | Agent 7 | 0 | 1 | 0 | 0 | 0.00 | — |
-| Agent 8 | 0 | 0 | 1 | 0 | 0.00 | — |
+| Agent 8 | 0 | 0 | 2 | 0 | 0.00 | — |
 | Agent 9 | 0 | 0 | 2 | 0 | 0.00 | — |
 
-*Next check: 02:23 UTC*
+*Next check: 02:45 UTC*

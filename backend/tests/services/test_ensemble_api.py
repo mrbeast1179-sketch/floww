@@ -12,8 +12,8 @@ from pathlib import Path
 
 import pytest
 
-# Enable test mode to bypass auth middleware
-os.environ["TESTING"] = "1"
+# Set API key for auth middleware
+os.environ["API_SECRET_KEY"] = "test-secret-key"
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
@@ -23,7 +23,7 @@ from server import app
 
 @pytest.fixture
 def client():
-    return TestClient(app)
+    return TestClient(app, headers={"X-API-Key": "test-secret-key"})
 
 
 class TestEnsembleUpdateEndpoint:
