@@ -6,6 +6,7 @@ Admin/utility routes: errors, performance, databento usage.
 from __future__ import annotations
 
 from fastapi import APIRouter
+from typing import Optional
 
 router = APIRouter()
 
@@ -115,3 +116,74 @@ async def schwab_health():
         health["token_ttl_seconds"] = 0
 
     return health
+
+
+# ---------------------------------------------------------------------------
+# Trading State + Circuit Breaker
+# ---------------------------------------------------------------------------
+
+@router.get("/api/admin/trading/status")
+async def trading_status():
+    """Return current trading state, circuit breaker status, and SLO summary."""
+    from services.live_trading_switch import switch
+    from services.circuit_breaker import main_breaker
+    from services.slo_tracker import tracker
+
+    return {
+        "trading": switch.get_status(),
+        "circuit_breaker": main_breaker.get_status(),
+        "slos": tracker.get_summary(),
+    }
+
+
+@router.post("/api/admin/trading/transition")
+async def trading_transition(request: dict):
+    """
+    Request a trading state transition.
+    Requires 2FA: totp_code + email_code in request body.
+    """
+    from services.live_trading_switch import switch, TradingState
+
+    target_str = request.get("target_state", "")
+    totp_code = request.get("totp_code", "")
+    email_code = request.get("email_code", "")
+
+    try:
+        target = TradingState[target_str.upper()]
+    except KeyError:
+        return {"success": False, "error": f"Invalid state: {target_str}"}
+
+    ok, msg = switch.request_transition(target, totp_code, email_code)
+    return {"success": ok, "message": msg, "state": switch.get_status()}
+
+
+@router.post("/api/admin/trading/circuit-breaker/reset")
+async def circuit_breaker_reset(request: Optional[dict] = None):
+    """Manually reset the circuit breaker (requires admin auth)."""
+    from services.circuit_breaker import main_breaker
+
+    actor = (request or {}).get("actor", "nav")
+    main_breaker.manual_reset(actor=actor)
+    return {"success": True, "state": main_breaker.get_status()}
+
+
+@router.post("/api/admin/trading/circuit-breaker/trip")
+async def circuit_breaker_trip(request: Optional[dict] = None):
+    """Manually trip the circuit breaker (emergency stop)."""
+    from services.circuit_breaker import main_breaker
+
+    reason = (request or {}).get("reason", "manual")
+    actor = (request or {}).get("actor", "nav")
+    main_breaker.manual_trip(reason=reason, actor=actor)
+    return {"success": True, "state": main_breaker.get_status()}
+
+
+@router.get("/api/admin/trading/circuit-breaker/log")
+async def circuit_breaker_log():
+    """Return circuit breaker trip log."""
+    from services.circuit_breaker import main_breaker
+
+    return {
+        "trips": main_breaker.get_trip_log(),
+        "status": main_breaker.get_status(),
+    }
