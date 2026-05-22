@@ -40,6 +40,8 @@ import PWAInstallBanner from "./components/PWAInstallBanner";
 import { useTheme } from "./context/ThemeContext";
 import { autoDecimate } from "./utils/dataDecimator";
 
+import ToxicityGauge from "./components/ToxicityGauge";
+
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
 
@@ -300,6 +302,7 @@ export default function App() {
   const [advanced, setAdvanced] = useState(null);
   const wsGex = useWebSocketGex(page === "heatseeker" ? ticker : null);
   const { theme, toggleTheme } = useTheme();
+  const [ensembleData, setEnsembleData] = useState(null);
 
   // Debounced filter values to prevent API spam
   const debouncedMode = useDebounce(mode, 300);
@@ -381,6 +384,21 @@ export default function App() {
     const id = setInterval(doFetch, refreshMs * 2);
     return () => { cancelled = true; clearInterval(id); };
   }, [ticker, refreshMs]);
+
+  // Ensemble toxicity polling
+  useEffect(() => {
+    if (page !== "heatseeker") return;
+    let cancelled = false;
+    const fetchEnsemble = async () => {
+      try {
+        const r = await axios.get(`${API}/anomaly/ensemble/state?ticker=${ticker}`);
+        if (!cancelled) setEnsembleData(r.data);
+      } catch (e) { /* noop */ }
+    };
+    fetchEnsemble();
+    const id = setInterval(fetchEnsemble, 10000);
+    return () => { cancelled = true; clearInterval(id); };
+  }, [ticker, page]);
 
   // Live spot polling with in-flight guard
   useEffect(() => {
@@ -701,6 +719,12 @@ export default function App() {
               </div>
 
               <VelocityGauge velocity={data?.velocity} />
+              <ToxicityGauge
+                ensemble={ensembleData}
+                onRefresh={() => {
+                  axios.get(`${API}/anomaly/ensemble/state?ticker=${ticker}`).then(r => setEnsembleData(r.data)).catch(() => {});
+                }}
+              />
               {data && <NodesTable data={data} />}
 
               {data?.nodes?.air_pockets?.length > 0 && (

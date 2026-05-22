@@ -151,6 +151,27 @@ class PaperTrader:
         self._max_backoff = 60.0
 
     # ------------------------------------------------------------------
+    # Helpers
+    # ------------------------------------------------------------------
+
+    def _find_open_position(self, symbol: str, side: str) -> Optional[str]:
+        """Find an open position key for a given symbol and side.
+
+        Returns the position key if found, None otherwise.
+        """
+        for key, pos in self.positions.items():
+            if pos.symbol == symbol and pos.side == side and pos.status == "open":
+                return key
+        return None
+
+    def _has_open_position(self, symbol: str) -> bool:
+        """Check if there's any open position for a symbol."""
+        return any(
+            pos.symbol == symbol and pos.status == "open"
+            for pos in self.positions.values()
+        )
+
+    # ------------------------------------------------------------------
     # Signal execution
     # ------------------------------------------------------------------
 
@@ -199,14 +220,15 @@ class PaperTrader:
         result = {"action": "BUY", "symbol": symbol}
 
         # Cover existing short position
-        if symbol in self.positions and self.positions[symbol].side == "SHORT":
+        short_key = self._find_open_position(symbol, "SHORT")
+        if short_key is not None:
             cover_result = self._close_position(symbol, price)
             result["cover"] = cover_result
 
         # Check position limits
         open_count = sum(1 for p in self.positions.values() if p.status == "open")
         if open_count >= self.max_positions:
-            if symbol not in self.positions or self.positions[symbol].status != "open":
+            if not self._has_open_position(symbol):
                 result["status"] = "rejected"
                 result["reason"] = f"Max positions ({self.max_positions}) reached"
                 return result
