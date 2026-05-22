@@ -1,0 +1,12 @@
+name: disk_full
+description: "Fill /tmp and verify cache eviction + alert"
+steps:
+  - name: check_before
+    action: "check:tmp_writable"
+    critical: true
+  - name: fill_disk
+    action: "fill_disk:100"
+    critical: false
+  - name: check_writable
+    action: "check:tmp_writable"
+    critical: false

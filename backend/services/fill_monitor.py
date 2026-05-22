@@ -39,7 +39,7 @@ class FillRecord:
     limit_price: float
     slippage_bps: float
     timestamp: float
-side: str  # "buy" or "sell"
+    side: str  # "buy" or "sell"
 
 
 class FillMonitor:
@@ -80,8 +80,8 @@ class FillMonitor:
         self._fills[ticker].append(record)
         self._cleanup(ticker)
 
-        # Emit Prometheus metric (use duckdb_queue_depth as a gauge proxy)
-        obs_metrics.duckdb_queue_depth.set(abs(slippage_bps))  # placeholder metric
+        # TODO: Add dedicated Prometheus metric for slippage
+        # obs_metrics.fill_slippage_bps.labels(ticker=ticker).observe(abs(slippage_bps))
 
         log.debug(
             f"Fill recorded: {ticker} {side} @ {fill_price:.2f} "

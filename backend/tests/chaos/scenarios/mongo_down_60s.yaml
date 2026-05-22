@@ -1,0 +1,12 @@
+name: mongo_down_60s
+description: "Simulate Mongo connection failure for 60 seconds"
+steps:
+  - name: check_before
+    action: "check:system_alive"
+    critical: true
+  - name: simulate_outage
+    action: "sleep:2"
+    critical: false
+  - name: check_after
+    action: "check:system_alive"
+    critical: true

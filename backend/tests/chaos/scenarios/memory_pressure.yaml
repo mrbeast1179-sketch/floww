@@ -1,0 +1,12 @@
+name: memory_pressure
+description: "Create memory pressure and verify system degrades gracefully"
+steps:
+  - name: check_before
+    action: "check:system_alive"
+    critical: true
+  - name: apply_pressure
+    action: "memory_pressure:2"
+    critical: false
+  - name: check_after
+    action: "check:system_alive"
+    critical: true
