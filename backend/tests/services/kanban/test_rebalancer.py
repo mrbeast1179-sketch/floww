@@ -6,9 +6,9 @@ import pytest
 import sys
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent.parent))
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent.parent.parent))
 
-from backend.services.kanban.rebalancer import (
+from services.kanban.rebalancer import (
     extract_skills_from_text, compute_tfidf_similarity,
     recommend_reassignment
 )

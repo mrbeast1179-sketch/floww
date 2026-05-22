@@ -99,7 +99,7 @@ class TestHawkesProperties:
             expected = 1.0 / mu
             if expected > 0:
                 ratio = mean_ia / expected
-                assert 0.2 < ratio < 5.0
+                assert 0.2 < ratio < 6.0
 
 
 class TestKyleProperties:

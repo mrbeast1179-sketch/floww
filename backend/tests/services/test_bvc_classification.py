@@ -62,17 +62,18 @@ class TestBVCFormalVerification:
 
     def test_large_positive_change_nearly_all_buy(self):
         """Very large positive delta_P → V^B ≈ V."""
-        pc = np.array([10.0])
-        vol = np.array([100.0])
+        # Use a small sigma so z = delta_P / sigma is very large
+        pc = np.array([0.01, 0.02, 0.01, 10.0])
+        vol = np.array([100.0, 100.0, 100.0, 100.0])
         buy, sell = VpinEngine.classify_volume(pc, vol, dt=1.0)
-        assert buy[0] > 0.99 * vol[0]
+        assert buy[3] > 0.99 * vol[3]
 
     def test_large_negative_change_nearly_all_sell(self):
         """Very large negative delta_P → V^S ≈ V."""
-        pc = np.array([-10.0])
-        vol = np.array([100.0])
+        pc = np.array([-0.01, -0.02, -0.01, -10.0])
+        vol = np.array([100.0, 100.0, 100.0, 100.0])
         buy, sell = VpinEngine.classify_volume(pc, vol, dt=1.0)
-        assert sell[0] > 0.99 * vol[0]
+        assert sell[3] > 0.99 * vol[3]
 
     def test_symmetric_changes_balanced_output(self):
         """Symmetric +a and -a with equal volume → buy ≈ sell in total."""
