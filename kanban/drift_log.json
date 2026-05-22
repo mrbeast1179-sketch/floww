@@ -1,0 +1,38 @@
+[
+  {
+    "drift_detected": false,
+    "current_mape": 0.0008,
+    "train_mape": 0.05,
+    "threshold": 0.2,
+    "n_samples": 1,
+    "timestamp": "2026-05-22T02:16:29.279267+00:00",
+    "action": "none"
+  },
+  {
+    "drift_detected": true,
+    "current_mape": 0.9388,
+    "train_mape": 0.05,
+    "threshold": 0.2,
+    "n_samples": 1,
+    "timestamp": "2026-05-22T02:16:29.281128+00:00",
+    "action": "retrain"
+  },
+  {
+    "drift_detected": false,
+    "current_mape": 0.0008,
+    "train_mape": 0.05,
+    "threshold": 0.2,
+    "n_samples": 1,
+    "timestamp": "2026-05-22T02:16:50.121000+00:00",
+    "action": "none"
+  },
+  {
+    "drift_detected": true,
+    "current_mape": 0.9388,
+    "train_mape": 0.05,
+    "threshold": 0.2,
+    "n_samples": 1,
+    "timestamp": "2026-05-22T02:16:50.123346+00:00",
+    "action": "retrain"
+  }
+]

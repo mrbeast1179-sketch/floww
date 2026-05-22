@@ -1,0 +1,32 @@
+[
+  {
+    "agent": "Agent 9",
+    "estimate_hours": 4,
+    "priority": "medium",
+    "n_commits": 2,
+    "n_blockers": 0,
+    "hour": 12,
+    "day_of_week": 0,
+    "completion_hours": 4
+  },
+  {
+    "agent": "Agent 8",
+    "estimate_hours": -1,
+    "priority": "medium",
+    "n_commits": 5,
+    "n_blockers": 0,
+    "hour": 12,
+    "day_of_week": 0,
+    "completion_hours": -1
+  },
+  {
+    "agent": "Agent 9",
+    "estimate_hours": 2,
+    "priority": "medium",
+    "n_commits": 2,
+    "n_blockers": 0,
+    "hour": 12,
+    "day_of_week": 0,
+    "completion_hours": 2
+  }
+]

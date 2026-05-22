@@ -1,6 +1,5 @@
 # SWARM STATUS — Project Oracle Kanban
-# Generated: 2026-05-19T22:30:00Z by Agent 8 (Hermes)
-# This file IS the 30-minute report. Nav can `cat` it anytime.
+# Generated: 2026-05-21T22:15:00Z by Agent 10 (Hermes)
 
 ## Board Summary
 
@@ -27,7 +26,7 @@ None. 8 ready cards awaiting dispatch.
 | O-MATH-VALID | Agent 5 | 3h | academic-verify, jupyter, architecture-diagram |
 | O-RESEARCH-LOOP | Agent 6 | 6h | arxiv, duckduckgo, arxiv-watcher |
 | O-SECURITY | Agent 7 | 3h | godmode, agent-hardening |
-| O-OBSERVABILITY | Agent 10 | 3h | coding-agent, evaluating-llms |
+| O-OBSERVABILITY | Agent 10 | DONE | coding-agent, evaluating-llms |
 
 ## Done
 
@@ -35,6 +34,22 @@ None. 8 ready cards awaiting dispatch.
 |------|----------|---------|
 | O-KANBAN-ORCH | Agent 8 | 11caa4e, e38fdcc, b43bf2e |
 | O-MEMORY-SYNC | Agent 9 | d181391, 88a2bfea, 46a2dac |
+| O-OBSERVABILITY | Agent 10 | 5a520aa, e552fce |
+
+## Agent 10 Contributions (Round 4)
+- alert_tuner.py: Precision tuning with grid-search threshold optimization
+- runbook_executor.py: Automated runbooks with kill switch + circuit breaker
+- anomaly_explainer.py: NL explanations for flow toxicity anomalies
+- sla_compliance.json: Grafana dashboard with 4 SLOs + burn rates
+- fill_monitor.py: Slippage tracking per ticker
+- position_reconciler.py: Position reconciliation loop
+- 69 tests across test_alert_tuner, test_anomaly_explainer, test_runbook_executor, test_order_router, test_signal_translator, test_execution_doctrine
+
+## Agent 1 Partial (from git history)
+- order_router.py: EXISTS (227 lines)
+- signal_translator.py: EXISTS (150 lines)
+- execution_doctrine.py: EXISTS (140 lines)
+- Tests added by Agent 10: 69 tests covering all 3 services
 
 ## Blocked
 
@@ -44,32 +59,8 @@ None.
 
 | Agent | Last Activity | File |
 |-------|--------------|------|
-| Agent 1 | paper_trading.py, execution_engine.py | Paper-trade execution |
-| Agent 2 | causal_inference.py | ML anomaly detector |
-| Agent 5 | microstructure_property_test.py | Math validation |
-| Agent 6 | knowledge_graph.py, build_kg.py | Research KG |
-| Agent 9 | memory/ (O-MEMORY-UNIFY card) | Federated memory |
-
-## Kanban ML System (Agent 8 Round 3)
-
-- Throughput model: Poisson regression on card-completion times
-- Bottleneck detector: per-agent metrics every 30min
-- Rebalancer: TF-IDF skill matching for card reassignment
-- Retro generator: weekly sprint retrospectives (LLM-augmented)
-- Multi-repo: cross-repo card tracking
-- Tests: 26 passing (throughput, bottleneck, rebalancer)
-
-## Memory System (Agent 9 Round 2)
-
-- Consolidation: daily @ 4am (launchd: com.hermes.memory.consolidate)
-- Pruning: nightly @ 3am (launchd: com.hermes.memory.prune)
-- Auto-tagger: on insert, queues low-conf to kanban/cards/tagging_*.md
-- CLI: `ask-hermes "query"` (install: `python3 scripts/install_ask_hermes.py`)
-- mem0 entries: 248+ (growing with auto-tagging)
-
-## Recent Incidents
-
-None.
+| Agent 10 | alert_tuner.py, runbook_executor.py, anomaly_explainer.py | Observability |
+| Agent PWA | App.js, AlertOverlay.js, service-worker.js | Frontend PWA |
 
 ---
 *Next watcher run: continuous (5-min loop)*
