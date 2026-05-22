@@ -476,6 +476,7 @@ class TestMultipleRejections:
             **_make_params(
                 conviction=0.5,
                 equity=1000.0,
+                position_size=5.0,  # small enough to pass size check (0.01 * 1000 = 10)
             )
         )
         assert decision.passed is False
