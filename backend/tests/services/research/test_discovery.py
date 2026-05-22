@@ -266,8 +266,11 @@ def test_discover_all_captures_source_errors():
     from services.research.discovery import DiscoverySource
 
     class FailingSource(DiscoverySource):
+        name: str = "failing"
+
         def _fetch(self, query):
             raise RuntimeError("Connection refused")
+
         def _parse(self, raw):
             return []
 
