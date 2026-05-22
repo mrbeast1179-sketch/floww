@@ -245,7 +245,7 @@ class PaperTrader:
             "side": "BUY",
             "quantity": quantity,
             "price": price,
-            "cost": round(cash, 2),
+            "cost": round(cost, 2),
             "commission": round(self.commission_per_share * quantity, 2),
             "timestamp": position.entry_time,
             "signal_data": signal_data or {},

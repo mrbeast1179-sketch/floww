@@ -19,8 +19,8 @@ from services.research.discovery import (
     ArxivSource,
     Discovery,
     DiscoverySource,
-    GitHubTopicStub,
-    HuggingFaceStub,
+    GitHubTopicSource,
+    HuggingFaceSource,
     discover_all,
 )
 
@@ -225,20 +225,22 @@ def test_discovery_to_dict_with_raw():
 
 
 # ────────────────────────────────────────────────────────────────────────────
-# Stubs — should not crash; should report not-implemented
+# Source classes — should not crash on empty/missing data
 # ────────────────────────────────────────────────────────────────────────────
 
 
-def test_huggingface_stub_raises_not_implemented():
-    src = HuggingFaceStub()
-    with pytest.raises(NotImplementedError):
-        src.search("anything")
+def test_huggingface_source_handles_empty_response():
+    """HuggingFaceSource should handle empty/missing data gracefully."""
+    src = HuggingFaceSource(http_get=lambda url, hdr: '{"items": []}')
+    results = src.search("anything")
+    assert results == []
 
 
-def test_github_topic_stub_raises_not_implemented():
-    src = GitHubTopicStub()
-    with pytest.raises(NotImplementedError):
-        src.search("options-trading")
+def test_github_topic_source_handles_empty_response():
+    """GitHubTopicSource should handle empty/missing data gracefully."""
+    src = GitHubTopicSource(http_get=lambda url, hdr: '{"items": []}')
+    results = src.search("options-trading")
+    assert results == []
 
 
 # ────────────────────────────────────────────────────────────────────────────
@@ -256,17 +258,27 @@ def test_discover_all_aggregates_across_sources():
     assert errors == {}
 
 
-def test_discover_all_captures_stub_errors():
+def test_discover_all_captures_source_errors():
+    """discover_all should capture errors from sources that fail."""
     arxiv = ArxivSource(http_get=lambda url, hdr: _arxiv_xml_one_entry())
-    hf = HuggingFaceStub()
+
+    # Create a source that raises an error
+    from services.research.discovery import DiscoverySource
+
+    class FailingSource(DiscoverySource):
+        def _fetch(self, query):
+            raise RuntimeError("Connection refused")
+        def _parse(self, raw):
+            return []
+
+    failing = FailingSource()
     discoveries, errors = discover_all(
-        [arxiv, hf],
-        {"arxiv": ["q"], "huggingface": ["q"]},
+        [arxiv, failing],
+        {"arxiv": ["q"], "failing": ["q"]},
     )
-    # arxiv produced 1; HF stub recorded an error
+    # arxiv produced 1; failing source recorded an error
     assert len(discoveries) == 1
-    assert "huggingface" in errors
-    assert "not implemented" in errors["huggingface"]
+    assert "failing" in errors
 
 
 def test_discover_all_skips_sources_with_no_queries():
@@ -291,7 +303,7 @@ def test_search_many_sleeps_between_calls(monkeypatch):
     src.search_many(["q1", "q2", "q3"])
     # 2 sleeps between 3 queries
     assert len(sleeps) == 2
-    assert all(s == 3.0 for s in sleeps)
+    assert all(s == src.rate_limit_seconds for s in sleeps)
 
 
 def test_search_many_does_not_sleep_before_first():

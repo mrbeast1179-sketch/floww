@@ -69,14 +69,14 @@ class TestVpinCdfBasic:
         cdf = calc.update(0.95)
         assert cdf == 1.0
 
-    def test_cdf_at_min_is_above_0(self):
-        """The minimum value in history has CDF > 0."""
+    def test_cdf_at_min_is_zero(self):
+        """The minimum value in history has CDF = 0 (none of the prior values <= it)."""
         calc = VpinCdfCalculator(window=10)
         for v in [0.5, 0.6, 0.7, 0.8, 0.9]:
             calc.update(v)
         cdf = calc.update(0.1)
-        # 0.1 < all history → CDF = 0/6 = 0.0
-        # Actually with 6 values and none <= 0.1 → mean = 0
+        # CDF excludes current value: prior = [0.5, 0.6, 0.7, 0.8, 0.9]
+        # None of the prior values are <= 0.1, so CDF = 0/5 = 0.0
         assert cdf == 0.0
 
     def test_window_slides(self):
@@ -86,12 +86,10 @@ class TestVpinCdfBasic:
             calc.update(v)
         # Window = [0.1, 0.2, 0.3, 0.4, 0.5]
         cdf_mid = calc.update(0.3)
-        # history has 6 items but deque keeps last 5: [0.2, 0.3, 0.4, 0.5, 0.3]
-        # Actually deque maxlen=5, so after 6th append: [0.2, 0.3, 0.4, 0.5, 0.3]
-        # Then CDF = fraction <= 0.3 = 3/5 = 0.6
-        # But wait, the 6th update adds 0.3, so history = [0.2, 0.3, 0.4, 0.5, 0.3]
-        # fraction <= 0.3 = 3/5 = 0.6
-        assert abs(cdf_mid - 0.6) < 1e-9
+        # After 6th update, deque (maxlen=5) = [0.2, 0.3, 0.4, 0.5, 0.3]
+        # CDF excludes current value: prior = [0.2, 0.3, 0.4, 0.5]
+        # fraction of prior <= 0.3 = 2/4 = 0.5
+        assert abs(cdf_mid - 0.5) < 1e-9
 
     def test_invalid_vpin_raises(self):
         """VPIN outside [0, 1] raises ValueError."""
