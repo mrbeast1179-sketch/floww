@@ -33,12 +33,16 @@ Key concepts:
 from __future__ import annotations
 
 import math
+import time
 from collections import deque
-from typing import Any, Dict, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
 
 import services.observability as obs_metrics
+from services.volume_clock import VolumeClock, VolumeBucket
+from services.vpin_cdf import VpinCdfCalculator
+from services.quote_imbalance import QuoteImbalanceTracker
 
 
 class VpinEngine:
@@ -51,9 +55,19 @@ class VpinEngine:
         Target volume per bucket (volume clock). Default 50,000 units.
     window : int
         Number of buckets in the rolling VPIN window. Default 50.
+    ticker : str, optional
+        Symbol tag for metrics + Mongo persistence.
+    mongo_collection : pymongo collection, optional
+        If provided, VPIN CDF values are persisted for backtesting.
     """
 
-    def __init__(self, bucket_size: float = 50000.0, window: int = 50, ticker: str = "") -> None:
+    def __init__(
+        self,
+        bucket_size: float = 50000.0,
+        window: int = 50,
+        ticker: str = "",
+        mongo_collection: Any = None,
+    ) -> None:
         if bucket_size <= 0:
             raise ValueError("bucket_size must be positive")
         if window <= 0:
@@ -63,27 +77,40 @@ class VpinEngine:
         self.window = int(window)
         self.ticker = ticker
 
-        # Current bucket accumulators
+        # Volume Clock for timestamp tracking and metadata
+        self._clock = VolumeClock(bucket_size=self.bucket_size)
+
+        # Current bucket accumulators (per-trade BVC)
         self._bucket_buy_volume: float = 0.0
         self._bucket_sell_volume: float = 0.0
         self._bucket_total_volume: float = 0.0
+        self._bucket_start_time: Optional[float] = None
+        self._bucket_end_time: float = 0.0
 
-        # Rolling finalized buckets
+        # Rolling finalized buckets (buy, sell, total)
         self._buy_buckets: deque[float] = deque(maxlen=self.window)
         self._sell_buckets: deque[float] = deque(maxlen=self.window)
         self._total_buckets: deque[float] = deque(maxlen=self.window)
 
-        # VPIN history for empirical CDF (larger window for distribution)
-        self._vpin_history: deque[float] = deque(maxlen=500)
+        # Bucket metadata history
+        self._bucket_meta: deque[Dict[str, Any]] = deque(maxlen=500)
 
-        # Quote imbalance history for z-score
-        self._qi_history: deque[float] = deque(maxlen=500)
+        # VPIN CDF calculator (with optional Mongo persistence)
+        self._cdf_calc = VpinCdfCalculator(
+            window=window,
+            mongo_collection=mongo_collection,
+            ticker=ticker,
+        )
+
+        # Quote Imbalance tracker
+        self._qi_tracker = QuoteImbalanceTracker(window=100)
 
         # Latest values for signal output
         self._current_vpin: float = 0.0
         self._current_vpin_cdf: float = 0.0
-        self._current_qi: float = 0.0
-        self._current_qi_zscore: float = 0.0
+
+        # Running sigma estimate (std of recent price changes)
+        self._price_changes_buf: deque[float] = deque(maxlen=200)
 
     # ------------------------------------------------------------------
     # Bulk Volume Classification
@@ -156,7 +183,8 @@ class VpinEngine:
         volume: float,
         sigma: float,
         dt: float = 1.0,
-    ) -> None:
+        timestamp: Optional[float] = None,
+    ) -> Optional[VolumeBucket]:
         """Add a single trade to the current bucket. When the bucket's
         accumulated volume reaches bucket_size, the bucket is finalized
         and VPIN is recomputed.
@@ -171,11 +199,24 @@ class VpinEngine:
             Estimated return volatility (sigma) for normalization.
         dt : float
             Time interval. Default 1.0.
+        timestamp : float, optional
+            Epoch seconds.  Defaults to time.time().
+
+        Returns
+        -------
+        VolumeBucket or None
+            The finalized bucket if one was closed, else None.
         """
         if volume <= 0:
-            return
+            return None
+
+        # Update running sigma estimate
+        self._price_changes_buf.append(price_change)
+
+        ts = timestamp if timestamp is not None else time.time()
+
+        # Classify this trade individually
         if sigma <= 0 or math.isnan(sigma) or math.isinf(sigma):
-            # No volatility estimate: split evenly
             buy_frac = 0.5
         else:
             z = price_change / (sigma * math.sqrt(dt))
@@ -184,32 +225,98 @@ class VpinEngine:
         buy_vol = volume * buy_frac
         sell_vol = volume - buy_vol
 
+        # Feed the VolumeClock for boundary detection (tracks total volume only)
+        self._clock.feed(price=price_change, size=volume, timestamp=ts)
+
+        # Accumulate per-trade buy/sell
         self._bucket_buy_volume += buy_vol
         self._bucket_sell_volume += sell_vol
         self._bucket_total_volume += volume
 
+        if self._bucket_start_time is None:
+            self._bucket_start_time = ts
+        self._bucket_end_time = ts
+
         # Check if bucket is full
         if self._bucket_total_volume >= self.bucket_size:
-            self._finalize_bucket()
+            return self._finalize_bucket(ts)
+        return None
 
-    def _finalize_bucket(self) -> None:
+    def _finalize_bucket(self, ts: float) -> Optional[VolumeBucket]:
         """Finalize the current bucket and push it into the rolling window."""
         if self._bucket_total_volume <= 0:
-            return
+            return None
 
-        self._buy_buckets.append(self._bucket_buy_volume)
-        self._sell_buckets.append(self._bucket_sell_volume)
-        self._total_buckets.append(self._bucket_total_volume)
+        buy = self._bucket_buy_volume
+        sell = self._bucket_sell_volume
+        total = self._bucket_total_volume
+
+        self._buy_buckets.append(buy)
+        self._sell_buckets.append(sell)
+        self._total_buckets.append(total)
+
+        avg_pc = 0.0
+        if total > 0 and self._clock.finalized_buckets:
+            # Use the clock's last finalized bucket for avg price change
+            last = self._clock.finalized_buckets[-1]
+            avg_pc = last.avg_price_change
+
+        # Store metadata
+        meta = {
+            "bucket_id": self._clock.num_finalized - 1,
+            "start_time": self._bucket_start_time,
+            "end_time": self._bucket_end_time,
+            "total_volume": total,
+            "buy_volume": buy,
+            "sell_volume": sell,
+            "avg_price_change": avg_pc,
+        }
+        self._bucket_meta.append(meta)
 
         # Reset accumulators
         self._bucket_buy_volume = 0.0
         self._bucket_sell_volume = 0.0
         self._bucket_total_volume = 0.0
+        self._bucket_start_time = None
+        self._bucket_end_time = 0.0
 
         # Recompute VPIN
-        self._current_vpin = self._compute_vpin_from_buckets()
-        self._vpin_history.append(self._current_vpin)
-        self._current_vpin_cdf = self._compute_vpin_cdf_from_history()
+        self._recompute_vpin()
+
+        # Build a VolumeBucket for the return value
+        vpin_val = abs(buy - sell) / total if total > 0 else 0.0
+        return VolumeBucket(
+            bucket_id=meta["bucket_id"],
+            start_time=meta["start_time"] or ts,
+            end_time=meta["end_time"] or ts,
+            total_volume=total,
+            buy_volume=buy,
+            sell_volume=sell,
+            avg_price_change=avg_pc,
+            vpin=vpin_val,
+        )
+
+    def _recompute_vpin(self) -> None:
+        """Recompute VPIN from finalized buckets and update CDF."""
+        if len(self._total_buckets) == 0:
+            self._current_vpin = 0.0
+            self._current_vpin_cdf = 0.0
+            return
+
+        total_vol = sum(self._total_buckets)
+        if total_vol <= 0:
+            self._current_vpin = 0.0
+            self._current_vpin_cdf = 0.0
+            return
+
+        imbalance = sum(
+            abs(b - s)
+            for b, s in zip(self._buy_buckets, self._sell_buckets)
+        )
+        self._current_vpin = imbalance / total_vol
+
+        # Update CDF calculator
+        self._current_vpin_cdf = self._cdf_calc.update(self._current_vpin)
 
         # Emit Prometheus metrics
         if self.ticker:
@@ -221,21 +328,6 @@ class VpinEngine:
     # ------------------------------------------------------------------
     # VPIN computation
     # ------------------------------------------------------------------
-
-    def _compute_vpin_from_buckets(self) -> float:
-        """Compute VPIN from the current rolling bucket window."""
-        if len(self._total_buckets) == 0:
-            return 0.0
-
-        total_vol = sum(self._total_buckets)
-        if total_vol <= 0:
-            return 0.0
-
-        imbalance = sum(
-            abs(b - s)
-            for b, s in zip(self._buy_buckets, self._sell_buckets)
-        )
-        return imbalance / total_vol
 
     def compute_vpin(self) -> float:
         """Return the current VPIN value.
@@ -253,15 +345,6 @@ class VpinEngine:
     # VPIN empirical CDF
     # ------------------------------------------------------------------
 
-    def _compute_vpin_cdf_from_history(self) -> float:
-        """Compute the empirical CDF of the current VPIN against stored history."""
-        if len(self._vpin_history) < 2:
-            return 0.0
-
-        history = np.array(self._vpin_history, dtype=np.float64)
-        # Empirical CDF: fraction of historical VPINs <= current VPIN
-        return float(np.mean(history <= self._current_vpin))
-
     def compute_vpin_cdf(self) -> float:
         """CDF of the current VPIN value against the historical VPIN
         distribution.
@@ -273,6 +356,10 @@ class VpinEngine:
             current VPIN is in the upper tail of the historical distribution.
         """
         return self._current_vpin_cdf
+
+    @property
+    def vpin_history_length(self) -> int:
+        return len(self._cdf_calc.history)
 
     # ------------------------------------------------------------------
     # Quote Imbalance
@@ -295,21 +382,15 @@ class VpinEngine:
         float
             QI in [-1, 1]. Positive values indicate bid-side pressure.
         """
-        total = bid_size + ask_size
-        if total <= 0:
-            self._current_qi = 0.0
-        else:
-            self._current_qi = (bid_size - ask_size) / total
-
-        self._qi_history.append(self._current_qi)
+        qi = self._qi_tracker.update(bid_size, ask_size)
 
         # Emit Prometheus metric
         if self.ticker:
             obs_metrics.qi_zscore_current.labels(ticker=self.ticker).set(
-                self._current_qi
+                self._qi_tracker.zscore
             )
 
-        return self._current_qi
+        return qi
 
     def compute_qi_zscore(self) -> float:
         """Z-score of the current QI against the rolling QI history.
@@ -319,20 +400,7 @@ class VpinEngine:
         float
             Z-score. Values > 1.5 indicate significant bid-side pressure.
         """
-        if len(self._qi_history) < 2:
-            self._current_qi_zscore = 0.0
-            return 0.0
-
-        arr = np.array(self._qi_history, dtype=np.float64)
-        mean = float(np.mean(arr))
-        std = float(np.std(arr))
-
-        if std <= 0 or math.isnan(std):
-            self._current_qi_zscore = 0.0
-        else:
-            self._current_qi_zscore = (self._current_qi - mean) / std
-
-        return self._current_qi_zscore
+        return self._qi_tracker.zscore
 
     # ------------------------------------------------------------------
     # Toxicity signal
@@ -357,12 +425,13 @@ class VpinEngine:
                 "is_toxic": bool,
             }
         """
-        is_toxic = (self._current_vpin_cdf > 0.5) and (self._current_qi_zscore > 1.5)
+        qi_z = self._qi_tracker.zscore
+        is_toxic = (self._current_vpin_cdf > 0.5) and (qi_z > 1.5)
         return {
             "vpin": self._current_vpin,
             "vpin_cdf": self._current_vpin_cdf,
-            "qi": self._current_qi,
-            "qi_zscore": self._current_qi_zscore,
+            "qi": self._qi_tracker.qi,
+            "qi_zscore": qi_z,
             "is_toxic": is_toxic,
         }
 
@@ -387,25 +456,19 @@ class VpinEngine:
             "current": {
                 "vpin": self._current_vpin,
                 "vpin_cdf": self._current_vpin_cdf,
-                "qi": self._current_qi,
-                "qi_zscore": self._current_qi_zscore,
+                "qi": self._qi_tracker.qi,
+                "qi_zscore": self._qi_tracker.zscore,
             },
             "toxicity": self.get_toxicity_signal(),
             "buckets": {
                 "active": {
-                    "buy_volume": self._bucket_buy_volume,
-                    "sell_volume": self._bucket_sell_volume,
-                    "total_volume": self._bucket_total_volume,
-                    "fill_ratio": (
-                        self._bucket_total_volume / self.bucket_size
-                        if self.bucket_size > 0
-                        else 0.0
-                    ),
+                    "volume": self._clock.current_volume,
+                    "fill_ratio": self._clock.current_fill,
                 },
-                "finalized_count": len(self._total_buckets),
+                "finalized_count": self._clock.num_finalized,
             },
             "history": {
-                "vpin_history_length": len(self._vpin_history),
-                "qi_history_length": len(self._qi_history),
+                "vpin_history_length": len(self._cdf_calc.history),
+                "qi_history_length": len(self._qi_tracker._history),
             },
         }

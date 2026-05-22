@@ -2662,6 +2662,10 @@ app.include_router(alerts_router, tags=["alerts"])
 from routes.alerts_api import router as alerts_api_router
 app.include_router(alerts_api_router, tags=["alerts-api"])
 
+# Preferences & theme sync
+from routes.preferences import router as preferences_router
+app.include_router(preferences_router, tags=["preferences"])
+
 from routes.market_data import router as market_data_router
 app.include_router(market_data_router, prefix="/api", tags=["market_data"])
 

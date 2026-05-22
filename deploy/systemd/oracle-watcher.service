@@ -1,0 +1,40 @@
+# deploy/systemd/oracle-watcher.service
+#
+# Systemd service for the auto-restart watcher.
+# Monitors the oracle dashboard and restarts if it dies.
+#
+# Install:
+#   sudo cp deploy/systemd/oracle-watcher.service /etc/systemd/system/
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable oracle-watcher
+#   sudo systemctl start oracle-watcher
+
+[Unit]
+Description=Floww Oracle Auto-Restart Watcher
+After=oracle.service
+Requires=oracle.service
+
+[Service]
+Type=simple
+User=nav
+Group=nav
+WorkingDirectory=/Users/nav/GitHub/floww
+ExecStart=/bin/bash /Users/nav/GitHub/floww/scripts/auto_restart_services.sh --daemon --check-interval 30
+ExecStop=/bin/kill -SIGTERM $MAINPID
+
+# Auto-restart the watcher itself
+Restart=on-failure
+RestartSec=10
+StartLimitIntervalSec=300
+StartLimitBurst=5
+
+# Environment
+Environment=ALERT_EMAIL=nav@example.com
+
+# Logging
+StandardOutput=append:/Users/nav/GitHub/floww/logs/watcher.log
+StandardError=append:/Users/nav/GitHub/floww/logs/watcher_error.log
+SyslogIdentifier=oracle-watcher
+
+[Install]
+WantedBy=multi-user.target

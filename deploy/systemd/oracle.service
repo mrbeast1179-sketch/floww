@@ -1,0 +1,56 @@
+# deploy/systemd/oracle.service
+#
+# Systemd service for Floww Oracle dashboard.
+# Auto-starts on boot, restarts on failure, with proper dependency ordering.
+#
+# Install:
+#   sudo cp deploy/systemd/oracle.service /etc/systemd/system/
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable oracle
+#   sudo systemctl start oracle
+#
+# Status:
+#   sudo systemctl status oracle
+#   journalctl -u oracle -f
+
+[Unit]
+Description=Floww Oracle Dashboard
+After=network.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=nav
+Group=nav
+WorkingDirectory=/Users/nav/GitHub/floww/backend
+ExecStart=/Users/nav/GitHub/floww/backend/venv/bin/python -m server --port 8050
+ExecStop=/bin/kill -SIGTERM $MAINPID
+
+# Auto-restart configuration
+Restart=on-failure
+RestartSec=5
+StartLimitIntervalSec=300
+StartLimitBurst=3
+
+# Environment
+Environment=PYTHONPATH=/Users/nav/GitHub/floww/backend
+Environment=TESTING=0
+EnvironmentFile=-/Users/nav/GitHub/floww/backend/.env
+
+# Resource limits
+LimitNOFILE=65536
+MemoryMax=2G
+CPUQuota=200%
+
+# Logging
+StandardOutput=append:/Users/nav/GitHub/floww/logs/oracle.log
+StandardError=append:/Users/nav/GitHub/floww/logs/oracle_error.log
+SyslogIdentifier=oracle
+
+# Security
+NoNewPrivileges=true
+ProtectSystem=strict
+ReadWritePaths=/Users/nav/GitHub/floww/logs /Users/nav/GitHub/floww/data /Users/nav/GitHub/floww/cache
+
+[Install]
+WantedBy=multi-user.target

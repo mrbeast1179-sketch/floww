@@ -1,0 +1,176 @@
+# mem0/config/trading_schema.yaml
+# Trading-specific memory schema for mem0 embeddings.
+# Defines entity types, metadata fields, and search priorities
+# for trading signals, outcomes, market regimes, and code patterns.
+
+version: "1.0"
+project: floww
+
+# ─── Entity Types ───────────────────────────────────────────────
+# Each type maps to a mem0 metadata schema + embedding strategy.
+
+entity_types:
+
+  trade_signal:
+    description: "A generated trade signal from any floww subsystem"
+    metadata:
+      ticker: str            # SPY, QQQ, etc.
+      signal_type: str       # GAMMA_FLIP, GAMMA_SQUEEZE, WALL_BREACH, VPIN_TOXICITY, ANOMALY
+      direction: str         # long, short, neutral
+      conviction: float      # 0.0 - 1.0
+      source_service: str    # vpin_engine, signal_translator, anomaly_detector, etc.
+      timestamp: str         # ISO-8601
+      market_regime: str     # low_vol, high_vol, trending, mean_reverting, crisis
+    embedding_boost: 1.2     # Higher priority in search results
+    searchable_fields:
+      - ticker
+      - signal_type
+      - market_regime
+
+  trade_outcome:
+    description: "Result of a trade or paper trade"
+    metadata:
+      ticker: str
+      entry_price: float
+      exit_price: float
+      pnl: float
+      pnl_pct: float
+      holding_period_min: int
+      strategy: str          # iron_condor, directional, etc.
+      signal_id: str         # Links back to trade_signal
+      timestamp: str
+      was_paper: bool        # true = paper trade
+    embedding_boost: 1.0
+    searchable_fields:
+      - ticker
+      - strategy
+      - pnl_range           # "positive", "negative", "breakeven"
+
+  market_regime:
+    description: "Detected market regime with supporting metrics"
+    metadata:
+      regime: str            # low_vol, high_vol, trending_up, trending_down, mean_reverting, crisis
+      vix_level: float
+      vpin_cdf: float
+      quote_imbalance_z: float
+      trinity_score: float
+      timestamp: str
+      duration_min: int      # How long the regime persisted
+      confidence: float      # 0.0 - 1.0
+    embedding_boost: 1.3     # Highest priority — regime context is critical
+    searchable_fields:
+      - regime
+      - vix_range           # "low", "normal", "high", "extreme"
+
+  code_pattern:
+    description: "A reusable code pattern or implementation technique"
+    metadata:
+      language: str          # python, typescript
+      pattern_type: str      # greeks_calc, ml_model, data_pipeline, execution_algo
+      file_path: str         # Relative path in repo
+      line_start: int
+      line_end: int
+      description: str       # Human-readable summary
+      performance_note: str  # e.g., "Numba JIT 10x speedup"
+      linked_signals: str[]  # Which signals use this pattern
+    embedding_boost: 0.9
+    searchable_fields:
+      - pattern_type
+      - language
+
+  strategy_config:
+    description: "Strategy parameters and configuration"
+    metadata:
+      strategy: str          # iron_condor, directional_spy, etc.
+      parameters: dict       # Key-value config
+      backtest_sharpe: float
+      oos_sharpe: float
+      max_drawdown: float
+      win_rate: float
+      sample_size: int
+      timestamp: str
+    embedding_boost: 1.1
+    searchable_fields:
+      - strategy
+
+  research_insight:
+    description: "Insight from academic papers or research"
+    metadata:
+      source: str            # arxiv, ssrn, nber, etc.
+      paper_id: str          # arxiv ID or DOI
+      title: str
+      authors: str[]
+      key_finding: str
+      applicability: str     # How it applies to floww
+      linked_code: str[]     # Code files that implement this
+    embedding_boost: 1.0
+    searchable_fields:
+      - source
+      - paper_id
+
+# ─── Market Regime Taxonomy ─────────────────────────────────────
+regime_taxonomy:
+  low_vol:
+    vix_range: [0, 15]
+    vpin_cdf_max: 0.3
+    description: "Low volatility, balanced flow — favor premium selling"
+  normal:
+    vix_range: [15, 25]
+    vpin_cdf_max: 0.5
+    description: "Normal conditions — standard strategies"
+  high_vol:
+    vix_range: [25, 35]
+    vpin_cdf_max: 0.7
+    description: "High volatility — reduce size, widen stops"
+  crisis:
+    vix_range: [35, 100]
+    vpin_cdf_max: 1.0
+    description: "Crisis — defensive only, max toxicity"
+  trending_up:
+    trinity_score_min: 60
+    gex_sign: positive
+    description: "Strong uptrend with positive GEX support"
+  trending_down:
+    trinity_score_min: 60
+    gex_sign: negative
+    description: "Strong downtrend with negative GEX pressure"
+  mean_reverting:
+    trinity_score_max: 40
+    description: "Range-bound, mean-reverting — favor iron condors"
+
+# ─── Signal Taxonomy ────────────────────────────────────────────
+signal_taxonomy:
+  GAMMA_FLIP:
+    description: "Net GEX crosses zero — dealer hedging direction changes"
+    urgency: high
+  GAMMA_SQUEEZE:
+    description: "Rapid GEX concentration at a single strike"
+    urgency: high
+  WALL_BREACH:
+    description: "Price moves through a major GEX wall"
+    urgency: medium
+  VPIN_TOXICITY:
+    description: "VPIN CDF exceeds threshold — informed trading detected"
+    urgency: high
+  ANOMALY:
+    description: "CNN autoencoder detects anomalous VPIN+QI pattern"
+    urgency: medium
+  TRINITY_ALIGN:
+    description: "SPX/SPY/QQQ zero-gamma levels align — strong signal"
+    urgency: high
+
+# ─── Embedding Configuration ────────────────────────────────────
+embedding:
+  model: "text-embedding-3-small"
+  provider: "openai"
+  chunk_size: 512
+  chunk_overlap: 64
+  batch_size: 50
+
+# ─── Search Configuration ───────────────────────────────────────
+search:
+  default_limit: 10
+  min_score: 0.3
+  boost_recent: true
+  recent_decay_days: 30
+  project_isolation: true    # Don't leak between floww/gflows/personal

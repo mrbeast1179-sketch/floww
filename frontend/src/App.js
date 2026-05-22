@@ -35,6 +35,10 @@ import { DashboardSummary } from "./components/DashboardSummary";
 import { TradeAnalytics } from "./components/TradeAnalytics";
 import { SocialFlowPanel } from "./components/SocialFlowPanel";
 import HeatseekerDashboard from "./components/heatseeker/HeatseekerDashboard";
+import AlertOverlay from "./components/AlertOverlay";
+import PWAInstallBanner from "./components/PWAInstallBanner";
+import { useTheme } from "./context/ThemeContext";
+import { autoDecimate } from "./utils/dataDecimator";
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
@@ -295,6 +299,7 @@ export default function App() {
   const [tickers, setTickers] = useState(null);
   const [advanced, setAdvanced] = useState(null);
   const wsGex = useWebSocketGex(page === "heatseeker" ? ticker : null);
+  const { theme, toggleTheme } = useTheme();
 
   // Debounced filter values to prevent API spam
   const debouncedMode = useDebounce(mode, 300);
@@ -332,7 +337,7 @@ export default function App() {
     }
   }, [ticker, debouncedExpiries, debouncedMode, debouncedDte]);
 
-  // Fetch advanced analytics (hedge impulse, pressure cloud, charm)
+  // Fetch advanced analytics
   const fetchAdvanced = useCallback(async () => {
     try {
       const res = await axios.get(`${API}/advanced/${ticker}?expiries=${debouncedExpiries}`);
@@ -395,11 +400,9 @@ export default function App() {
   // Keyboard shortcuts
   useEffect(() => {
     const handler = (e) => {
-      // Don't fire shortcuts when typing in inputs
       if (e.target.tagName === "INPUT" || e.target.tagName === "SELECT" || e.target.tagName === "TEXTAREA") return;
-      // Don't fire on modifier combinations (Cmd+S, Cmd+D, etc.)
       if (e.metaKey || e.ctrlKey) return;
-      
+
       switch (e.key) {
         case "1": setPage("trinity"); break;
         case "2": setPage("heatseeker"); break;
@@ -442,22 +445,43 @@ export default function App() {
 
   const handleFocusTicker = (t) => { setTicker(t === "^SPX" ? "SPX" : t); setPage("heatseeker"); };
 
+  // Handle alert signal click -> navigate to Atlas tab
+  const handleSignalClick = useCallback((alert) => {
+    if (alert.ticker) {
+      setTicker(alert.ticker);
+      setPage("heatseeker");
+    }
+  }, []);
+
+  // Decimate data for performance
+  const displayData = useMemo(() => {
+    if (!data) return data;
+    if (!data.strikes || data.strikes.length < 2000) return data;
+    return {
+      ...data,
+      strikes: autoDecimate(data.strikes, 5000),
+    };
+  }, [data]);
+
   return (
-    <div className="App" style={{ minHeight: "100vh", display: "flex", flexDirection: "column" }}>
+    <div className="App">
+      {/* Alert Overlay - Real-time signal toasts */}
+      <AlertOverlay onSignalClick={handleSignalClick} maxVisible={3} />
+
+      {/* PWA Install Banner */}
+      <PWAInstallBanner />
+
       {/* Header */}
-      <header className="border-b border-slate-800 px-4 py-2 flex items-center justify-between" style={{ background: "var(--panel)" }}>
-        <div className="flex items-center gap-4">
-          <div className="text-lg font-bold tracking-wider">CONFLUENCE DECODER</div>
-          <div className="flex gap-1">
-            <button onClick={() => setPage("trinity")} className={`btn ${page === "trinity" ? "active" : ""}`}>Trinity</button>
-            <button onClick={() => setPage("heatseeker")} className={`btn ${page === "heatseeker" ? "active" : ""}`}>Heatseeker</button>
-            <button onClick={() => setPage("skylit")} className={`btn ${page === "skylit" ? "active" : ""}`}>Skylit</button>
-            <button onClick={() => setPage("portfolio")} className={`btn ${page === "portfolio" ? "active" : ""}`}>Portfolio</button>
-            <button onClick={() => setPage("journal")} className={`btn ${page === "journal" ? "active" : ""}`}>Journal</button>
-            <button onClick={() => setPage("swarmspx")} className={`btn ${page === "swarmspx" ? "active" : ""}`}>SwarmSPX</button>
-          </div>
+      <header className="app-header">
+        <div className="nav-tabs">
+          <button onClick={() => setPage("trinity")} className={`btn ${page === "trinity" ? "active" : ""}`}>Trinity</button>
+          <button onClick={() => setPage("heatseeker")} className={`btn ${page === "heatseeker" ? "active" : ""}`}>Heatseeker</button>
+          <button onClick={() => setPage("skylit")} className={`btn ${page === "skylit" ? "active" : ""}`}>Skylit</button>
+          <button onClick={() => setPage("portfolio")} className={`btn ${page === "portfolio" ? "active" : ""}`}>Portfolio</button>
+          <button onClick={() => setPage("journal")} className={`btn ${page === "journal" ? "active" : ""}`}>Journal</button>
+          <button onClick={() => setPage("swarmspx")} className={`btn ${page === "swarmspx" ? "active" : ""}`}>SwarmSPX</button>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="header-right">
           {tickers && (
             <TickerSearch
               tickers={[...(tickers.trinity || []), ...(tickers.default || []), ...(tickers.popular || [])]}
@@ -465,10 +489,19 @@ export default function App() {
               onChange={setTicker}
             />
           )}
-          <div className="text-[10px] text-slate-500">
+          <div className="text-[10px] text-slate-500 hidden-mobile">
             {data?.data_source && <span>{data.data_source}</span>}
             {data?.asof && <span className="ml-2">· {new Date(data.asof).toLocaleTimeString()}</span>}
           </div>
+          {/* Theme Toggle */}
+          <button
+            className="theme-toggle"
+            onClick={toggleTheme}
+            aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} theme`}
+            title={`Switch to ${theme === 'dark' ? 'light' : 'dark'} theme`}
+          >
+            {theme === 'dark' ? '☀️' : '🌙'}
+          </button>
         </div>
       </header>
 
@@ -479,17 +512,11 @@ export default function App() {
         </div>
       )}
 
-          {/* Single Ticker Heatseeker */}
+      {/* Single Ticker Heatseeker */}
       {page === "heatseeker" && (
-        <div className="flex-1 flex overflow-hidden relative">
-          {/* Mobile toggle buttons */}
-          <div className="md:hidden fixed bottom-12 left-2 z-40 flex gap-1">
-            <button onClick={() => setShowLeftSidebar(!showLeftSidebar)} className="btn text-[9px] px-2 py-1">◀ Filters</button>
-            <button onClick={() => setShowRightSidebar(!showRightSidebar)} className="btn text-[9px] px-2 py-1">Analytics ▶</button>
-          </div>
-
+        <div className="heatseeker-layout">
           {/* Left Sidebar - Filters & Summary */}
-          <aside className={`w-64 border-r border-slate-800 overflow-y-auto flex-shrink-0 ${showLeftSidebar ? "fixed inset-y-0 left-0 z-50" : "hidden"} md:block md:static md:z-auto`} style={{ background: "var(--bg-2)" }}>
+          <aside className={`heatseeker-sidebar-left ${showLeftSidebar ? 'open' : ''}`}>
             <div className="p-2 space-y-2">
               {/* Ticker Summary */}
               <div className="panel p-3">
@@ -558,7 +585,6 @@ export default function App() {
                     </div>
                   </>
                 )}
-                )}
               </div>
 
               {/* Filters */}
@@ -606,7 +632,7 @@ export default function App() {
           </aside>
 
           {/* Main Content - Heatmap */}
-          <main className="flex-1 flex flex-col overflow-hidden">
+          <main className="heatseeker-main">
             <div className="panel m-2 p-3 flex-1 flex flex-col overflow-hidden">
               <div className="flex justify-between items-center mb-2 flex-shrink-0">
                 <div>
@@ -623,13 +649,13 @@ export default function App() {
                   <span className="tag air">AIR</span>
                 </div>
               </div>
-              <div className="flex-1 overflow-hidden">
-                {data ? (
+              <div className="flex-1 overflow-hidden heatmap-scroll-container">
+                {displayData ? (
                   view === "chain"
-                    ? <OptionsChainTable ticker={ticker} spot={livespot?.spot ?? data?.spot} />
+                    ? <OptionsChainTable ticker={ticker} spot={livespot?.spot ?? displayData?.spot} />
                     : view === "grid"
-                    ? <GridHeatmap data={data} filters={filters} onCellClick={(s, e) => setDrilldown({ ticker, expiry: e, strike: s })} viewMode={viewMode} />
-                    : <BarHeatmap data={data} filters={filters} compact={false} viewMode={viewMode} />
+                    ? <GridHeatmap data={displayData} filters={filters} onCellClick={(s, e) => setDrilldown({ ticker, expiry: e, strike: s })} viewMode={viewMode} />
+                    : <BarHeatmap data={displayData} filters={filters} compact={false} viewMode={viewMode} />
                 ) : (
                   <div className="text-slate-500 text-xs p-6 text-center">Loading…</div>
                 )}
@@ -638,9 +664,8 @@ export default function App() {
           </main>
 
           {/* Right Sidebar - Analytics Panels */}
-          <aside className={`w-72 border-l border-slate-800 overflow-y-auto flex-shrink-0 ${showRightSidebar ? "fixed inset-y-0 right-0 z-50" : "hidden"} md:block md:static md:z-auto`} style={{ background: "var(--bg-2)" }}>
+          <aside className={`heatseeker-sidebar-right ${showRightSidebar ? 'open' : ''}`}>
             <div className="p-2 space-y-2">
-              {/* Morning Briefing — top priority */}
               {page === "heatseeker" && <MorningBriefing ticker={ticker} spot={livespot?.spot ?? data?.spot} />}
               <DashboardSummary ticker={ticker} spot={livespot?.spot ?? data?.spot} />
               <FlipZonesPanel data={data} />
@@ -663,12 +688,9 @@ export default function App() {
               {page === "heatseeker" && <FlowTicker ticker={ticker} />}
               <UsagePanel />
               <LivePolicyPanel />
-              {/* Position Sizing */}
               {page === "heatseeker" && <PositionSizing ticker={ticker} spot={livespot?.spot ?? data?.spot} />}
-              {/* Trade Entry */}
               {page === "heatseeker" && <TradeEntry ticker={ticker} spot={livespot?.spot ?? data?.spot} />}
 
-              {/* Patterns */}
               <div className="panel p-3" data-testid="patterns-panel">
                 <div className="label mb-2">Patterns Detected</div>
                 <div className="space-y-2">
@@ -702,7 +724,19 @@ export default function App() {
         </div>
       )}
 
-      {/* Skylit Heatseeker (Wave 1 + 2) */}
+      {/* Mobile Toggle Bar */}
+      {page === "heatseeker" && (
+        <div className="mobile-toggle-bar">
+          <button className="toggle-btn" onClick={() => { setShowLeftSidebar(!showLeftSidebar); setShowRightSidebar(false); }}>
+            ◀ Filters
+          </button>
+          <button className="toggle-btn" onClick={() => { setShowRightSidebar(!showRightSidebar); setShowLeftSidebar(false); }}>
+            Analytics ▶
+          </button>
+        </div>
+      )}
+
+      {/* Skylit Heatseeker */}
       {page === "skylit" && (
         <div className="flex-1 overflow-auto">
           <HeatseekerDashboard ticker={ticker} spot={livespot?.spot ?? data?.spot} />
