@@ -221,8 +221,8 @@ class VolumeClock:
 
         bucket = VolumeBucket(
             bucket_id=self._bucket_id,
-            start_time=self._start_time or now,
-            end_time=self._end_time or now,
+            start_time=self._start_time if self._start_time is not None else now,
+            end_time=self._end_time if self._end_time > 0.0 else now,
             total_volume=total,
             buy_volume=self._acc_buy,
             sell_volume=self._acc_sell,
