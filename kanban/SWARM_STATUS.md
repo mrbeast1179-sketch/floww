@@ -1,5 +1,5 @@
 # SWARM STATUS — Project Oracle Kanban
-# Generated: 2026-05-21T22:15:00Z by Agent 10 (Hermes)
+# Generated: 2026-05-22T02:20:00Z by Agent 8 (Hermes)
 
 ## Board Summary
 
@@ -9,7 +9,7 @@
 | Ready | 8 | 20 |
 | In Progress | 0 | 6 |
 | Review | 0 | 4 |
-| Done | 2 | 20 |
+| Done | 3 | 20 |
 
 ## In Progress
 
@@ -35,6 +35,15 @@ None. 8 ready cards awaiting dispatch.
 | O-KANBAN-ORCH | Agent 8 | 11caa4e, e38fdcc, b43bf2e |
 | O-MEMORY-SYNC | Agent 9 | d181391, 88a2bfea, 46a2dac |
 | O-OBSERVABILITY | Agent 10 | 5a520aa, e552fce |
+| O-KANBAN-ML-R4 | Agent 8 | 43bcd81 |
+
+## Kanban ML System (Agent 8 Round 4)
+
+- Throughput model v2: Ensemble Poisson+Exp+Gamma, coordinate descent, CI, pickle persistence
+- Bottleneck detector: 5 rules, severity levels, 1h alert threshold
+- Reassigner: TF-IDF skill matching, dynamic reassignment
+- Capacity report: Weekly auto-generated with recommendations
+- 36 new tests (62 total kanban tests pass)
 
 ## Agent 10 Contributions (Round 4)
 - alert_tuner.py: Precision tuning with grid-search threshold optimization
@@ -43,13 +52,6 @@ None. 8 ready cards awaiting dispatch.
 - sla_compliance.json: Grafana dashboard with 4 SLOs + burn rates
 - fill_monitor.py: Slippage tracking per ticker
 - position_reconciler.py: Position reconciliation loop
-- 69 tests across test_alert_tuner, test_anomaly_explainer, test_runbook_executor, test_order_router, test_signal_translator, test_execution_doctrine
-
-## Agent 1 Partial (from git history)
-- order_router.py: EXISTS (227 lines)
-- signal_translator.py: EXISTS (150 lines)
-- execution_doctrine.py: EXISTS (140 lines)
-- Tests added by Agent 10: 69 tests covering all 3 services
 
 ## Blocked
 
@@ -59,8 +61,8 @@ None.
 
 | Agent | Last Activity | File |
 |-------|--------------|------|
+| Agent 8 | predict_throughput.py, bottleneck_detector.py, reassigner.py | Kanban ML |
 | Agent 10 | alert_tuner.py, runbook_executor.py, anomaly_explainer.py | Observability |
-| Agent PWA | App.js, AlertOverlay.js, service-worker.js | Frontend PWA |
 
 ---
 *Next watcher run: continuous (5-min loop)*

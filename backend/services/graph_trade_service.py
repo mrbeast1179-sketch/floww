@@ -127,7 +127,7 @@ class GraphTradeService:
     def __init__(self, db_path: str = None):
         if db_path is None:
             db_path = str(
-                Path(__file__).resolve().parents[3]
+                Path(__file__).resolve().parents[2]
                 / "data"
                 / "research_kg.duckdb"
             )
