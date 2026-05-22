@@ -1,8 +1,8 @@
 """API routes for the alert system."""
 
 import logging
-from typing import Dict, Any
-from fastapi import APIRouter, Query
+from typing import Dict, Any, List, Optional
+from fastapi import APIRouter, Query, WebSocket, WebSocketDisconnect
 
 logger = logging.getLogger(__name__)
 
@@ -10,6 +10,46 @@ router = APIRouter(prefix="/api/alerts", tags=["alerts"])
 
 # Global alert engine instance
 _alert_engine = None
+
+# Connected WebSocket clients for signal streaming
+_signal_clients: List[WebSocket] = []
+
+
+async def broadcast_signal(signal: Dict[str, Any]):
+    """Broadcast a trading signal to all connected WebSocket clients."""
+    disconnected = []
+    for ws in _signal_clients:
+        try:
+            await ws.send_json(signal)
+        except Exception:
+            disconnected.append(ws)
+    for ws in disconnected:
+        _signal_clients.remove(ws)
+
+
+@router.websocket("/ws/signals")
+async def websocket_signals(websocket: WebSocket):
+    """WebSocket endpoint for real-time trading signal streaming.
+
+    Clients connect here to receive BUY/SELL signals pushed from
+    trading_signals.py or the alert engine.
+    """
+    await websocket.accept()
+    _signal_clients.append(websocket)
+    logger.info(f"Signal client connected. Total: {len(_signal_clients)}")
+    try:
+        while True:
+            # Keep connection alive, handle pings
+            data = await websocket.receive_text()
+            if data == "ping":
+                await websocket.send_text("pong")
+    except WebSocketDisconnect:
+        _signal_clients.remove(websocket)
+        logger.info(f"Signal client disconnected. Total: {len(_signal_clients)}")
+    except Exception as e:
+        logger.error(f"Signal WebSocket error: {e}")
+        if websocket in _signal_clients:
+            _signal_clients.remove(websocket)
 
 def get_alert_engine():
     """Get or create the global alert engine."""

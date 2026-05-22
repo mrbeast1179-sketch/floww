@@ -1,0 +1,534 @@
+{
+  "annotations": {
+    "list": [
+      {
+        "builtIn": 1,
+        "datasource": { "type": "grafana", "uid": "-- Grafana --" },
+        "enable": true,
+        "hide": true,
+        "iconColor": "rgba(0, 211, 255, 1)",
+        "name": "Annotations & Alerts",
+        "type": "dashboard"
+      }
+    ]
+  },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [],
+  "liveNow": false,
+  "panels": [
+    {
+      "title": "SLA Compliance Overview",
+      "type": "text",
+      "gridPos": { "h": 2, "w": 24, "x": 0, "y": 0 },
+      "options": {
+        "mode": "markdown",
+        "content": "## SLA Compliance Dashboard\n\n**4 SLOs tracked** | Refresh: 10s | Timezone: ET\n\n| SLO | Target | Window | Error Budget |\n|-----|--------|--------|-------------|\n| API Availability | 99.9% | 30d | 43.2 min/month |\n| API Latency (p99) | < 200ms | 30d | 0.1% requests |\n| Ingestion Uptime | 99% | market hours | 39 min/day |\n| WS Delivery | 99.99% | 30d | 4.32 min/month |"
+      }
+    },
+    {
+      "title": "API Availability % (24h)",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 4, "x": 0, "y": 2 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        {
+          "expr": "avg_over_time(up{job=\"floww-oracle\"}[24h]) * 100",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "min": 0,
+          "max": 100,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red", "value": null },
+              { "color": "yellow", "value": 99.5 },
+              { "color": "green", "value": 99.9 }
+            ]
+          }
+        }
+      },
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"] },
+        "textMode": "value",
+        "colorMode": "background"
+      }
+    },
+    {
+      "title": "API Availability % (7d)",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 4, "x": 4, "y": 2 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        {
+          "expr": "avg_over_time(up{job=\"floww-oracle\"}[7d]) * 100",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "min": 0,
+          "max": 100,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red", "value": null },
+              { "color": "yellow", "value": 99.5 },
+              { "color": "green", "value": 99.9 }
+            ]
+          }
+        }
+      },
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"] },
+        "textMode": "value",
+        "colorMode": "background"
+      }
+    },
+    {
+      "title": "API Availability % (30d)",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 4, "x": 8, "y": 2 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        {
+          "expr": "avg_over_time(up{job=\"floww-oracle\"}[30d]) * 100",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "min": 0,
+          "max": 100,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red", "value": null },
+              { "color": "yellow", "value": 99.5 },
+              { "color": "green", "value": 99.9 }
+            ]
+          }
+        }
+      },
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"] },
+        "textMode": "value",
+        "colorMode": "background"
+      }
+    },
+    {
+      "title": "Ingestion Uptime % (24h)",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 4, "x": 12, "y": 2 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        {
+          "expr": "avg_over_time(up{job=\"floww-ingestion\"}[24h]) * 100",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "min": 0,
+          "max": 100,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red", "value": null },
+              { "color": "yellow", "value": 98 },
+              { "color": "green", "value": 99 }
+            ]
+          }
+        }
+      },
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"] },
+        "textMode": "value",
+        "colorMode": "background"
+      }
+    },
+    {
+      "title": "WS Delivery % (24h)",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 4, "x": 16, "y": 2 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        {
+          "expr": "(1 - rate(floww_websocket_delivery_failures_total[24h]) / rate(floww_websocket_messages_total[24h])) * 100",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "min": 0,
+          "max": 100,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red", "value": null },
+              { "color": "yellow", "value": 99.95 },
+              { "color": "green", "value": 99.99 }
+            ]
+          }
+        }
+      },
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"] },
+        "textMode": "value",
+        "colorMode": "background"
+      }
+    },
+    {
+      "title": "SLA Target: 99.9%",
+      "type": "text",
+      "gridPos": { "h": 4, "w": 4, "x": 20, "y": 2 },
+      "options": {
+        "mode": "markdown",
+        "content": "**API SLA**\n\nTarget: **99.9%**\n\nBudget: **43.2 min/month**"
+      }
+    },
+    {
+      "title": "Error Budget Remaining — API (99.9% SLO)",
+      "type": "bargauge",
+      "gridPos": { "h": 6, "w": 12, "x": 0, "y": 6 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        {
+          "expr": "((1 - 0.001) - rate(floww_api_request_duration_seconds_count{status=~\"5..\"}[24h]) / rate(floww_api_request_duration_seconds_count[24h])) * 100",
+          "legendFormat": "24h budget %",
+          "refId": "A"
+        },
+        {
+          "expr": "((1 - 0.001) - rate(floww_api_request_duration_seconds_count{status=~\"5..\"}[7d]) / rate(floww_api_request_duration_seconds_count[7d])) * 100",
+          "legendFormat": "7d budget %",
+          "refId": "B"
+        },
+        {
+          "expr": "((1 - 0.001) - rate(floww_api_request_duration_seconds_count{status=~\"5..\"}[30d]) / rate(floww_api_request_duration_seconds_count[30d])) * 100",
+          "legendFormat": "30d budget %",
+          "refId": "C"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "min": 0,
+          "max": 100,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red", "value": null },
+              { "color": "orange", "value": 25 },
+              { "color": "yellow", "value": 50 },
+              { "color": "green", "value": 75 }
+            ]
+          }
+        }
+      },
+      "options": {
+        "orientation": "horizontal",
+        "displayMode": "gradient",
+        "showUnfilled": true
+      }
+    },
+    {
+      "title": "Error Budget Remaining — Ingestion (99% SLO)",
+      "type": "bargauge",
+      "gridPos": { "h": 6, "w": 12, "x": 12, "y": 6 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        {
+          "expr": "((1 - 0.01) - (1 - avg_over_time(up{job=\"floww-ingestion\"}[24h]))) * 100",
+          "legendFormat": "24h budget %",
+          "refId": "A"
+        },
+        {
+          "expr": "((1 - 0.01) - (1 - avg_over_time(up{job=\"floww-ingestion\"}[7d]))) * 100",
+          "legendFormat": "7d budget %",
+          "refId": "B"
+        },
+        {
+          "expr": "((1 - 0.01) - (1 - avg_over_time(up{job=\"floww-ingestion\"}[30d]))) * 100",
+          "legendFormat": "30d budget %",
+          "refId": "C"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "min": 0,
+          "max": 100,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red", "value": null },
+              { "color": "orange", "value": 25 },
+              { "color": "yellow", "value": 50 },
+              { "color": "green", "value": 75 }
+            ]
+          }
+        }
+      },
+      "options": {
+        "orientation": "horizontal",
+        "displayMode": "gradient",
+        "showUnfilled": true
+      }
+    },
+    {
+      "title": "p99 Latency — API & WebSocket (24h)",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 12 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.99, sum by (le) (rate(floww_api_request_duration_seconds_bucket[24h])))",
+          "legendFormat": "API p99",
+          "refId": "A"
+        },
+        {
+          "expr": "histogram_quantile(0.99, sum by (le) (rate(floww_websocket_message_duration_seconds_bucket[24h])))",
+          "legendFormat": "WS p99",
+          "refId": "B"
+        },
+        {
+          "expr": "0.2",
+          "legendFormat": "SLA Threshold (200ms)",
+          "refId": "C"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "custom": { "drawStyle": "line", "fillOpacity": 10 }
+        }
+      },
+      "options": {
+        "tooltip": { "mode": "multi" },
+        "legend": { "displayMode": "table", "placement": "bottom" }
+      }
+    },
+    {
+      "title": "Burn Rate — All SLOs (30d window)",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 12 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        {
+          "expr": "(rate(floww_api_request_duration_seconds_count{status=~\"5..\"}[1h]) / rate(floww_api_request_duration_seconds_count[1h])) / 0.001",
+          "legendFormat": "API Availability Burn Rate",
+          "refId": "A"
+        },
+        {
+          "expr": "(1 - avg_over_time(up{job=\"floww-ingestion\"}[1h])) / 0.01",
+          "legendFormat": "Ingestion Burn Rate",
+          "refId": "B"
+        },
+        {
+          "expr": "1.64",
+          "legendFormat": "Fast Burn Threshold",
+          "refId": "C"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "min": 0,
+          "max": 10,
+          "custom": { "drawStyle": "line", "fillOpacity": 5 }
+        }
+      },
+      "options": {
+        "tooltip": { "mode": "multi" },
+        "legend": { "displayMode": "table", "placement": "bottom" }
+      }
+    },
+    {
+      "title": "SLA Compliance Trend (30d)",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 20 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        {
+          "expr": "avg_over_time(up{job=\"floww-oracle\"}[1d]) * 100",
+          "legendFormat": "API Daily Uptime %",
+          "refId": "A"
+        },
+        {
+          "expr": "99.9",
+          "legendFormat": "API SLA Target",
+          "refId": "B"
+        },
+        {
+          "expr": "avg_over_time(up{job=\"floww-ingestion\"}[1d]) * 100",
+          "legendFormat": "Ingestion Daily Uptime %",
+          "refId": "C"
+        },
+        {
+          "expr": "99.0",
+          "legendFormat": "Ingestion SLA Target",
+          "refId": "D"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "min": 95,
+          "max": 100.1,
+          "custom": { "drawStyle": "line", "fillOpacity": 0 }
+        }
+      },
+      "options": {
+        "tooltip": { "mode": "multi" },
+        "legend": { "displayMode": "table", "placement": "bottom" }
+      }
+    },
+    {
+      "title": "Alert Precision — False Positive Rate",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 6, "x": 0, "y": 28 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        {
+          "expr": "(1 - floww_alert_true_positives_total / floww_alert_fired_total) * 100",
+          "legendFormat": "FP Rate",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "min": 0,
+          "max": 100,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 20 },
+              { "color": "red", "value": 50 }
+            ]
+          }
+        }
+      },
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"] },
+        "textMode": "value_and_name",
+        "colorMode": "background"
+      }
+    },
+    {
+      "title": "Runbook Executions (24h)",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 6, "x": 6, "y": 28 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        {
+          "expr": "increase(floww_runbook_executions_total[24h])",
+          "legendFormat": "Executions",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 5 },
+              { "color": "red", "value": 10 }
+            ]
+          }
+        }
+      },
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"] },
+        "textMode": "value_and_name",
+        "colorMode": "background"
+      }
+    },
+    {
+      "title": "Runbook Success Rate",
+      "type": "gauge",
+      "gridPos": { "h": 4, "w": 6, "x": 12, "y": 28 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        {
+          "expr": "floww_runbook_success_total / floww_runbook_executions_total * 100",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "min": 0,
+          "max": 100,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red", "value": null },
+              { "color": "yellow", "value": 70 },
+              { "color": "green", "value": 90 }
+            ]
+          }
+        }
+      },
+      "options": {
+        "showThresholdLabels": true,
+        "showThresholdMarkers": true
+      }
+    },
+    {
+      "title": "Anomaly Explanations Generated",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 6, "x": 18, "y": 28 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        {
+          "expr": "increase(floww_anomaly_explanations_total[24h])",
+          "legendFormat": "Explanations",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 20 },
+              { "color": "red", "value": 50 }
+            ]
+          }
+        }
+      },
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"] },
+        "textMode": "value_and_name",
+        "colorMode": "background"
+      }
+    }
+  ],
+  "refresh": "10s",
+  "schemaVersion": 38,
+  "style": "dark",
+  "tags": ["oracle", "floww", "sla", "compliance", "observability"],
+  "templating": { "list": [] },
+  "time": { "from": "now-30d", "to": "now" },
+  "timepicker": { "refresh_intervals": ["5s", "10s", "30s", "1m"] },
+  "timezone": "America/New_York",
+  "title": "Project Oracle — SLA Compliance",
+  "uid": "oracle-sla-compliance",
+  "version": 1
+}

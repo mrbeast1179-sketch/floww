@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Confluence Decoder — Offline</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: #07080a;
+      color: #e4e4e7;
+      font-family: 'JetBrains Mono', ui-monospace, monospace;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      padding: 2rem;
+    }
+    .icon { font-size: 48px; margin-bottom: 1rem; }
+    h1 { font-size: 1.5rem; margin-bottom: 0.5rem; }
+    p { color: #64748b; font-size: 0.875rem; max-width: 400px; line-height: 1.6; }
+    .retry-btn {
+      margin-top: 1.5rem;
+      background: #0f1620;
+      border: 1px solid #1f2a3a;
+      color: #5eead4;
+      padding: 10px 24px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-family: inherit;
+      font-size: 12px;
+    }
+    .retry-btn:hover { border-color: #5eead4; }
+  </style>
+</head>
+<body>
+  <div class="icon">📡</div>
+  <h1>You're Offline</h1>
+  <p>Confluence Decoder requires a connection to stream live market data. Check your network and try again.</p>
+  <button class="retry-btn" onclick="window.location.reload()">Retry Connection</button>
+</body>
+</html>
