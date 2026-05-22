@@ -119,11 +119,9 @@ class TestVolumeClockMetadata:
         for i in range(10):
             vc.feed(price=0.1, size=100.0, timestamp=float(i * 10))
         b = vc.finalized_buckets[0]
-        # Bucket starts at ts=0 (first trade) and ends at ts=90 (10th trade)
-        # The VolumeClock tracks _start_time from the first trade in the bucket
-        assert b.start_time == pytest.approx(90.0, abs=0.01) or b.start_time == pytest.approx(0.0, abs=0.01)
-        # Either is acceptable depending on implementation — just verify it's set
+        assert b.start_time == pytest.approx(0.0)
         assert b.end_time == pytest.approx(90.0)
+        assert b.duration == pytest.approx(90.0)
 
     def test_bucket_duration(self):
         """Duration is end_time - start_time."""
