@@ -162,8 +162,12 @@ class VpinEngine:
         # Estimate sigma from price changes (realized volatility)
         sigma = float(np.std(price_changes))
         if sigma <= 0 or math.isnan(sigma):
-            # No price variation: split volume evenly
-            return volumes * 0.5, volumes * 0.5
+            # No price variation: if all changes are zero, split evenly
+            # If non-zero changes exist, use mean absolute value as fallback sigma
+            mean_abs = float(np.mean(np.abs(price_changes)))
+            if mean_abs <= 0:
+                return volumes * 0.5, volumes * 0.5
+            sigma = mean_abs
 
         z = price_changes / (sigma * math.sqrt(dt))
         phi = cls._norm_cdf(z)

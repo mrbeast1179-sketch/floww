@@ -77,11 +77,17 @@ class VpinCdfCalculator:
         return self._current_cdf
 
     def _compute_cdf(self) -> float:
-        """Empirical CDF: fraction of history <= current VPIN."""
+        """Empirical CDF: fraction of history <= current VPIN.
+
+        The current value is excluded from the denominator to avoid
+        self-influence. CDF = count(history < current) / (len(history) - 1).
+        """
         if len(self._history) < 2:
             return 0.0
         arr = np.array(self._history, dtype=np.float64)
-        return float(np.mean(arr <= self._current_vpin))
+        # Exclude the last element (current value) from the comparison set
+        prior = arr[:-1]
+        return float(np.mean(prior <= self._current_vpin))
 
     def _persist(self) -> None:
         """Write the current CDF snapshot to MongoDB."""
