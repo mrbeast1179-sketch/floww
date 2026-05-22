@@ -6,10 +6,14 @@ Tests the /api/anomaly/ensemble/update, /api/anomaly/ensemble/state endpoints.
 """
 from __future__ import annotations
 
+import os
 import sys
 from pathlib import Path
 
 import pytest
+
+# Enable test mode to bypass auth middleware
+os.environ["TESTING"] = "1"
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
