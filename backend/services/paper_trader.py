@@ -292,14 +292,15 @@ class PaperTrader:
         result = {"action": "SELL", "symbol": symbol}
 
         # Cover existing long position
-        if symbol in self.positions and self.positions[symbol].side == "LONG":
+        long_key = self._find_open_position(symbol, "LONG")
+        if long_key is not None:
             cover_result = self._close_position(symbol, price)
             result["cover"] = cover_result
 
         # Check position limits
         open_count = sum(1 for p in self.positions.values() if p.status == "open")
         if open_count >= self.max_positions:
-            if symbol not in self.positions or self.positions[symbol].status != "open":
+            if not self._has_open_position(symbol):
                 result["status"] = "rejected"
                 result["reason"] = f"Max positions ({self.max_positions}) reached"
                 return result
