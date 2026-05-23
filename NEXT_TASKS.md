@@ -1,21 +1,28 @@
 # NEXT_TASKS.md
 
-## Phase 4 ML — Round 2 Complete (2026-05-20)
+## Phase 5 Causal Inference — Complete (2026-05-23)
 
 ### Shipped ✅
-- 1D-CNN AE anomaly detector (trained, validated 100% recall/0% FPR)
-- PatchTST VPIN forecaster (CNN fallback, beats persistence by 19%)
-- HuggingFace asset acquisition script
-- Ensemble inference module (CNN AE + PatchTST residual + statistical)
-- Regime-aware thresholds (calm→99th, active→95th, urgent→90th pct)
-- 54 ML tests passing (ensemble, regime, anomaly training, PatchTST, Autoformer)
-- Backtest harness with synthetic toxic-flow injection
+- Granger causality test suite (re-run): QI→Vol significant (p=0.016), VPIN→Returns not sig.
+- Retail CPR/OI Skew backtest script (scripts/backtest_retail_strategy.py)
+- Both directional and long-only contrarian variants tested
+- Finding: contrarian signal has edge (+0.41% expectancy/trade) but needs regime filter
+- Reports: causal_granger_20260523.md, backtest_retail_20260523.md
+- Committed: 54e281d
 
-### Remaining
-- Autoformer chain dynamics training script (needs HF model download)
-- Production training on real MongoDB gex_history data (needs WiFi)
-- Ensemble calibration on real FOMC/NFP events
+### Key Findings
+- Quote Imbalance Granger-causes volatility (lags 4-7, all p<0.05)
+- VPIN CDF does NOT Granger-cause returns or volatility at daily frequency
+- CPR+OI Skew contrarian: 60% WR, 1.73 PF, but -12.32% total return in 2024 bull market
+- Short side is the problem — shorting a bull market kills the strategy
+- Long-only variant has positive per-trade expectancy, needs more data
+
+### Next Steps
+- Add regime filter to backtest (trend-following overlay to avoid counter-trend trades)
+- Re-run Granger on intraday data when available (tick-level VPIN likely stronger)
+- Test on 2022 bear market data (contrarian should shine there)
 - Wire ensemble into Dash UI toxicity gauge
+- Production training on real MongoDB gex_history data (needs WiFi)
 
 ### Blocked on MongoDB (need WiFi)
 - Real VPIN training data from gex_history collection
