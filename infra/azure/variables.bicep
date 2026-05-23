@@ -62,6 +62,10 @@ param databentoApiKey string = ''
 @secure()
 param polygonApiKey string = ''
 
+@description('Alpha Vantage API key — pass at deploy time')
+@secure()
+param alphaVantageKey string = ''
+
 @description('Alert email for budget notifications')
 param alertEmail string = 'nav@example.com'
 

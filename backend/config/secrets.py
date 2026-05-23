@@ -209,3 +209,8 @@ def get_databento_api_key() -> str:
 @lru_cache(maxsize=1)
 def get_polygon_api_key() -> str:
     return get_secret("POLYGON_API_KEY", "") or ""
+
+
+@lru_cache(maxsize=1)
+def get_alpha_vantage_key() -> str:
+    return get_secret("ALPHA_VANTAGE_KEY", "") or ""
