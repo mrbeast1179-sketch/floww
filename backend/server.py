@@ -55,6 +55,7 @@ from advanced_analytics import (
     calc_pressure_cloud,
     calc_charm_integral,
     calc_gamma_flip_levels,
+    calc_vex,
 )
 
 ROOT_DIR = Path(__file__).parent
