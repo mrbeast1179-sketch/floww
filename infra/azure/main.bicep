@@ -1,7 +1,7 @@
 // infra/azure/main.bicep
 // Azure production deployment for Floww / Confluence Decoder
 // Uses: App Service (B1) + Container Registry + Key Vault + Cosmos DB + Monitor
-// Provider: retail data (Polygon, Databento) — no broker-specific resources
+// Provider: retail data (Polygon, Databento, Alpha Vantage) — no broker-specific resources
 //
 // Prerequisites:
 //   az login
@@ -57,6 +57,9 @@ param databentoApiKey string = ''
 
 @secure()
 param polygonApiKey string = ''
+
+@secure()
+param alphaVantageKey string = ''
 
 param alertEmail string = 'nav@example.com'
 
@@ -398,6 +401,18 @@ resource secretPolygonKey 'Microsoft.KeyVault/vaults/secrets@2023-07-01' = {
   }
 }
 
+resource secretAlphaVantageKey 'Microsoft.KeyVault/vaults/secrets@2023-07-01' = {
+  parent: keyVault
+  name: 'alpha-vantage-key'
+  properties: {
+    value: empty(alphaVantageKey) ? 'placeholder-replace-via-cli' : alphaVantageKey
+    contentType: 'text/plain'
+    attributes: {
+      enabled: true
+    }
+  }
+}
+
 // ── App Service (FastAPI) ─────────────────────────────────────────────────────
 
 resource appService 'Microsoft.Web/sites@2023-01-01' = {
@@ -477,6 +492,10 @@ resource appService 'Microsoft.Web/sites@2023-01-01' = {
         {
           name: 'POLYGON_API_KEY'
           value: '@Microsoft.KeyVault(SecretUri=${secretPolygonKey.properties.secretUri})'
+        }
+        {
+          name: 'ALPHA_VANTAGE_KEY'
+          value: '@Microsoft.KeyVault(SecretUri=${secretAlphaVantageKey.properties.secretUri})'
         }
         {
           name: 'WEBSITES_PORT'

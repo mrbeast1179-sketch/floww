@@ -210,6 +210,36 @@ class AlphaVantageProvider(FreeDataProvider):
         self.enabled = bool(ALPHA_VANTAGE_KEY)
         self.base = "https://www.alphavantage.co/query"
     
+    async def get_quote(self, ticker: str) -> Optional[dict]:
+        """Get real-time quote. 5 calls/min, 500/day free tier."""
+        if not self.enabled:
+            return None
+        data = await self._get(self.base, {
+            "function": "GLOBAL_QUOTE",
+            "symbol": ticker,
+            "apikey": ALPHA_VANTAGE_KEY,
+        })
+        if data and "Global Quote" in data and data["Global Quote"]:
+            q = data["Global Quote"]
+            price = float(q.get("05. price", 0))
+            if price > 0:
+                prev_close = float(q.get("08. previous close", 0))
+                change = float(q.get("09. change", 0))
+                change_pct = float(q.get("10. change percent", "0%").replace("%", ""))
+                return {
+                    "price": price,
+                    "open": float(q.get("02. open", 0)),
+                    "high": float(q.get("03. high", 0)),
+                    "low": float(q.get("04. low", 0)),
+                    "volume": int(q.get("06. volume", 0)),
+                    "prev_close": prev_close,
+                    "change": change,
+                    "change_pct": change_pct,
+                    "latest_trading_day": q.get("07. latest trading day", ""),
+                    "source": "alphavantage",
+                }
+        return None
+    
     async def get_technical_indicator(self, ticker: str, indicator: str = "RSI", period: int = 14) -> Optional[dict]:
         """Get technical indicator (RSI, MACD, SMA, EMA, etc.)."""
         if not self.enabled:
@@ -350,6 +380,11 @@ class DataAggregator:
                 "price": trade["price"],
                 "source": "polygon",
             }
+        
+        # Try Alpha Vantage
+        av_quote = await self.alphavantage.get_quote(ticker)
+        if av_quote:
+            return av_quote
         
         # Fallback to yfinance
         try:
