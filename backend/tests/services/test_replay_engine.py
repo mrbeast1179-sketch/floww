@@ -31,7 +31,9 @@ class TestReplayEngine:
         for i in range(10):
             ts = (now + timedelta(seconds=i)).isoformat()
             db.conn.execute(
-                "INSERT INTO ticks VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                """INSERT INTO ticks (timestamp, symbol, bid, ask, last, volume, oi,
+                   delta_val, gamma_val, theta_val, vega_val, vanna_val, charm_val, vomma_val)
+                   VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
                 (ts, "SPY", 500.0, 500.1, 500.05, 1000+i*100, 5000, 0.5, 0.01, -0.05, 0.2, 0.001, -0.02, 0.003),
             )
 
@@ -55,7 +57,9 @@ class TestReplayEngine:
         for i in range(5):
             ts = (now + timedelta(seconds=i)).isoformat()
             db.conn.execute(
-                "INSERT INTO ticks VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                """INSERT INTO ticks (timestamp, symbol, bid, ask, last, volume, oi,
+                   delta_val, gamma_val, theta_val, vega_val, vanna_val, charm_val, vomma_val)
+                   VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
                 (ts, "SPY", 500.0, 500.1, 500.05, 1000, 5000, 0.5, 0.01, -0.05, 0.2, 0.001, -0.02, 0.003),
             )
 
@@ -102,7 +106,9 @@ class TestReplayEngine:
         for i in range(100):
             ts = (now + timedelta(seconds=i)).isoformat()
             db.conn.execute(
-                "INSERT INTO ticks VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                """INSERT INTO ticks (timestamp, symbol, bid, ask, last, volume, oi,
+                   delta_val, gamma_val, theta_val, vega_val, vanna_val, charm_val, vomma_val)
+                   VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
                 (ts, "SPY", 500.0, 500.1, 500.05, 1000, 5000, 0.5, 0.01, -0.05, 0.2, 0.001, -0.02, 0.003),
             )
 
@@ -144,7 +150,9 @@ class TestReplayEngine:
         for i in range(5):
             ts = (now + timedelta(minutes=i)).isoformat()
             db.conn.execute(
-                "INSERT INTO ticks VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                """INSERT INTO ticks (timestamp, symbol, bid, ask, last, volume, oi,
+                   delta_val, gamma_val, theta_val, vega_val, vanna_val, charm_val, vomma_val)
+                   VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
                 (ts, "SPY", 500.0, 500.1, 500.05, 1000, 5000, 0.5, 0.01, -0.05, 0.2, 0.001, -0.02, 0.003),
             )
 

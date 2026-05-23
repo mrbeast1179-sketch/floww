@@ -80,6 +80,8 @@ def parse_card(card_path: Path) -> dict:
         frontmatter = yaml.safe_load(parts[1]) or {}
     except yaml.YAMLError:
         frontmatter = {}
+    if "id" not in frontmatter:
+        frontmatter["id"] = card_path.stem
     frontmatter["_body"] = parts[2]
     frontmatter["_file"] = str(card_path)
     return frontmatter

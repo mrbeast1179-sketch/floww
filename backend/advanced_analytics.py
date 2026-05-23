@@ -522,8 +522,16 @@ def calc_charm_integral(spot: float, contracts: List[Dict[str, Any]],
     Compute charm integral: cumulative expected delta change from time decay.
     Shows the unconditional pressure from options expiring.
     """
+    empty_response = {
+        "total_charm_to_close": 0.0,
+        "total_charm": 0.0,
+        "direction": "neutral",
+        "buckets": [],
+        "minutes_remaining": 0,
+    }
+
     if spot <= 0 or not contracts:
-        return {"total_charm": 0, "direction": "neutral", "buckets": []}
+        return empty_response
 
     q = {"SPY": 0.013, "QQQ": 0.006, "^SPX": 0.013, "IWM": 0.012}.get(ticker, 0.0)
 
@@ -533,7 +541,7 @@ def calc_charm_integral(spot: float, contracts: List[Dict[str, Any]],
     # Find nearest expiry
     expiries = sorted(set(c["expiry"] for c in contracts))
     if not expiries:
-        return {"total_charm": 0, "direction": "neutral", "buckets": []}
+        return empty_response
 
     nearest = expiries[0]
     try:
@@ -543,7 +551,7 @@ def calc_charm_integral(spot: float, contracts: List[Dict[str, Any]],
         days_remaining = 0
 
     if days_remaining == 0:
-        return {"total_charm": 0, "direction": "neutral", "buckets": [], "minutes_remaining": 0}
+        return empty_response
 
     minutes_remaining = days_remaining * 390  # trading minutes
 

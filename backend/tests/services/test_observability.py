@@ -131,11 +131,21 @@ def test_duckdb_queue_depth():
 # ---------------------------------------------------------------------------
 def test_duckdb_batch_size_histogram():
     from services.observability import duckdb_batch_size, get_metrics_bytes
+    import re
+    # Snapshot count BEFORE observing — Prometheus REGISTRY is shared
+    # across tests, so we can't assume a clean starting state.
+    output_before = get_metrics_bytes().decode()
+    m_before = re.search(r"floww_duckdb_batch_size_count (\d+(?:\.\d+)?)", output_before)
+    count_before = float(m_before.group(1)) if m_before else 0.0
+
     duckdb_batch_size.observe(50)
     duckdb_batch_size.observe(100)
+
     output = get_metrics_bytes().decode()
     assert "floww_duckdb_batch_size_bucket" in output
-    assert "floww_duckdb_batch_size_count 2" in output
+    m_after = re.search(r"floww_duckdb_batch_size_count (\d+(?:\.\d+)?)", output)
+    assert m_after, "batch_size count metric missing"
+    assert float(m_after.group(1)) >= count_before + 2
 
 
 # ---------------------------------------------------------------------------

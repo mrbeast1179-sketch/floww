@@ -380,6 +380,8 @@ class SemanticSearchEngine:
                 "relevance": round(score, 4),
                 "text": self._doc_texts[idx],
             }
+            if current_type == 'trade':
+                result["trade"] = item_dict
 
             # Add connected data for trades
             if current_type == 'trade':

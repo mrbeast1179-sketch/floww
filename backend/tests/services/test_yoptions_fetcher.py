@@ -37,6 +37,12 @@ from services.yoptions_fetcher import (
     TICKERS,
     DIVIDEND_YIELDS,
     RAW_CHAINS_DIR,
+    HAS_YOPTIONS,
+)
+
+pytestmark = pytest.mark.skipif(
+    not HAS_YOPTIONS,
+    reason="yoptions module not installed — install with: pip install yoptions",
 )
 
 

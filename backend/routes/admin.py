@@ -59,8 +59,26 @@ async def databento_usage():
     we = LIVE_WINDOW.get("stop_hhmm", "16:00")
     in_window = ws <= current_hhmm <= we
 
+    # Aggregate per-day usage for the `recent` view
+    day_counts: dict[tuple[str, str], int] = {}
+    for u in usage_list:
+        ts = u.get("ts")
+        if not ts:
+            continue
+        day = ts.strftime("%Y-%m-%d") if hasattr(ts, "strftime") else str(ts)[:10]
+        parent = u.get("parent") or u.get("symbol") or "unknown"
+        key = (parent, day)
+        day_counts[key] = day_counts.get(key, 0) + 1
+    recent = [
+        {"parent": p, "day": d, "count": c}
+        for (p, d), c in sorted(day_counts.items(), key=lambda kv: kv[0][1], reverse=True)
+    ]
+    cached_days = len({d for _, d in day_counts.keys()})
+
     return {
         "usage": usage_list,
+        "recent": recent,
+        "cached_days": cached_days,
         "paid_tickers": sorted(PAID_TICKERS),
         "live_window_et": {"start_hhmm": ws, "stop_hhmm": we},
         "est_total_cost_usd": round(est_cost, 2),
