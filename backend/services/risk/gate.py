@@ -1,104 +1,74 @@
 """
-backend/services/risk/gate.py
+backend/services/risk/gate.py — Pre-trade risk gate with multi-trigger circuit breakers.
 
-Pre-trade risk gate: synchronous, blocking, fast (~50ms budget).
+Two APIs:
+  1. RiskGate — Original API with before_trade(intent, account) -> RiskResult
+  2. PreTradeRiskGate — New API with check(**kwargs) -> RiskDecision
 
-Sits between signal generation and order dispatch. Every trade decision passes
-through this gate. If any check rejects, the trade is killed before it leaves
-the box.
-
-Checks performed (all rejections collected, not short-circuited):
-    1. Kill switch (any active circuit breaker → reject)
-    2. Daily loss band (default -3% of bankroll → reject)
-    3. Max open positions (default 5 concurrent → reject new)
-    4. Position size (position_size <= max_position_pct * equity)
-    5. Sentiment (sentiment_z >= min_sentiment_z)
-    6. Liquidity / Kyle's lambda (kyle_lambda < threshold)
-    7. Account equity floor (equity > min_equity)
-    8. Data freshness (snapshot age < 30s → reject stale)
-    9. Idempotency (duplicate signal_id within 5min → reject)
-
-References:
-    - Kyle, A.S. (1985). "Continuous Auctions and Insider Trading." Econometrica.
-    - Almgren, R. & Chriss, N. (2001). "Optimal Execution of Portfolio Transactions."
-      Journal of Risk.
-    - Jarrow, R. & Protter, P. (2012). "A Dysfunctional Role of High Frequency Trading
-      in Electronic Markets." International Journal of Theoretical and Applied Finance.
-    - Cartea, Á., Jaimungal, S., & Penalva, J. (2015). "Algorithmic and High-Frequency
-      Trading." Cambridge University Press.
+Reference: swarmSPX risk/gate.py, Almgren-Chriss (2001)
 """
 
 from __future__ import annotations
 
-import hashlib
 import logging
 import os
 import time
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional
-
-import numpy as np
+from datetime import datetime, timezone
+from typing import Optional
 
 logger = logging.getLogger(__name__)
 
-# ── Default thresholds ────────────────────────────────────────────────────────
+# ── Default constants ─────────────────────────────────────────────────────────
 
+DEFAULT_DAILY_LOSS_PCT = -3.0
+DEFAULT_DATA_STALENESS_SEC = 30.0
+DEFAULT_IDEMPOTENCY_WINDOW_SEC = 5.0
 DEFAULT_KYLE_LAMBDA_THRESHOLD = 1e-6
-DEFAULT_MIN_CONVICTION = 0.7
-DEFAULT_MIN_ACCOUNT_EQUITY = 5000.0
-DEFAULT_MAX_POSITION_PCT = 0.01
 DEFAULT_MAX_OPEN_POSITIONS = 5
+DEFAULT_MAX_POSITION_PCT = 0.01
+DEFAULT_MIN_ACCOUNT_EQUITY = 5000.0
+DEFAULT_MIN_CONVICTION = 0.7
 DEFAULT_MIN_SENTIMENT_Z = -2.0
-DEFAULT_DAILY_LOSS_PCT = 3.0
-DEFAULT_DATA_STALENESS_SEC = 30
-DEFAULT_IDEMPOTENCY_WINDOW_SEC = 300  # 5 minutes
-DEFAULT_KILL_SWITCH_PATH = "/tmp/floww_kill_switch"
 
+
+# ── RiskDecision (new API) ────────────────────────────────────────────────────
 
 @dataclass
 class RiskDecision:
-    """Outcome of a pre-trade risk check.
-
-    Attributes:
-        action: 'PASS' if all checks passed, 'REJECT' otherwise.
-        reasons: List of structured rejection codes (empty on PASS).
-        meta: Optional details for audit logging (e.g. computed values).
-    """
-
-    action: str  # "PASS" | "REJECT"
-    reasons: List[str] = field(default_factory=list)
-    meta: Dict[str, Any] = field(default_factory=dict)
+    """Result of a PreTradeRiskGate check."""
+    action: str  # "PASS" or "REJECT"
+    reasons: list[str] = field(default_factory=list)
+    meta: dict = field(default_factory=dict)
 
     @property
     def passed(self) -> bool:
-        """Return True if the decision is PASS."""
         return self.action == "PASS"
 
 
+# ── PreTradeRiskGate (new API) ────────────────────────────────────────────────
+
 class PreTradeRiskGate:
-    """Synchronous pre-trade risk evaluator.
+    """
+    Pre-trade risk gate with keyword-argument check() API.
 
-    Stateful for idempotency (recent signal_ids cached in memory).
-    All checks run on every call; rejection reasons are collected
-    (not short-circuited) so callers get full diagnostics.
-
-    Example::
-
+    Usage:
         gate = PreTradeRiskGate()
         decision = gate.check(
-            signal_id="abc123",
+            signal_id="sig_001",
             ticker="SPX",
             conviction=0.85,
-            position_size=100.0,
+            position_size=50.0,
             equity=10000.0,
             sentiment_z=-1.0,
             kyle_lambda=1e-7,
             open_positions=2,
             snapshot_age_sec=5.0,
             daily_pnl_pct=-1.0,
+            kill_switch_active=False,
         )
-        if not decision.passed:
-            logger.warning("Rejected: %s", decision.reasons)
+        if decision.passed:
+            execute_trade()
     """
 
     def __init__(
@@ -112,23 +82,19 @@ class PreTradeRiskGate:
         daily_loss_pct: float = DEFAULT_DAILY_LOSS_PCT,
         data_staleness_sec: float = DEFAULT_DATA_STALENESS_SEC,
         idempotency_window_sec: float = DEFAULT_IDEMPOTENCY_WINDOW_SEC,
-        kill_switch_path: str = DEFAULT_KILL_SWITCH_PATH,
+        kill_switch_path: str | None = None,
     ):
-        self.kyle_lambda_threshold = float(kyle_lambda_threshold)
-        self.min_conviction = float(min_conviction)
-        self.min_account_equity = float(min_account_equity)
-        self.max_position_pct = float(max_position_pct)
-        self.max_open_positions = int(max_open_positions)
-        self.min_sentiment_z = float(min_sentiment_z)
-        self.daily_loss_pct = float(daily_loss_pct)
-        self.data_staleness_sec = float(data_staleness_sec)
-        self.idempotency_window_sec = float(idempotency_window_sec)
+        self.kyle_lambda_threshold = kyle_lambda_threshold
+        self.min_conviction = min_conviction
+        self.min_account_equity = min_account_equity
+        self.max_position_pct = max_position_pct
+        self.max_open_positions = max_open_positions
+        self.min_sentiment_z = min_sentiment_z
+        self.daily_loss_pct = daily_loss_pct
+        self.data_staleness_sec = data_staleness_sec
+        self.idempotency_window_sec = idempotency_window_sec
         self.kill_switch_path = kill_switch_path
-
-        # In-memory idempotency cache: signal_id -> timestamp (seconds since epoch)
-        self._recent_signals: Dict[str, float] = {}
-
-    # ── Public entry point ───────────────────────────────────────────────────
+        self._idempotency_cache: dict[str, float] = {}
 
     def check(
         self,
@@ -144,245 +110,280 @@ class PreTradeRiskGate:
         daily_pnl_pct: float,
         kill_switch_active: bool = False,
     ) -> RiskDecision:
-        """Run all pre-trade checks. Returns PASS or REJECT with all reasons.
-
-        All checks are evaluated (no short-circuiting) so the caller receives
-        the complete set of rejection reasons for diagnostics and audit.
-
-        Args:
-            signal_id: Unique identifier for this trade signal.
-            ticker: Ticker symbol (e.g. "SPX").
-            conviction: Computed conviction score [0, 1].
-            position_size: Dollar size of the proposed position.
-            equity: Current account equity in dollars.
-            sentiment_z: FlashAlpha sentiment z-score.
-            kyle_lambda: Kyle's lambda liquidity estimate.
-            open_positions: Number of currently open positions.
-            snapshot_age_sec: Age of the market data snapshot in seconds.
-            daily_pnl_pct: Current day's P&L as a percentage of bankroll.
-            kill_switch_active: If True, immediately reject (circuit breaker).
-
-        Returns:
-            RiskDecision with action, reasons list, and meta dict.
-        """
-        reasons: List[str] = []
-        meta: Dict[str, Any] = {
+        """Run all risk checks. Returns RiskDecision with all failing reasons."""
+        reasons: list[str] = []
+        meta: dict = {
             "signal_id": signal_id,
             "ticker": ticker,
             "conviction": conviction,
             "position_size": position_size,
             "equity": equity,
-            "sentiment_z": sentiment_z,
-            "kyle_lambda": kyle_lambda,
-            "open_positions": open_positions,
-            "snapshot_age_sec": snapshot_age_sec,
-            "daily_pnl_pct": daily_pnl_pct,
         }
 
-        # 1. Kill switch (highest priority — short-circuit for safety)
-        if self._check_kill_switch(kill_switch_active):
+        # Kill switch (short-circuits)
+        if kill_switch_active or self._kill_switch_file_exists():
             return RiskDecision(
                 action="REJECT",
                 reasons=["kill_switch_active"],
                 meta=meta,
             )
 
-        # 2. Daily loss band
-        if not self._check_daily_loss_band(daily_pnl_pct):
+        # Daily loss band
+        if daily_pnl_pct < self.daily_loss_pct:
             reasons.append("daily_loss_band")
-            meta["daily_loss_limit"] = -self.daily_loss_pct
+            meta["daily_loss_pct"] = self.daily_loss_pct
 
-        # 3. Max open positions
-        if not self._check_max_open_positions(open_positions):
+        # Max open positions
+        if open_positions >= self.max_open_positions:
             reasons.append("max_open_positions")
-            meta["max_open_positions_limit"] = self.max_open_positions
+            meta["max_open_positions"] = self.max_open_positions
 
-        # 4. Position size
-        if not self._check_position_size(position_size, equity):
+        # Position size
+        max_size = equity * self.max_position_pct
+        if position_size > max_size:
             reasons.append("position_size_exceeded")
-            meta["max_position_size"] = self.max_position_pct * equity
+            meta["max_position_size"] = max_size
 
-        # 5. Sentiment
-        if not self._check_sentiment(sentiment_z):
+        # Sentiment
+        if sentiment_z < self.min_sentiment_z:
             reasons.append("sentiment_too_negative")
             meta["min_sentiment_z"] = self.min_sentiment_z
 
-        # 6. Liquidity (Kyle's lambda)
-        if not self._check_liquidity(kyle_lambda):
+        # Liquidity (Kyle's lambda)
+        if kyle_lambda >= self.kyle_lambda_threshold:
             reasons.append("illiquid_market")
             meta["kyle_lambda_threshold"] = self.kyle_lambda_threshold
 
-        # 7. Account equity floor
-        if not self._check_account_equity(equity):
+        # Account equity
+        if equity < self.min_account_equity:
             reasons.append("insufficient_equity")
             meta["min_equity"] = self.min_account_equity
 
-        # 8. Data freshness
-        if not self._check_data_freshness(snapshot_age_sec):
+        # Data freshness
+        if snapshot_age_sec >= self.data_staleness_sec:
             reasons.append("stale_market_data")
-            meta["data_staleness_limit"] = self.data_staleness_sec
+            meta["data_staleness_sec"] = self.data_staleness_sec
 
-        # 9. Conviction floor
-        if not self._check_conviction(conviction):
+        # Conviction
+        if conviction < self.min_conviction:
             reasons.append("conviction_too_low")
             meta["min_conviction"] = self.min_conviction
 
-        # 10. Idempotency
-        if not self._check_idempotency(signal_id):
+        # Idempotency
+        if self._is_duplicate(signal_id):
             reasons.append("duplicate_signal")
-            meta["idempotency_window_sec"] = self.idempotency_window_sec
-        else:
-            self._record_signal(signal_id)
 
         if reasons:
-            logger.warning(
-                "PRE_TRADE_REJECT signal_id=%s ticker=%s reasons=%s",
-                signal_id,
-                ticker,
-                reasons,
-            )
             return RiskDecision(action="REJECT", reasons=reasons, meta=meta)
+        return RiskDecision(action="PASS", meta=meta)
 
-        return RiskDecision(action="PASS", reasons=[], meta=meta)
+    def clear_idempotency_cache(self):
+        """Clear the idempotency cache."""
+        self._idempotency_cache.clear()
 
-    # ── Individual checks (each independently testable) ──────────────────────
-
-    def _check_kill_switch(self, kill_switch_active: bool) -> bool:
-        """Return True if kill switch is engaged.
-
-        Checks both the in-memory flag and the kill-switch file on disk.
-        The file-based check allows external circuit breakers (e.g. ops scripts)
-        to halt trading without modifying process state.
-
-        Reference:
-            - Aldridge, I. (2013). "High-Frequency Trading: A Practical Guide."
-              Wiley. (Chapter on risk controls and kill switches)
-        """
-        if kill_switch_active:
+    def _kill_switch_file_exists(self) -> bool:
+        if self.kill_switch_path and os.path.exists(self.kill_switch_path):
             return True
-        return os.path.exists(self.kill_switch_path)
+        return False
 
-    def _check_daily_loss_band(self, daily_pnl_pct: float) -> bool:
-        """Return True if daily P&L is within the allowed loss band.
+    def _is_duplicate(self, signal_id: str) -> bool:
+        now = time.monotonic()
+        if signal_id in self._idempotency_cache:
+            ts = self._idempotency_cache[signal_id]
+            if now - ts < self.idempotency_window_sec:
+                return True
+        self._idempotency_cache[signal_id] = now
+        # Evict old entries
+        cutoff = now - self.idempotency_window_sec * 2
+        self._idempotency_cache = {
+            k: v for k, v in self._idempotency_cache.items() if v > cutoff
+        }
+        return False
 
-        Rejects when daily_pnl_pct <= -daily_loss_pct (i.e. loss exceeds threshold).
 
-        Reference:
-            - Taleb, N.N. (2012). "Antifragile: Things That Gain from Disorder."
-              Random House. (Discussion of stop-loss mechanisms)
-        """
-        return daily_pnl_pct > -self.daily_loss_pct
+# ── RiskConfig / TradeIntent / AccountState (original API) ────────────────────
 
-    def _check_max_open_positions(self, open_positions: int) -> bool:
-        """Return True if opening another position would not exceed the cap.
+@dataclass
+class RiskConfig:
+    """Risk gate configuration."""
+    max_consecutive_losses: int = 3
+    max_daily_loss_pct: float = -0.02
+    max_position_pct: float = 0.10
+    max_open_positions: int = 5
+    kyle_lambda_threshold: float = 0.05
+    max_position_value: float = 5000.0
+    min_account_equity: float = 1000.0
 
-        Reference:
-            - Grinold, R. & Kahn, R. (2000). "Active Portfolio Management."
-              McGraw-Hill. (Risk budgeting and position limits)
-        """
-        return open_positions < self.max_open_positions
 
-    def _check_position_size(self, position_size: float, equity: float) -> bool:
-        """Return True if position size is within the max_position_pct of equity.
+@dataclass
+class TradeIntent:
+    """Minimal trade intent for risk checking."""
+    ticker: str
+    side: str
+    qty: int
+    limit_price: float
+    conviction: float = 0.5
+    kyle_lambda: float = 0.0
+    signal_id: str = ""
 
-        The 1% rule limits single-trade exposure to a small fraction of total
-        capital, consistent with fractional Kelly sizing principles.
 
-        Reference:
-            - Kelly, J.L. (1956). "A New Interpretation of Information Rate."
-              Bell System Technical Journal.
-            - Thorp, E.O. (2006). "The Kelly Criterion in Blackjack, Sports Betting,
-              and the Stock Market." Handbook of Asset and Liability Management.
-        """
-        max_size = self.max_position_pct * equity
-        return position_size <= max_size
+@dataclass
+class Position:
+    """Current position for a ticker."""
+    ticker: str
+    qty: int
+    avg_cost: float
+    unrealized_pnl: float = 0.0
 
-    def _check_sentiment(self, sentiment_z: float) -> bool:
-        """Return True if sentiment z-score is above the minimum threshold.
 
-        Extremely negative sentiment (z < -2) suggests the market regime
-        may be adverse; we avoid initiating new positions in such conditions.
+@dataclass
+class AccountState:
+    """Current account state."""
+    equity: float
+    cash: float
+    daily_pnl_pct: float = 0.0
+    open_positions: dict = field(default_factory=dict)
+    consecutive_losses: int = 0
+    last_trade_pnl: float = 0.0
 
-        Reference:
-            - Baker, M. & Wurgler, J. (2007). "Investor Sentiment in the Stock Market."
-              Journal of Economic Perspectives.
-        """
-        return sentiment_z >= self.min_sentiment_z
 
-    def _check_liquidity(self, kyle_lambda: float) -> bool:
-        """Return True if Kyle's lambda indicates sufficient liquidity.
+# ── RiskGate (original API) ───────────────────────────────────────────────────
 
-        Kyle's lambda measures the price impact per unit of order flow.
-        A lambda above the threshold indicates an illiquid market where
-        execution costs would be prohibitive.
+class RiskGate:
+    """
+    Pre-trade risk gate with multi-trigger circuit breakers.
 
-        Reference:
-            - Kyle, A.S. (1985). "Continuous Auctions and Insider Trading."
-              Econometrica, 53(6), 1315-1335.
-        """
-        return kyle_lambda < self.kyle_lambda_threshold
+    Usage:
+        gate = RiskGate(config=RiskConfig())
+        result = gate.before_trade(intent, account)
+        if result.approved:
+            execute_trade(intent)
+    """
 
-    def _check_account_equity(self, equity: float) -> bool:
-        """Return True if account equity exceeds the minimum floor.
+    def __init__(self, config: Optional[RiskConfig] = None):
+        self.config = config or RiskConfig()
+        self._circuit_breaker_tripped = False
+        self._circuit_breaker_reason = ""
+        self._trade_history: list[dict] = []
 
-        Trading with insufficient capital increases the risk of ruin
-        and may violate broker minimums.
+    @property
+    def circuit_breaker_active(self) -> bool:
+        return self._circuit_breaker_tripped
 
-        Reference:
-            - Browne, S. (2000). "Can You Do Better Than Kelly in the Short Run?"
-              Proceedings of the IEEE/IAFE/INFORMS Conference.
-        """
-        return equity > self.min_account_equity
+    def reset_circuit_breaker(self):
+        """Manual reset after human review."""
+        self._circuit_breaker_tripped = False
+        self._circuit_breaker_reason = ""
+        logger.info("RiskGate: circuit breaker reset")
 
-    def _check_data_freshness(self, snapshot_age_sec: float) -> bool:
-        """Return True if market data snapshot is fresh enough.
+    def before_trade(self, intent: TradeIntent, account: AccountState) -> "RiskResult":
+        """Evaluate a trade intent against all risk rules."""
+        if self._circuit_breaker_tripped:
+            return RiskResult(
+                approved=False,
+                reason=f"Circuit breaker active: {self._circuit_breaker_reason}",
+                rule="circuit_breaker",
+            )
 
-        Stale data leads to decisions based on outdated prices, which can
-        result in adverse selection and poor fills.
+        # Rule 1: Daily loss limit
+        if account.daily_pnl_pct <= self.config.max_daily_loss_pct:
+            self._trip_circuit_breaker(f"Daily loss limit hit: {account.daily_pnl_pct:.2%}")
+            return RiskResult(
+                approved=False,
+                reason=f"Daily loss limit: {account.daily_pnl_pct:.2%} <= {self.config.max_daily_loss_pct:.2%}",
+                rule="daily_loss_limit",
+            )
 
-        Reference:
-            - Easley, D., López de Prado, M., & O'Hara, M. (2012).
-              "Flow Toxicity and Liquidity in a High-frequency World."
-              Review of Financial Studies.
-        """
-        return snapshot_age_sec < self.data_staleness_sec
+        # Rule 2: Consecutive losses
+        if account.consecutive_losses >= self.config.max_consecutive_losses:
+            self._trip_circuit_breaker(f"Consecutive losses: {account.consecutive_losses}")
+            return RiskResult(
+                approved=False,
+                reason=f"Consecutive losses: {account.consecutive_losses} >= {self.config.max_consecutive_losses}",
+                rule="consecutive_losses",
+            )
 
-    def _check_conviction(self, conviction: float) -> bool:
-        """Return True if conviction score meets the minimum threshold.
+        # Rule 3: Minimum account equity
+        if account.equity < self.config.min_account_equity:
+            return RiskResult(
+                approved=False,
+                reason=f"Account equity ${account.equity:.0f} < minimum ${self.config.min_account_equity:.0f}",
+                rule="min_equity",
+            )
 
-        Low-conviction signals have insufficient edge to justify transaction costs.
+        # Rule 4: Position concentration
+        position_value = intent.qty * intent.limit_price
+        if position_value > account.equity * self.config.max_position_pct:
+            return RiskResult(
+                approved=False,
+                reason=f"Position size ${position_value:.0f} > {self.config.max_position_pct:.0%} of equity ${account.equity:.0f}",
+                rule="position_concentration",
+            )
 
-        Reference:
-            - Black, F. & Litterman, R. (1992). "Global Portfolio Optimization."
-              Financial Analysts Journal. (Views and confidence framework)
-        """
-        return conviction >= self.min_conviction
+        # Rule 5: Max position value
+        if position_value > self.config.max_position_value:
+            return RiskResult(
+                approved=False,
+                reason=f"Position value ${position_value:.0f} > max ${self.config.max_position_value:.0f}",
+                rule="max_position_value",
+            )
 
-    def _check_idempotency(self, signal_id: str) -> bool:
-        """Return True if signal_id has not been seen within the idempotency window.
+        # Rule 6: Max open positions
+        if len(account.open_positions) >= self.config.max_open_positions:
+            if intent.ticker not in account.open_positions:
+                return RiskResult(
+                    approved=False,
+                    reason=f"Max open positions: {len(account.open_positions)} >= {self.config.max_open_positions}",
+                    rule="max_open_positions",
+                )
 
-        Prevents duplicate order submission from retries or race conditions.
+        # Rule 7: Liquidity gate
+        if intent.kyle_lambda > self.config.kyle_lambda_threshold:
+            return RiskResult(
+                approved=False,
+                reason=f"Kyle's λ {intent.kyle_lambda:.4f} > threshold {self.config.kyle_lambda_threshold}",
+                rule="liquidity_gate",
+            )
 
-        Reference:
-            - Helland, P. & Taber, D. (2018). "Idempotency is a Myth."
-              ACM Queue. (Discussion of idempotency keys in distributed systems)
-        """
-        self._prune_expired_signals()
-        return signal_id not in self._recent_signals
+        # Rule 8: Conviction threshold
+        if intent.conviction < 0.5:
+            return RiskResult(
+                approved=False,
+                reason=f"Conviction {intent.conviction:.2f} < 0.5",
+                rule="conviction_threshold",
+            )
 
-    # ── Internal helpers ─────────────────────────────────────────────────────
+        return RiskResult(approved=True, reason="All checks passed", rule="")
 
-    def _record_signal(self, signal_id: str) -> None:
-        """Record a signal_id in the idempotency cache."""
-        self._recent_signals[signal_id] = time.monotonic()
+    def after_trade(self, intent: TradeIntent, pnl: float):
+        """Update internal state after a trade completes."""
+        self._trade_history.append({
+            "ticker": intent.ticker,
+            "side": intent.side,
+            "qty": intent.qty,
+            "pnl": pnl,
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        })
+        if pnl < 0:
+            logger.warning(f"RiskGate: loss trade {intent.ticker} PnL=${pnl:.2f}")
+        else:
+            logger.info(f"RiskGate: profit trade {intent.ticker} PnL=${pnl:.2f}")
 
-    def _prune_expired_signals(self) -> None:
-        """Remove entries older than the idempotency window."""
-        cutoff = time.monotonic() - self.idempotency_window_sec
-        expired = [sid for sid, ts in self._recent_signals.items() if ts < cutoff]
-        for sid in expired:
-            del self._recent_signals[sid]
+    def _trip_circuit_breaker(self, reason: str):
+        self._circuit_breaker_tripped = True
+        self._circuit_breaker_reason = reason
+        logger.critical(f"RiskGate: CIRCUIT BREAKER TRIPPED — {reason}")
 
-    def clear_idempotency_cache(self) -> None:
-        """Clear the entire idempotency cache. Useful for testing."""
-        self._recent_signals.clear()
+    def get_trade_history(self) -> list[dict]:
+        return list(self._trade_history)
+
+
+@dataclass
+class RiskResult:
+    """Result of a risk gate check."""
+    approved: bool
+    reason: str
+    rule: str
+
+    def __bool__(self):
+        return self.approved

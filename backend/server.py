@@ -2684,6 +2684,9 @@ app.include_router(trinity_router, tags=["trinity"])
 from routes.anomaly import router as anomaly_router
 app.include_router(anomaly_router, tags=["anomaly"])
 
+from routes.ensemble import router as ensemble_router
+app.include_router(ensemble_router, tags=["ensemble"])
+
 from routes.liquidity import router as liquidity_router
 app.include_router(liquidity_router, tags=["liquidity"])
 
