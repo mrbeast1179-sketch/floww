@@ -259,6 +259,7 @@ def _build_flow_ticker(flow_data: Optional[List[Dict]] = None, dark: bool = True
 
 def _build_toxicity_dashboard(
     vpin_cdf: float = 0, qi_zscore: float = 0, fragility_score: float = 0,
+    retail_flow_score: float = 0,
     regime: str = "NORMAL", history_vpin: Optional[List[float]] = None,
     history_qi: Optional[List[float]] = None, history_ts: Optional[List[str]] = None,
     dark: bool = True,
@@ -272,12 +273,16 @@ def _build_toxicity_dashboard(
         dim = TEXT_DIM if dark else TEXT_DIM_LIGHT
 
         fig = make_subplots(
-            rows=3, cols=2,
+            rows=4, cols=2,
             specs=[[{"type": "indicator"}, {"type": "indicator"}],
                    [{"type": "indicator", "colspan": 2}, None],
+                   [{"type": "indicator", "colspan": 2}, None],
                    [{"type": "scatter", "colspan": 2}, None]],
-            subplot_titles=["VPIN CDF", "Quote Imbalance Z-Score", "Market Fragility Index", "60-min History"],
-            vertical_spacing=0.08, row_heights=[0.25, 0.25, 0.5],
+            subplot_titles=[
+                "VPIN CDF", "Quote Imbalance Z-Score", "Market Fragility Index",
+                "Retail Flow Score", "60-min History",
+            ],
+            vertical_spacing=0.06, row_heights=[0.2, 0.2, 0.2, 0.4],
         )
         fig.add_trace(go.Indicator(
             mode="gauge+number", value=vpin_cdf * 100,
@@ -313,12 +318,32 @@ def _build_toxicity_dashboard(
                              {"range": [66, 100], "color": "rgba(255,68,68,0.15)"}]},
         ), row=2, col=1)
 
+        # Retail Flow Score gauge (-100 to +100)
+        rfs = retail_flow_score
+        if rfs >= 30:
+            rfs_color = ACCENT
+        elif rfs <= -30:
+            rfs_color = DANGER
+        else:
+            rfs_color = WARN
+        fig.add_trace(go.Indicator(
+            mode="gauge+number", value=rfs,
+            number={"font": {"color": text_color, "size": 18}},
+            gauge={"axis": {"range": [-100, 100], "tickcolor": dim},
+                   "bar": {"color": rfs_color},
+                   "bgcolor": plot,
+                   "steps": [{"range": [-100, -30], "color": "rgba(255,68,68,0.1)"},
+                             {"range": [-30, 30], "color": "rgba(255,170,0,0.06)"},
+                             {"range": [30, 100], "color": "rgba(0,255,136,0.08)"}],
+                   "threshold": {"line": {"color": WARN, "width": 2}, "value": 0}},
+        ), row=3, col=1)
+
         if history_vpin and history_ts:
             fig.add_trace(go.Scatter(x=history_ts, y=[v * 100 for v in history_vpin],
-                mode="lines", name="VPIN CDF %", line=dict(color=DANGER, width=1.5)), row=3, col=1)
+                mode="lines", name="VPIN CDF %", line=dict(color=DANGER, width=1.5)), row=4, col=1)
         if history_qi and history_ts:
             fig.add_trace(go.Scatter(x=history_ts, y=history_qi,
-                mode="lines", name="QI Z-Score", line=dict(color=WARN, width=1.5)), row=3, col=1)
+                mode="lines", name="QI Z-Score", line=dict(color=WARN, width=1.5)), row=4, col=1)
 
         if is_toxic:
             fig.add_annotation(xref="paper", yref="paper", x=0.5, y=1.08,
@@ -331,8 +356,8 @@ def _build_toxicity_dashboard(
                 font=dict(size=14, color=dim, family="monospace"))
 
         fig.update_layout(
-            title=dict(text="Toxicity & Liquidity", font=dict(color=text_color, size=18)),
-            template=tpl, paper_bgcolor=bg, plot_bgcolor=plot, height=750,
+            title=dict(text="Toxicity & Retail Flow", font=dict(color=text_color, size=18)),
+            template=tpl, paper_bgcolor=bg, plot_bgcolor=plot, height=900,
             showlegend=True, legend=dict(font=dict(color=dim, size=10)),
         )
         return fig
@@ -975,17 +1000,19 @@ T: Toggle theme  M: Mute alerts  ?: Show this help
                 return dcc.Graph(figure=fig, style={"height": "650px"})
 
             elif tab == "toxicity":
+                tox = tox_data if isinstance(tox_data, dict) else {}
                 fig = _build_toxicity_dashboard(
-                    vpin_cdf=tox_data.get("vpin_cdf", 0) if isinstance(tox_data, dict) else 0,
-                    qi_zscore=tox_data.get("qi_zscore", 0) if isinstance(tox_data, dict) else 0,
-                    fragility_score=tox_data.get("fragility_score", 0) if isinstance(tox_data, dict) else 0,
-                    regime=tox_data.get("regime", "NORMAL") if isinstance(tox_data, dict) else "NORMAL",
-                    history_vpin=tox_data.get("history_vpin") if isinstance(tox_data, dict) else None,
-                    history_qi=tox_data.get("history_qi") if isinstance(tox_data, dict) else None,
-                    history_ts=tox_data.get("history_ts") if isinstance(tox_data, dict) else None,
+                    vpin_cdf=tox.get("vpin_cdf", 0),
+                    qi_zscore=tox.get("qi_zscore", 0),
+                    fragility_score=tox.get("fragility_score", 0),
+                    retail_flow_score=tox.get("retail_flow_score", 0),
+                    regime=tox.get("regime", "NORMAL"),
+                    history_vpin=tox.get("history_vpin"),
+                    history_qi=tox.get("history_qi"),
+                    history_ts=tox.get("history_ts"),
                     dark=dark,
                 )
-                return dcc.Graph(figure=fig, style={"height": "750px"})
+                return dcc.Graph(figure=fig, style={"height": "900px"})
 
             elif tab == "vol-surface":
                 spot = chain_data.get("spot", 0) if isinstance(chain_data, dict) else 0
