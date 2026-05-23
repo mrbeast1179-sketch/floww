@@ -11,6 +11,7 @@ Reference: swarmSPX risk/gate.py, Almgren-Chriss (2001)
 from __future__ import annotations
 
 import logging
+import math
 import os
 import time
 from dataclasses import dataclass, field
@@ -129,7 +130,7 @@ class PreTradeRiskGate:
             )
 
         # Daily loss band
-        if daily_pnl_pct < self.daily_loss_pct:
+        if daily_pnl_pct <= self.daily_loss_pct:
             reasons.append("daily_loss_band")
             meta["daily_loss_pct"] = self.daily_loss_pct
 
@@ -144,18 +145,18 @@ class PreTradeRiskGate:
             reasons.append("position_size_exceeded")
             meta["max_position_size"] = max_size
 
-        # Sentiment
-        if sentiment_z < self.min_sentiment_z:
+        # Sentiment (NaN always fails)
+        if math.isnan(sentiment_z) or sentiment_z < self.min_sentiment_z:
             reasons.append("sentiment_too_negative")
             meta["min_sentiment_z"] = self.min_sentiment_z
 
-        # Liquidity (Kyle's lambda)
-        if kyle_lambda >= self.kyle_lambda_threshold:
+        # Liquidity (Kyle's lambda) — NaN always fails
+        if math.isnan(kyle_lambda) or kyle_lambda >= self.kyle_lambda_threshold:
             reasons.append("illiquid_market")
             meta["kyle_lambda_threshold"] = self.kyle_lambda_threshold
 
         # Account equity
-        if equity < self.min_account_equity:
+        if equity <= self.min_account_equity:
             reasons.append("insufficient_equity")
             meta["min_equity"] = self.min_account_equity
 
@@ -164,8 +165,8 @@ class PreTradeRiskGate:
             reasons.append("stale_market_data")
             meta["data_staleness_sec"] = self.data_staleness_sec
 
-        # Conviction
-        if conviction < self.min_conviction:
+        # Conviction (NaN always fails)
+        if math.isnan(conviction) or conviction < self.min_conviction:
             reasons.append("conviction_too_low")
             meta["min_conviction"] = self.min_conviction
 
