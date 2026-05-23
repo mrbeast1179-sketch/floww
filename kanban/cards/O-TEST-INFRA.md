@@ -5,9 +5,9 @@ assignee: Agent 4
 skill: swarmclaw:coding-agent + hermeshub:agent-hardening
 estimate_hours: 2
 dependencies: []
-status: ready
-last_update: 2026-05-19T20:30:00Z
-commits: []
+status: done
+last_update: 2026-07-09T00:00:00Z
+commits: [ecd910e, 8019b6a, a49be06, fbfbe5e, eff13cc]
 blockers: []
 ---
 
