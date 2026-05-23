@@ -17,7 +17,14 @@ from pathlib import Path
 from typing import Optional
 
 import pandas as pd
-import yoptions as yo
+
+try:
+    import yoptions as yo
+    HAS_YOPTIONS = True
+except ImportError:
+    yo = None
+    HAS_YOPTIONS = False
+
 from tenacity import (
     retry,
     stop_after_attempt,
@@ -27,6 +34,9 @@ from tenacity import (
 )
 
 logger = logging.getLogger(__name__)
+
+if not HAS_YOPTIONS:
+    logger.warning("yoptions module not installed — retail polling disabled. Install: pip install yoptions")
 
 # Supported tickers
 TICKERS = ["SPY", "QQQ", "SPX"]
@@ -87,6 +97,8 @@ def _fetch_chain_with_retry(
     Raises:
         YOptionsFetchError: If all retries fail.
     """
+    if not HAS_YOPTIONS:
+        raise YOptionsFetchError("yoptions module not installed — install with: pip install yoptions")
     try:
         if expiry:
             df = yo.get_chain_greeks_date(ticker, dividend_yield, option_type, expiry)

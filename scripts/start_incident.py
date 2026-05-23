@@ -13,22 +13,51 @@ Usage:
 import argparse
 import json
 import os
+import re
 import sys
 import urllib.request
 import urllib.error
 import urllib.parse
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import Dict, Optional
 
 # Add backend to path for DuckDB/Prometheus access
 REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO_ROOT / "backend"))
 
 INCIDENT_DIR = REPO_ROOT / "docs" / "INCIDENTS"
+INCIDENTS_DIR = INCIDENT_DIR  # alias for tests/external callers
 TEMPLATE_PATH = INCIDENT_DIR / "_template.md"
 
 PROMETHEUS_URL = os.environ.get("PROMETHEUS_URL", "http://localhost:9090")
 DUCKDB_PATH = os.environ.get("DUCKDB_PATH", str(REPO_ROOT / "data" / "floww.duckdb"))
+
+# Validation sets — keep aligned with alert taxonomy in credit_monitor / staleness_alerts
+VALID_SEVERITIES = {"CRITICAL", "MEDIUM", "LOW"}
+VALID_CATEGORIES = {"infra", "app", "data"}
+
+# In-process idempotency registry: alert_id -> Path
+_created_registry: Dict[str, Path] = {}
+
+
+def _today() -> str:
+    """Return today's date in YYYY-MM-DD (UTC)."""
+    return datetime.now(timezone.utc).strftime("%Y-%m-%d")
+
+
+def _slugify(text: str) -> str:
+    """Convert text to a filesystem-safe slug.
+
+    Rules:
+    - Lowercase
+    - Strip anything that isn't [a-z0-9\\s-]
+    - Collapse runs of whitespace to a single hyphen
+    """
+    s = text.lower()
+    s = re.sub(r"[^a-z0-9\s-]", "", s)
+    s = re.sub(r"\s+", "-", s).strip("-")
+    return s
 
 
 def fetch_prometheus_metric(query: str, default: str = "N/A") -> str:
@@ -128,6 +157,102 @@ def generate_incident(
         content = content.replace(key, value)
 
     return content
+
+
+def create_from_alert(
+    alert_id: str,
+    title: str,
+    severity: str = "CRITICAL",
+    category: str = "app",
+    alert_name: str = "",
+    detection_details: str = "",
+) -> Path:
+    """Create an incident skeleton from an alert, with idempotency by alert_id.
+
+    Calling twice with the same alert_id returns the same Path without
+    creating a second file. The in-process registry can be cleared via
+    ``_created_registry.clear()`` (used by tests).
+
+    Raises:
+        ValueError: if severity or category is not in the allowed taxonomy.
+    """
+    if severity not in VALID_SEVERITIES:
+        raise ValueError(
+            f"Invalid severity {severity!r}. Must be one of {sorted(VALID_SEVERITIES)}"
+        )
+    if category not in VALID_CATEGORIES:
+        raise ValueError(
+            f"Invalid category {category!r}. Must be one of {sorted(VALID_CATEGORIES)}"
+        )
+
+    if alert_id in _created_registry:
+        existing = _created_registry[alert_id]
+        if existing.exists():
+            return existing
+
+    INCIDENTS_DIR.mkdir(parents=True, exist_ok=True)
+    output_path = INCIDENTS_DIR / f"{_today()}_{_slugify(title)}.md"
+
+    template = TEMPLATE_PATH.read_text(encoding="utf-8")
+    now = datetime.now(timezone.utc)
+
+    replacements = {
+        # Tests' minimal template set
+        "{{DATE}}": _today(),
+        "{{TITLE}}": title,
+        "{{SEVERITY}}": severity,
+        "{{ALERT_ID}}": alert_id,
+        "{{CATEGORY}}": category,
+        "{{ALERT_NAME}}": alert_name or "N/A",
+        "{{DETECTION_DETAILS}}": detection_details or f"Alert {alert_id} fired at {now.isoformat()}",
+        "{{TIMESTAMP}}": now.isoformat(),
+        "{{ROOT_CAUSE}}": "TBD",
+        "{{IMMEDIATE_ACTIONS}}": "TBD",
+        "{{PERMANENT_FIX}}": "TBD",
+        "{{ACTION_ITEM_1}}": "Root cause analysis",
+        "{{KANBAN_ID_1}}": "TBD",
+        "{{LESSONS_LEARNED}}": "TBD",
+        # Backwards-compat with the richer real template
+        "{{DURATION}}": "TBD",
+        "{{DETECTION_SOURCE}}": "automated alert",
+        "{{ALERT_TIME}}": now.isoformat(),
+        "{{INITIAL_SYMPTOM}}": f"CRITICAL alert: {alert_name}" if alert_name else "TBD",
+        "{{AFFECTED_SYSTEMS}}": "TBD",
+        "{{T1}}": now.strftime("%H:%M:%S"),
+        "{{T2}}": "TBD",
+        "{{T3}}": "TBD",
+        "{{T4}}": "TBD",
+        "{{T5}}": "TBD",
+        "{{ROOT_CAUSE_SUMMARY}}": "TBD",
+        "{{FACTOR_1}}": "TBD",
+        "{{FACTOR_2}}": "TBD",
+        "{{FIX_COMMAND}}": "# TBD",
+        "{{VERIFICATION_STEP}}": "TBD",
+        "{{ACTION_1}}": "Root cause analysis",
+        "{{OWNER_1}}": "TBD",
+        "{{KANBAN_URL_1}}": "#",
+        "{{DUE_1}}": "TBD",
+        "{{ACTION_2}}": "Add regression test",
+        "{{OWNER_2}}": "TBD",
+        "{{KANBAN_URL_2}}": "#",
+        "{{DUE_2}}": "TBD",
+        "{{P99_PEAK}}": "TBD",
+        "{{QUEUE_MAX}}": "TBD",
+        "{{CACHE_STALE_MAX}}": "TBD",
+        "{{CREDIT_BURN}}": "TBD",
+        "{{429_COUNT}}": "TBD",
+        "{{LESSON_1}}": "TBD",
+        "{{LESSON_2}}": "TBD",
+        "{{GENERATION_TIME}}": now.isoformat(),
+    }
+
+    content = template
+    for key, value in replacements.items():
+        content = content.replace(key, str(value))
+
+    output_path.write_text(content, encoding="utf-8")
+    _created_registry[alert_id] = output_path
+    return output_path
 
 
 def main():
