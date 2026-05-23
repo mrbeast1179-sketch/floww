@@ -26,8 +26,10 @@ def db_path():
     """Create a temporary database for testing."""
     fd, path = tempfile.mkstemp(suffix=".duckdb")
     os.close(fd)
+    os.unlink(path)  # Remove the empty file so DuckDB can create a fresh DB
     yield path
-    os.unlink(path)
+    if os.path.exists(path):
+        os.unlink(path)
 
 
 @pytest.fixture
