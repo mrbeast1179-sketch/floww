@@ -1,6 +1,7 @@
 // infra/azure/main.bicep
 // Azure production deployment for Floww / Confluence Decoder
 // Uses: App Service (B1) + Container Registry + Key Vault + Cosmos DB + Monitor
+// Provider: retail data (Polygon, Databento) — no broker-specific resources
 //
 // Prerequisites:
 //   az login
@@ -52,13 +53,10 @@ param wsApiToken string
 param dashSessionToken string
 
 @secure()
-param schwabClientId string = ''
-
-@secure()
-param schwabClientSecret string = ''
-
-@secure()
 param databentoApiKey string = ''
+
+@secure()
+param polygonApiKey string = ''
 
 param alertEmail string = 'nav@example.com'
 
@@ -207,87 +205,6 @@ resource appServicePlan 'Microsoft.Web/serverfarms@2023-01-01' = {
   properties: {
     reserved: true  // Linux
     perSiteScaling: false
-  }
-}
-
-// ── Auto-scaling Rules ────────────────────────────────────────────────────────
-
-resource autoScaleSettings 'Microsoft.Insights/autoscalesettings@2022-10-01' = {
-  name: '${projectName}-autoscale'
-  location: location
-  tags: tags
-  properties: {
-    targetResourceUri: appServicePlan.id
-    enabled: true
-    profiles: [
-      {
-        name: 'default-profile'
-        capacity: {
-          minimum: '1'
-          maximum: '2'
-          default: '1'
-        }
-        rules: [
-          {
-            // Scale out: CPU > 70% for 5 min
-            metricTrigger: {
-              metricName: 'CpuPercentage'
-              metricResourceUri: appServicePlan.id
-              timeGrain: 'PT1M'
-              statistic: 'Average'
-              timeWindow: 'PT5M'
-              timeAggregation: 'Average'
-              operator: 'GreaterThan'
-              threshold: 70
-            }
-            scaleAction: {
-              direction: 'Increase'
-              type: 'ChangeCount'
-              value: '1'
-              cooldown: 'PT5M'
-            }
-          }
-          {
-            // Scale in: CPU < 30% for 10 min
-            metricTrigger: {
-              metricName: 'CpuPercentage'
-              metricResourceUri: appServicePlan.id
-              timeGrain: 'PT1M'
-              statistic: 'Average'
-              timeWindow: 'PT10M'
-              timeAggregation: 'Average'
-              operator: 'LessThan'
-              threshold: 30
-            }
-            scaleAction: {
-              direction: 'Decrease'
-              type: 'ChangeCount'
-              value: '1'
-              cooldown: 'PT10M'
-            }
-          }
-          {
-            // Scale out: Memory > 80% for 5 min
-            metricTrigger: {
-              metricName: 'MemoryPercentage'
-              metricResourceUri: appServicePlan.id
-              timeGrain: 'PT1M'
-              statistic: 'Average'
-              timeWindow: 'PT5M'
-              timeAggregation: 'Average'
-              operator: 'GreaterThan'
-              threshold: 80
-            }
-            scaleAction: {
-              direction: 'Increase'
-              type: 'ChangeCount'
-              value: '1'
-              cooldown: 'PT5M'
-            }
-          }
-        ]
-      }
-    ]
   }
 }
 
@@ -457,35 +374,23 @@ resource secretDashToken 'Microsoft.KeyVault/vaults/secrets@2023-07-01' = {
   }
 }
 
-resource secretSchwabClientId 'Microsoft.KeyVault/vaults/secrets@2023-07-01' = {
-  parent: keyVault
-  name: 'schwab-client-id'
-  properties: {
-    value: empty(schwabClientId) ? 'placeholder-replace-via-cli' : schwabClientId
-    contentType: 'text/plain'
-    attributes: {
-      enabled: true
-    }
-  }
-}
-
-resource secretSchwabClientSecret 'Microsoft.KeyVault/vaults/secrets@2023-07-01' = {
-  parent: keyVault
-  name: 'schwab-client-secret'
-  properties: {
-    value: empty(schwabClientSecret) ? 'placeholder-replace-via-cli' : schwabClientSecret
-    contentType: 'text/plain'
-    attributes: {
-      enabled: true
-    }
-  }
-}
-
 resource secretDatabentoKey 'Microsoft.KeyVault/vaults/secrets@2023-07-01' = {
   parent: keyVault
   name: 'databento-api-key'
   properties: {
     value: empty(databentoApiKey) ? 'placeholder-replace-via-cli' : databentoApiKey
+    contentType: 'text/plain'
+    attributes: {
+      enabled: true
+    }
+  }
+}
+
+resource secretPolygonKey 'Microsoft.KeyVault/vaults/secrets@2023-07-01' = {
+  parent: keyVault
+  name: 'polygon-api-key'
+  properties: {
+    value: empty(polygonApiKey) ? 'placeholder-replace-via-cli' : polygonApiKey
     contentType: 'text/plain'
     attributes: {
       enabled: true
@@ -566,16 +471,12 @@ resource appService 'Microsoft.Web/sites@2023-01-01' = {
           value: '@Microsoft.KeyVault(SecretUri=${secretDashToken.properties.secretUri})'
         }
         {
-          name: 'SCHWAB_CLIENT_ID'
-          value: '@Microsoft.KeyVault(SecretUri=${secretSchwabClientId.properties.secretUri})'
-        }
-        {
-          name: 'SCHWAB_CLIENT_SECRET'
-          value: '@Microsoft.KeyVault(SecretUri=${secretSchwabClientSecret.properties.secretUri})'
-        }
-        {
           name: 'DATABENTO_API_KEY'
           value: '@Microsoft.KeyVault(SecretUri=${secretDatabentoKey.properties.secretUri})'
+        }
+        {
+          name: 'POLYGON_API_KEY'
+          value: '@Microsoft.KeyVault(SecretUri=${secretPolygonKey.properties.secretUri})'
         }
         {
           name: 'WEBSITES_PORT'

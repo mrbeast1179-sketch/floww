@@ -54,17 +54,13 @@ param wsApiToken string
 @secure()
 param dashSessionToken string
 
-@description('Schwab client ID — pass at deploy time')
-@secure()
-param schwabClientId string = ''
-
-@description('Schwab client secret — pass at deploy time')
-@secure()
-param schwabClientSecret string = ''
-
 @description('Databento API key — pass at deploy time')
 @secure()
 param databentoApiKey string = ''
+
+@description('Polygon.io API key — pass at deploy time')
+@secure()
+param polygonApiKey string = ''
 
 @description('Alert email for budget notifications')
 param alertEmail string = 'nav@example.com'
