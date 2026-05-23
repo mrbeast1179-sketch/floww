@@ -254,9 +254,6 @@ meta_detector = MetaAnomalyDetector()
 # ---------------------------------------------------------------------------
 # Data Provider Monitor — rolling success rates + alerting
 # ---------------------------------------------------------------------------
-from typing import Any, Callable, Dict, List, Optional
-
-log = logging.getLogger(__name__)
 
 
 @dataclass

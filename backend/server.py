@@ -2738,8 +2738,8 @@ async def shutdown_duckdb():
 from services.ingestion_pipeline import IngestionPipeline
 from services.mock_schwab_feed import MockSchwabFeed
 
-_ingestion_pipeline: IngestionPipeline | None = None
-_mock_feed: MockSchwabFeed | None = None
+_ingestion_pipeline: Optional[IngestionPipeline] = None
+_mock_feed: Optional[MockSchwabFeed] = None
 
 @app.on_event("startup")
 async def startup_ingestion():
@@ -2783,7 +2783,7 @@ async def shutdown_ingestion():
 from services.paper_trading import PaperTradingEngine
 from routes.paper_trading import set_paper_engine as _set_paper_engine
 
-_paper_engine: PaperTradingEngine | None = None
+_paper_engine: Optional[PaperTradingEngine] = None
 
 @app.on_event("startup")
 async def startup_paper_trading():

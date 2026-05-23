@@ -47,12 +47,14 @@ def sample_metrics():
         "vpin_qqq": 0.30,
         "p99_latency": 0.05,
         "ws_connections": 3.0,
+        "cache_hit_ratio": 0.95,
+        "429_count": 0.0,
     }
 
 
 def test_feature_extraction_shape(detector, sample_metrics):
     features = detector._extract_features(sample_metrics)
-    assert len(features) == 9  # 7 metrics + 2 cyclical time features
+    assert len(features) == 11  # 9 metrics + 2 cyclical time features
 
 
 def test_feature_extraction_values(detector, sample_metrics):
