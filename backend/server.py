@@ -2678,6 +2678,9 @@ app.include_router(ml_api_router, tags=["ml_api"])
 from routes.vpin import router as vpin_router
 app.include_router(vpin_router, tags=["vpin"])
 
+from routes.retail_flow import router as retail_flow_router
+app.include_router(retail_flow_router, tags=["retail-flow"])
+
 from routes.trinity import router as trinity_router
 app.include_router(trinity_router, tags=["trinity"])
 
