@@ -26,6 +26,7 @@ import time
 from datetime import datetime, timezone, timedelta
 from collections import defaultdict
 from pathlib import Path
+from typing import Optional
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 KANBAN_DIR = REPO_ROOT / "kanban"
@@ -37,7 +38,7 @@ DRIFT_LOG = KANBAN_DIR / "drift_log.json"
 
 # ── Feature extraction ──────────────────────────────────────────────
 
-def parse_card(path: Path) -> dict | None:
+def parse_card(path: Path) -> Optional[dict]:
     """Parse a card .md file, returning frontmatter dict."""
     import yaml
     try:
@@ -58,7 +59,7 @@ def parse_card(path: Path) -> dict | None:
     return fm
 
 
-def extract_features(card: dict) -> dict | None:
+def extract_features(card: dict) -> Optional[dict]:
     """Extract numeric features from a completed card."""
     status = card.get("status", "")
     if status != "done":
@@ -399,7 +400,7 @@ def save_model(model: EnsembleRegressor):
     print(f"[throughput] Model saved to {MODEL_FILE}")
 
 
-def load_model() -> EnsembleRegressor | None:
+def load_model() -> Optional[EnsembleRegressor]:
     if not MODEL_FILE.exists():
         return None
     with open(MODEL_FILE, "rb") as f:

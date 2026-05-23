@@ -64,7 +64,7 @@ class KellySizer:
         current_price: float,
         account_equity: float,
         daily_pnl_pct: float = 0.0,
-        trade_history: list[TradeRecord] | None = None,
+        trade_history: Optional[list[TradeRecord]] = None,
     ) -> int:
         """
         Compute optimal position size in shares.
