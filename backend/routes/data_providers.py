@@ -91,3 +91,20 @@ async def get_data_status():
         }
     except Exception as e:
         return {"error": str(e)}
+
+
+@router.get("/health")
+async def get_data_health():
+    """Get detailed health metrics for all data providers including success rates and alerts."""
+    try:
+        from services.meta_observability import provider_monitor
+        from services.observability import yfinance_calls_total, provider_calls_total
+
+        health = provider_monitor.get_health()
+
+        # Update Prometheus gauges
+        provider_monitor.update_prometheus()
+
+        return health
+    except Exception as e:
+        return {"error": str(e)}

@@ -204,4 +204,49 @@ schwab_api_calls_total = Counter(
 )
 
 
+# ---------------------------------------------------------------------------
+# Data Provider Health metrics
+# ---------------------------------------------------------------------------
+provider_calls_total = Counter(
+    "floww_provider_calls_total",
+    "Total data provider API calls",
+    labelnames=["provider", "status"],  # status: "success" | "failure" | "rate_limited"
+    registry=REGISTRY,
+)
+
+provider_success_rate = Gauge(
+    "floww_provider_success_rate",
+    "Rolling 5-minute success rate per provider (0.0-1.0)",
+    labelnames=["provider"],
+    registry=REGISTRY,
+)
+
+provider_last_success_seconds_ago = Gauge(
+    "floww_provider_last_success_seconds_ago",
+    "Seconds since last successful call per provider",
+    labelnames=["provider"],
+    registry=REGISTRY,
+)
+
+provider_alerts_fired_total = Counter(
+    "floww_provider_alerts_fired_total",
+    "Total alerts fired for data provider health issues",
+    labelnames=["provider", "alert_type"],  # alert_type: "low_success_rate" | "provider_down" | "repeated_failures"
+    registry=REGISTRY,
+)
+
+yfinance_calls_total = Counter(
+    "floww_yfinance_calls_total",
+    "Total yfinance calls (spot, chains, history)",
+    labelnames=["endpoint", "status"],
+    registry=REGISTRY,
+)
+
+yfinance_success_rate = Gauge(
+    "floww_yfinance_success_rate",
+    "Rolling yfinance success rate (0.0-1.0)",
+    registry=REGISTRY,
+)
+
+
 metrics = _MetricsNamespace()
