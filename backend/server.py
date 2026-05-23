@@ -112,11 +112,21 @@ async def rate_limit_middleware(request: Request, call_next):
     
     if len(dq) >= RATE_LIMIT:
         retry_after = int(window - (now - dq[0])) + 1
-        log.warning(f"Rate limit exceeded for {client_ip} ({len(dq)}/{RATE_LIMIT})")
+        log.warning(f"Rate limit exceeded for {client_ip} ({len(dq)}/{RATE_LIMIT)}")
+        # Include CORS headers so frontend can read the 429 (not blocked by CORS)
         return JSONResponse(
             status_code=429,
-            content={"error": "Rate limit exceeded", "retry_after": retry_after},
-            headers={"Retry-After": str(retry_after)},
+            content={
+                "error": "Rate limit exceeded",
+                "retry_after": retry_after,
+                "message": f"Too many requests. Retry in {retry_after}s.",
+            },
+            headers={
+                "Retry-After": str(retry_after),
+                "Access-Control-Allow-Origin": "*",
+                "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+                "Access-Control-Allow-Headers": "Content-Type, Authorization, X-API-Key",
+            },
         )
     
     dq.append(now)
