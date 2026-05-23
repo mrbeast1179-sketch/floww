@@ -1,0 +1,73 @@
+edges:
+- from: O-PHASE1-SCHWAB
+  to: O-PHASE2-ANOMALY
+  type: blocks
+  reason: Agent 2 needs market data feed to compute Retail Flow Score
+  unblock_condition: ingestion_pipeline.py serves live data (not mock)
+- from: O-PHASE2-ANOMALY
+  to: O-PHASE3-DASH
+  type: blocks
+  reason: Agent 3 needs Greek calculations (Vanna/Charm) for heatmap charts
+  unblock_condition: bs_calculator.py + gex_aggregator.py serve real Greeks
+- from: O-PHASE1-SCHWAB
+  to: O-PHASE3-DASH
+  type: enables
+  reason: Dash UI needs live data routes wired to ingestion pipeline
+  unblock_condition: API routes return real data with <200ms latency
+- from: O-MATH-VALID
+  to: O-PHASE2-ANOMALY
+  type: blocks
+  reason: Anomaly detector math must be validated before production use
+  unblock_condition: All math validation tests pass
+- from: O-MATH-VALID
+  to: O-SECURITY
+  type: blocks
+  reason: Security audit needs math-correct inputs
+  unblock_condition: Math validation suite passes
+- from: O-RISK-GATE
+  to: O-PHASE1-SCHWAB
+  type: blocks
+  reason: Live trading needs risk gate module active
+  unblock_condition: gate.py rejects trades exceeding position limits
+- from: O-PHASE1-SCHWAB
+  to: O-OBSERVABILITY
+  type: feeds
+  reason: Observability tracks ingestion pipeline health
+- from: O-PHASE2-ANOMALY
+  to: O-OBSERVABILITY
+  type: feeds
+  reason: Observability tracks anomaly detector performance
+agents:
+  agent_1:
+    name: "Agent 1 \u2014 Ingestion"
+    domain: market_data
+    file_paths:
+    - backend/services/ingestion_pipeline.py
+    - backend/services/mock_schwab_feed.py
+    - backend/routes/market_data.py
+    commit_prefix: feat(ingestion)
+  agent_2:
+    name: "Agent 2 \u2014 ML/Math"
+    domain: anomaly_ml
+    file_paths:
+    - backend/services/anomaly_detector.py
+    - backend/services/gex_aggregator.py
+    - backend/services/bs_calculator.py
+    - backend/services/cpr_calculator.py
+    commit_prefix: feat(ml)
+  agent_3:
+    name: "Agent 3 \u2014 Dashboard"
+    domain: ui
+    file_paths:
+    - backend/services/dash_ui.py
+    - frontend/src/
+    - frontend/serve.js
+    commit_prefix: feat(ui)
+critical_path:
+- O-MATH-VALID
+- O-PHASE1-SCHWAB
+- O-PHASE2-ANOMALY
+- O-PHASE3-DASH
+- O-SECURITY
+last_scan: '2026-05-23T03:15:01.116633+00:00'
+status: active
