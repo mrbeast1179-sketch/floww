@@ -112,7 +112,7 @@ async def rate_limit_middleware(request: Request, call_next):
     
     if len(dq) >= RATE_LIMIT:
         retry_after = int(window - (now - dq[0])) + 1
-        log.warning(f"Rate limit exceeded for {client_ip} ({len(dq)}/{RATE_LIMIT)}")
+        log.warning(f"Rate limit exceeded for {client_ip} ({len(dq)}/{RATE_LIMIT})")
         # Include CORS headers so frontend can read the 429 (not blocked by CORS)
         return JSONResponse(
             status_code=429,
@@ -153,6 +153,11 @@ async def http_exception_handler(request: Request, exc: StarletteHTTPException):
     return JSONResponse(
         status_code=exc.status_code,
         content={"error": str(exc.detail), "status_code": exc.status_code, "path": request.url.path},
+        headers={
+            "Access-Control-Allow-Origin": "*",
+            "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+            "Access-Control-Allow-Headers": "Content-Type, Authorization, X-API-Key",
+        },
     )
 
 @app.exception_handler(RequestValidationError)
@@ -161,6 +166,11 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
     return JSONResponse(
         status_code=422,
         content={"error": "Validation failed", "details": exc.errors(), "path": request.url.path},
+        headers={
+            "Access-Control-Allow-Origin": "*",
+            "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+            "Access-Control-Allow-Headers": "Content-Type, Authorization, X-API-Key",
+        },
     )
 
 @app.exception_handler(Exception)
@@ -179,6 +189,11 @@ async def global_exception_handler(request: Request, exc: Exception):
     return JSONResponse(
         status_code=500,
         content={"error": "Internal server error", "type": type(exc).__name__, "path": request.url.path},
+        headers={
+            "Access-Control-Allow-Origin": "*",
+            "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+            "Access-Control-Allow-Headers": "Content-Type, Authorization, X-API-Key",
+        },
     )
 
 

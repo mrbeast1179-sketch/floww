@@ -82,7 +82,7 @@ class PreTradeRiskGate:
         daily_loss_pct: float = DEFAULT_DAILY_LOSS_PCT,
         data_staleness_sec: float = DEFAULT_DATA_STALENESS_SEC,
         idempotency_window_sec: float = DEFAULT_IDEMPOTENCY_WINDOW_SEC,
-        kill_switch_path: str | None = None,
+        kill_switch_path: Optional[str] = None,
     ):
         self.kyle_lambda_threshold = kyle_lambda_threshold
         self.min_conviction = min_conviction

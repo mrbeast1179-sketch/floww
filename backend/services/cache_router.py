@@ -38,7 +38,6 @@ class CacheRouter:
             age = time.time() - cached.get("_ts", 0)
             if age <= max_age_seconds:
                 return cached["data"]
-            # Stale but usable — return with warning
             logger.info(f"Cache stale for {ticker} ({age:.0f}s), returning stale data")
             return cached["data"]
         
@@ -52,12 +51,24 @@ class CacheRouter:
         }
         
         return data
-    
-    def degraded_response(self, reason: str, detail: str) -> Dict[str, Any]:
-        """Return a structured degradation payload."""
-        return {
-            "status": "degraded",
-            "reason": reason,
-            "detail": detail,
-            "asof": datetime.now(timezone.utc).isoformat(),
-        }
+
+
+# ── Standalone functions (imported directly by routes) ───────────────────────
+
+def degraded_response(reason: str, detail: str) -> Dict[str, Any]:
+    """Return a structured degradation payload."""
+    return {
+        "status": "degraded",
+        "reason": reason,
+        "detail": detail,
+        "asof": datetime.now(timezone.utc).isoformat(),
+    }
+
+
+async def _live_fetcher(ticker: str, expiries: int) -> Dict[str, Any]:
+    """Live fetch fallback — spot + options chain."""
+    try:
+        from server import fetch_spot_and_chains_merged
+        return await fetch_spot_and_chains_merged(ticker, expiries)
+    except Exception:
+        return {"spot": None, "contracts": []}
