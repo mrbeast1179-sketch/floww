@@ -105,6 +105,8 @@ async def update_ensemble(
     Returns P(toxic flow) for 1, 5, 15, and 60-minute horizons,
     plus component scores from CNN-AE, statistical, and forecast detectors.
     """
+    import logging as _log
+    _log.getLogger(__name__).info(f"update_ensemble CALLED: ticker={ticker}")
     t = ticker.upper()
     from services.ml_ensemble import ToxicityEnsemble
     if t not in _ensembles:

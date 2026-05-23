@@ -391,7 +391,7 @@ export default function App() {
     let cancelled = false;
     const fetchEnsemble = async () => {
       try {
-        const r = await axios.get(`${API}/anomaly/ensemble/state?ticker=${ticker}`);
+        const r = await axios.get(`${API}/ensemble/state?ticker=${ticker}`);
         if (!cancelled) setEnsembleData(r.data);
       } catch (e) { /* noop */ }
     };

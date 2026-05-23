@@ -1,0 +1,47 @@
+"""
+backend/services/risk/__init__.py — Risk management package.
+
+Exports:
+  PreTradeRiskGate — New API with check(**kwargs) -> RiskDecision
+  RiskDecision — Result with action, reasons, meta
+  RiskGate — Original API with before_trade(intent, account) -> RiskResult
+  KillSwitch — Daily loss kill switch
+  KellySizer — Kelly criterion position sizer with daily lock
+  DEFAULT_* — Default threshold constants
+"""
+
+from backend.services.risk.gate import (
+    PreTradeRiskGate,
+    RiskDecision,
+    RiskGate,
+    RiskResult,
+    DEFAULT_DAILY_LOSS_PCT,
+    DEFAULT_DATA_STALENESS_SEC,
+    DEFAULT_IDEMPOTENCY_WINDOW_SEC,
+    DEFAULT_KYLE_LAMBDA_THRESHOLD,
+    DEFAULT_MAX_OPEN_POSITIONS,
+    DEFAULT_MAX_POSITION_PCT,
+    DEFAULT_MIN_ACCOUNT_EQUITY,
+    DEFAULT_MIN_CONVICTION,
+    DEFAULT_MIN_SENTIMENT_Z,
+)
+from backend.services.risk.killswitch import KillSwitch
+from backend.services.risk.sizer import KellySizer
+
+__all__ = [
+    "PreTradeRiskGate",
+    "RiskDecision",
+    "RiskGate",
+    "RiskResult",
+    "KillSwitch",
+    "KellySizer",
+    "DEFAULT_DAILY_LOSS_PCT",
+    "DEFAULT_DATA_STALENESS_SEC",
+    "DEFAULT_IDEMPOTENCY_WINDOW_SEC",
+    "DEFAULT_KYLE_LAMBDA_THRESHOLD",
+    "DEFAULT_MAX_OPEN_POSITIONS",
+    "DEFAULT_MAX_POSITION_PCT",
+    "DEFAULT_MIN_ACCOUNT_EQUITY",
+    "DEFAULT_MIN_CONVICTION",
+    "DEFAULT_MIN_SENTIMENT_Z",
+]

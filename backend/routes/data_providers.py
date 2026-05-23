@@ -2,10 +2,28 @@
 
 import logging
 from fastapi import APIRouter, Query
+from typing import Optional
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/data", tags=["data"])
+
+
+@router.get("/{ticker}")
+async def get_ticker_data(
+    ticker: str,
+    expiries: int = Query(4, ge=1, le=12),
+    taps: bool = True,
+    mode: str = Query("day", pattern="^(day|swing|scalp)$"),
+    dte: Optional[int] = Query(None, ge=0, le=30),
+    scalp: bool = Query(False),
+):
+    """Get full heatmap data for a ticker (compatible with frontend data fetch)."""
+    from server import build_heatmap
+    t = ticker.strip().upper()
+    if t == "SPX":
+        t = "^SPX"
+    return await build_heatmap(t, expiries, taps, mode, dte, scalp)
 
 
 @router.get("/quote/{ticker}")
