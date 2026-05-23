@@ -7,7 +7,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent.parent))
 
-from backend.services.risk.gate import RiskGate, RiskConfig, TradeIntent, AccountState, RiskResult
+from services.risk.gate import RiskGate, RiskConfig, TradeIntent, AccountState, RiskResult
 
 
 def make_intent(ticker="SPY", side="BUY", qty=2, price=400.0, conviction=0.8, kyle=0.01):
