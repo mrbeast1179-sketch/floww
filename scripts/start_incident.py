@@ -1,233 +1,166 @@
 #!/usr/bin/env python3
 """
-start_incident.py — Create a new incident post-mortem from the template.
+scripts/start_incident.py
+
+Create an incident post-mortem skeleton from a CRITICAL alert.
+Pre-fills detection + timeline from logs/metrics.
 
 Usage:
-    python start_incident.py --alert-id ALERT-123 --title "Database failover" --severity CRITICAL --category infra
-
-Can also be imported:
-    from start_incident import create_from_alert
-    path = create_from_alert("ALERT-123")
+    python scripts/start_incident.py --title "SPY chain stall" --severity CRITICAL
+    python scripts/start_incident.py --title "API burn" --severity CRITICAL --alert-name credit_burn_95
 """
 
 import argparse
+import json
 import os
-import re
 import sys
+import urllib.request
+import urllib.error
+import urllib.parse
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Optional
 
-# ---------------------------------------------------------------------------
-# Configuration
-# ---------------------------------------------------------------------------
-
+# Add backend to path for DuckDB/Prometheus access
 REPO_ROOT = Path(__file__).resolve().parent.parent
-INCIDENTS_DIR = REPO_ROOT / "docs" / "INCIDENTS"
-TEMPLATE_PATH = INCIDENTS_DIR / "_template.md"
+sys.path.insert(0, str(REPO_ROOT / "backend"))
 
-VALID_SEVERITIES = {"CRITICAL", "MEDIUM", "LOW"}
-VALID_CATEGORIES = {"infra", "app", "security", "data", "network", "other"}
+INCIDENT_DIR = REPO_ROOT / "docs" / "INCIDENTS"
+TEMPLATE_PATH = INCIDENT_DIR / "_template.md"
 
-# Simple in-process registry to track created incidents (for idempotency).
-# In production this would be a database or a lock file.
-_created_registry: set[str] = set()
+PROMETHEUS_URL = os.environ.get("PROMETHEUS_URL", "http://localhost:9090")
+DUCKDB_PATH = os.environ.get("DUCKDB_PATH", str(REPO_ROOT / "data" / "floww.duckdb"))
 
 
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
-
-def _slugify(text: str) -> str:
-    """Convert *text* to a URL-safe slug."""
-    text = text.lower().strip()
-    text = re.sub(r"[^a-z0-9\s-]", "", text)
-    text = re.sub(r"[\s_]+", "-", text)
-    text = re.sub(r"-+", "-", text)
-    return text.strip("-")
-
-
-def _today() -> str:
-    return datetime.now(timezone.utc).strftime("%Y-%m-%d")
+def fetch_prometheus_metric(query: str, default: str = "N/A") -> str:
+    """Query Prometheus for a metric value."""
+    try:
+        url = f"{PROMETHEUS_URL}/api/v1/query?query={urllib.parse.quote(query)}"
+        req = urllib.request.Request(url, headers={"Accept": "application/json"})
+        with urllib.request.urlopen(req, timeout=5) as resp:
+            data = json.loads(resp.read())
+            results = data.get("data", {}).get("result", [])
+            if results:
+                return results[0].get("value", [None, default])[1]
+    except Exception:
+        pass
+    return default
 
 
-def _now_iso() -> str:
-    return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+def fetch_duckdb_metric(query: str, db_path: str = DUCKDB_PATH, default: str = "N/A") -> str:
+    """Query DuckDB for a metric value."""
+    try:
+        import duckdb
+        conn = duckdb.connect(db_path, read_only=True)
+        result = conn.execute(query).fetchone()
+        conn.close()
+        if result and result[0] is not None:
+            return str(result[0])
+    except Exception:
+        pass
+    return default
 
 
-def _load_template() -> str:
-    if not TEMPLATE_PATH.exists():
-        raise FileNotFoundError(
-            f"Template not found at {TEMPLATE_PATH}. "
-            "Ensure docs/INCIDENTS/_template.md exists."
-        )
-    return TEMPLATE_PATH.read_text(encoding="utf-8")
-
-
-def _render_template(
-    template: str,
-    *,
-    date: str,
+def generate_incident(
     title: str,
-    severity: str,
-    alert_id: str,
-    category: str,
-    alert_name: str,
+    severity: str = "CRITICAL",
+    alert_name: str = "",
+    detection_source: str = "automated alert",
 ) -> str:
-    """Replace {{PLACEHOLDER}} tokens in the template."""
-    detection_details = (
-        f"Agent 10 detected an anomaly via alert **{alert_id}** "
-        f"(category: {category}). The alert name was '{alert_name}'."
+    """Generate a filled-in incident post-mortem from the template."""
+    template = TEMPLATE_PATH.read_text()
+    now = datetime.now(timezone.utc)
+
+    # Gather metrics
+    p99 = fetch_prometheus_metric(
+        'floww_api_request_duration_seconds{quantile="0.99"}',
+        default="N/A"
     )
+    queue_depth = fetch_prometheus_metric(
+        "floww_duckdb_queue_depth",
+        default="N/A"
+    )
+    max_delay = fetch_duckdb_metric(
+        "SELECT MAX(delay_seconds) FROM ticks",
+        default="N/A"
+    )
+
+    # Build replacements
     replacements = {
-        "{{DATE}}": date,
         "{{TITLE}}": title,
+        "{{DATE}}": now.strftime("%Y-%m-%d"),
         "{{SEVERITY}}": severity,
-        "{{SERVICES_AFFECTED}}": "_To be filled_",
-        "{{ALERT_ID}}": alert_id,
-        "{{CATEGORY}}": category,
-        "{{ALERT_NAME}}": alert_name,
-        "{{DETECTION_DETAILS}}": detection_details,
-        "{{TIMESTAMP}}": _now_iso(),
-        "{{ROOT_CAUSE}}": "_To be determined_",
-        "{{IMMEDIATE_ACTIONS}}": "_To be filled_",
-        "{{PERMANENT_FIX}}": "_To be filled_",
-        "{{ACTION_ITEM_1}}": "_TBD_",
-        "{{KANBAN_ID_1}}": "KANBAN-XXX",
-        "{{LESSONS_LEARNED}}": "_To be filled_",
+        "{{DURATION}}": "TBD",
+        "{{DETECTION_SOURCE}}": detection_source,
+        "{{ALERT_NAME}}": alert_name or "N/A",
+        "{{ALERT_TIME}}": now.isoformat(),
+        "{{INITIAL_SYMPTOM}}": f"CRITICAL alert: {alert_name}" if alert_name else "TBD",
+        "{{AFFECTED_SYSTEMS}}": "TBD",
+        "{{T1}}": now.strftime("%H:%M:%S"),
+        "{{T2}}": "TBD",
+        "{{T3}}": "TBD",
+        "{{T4}}": "TBD",
+        "{{T5}}": "TBD",
+        "{{ROOT_CAUSE_SUMMARY}}": "TBD",
+        "{{FACTOR_1}}": "TBD",
+        "{{FACTOR_2}}": "TBD",
+        "{{FIX_COMMAND}}": "# TBD",
+        "{{VERIFICATION_STEP}}": "TBD",
+        "{{ACTION_1}}": "Root cause analysis",
+        "{{OWNER_1}}": "TBD",
+        "{{KANBAN_URL_1}}": "#",
+        "{{DUE_1}}": "TBD",
+        "{{ACTION_2}}": "Add regression test",
+        "{{OWNER_2}}": "TBD",
+        "{{KANBAN_URL_2}}": "#",
+        "{{DUE_2}}": "TBD",
+        "{{P99_PEAK}}": p99,
+        "{{QUEUE_MAX}}": queue_depth,
+        "{{CACHE_STALE_MAX}}": f"{float(max_delay)/60:.1f}" if max_delay != "N/A" else "N/A",
+        "{{CREDIT_BURN}}": "TBD",
+        "{{429_COUNT}}": "TBD",
+        "{{LESSON_1}}": "TBD",
+        "{{LESSON_2}}": "TBD",
+        "{{GENERATION_TIME}}": now.isoformat(),
     }
-    rendered = template
-    for placeholder, value in replacements.items():
-        rendered = rendered.replace(placeholder, value)
-    return rendered
+
+    content = template
+    for key, value in replacements.items():
+        content = content.replace(key, value)
+
+    return content
 
 
-# ---------------------------------------------------------------------------
-# Public API
-# ---------------------------------------------------------------------------
-
-def create_from_alert(
-    alert_id: str,
-    *,
-    title: Optional[str] = None,
-    severity: str = "MEDIUM",
-    category: str = "other",
-    alert_name: Optional[str] = None,
-) -> Path:
-    """
-    Create a new incident post-mortem file from the template.
-
-    Parameters
-    ----------
-    alert_id:
-        Unique alert identifier (e.g. "ALERT-123").
-    title:
-        Human-readable incident title.  Defaults to *alert_id*.
-    severity:
-        One of CRITICAL, MEDIUM, LOW.
-    category:
-        One of infra, app, security, data, network, other.
-    alert_name:
-        Descriptive alert name.  Defaults to *title*.
-
-    Returns
-    -------
-    Path
-        The path to the newly-created (or already-existing) post-mortem file.
-
-    Raises
-    ------
-    ValueError
-        If *severity* or *category* is invalid.
-    FileNotFoundError
-        If the template file is missing.
-    """
-    # --- validation ---------------------------------------------------------
-    severity = severity.upper()
-    if severity not in VALID_SEVERITIES:
-        raise ValueError(
-            f"Invalid severity '{severity}'. Must be one of {VALID_SEVERITIES}"
-        )
-    category = category.lower()
-    if category not in VALID_CATEGORIES:
-        raise ValueError(
-            f"Invalid category '{category}'. Must be one of {VALID_CATEGORIES}"
-        )
-
-    # --- idempotency --------------------------------------------------------
-    if alert_id in _created_registry:
-        # Find the existing file so we can return its path.
-        date_str = _today()
-        slug = _slugify(title or alert_id)
-        existing = INCIDENTS_DIR / f"{date_str}_{slug}.md"
-        if existing.exists():
-            return existing
-    _created_registry.add(alert_id)
-
-    # --- prepare ------------------------------------------------------------
-    title = title or alert_id
-    alert_name = alert_name or title
-    date_str = _today()
-    slug = _slugify(title)
-    filename = f"{date_str}_{slug}.md"
-
-    INCIDENTS_DIR.mkdir(parents=True, exist_ok=True)
-
-    template = _load_template()
-    rendered = _render_template(
-        template,
-        date=date_str,
-        title=title,
-        severity=severity,
-        alert_id=alert_id,
-        category=category,
-        alert_name=alert_name,
-    )
-
-    output_path = INCIDENTS_DIR / filename
-    output_path.write_text(rendered, encoding="utf-8")
-    return output_path
-
-
-# ---------------------------------------------------------------------------
-# CLI entry-point
-# ---------------------------------------------------------------------------
-
-def main() -> None:
-    parser = argparse.ArgumentParser(
-        description="Create a new incident post-mortem from the template."
-    )
-    parser.add_argument(
-        "--alert-id",
-        required=True,
-        help="Unique alert identifier (e.g. ALERT-123).",
-    )
-    parser.add_argument(
-        "--title",
-        required=True,
-        help='Human-readable incident title (e.g. "Database failover").',
-    )
-    parser.add_argument(
-        "--severity",
-        default="MEDIUM",
-        choices=sorted(VALID_SEVERITIES),
-        help="Incident severity (default: MEDIUM).",
-    )
-    parser.add_argument(
-        "--category",
-        default="other",
-        choices=sorted(VALID_CATEGORIES),
-        help="Alert category (default: other).",
-    )
+def main():
+    parser = argparse.ArgumentParser(description="Create incident post-mortem skeleton")
+    parser.add_argument("--title", required=True, help="Incident title")
+    parser.add_argument("--severity", default="CRITICAL", help="Severity level")
+    parser.add_argument("--alert-name", default="", help="Alert that triggered this incident")
+    parser.add_argument("--detection-source", default="automated alert", help="How it was detected")
+    parser.add_argument("--output", default=None, help="Output path (default: docs/INCIDENTS/YYYY-MM-DD_title.md)")
     args = parser.parse_args()
 
-    path = create_from_alert(
-        alert_id=args.alert_id,
+    INCIDENT_DIR.mkdir(parents=True, exist_ok=True)
+
+    if args.output:
+        output_path = Path(args.output)
+    else:
+        date_str = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+        safe_title = args.title.lower().replace(" ", "_").replace("/", "_")[:40]
+        output_path = INCIDENT_DIR / f"{date_str}_{safe_title}.md"
+
+    if output_path.exists():
+        print(f"[WARN] {output_path} already exists. Overwriting.")
+
+    content = generate_incident(
         title=args.title,
         severity=args.severity,
-        category=args.category,
+        alert_name=args.alert_name,
+        detection_source=args.detection_source,
     )
-    print(f"Incident post-mortem created at: {path}")
+
+    output_path.write_text(content)
+    print(f"[INCIDENT] Post-mortem skeleton created: {output_path}")
+    return str(output_path)
 
 
 if __name__ == "__main__":
