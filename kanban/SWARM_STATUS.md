@@ -10,15 +10,13 @@
 | Ready | 0 | 20 |
 | In Progress | 1 | 6 |
 | Review | 0 | 4 |
-| Done | 10 | 20 |
+| Done | 13 | 20 |
 
 ## In Progress
 
-| Card | Assignee | Scope |
-|------|----------|-------|
-| O-RISK-GATE | Agent 8 | Risk gate module (was in_progress on remote) |
+None. All 13 cards done.
 
-## Done (10 cards)
+## Done (13 cards)
 
 | Card | Assignee | Commits | What Shipped |
 |------|----------|---------|--------------|
@@ -34,6 +32,7 @@
 | O-RESEARCH-LOOP | Agent 6 | f5b1349, 81102af, 7014ebd, b9d4449, 4948824, 23ded4e, 33a09c3 | Knowledge graph + LLM-augmented research, autonomous pipeline, 104 papers, 23 repos cloned |
 | O-SECURITY | Agent 7 | 90f3c52, c62581f, d31ee65, aefa9ca | 5 CRITICAL auth fixes, production deployment, Azure Bicep, Key Vault, circuit breaker, VPIN_HFT |
 | O-OBSERVABILITY | Agent 10 | 5a520aa, e552fce | Alert tuning, runbooks, anomaly explainer, SLA dashboard, predictive alerting, chaos forecasting |
+| O-RISK-GATE | Agent 9 (R5) | 6284901 | PreTradeRiskGate with 10 checks, kill switch, Kelly sizer — 61 tests |
 
 ## Test Results (2026-07-09)
 

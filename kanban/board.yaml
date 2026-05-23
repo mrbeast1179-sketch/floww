@@ -42,6 +42,10 @@ cards:
     file: cards/O-MEMORY-SYNC.md
   - id: O-OBSERVABILITY
     file: cards/O-OBSERVABILITY.md
+  - id: O-RISK-GATE
+    file: cards/O-RISK-GATE.md
+  - id: O-KANBAN-ML-R4
+    file: cards/O-KANBAN-ML-R4.md
 
 # Watcher config
 watcher:
