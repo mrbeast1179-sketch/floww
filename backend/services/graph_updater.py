@@ -229,6 +229,133 @@ class GraphUpdater:
 
         return cond_id
 
+    def on_retail_flow_event(self, flow_data: Dict[str, Any]) -> str:
+        """
+        Handle a retail flow event.
+
+        Args:
+            flow_data: Dict with keys: symbol, timestamp, sweep_ratio,
+                       block_ratio, small_lot_ratio, premium_concentration,
+                       call_put_ratio, total_volume, total_premium,
+                       trade_count, avg_trade_size, retail_flow_score,
+                       price_movement (dict), trade_ids (list)
+
+        Returns:
+            flow_id
+        """
+        start = time.monotonic()
+
+        flow_id = flow_data.get("id", f"rfs_{uuid.uuid4().hex[:12]}")
+        now = datetime.now(timezone.utc).isoformat()
+
+        flow = {
+            "id": flow_id,
+            "symbol": flow_data.get("symbol", "UNKNOWN"),
+            "timestamp": flow_data.get("timestamp", now),
+            "sweep_ratio": flow_data.get("sweep_ratio", 0.0),
+            "block_ratio": flow_data.get("block_ratio", 0.0),
+            "small_lot_ratio": flow_data.get("small_lot_ratio", 0.0),
+            "premium_concentration": flow_data.get("premium_concentration", 0.0),
+            "call_put_ratio": flow_data.get("call_put_ratio", 1.0),
+            "total_volume": flow_data.get("total_volume", 0.0),
+            "total_premium": flow_data.get("total_premium", 0.0),
+            "trade_count": flow_data.get("trade_count", 0),
+            "avg_trade_size": flow_data.get("avg_trade_size", 0.0),
+            "retail_flow_score": flow_data.get("retail_flow_score", 0.0),
+        }
+        self.service.upsert_retail_flow_score(flow)
+
+        # Ensure symbol exists and link
+        symbol = flow_data.get("symbol", "UNKNOWN")
+        symbol_id = f"sym_{symbol.lower()}"
+        self.service.upsert_symbol({
+            "id": symbol_id,
+            "name": symbol,
+            "asset_class": flow_data.get("asset_class", "equity"),
+        })
+        self.service.add_retail_flow_symbol_edge(flow_id, symbol_id)
+
+        # Process linked price movement
+        price_movement = flow_data.get("price_movement")
+        if price_movement:
+            mov_id = price_movement.get("id", f"pm_{uuid.uuid4().hex[:12]}")
+            movement = {
+                "id": mov_id,
+                "symbol": symbol,
+                "timestamp": price_movement.get("timestamp", now),
+                "start_price": price_movement.get("start_price", 0.0),
+                "end_price": price_movement.get("end_price", 0.0),
+                "price_change": price_movement.get("price_change", 0.0),
+                "price_change_pct": price_movement.get("price_change_pct", 0.0),
+                "direction": price_movement.get("direction", "FLAT"),
+                "timeframe": price_movement.get("timeframe", "5m"),
+                "volume": price_movement.get("volume", flow_data.get("total_volume", 0.0)),
+            }
+            self.service.upsert_price_movement(movement)
+            self.service.add_retail_flow_movement_edge(
+                flow_id, mov_id,
+                confidence=price_movement.get("confidence", 0.9)
+            )
+
+        # Link to trades
+        trade_ids = flow_data.get("trade_ids", [])
+        for trade_id in trade_ids:
+            self.service.add_trade_retail_flow_edge(
+                trade_id, flow_id,
+                confidence=flow_data.get("trade_confidence", 0.7)
+            )
+
+        elapsed = time.monotonic() - start
+        self._update_count += 1
+        self._last_update_time = elapsed
+
+        logger.info(f"Retail flow {flow_id} updated in {elapsed:.4f}s")
+        self._notify_callbacks("retail_flow", {
+            "flow_id": flow_id, "elapsed_s": elapsed,
+            "retail_flow_score": flow["retail_flow_score"]
+        })
+
+        return flow_id
+
+    def on_price_movement_event(self, movement_data: Dict[str, Any]) -> str:
+        """
+        Handle a price movement event.
+
+        Args:
+            movement_data: Dict with keys: symbol, timestamp, start_price,
+                          end_price, price_change, price_change_pct,
+                          direction, timeframe, volume
+
+        Returns:
+            movement_id
+        """
+        start = time.monotonic()
+
+        mov_id = movement_data.get("id", f"pm_{uuid.uuid4().hex[:12]}")
+        now = datetime.now(timezone.utc).isoformat()
+
+        movement = {
+            "id": mov_id,
+            "symbol": movement_data.get("symbol", "UNKNOWN"),
+            "timestamp": movement_data.get("timestamp", now),
+            "start_price": movement_data.get("start_price", 0.0),
+            "end_price": movement_data.get("end_price", 0.0),
+            "price_change": movement_data.get("price_change", 0.0),
+            "price_change_pct": movement_data.get("price_change_pct", 0.0),
+            "direction": movement_data.get("direction", "FLAT"),
+            "timeframe": movement_data.get("timeframe", "5m"),
+            "volume": movement_data.get("volume", 0.0),
+        }
+        self.service.upsert_price_movement(movement)
+
+        elapsed = time.monotonic() - start
+        logger.info(f"Price movement {mov_id} updated in {elapsed:.4f}s")
+        self._notify_callbacks("price_movement", {
+            "movement_id": mov_id, "elapsed_s": elapsed
+        })
+
+        return mov_id
+
     def get_update_stats(self) -> Dict[str, Any]:
         """Return update statistics."""
         return {

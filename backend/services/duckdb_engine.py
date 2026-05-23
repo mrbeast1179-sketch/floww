@@ -5,7 +5,8 @@ DuckDB OLAP engine for real-time options analytics.
 In-memory instance with async batch writer for tick/LOB data.
 
 Schema:
-  ticks:       (timestamp, symbol, bid, ask, last, volume, oi, delta, gamma, theta, vega)
+  ticks:       (timestamp, symbol, bid, ask, last, volume, oi, delta, gamma, theta, vega, data_source, delay_seconds)
+  chains:      (timestamp, symbol, ticker, strike, expiry, type, bid, ask, last, volume, open_interest, iv, delta, gamma, theta, vega, data_source, delay_seconds)
   lob_snapshots: (timestamp, symbol, bid_size, ask_size, bid_price, ask_price, level)
   flow_prints:   (timestamp, ticker, strike, expiration, side, type, size, price,
                   premium, volume, oi, exchange, classification)
@@ -41,7 +42,15 @@ class DuckDBEngine:
         self._init_schema()
 
     def _init_schema(self):
-        """Create all tables if they don't exist."""
+        """Create all tables if they don't exist, then apply migrations."""
+        self._create_base_tables()
+        self._create_chains_table()
+        self._apply_delayed_data_migration()
+        self._create_indexes()
+        logger.info("DuckDB schema initialized with delayed-data support")
+
+    def _create_base_tables(self):
+        """Create the original base tables."""
         self._conn.execute("""
             CREATE TABLE IF NOT EXISTS ticks (
                 timestamp    TIMESTAMP,
@@ -116,14 +125,54 @@ class DuckDBEngine:
                 qi_zscore    DOUBLE
             )
         """)
-        # Indexes for fast queries
+
+    def _create_chains_table(self):
+        """Create the chains table for options data with multi-source support."""
+        self._conn.execute("""
+            CREATE TABLE IF NOT EXISTS chains (
+                timestamp     TIMESTAMP,
+                symbol        VARCHAR,
+                ticker        VARCHAR,
+                strike        DOUBLE,
+                expiry        DATE,
+                type          VARCHAR(4),
+                bid           DOUBLE,
+                ask           DOUBLE,
+                last          DOUBLE,
+                volume        BIGINT,
+                open_interest BIGINT,
+                iv            DOUBLE,
+                delta_val     DOUBLE,
+                gamma_val     DOUBLE,
+                theta_val     DOUBLE,
+                vega_val      DOUBLE,
+                data_source   VARCHAR DEFAULT 'Yahoo',
+                delay_seconds INTEGER DEFAULT 0
+            )
+        """)
+
+    def _apply_delayed_data_migration(self):
+        """Add data_source and delay_seconds columns to existing tables. Safe to call multiple times."""
+        for col, typ, default in [("data_source", "VARCHAR", "'Yahoo'"), ("delay_seconds", "INTEGER", "0")]:
+            for table in ("ticks", "chains"):
+                try:
+                    self._conn.execute(
+                        f"ALTER TABLE {table} ADD COLUMN {col} {typ} DEFAULT {default}"
+                    )
+                    logger.info(f"Added {col} to {table}")
+                except Exception:
+                    pass  # Column already exists
+
+    def _create_indexes(self):
+        """Create indexes for fast queries."""
         self._conn.execute("CREATE INDEX IF NOT EXISTS idx_ticks_symbol ON ticks(symbol)")
         self._conn.execute("CREATE INDEX IF NOT EXISTS idx_ticks_ts ON ticks(timestamp)")
         self._conn.execute("CREATE INDEX IF NOT EXISTS idx_lob_symbol ON lob_snapshots(symbol)")
         self._conn.execute("CREATE INDEX IF NOT EXISTS idx_lob_depth_symbol ON lob_depth(symbol)")
         self._conn.execute("CREATE INDEX IF NOT EXISTS idx_lob_depth_ts ON lob_depth(timestamp)")
         self._conn.execute("CREATE INDEX IF NOT EXISTS idx_flow_ticker ON flow_prints(ticker)")
-        logger.info("DuckDB schema initialized")
+        self._conn.execute("CREATE INDEX IF NOT EXISTS idx_chains_ticker ON chains(ticker)")
+        self._conn.execute("CREATE INDEX IF NOT EXISTS idx_chains_ts ON chains(timestamp)")
 
     async def start(self):
         """Start the background batch writer."""

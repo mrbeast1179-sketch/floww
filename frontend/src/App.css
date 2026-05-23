@@ -368,46 +368,6 @@ body, .panel, .panel-2, .glass, aside, main, header, footer {
   }
 
   .heatseeker-sidebar-left {
-    width: auto;
-  }
-}
-
-/* ===== LARGE DESKTOP (1400px+) ===== */
-@media (min-width: 1400px) {
-  .heatseeker-layout {
-    grid-template-columns: 300px 1fr 320px;
-  }
-}
-
-/* ===== TOUCH DEVICE OPTIMIZATIONS ===== */
-@media (hover: none) and (pointer: coarse) {
-  .btn, button, a, input, select, textarea {
-    min-height: 44px;
-    min-width: 44px;
-  }
-
-  .tooltip-container .tooltip-text {
-    display: none;
-  }
-}
-
-/* ===== REDUCED MOTION ===== */
-@media (prefers-reduced-motion: reduce) {
-  *, *::before, *::after {
-    animation-duration: 0.01ms !important;
-    animation-iteration-count: 1 !important;
-    transition-duration: 0.01ms !important;
-  }
-}
-
-/* ===== PRINT ===== */
-@media print {
-  body { background: #fff; color: #000; }
-  .panel, .panel-2 { border: 1px solid #ccc; background: #fff; }
-  aside, nav, button, .mobile-toggle-bar { display: none !important; }
-  main { width: 100% !important; }
-}
-
 /* ===== PWA STANDALONE ===== */
 @media (display-mode: standalone) {
   .app-header {
@@ -416,6 +376,56 @@ body, .panel, .panel-2, .glass, aside, main, header, footer {
 
   .mobile-toggle-bar {
     padding-bottom: env(safe-area-inset-bottom, 0.5rem);
+  }
+
+  /* Hide install banner when running as PWA */
+  .pwa-install-banner {
+    display: none !important;
+  }
+}
+
+/* ===== iOS SAFE AREA ===== */
+@supports (padding: env(safe-area-inset-top)) {
+  .app-header {
+    padding-top: calc(0.5rem + env(safe-area-inset-top, 0px));
+  }
+
+  .mobile-toggle-bar {
+    padding-bottom: calc(0.5rem + env(safe-area-inset-bottom, 0px));
+  }
+}
+
+/* ===== TOUCH DEVICE OPTIMIZATIONS ===== */
+@media (hover: none) and (pointer: coarse) {
+  /* Minimum 44px touch targets (Apple HIG) */
+  .btn, button, a, input, select, textarea {
+    min-height: 44px;
+    min-width: 44px;
+  }
+
+  /* Larger tap targets for nav tabs */
+  .nav-tabs .btn {
+    min-height: 44px;
+    padding: 8px 12px;
+  }
+
+  /* Disable hover tooltips on touch */
+  .tooltip-container .tooltip-text {
+    display: none;
+  }
+
+  /* Prevent text selection on interactive elements */
+  .btn, button, .nav-tabs {
+    -webkit-user-select: none;
+    user-select: none;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  /* Smooth momentum scrolling */
+  .heatseeker-main,
+  .heatseeker-sidebar-left,
+  .heatseeker-sidebar-right {
+    -webkit-overflow-scrolling: touch;
   }
 }
 
@@ -469,12 +479,12 @@ body, .panel, .panel-2, .glass, aside, main, header, footer {
 
 @keyframes toastIn {
   from { opacity: 0; transform: translateY(-12px) scale(0.95); }
-  to { opacity: 1; transform: translateY(0) scale(1); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
 }
 
 @keyframes toastOut {
   from { opacity: 1; transform: translateY(0) scale(1); }
-  to { opacity: 0; transform: translateY(-12px) scale(0.95); }
+  to   { opacity: 0; transform: translateY(-12px) scale(0.95); }
 }
 
 /* ===== PWA INSTALL PROMPT ===== */
@@ -503,6 +513,17 @@ body, .panel, .panel-2, .glass, aside, main, header, footer {
     left: auto;
     right: 16px;
     width: 360px;
+  }
+}
+
+/* ===== PWA STANDALONE ENHANCEMENTS ===== */
+@media (display-mode: standalone) {
+  .app-header {
+    padding-top: calc(0.5rem + env(safe-area-inset-top, 0px));
+  }
+
+  .mobile-toggle-bar {
+    padding-bottom: calc(0.5rem + env(safe-area-inset-bottom, 0px));
   }
 }
 

@@ -41,6 +41,8 @@ import { useTheme } from "./context/ThemeContext";
 import { autoDecimate } from "./utils/dataDecimator";
 
 import ToxicityGauge from "./components/ToxicityGauge";
+import ErrorBoundary from "./components/ErrorBoundary";
+import { RetryButton, ErrorState } from "./components/RetryButton";
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
@@ -555,13 +557,11 @@ export default function App() {
                   {data?.expiries_used?.length ? `${data.expiries_used.length} exp · ${data.expiries_used[0]} → ${data.expiries_used.slice(-1)[0]}` : ""}
                 </div>
                 {err && (
-                  <div className="text-rose-400 text-[11px] mt-2 bg-rose-500/10 rounded px-2 py-1.5 flex justify-between items-start border border-rose-500/20">
-                    <div className="flex-1">
-                      <div className="font-bold text-[10px] uppercase tracking-widest mb-0.5">Error</div>
-                      <span>{err}</span>
-                    </div>
-                    <button onClick={() => { setErr(null); fetchData(); }} className="text-rose-400 hover:text-rose-300 text-[10px] ml-2 whitespace-nowrap">Retry ↻</button>
-                  </div>
+                  <ErrorState
+                    error={err}
+                    onRetry={() => { setErr(null); fetchData(); }}
+                    title="Data load failed"
+                  />
                 )}
                 {loading && !data && (
                   <div className="text-sky-400 text-[11px] mt-2 bg-sky-500/10 rounded px-2 py-1.5 flex items-center gap-2 border border-sky-500/20">
@@ -668,15 +668,17 @@ export default function App() {
                 </div>
               </div>
               <div className="flex-1 overflow-hidden heatmap-scroll-container">
-                {displayData ? (
-                  view === "chain"
-                    ? <OptionsChainTable ticker={ticker} spot={livespot?.spot ?? displayData?.spot} />
-                    : view === "grid"
-                    ? <GridHeatmap data={displayData} filters={filters} onCellClick={(s, e) => setDrilldown({ ticker, expiry: e, strike: s })} viewMode={viewMode} />
-                    : <BarHeatmap data={displayData} filters={filters} compact={false} viewMode={viewMode} />
-                ) : (
-                  <div className="text-slate-500 text-xs p-6 text-center">Loading…</div>
-                )}
+                <ErrorBoundary>
+                  {displayData ? (
+                    view === "chain"
+                      ? <OptionsChainTable ticker={ticker} spot={livespot?.spot ?? displayData?.spot} />
+                      : view === "grid"
+                      ? <GridHeatmap data={displayData} filters={filters} onCellClick={(s, e) => setDrilldown({ ticker, expiry: e, strike: s })} viewMode={viewMode} />
+                      : <BarHeatmap data={displayData} filters={filters} compact={false} viewMode={viewMode} />
+                  ) : (
+                    <div className="text-slate-500 text-xs p-6 text-center">Loading…</div>
+                  )}
+                </ErrorBoundary>
               </div>
             </div>
           </main>
@@ -763,7 +765,15 @@ export default function App() {
       {/* Skylit Heatseeker */}
       {page === "skylit" && (
         <div className="flex-1 overflow-auto">
-          <HeatseekerDashboard ticker={ticker} spot={livespot?.spot ?? data?.spot} />
+          <ErrorBoundary>
+            <HeatseekerDashboard
+              ticker={ticker}
+              spot={livespot?.spot ?? data?.spot}
+              isOffline={data?.data_fallback === true}
+              dataAge={data?.stale_age_s != null ? data.stale_age_s * 1000 : null}
+              dataFallback={data?.data_fallback === true}
+            />
+          </ErrorBoundary>
         </div>
       )}
 

@@ -7,14 +7,22 @@ Extends the DuckDB-backed knowledge graph with:
   - Trade nodes (executed trades: paper or live)
   - Signal nodes (VPIN, QI, etc. that triggered trades)
   - MarketCondition nodes (regime, volatility at execution time)
+  - RetailFlowScore nodes (retail flow metrics: sweep ratio, block ratio,
+    premium concentration, small-lot activity)
+  - PriceMovement nodes (price changes linked to flow events)
   - Edges: Trade -[:TRIGGERED_BY]-> Signal
            Trade -[:EXECUTED_IN]-> MarketCondition
            Trade -[:FOR_SYMBOL]-> Symbol
+           RetailFlowScore -[:FOR_SYMBOL]-> Symbol
+           RetailFlowScore -[:INFLUENCED]-> PriceMovement
+           Trade -[:INFLUENCED_BY_RETAIL]-> RetailFlowScore
 
 Schema additions:
-  nodes: trades, signals, market_conditions, symbols
+  nodes: trades, signals, market_conditions, symbols, retail_flow_scores,
+         price_movements
   edges: trade_triggered_by, trade_executed_in, trade_for_symbol,
-         signal_based_on, condition_regime
+         signal_based_on, condition_for_symbol, retail_flow_for_symbol,
+         retail_flow_influenced_movement, trade_influenced_by_retail
 """
 
 from __future__ import annotations  # noqa: F821
@@ -118,6 +126,68 @@ CREATE INDEX IF NOT EXISTS idx_trades_strategy ON trades(strategy);
 CREATE INDEX IF NOT EXISTS idx_signals_type ON signals(signal_type);
 CREATE INDEX IF NOT EXISTS idx_signals_direction ON signals(direction);
 CREATE INDEX IF NOT EXISTS idx_market_conditions_regime ON market_conditions(regime);
+
+-- Retail Flow Score nodes
+CREATE TABLE IF NOT EXISTS retail_flow_scores (
+    id VARCHAR PRIMARY KEY,
+    symbol VARCHAR,
+    timestamp VARCHAR,
+    sweep_ratio DOUBLE,          -- fraction of volume from sweeps
+    block_ratio DOUBLE,          -- fraction of volume from blocks
+    small_lot_ratio DOUBLE,      -- fraction of volume from small lots (<10 contracts)
+    premium_concentration DOUBLE, -- Herfindahl index of premium across strikes
+    call_put_ratio DOUBLE,       -- call volume / put volume
+    total_volume DOUBLE,
+    total_premium DOUBLE,
+    trade_count INTEGER,
+    avg_trade_size DOUBLE,
+    retail_flow_score DOUBLE,    -- composite score [-1, 1]
+    metadata JSON
+);
+
+-- Price Movement nodes
+CREATE TABLE IF NOT EXISTS price_movements (
+    id VARCHAR PRIMARY KEY,
+    symbol VARCHAR,
+    timestamp VARCHAR,
+    start_price DOUBLE,
+    end_price DOUBLE,
+    price_change DOUBLE,
+    price_change_pct DOUBLE,
+    direction VARCHAR,           -- 'UP', 'DOWN', 'FLAT'
+    timeframe VARCHAR,           -- '1m', '5m', '15m', '1h', '1d'
+    volume DOUBLE,
+    metadata JSON
+);
+
+-- Retail flow edges
+CREATE TABLE IF NOT EXISTS retail_flow_for_symbol (
+    flow_id VARCHAR,
+    symbol_id VARCHAR,
+    PRIMARY KEY (flow_id, symbol_id)
+);
+
+CREATE TABLE IF NOT EXISTS retail_flow_influenced_movement (
+    flow_id VARCHAR,
+    movement_id VARCHAR,
+    confidence FLOAT DEFAULT 1.0,
+    PRIMARY KEY (flow_id, movement_id)
+);
+
+CREATE TABLE IF NOT EXISTS trade_influenced_by_retail (
+    trade_id VARCHAR,
+    flow_id VARCHAR,
+    confidence FLOAT DEFAULT 1.0,
+    PRIMARY KEY (trade_id, flow_id)
+);
+
+-- Retail flow indexes
+CREATE INDEX IF NOT EXISTS idx_retail_flow_symbol ON retail_flow_scores(symbol);
+CREATE INDEX IF NOT EXISTS idx_retail_flow_score ON retail_flow_scores(retail_flow_score);
+CREATE INDEX IF NOT EXISTS idx_retail_flow_timestamp ON retail_flow_scores(timestamp);
+CREATE INDEX IF NOT EXISTS idx_price_movements_symbol ON price_movements(symbol);
+CREATE INDEX IF NOT EXISTS idx_price_movements_timestamp ON price_movements(timestamp);
+CREATE INDEX IF NOT EXISTS idx_price_movements_direction ON price_movements(direction);
 """
 
 
@@ -331,6 +401,275 @@ class GraphTradeService:
             symbol.get("asset_class", "equity"), json.dumps(metadata),
         ])
 
+    # ── Retail Flow Score CRUD ─────────────────────────────────────────
+
+    def upsert_retail_flow_score(self, flow: Dict[str, Any]) -> None:
+        """Insert or update a retail flow score node."""
+        metadata = {
+            k: v for k, v in flow.items()
+            if k not in (
+                "id", "symbol", "timestamp", "sweep_ratio", "block_ratio",
+                "small_lot_ratio", "premium_concentration", "call_put_ratio",
+                "total_volume", "total_premium", "trade_count",
+                "avg_trade_size", "retail_flow_score"
+            )
+        }
+        self.conn.execute("""
+            INSERT INTO retail_flow_scores (
+                id, symbol, timestamp, sweep_ratio, block_ratio,
+                small_lot_ratio, premium_concentration, call_put_ratio,
+                total_volume, total_premium, trade_count,
+                avg_trade_size, retail_flow_score, metadata
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(id) DO UPDATE SET
+                sweep_ratio = excluded.sweep_ratio,
+                block_ratio = excluded.block_ratio,
+                small_lot_ratio = excluded.small_lot_ratio,
+                premium_concentration = excluded.premium_concentration,
+                call_put_ratio = excluded.call_put_ratio,
+                total_volume = excluded.total_volume,
+                total_premium = excluded.total_premium,
+                trade_count = excluded.trade_count,
+                avg_trade_size = excluded.avg_trade_size,
+                retail_flow_score = excluded.retail_flow_score,
+                metadata = excluded.metadata
+        """, [
+            flow["id"], flow.get("symbol"),
+            flow.get("timestamp"), flow.get("sweep_ratio", 0.0),
+            flow.get("block_ratio", 0.0), flow.get("small_lot_ratio", 0.0),
+            flow.get("premium_concentration", 0.0),
+            flow.get("call_put_ratio", 1.0),
+            flow.get("total_volume", 0.0), flow.get("total_premium", 0.0),
+            flow.get("trade_count", 0), flow.get("avg_trade_size", 0.0),
+            flow.get("retail_flow_score", 0.0), json.dumps(metadata),
+        ])
+
+    def upsert_retail_flow_scores_batch(self, flows: List[Dict[str, Any]]) -> int:
+        for f in flows:
+            self.upsert_retail_flow_score(f)
+        return len(flows)
+
+    def get_retail_flow_scores_by_symbol(self, symbol: str,
+                                          limit: int = 50) -> List[Dict]:
+        rows = self.conn.execute("""
+            SELECT * FROM retail_flow_scores WHERE symbol = ?
+            ORDER BY timestamp DESC LIMIT ?
+        """, [symbol, limit]).fetchall()
+        cols = [d[0] for d in self.conn.description]
+        return [dict(zip(cols, r)) for r in rows]
+
+    def get_retail_flow_scores_by_score(self, min_score: float = None,
+                                         max_score: float = None,
+                                         limit: int = 50) -> List[Dict]:
+        query = "SELECT * FROM retail_flow_scores WHERE 1=1"
+        params = []
+        if min_score is not None:
+            query += " AND retail_flow_score >= ?"
+            params.append(min_score)
+        if max_score is not None:
+            query += " AND retail_flow_score <= ?"
+            params.append(max_score)
+        query += " ORDER BY retail_flow_score DESC LIMIT ?"
+        params.append(limit)
+        rows = self.conn.execute(query, params).fetchall()
+        cols = [d[0] for d in self.conn.description]
+        return [dict(zip(cols, r)) for r in rows]
+
+    def get_retail_flow_count(self) -> int:
+        return self.conn.execute(
+            "SELECT COUNT(*) FROM retail_flow_scores"
+        ).fetchone()[0]
+
+    # ── Price Movement CRUD ────────────────────────────────────────────
+
+    def upsert_price_movement(self, movement: Dict[str, Any]) -> None:
+        """Insert or update a price movement node."""
+        metadata = {
+            k: v for k, v in movement.items()
+            if k not in (
+                "id", "symbol", "timestamp", "start_price", "end_price",
+                "price_change", "price_change_pct", "direction",
+                "timeframe", "volume"
+            )
+        }
+        self.conn.execute("""
+            INSERT INTO price_movements (
+                id, symbol, timestamp, start_price, end_price,
+                price_change, price_change_pct, direction,
+                timeframe, volume, metadata
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(id) DO UPDATE SET
+                end_price = excluded.end_price,
+                price_change = excluded.price_change,
+                price_change_pct = excluded.price_change_pct,
+                direction = excluded.direction,
+                metadata = excluded.metadata
+        """, [
+            movement["id"], movement.get("symbol"),
+            movement.get("timestamp"), movement.get("start_price", 0.0),
+            movement.get("end_price", 0.0), movement.get("price_change", 0.0),
+            movement.get("price_change_pct", 0.0),
+            movement.get("direction", "FLAT"),
+            movement.get("timeframe", "5m"),
+            movement.get("volume", 0.0), json.dumps(metadata),
+        ])
+
+    def upsert_price_movements_batch(self, movements: List[Dict[str, Any]]) -> int:
+        for m in movements:
+            self.upsert_price_movement(m)
+        return len(movements)
+
+    def get_price_movements_by_symbol(self, symbol: str,
+                                       direction: str = None,
+                                       limit: int = 50) -> List[Dict]:
+        query = "SELECT * FROM price_movements WHERE symbol = ?"
+        params = [symbol]
+        if direction:
+            query += " AND direction = ?"
+            params.append(direction)
+        query += " ORDER BY timestamp DESC LIMIT ?"
+        params.append(limit)
+        rows = self.conn.execute(query, params).fetchall()
+        cols = [d[0] for d in self.conn.description]
+        return [dict(zip(cols, r)) for r in rows]
+
+    def get_price_movement_count(self) -> int:
+        return self.conn.execute(
+            "SELECT COUNT(*) FROM price_movements"
+        ).fetchone()[0]
+
+    # ── Retail Flow Edge operations ────────────────────────────────────
+
+    def add_retail_flow_symbol_edge(self, flow_id: str, symbol_id: str) -> None:
+        self.conn.execute("""
+            INSERT OR IGNORE INTO retail_flow_for_symbol (flow_id, symbol_id)
+            VALUES (?, ?)
+        """, [flow_id, symbol_id])
+
+    def add_retail_flow_movement_edge(self, flow_id: str, movement_id: str,
+                                       confidence: float = 1.0) -> None:
+        self.conn.execute("""
+            INSERT OR IGNORE INTO retail_flow_influenced_movement
+            (flow_id, movement_id, confidence)
+            VALUES (?, ?, ?)
+        """, [flow_id, movement_id, confidence])
+
+    def add_trade_retail_flow_edge(self, trade_id: str, flow_id: str,
+                                    confidence: float = 1.0) -> None:
+        self.conn.execute("""
+            INSERT OR IGNORE INTO trade_influenced_by_retail
+            (trade_id, flow_id, confidence)
+            VALUES (?, ?, ?)
+        """, [trade_id, flow_id, confidence])
+
+    # ── Graph queries for retail flow ──────────────────────────────────
+
+    def get_retail_flow_with_movements(self, limit: int = 50) -> List[Dict]:
+        """MATCH (rfs:RetailFlowScore)-[:INFLUCED]->(pm:PriceMovement)."""
+        rows = self.conn.execute("""
+            SELECT rfs.id as flow_id, rfs.symbol, rfs.retail_flow_score,
+                   rfs.sweep_ratio, rfs.block_ratio, rfs.call_put_ratio,
+                   pm.id as movement_id, pm.price_change, pm.price_change_pct,
+                   pm.direction, pm.timeframe,
+                   rfim.confidence
+            FROM retail_flow_scores rfs
+            JOIN retail_flow_influenced_movement rfim ON rfs.id = rfim.flow_id
+            JOIN price_movements pm ON rfim.movement_id = pm.id
+            ORDER BY rfs.timestamp DESC
+            LIMIT ?
+        """, [limit]).fetchall()
+        cols = [d[0] for d in self.conn.description]
+        return [dict(zip(cols, r)) for r in rows]
+
+    def get_trades_with_retail_flow(self, limit: int = 50) -> List[Dict]:
+        """MATCH (t:Trade)-[:INFLUENCED_BY_RETAIL]->(rfs:RetailFlowScore)."""
+        rows = self.conn.execute("""
+            SELECT t.id as trade_id, t.symbol, t.side, t.pnl, t.pnl_pct,
+                   t.strategy,
+                   rfs.id as flow_id, rfs.retail_flow_score,
+                   rfs.sweep_ratio, rfs.block_ratio, rfs.call_put_ratio,
+                   tib.confidence
+            FROM trades t
+            JOIN trade_influenced_by_retail tib ON t.id = tib.trade_id
+            JOIN retail_flow_scores rfs ON tib.flow_id = rfs.id
+            ORDER BY t.entry_time DESC
+            LIMIT ?
+        """, [limit]).fetchall()
+        cols = [d[0] for d in self.conn.description]
+        return [dict(zip(cols, r)) for r in rows]
+
+    def get_full_retail_flow_context(self, flow_id: str) -> Dict:
+        """Get retail flow score + connected symbol, movements, trades."""
+        flow = self.conn.execute(
+            "SELECT * FROM retail_flow_scores WHERE id = ?", [flow_id]
+        ).fetchone()
+        if not flow:
+            return {}
+        cols = [d[0] for d in self.conn.description]
+        flow_dict = dict(zip(cols, flow))
+
+        movements = self.conn.execute("""
+            SELECT pm.*, rfim.confidence
+            FROM price_movements pm
+            JOIN retail_flow_influenced_movement rfim ON pm.id = rfim.movement_id
+            WHERE rfim.flow_id = ?
+        """, [flow_id]).fetchall()
+        mov_cols = [d[0] for d in self.conn.description]
+        movements = [dict(zip(mov_cols, r)) for r in movements]
+
+        trades = self.conn.execute("""
+            SELECT t.*, tib.confidence
+            FROM trades t
+            JOIN trade_influenced_by_retail tib ON t.id = tib.trade_id
+            WHERE tib.flow_id = ?
+        """, [flow_id]).fetchall()
+        trade_cols = [d[0] for d in self.conn.description]
+        trades = [dict(zip(trade_cols, r)) for r in trades]
+
+        return {
+            "retail_flow": flow_dict,
+            "price_movements": movements,
+            "trades": trades,
+        }
+
+    def get_retail_flow_stats(self) -> Dict[str, Any]:
+        """Aggregate retail flow statistics."""
+        total = self.conn.execute(
+            "SELECT COUNT(*) FROM retail_flow_scores"
+        ).fetchone()[0]
+        avg_score = self.conn.execute(
+            "SELECT AVG(retail_flow_score) FROM retail_flow_scores"
+        ).fetchone()[0]
+        avg_sweep = self.conn.execute(
+            "SELECT AVG(sweep_ratio) FROM retail_flow_scores"
+        ).fetchone()[0]
+        avg_block = self.conn.execute(
+            "SELECT AVG(block_ratio) FROM retail_flow_scores"
+        ).fetchone()[0]
+        avg_cpr = self.conn.execute(
+            "SELECT AVG(call_put_ratio) FROM retail_flow_scores"
+        ).fetchone()[0]
+        bullish = self.conn.execute(
+            "SELECT COUNT(*) FROM retail_flow_scores WHERE retail_flow_score > 0.2"
+        ).fetchone()[0]
+        bearish = self.conn.execute(
+            "SELECT COUNT(*) FROM retail_flow_scores WHERE retail_flow_score < -0.2"
+        ).fetchone()[0]
+        neutral = self.conn.execute(
+            "SELECT COUNT(*) FROM retail_flow_scores WHERE retail_flow_score BETWEEN -0.2 AND 0.2"
+        ).fetchone()[0]
+
+        return {
+            "total_flow_scores": total,
+            "avg_retail_flow_score": round(avg_score or 0, 4),
+            "avg_sweep_ratio": round(avg_sweep or 0, 4),
+            "avg_block_ratio": round(avg_block or 0, 4),
+            "avg_call_put_ratio": round(avg_cpr or 0, 4),
+            "bullish_count": bullish,
+            "bearish_count": bearish,
+            "neutral_count": neutral,
+        }
+
     # ── Edge operations ────────────────────────────────────────────────
 
     def add_trade_signal_edge(self, trade_id: str, signal_id: str,
@@ -480,5 +819,16 @@ class GraphTradeService:
             ).fetchone()[0],
             "trade_symbol_edges": self.conn.execute(
                 "SELECT COUNT(*) FROM trade_for_symbol"
+            ).fetchone()[0],
+            "retail_flow_scores": self.get_retail_flow_count(),
+            "price_movements": self.get_price_movement_count(),
+            "retail_flow_symbol_edges": self.conn.execute(
+                "SELECT COUNT(*) FROM retail_flow_for_symbol"
+            ).fetchone()[0],
+            "retail_flow_movement_edges": self.conn.execute(
+                "SELECT COUNT(*) FROM retail_flow_influenced_movement"
+            ).fetchone()[0],
+            "trade_retail_flow_edges": self.conn.execute(
+                "SELECT COUNT(*) FROM trade_influenced_by_retail"
             ).fetchone()[0],
         }

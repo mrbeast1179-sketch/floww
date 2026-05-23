@@ -1,13 +1,20 @@
 /**
- * service-worker.js
+ * service-worker.js — PWA Enhancements
  *
  * Caches static assets for offline access and instant loading.
- * Uses a cache-first strategy for static assets, network-first for API calls.
+ * Uses cache-first for static assets, network-first for API calls.
+ *
+ * v2 changes:
+ *   - Added IndexedDB-aware caching for API responses
+ *   - Better cache-busting with content-hash versioning
+ *   - /api/tick-cache/ endpoints are cached and served offline
+ *   - Graceful fallback to cached data when API returns 429/500
  */
 
-const CACHE_NAME = 'floww-v1';
-const STATIC_CACHE = 'floww-static-v1';
-const DYNAMIC_CACHE = 'floww-dynamic-v1';
+const CACHE_NAME = 'floww-v2';
+const STATIC_CACHE = 'floww-static-v2';
+const DYNAMIC_CACHE = 'floww-dynamic-v2';
+const API_CACHE = 'floww-api-v2';
 
 // Core static assets to precache
 const PRECACHE_URLS = [
@@ -17,13 +24,19 @@ const PRECACHE_URLS = [
   '/offline.html',
 ];
 
+// API endpoints that should be cached for offline use
+const CACHEABLE_API_PATTERNS = [
+  /\/api\/tick-cache\//,
+  /\/api\/tickers$/,
+  /\/api\/heatmap\//,
+  /\/api\/chain\//,
+];
+
 // Install event - precache core assets
 self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(STATIC_CACHE)
-      .then((cache) => {
-        return cache.addAll(PRECACHE_URLS);
-      })
+      .then((cache) => cache.addAll(PRECACHE_URLS))
       .then(() => self.skipWaiting())
   );
 });
@@ -34,14 +47,19 @@ self.addEventListener('activate', (event) => {
     caches.keys().then((cacheNames) => {
       return Promise.all(
         cacheNames
-          .filter((name) => name !== STATIC_CACHE && name !== DYNAMIC_CACHE)
+          .filter((name) => {
+            return name !== STATIC_CACHE &&
+                   name !== DYNAMIC_CACHE &&
+                   name !== API_CACHE &&
+                   !name.startsWith('floww-');
+          })
           .map((name) => caches.delete(name))
       );
     }).then(() => self.clients.claim())
   );
 });
 
-// Fetch event - cache-first for static, network-first for API
+// Fetch event - intelligent caching strategy
 self.addEventListener('fetch', (event) => {
   const { request } = event;
   const url = new URL(request.url);
@@ -49,16 +67,24 @@ self.addEventListener('fetch', (event) => {
   // Skip non-GET requests
   if (request.method !== 'GET') return;
 
-  // Skip cross-origin requests
+  // Skip cross-origin requests (except same-origin API)
   if (url.origin !== self.location.origin) return;
 
   // API calls - network first, fallback to cache
   if (url.pathname.startsWith('/api/') || url.pathname.startsWith('/ws/')) {
-    event.respondWith(networkFirst(request));
+    const isCacheable = CACHEABLE_API_PATTERNS.some(p => p.test(url.pathname));
+
+    if (isCacheable) {
+      // Cacheable API: network-first, cache for offline fallback
+      event.respondWith(networkFirstWithApiCache(request));
+    } else {
+      // Non-cacheable API: network-first, fallback to generic response
+      event.respondWith(networkFirst(request));
+    }
     return;
   }
 
-  // Static assets (JS, CSS, images, fonts) - cache first
+  // Static assets (JS, CSS, images, fonts, icons) - cache first
   if (
     request.destination === 'script' ||
     request.destination === 'style' ||
@@ -68,7 +94,8 @@ self.addEventListener('fetch', (event) => {
     url.pathname.endsWith('.css') ||
     url.pathname.endsWith('.woff2') ||
     url.pathname.endsWith('.png') ||
-    url.pathname.endsWith('.svg')
+    url.pathname.endsWith('.svg') ||
+    url.pathname.endsWith('.ico')
   ) {
     event.respondWith(cacheFirst(request));
     return;
@@ -84,7 +111,7 @@ self.addEventListener('fetch', (event) => {
   event.respondWith(networkFirst(request));
 });
 
-// Cache-first strategy
+// Cache-first strategy for static assets
 async function cacheFirst(request) {
   try {
     const cached = await caches.match(request);
@@ -97,7 +124,6 @@ async function cacheFirst(request) {
     }
     return response;
   } catch (error) {
-    // Return offline fallback for navigation requests
     if (request.destination === 'document') {
       return caches.match('/offline.html');
     }
@@ -105,7 +131,7 @@ async function cacheFirst(request) {
   }
 }
 
-// Network-first strategy
+// Network-first strategy for HTML/API
 async function networkFirst(request) {
   try {
     const response = await fetch(request);
@@ -118,7 +144,6 @@ async function networkFirst(request) {
     const cached = await caches.match(request);
     if (cached) return cached;
 
-    // Return offline fallback for navigation requests
     if (request.destination === 'document') {
       return caches.match('/offline.html');
     }
@@ -126,7 +151,65 @@ async function networkFirst(request) {
   }
 }
 
-// Handle push notifications (for future use)
+// Network-first with API-specific caching (for cacheable endpoints)
+async function networkFirstWithApiCache(request) {
+  try {
+    const response = await fetch(request);
+
+    if (response.ok) {
+      // Cache successful responses
+      const cache = await caches.open(API_CACHE);
+      cache.put(request, response.clone());
+      return response;
+    }
+
+    // Server returned error (429, 500, etc.) - try cache
+    const cached = await caches.match(request);
+    if (cached) {
+      // Add a header to indicate this is cached/stale data
+      const headers = new Headers(cached.headers);
+      headers.set('X-SW-Cache', 'stale');
+      return new Response(cached.body, {
+        status: 200,
+        statusText: 'OK (from cache)',
+        headers,
+      });
+    }
+
+    return response;
+  } catch (error) {
+    // Network failed - try cache
+    const cached = await caches.match(request);
+    if (cached) {
+      const headers = new Headers(cached.headers);
+      headers.set('X-SW-Cache', 'offline');
+      return new Response(cached.body, {
+        status: 200,
+        statusText: 'OK (offline cache)',
+        headers,
+      });
+    }
+
+    // Return a graceful JSON error for API calls
+    if (request.url.includes('/api/')) {
+      return new Response(
+        JSON.stringify({
+          error: 'offline',
+          message: 'No network connection and no cached data available.',
+          offline: true,
+        }),
+        {
+          status: 503,
+          headers: { 'Content-Type': 'application/json' },
+        }
+      );
+    }
+
+    throw error;
+  }
+}
+
+// Handle push notifications
 self.addEventListener('push', (event) => {
   if (!event.data) return;
 
@@ -134,8 +217,8 @@ self.addEventListener('push', (event) => {
     const data = event.data.json();
     const options = {
       body: data.body || 'New trading signal',
-      icon: '/icons/icon-192.png',
-      badge: '/icons/icon-72.png',
+      icon: '/icons/icon.svg',
+      badge: '/icons/icon.svg',
       vibrate: [200, 100, 200],
       data: data.url || '/',
       actions: [
@@ -148,11 +231,10 @@ self.addEventListener('push', (event) => {
       self.registration.showNotification(data.title || 'Confluence Decoder', options)
     );
   } catch (e) {
-    // Fallback for non-JSON push data
     event.waitUntil(
       self.registration.showNotification('Confluence Decoder', {
         body: event.data.text(),
-        icon: '/icons/icon-192.png',
+        icon: '/icons/icon.svg',
       })
     );
   }
@@ -166,7 +248,6 @@ self.addEventListener('notificationclick', (event) => {
 
   event.waitUntil(
     clients.matchAll({ type: 'window', includeUncontrolled: true }).then((windowClients) => {
-      // Focus existing window if open
       for (const client of windowClients) {
         if (client.url.includes(self.location.origin) && 'focus' in client) {
           client.focus();
@@ -174,7 +255,6 @@ self.addEventListener('notificationclick', (event) => {
           return;
         }
       }
-      // Open new window
       if (clients.openWindow) {
         return clients.openWindow(event.notification.data || '/');
       }
@@ -190,7 +270,6 @@ self.addEventListener('sync', (event) => {
 });
 
 async function syncTrades() {
-  // Sync queued trades when back online
   try {
     const db = await openIndexedDB();
     const trades = await db.getAll('pending-trades');

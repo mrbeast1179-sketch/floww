@@ -36,13 +36,14 @@ except ImportError:
     logger.warning("PyTorch not available — anomaly detector will use statistical fallback")
 
 
-class Conv1DAutoencoder(nn.Module):
-    """1D-CNN Autoencoder for time-series anomaly detection."""
+if HAS_TORCH:
+    class Conv1DAutoencoder(nn.Module):
+        """1D-CNN Autoencoder for time-series anomaly detection."""
 
-    def __init__(self, input_channels: int = 2, seq_len: int = 50, latent_dim: int = 8):
-        super().__init__()
-        self.seq_len = seq_len
-        self.input_channels = input_channels
+        def __init__(self, input_channels: int = 2, seq_len: int = 50, latent_dim: int = 8):
+            super().__init__()
+            self.seq_len = seq_len
+            self.input_channels = input_channels
 
         # Encoder
         self.encoder = nn.Sequential(
