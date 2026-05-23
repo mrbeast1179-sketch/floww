@@ -44,7 +44,7 @@ def _check_chain(raw: dict, ticker: str):
         raise HTTPException(404, f"No options data for {ticker}")
 
 
-@router.get("/api/analytics/implied-pdf/{ticker}")
+@router.get("/implied-pdf/{ticker}")
 async def implied_pdf(
     ticker: str,
     expiries: int = Query(default=4, ge=1, le=12, description="Number of expiries to fetch"),
@@ -62,7 +62,7 @@ async def implied_pdf(
         return _cache.degraded_response("computation_error", str(e))
 
 
-@router.get("/api/analytics/regime/{ticker}")
+@router.get("/regime/{ticker}")
 async def regime(
     ticker: str,
     expiries: int = Query(default=4, ge=1, le=12),
@@ -80,7 +80,7 @@ async def regime(
         return _cache.degraded_response("computation_error", str(e))
 
 
-@router.get("/api/analytics/hedge-impulse/{ticker}")
+@router.get("/hedge-impulse/{ticker}")
 async def hedge_impulse(
     ticker: str,
     expiries: int = Query(default=4, ge=1, le=12),
@@ -98,7 +98,7 @@ async def hedge_impulse(
         return _cache.degraded_response("computation_error", str(e))
 
 
-@router.get("/api/analytics/pressure-cloud/{ticker}")
+@router.get("/pressure-cloud/{ticker}")
 async def pressure_cloud(
     ticker: str,
     expiries: int = Query(default=4, ge=1, le=12),
@@ -116,7 +116,7 @@ async def pressure_cloud(
         return _cache.degraded_response("computation_error", str(e))
 
 
-@router.get("/api/analytics/charm-integral/{ticker}")
+@router.get("/charm-integral/{ticker}")
 async def charm_integral_endpoint(
     ticker: str,
     expiries: int = Query(default=4, ge=1, le=12),
@@ -134,7 +134,7 @@ async def charm_integral_endpoint(
         return _cache.degraded_response("computation_error", str(e))
 
 
-@router.get("/api/analytics/vanna/{ticker}")
+@router.get("/vanna/{ticker}")
 async def vanna_endpoint(
     ticker: str,
     expiries: int = Query(default=4, ge=1, le=12),
@@ -143,7 +143,7 @@ async def vanna_endpoint(
     return await vanna_exposure_endpoint(ticker, expiries)
 
 
-@router.get("/api/analytics/vanna-exposure/{ticker}")
+@router.get("/vanna-exposure/{ticker}")
 async def vanna_exposure_endpoint(
     ticker: str,
     expiries: int = Query(default=4, ge=1, le=12),
@@ -201,7 +201,7 @@ async def vanna_exposure_endpoint(
         return _cache.degraded_response("computation_error", str(e))
 
 
-@router.get("/api/analytics/advanced/{ticker}")
+@router.get("/advanced/{ticker}")
 async def advanced_analytics(
     ticker: str,
     expiries: int = Query(default=4, ge=1, le=12),
@@ -235,7 +235,7 @@ async def advanced_analytics(
         return _cache.degraded_response("computation_error", str(e))
 
 
-@router.get("/api/analytics/gamma-flip/{ticker}")
+@router.get("/gamma-flip/{ticker}")
 async def gamma_flip(
     ticker: str,
     expiries: int = Query(default=4, ge=1, le=12),
@@ -255,7 +255,7 @@ async def gamma_flip(
         return _cache.degraded_response("computation_error", str(e))
 
 
-@router.get("/api/analytics/daily-checklist/{ticker}")
+@router.get("/daily-checklist/{ticker}")
 async def daily_checklist(
     ticker: str,
     expiries: int = Query(default=4, ge=1, le=12),
@@ -294,7 +294,7 @@ async def daily_checklist(
         return _cache.degraded_response("computation_error", str(e))
 
 
-@router.get("/api/analytics/movers")
+@router.get("/movers")
 async def movers(
     limit: int = Query(default=20, ge=1, le=100, description="Max number of movers to return"),
 ):
@@ -307,7 +307,7 @@ async def movers(
         return {"results": [], "status": "degraded", "reason": str(e), "asof": datetime.now(timezone.utc).isoformat()}
 
 
-@router.get("/api/analytics/history/{ticker}")
+@router.get("/history/{ticker}")
 async def history(
     ticker: str,
     days: int = Query(default=30, ge=1, le=365, description="Lookback window in days"),
@@ -327,13 +327,13 @@ async def history(
         return {"ticker": ticker.upper(), "snapshots": [], "count": 0, "status": "degraded", "reason": str(e)}
 
 
-@router.get("/api/analytics/patterns/glossary")
+@router.get("/patterns/glossary")
 async def patterns_glossary():
     from server import PATTERN_GLOSSARY
     return PATTERN_GLOSSARY
 
 
-@router.get("/api/analytics/contract/{ticker}")
+@router.get("/contract/{ticker}")
 async def contract(
     ticker: str,
     expiry: Optional[str] = None,
@@ -376,7 +376,7 @@ async def contract(
         return _cache.degraded_response("computation_error", str(e))
 
 
-@router.get("/api/analytics/flow/{ticker}")
+@router.get("/flow/{ticker}")
 async def flow(
     ticker: str,
     days: int = Query(default=7, ge=1, le=30),
@@ -395,7 +395,7 @@ async def flow(
         return []
 
 
-@router.get("/api/analytics/surface/{ticker}")
+@router.get("/surface/{ticker}")
 async def surface(
     ticker: str,
     expiries: int = Query(default=4, ge=1, le=12),
@@ -413,7 +413,7 @@ async def surface(
         return _cache.degraded_response("computation_error", str(e))
 
 
-@router.get("/api/analytics/regime-stats/{ticker}")
+@router.get("/regime-stats/{ticker}")
 async def regime_stats(
     ticker: str,
     days: int = Query(default=30, ge=1, le=365),
@@ -433,7 +433,7 @@ async def regime_stats(
         return {"ticker": ticker.upper(), "n_samples": 0, "data": [], "status": "degraded", "reason": str(e)}
 
 
-@router.get("/api/analytics/compare")
+@router.get("/compare")
 async def compare(
     tickers: str = Query(..., description="Comma-separated ticker symbols"),
 ):
@@ -452,7 +452,7 @@ async def compare(
     return out
 
 
-@router.get("/api/analytics/correlation")
+@router.get("/correlation")
 async def correlation(
     tickers: str = Query(..., description="Comma-separated ticker symbols"),
     days: int = Query(default=30, ge=1, le=365),

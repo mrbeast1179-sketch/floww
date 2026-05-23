@@ -18,10 +18,14 @@ logger = logging.getLogger(__name__)
 
 class CacheRouter:
     """Cache-first router with DuckDB backend."""
-    
+
     def __init__(self):
         self._memory_cache: Dict[str, Dict[str, Any]] = {}
-    
+
+    def degraded_response(self, reason: str, detail: str) -> Dict[str, Any]:
+        """Return a structured degradation payload (instance-method form for routes)."""
+        return degraded_response(reason, detail)
+
     async def get_chain(
         self,
         ticker: str,
@@ -41,8 +45,8 @@ class CacheRouter:
             logger.info(f"Cache stale for {ticker} ({age:.0f}s), returning stale data")
             return cached["data"]
         
-        # Fetch live
-        data = await coordinator.fetch(ticker, expiries)
+        # Fetch live — coordinator.fetch needs a fetcher callable
+        data = await coordinator.fetch(ticker, expiries, _live_fetcher)
         
         # Cache it
         self._memory_cache[cache_key] = {
