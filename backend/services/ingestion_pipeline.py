@@ -217,10 +217,12 @@ class IngestionPipeline:
                 float(t.get("vanna", 0.0)),
                 float(t.get("charm", 0.0)),
                 float(t.get("vomma", 0.0)),
+                t.get("data_source", "Yahoo"),
+                t.get("delay_seconds", 0),
             ))
         await asyncio.to_thread(
             lambda: self.db.conn.executemany(
-                "INSERT INTO ticks VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                "INSERT INTO ticks VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
                 rows,
             )
         )
@@ -245,10 +247,12 @@ class IngestionPipeline:
                 c.get("vanna", 0.0),
                 c.get("charm", 0.0),
                 c.get("vomma", 0.0),
+                c.get("data_source", "Yahoo"),
+                c.get("delay_seconds", 0),
             ))
         await asyncio.to_thread(
             lambda: self.db.conn.executemany(
-                "INSERT INTO ticks VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                "INSERT INTO ticks VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
                 rows,
             )
         )

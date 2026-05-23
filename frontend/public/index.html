@@ -2,21 +2,31 @@
 <html lang="en">
   <head>
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-    <meta name="theme-color" content="#07080d" />
-    <meta name="description" content="Confluence Decoder — Institutional GEX Terminal" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=5" />
+    <meta name="theme-color" content="#07080a" />
+    <meta name="description" content="Confluence Decoder — Institutional GEX Terminal. Real-time options flow, gamma exposure, and market analytics." />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="Floww" />
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="format-detection" content="telephone=no" />
+    <meta name="msapplication-TileColor" content="#07080a" />
+    <meta name="msapplication-config" content="none" />
+
+    <!-- PWA manifest -->
     <link rel="manifest" href="%PUBLIC_URL%/manifest.json" />
-    <link rel="apple-touch-icon" href="%PUBLIC_URL%/icons/icon-192.png" />
-    <link rel="icon" type="image/png" sizes="32x32" href="%PUBLIC_URL%/icons/icon-72.png" />
+
+    <!-- Icons (SVG works for all sizes in modern browsers) -->
+    <link rel="icon" type="image/svg+xml" href="%PUBLIC_URL%/icons/icon.svg" />
+    <link rel="apple-touch-icon" href="%PUBLIC_URL%/icons/icon.svg" />
+
+    <!-- Preconnect -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet" />
+
     <title>Confluence Decoder</title>
+
     <script>
       // Prevent FOUC: apply theme before React loads
       (function() {
@@ -31,8 +41,8 @@
     <noscript>You need to enable JavaScript to run this app.</noscript>
     <div id="root"></div>
     <script>
-      // Register service worker
-      if ('serviceWorker' in navigator) {
+      // Register service worker (only in production builds)
+      if ('serviceWorker' in navigator && window.location.hostname !== 'localhost') {
         window.addEventListener('load', function() {
           navigator.serviceWorker.register('/service-worker.js')
             .then(function(reg) {
@@ -40,6 +50,18 @@
             })
             .catch(function(err) {
               console.log('SW registration failed:', err);
+            });
+        });
+      }
+      // Also register in development for testing PWA install
+      if ('serviceWorker' in navigator && window.location.hostname === 'localhost' && window.__SW_DEBUG__) {
+        window.addEventListener('load', function() {
+          navigator.serviceWorker.register('/service-worker.js')
+            .then(function(reg) {
+              console.log('SW registered (dev):', reg.scope);
+            })
+            .catch(function(err) {
+              console.log('SW registration failed (dev):', err);
             });
         });
       }

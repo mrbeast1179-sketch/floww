@@ -3,6 +3,11 @@ backend/routes/market_data.py
 
 Market data routes: tickers, heatmap, trinity, spot, chain, gex-timeframes, uoa.
 Uses lazy imports from server.py to avoid circular dependencies.
+
+Fallback strategy:
+  - Live fetch (yfinance/Databento) is tried first.
+  - On failure, DuckDB cached ticks are served with a data_fallback flag.
+  - Frontend reads the flag and shows "Stale Data" badge.
 """
 from __future__ import annotations
 
@@ -10,10 +15,70 @@ import asyncio
 from datetime import datetime, timezone
 from typing import Dict, Any, Optional
 
-from fastapi import APIRouter, Query, HTTPException
+from fastapi import APIRouter, Query, HTTPException, Request
 
 router = APIRouter()
 
+
+# ── DuckDB fallback helper ───────────────────────────────────────────
+
+async def _duckdb_fallback(ticker: str) -> Optional[Dict[str, Any]]:
+    """
+    Serve last known data from DuckDB when live fetch fails.
+    Returns a minimal response dict or None if nothing cached.
+    """
+    try:
+        from services.duckdb_engine import db as duckdb_engine
+        rows = await duckdb_engine.query_async(
+            """SELECT symbol, bid, ask, last, volume, oi, timestamp
+               FROM ticks
+               WHERE symbol = ?
+               ORDER BY timestamp DESC
+               LIMIT 1""",
+            [ticker],
+        )
+        if not rows:
+            return None
+        row = rows[0]
+        ts = row.get("timestamp")
+        if isinstance(ts, str):
+            ts = datetime.fromisoformat(ts.replace("Z", "+00:00"))
+        age_s = (datetime.now(timezone.utc) - ts).total_seconds() if ts else None
+        return {
+            "ticker": row.get("symbol", ticker),
+            "spot": row.get("last") or row.get("bid") or 0,
+            "bid": row.get("bid", 0),
+            "ask": row.get("ask", 0),
+            "volume": row.get("volume", 0),
+            "oi": row.get("oi", 0),
+            "ts": ts.isoformat() if ts else None,
+            "data_source": "duckdb_fallback",
+            "data_fallback": True,
+            "stale_age_s": round(age_s, 1) if age_s else None,
+        }
+    except Exception:
+        return None
+
+
+# ── Tick cache endpoint (for offline-first frontend) ─────────────────
+
+@router.get("/tick-cache/{ticker}")
+async def tick_cache(ticker: str):
+    """
+    Lightweight endpoint for the offline-first data layer.
+    Returns the latest tick from DuckDB (fast, always available).
+    Frontend uses this as fallback when live endpoints fail.
+    """
+    t = ticker.strip().upper()
+    if t == "SPX":
+        t = "^SPX"
+    result = await _duckdb_fallback(t)
+    if result is None:
+        raise HTTPException(404, f"No cached tick data for {ticker}")
+    return result
+
+
+# ── Existing routes (with DuckDB fallback on spot) ──────────────────
 
 @router.get("/tickers")
 async def list_tickers():
@@ -98,8 +163,15 @@ async def spot(ticker: str):
     t = ticker.strip().upper()
     if t == "SPX":
         t = "^SPX"
-    raw = await fetch_spot_and_chains_merged(t, 1)
-    return {"ticker": t, "spot": raw.get("spot", 0), "ts": datetime.now(timezone.utc).isoformat()}
+    try:
+        raw = await fetch_spot_and_chains_merged(t, 1)
+    except Exception:
+        # Live fetch failed — try DuckDB fallback
+        fallback = await _duckdb_fallback(t)
+        if fallback:
+            return fallback
+        raise HTTPException(503, f"Live data unavailable for {ticker} and no cache")
+    return {"ticker": t, "spot": raw.get("spot", 0), "ts": datetime.now(timezone.utc).isoformat(), "data_source": "live"}
 
 
 @router.get("/chain/{ticker}")
