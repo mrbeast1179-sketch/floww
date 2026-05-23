@@ -51,6 +51,18 @@ tags:
   - name: domain:testing
     description: "Test infrastructure, CI, or quality gates"
 
+  # Retail pivot tags (new)
+  - name: domain:retail-pivot
+    description: "Retail pivot changes: data sources, math fallbacks, UI components"
+  - name: domain:vanna-charm
+    description: "Vanna/Charm Greeks exposure and charts"
+  - name: domain:marketdata
+    description: "Market data feed configuration and failover"
+  - name: domain:duckdb
+    description: "DuckDB local-first analytics queries"
+  - name: domain:offline-first
+    description: "Offline-first cached data strategy"
+
   # Status tags
   - name: status:active
     description: "Currently in progress or being worked on"
