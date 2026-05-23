@@ -3,7 +3,7 @@
 # Or: cat deploy/cron.d/hermes-memory | crontab -
 
 # Daily memory consolidation @ 4:00 AM local
-0 4 * * * cd /Users/nav/Documents/GitHub/floww && /Users/nav/Documents/GitHub/floww/backend/.venv/bin/python scripts/consolidate_memory_daily.py >> /tmp/hermes-memory-consolidate.log 2>&1
+0 4 * * * cd /Users/nav/GitHub/floww && /Users/nav/GitHub/floww/backend/venv/bin/python scripts/consolidate_memory_daily.py >> /tmp/hermes-memory-consolidate.log 2>&1
 
 # Nightly memory pruning @ 3:00 AM local
-0 3 * * * cd /Users/nav/Documents/GitHub/floww && /Users/nav/Documents/GitHub/floww/backend/.venv/bin/python scripts/prune_memory.py >> /tmp/hermes-memory-prune.log 2>&1
+0 3 * * * cd /Users/nav/GitHub/floww && /Users/nav/GitHub/floww/backend/venv/bin/python scripts/prune_memory.py >> /tmp/hermes-memory-prune.log 2>&1

@@ -1,0 +1,49 @@
+# mem0/config/multi_project.yaml — Cross-project memory configuration
+
+projects:
+  floww:
+    name: "floww"
+    description: "Options analytics trading terminal"
+    repo: "/Users/nav/GitHub/floww"
+    default: true
+    user_id: "user_c778280e23af"
+  gflows:
+    name: "gflows"
+    description: "Gflows project"
+    repo: null
+    default: false
+    user_id: "user_c778280e23af"
+  baby-billy-dvt:
+    name: "baby-billy-dvt"
+    description: "Baby Billy DVT project"
+    repo: null
+    default: false
+    user_id: "user_c778280e23af"
+  personal:
+    name: "personal"
+    description: "Personal notes and preferences"
+    repo: null
+    default: false
+    user_id: "user_c778280e23af"
+
+# Pruning policy
+pruning:
+  # Session entries older than this are archived
+  session_max_age_days: 30
+  # Durable types are never pruned
+  durable_types:
+    - project
+    - reference
+    - feedback
+    - decision
+    - config
+  # Archive location
+  archive_dir: "_archive"
+  # Max active files before warning
+  max_active_files: 50
+
+# ask-hermes defaults
+ask_hermes:
+  default_project: "floww"
+  max_results_per_source: 3
+  synthesis_paragraphs: 1
