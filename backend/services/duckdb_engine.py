@@ -188,11 +188,13 @@ class DuckDBEngine:
     async def insert_tick(self, symbol: str, bid: float, ask: float, last: float,
                           volume: int, oi: int, delta: float, gamma: float,
                           theta: float, vega: float, vanna: float = 0.0,
-                          charm: float = 0.0, vomma: float = 0.0):
+                          charm: float = 0.0, vomma: float = 0.0,
+                          data_source: str = "Yahoo", delay_seconds: int = 0):
         """Buffer a tick for batch insert."""
         ts = datetime.now(timezone.utc)
         self._tick_buffer.append((ts, symbol, bid, ask, last, volume, oi,
-                                  delta, gamma, theta, vega, vanna, charm, vomma))
+                                  delta, gamma, theta, vega, vanna, charm, vomma,
+                                  data_source, delay_seconds))
         obs_metrics.duckdb_queue_depth.set(
             len(self._tick_buffer) + len(self._lob_buffer) + len(self._flow_buffer)
         )
@@ -259,7 +261,7 @@ class DuckDBEngine:
         try:
             await asyncio.to_thread(
                 lambda: self._conn.executemany(
-                    """INSERT INTO ticks VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                    """INSERT INTO ticks VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
                     buf,
                 )
             )
