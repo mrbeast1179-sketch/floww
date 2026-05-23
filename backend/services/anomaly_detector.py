@@ -45,44 +45,44 @@ if HAS_TORCH:
             self.seq_len = seq_len
             self.input_channels = input_channels
 
-        # Encoder
-        self.encoder = nn.Sequential(
-            nn.Conv1d(input_channels, 16, kernel_size=5, padding=2),
-            nn.ReLU(),
-            nn.MaxPool1d(2),
-            nn.Conv1d(16, 8, kernel_size=3, padding=1),
-            nn.ReLU(),
-            nn.MaxPool1d(2),
-            nn.Flatten(),
-        )
+            # Encoder
+            self.encoder = nn.Sequential(
+                nn.Conv1d(input_channels, 16, kernel_size=5, padding=2),
+                nn.ReLU(),
+                nn.MaxPool1d(2),
+                nn.Conv1d(16, 8, kernel_size=3, padding=1),
+                nn.ReLU(),
+                nn.MaxPool1d(2),
+                nn.Flatten(),
+            )
 
-        # Compute flattened size after conv layers
-        # After 2 maxpool layers: seq_len -> seq_len//4
-        flat_size = 8 * (seq_len // 4)
+            # Compute flattened size after conv layers
+            # After 2 maxpool layers: seq_len -> seq_len//4
+            flat_size = 8 * (seq_len // 4)
 
-        self.fc_encode = nn.Linear(flat_size, latent_dim)
-        self.fc_decode = nn.Linear(latent_dim, flat_size)
+            self.fc_encode = nn.Linear(flat_size, latent_dim)
+            self.fc_decode = nn.Linear(latent_dim, flat_size)
 
-        # Decoder
-        self.decoder = nn.Sequential(
-            nn.Unflatten(1, (8, seq_len // 4)),
-            nn.ConvTranspose1d(8, 16, kernel_size=2, stride=2),
-            nn.ReLU(),
-            nn.ConvTranspose1d(16, input_channels, kernel_size=2, stride=2),
-        )
+            # Decoder
+            self.decoder = nn.Sequential(
+                nn.Unflatten(1, (8, seq_len // 4)),
+                nn.ConvTranspose1d(8, 16, kernel_size=2, stride=2),
+                nn.ReLU(),
+                nn.ConvTranspose1d(16, input_channels, kernel_size=2, stride=2),
+            )
 
-    def forward(self, x):
-        encoded = self.encoder(x)
-        latent = self.fc_encode(encoded)
-        decoded = self.fc_decode(latent)
-        reconstructed = self.decoder(decoded)
-        # Pad or trim to exactly match input size
-        if reconstructed.shape[-1] < self.seq_len:
-            pad_size = self.seq_len - reconstructed.shape[-1]
-            reconstructed = torch.nn.functional.pad(reconstructed, (0, pad_size))
-        elif reconstructed.shape[-1] > self.seq_len:
-            reconstructed = reconstructed[..., :self.seq_len]
-        return reconstructed, latent
+        def forward(self, x):
+            encoded = self.encoder(x)
+            latent = self.fc_encode(encoded)
+            decoded = self.fc_decode(latent)
+            reconstructed = self.decoder(decoded)
+            # Pad or trim to exactly match input size
+            if reconstructed.shape[-1] < self.seq_len:
+                pad_size = self.seq_len - reconstructed.shape[-1]
+                reconstructed = torch.nn.functional.pad(reconstructed, (0, pad_size))
+            elif reconstructed.shape[-1] > self.seq_len:
+                reconstructed = reconstructed[..., :self.seq_len]
+            return reconstructed, latent
 
 
 class StatisticalAnomalyDetector:
