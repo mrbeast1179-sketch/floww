@@ -5,9 +5,9 @@ assignee: Agent 7
 skill: red-teaming:godmode + hermeshub:agent-hardening
 estimate_hours: 3
 dependencies: []
-status: ready
-last_update: 2026-05-19T20:30:00Z
-commits: []
+status: done
+last_update: 2026-07-09T00:00:00Z
+commits: [90f3c52, c62581f, d31ee65, aefa9ca]
 blockers: []
 ---
 

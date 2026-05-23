@@ -5,9 +5,9 @@ assignee: Agent 1
 skill: swarmclaw:coding-agent + hermeshub:api-builder
 estimate_hours: 4
 dependencies: []
-status: ready
-last_update: 2026-05-19T20:30:00Z
-commits: []
+status: done
+last_update: 2026-07-09T00:00:00Z
+commits: [eb711f0, eb373a0, 91e4653, 66abeb6]
 blockers: []
 ---
 
