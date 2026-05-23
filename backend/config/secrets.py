@@ -1,9 +1,9 @@
 """
 backend/config/secrets.py
 
-Azure Key Vault secret retrieval with local fallback.
-All secrets are stored in Azure Key Vault and accessed via Managed Identity.
-Local .env is only used as a fallback for development — never in production.
+Azure Key Vault secret retrieval with strict production enforcement.
+In production (Azure App Service), ALL secrets MUST come from Key Vault.
+Local .env is only used for development — never in production.
 
 Usage:
     from config.secrets import get_secret, require_secret
@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import logging
 import os
+import sys
 from functools import lru_cache
 from typing import Optional
 
@@ -62,7 +63,7 @@ class AzureKeyVaultClient:
             logger.info(f"Key Vault client initialized: {self._vault_url}")
             return self._client
         except ImportError:
-            logger.warning("azure-identity or azure-keyvault-secrets not installed")
+            logger.error("azure-identity or azure-keyvault-secrets not installed")
             return None
         except Exception as e:
             logger.error(f"Key Vault client init failed: {e}")
@@ -85,7 +86,12 @@ class AzureKeyVaultClient:
 
 
 class LocalEnvClient:
-    """Fallback: read secrets from environment / .env file."""
+    """Fallback: read secrets from environment / .env file.
+
+    WARNING: Only used in development. In production, this client is
+    disabled and require_secret() will raise RuntimeError if the
+    secret is not in Key Vault.
+    """
 
     def get_secret(self, name: str) -> Optional[str]:
         return os.environ.get(name)
@@ -96,9 +102,12 @@ class LocalEnvClient:
 class SecretResolver:
     """
     Resolves secrets in priority order:
-    1. Azure Key Vault (production)
-    2. Environment variables (always checked)
+    1. Azure Key Vault (production — REQUIRED)
+    2. Environment variables (development only)
     3. Default value (if provided)
+
+    In production, if a required secret is not in Key Vault,
+    RuntimeError is raised immediately — no .env fallback.
     """
 
     def __init__(self):
@@ -107,13 +116,19 @@ class SecretResolver:
 
     def get(self, name: str, default: Optional[str] = None) -> Optional[str]:
         """Get a secret value. Returns default if not found anywhere."""
-        # 1. Try Key Vault in Azure
+        # 1. Try Key Vault in Azure (production)
         if self._kv:
             value = self._kv.get_secret(name)
             if value is not None:
                 return value
+            # In production, do NOT fall back to env vars
+            if is_production():
+                logger.error(f"Secret '{name}' not found in Key Vault (production mode)")
+                return default
+            # In development, log a warning but continue
+            logger.warning(f"Secret '{name}' not in Key Vault, falling back to env")
 
-        # 2. Try environment
+        # 2. Try environment (development only)
         value = self._local.get_secret(name)
         if value is not None:
             return value
@@ -127,7 +142,7 @@ class SecretResolver:
         if value is None:
             raise RuntimeError(
                 f"Required secret '{name}' not found. "
-                f"Set it in Azure Key Vault or as environment variable."
+                f"{'Set it in Azure Key Vault.' if is_azure() else 'Set it as environment variable or in .env file.'}"
             )
         return value
 
@@ -187,15 +202,10 @@ def get_dash_session_token() -> str:
 
 
 @lru_cache(maxsize=1)
-def get_schwab_client_id() -> str:
-    return get_secret("SCHWAB_CLIENT_ID", "") or ""
-
-
-@lru_cache(maxsize=1)
-def get_schwab_client_secret() -> str:
-    return get_secret("SCHWAB_CLIENT_SECRET", "") or ""
-
-
-@lru_cache(maxsize=1)
 def get_databento_api_key() -> str:
     return get_secret("DATABENTO_API_KEY", "") or ""
+
+
+@lru_cache(maxsize=1)
+def get_polygon_api_key() -> str:
+    return get_secret("POLYGON_API_KEY", "") or ""
