@@ -70,6 +70,70 @@ async def charm_integral_endpoint(ticker: str, expiries: int = Query(4, ge=1, le
     return _sanitize(calc_charm_integral(raw["spot"], raw["contracts"], ticker.strip().upper()))
 
 
+@router.get("/vanna/{ticker}")
+async def vanna_endpoint(ticker: str, expiries: int = Query(4, ge=1, le=12)):
+    """Alias for vanna-exposure — returns vanna by strike for frontend charts."""
+    return await vanna_exposure_endpoint(ticker, expiries)
+
+
+@router.get("/vanna-exposure/{ticker}")
+async def vanna_exposure_endpoint(ticker: str, expiries: int = Query(4, ge=1, le=12)):
+    """
+    Compute vanna exposure by strike.
+    Vanna = d(Delta)/d(Vol) — measures how delta changes with implied volatility.
+    High vanna exposure = large delta shifts on vol changes = potential instability.
+    """
+    from server import _sanitize
+    from services.numba_greeks import bs_vanna_vec
+    import numpy as np
+
+    raw = await _fetch_chain(ticker, expiries)
+    _check_chain(raw, ticker)
+    spot = raw["spot"]
+    contracts = raw["contracts"]
+    t = ticker.strip().upper()
+
+    # Aggregate vanna by strike
+    strike_vanna: dict = {}
+    for c in contracts:
+        strike = c.get("strike")
+        if not strike:
+            continue
+        iv = c.get("iv", 0)
+        if iv <= 0:
+            continue
+        oi = c.get("oi", c.get("open_interest", 0))
+        T = c.get("dte", 30) / 365.0
+        if T <= 0:
+            continue
+
+        # Vanna per contract (simplified)
+        vanna = float(bs_vanna_vec(
+            np.array([float(spot)]),
+            np.array([float(strike)]),
+            np.array([T]),
+            np.array([float(iv)]),
+            0.0,  # q
+            0.05,  # r
+        )[0])
+
+        # Weight by OI and direction
+        sign = 1.0 if c.get("type") == "call" else -1.0
+        weighted = vanna * oi * sign * 100  # per contract multiplier
+
+        strike_vanna[strike] = strike_vanna.get(strike, 0.0) + weighted
+
+    # Sort by strike
+    sorted_strikes = sorted(strike_vanna.keys())
+    return _sanitize({
+        "ticker": t,
+        "spot": spot,
+        "strikes": sorted_strikes,
+        "vanna": [strike_vanna[k] for k in sorted_strikes],
+        "asof": datetime.now(timezone.utc).isoformat(),
+    })
+
+
 @router.get("/advanced/{ticker}")
 async def advanced_analytics(ticker: str, expiries: int = Query(4, ge=1, le=12)):
     from server import (

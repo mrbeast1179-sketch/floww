@@ -95,6 +95,8 @@ import RollingFloorsCeilingsPanelBase from "./RollingFloorsCeilingsPanel";
 import NodeClassificationPanelBase from "./NodeClassificationPanel";
 import StackedNodesPanelBase from "./StackedNodesPanel";
 import TugOfWarZonesPanelBase from "./TugOfWarZonesPanel";
+import VannaChart from "../VannaChart";
+import CharmChart from "../CharmChart";
 
 // Memo-wrapped panels prevent re-renders when parent re-renders with
 // the same ticker/spot props (e.g. spot micro-ticks that don't affect panels).
@@ -186,6 +188,14 @@ export default function HeatseekerDashboard({
             <NodeClassificationPanel ticker={normalizedTicker} />
           </div>
           <StackedNodesPanel ticker={normalizedTicker} />
+        </div>
+      </LazyRow>
+
+      {/* Row 6 — Vanna + Charm charts (lazy-loaded, below-the-fold) */}
+      <LazyRow rootMargin="100px">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+          <VannaChart ticker={normalizedTicker} spot={spot} />
+          <CharmChart ticker={normalizedTicker} spot={spot} />
         </div>
       </LazyRow>
     </div>
