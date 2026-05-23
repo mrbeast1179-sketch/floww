@@ -21,6 +21,25 @@ import aiohttp
 
 logger = logging.getLogger(__name__)
 
+# ---------------------------------------------------------------------------
+# Provider call tracking — success/failure recording
+# ---------------------------------------------------------------------------
+def _record_provider_call(provider: str, success: bool):
+    """Record a provider call result for monitoring. Safe to call from any context."""
+    try:
+        from services.meta_observability import provider_monitor
+        provider_monitor.record(provider, success)
+    except Exception:
+        pass  # monitoring must never break data fetching
+
+    try:
+        from services.observability import provider_calls_total
+        status = "success" if success else "failure"
+        provider_calls_total.labels(provider=provider, status=status).inc()
+    except Exception:
+        pass
+
+
 # API Keys from environment
 FINNHUB_API_KEY = os.environ.get("FINNHUB_API_KEY", "")
 ALPHA_VANTAGE_KEY = os.environ.get("ALPHA_VANTAGE_KEY", "")
@@ -58,15 +77,24 @@ class FreeDataProvider:
                 async with session.get(url, params=params or {}, headers=headers or {},
                                        timeout=aiohttp.ClientTimeout(total=10)) as resp:
                     if resp.status == 200:
+                        _record_provider_call(self.name, True)
                         return await resp.json()
                     elif resp.status == 429:
                         logger.warning(f"{self.name}: Rate limited")
+                        _record_provider_call(self.name, False)
+                        try:
+                            from services.observability import provider_calls_total
+                            provider_calls_total.labels(provider=self.name, status="rate_limited").inc()
+                        except Exception:
+                            pass
                         return None
                     else:
                         logger.warning(f"{self.name}: HTTP {resp.status}")
+                        _record_provider_call(self.name, False)
                         return None
         except Exception as e:
             logger.warning(f"{self.name}: {e}")
+            _record_provider_call(self.name, False)
             return None
 
 
@@ -328,12 +356,34 @@ class DataAggregator:
             import yfinance as yf
             t = yf.Ticker(ticker)
             info = t.fast_info
-            return {
-                "price": info.last_price,
-                "prev_close": info.previous_close,
-                "source": "yfinance",
-            }
-        except:
+            price = info.last_price
+            if price:
+                _record_provider_call("yfinance", True)
+                try:
+                    from services.observability import yfinance_calls_total
+                    yfinance_calls_total.labels(endpoint="get_spot_price", status="success").inc()
+                except Exception:
+                    pass
+                return {
+                    "price": price,
+                    "prev_close": info.previous_close,
+                    "source": "yfinance",
+                }
+            else:
+                _record_provider_call("yfinance", False)
+                try:
+                    from services.observability import yfinance_calls_total
+                    yfinance_calls_total.labels(endpoint="get_spot_price", status="failure").inc()
+                except Exception:
+                    pass
+                return None
+        except Exception as e:
+            _record_provider_call("yfinance", False)
+            try:
+                from services.observability import yfinance_calls_total
+                yfinance_calls_total.labels(endpoint="get_spot_price", status="failure").inc()
+            except Exception:
+                pass
             return None
     
     async def get_full_quote(self, ticker: str) -> dict:

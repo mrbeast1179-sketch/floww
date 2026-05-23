@@ -25,6 +25,9 @@ import os
 import time
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
+from collections import defaultdict
+from dataclasses import dataclass, field
+from typing import Callable
 from pathlib import Path
 
 import numpy as np
@@ -241,3 +244,213 @@ class MetaAnomalyDetector:
 
 # Global singleton
 meta_detector = MetaAnomalyDetector()
+
+
+# ---------------------------------------------------------------------------
+# Data Provider Monitor — rolling success rates + alerting
+# ---------------------------------------------------------------------------
+from typing import Any, Callable, Dict, List, Optional
+
+log = logging.getLogger(__name__)
+
+
+@dataclass
+class ProviderStats:
+    """Rolling stats for a single data provider."""
+    name: str
+    window_seconds: float = 300.0  # 5-minute rolling window
+    _calls: list = field(default_factory=list)  # list of (timestamp, success: bool)
+    _last_success: float = 0.0
+    _last_failure: float = 0.0
+    _consecutive_failures: int = 0
+    _total_calls: int = 0
+    _total_successes: int = 0
+
+    def record(self, success: bool):
+        now = time.time()
+        self._calls.append((now, success))
+        self._total_calls += 1
+        if success:
+            self._total_successes += 1
+            self._last_success = now
+            self._consecutive_failures = 0
+        else:
+            self._last_failure = now
+            self._consecutive_failures += 1
+        # Prune old entries outside the rolling window
+        cutoff = now - self.window_seconds
+        self._calls = [(t, s) for t, s in self._calls if t >= cutoff]
+
+    @property
+    def success_rate(self) -> float:
+        if not self._calls:
+            return 1.0  # no data yet = assume healthy
+        successes = sum(1 for _, s in self._calls if s)
+        return successes / len(self._calls)
+
+    @property
+    def window_calls(self) -> int:
+        return len(self._calls)
+
+    @property
+    def seconds_since_last_success(self) -> float:
+        if self._last_success == 0:
+            return float("inf")
+        return time.time() - self._last_success
+
+    @property
+    def consecutive_failures(self) -> int:
+        return self._consecutive_failures
+
+
+class DataProviderMonitor:
+    """
+    Monitors data provider health with rolling success rates and configurable alerting.
+
+    Usage:
+        monitor = DataProviderMonitor()
+        monitor.record("yfinance", success=True)
+        monitor.record("finnhub", success=False)
+        alerts = monitor.check_alerts()
+
+    Alert thresholds:
+        - low_success_rate: success rate < min_success_rate over the rolling window
+        - provider_down: no successful call in provider_down_seconds
+        - repeated_failures: consecutive_failures >= max_consecutive_failures
+    """
+
+    def __init__(
+        self,
+        min_success_rate: float = 0.5,
+        provider_down_seconds: float = 120.0,
+        max_consecutive_failures: int = 5,
+        window_seconds: float = 300.0,
+        on_alert: Optional[Callable[[str, str, Dict[str, Any]], None]] = None,
+    ):
+        self.min_success_rate = min_success_rate
+        self.provider_down_seconds = provider_down_seconds
+        self.max_consecutive_failures = max_consecutive_failures
+        self.window_seconds = window_seconds
+        self.on_alert = on_alert
+        self._providers: Dict[str, ProviderStats] = {}
+        self._alerted: Dict[str, set] = defaultdict(set)  # provider -> set of active alert_types
+
+    def _get_stats(self, provider: str) -> ProviderStats:
+        if provider not in self._providers:
+            self._providers[provider] = ProviderStats(
+                name=provider,
+                window_seconds=self.window_seconds,
+            )
+        return self._providers[provider]
+
+    def record(self, provider: str, success: bool):
+        """Record a call result for a provider."""
+        stats = self._get_stats(provider)
+        stats.record(success)
+
+    def check_alerts(self) -> List[Dict[str, Any]]:
+        """
+        Check all providers for alert conditions.
+        Returns list of alert dicts and fires callbacks.
+        """
+        alerts = []
+        for name, stats in self._providers.items():
+            # Alert: low success rate
+            if stats.window_calls >= 3 and stats.success_rate < self.min_success_rate:
+                if "low_success_rate" not in self._alerted[name]:
+                    alert = {
+                        "provider": name,
+                        "alert_type": "low_success_rate",
+                        "success_rate": round(stats.success_rate, 3),
+                        "threshold": self.min_success_rate,
+                        "window_calls": stats.window_calls,
+                        "severity": "warning",
+                    }
+                    alerts.append(alert)
+                    self._alerted[name].add("low_success_rate")
+                    if self.on_alert:
+                        self.on_alert(name, "low_success_rate", alert)
+            else:
+                self._alerted[name].discard("low_success_rate")
+
+            # Alert: provider down (no success in N seconds)
+            if stats.seconds_since_last_success > self.provider_down_seconds and stats.window_calls > 0:
+                if "provider_down" not in self._alerted[name]:
+                    alert = {
+                        "provider": name,
+                        "alert_type": "provider_down",
+                        "seconds_since_success": round(stats.seconds_since_last_success, 1),
+                        "threshold_seconds": self.provider_down_seconds,
+                        "severity": "critical",
+                    }
+                    alerts.append(alert)
+                    self._alerted[name].add("provider_down")
+                    if self.on_alert:
+                        self.on_alert(name, "provider_down", alert)
+            else:
+                self._alerted[name].discard("provider_down")
+
+            # Alert: repeated consecutive failures
+            if stats.consecutive_failures >= self.max_consecutive_failures:
+                if "repeated_failures" not in self._alerted[name]:
+                    alert = {
+                        "provider": name,
+                        "alert_type": "repeated_failures",
+                        "consecutive_failures": stats.consecutive_failures,
+                        "threshold": self.max_consecutive_failures,
+                        "severity": "warning",
+                    }
+                    alerts.append(alert)
+                    self._alerted[name].add("repeated_failures")
+                    if self.on_alert:
+                        self.on_alert(name, "repeated_failures", alert)
+            else:
+                self._alerted[name].discard("repeated_failures")
+
+        return alerts
+
+    def get_health(self) -> Dict[str, Any]:
+        """Return health summary for all providers."""
+        providers = {}
+        for name, stats in self._providers.items():
+            providers[name] = {
+                "success_rate": round(stats.success_rate, 3),
+                "window_calls": stats.window_calls,
+                "total_calls": stats._total_calls,
+                "total_successes": stats._total_successes,
+                "seconds_since_last_success": round(stats.seconds_since_last_success, 1),
+                "consecutive_failures": stats.consecutive_failures,
+            }
+        return {
+            "providers": providers,
+            "thresholds": {
+                "min_success_rate": self.min_success_rate,
+                "provider_down_seconds": self.provider_down_seconds,
+                "max_consecutive_failures": self.max_consecutive_failures,
+                "window_seconds": self.window_seconds,
+            },
+            "active_alerts": self.check_alerts(),
+        }
+
+    def update_prometheus(self):
+        """Update Prometheus gauges from current stats."""
+        try:
+            from services.observability import (
+                provider_calls_total,
+                provider_success_rate,
+                provider_last_success_seconds_ago,
+                provider_alerts_fired_total,
+            )
+            for name, stats in self._providers.items():
+                # Set success rate gauge
+                provider_success_rate.labels(provider=name).set(round(stats.success_rate, 4))
+                # Set seconds since last success
+                provider_last_success_seconds_ago.labels(provider=name).set(
+                    round(stats.seconds_since_last_success, 1)
+                )
+        except Exception as e:
+            log.debug(f"Failed to update Prometheus gauges: {e}")
+
+
+# Global singleton
+provider_monitor = DataProviderMonitor()
