@@ -133,14 +133,25 @@ def main():
     print(f"\n{'='*60}")
     print("  COMPARISON")
     print(f"{'='*60}")
-    print(f"{'Metric':<30} {'No Filter':>12} {'SMA-21':>12} {'High Thresh':>12}")
-    print(f"{'-'*66}")
-    for metric in ["total_return_pct", "sharpe_ratio", "max_drawdown_pct",
-                   "win_rate_pct", "num_trades", "profit_factor"]:
-        v1 = getattr(r1, metric, 0)
-        v2 = getattr(r2, metric, 0)
-        v3 = getattr(r3, metric, 0)
-        print(f"{metric:<30} {v1:>12.2f} {v2:>12.2f} {v3:>12.2f}")
+
+    def get(result, key):
+        return result.metrics.get(key, 0)
+
+    metrics = [
+        ("Net Return %", "net_return_pct"),
+        ("Sharpe", "sharpe"),
+        ("Max Drawdown %", "max_drawdown_pct"),
+        ("Hit Rate", "hit_rate"),
+        ("Profit Factor", "profit_factor"),
+        ("Num Trades", "n_trades"),
+    ]
+    print(f"{'Metric':<25} {'No Filter':>12} {'SMA-21':>12} {'High Thresh':>12}")
+    print(f"{'-'*61}")
+    for label, key in metrics:
+        v1 = get(r1, key)
+        v2 = get(r2, key)
+        v3 = get(r3, key)
+        print(f"{label:<25} {v1:>12.2f} {v2:>12.2f} {v3:>12.2f}")
 
 
 if __name__ == "__main__":
