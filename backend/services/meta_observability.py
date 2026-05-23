@@ -47,6 +47,8 @@ FEATURES = [
     "vpin_qqq",
     "p99_latency",
     "ws_connections",
+    "cache_hit_ratio",
+    "429_count",
     "hour_of_day",      # cyclical encoding
     "day_of_week",      # cyclical encoding
 ]
@@ -106,7 +108,8 @@ class MetaAnomalyDetector:
 
         metrics_snapshot keys:
             ingestion_rate_spy, ingestion_rate_qqq, queue_depth,
-            vpin_spy, vpin_qqq, p99_latency, ws_connections
+            vpin_spy, vpin_qqq, p99_latency, ws_connections,
+            cache_hit_ratio, 429_count
         """
         now = datetime.now(timezone.utc)
         hour = now.hour + now.minute / 60.0
@@ -126,6 +129,8 @@ class MetaAnomalyDetector:
             metrics_snapshot.get("vpin_qqq", 0.0),
             metrics_snapshot.get("p99_latency", 0.0),
             metrics_snapshot.get("ws_connections", 0.0),
+            metrics_snapshot.get("cache_hit_ratio", 1.0),
+            metrics_snapshot.get("429_count", 0.0),
             hour_sin * 0.5 + hour_cos * 0.5,  # combined cyclical
             dow_sin * 0.5 + dow_cos * 0.5,
         ]
