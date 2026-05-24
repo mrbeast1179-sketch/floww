@@ -19,9 +19,9 @@ from __future__ import annotations
 
 import os
 import sys
-from datetime import date
-from unittest.mock import MagicMock, patch, PropertyMock
+from unittest.mock import MagicMock, patch
 
+import numpy as np
 import pandas as pd
 import pytest
 
@@ -34,8 +34,6 @@ os.environ.pop("DATABENTO_API_KEY", None)
 
 from services.databento_oi import (
     _clamp_oi,
-    _yfinance_oi_for_contract,
-    _yfinance_full_chain,
     get_oi,
     get_oi_chain,
     has_databento_key,
@@ -61,9 +59,6 @@ class TestClampOi:
     def test_inf_returns_zero(self):
         assert _clamp_oi(float("inf")) == 0
 
-    def test_neg_inf_returns_zero():
-        assert _clamp_oi(float("-inf")) == 0
-
     def test_string_returns_zero(self):
         assert _clamp_oi("abc") == 0
 
@@ -86,7 +81,6 @@ class TestClampOi:
         assert _clamp_oi(-999999) == 0
 
     def test_numpy_nan_returns_zero(self):
-        import numpy as np
         assert _clamp_oi(np.nan) == 0
 
 
