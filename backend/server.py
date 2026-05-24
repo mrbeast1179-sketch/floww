@@ -2666,6 +2666,9 @@ app.include_router(gemini_router, tags=["ai"])
 from routes.heatseeker import router as heatseeker_router
 app.include_router(heatseeker_router, tags=["heatseeker"])
 
+from routes.heatseeker_snapshots_api import router as heatseeker_snapshots_router
+app.include_router(heatseeker_snapshots_router, prefix="/api/heatseeker-snapshots", tags=["heatseeker-snapshots"])
+
 from routes.predictive import router as predictive_router
 app.include_router(predictive_router, tags=["predictive"])
 
