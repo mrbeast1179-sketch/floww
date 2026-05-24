@@ -248,5 +248,39 @@ yfinance_success_rate = Gauge(
     registry=REGISTRY,
 )
 
+# ---------------------------------------------------------------------------
+# Fill Quality / Slippage metrics
+# ---------------------------------------------------------------------------
+fill_slippage_bps = Histogram(
+    "floww_fill_slippage_bps",
+    "Fill slippage in basis points (positive = adverse)",
+    labelnames=["ticker", "side"],
+    buckets=[0, 0.5, 1, 2, 5, 10, 25, 50, 100, 250, 500, 1000],
+    registry=REGISTRY,
+)
+
+fills_total = Counter(
+    "floww_fills_total",
+    "Total fills recorded",
+    labelnames=["ticker", "side"],
+    registry=REGISTRY,
+)
+
+# ---------------------------------------------------------------------------
+# Cache & Rate Limit metrics
+# ---------------------------------------------------------------------------
+cache_hit_ratio = Gauge(
+    "floww_cache_hit_ratio",
+    "Cache hit ratio (0.0-1.0) for DuckDB fallback serving",
+    registry=REGISTRY,
+)
+
+rate_limit_429_count = Counter(
+    "floww_rate_limit_429_total",
+    "Total HTTP 429 responses served (rate limit exceeded)",
+    labelnames=["client_ip"],
+    registry=REGISTRY,
+)
+
 
 metrics = _MetricsNamespace()
