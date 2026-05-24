@@ -18,8 +18,7 @@ from typing import Optional
 
 from fastapi import APIRouter, Query, HTTPException
 
-from services.cache_router import CacheRouter
-from services.fetch_coordinator import FetchCoordinator
+from services.fetch_coordinator import CacheRouter, FetchCoordinator, degraded_response
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -30,11 +29,10 @@ _coordinator = FetchCoordinator()
 
 async def _fetch_chain(ticker: str, expiries: int):
     """Fetch option chain — cache-first with fallback."""
-    from server import fetch_spot_and_chains_merged
     t = ticker.strip().upper()
     if t == "SPX":
         t = "^SPX"
-    return await _coordinator.fetch(t, expiries, fetch_spot_and_chains_merged)
+    return await _cache.get_chain(t, expiries, 300, _coordinator)
 
 
 def _check_chain(raw: dict, ticker: str):
@@ -58,8 +56,8 @@ async def implied_pdf(
     except HTTPException:
         raise
     except Exception as e:
-        logger.warning(f"implied-pdf error for {ticker}: {e}")
-        return _cache.degraded_response("computation_error", str(e))
+        logger.warning("implied-pdf error for %s: %s", ticker, e)
+        return degraded_response("computation_error", str(e))
 
 
 @router.get("/regime/{ticker}")
@@ -76,8 +74,8 @@ async def regime(
     except HTTPException:
         raise
     except Exception as e:
-        logger.warning(f"regime error for {ticker}: {e}")
-        return _cache.degraded_response("computation_error", str(e))
+        logger.warning("regime error for %s: %s", ticker, e)
+        return degraded_response("computation_error", str(e))
 
 
 @router.get("/hedge-impulse/{ticker}")
@@ -94,8 +92,8 @@ async def hedge_impulse(
     except HTTPException:
         raise
     except Exception as e:
-        logger.warning(f"hedge-impulse error for {ticker}: {e}")
-        return _cache.degraded_response("computation_error", str(e))
+        logger.warning("hedge-impulse error for %s: %s", ticker, e)
+        return degraded_response("computation_error", str(e))
 
 
 @router.get("/pressure-cloud/{ticker}")
@@ -112,8 +110,8 @@ async def pressure_cloud(
     except HTTPException:
         raise
     except Exception as e:
-        logger.warning(f"pressure-cloud error for {ticker}: {e}")
-        return _cache.degraded_response("computation_error", str(e))
+        logger.warning("pressure-cloud error for %s: %s", ticker, e)
+        return degraded_response("computation_error", str(e))
 
 
 @router.get("/charm-integral/{ticker}")
@@ -130,8 +128,8 @@ async def charm_integral_endpoint(
     except HTTPException:
         raise
     except Exception as e:
-        logger.warning(f"charm-integral error for {ticker}: {e}")
-        return _cache.degraded_response("computation_error", str(e))
+        logger.warning("charm-integral error for %s: %s", ticker, e)
+        return degraded_response("computation_error", str(e))
 
 
 @router.get("/vanna/{ticker}")
@@ -197,8 +195,8 @@ async def vanna_exposure_endpoint(
     except HTTPException:
         raise
     except Exception as e:
-        logger.warning(f"vanna-exposure error for {ticker}: {e}")
-        return _cache.degraded_response("computation_error", str(e))
+        logger.warning("vanna-exposure error for %s: %s", ticker, e)
+        return degraded_response("computation_error", str(e))
 
 
 @router.get("/advanced/{ticker}")
@@ -231,8 +229,8 @@ async def advanced_analytics(
     except HTTPException:
         raise
     except Exception as e:
-        logger.warning(f"advanced error for {ticker}: {e}")
-        return _cache.degraded_response("computation_error", str(e))
+        logger.warning("advanced error for %s: %s", ticker, e)
+        return degraded_response("computation_error", str(e))
 
 
 @router.get("/gamma-flip/{ticker}")
@@ -251,8 +249,8 @@ async def gamma_flip(
     except HTTPException:
         raise
     except Exception as e:
-        logger.warning(f"gamma-flip error for {ticker}: {e}")
-        return _cache.degraded_response("computation_error", str(e))
+        logger.warning("gamma-flip error for %s: %s", ticker, e)
+        return degraded_response("computation_error", str(e))
 
 
 @router.get("/daily-checklist/{ticker}")
@@ -290,8 +288,8 @@ async def daily_checklist(
     except HTTPException:
         raise
     except Exception as e:
-        logger.warning(f"daily-checklist error for {ticker}: {e}")
-        return _cache.degraded_response("computation_error", str(e))
+        logger.warning("daily-checklist error for %s: %s", ticker, e)
+        return degraded_response("computation_error", str(e))
 
 
 @router.get("/movers")
@@ -372,8 +370,8 @@ async def contract(
     except HTTPException:
         raise
     except Exception as e:
-        logger.warning(f"contract error for {ticker}: {e}")
-        return _cache.degraded_response("computation_error", str(e))
+        logger.warning("contract error for %s: %s", ticker, e)
+        return degraded_response("computation_error", str(e))
 
 
 @router.get("/flow/{ticker}")
@@ -409,8 +407,8 @@ async def surface(
     except HTTPException:
         raise
     except Exception as e:
-        logger.warning(f"surface error for {ticker}: {e}")
-        return _cache.degraded_response("computation_error", str(e))
+        logger.warning("surface error for %s: %s", ticker, e)
+        return degraded_response("computation_error", str(e))
 
 
 @router.get("/regime-stats/{ticker}")

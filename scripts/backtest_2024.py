@@ -45,7 +45,7 @@ import os
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any
+from typing import Any, Optional
 
 import joblib
 import numpy as np
@@ -147,8 +147,8 @@ def derive_labels(df: pd.DataFrame, outcomes: pd.DataFrame) -> pd.DataFrame:
     sources: list[str] = []
     for _, row in out.iterrows():
         d = row["date"]
-        label_val: float | None = None
-        ret_val: float | None = None
+        label_val: Optional[float] = None
+        ret_val: Optional[float] = None
         src = "missing"
 
         if o is not None and d in o.index:

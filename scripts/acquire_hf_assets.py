@@ -25,6 +25,7 @@ import os
 import sys
 import time
 from pathlib import Path
+from typing import Optional
 from datetime import datetime, timezone
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
@@ -116,7 +117,7 @@ def search_datasets(query: str, limit: int = 5) -> list[dict]:
         return []
 
 
-def download_model(model_id: str, target_dir: Path) -> dict | None:
+def download_model(model_id: str, target_dir: Path) -> Optional[dict]:
     """Download a model from HuggingFace Hub. Returns provenance dict or None."""
     try:
         from huggingface_hub import snapshot_download
@@ -150,7 +151,7 @@ def download_model(model_id: str, target_dir: Path) -> dict | None:
         return None
 
 
-def download_dataset(dataset_id: str, target_dir: Path) -> dict | None:
+def download_dataset(dataset_id: str, target_dir: Path) -> Optional[dict]:
     """Download a dataset from HuggingFace Hub. Returns provenance dict or None."""
     try:
         from huggingface_hub import snapshot_download

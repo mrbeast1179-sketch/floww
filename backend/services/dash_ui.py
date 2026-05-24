@@ -17,8 +17,10 @@ Tabs:
 """
 from __future__ import annotations
 
+import functools
 import json
 import logging
+import math
 from typing import Any, Dict, List, Optional
 
 import plotly.graph_objects as go
@@ -92,6 +94,296 @@ def _error_figure(msg: str, dark: bool = True) -> go.Figure:
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
+# I-8: Safe JSON helpers for dcc.Store persistence
+# ═══════════════════════════════════════════════════════════════════════════════
+
+def _safe_json_value(val: Any) -> Any:
+    """Guard against None / NaN / Inf in stored state. I-8 compliance."""
+    if val is None:
+        return None
+    if isinstance(val, float):
+        if math.isnan(val) or math.isinf(val):
+            return None
+    return val
+
+
+def _sanitize_state_dict(d: Dict[str, Any]) -> Dict[str, Any]:
+    """Sanitize a state dict: replace None/NaN/Inf with safe defaults."""
+    if not isinstance(d, dict):
+        return {}
+    out = {}
+    for k, v in d.items():
+        safe = _safe_json_value(v)
+        if safe is not None:
+            out[k] = safe
+    return out
+
+
+def _default_toggle_state() -> Dict[str, Any]:
+    """Default toggle state for Heatseeker sidebar."""
+    return {
+        "view": "GEX",
+        "mode": "absolute",
+        "indicators": [],       # visible overlay IDs
+        "dte_min": 0,
+        "dte_max": 365,
+        "expiries": [],         # selected expiry dates (empty = all)
+    }
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# HEATSEEKER TOGGLE COMPONENTS (sidebar injected into tab content)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+def _overlay_options() -> List[Dict[str, str]]:
+    """Available indicator overlay toggles."""
+    return [
+        {"label": "King Nodes", "value": "king_nodes"},
+        {"label": "Air Pockets", "value": "air_pockets"},
+        {"label": "Flip Zones", "value": "flip_zones"},
+    ]
+
+
+def _build_heatseeker_toggles(expiry_dates: Optional[List[str]] = None) -> html.Div:
+    """Build the Heatseeker sidebar with all 5 toggle controls."""
+    expiries = expiry_dates or []
+    return html.Div([
+        html.H5("View Controls", style={"color": ACCENT, "marginBottom": "12px"}),
+
+        # VIEW: GEX / VEX / Charm / Vanna
+        html.Label("View:", style={"color": TEXT_DIM, "fontSize": "11px"}),
+        dcc.RadioItems(
+            id="heatseeker-view-toggle",
+            options=[
+                {"label": "GEX", "value": "GEX"},
+                {"label": "VEX", "value": "VEX"},
+                {"label": "Charm", "value": "Charm"},
+                {"label": "Vanna", "value": "Vanna"},
+            ],
+            value="GEX",
+            labelStyle={"display": "inline-block", "marginRight": "10px", "color": TEXT, "fontSize": "11px"},
+            inputStyle={"marginRight": "4px"},
+        ),
+        html.Br(),
+
+        # MODE: absolute vs signed
+        html.Label("Mode:", style={"color": TEXT_DIM, "fontSize": "11px"}),
+        dcc.RadioItems(
+            id="heatseeker-mode-toggle",
+            options=[
+                {"label": "Absolute", "value": "absolute"},
+                {"label": "Signed", "value": "signed"},
+            ],
+            value="absolute",
+            labelStyle={"display": "inline-block", "marginRight": "10px", "color": TEXT, "fontSize": "11px"},
+            inputStyle={"marginRight": "4px"},
+        ),
+        html.Br(),
+
+        # INDICATOR: King Nodes / Air Pockets / Flip Zones
+        html.Label("Indicators:", style={"color": TEXT_DIM, "fontSize": "11px"}),
+        dcc.Checklist(
+            id="heatseeker-indicator-toggle",
+            options=_overlay_options(),
+            value=[],
+            labelStyle={"display": "block", "color": TEXT, "fontSize": "11px"},
+            inputStyle={"marginRight": "4px"},
+        ),
+        html.Br(),
+
+        # DTE range filter
+        html.Label("DTE Range:", style={"color": TEXT_DIM, "fontSize": "11px"}),
+        dcc.RangeSlider(
+            id="heatseeker-dte-toggle",
+            min=0, max=365, step=1,
+            value=[0, 365],
+            marks={0: "0", 30: "30", 90: "90", 180: "180", 365: "365"},
+            allowCross=False,
+            tooltip={"placement": "bottom", "always_visible": False},
+            updatemode="mouseup",
+        ),
+        html.Br(),
+
+        # EXPIRIES multi-select
+        html.Label("Expiries:", style={"color": TEXT_DIM, "fontSize": "11px"}),
+        dcc.Dropdown(
+            id="heatseeker-expiries-toggle",
+            options=[{"label": e, "value": e} for e in expiries],
+            value=[],
+            multi=True,
+            placeholder="All expiries",
+            style={"backgroundColor": BG_CARD, "color": TEXT, "fontSize": "11px"},
+            debounce=True,
+        ),
+
+        # Hidden: persist toggle state across re-renders
+        dcc.Store(id="heatseeker-toggle-state", data=_default_toggle_state()),
+
+    ], style={
+        "padding": "12px", "backgroundColor": BG_CARD, "borderRadius": "4px",
+        "minWidth": "180px", "marginRight": "10px",
+    })
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# FIGURE GENERATION WITH LRU CACHE (memoization for <300ms callback target)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+@functools.lru_cache(maxsize=32)
+def _cached_build_heatmap(
+    view: str,
+    mode: str,
+    spot: float,
+    gex_surface_json: str,
+    strikes_json: str,
+    expiries_json: str,
+    king_nodes_json: str,
+    air_pockets_json: str,
+    zero_gamma: float,
+    indicators_json: str,
+) -> go.Figure:
+    """Memoized heatmap builder. Accepts JSON-serializable args for cacheability."""
+    gex_surface = json.loads(gex_surface_json) if gex_surface_json else None
+    strikes = json.loads(strikes_json) if strikes_json else None
+    expiries_list = json.loads(expiries_json) if expiries_json else None
+    king_nodes = json.loads(king_nodes_json) if king_nodes_json else None
+    air_pockets = json.loads(air_pockets_json) if air_pockets_json else None
+    indicators = json.loads(indicators_json) if indicators_json else []
+
+    # Route to the appropriate builder based on view type
+    if view == "GEX":
+        return _build_gex_heatmap(
+            spot=spot, gex_surface=gex_surface, strikes=strikes,
+            expiries=expiries_list,
+            king_nodes=king_nodes if "king_nodes" in indicators else None,
+            air_pockets=air_pockets if "air_pockets" in indicators else None,
+            zero_gamma=zero_gamma, dark=True,
+            mode=mode,
+        )
+    elif view == "VEX":
+        return _build_vex_heatmap(
+            spot=spot, contracts=None,
+            gex_surface=gex_surface, strikes=strikes,
+            expiries=expiries_list,
+            king_nodes=king_nodes if "king_nodes" in indicators else None,
+            air_pockets=air_pockets if "air_pockets" in indicators else None,
+            zero_gamma=zero_gamma, dark=True,
+            mode=mode,
+        )
+    elif view == "Charm":
+        return _build_charm_heatmap(
+            spot=spot, contracts=None,
+            gex_surface=gex_surface, strikes=strikes,
+            expiries=expiries_list,
+            king_nodes=king_nodes if "king_nodes" in indicators else None,
+            air_pockets=air_pockets if "air_pockets" in indicators else None,
+            zero_gamma=zero_gamma, dark=True,
+            mode=mode,
+        )
+    elif view == "Vanna":
+        return _build_vanna_heatmap(
+            spot=spot, contracts=None,
+            gex_surface=gex_surface, strikes=strikes,
+            expiries=expiries_list,
+            king_nodes=king_nodes if "king_nodes" in indicators else None,
+            air_pockets=air_pockets if "air_pockets" in indicators else None,
+            zero_gamma=zero_gamma, dark=True,
+            mode=mode,
+        )
+    # Fallback
+    return _build_gex_heatmap(
+        spot=spot, gex_surface=gex_surface, strikes=strikes,
+        expiries=expiries_list,
+        king_nodes=king_nodes if "king_nodes" in indicators else None,
+        air_pockets=air_pockets if "air_pockets" in indicators else None,
+        zero_gamma=zero_gamma, dark=True,
+        mode=mode,
+    )
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# VARIANT HEATMAP BUILDERS (VEX / Charm / Vanna views)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+def _build_vex_heatmap(
+    spot: float = 0,
+    contracts: Optional[List[Dict]] = None,
+    gex_surface: Optional[List[List[float]]] = None,
+    strikes: Optional[List[float]] = None,
+    expiries: Optional[List[float]] = None,
+    king_nodes: Optional[List[Dict]] = None,
+    air_pockets: Optional[List[Dict]] = None,
+    zero_gamma: Optional[float] = None,
+    dark: bool = True,
+    mode: str = "absolute",
+) -> go.Figure:
+    """Build VEX (vanna exposure) heatmap. Reuses GEX structure with alternate colorscale."""
+    fig = _build_gex_heatmap(
+        spot=spot, contracts=contracts, gex_surface=gex_surface,
+        strikes=strikes, expiries=expiries, king_nodes=king_nodes,
+        air_pockets=air_pockets, zero_gamma=zero_gamma, dark=dark,
+        mode=mode,
+    )
+    if fig.data:
+        fig.data[0].colorscale = [[0.0, "#7c3aed"], [0.25, "#a78bfa"], [0.5, "#c4b5fd"],
+                                   [0.5, "#e0e0e0"], [0.5, "#93c5fd"], [0.75, "#3b82f6"], [1.0, "#1e40af"]]
+        fig.layout.title.text = "VEX Heatseeker"
+    return fig
+
+
+def _build_charm_heatmap(
+    spot: float = 0,
+    contracts: Optional[List[Dict]] = None,
+    gex_surface: Optional[List[float]] = None,
+    strikes: Optional[List[float]] = None,
+    expiries: Optional[List[float]] = None,
+    king_nodes: Optional[List[Dict]] = None,
+    air_pockets: Optional[List[Dict]] = None,
+    zero_gamma: Optional[float] = None,
+    dark: bool = True,
+    mode: str = "absolute",
+) -> go.Figure:
+    """Build Charm (delta decay) heatmap. Reuses GEX structure with warm colorscale."""
+    fig = _build_gex_heatmap(
+        spot=spot, contracts=contracts, gex_surface=gex_surface,
+        strikes=strikes, expiries=expiries, king_nodes=king_nodes,
+        air_pockets=air_pockets, zero_gamma=zero_gamma, dark=dark,
+        mode=mode,
+    )
+    if fig.data:
+        fig.data[0].colorscale = [[0.0, "#b45309"], [0.25, "#f59e0b"], [0.5, "#fde68a"],
+                                   [0.5, "#e0e0e0"], [0.5, "#a7f3d0"], [0.75, "#34d399"], [1.0, "#059669"]]
+        fig.layout.title.text = "Charm Heatseeker"
+    return fig
+
+
+def _build_vanna_heatmap(
+    spot: float = 0,
+    contracts: Optional[List[Dict]] = None,
+    gex_surface: Optional[List[float]] = None,
+    strikes: Optional[List[float]] = None,
+    expiries: Optional[List[float]] = None,
+    king_nodes: Optional[List[Dict]] = None,
+    air_pockets: Optional[List[Dict]] = None,
+    zero_gamma: Optional[float] = None,
+    dark: bool = True,
+    mode: str = "absolute",
+) -> go.Figure:
+    """Build Vanna (delta sensitivity to vol) heatmap. Reuses GEX structure with cool colorscale."""
+    fig = _build_gex_heatmap(
+        spot=spot, contracts=contracts, gex_surface=gex_surface,
+        strikes=strikes, expiries=expiries, king_nodes=king_nodes,
+        air_pockets=air_pockets, zero_gamma=zero_gamma, dark=dark,
+        mode=mode,
+    )
+    if fig.data:
+        fig.data[0].colorscale = [[0.0, "#dc2626"], [0.25, "#f87171"], [0.5, "#fca5a5"],
+                                   [0.5, "#e0e0e0"], [0.5, "#67e8f9"], [0.75, "#22d3ee"], [1.0, "#0891b2"]]
+        fig.layout.title.text = "Vanna Heatseeker"
+    return fig
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
 # TAB 1: HEATSEEKER — GEX Heatmap with Overlays
 # ═══════════════════════════════════════════════════════════════════════════════
 
@@ -105,8 +397,13 @@ def _build_gex_heatmap(
     air_pockets: Optional[List[Dict]] = None,
     zero_gamma: Optional[float] = None,
     dark: bool = True,
+    mode: str = "absolute",
 ) -> go.Figure:
-    """Build GEX heatmap: strikes x time, with overlays."""
+    """Build GEX heatmap: strikes x time, with overlays.
+
+    mode="absolute"  → |GEX| (all positive, magnitude only)
+    mode="signed"    → signed GEX (positive = dealer long, negative = dealer short)
+    """
     if not contracts and gex_surface is None:
         return _empty_figure("Waiting for GEX data...", dark)
 
@@ -138,12 +435,21 @@ def _build_gex_heatmap(
         plot = BG_PLOT if dark else BG_PLOT_LIGHT
         accent = ACCENT if dark else "#00aa55"
 
+        # MODE: absolute vs signed
+        if mode == "absolute":
+            z = [[abs(val) for val in row] for row in z]
+            zmid_mode = None
+            cbar_title = "|GEX| ($)"
+        else:
+            zmid_mode = 0
+            cbar_title = "GEX ($)"
+
         fig = go.Figure()
         fig.add_trace(go.Heatmap(
             z=z, x=x_labels, y=y_labels,
             colorscale=[[0.0, "#d73027"], [0.25, "#fc8d59"], [0.45, "#fee090"],
                         [0.50, "#ffffbf"], [0.55, "#e0f3f8"], [0.75, "#91bfdb"], [1.0, "#4575b4"]],
-            zmid=0, colorbar=dict(title="GEX ($)", x=1.02, thickness=15),
+            zmid=zmid_mode, colorbar=dict(title=cbar_title, x=1.02, thickness=15),
             hovertemplate="Strike: %{y}<br>TTE: %{x}<br>GEX: %{z:,.0f}<extra></extra>",
         ))
 

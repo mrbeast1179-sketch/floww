@@ -287,7 +287,7 @@ def calc_air_pockets(
     min_span = spot * min_gap_pct
 
     pockets: List[Dict[str, Any]] = []
-    run_start_idx: int | None = None
+    run_start_idx: Optional[int] = None
     run_max: float = 0.0
 
     def _flush(run_start_idx: int, run_end_idx: int, run_max_val: float) -> None:

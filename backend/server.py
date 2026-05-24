@@ -113,6 +113,12 @@ async def rate_limit_middleware(request: Request, call_next):
     if len(dq) >= RATE_LIMIT:
         retry_after = int(window - (now - dq[0])) + 1
         log.warning(f"Rate limit exceeded for {client_ip} ({len(dq)}/{RATE_LIMIT})")
+        # Track 429 in Prometheus
+        try:
+            from services.observability import rate_limit_429_count
+            rate_limit_429_count.labels(client_ip=client_ip).inc()
+        except Exception:
+            pass
         # Include CORS headers so frontend can read the 429 (not blocked by CORS)
         return JSONResponse(
             status_code=429,
@@ -2738,6 +2744,17 @@ app.include_router(agent_hub_router, tags=["agent-hub"])
 
 from routes.nexus import router as nexus_router
 app.include_router(nexus_router, tags=["nexus"])
+
+# ============ Alpha Advantage Data API ============
+from routes.alpha_advantage import router as alpha_advantage_router
+app.include_router(alpha_advantage_router, tags=["alpha-advantage"])
+
+from routes.greeks import router as greeks_router
+app.include_router(greeks_router, prefix="/api", tags=["greeks"])
+
+# ============ Position Sizing (Kelly Criterion) ============
+from routes.position_sizing_api import router as position_sizing_router
+app.include_router(position_sizing_router, tags=["position-sizing"])
 
 # ============ DuckDB Engine Initialization ============
 

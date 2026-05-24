@@ -10,7 +10,7 @@ Exports:
   DEFAULT_* — Default threshold constants
 """
 
-from backend.services.risk.gate import (
+from .gate import (
     PreTradeRiskGate,
     RiskDecision,
     RiskGate,
@@ -25,8 +25,8 @@ from backend.services.risk.gate import (
     DEFAULT_MIN_CONVICTION,
     DEFAULT_MIN_SENTIMENT_Z,
 )
-from backend.services.risk.killswitch import KillSwitch
-from backend.services.risk.sizer import KellySizer
+from .killswitch import KillSwitch
+from .sizer import KellySizer
 
 __all__ = [
     "PreTradeRiskGate",

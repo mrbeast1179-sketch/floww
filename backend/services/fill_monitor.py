@@ -80,8 +80,12 @@ class FillMonitor:
         self._fills[ticker].append(record)
         self._cleanup(ticker)
 
-        # TODO: Add dedicated Prometheus metric for slippage
-        # obs_metrics.fill_slippage_bps.labels(ticker=ticker).observe(abs(slippage_bps))
+        # Emit Prometheus metric for slippage
+        try:
+            obs_metrics.fill_slippage_bps.labels(ticker=ticker, side=side).observe(abs(slippage_bps))
+            obs_metrics.fills_total.labels(ticker=ticker, side=side).inc()
+        except Exception:
+            pass  # Metrics should never break fill recording
 
         log.debug(
             f"Fill recorded: {ticker} {side} @ {fill_price:.2f} "
