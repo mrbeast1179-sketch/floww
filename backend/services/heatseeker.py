@@ -21,6 +21,7 @@ degenerate input.
 
 from __future__ import annotations
 
+import math
 from datetime import datetime
 from statistics import median
 from typing import Any, Dict, List, Optional, Tuple
@@ -56,7 +57,10 @@ def _strike(c: Dict[str, Any]) -> float:
 
 def _gamma(c: Dict[str, Any]) -> float:
     try:
-        return float(c.get("gamma", 0) or 0)
+        val = float(c.get("gamma", 0) or 0)
+        if math.isnan(val) or math.isinf(val):
+            return 0.0
+        return val
     except (TypeError, ValueError):
         return 0.0
 
