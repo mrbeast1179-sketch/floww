@@ -1,0 +1,226 @@
+"""
+backend/routes/ml_predict_api.py
+
+Real-time ML prediction endpoint using live data.
+
+GET /api/ml/predict/{ticker}
+  → Fetches live options chain + price history
+  → Computes GEX/OI/IV + technical features
+  → Runs trained model inference
+  → Returns prediction with confidence + feature breakdown
+
+POST /api/ml/train
+  → Triggers async model retraining on latest data
+  → Returns training job status
+"""
+
+from __future__ import annotations
+
+import asyncio
+import json
+import logging
+import os
+from typing import Any, Dict, List, Optional
+
+from fastapi import APIRouter, HTTPException, Query
+
+logger = logging.getLogger(__name__)
+
+router = APIRouter(prefix="/api/ml", tags=["ml-predict"])
+
+
+@router.get("/predict/{ticker}")
+async def predict_direction(
+    ticker: str,
+    model_type: str = Query(default="gbm", description="Model type: gbm, logistic, ensemble"),
+):
+    """Predict SPY direction using live data + trained model.
+
+    Fetches the current options chain, computes GEX/OI/IV features,
+    combines with technical indicators, and runs the trained model.
+
+    Response:
+    {
+        "ticker": "SPY",
+        "prediction": "UP" | "DOWN",
+        "confidence": 0.65,
+        "probabilities": {"down": 0.35, "up": 0.65},
+        "spot": 528.50,
+        "model_id": "SPY_gbm_v1.0",
+        "features": {
+            "chain_available": true,
+            "net_gex": 1.2e9,
+            "gex_regime": "positive",
+            "king_distance_pct": -0.01,
+            "rsi_14": 62.3,
+            ...
+        },
+        "chain_meta": {...},
+        "computed_at": "2026-05-23T..."
+    }
+    """
+    ticker = ticker.upper()
+
+    # 1. Compute features from live data
+    from services.ml_realtime_features import compute_features_async
+    feature_data = await compute_features_async(ticker)
+    if feature_data is None:
+        raise HTTPException(503, f"Could not compute features for {ticker}")
+
+    features = feature_data["features"]
+    feature_names = feature_data["feature_names"]
+
+    # 2. Load model
+    model_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "models")
+    model_path = os.path.join(model_dir, f"price_model_{ticker}.joblib")
+    scaler_path = os.path.join(model_dir, f"price_scaler_{ticker}.joblib")
+    meta_path = os.path.join(model_dir, f"meta_{ticker}.json")
+
+    import joblib
+    if not os.path.exists(model_path):
+        raise HTTPException(404, f"No trained model for {ticker}. Run training first.")
+
+    model = joblib.load(model_path)
+    scaler = joblib.load(scaler_path) if os.path.exists(scaler_path) else None
+
+    # 3. Build feature vector in model-expected order
+    # Load meta to get the exact feature names the model was trained with
+    model_feature_names = feature_names  # default
+    if os.path.exists(meta_path):
+        with open(meta_path) as f:
+            meta = json.load(f)
+        model_feature_names = meta.get("feature_names", feature_names)
+
+    # Build vector, using 0.0 for any missing features
+    import numpy as np
+    X = np.array([[features.get(name, 0.0) for name in model_feature_names]])
+
+    if scaler is not None:
+        X = scaler.transform(X)
+
+    # 4. Predict
+    prediction = int(model.predict(X)[0])
+    probability = model.predict_proba(X)[0].tolist() if hasattr(model, "predict_proba") else [0.5, 0.5]
+
+    # 5. Build response
+    result = {
+        "ticker": ticker,
+        "prediction": "UP" if prediction == 1 else "DOWN",
+        "confidence": round(float(max(probability)), 4),
+        "probabilities": {
+            "down": round(float(probability[0]), 4),
+            "up": round(float(probability[1]), 4),
+        },
+        "spot": feature_data["spot"],
+        "model_type": model_type,
+        "chain_available": feature_data["chain_available"],
+        "chain_meta": feature_data.get("chain_meta"),
+        "top_features": _get_top_features(model, model_feature_names),
+        "computed_at": feature_data["computed_at"],
+    }
+
+    logger.info(
+        f"Prediction for {ticker}: {result['prediction']} "
+        f"(confidence={result['confidence']:.3f}, "
+        f"chain={'yes' if feature_data['chain_available'] else 'no'})"
+    )
+
+    return result
+
+
+def _get_top_features(model, feature_names: List[str], top_n: int = 10) -> Dict[str, float]:
+    """Get top N feature importances from the model."""
+    if hasattr(model, "feature_importances_"):
+        importances = model.feature_importances_
+        pairs = list(zip(feature_names, importances))
+        pairs.sort(key=lambda x: abs(x[1]), reverse=True)
+        return {name: round(float(imp), 6) for name, imp in pairs[:top_n]}
+    return {}
+
+
+@router.post("/train")
+async def trigger_training(
+    ticker: str = Query(default="SPY"),
+    days: int = Query(default=126, ge=30, le=500),
+    n_splits: int = Query(default=5, ge=2, le=10),
+):
+    """Trigger model retraining on latest data.
+
+    Runs asynchronously — returns immediately with a job ID.
+    """
+    import uuid
+    job_id = str(uuid.uuid4())[:8]
+
+    # Run training in background
+    asyncio.create_task(_run_training_job(job_id, ticker, days, n_splits))
+
+    return {
+        "status": "started",
+        "job_id": job_id,
+        "ticker": ticker.upper(),
+        "days": days,
+        "n_splits": n_splits,
+    }
+
+
+async def _run_training_job(job_id: str, ticker: str, days: int, n_splits: int):
+    """Background training job."""
+    logger.info(f"Training job {job_id}: starting for {ticker}")
+    try:
+        from scripts.train_spy_ml import (
+            fetch_spot_history, fetch_options_chain_on_date,
+            build_dataset, train_walk_forward, save_model,
+        )
+        from datetime import datetime
+
+        price_df = fetch_spot_history(ticker, days)
+        live_chain = None
+        try:
+            live_chain = fetch_options_chain_on_date(ticker, datetime.now())
+        except Exception:
+            pass
+
+        X, y, feature_names, timestamps = build_dataset(price_df, live_chain, days_back=days)
+        result, model, scaler, final_features = train_walk_forward(
+            X, y, feature_names, timestamps, n_splits=n_splits, ticker=ticker,
+        )
+
+        if result.get("status") == "trained":
+            model_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "models")
+            save_model(model, scaler, final_features, result, model_dir, ticker)
+            logger.info(f"Training job {job_id}: complete. Sharpe={result.get('model_sharpe')}")
+        else:
+            logger.warning(f"Training job {job_id}: failed - {result}")
+
+    except Exception as e:
+        logger.error(f"Training job {job_id}: error - {e}")
+
+
+@router.get("/model-info/{ticker}")
+async def model_info(ticker: str):
+    """Get information about the trained model for a ticker."""
+    ticker = ticker.upper()
+    model_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "models")
+    meta_path = os.path.join(model_dir, f"meta_{ticker}.json")
+
+    import joblib
+    model_path = os.path.join(model_dir, f"price_model_{ticker}.joblib")
+
+    if not os.path.exists(meta_path):
+        raise HTTPException(404, f"No model info for {ticker}")
+
+    with open(meta_path) as f:
+        meta = json.load(f)
+
+    model = joblib.load(model_path)
+
+    return {
+        "ticker": ticker,
+        "model_type": type(model).__name__,
+        "n_features": len(meta.get("feature_names", [])),
+        "feature_names": meta.get("feature_names", []),
+        "top_features": meta.get("top_features", {}),
+        "metrics": meta.get("metrics", {}),
+        "trained_at": meta.get("trained_at"),
+        "model_size_mb": round(os.path.getsize(model_path) / 1024 / 1024, 2),
+    }

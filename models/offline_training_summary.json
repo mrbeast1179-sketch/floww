@@ -1,0 +1,64 @@
+{
+  "timestamp": "2026-05-24T02:23:11.965446+00:00",
+  "config": {
+    "tickers": [
+      "DIA",
+      "IWM",
+      "QQQ",
+      "TLT"
+    ],
+    "model_types": [
+      "logistic"
+    ],
+    "n_splits": 5,
+    "train_size": 500,
+    "test_size": 50,
+    "step": 50
+  },
+  "results": {
+    "DIA": {
+      "logistic": {
+        "median_test_sharpe": 3.6181,
+        "best_test_sharpe": 5.3618,
+        "avg_test_accuracy": 0.56,
+        "avg_train_test_gap": 0.0498,
+        "folds_ship": 0,
+        "folds_total": 5,
+        "ship_rate": 0.0
+      }
+    },
+    "IWM": {
+      "logistic": {
+        "median_test_sharpe": 2.0,
+        "best_test_sharpe": 4.7329,
+        "avg_test_accuracy": 0.484,
+        "avg_train_test_gap": 0.0994,
+        "folds_ship": 1,
+        "folds_total": 5,
+        "ship_rate": 0.2
+      }
+    },
+    "QQQ": {
+      "logistic": {
+        "median_test_sharpe": 2.5731,
+        "best_test_sharpe": 8.1009,
+        "avg_test_accuracy": 0.584,
+        "avg_train_test_gap": 0.0267,
+        "folds_ship": 1,
+        "folds_total": 5,
+        "ship_rate": 0.2
+      }
+    },
+    "TLT": {
+      "logistic": {
+        "median_test_sharpe": 1.8585,
+        "best_test_sharpe": 3.2404,
+        "avg_test_accuracy": 0.552,
+        "avg_train_test_gap": 0.0498,
+        "folds_ship": 4,
+        "folds_total": 5,
+        "ship_rate": 0.8
+      }
+    }
+  }
+}

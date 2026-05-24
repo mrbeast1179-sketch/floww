@@ -1,0 +1,180 @@
+{
+  "TLT": {
+    "ticker": "TLT",
+    "model_id": "TLT_direction_v1.0_gbm_deep",
+    "target": "target_directional_move",
+    "n_samples": 2799,
+    "n_features": 44,
+    "n_folds": 8,
+    "overall_accuracy": 0.5375,
+    "avg_fold_accuracy": 0.5375,
+    "overall_sharpe": 0.8791,
+    "avg_fold_sharpe": 1.0944,
+    "majority_baseline": 0.4925,
+    "persistence_baseline": 0.4738,
+    "beats_majority_baseline": "True",
+    "fold_metrics": [
+      {
+        "fold": 0,
+        "train_size": 195,
+        "test_size": 100,
+        "accuracy": 0.52,
+        "sharpe": 0.6486,
+        "majority_baseline": 0.5,
+        "pos_rate": 0.4667
+      },
+      {
+        "fold": 1,
+        "train_size": 195,
+        "test_size": 100,
+        "accuracy": 0.53,
+        "sharpe": 0.5051,
+        "majority_baseline": 0.5,
+        "pos_rate": 0.4974
+      },
+      {
+        "fold": 2,
+        "train_size": 195,
+        "test_size": 100,
+        "accuracy": 0.55,
+        "sharpe": 0.2316,
+        "majority_baseline": 0.46,
+        "pos_rate": 0.5026
+      },
+      {
+        "fold": 3,
+        "train_size": 195,
+        "test_size": 100,
+        "accuracy": 0.49,
+        "sharpe": 1.006,
+        "majority_baseline": 0.47,
+        "pos_rate": 0.4769
+      },
+      {
+        "fold": 4,
+        "train_size": 195,
+        "test_size": 100,
+        "accuracy": 0.58,
+        "sharpe": 1.8117,
+        "majority_baseline": 0.51,
+        "pos_rate": 0.5026
+      },
+      {
+        "fold": 5,
+        "train_size": 195,
+        "test_size": 100,
+        "accuracy": 0.56,
+        "sharpe": 2.0058,
+        "majority_baseline": 0.55,
+        "pos_rate": 0.5282
+      },
+      {
+        "fold": 6,
+        "train_size": 195,
+        "test_size": 100,
+        "accuracy": 0.57,
+        "sharpe": 3.4459,
+        "majority_baseline": 0.49,
+        "pos_rate": 0.5282
+      },
+      {
+        "fold": 7,
+        "train_size": 195,
+        "test_size": 100,
+        "accuracy": 0.5,
+        "sharpe": -0.8994,
+        "majority_baseline": 0.46,
+        "pos_rate": 0.5231
+      }
+    ]
+  },
+  "IWM": {
+    "ticker": "IWM",
+    "model_id": "IWM_direction_v1.0_gbm",
+    "target": "target_directional_move",
+    "n_samples": 2799,
+    "n_features": 44,
+    "n_folds": 8,
+    "overall_accuracy": 0.515,
+    "avg_fold_accuracy": 0.515,
+    "overall_sharpe": 0.9954,
+    "avg_fold_sharpe": 1.035,
+    "majority_baseline": 0.5212,
+    "persistence_baseline": 0.4825,
+    "beats_majority_baseline": "False",
+    "fold_metrics": [
+      {
+        "fold": 0,
+        "train_size": 195,
+        "test_size": 100,
+        "accuracy": 0.49,
+        "sharpe": 0.1911,
+        "majority_baseline": 0.52,
+        "pos_rate": 0.5282
+      },
+      {
+        "fold": 1,
+        "train_size": 195,
+        "test_size": 100,
+        "accuracy": 0.49,
+        "sharpe": -0.3851,
+        "majority_baseline": 0.49,
+        "pos_rate": 0.5538
+      },
+      {
+        "fold": 2,
+        "train_size": 195,
+        "test_size": 100,
+        "accuracy": 0.49,
+        "sharpe": 0.6486,
+        "majority_baseline": 0.47,
+        "pos_rate": 0.4974
+      },
+      {
+        "fold": 3,
+        "train_size": 195,
+        "test_size": 100,
+        "accuracy": 0.49,
+        "sharpe": 0.3311,
+        "majority_baseline": 0.52,
+        "pos_rate": 0.5026
+      },
+      {
+        "fold": 4,
+        "train_size": 195,
+        "test_size": 100,
+        "accuracy": 0.55,
+        "sharpe": 1.006,
+        "majority_baseline": 0.49,
+        "pos_rate": 0.5231
+      },
+      {
+        "fold": 5,
+        "train_size": 195,
+        "test_size": 100,
+        "accuracy": 0.57,
+        "sharpe": 2.0609,
+        "majority_baseline": 0.54,
+        "pos_rate": 0.5077
+      },
+      {
+        "fold": 6,
+        "train_size": 195,
+        "test_size": 100,
+        "accuracy": 0.51,
+        "sharpe": 1.2769,
+        "majority_baseline": 0.55,
+        "pos_rate": 0.5231
+      },
+      {
+        "fold": 7,
+        "train_size": 195,
+        "test_size": 100,
+        "accuracy": 0.53,
+        "sharpe": 3.1505,
+        "majority_baseline": 0.59,
+        "pos_rate": 0.5436
+      }
+    ]
+  }
+}
