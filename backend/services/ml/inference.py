@@ -28,11 +28,6 @@ import pandas as pd
 import yfinance as yf
 
 from services.ml import DegenerateModelError
-from services.ml.quality import (
-    assert_class_balance,
-    assert_feature_variance,
-    assert_prediction_distribution,
-)
 
 log = logging.getLogger("ml.inference")
 
@@ -41,27 +36,16 @@ log = logging.getLogger("ml.inference")
 MODEL_DIR = Path(__file__).resolve().parents[2] / "models"
 
 # Map ticker -> (model_path, scaler_path, manifest_path)
-MODEL_REGISTRY: Dict[str, Tuple[str, str, str]] = {
-    "IWM": (
-        str(MODEL_DIR / "IWM_gbm_production.joblib"),
-        str(MODEL_DIR / "IWM_gbm_production_scaler.joblib"),
-        str(MODEL_DIR / "IWM_gbm_production_manifest.json"),
-    ),
-    "TLT": (
-        str(MODEL_DIR / "TLT_gbm_deep_production.joblib"),
-        str(MODEL_DIR / "TLT_gbm_deep_production_scaler.joblib"),
-        str(MODEL_DIR / "TLT_gbm_deep_production_manifest.json"),
-    ),
-    "QQQ": (
-        str(MODEL_DIR / "QQQ_direction_v1.0.joblib"),
-        str(MODEL_DIR / "QQQ_scaler_v1.0.joblib"),
-        str(MODEL_DIR / "QQQ_meta_v1.0.json"),
-    ),
-    "DIA": (
-        str(MODEL_DIR / "DIA_direction_v1.0.joblib"),
-        str(MODEL_DIR / "DIA_scaler_v1.0.joblib"),
-        str(MODEL_DIR / "DIA_meta_v1.0.json"),
-    ),
+# Models live in backend/models/
+MODEL_DIR = Path(__file__).resolve().parents[2] / "models"
+
+# Map ticker -> model filename (in models/ directory)
+# These are the latest trained models from train_spy_model.py
+MODEL_REGISTRY: Dict[str, str] = {
+    "SPY": str(MODEL_DIR / "SPY_rf_20260524_020801.joblib"),
+    "QQQ": str(MODEL_DIR / "QQQ_rf_20260524_022118.joblib"),
+    "TLT": str(MODEL_DIR / "TLT_rf_20260524_022154.joblib"),
+    "IWM": str(MODEL_DIR / "IWM_rf_20260524_022147.joblib"),
 }
 
 # Feature computation constants
@@ -210,10 +194,10 @@ def compute_live_features(ticker: str, period: str = "1y") -> pd.DataFrame:
         vol = pd.Series(log_ret).rolling(window=window, min_periods=window).std().values * np.sqrt(252)
         features[f"realized_vol_{window}d"] = vol
 
-    # Calendar features
-    dates = pd.to_datetime(df.index)
-    features["is_month_end"] = dates.is_month_end.astype(float).values
-    features["is_month_start"] = dates.is_month_start.astype(float).values
+        # Calendar features
+        dates = pd.to_datetime(df.index)
+        features["is_month_end"] = dates.is_month_end.astype(float).values if hasattr(dates.is_month_end, 'values') else np.array(dates.is_month_end, dtype=float)
+        features["is_month_start"] = dates.is_month_start.astype(float).values if hasattr(dates.is_month_start, 'values') else np.array(dates.is_month_start, dtype=float)
 
     # RSI (14-day)
     delta = pd.Series(close).diff()
@@ -234,13 +218,15 @@ def compute_live_features(ticker: str, period: str = "1y") -> pd.DataFrame:
     # Bollinger Bands
     sma_20 = pd.Series(close).rolling(window=20, min_periods=20).mean()
     std_20 = pd.Series(close).rolling(window=20, min_periods=20).std()
-    features["bb_upper"] = (sma_20 + 2 * std_20).values
-    features["bb_lower"] = (sma_20 - 2 * std_20).values
+    bb_upper_arr = (sma_20 + 2 * std_20).values
+    bb_lower_arr = (sma_20 - 2 * std_20).values
+    features["bb_upper"] = bb_upper_arr
+    features["bb_lower"] = bb_lower_arr
     bb_position = np.zeros(len(close))
     for i in range(len(close)):
-        band_width = features["bb_upper"].iloc[i] - features["bb_lower"].iloc[i] if hasattr(features["bb_upper"], 'iloc') else features["bb_upper"][i] - features["bb_lower"][i]
+        band_width = bb_upper_arr[i] - bb_lower_arr[i]
         if band_width > 0:
-            bb_position[i] = (close[i] - features["bb_lower"][i]) / band_width
+            bb_position[i] = (close[i] - bb_lower_arr[i]) / band_width
     features["bb_position"] = bb_position
 
     # Volume ratios
@@ -302,11 +288,11 @@ class InferenceEngine:
 
     def __init__(self, model_dir: Optional[Path] = None):
         self.model_dir = model_dir or MODEL_DIR
-        self._model_cache: Dict[str, Tuple[Any, Any, Dict]] = {}
+        self._model_cache: Dict[str, Tuple[Any, Dict]] = {}
         self._feature_cache: Dict[str, Tuple[pd.DataFrame, float]] = {}
 
-    def _load_model(self, ticker: str) -> Tuple[Any, Any, Dict]:
-        """Load model, scaler, and manifest for a ticker."""
+    def _load_model(self, ticker: str) -> Tuple[Any, Dict]:
+        """Load model and metadata for a ticker."""
         ticker = ticker.upper()
 
         if ticker in self._model_cache:
@@ -317,23 +303,29 @@ class InferenceEngine:
                 f"No model registered for {ticker}. Available: {list(MODEL_REGISTRY.keys())}"
             )
 
-        model_path, scaler_path, manifest_path = MODEL_REGISTRY[ticker]
+        model_path = MODEL_REGISTRY[ticker]
 
         if not os.path.exists(model_path):
             raise DegenerateModelError(f"Model artifact not found: {model_path}")
 
-        model = joblib.load(model_path)
-        scaler = joblib.load(scaler_path) if os.path.exists(scaler_path) else None
+        artifact = joblib.load(model_path)
+        model = artifact["model"]
 
-        manifest = {}
-        if os.path.exists(manifest_path):
-            import json
-            with open(manifest_path) as f:
-                manifest = json.load(f)
+        # Build manifest from artifact
+        metrics = artifact.get("metrics", {})
+        manifest = {
+            "model_type": artifact.get("model_name", "unknown"),
+            "feature_names": artifact.get("feature_names", []),
+            "n_features": len(artifact.get("feature_names", [])),
+            "train_accuracy": metrics.get("avg_train_accuracy", 0.0),
+            "test_accuracy": metrics.get("avg_test_accuracy", 0.0),
+            "test_sharpe": metrics.get("avg_test_sharpe", 0.0),
+            "model_path": model_path,
+        }
 
-        self._model_cache[ticker] = (model, scaler, manifest)
+        self._model_cache[ticker] = (model, manifest)
         log.info(f"Loaded model for {ticker}: {manifest.get('model_type', 'unknown')}")
-        return model, scaler, manifest
+        return model, manifest
 
     async def predict(self, ticker: str) -> PredictionResult:
         """Generate a prediction for a ticker using live data.
@@ -348,7 +340,7 @@ class InferenceEngine:
             PredictionResult with prediction, confidence, and metadata
         """
         ticker = ticker.upper()
-        model, scaler, manifest = self._load_model(ticker)
+        model, manifest = self._load_model(ticker)
 
         # Compute features (in thread pool to avoid blocking)
         import asyncio
@@ -372,10 +364,7 @@ class InferenceEngine:
         latest = features_df[feature_names].iloc[-1:]
         X = latest.values.astype(float)
 
-        if scaler is not None:
-            X = scaler.transform(X)
-
-        # Run prediction
+        # Run prediction (no scaler for RF models)
         prediction = int(model.predict(X)[0])
         probabilities = None
         if hasattr(model, "predict_proba"):
@@ -413,7 +402,7 @@ class InferenceEngine:
     def get_model_info(self, ticker: str) -> ModelInfo:
         """Get model metadata for a ticker."""
         ticker = ticker.upper()
-        _, _, manifest = self._load_model(ticker)
+        _, manifest = self._load_model(ticker)
 
         return ModelInfo(
             ticker=ticker,

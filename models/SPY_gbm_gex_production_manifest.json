@@ -1,0 +1,51 @@
+{
+  "ticker": "SPY",
+  "model": "gbm_gex",
+  "feature_version": "v2.0_gex",
+  "target": "target_directional_move",
+  "n_samples": 229,
+  "n_features": 22,
+  "feature_names": [
+    "atr_14",
+    "call_gex",
+    "day_of_week",
+    "gex_n_strikes",
+    "month",
+    "net_gex",
+    "price_vs_sma_21",
+    "price_vs_sma_5",
+    "put_gex",
+    "realized_vol_21d",
+    "realized_vol_5d",
+    "relative_volume",
+    "ret_1d",
+    "ret_21d",
+    "ret_5d",
+    "rsi_14",
+    "sma_21",
+    "sma_5",
+    "spot",
+    "total_dex",
+    "total_vega",
+    "total_vex"
+  ],
+  "metrics": {
+    "train_accuracy": 1.0,
+    "test_accuracy": 0.5,
+    "test_f1": 0.5660377358490566
+  },
+  "top_features": {
+    "total_vega": 0.1298739536445857,
+    "rsi_14": 0.09349938847532015,
+    "call_gex": 0.08399039849014558,
+    "ret_1d": 0.07369573190908665,
+    "atr_14": 0.06530859832895917,
+    "total_dex": 0.05895809162625168,
+    "net_gex": 0.058249360440442745,
+    "put_gex": 0.053940695056907226,
+    "gex_n_strikes": 0.04738319777174615,
+    "ret_5d": 0.0428222099939609
+  },
+  "verdict": "SHIP",
+  "created_at": "2026-05-24T02:31:21.330220+00:00"
+}
