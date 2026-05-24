@@ -1,0 +1,252 @@
+"""
+backend/routes/alpha_advantage.py
+
+Alpha Advantage data proxy routes.
+Exposes real-time and historical data from Alpha Vantage API.
+
+Endpoints:
+  GET  /api/alpha/quote/{ticker}           — Real-time quote
+  GET  /api/alpha/options/{ticker}          — Options chain
+  GET  /api/alpha/technical/{ticker}/{indicator} — Technical indicators
+  GET  /api/alpha/forex/{from}/{to}         — Forex rates
+  GET  /api/alpha/crypto/{symbol}           — Crypto prices
+"""
+
+from __future__ import annotations
+
+import logging
+from typing import Any, Dict, Optional
+
+from fastapi import APIRouter, HTTPException, Query
+
+import aiohttp
+
+logger = logging.getLogger(__name__)
+
+router = APIRouter(prefix="/api/alpha", tags=["alpha-vantage"])
+
+ALPHA_VANTAGE_BASE = "https://www.alphavantage.co/query"
+
+
+async def _av_request(params: Dict[str, str], api_key: str) -> Dict[str, Any]:
+    """Make an Alpha Vantage API request with rate limiting awareness."""
+    params["apikey"] = api_key
+    try:
+        async with aiohttp.ClientSession() as session:
+            async with session.get(ALPHA_VANTAGE_BASE, params=params, timeout=aiohttp.ClientTimeout(total=15)) as resp:
+                if resp.status != 200:
+                    raise HTTPException(status_code=resp.status, detail=f"Alpha Vantage returned {resp.status}")
+                data = await resp.json()
+                if "Error Message" in data:
+                    raise HTTPException(status_code=400, detail=data["Error Message"])
+                if "Note" in data:
+                    # Rate limit hit
+                    raise HTTPException(status_code=429, detail="Alpha Vantage rate limit reached. Try again in 60s.")
+                return data
+    except aiohttp.ClientError as e:
+        logger.error(f"Alpha Vantage request failed: {e}")
+        raise HTTPException(status_code=502, detail=str(e))
+
+
+@router.get("/quote/{ticker}")
+async def get_quote(ticker: str, api_key: str = Query(...)):
+    """Get real-time quote for a ticker."""
+    data = await _av_request({
+        "function": "GLOBAL_QUOTE",
+        "symbol": ticker.upper(),
+    }, api_key)
+    quote = data.get("Global Quote", {})
+    if not quote:
+        raise HTTPException(status_code=404, detail=f"No quote found for {ticker}")
+    return {
+        "ticker": quote.get("01. symbol", ticker),
+        "price": float(quote.get("05. price", 0)),
+        "change": float(quote.get("09. change", 0)),
+        "change_pct": quote.get("10. change percent", "0%"),
+        "volume": int(quote.get("06. volume", 0)),
+        "latest_trading_day": quote.get("07. latest trading day", ""),
+    }
+
+
+@router.get("/options/{ticker}")
+async def get_options_chain(
+    ticker: str,
+    api_key: str = Query(...),
+    date: Optional[str] = Query(None, description="Expiration date YYYY-MM-DD"),
+):
+    """Get options chain for a ticker."""
+    params = {
+        "function": "OPTION_CHAIN",
+        "symbol": ticker.upper(),
+    }
+    if date:
+        params["date"] = date
+    data = await _av_request(params, api_key)
+    return data
+
+
+@router.get("/technical/{ticker}/{indicator}")
+async def get_technical_indicator(
+    ticker: str,
+    indicator: str,
+    api_key: str = Query(...),
+    interval: str = Query("daily", pattern="^(daily|weekly|monthly|1min|5min|15min|30min|60min)$"),
+    time_period: int = Query(14, ge=1, le=200),
+    series_type: str = Query("close", pattern="^(open|high|low|close)$"),
+):
+    """Get technical indicator for a ticker.
+
+    Supported indicators: SMA, EMA, RSI, MACD, BBANDS, STOCH, ADX, CCI, AROON, OBV, WILLR, MFI, TEMA, TRIMA, KAMA, MAMA, VWAP, HT_TRENDLINE, HT_SINE, HT_TRENDMODE, HT_DCPERIOD, HT_DCPHASE, HT_PHASOR
+    """
+    data = await _av_request({
+        "function": indicator.upper(),
+        "symbol": ticker.upper(),
+        "interval": interval,
+        "time_period": str(time_period),
+        "series_type": series_type,
+    }, api_key)
+    return data
+
+
+@router.get("/forex/{from_currency}/{to_currency}")
+async def get_forex_rate(
+    from_currency: str,
+    to_currency: str,
+    api_key: str = Query(...),
+):
+    """Get forex exchange rate."""
+    data = await _av_request({
+        "function": "CURRENCY_EXCHANGE_RATE",
+        "from_currency": from_currency.upper(),
+        "to_currency": to_currency.upper(),
+    }, api_key)
+    rate = data.get("Realtime Currency Exchange Rate", {})
+    if not rate:
+        raise HTTPException(status_code=404, detail="Forex rate not found")
+    return {
+        "from": rate.get("1. From_Currency Code", from_currency),
+        "to": rate.get("2. To_Currency Code", to_currency),
+        "rate": float(rate.get("5. Exchange Rate", 0)),
+        "bid": float(rate.get("8. Bid Price", 0)),
+        "ask": float(rate.get("9. Ask Price", 0)),
+    }
+
+
+@router.get("/crypto/{symbol}")
+async def get_crypto_price(
+    symbol: str,
+    api_key: str = Query(...),
+    market: str = Query("USD"),
+):
+    """Get cryptocurrency price."""
+    data = await _av_request({
+        "function": "CURRENCY_EXCHANGE_RATE",
+        "from_currency": symbol.upper(),
+        "to_currency": market.upper(),
+    }, api_key)
+    rate = data.get("Realtime Currency Exchange Rate", {})
+    if not rate:
+        raise HTTPException(status_code=404, detail=f"Crypto price not found for {symbol}")
+    return {
+        "symbol": rate.get("1. From_Currency Code", symbol),
+        "market": rate.get("2. To_Currency Code", market),
+        "price": float(rate.get("5. Exchange Rate", 0)),
+    }
+
+
+@router.get("/overview/{ticker}")
+async def get_company_overview(ticker: str, api_key: str = Query(...)):
+    """Get company overview/fundamentals."""
+    data = await _av_request({
+        "function": "OVERVIEW",
+        "symbol": ticker.upper(),
+    }, api_key)
+    if not data or "Symbol" not in data:
+        raise HTTPException(status_code=404, detail=f"No overview found for {ticker}")
+    return data
+
+
+@router.get("/earnings/{ticker}")
+async def get_earnings(ticker: str, api_key: str = Query(...)):
+    """Get earnings data."""
+    data = await _av_request({
+        "function": "EARNINGS",
+        "symbol": ticker.upper(),
+    }, api_key)
+    return data
+
+
+@router.get("/news")
+async def get_news(
+    api_key: str = Query(...),
+    tickers: Optional[str] = Query(None, description="Comma-separated tickers"),
+    topics: Optional[str] = Query(None, description="Comma-separated topics"),
+    limit: int = Query(20, ge=1, le=100),
+):
+    """Get market news and sentiment."""
+    params = {
+        "function": "NEWS_SENTIMENT",
+        "limit": str(limit),
+    }
+    if tickers:
+        params["tickers"] = tickers.upper()
+    if topics:
+        params["topics"] = topics.lower()
+    data = await _av_request(params, api_key)
+    return data
+
+
+@router.get("/market-status")
+async def get_market_status(api_key: str = Query(...)):
+    """Get current market status (open/closed)."""
+    data = await _av_request({
+        "function": "MARKET_STATUS",
+    }, api_key)
+    return data
+
+
+@router.get("/top-gainers-losers")
+async def get_top_gainers_losers(api_key: str = Query(...)):
+    """Get top gainers, losers, and most active stocks."""
+    data = await _av_request({
+        "function": "TOP_GAINERS_LOSERS",
+    }, api_key)
+    return data
+
+
+@router.get("/historical/{ticker}")
+async def get_historical(
+    ticker: str,
+    api_key: str = Query(...),
+    interval: str = Query("daily", pattern="^(daily|weekly|monthly)$"),
+    output_size: str = Query("compact", pattern="^(compact|full)$"),
+):
+    """Get historical OHLCV data."""
+    func_map = {
+        "daily": "TIME_SERIES_DAILY",
+        "weekly": "TIME_SERIES_WEEKLY",
+        "monthly": "TIME_SERIES_MONTHLY",
+    }
+    data = await _av_request({
+        "function": func_map[interval],
+        "symbol": ticker.upper(),
+        "outputsize": output_size,
+    }, api_key)
+    return data
+
+
+@router.get("/intraday/{ticker}")
+async def get_intraday(
+    ticker: str,
+    api_key: str = Query(...),
+    interval: str = Query("5min", pattern="^(1min|5min|15min|30min|60min)$"),
+    output_size: str = Query("compact", pattern="^(compact|full)$"),
+):
+    """Get intraday OHLCV data."""
+    data = await _av_request({
+        "function": "TIME_SERIES_INTRADAY",
+        "symbol": ticker.upper(),
+        "interval": interval,
+        "outputsize": output_size,
+    }, api_key)
+    return data

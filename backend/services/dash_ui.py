@@ -1298,8 +1298,35 @@ T: Toggle theme  M: Mute alerts  ?: Show this help
             if tab == "heatseeker":
                 spot = chain_data.get("spot", 0) if isinstance(chain_data, dict) else 0
                 contracts = chain_data.get("contracts", []) if isinstance(chain_data, dict) else []
+
+                # Read toggle state from store (with I-8 NaN guard)
+                toggle_state = _sanitize_state_dict({})  # default; actual state read via callback
+
+                # Extract expiry dates from chain data for the dropdown
+                expiry_dates = []
+                if isinstance(chain_data, dict):
+                    seen = set()
+                    for c in chain_data.get("contracts", []):
+                        exp = c.get("expiry", c.get("expiration", ""))
+                        if exp and exp not in seen:
+                            seen.add(exp)
+                            expiry_dates.append(exp)
+                    expiry_dates.sort()
+
+                sidebar = _build_heatseeker_toggles(expiry_dates=expiry_dates)
                 fig = _build_gex_heatmap(spot=spot, contracts=contracts, dark=dark)
-                return dcc.Graph(figure=fig, style={"height": "650px"})
+                graph = dcc.Graph(
+                    id="heatseeker-graph",
+                    figure=fig,
+                    style={"height": "650px"},
+                    config={"responsive": True},
+                )
+                return html.Div([
+                    html.Div([
+                        sidebar,
+                        html.Div(graph, style={"flex": 1}),
+                    ], style={"display": "flex", "flexDirection": "row"}),
+                ])
 
             elif tab == "flowseeker":
                 fig = _build_flow_ticker(flow_data, dark=dark)
@@ -1369,6 +1396,145 @@ T: Toggle theme  M: Mute alerts  ?: Show this help
                 return _build_nexus(dark=dark)
 
             return html.Div("Select a tab", style={"color": TEXT_DIM if dark else TEXT_DIM_LIGHT, "padding": "20px"})
+
+        # ═══════════════════════════════════════════════════════════════════════
+        # ROUND7: TOGGLE CALLBACKS
+        # ═══════════════════════════════════════════════════════════════════════
+
+        # I-8: Persist toggle state — save all toggle values to dcc.Store
+        @dash_app.callback(
+            Output("heatseeker-toggle-state", "data"),
+            Input("heatseeker-view-toggle", "value"),
+            Input("heatseeker-mode-toggle", "value"),
+            Input("heatseeker-indicator-toggle", "value"),
+            Input("heatseeker-dte-toggle", "value"),
+            Input("heatseeker-expiries-toggle", "value"),
+            prevent_initial_call=True,
+        )
+        def save_toggle_state(view, mode, indicators, dte_range, expiries):
+            """Persist all toggle state to dcc.Store as JSON dict. I-8 NaN guard."""
+            state = {
+                "view": _safe_json_value(view) or "GEX",
+                "mode": _safe_json_value(mode) or "absolute",
+                "indicators": _safe_json_value(indicators) or [],
+                "dte_min": _safe_json_value(dte_range[0]) if isinstance(dte_range, list) and len(dte_range) == 2 else 0,
+                "dte_max": _safe_json_value(dte_range[1]) if isinstance(dte_range, list) and len(dte_range) == 2 else 365,
+                "expiries": _safe_json_value(expiries) or [],
+            }
+            return _sanitize_state_dict(state)
+
+        # Render Heatseeker graph from toggle state (partial figure update)
+        @dash_app.callback(
+            Output("heatseeker-graph", "figure"),
+            Input("heatseeker-toggle-state", "data"),
+            Input("interval-component", "n_intervals"),
+            State("store-chain", "data"),
+            State("store-theme", "data"),
+            prevent_initial_call=True,
+        )
+        def render_heatseeker_graph(toggle_state, n_intervals, chain_data, theme_data):
+            """Rebuild Heatseeker figure from toggle state. Partial update via Graph.figure."""
+            dark = (theme_data or {}).get("dark", True)
+
+            # I-8: sanitize stored state
+            state = _sanitize_state_dict(toggle_state or {})
+
+            view = state.get("view", "GEX")
+            mode = state.get("mode", "absolute")
+            indicators = state.get("indicators", [])
+            dte_min = state.get("dte_min", 0)
+            dte_max = state.get("dte_max", 365)
+            selected_expiries = state.get("expiries", [])
+
+            # Extract data from chain store
+            spot = 0.0
+            contracts = []
+            king_nodes = []
+            air_pockets = []
+            zero_gamma = None
+
+            if isinstance(chain_data, dict):
+                spot = float(chain_data.get("spot", 0) or 0)
+                contracts = chain_data.get("contracts", []) or []
+                king_nodes = chain_data.get("king_nodes", []) or []
+                air_pockets = chain_data.get("air_pockets", []) or []
+                zg_val = chain_data.get("zero_gamma", None)
+                zero_gamma = float(zg_val) if zg_val is not None else None
+
+            # Filter contracts by DTE range
+            from datetime import datetime, timedelta
+            now = datetime.utcnow()
+            filtered_contracts = []
+            for c in contracts:
+                exp_str = c.get("expiry", c.get("expiration", ""))
+                if exp_str:
+                    try:
+                        exp_dt = datetime.strptime(exp_str[:10], "%Y-%m-%d")
+                        dte = (exp_dt - now).days
+                        if dte_min <= dte <= dte_max:
+                            filtered_contracts.append(c)
+                    except (ValueError, TypeError):
+                        filtered_contracts.append(c)
+                else:
+                    filtered_contracts.append(c)
+
+            # Further filter by selected expiries (empty = all)
+            if selected_expiries:
+                filtered_contracts = [
+                    c for c in filtered_contracts
+                    if (c.get("expiry", c.get("expiration", "")) in selected_expiries)
+                ]
+
+            # Filter overlays by indicator toggle
+            show_king_nodes = "king_nodes" in indicators
+            show_air_pockets = "air_pockets" in indicators
+
+            kn = king_nodes if show_king_nodes else None
+            ap = air_pockets if show_air_pockets else None
+
+            # Build the appropriate heatmap view
+            try:
+                if filtered_contracts:
+                    from services.gex_aggregator import GexAggregator
+                    agg = GexAggregator()
+                    result = agg.compute(spot, filtered_contracts)
+                    strikes = result.get("strikes", [])
+                    expiries_list = result.get("expiries", [])
+                    surface = result.get("gex_surface", [])
+                else:
+                    strikes = []
+                    expiries_list = []
+                    surface = None
+
+                if not strikes or surface is None:
+                    return _empty_figure(f"Waiting for {view} data...", dark)
+
+                # Serialize for cache key
+                surface_json = json.dumps(surface)
+                strikes_json = json.dumps(strikes)
+                expiries_json = json.dumps(expiries_list)
+                kn_json = json.dumps(kn) if kn else ""
+                ap_json = json.dumps(ap) if ap else ""
+                indicators_json = json.dumps(indicators)
+                zg = zero_gamma if zero_gamma is not None else 0.0
+
+                fig = _cached_build_heatmap(
+                    view=view,
+                    mode=mode,
+                    spot=round(spot, 2),
+                    gex_surface_json=surface_json,
+                    strikes_json=strikes_json,
+                    expiries_json=expiries_json,
+                    king_nodes_json=kn_json,
+                    air_pockets_json=ap_json,
+                    zero_gamma=zg,
+                    indicators_json=indicators_json,
+                )
+                return fig
+
+            except Exception as e:
+                logger.error(f"Render heatseeker error: {e}")
+                return _error_figure(str(e), dark)
 
         # Keyboard shortcuts via clientside callback
         clientside_callback(
