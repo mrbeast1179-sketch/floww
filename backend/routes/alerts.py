@@ -60,6 +60,75 @@ def get_alert_engine():
     return _alert_engine
 
 
+@router.get("/summary")
+async def get_alerts_summary():
+    """Get aggregated alert summary across all monitored tickers.
+
+    Returns:
+        JSON with total, critical, warning, info counts and last_24h breakdown.
+    """
+    from datetime import datetime, timezone, timedelta
+    import math
+
+    try:
+        engine = get_alert_engine()
+        tickers = list(engine._snapshots.keys())
+
+        total = 0
+        critical = 0
+        warning = 0
+        info = 0
+        last_24h = 0
+        now = datetime.now(timezone.utc)
+        cutoff = now - timedelta(hours=24)
+
+        for ticker in tickers:
+            alerts = engine.detect_alerts(ticker)
+            for alert in alerts:
+                total += 1
+                priority = getattr(alert, "priority", "").upper()
+                if priority == "HIGH":
+                    critical += 1
+                elif priority == "MEDIUM":
+                    warning += 1
+                else:
+                    info += 1
+
+                # Check if alert is within last 24h
+                ts_str = getattr(alert, "timestamp", "")
+                if ts_str:
+                    try:
+                        ts = datetime.fromisoformat(ts_str.replace("Z", "+00:00"))
+                        if ts >= cutoff:
+                            last_24h += 1
+                    except (ValueError, AttributeError):
+                        pass
+
+        # NaN guards — ensure clean integers
+        def _safe_int(val):
+            if isinstance(val, float) and (math.isnan(val) or math.isinf(val)):
+                return 0
+            return int(val) if val else 0
+
+        return {
+            "total": _safe_int(total),
+            "critical": _safe_int(critical),
+            "warning": _safe_int(warning),
+            "info": _safe_int(info),
+            "last_24h": _safe_int(last_24h),
+        }
+    except Exception as e:
+        logger.error(f"Error in alerts summary: {e}")
+        return {
+            "total": 0,
+            "critical": 0,
+            "warning": 0,
+            "info": 0,
+            "last_24h": 0,
+            "error": str(e),
+        }
+
+
 @router.get("/{ticker}")
 async def get_alerts(ticker: str, momentum_score: int = Query(50, ge=0, le=100)):
     """Get current alerts for a ticker."""
