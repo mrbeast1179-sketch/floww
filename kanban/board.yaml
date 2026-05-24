@@ -20,7 +20,7 @@ columns:
     wip_limit: 20
 
 # Card registry — one entry per agent track
-# Status is source-oftruth in each card's frontmatter; this is the index.
+# Status is source-of-truth in each card's frontmatter; this is the index.
 cards:
   - id: O-PHASE1-SCHWAB
     file: cards/O-PHASE1-SCHWAB.md
@@ -46,6 +46,27 @@ cards:
     file: cards/O-RISK-GATE.md
   - id: O-KANBAN-ML-R4
     file: cards/O-KANBAN-ML-R4.md
+  # Round 7 Cards — Agent 10 Synthesis
+  - id: R7-AGENT1-INGEST
+    file: cards/R7-AGENT1-INGEST.md
+  - id: R7-AGENT2-ML
+    file: cards/R7-AGENT2-ML.md
+  - id: R7-AGENT3-DASH
+    file: cards/R7-AGENT3-DASH.md
+  - id: R7-AGENT4-RESILIENCE
+    file: cards/R7-AGENT4-RESILIENCE.md
+  - id: R7-AGENT5-MATH
+    file: cards/R7-AGENT5-MATH.md
+  - id: R7-AGENT6-KNOWLEDGE
+    file: cards/R7-AGENT6-KNOWLEDGE.md
+  - id: R7-AGENT7-SECURITY
+    file: cards/R7-AGENT7-SECURITY.md
+  - id: R7-AGENT8-KANBAN
+    file: cards/R7-AGENT8-KANBAN.md
+  - id: R7-AGENT9-MEMORY
+    file: cards/R7-AGENT9-MEMORY.md
+  - id: R7-AGENT10-SYNTH
+    file: cards/R7-AGENT10-SYNTH.md
 
 # Watcher config
 watcher:

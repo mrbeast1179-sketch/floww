@@ -32,6 +32,7 @@ import os
 import sys
 import time
 from pathlib import Path
+from typing import Optional
 from datetime import datetime, timezone
 from typing import Any
 
@@ -85,7 +86,7 @@ def generate_synthetic_data(n_samples: int = 5000, seq_len: int = 50, seed: int 
     return np.stack([vpin, qi], axis=1)
 
 
-def load_mongodb_data(seq_len: int = 50) -> np.ndarray | None:
+def load_mongodb_data(seq_len: int = 50) -> Optional[np.ndarray]:
     """Try to load VPIN + QI from MongoDB gex_history collection."""
     try:
         import asyncio

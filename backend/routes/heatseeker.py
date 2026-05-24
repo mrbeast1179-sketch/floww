@@ -88,24 +88,26 @@ async def _fetch_history(ticker: str) -> List[Dict[str, Any]]:
 @router.get("/flip-zones")
 async def flip_zones_route(
     ticker: str = "SPY",
-    window_pct: float = Query(0.05, gt=0.0, le=0.5),
-    expiries: int = Query(4, ge=1, le=12),
+    window_pct: float = Query(default=0.05, ge=0.01, le=0.50, description="Window size as fraction of spot"),
+    min_gap_pct: float = Query(default=0.02, ge=0.005, le=0.20, description="Minimum gap between flip zones"),
+    expiries: int = Query(default=4, ge=1, le=12),
 ):
-    """All cumulative-GEX sign changes within ±window_pct of spot."""
+    """All cumulative-GEX sign changes within +/-window_pct of spot."""
     from server import _sanitize
     raw = await _fetch_chain(ticker, expiries)
     spot = raw.get("spot")
     contracts = raw.get("contracts") or []
     if not spot or not contracts:
-        raise HTTPException(404, f"No options data for {ticker}")
-    result = calc_flip_zones(spot, contracts, window_pct=window_pct)
+        raise HTTPException(404, "No options data for " + ticker)
+    result = calc_flip_zones(spot, contracts, window_pct=window_pct, min_gap_pct=min_gap_pct)
     return _sanitize({"ticker": ticker.upper(), "spot": spot, **result})
 
 
 @router.get("/node-lifecycle")
 async def node_lifecycle_route(
     ticker: str = "SPY",
-    expiries: int = Query(4, ge=1, le=12),
+    lookback_mins: int = Query(default=60, ge=5, le=1440, description="Lookback window in minutes"),
+    expiries: int = Query(default=4, ge=1, le=12),
 ):
     """Top 10 |GEX| nodes classified Fresh/Tested/Delivered/Decaying."""
     from server import _sanitize
@@ -113,8 +115,8 @@ async def node_lifecycle_route(
     spot = raw.get("spot")
     contracts = raw.get("contracts") or []
     if not spot or not contracts:
-        raise HTTPException(404, f"No options data for {ticker}")
-    history = await _fetch_history(ticker.upper())
+        raise HTTPException(404, "No options data for " + ticker)
+    history = await _fetch_history(ticker.upper(), lookback_mins=lookback_mins)
     result = calc_node_lifecycle(spot, contracts, history)
     return _sanitize({
         "ticker": ticker.upper(),
@@ -127,8 +129,8 @@ async def node_lifecycle_route(
 @router.get("/air-pockets")
 async def air_pockets_route(
     ticker: str = "SPY",
-    min_gap_pct: float = Query(0.005, gt=0.0, le=0.5),
-    expiries: int = Query(4, ge=1, le=12),
+    min_gap_pct: float = Query(default=0.02, ge=0.005, le=0.20, description="Minimum gap between air pockets"),
+    expiries: int = Query(default=4, ge=1, le=12),
 ):
     """Contiguous strike ranges with |GEX| below 20% of the local median."""
     from server import _sanitize
@@ -136,7 +138,7 @@ async def air_pockets_route(
     spot = raw.get("spot")
     contracts = raw.get("contracts") or []
     if not spot or not contracts:
-        raise HTTPException(404, f"No options data for {ticker}")
+        raise HTTPException(404, "No options data for " + ticker)
     result = calc_air_pockets(spot, contracts, min_gap_pct=min_gap_pct)
     return _sanitize({"ticker": ticker.upper(), "spot": spot, **result})
 

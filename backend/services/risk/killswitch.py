@@ -41,7 +41,7 @@ class KillSwitch:
         self.config = config or KillSwitchConfig()
         self._tripped = False
         self._trip_reason = ""
-        self._trip_time: datetime | None = None
+        self._trip_time: Optional[datetime] = None
         self._daily_starting_equity: float = 0.0
         self._peak_equity: float = 0.0
         self._current_equity: float = 0.0
@@ -58,7 +58,7 @@ class KillSwitch:
         return self._trip_reason
 
     @property
-    def trip_time(self) -> datetime | None:
+    def trip_time(self) -> Optional[datetime]:
         return self._trip_time
 
     def reset(self):

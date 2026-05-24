@@ -20,6 +20,7 @@ import logging
 import sys
 import time
 from pathlib import Path
+from typing import Optional
 from datetime import datetime, timezone
 
 import torch
@@ -38,7 +39,7 @@ MANIFEST_PATH = QC_DIR / "patchtst_vpin_v1_manifest.json"
 sys.path.insert(0, str(BACKEND))
 
 
-def load_vpin_from_mongodb() -> np.ndarray | None:
+def load_vpin_from_mongodb() -> Optional[np.ndarray]:
     """Load VPIN time series from MongoDB gex_history collection."""
     try:
         import asyncio
