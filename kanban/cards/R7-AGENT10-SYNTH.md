@@ -21,6 +21,7 @@ Alert tuning (60% false positive reduction), runbooks, anomaly explainer (SHAP-b
 ## Commits
 - `5a520aa` — feat(observability): Round 4 — alert tuning, runbooks, anomaly explainer, SLA dashboard
 - `208b9e1` — feat(predictive): predictive alerting + chaos forecasting engine
+- `a5992a6` — feat(round-7-agents): add heatseeker snapshots, morning briefing, fetch coordinator, greeks API, cache router, databento OI, and tests
 - `PENDING` — docs(round-7-agent-10): add completion log + update architecture + kanban cards + swarm status
 
 ## Acceptance Criteria

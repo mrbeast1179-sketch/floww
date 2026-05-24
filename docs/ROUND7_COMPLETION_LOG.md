@@ -78,7 +78,12 @@ aefa9ca — Agent 7 (VPIN_HFT strategy)
 5a520aa — Agent 10 (observability Round 4)
 ```
 
-Round 7 synthesis commit: `PENDING — will be set on file commit`.
+Round 7 synthesis commits:
+- `f5449e3` — docs(round-7-agent-10): add completion log
+- `f4e478e` — docs(round-7-agent-10): update heatseeker architecture
+- `e64bf73` — chore(round-7-agent-10): add round7 kanban cards
+- `2c3b781` — chore(round-7-agent-10): update swarm status with round 7 closure
+- `a5992a6` — feat(round-7-agents): add heatseeker snapshots, morning briefing, fetch coordinator, greeks API, cache router, databento OI, and tests
 
 ---
 
