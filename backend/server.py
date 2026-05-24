@@ -2651,6 +2651,9 @@ app.include_router(analytics_router, prefix="/api", tags=["analytics"])
 from routes.briefing import router as briefing_router
 app.include_router(briefing_router, prefix="/api", tags=["briefing"])
 
+from routes.morning_briefing_api import router as morning_briefing_router
+app.include_router(morning_briefing_router, prefix="/api", tags=["morning-briefing"])
+
 from routes.data_providers import router as data_providers_router
 app.include_router(data_providers_router, tags=["data"])
 
@@ -2750,7 +2753,7 @@ from routes.alpha_advantage import router as alpha_advantage_router
 app.include_router(alpha_advantage_router, tags=["alpha-advantage"])
 
 from routes.greeks import router as greeks_router
-app.include_router(greeks_router, prefix="/api", tags=["greeks"])
+app.include_router(greeks_router, prefix="/api/greeks", tags=["greeks"])
 
 # ============ Position Sizing (Kelly Criterion) ============
 from routes.position_sizing_api import router as position_sizing_router
