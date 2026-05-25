@@ -302,6 +302,8 @@ export default function App() {
   const [drilldown, setDrilldown] = useState(null);
   const [tickers, setTickers] = useState(null);
   const [advanced, setAdvanced] = useState(null);
+  const [advancedLoading, setAdvancedLoading] = useState(true);
+  const [advancedError, setAdvancedError] = useState(false);
   const wsGex = useWebSocketGex(page === "heatseeker" ? ticker : null);
   const { theme, toggleTheme } = useTheme();
   const [ensembleData, setEnsembleData] = useState(null);
@@ -377,10 +379,12 @@ export default function App() {
     let cancelled = false;
     const doFetch = async () => {
       if (cancelled) return;
+      setAdvancedLoading(true);
+      setAdvancedError(false);
       try {
         const r = await axios.get(`${API}/advanced/${ticker}`);
-        if (!cancelled) setAdvanced(r.data);
-      } catch (e) { if (!cancelled) {} }
+        if (!cancelled) { setAdvanced(r.data); setAdvancedLoading(false); }
+      } catch (e) { if (!cancelled) { setAdvancedError(true); setAdvancedLoading(false); } }
     };
     doFetch();
     const id = setInterval(doFetch, refreshMs * 2);
@@ -696,11 +700,11 @@ export default function App() {
               <OpportunitiesPanel data={data} />
               <ImpliedMovePanel data={data} />
               <VolAnalyticsPanel data={data} />
-              <MarketRegimePanel data={data} />
-              <ImpliedPDFPanel data={data} />
-              <HedgeImpulsePanel data={advanced} />
-              <PressureCloudPanel data={advanced} />
-              <CharmIntegralPanel data={advanced} />
+              <MarketRegimePanel data={data} loading={loading} error={!!err} />
+              <ImpliedPDFPanel data={data} loading={loading} error={!!err} />
+              <HedgeImpulsePanel data={advanced} loading={advancedLoading} error={advancedError} />
+              <PressureCloudPanel data={advanced} loading={advancedLoading} error={advancedError} />
+              <CharmIntegralPanel data={advanced} loading={advancedLoading} error={advancedError} />
               <MultiTimeframeGEXPanel ticker={ticker} />
               <AlertsPanel ticker={ticker} />
               <TradeAnalytics ticker={ticker} />
