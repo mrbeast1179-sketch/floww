@@ -25,7 +25,7 @@ async def collect_data_job():
     results = await collect_multiple_tickers(tickers)
     
     success = sum(1 for r in results if r.get("status") == "stored")
-    print(f"Data collection: {success}/{len(tickers)} tickers stored")
+    logger.info(f"Data collection: {success}/{len(tickers)} tickers stored")
 
 
 async def morning_briefing_job():
@@ -36,23 +36,26 @@ async def morning_briefing_job():
     
     to_email = os.environ.get("BRIEFING_EMAIL", "")
     if not to_email:
-        print("No briefing email configured")
+        logger.info("No briefing email configured")
         return
     
     result = await send_briefing_email(to_email, "SPY")
-    print(f"Morning briefing: {result.get('status', 'unknown')}")
+    logger.info(f"Morning briefing: {result.get('status', 'unknown')}")
 
 
 async def retrain_models_job():
     """Retrain ML models on latest data."""
     from ml_price_prediction import train_price_direction_model
     from dotenv import load_dotenv
+import logging
+
+logger = logging.getLogger(__name__)
     load_dotenv()
     
     tickers = os.environ.get("ML_TICKERS", "SPY,QQQ").split(",")
     for ticker in tickers:
         result = await train_price_direction_model(ticker)
-        print(f"Model training {ticker}: {result.get('status', 'unknown')}")
+        logger.info(f"Model training {ticker}: {result.get('status', 'unknown')}")
 
 
 async def health_check_job():
@@ -66,9 +69,9 @@ async def health_check_job():
         async with httpx.AsyncClient() as client:
             r = await client.get(f"{backend_url}/health", timeout=10)
             data = r.json()
-            print(f"Health check: {data.get('status', 'unknown')}")
+            logger.info(f"Health check: {data.get('status', 'unknown')}")
     except Exception as e:
-        print(f"Health check failed: {e}")
+        logger.warning(f"Health check failed: {e}")
 
 
 async def paper_trade_dry_run_job():
@@ -84,7 +87,7 @@ async def paper_trade_dry_run_job():
 
     ticker = os.environ.get("PAPER_TRADE_TICKER", "SPY")
     result = await daily_paper_trade_dry_run(ticker)
-    print(f"Paper trade dry-run {ticker}: {result.get('action', 'unknown')}")
+    logger.info(f"Paper trade dry-run {ticker}: {result.get('action', 'unknown')}")
 
 
 # Cron schedule configuration
@@ -138,11 +141,11 @@ def setup_cron_jobs():
         # Add to crontab
         cron_line = f"{schedule} {command} >> /tmp/confluence-cron.log 2>&1"
         
-        print(f"Cron job: {name}")
-        print(f"  Schedule: {schedule}")
-        print(f"  Command: {command}")
-        print(f"  Cron line: {cron_line}")
-        print()
+        logger.info(f"Cron job: {name}")
+        logger.info(f"  Schedule: {schedule}")
+        logger.info(f"  Command: {command}")
+        logger.info(f"  Cron line: {cron_line}")
+        logger.info()
 
 
 if __name__ == "__main__":
