@@ -35,10 +35,6 @@ log = logging.getLogger("ml.inference")
 
 MODEL_DIR = Path(__file__).resolve().parents[2] / "models"
 
-# Map ticker -> (model_path, scaler_path, manifest_path)
-# Models live in backend/models/
-MODEL_DIR = Path(__file__).resolve().parents[2] / "models"
-
 # Map ticker -> model filename (in models/ directory)
 # These are the latest trained models from train_spy_model.py
 MODEL_REGISTRY: Dict[str, str] = {
@@ -159,7 +155,6 @@ def compute_live_features(ticker: str, period: str = "1y") -> pd.DataFrame:
     for window in FEATURE_WINDOWS["sma"]:
         sma = pd.Series(close).rolling(window=window, min_periods=window).mean().values
         features[f"sma_{window}"] = sma
-        # Price relative to SMA
         rel = np.zeros(len(close))
         for i in range(len(close)):
             if sma[i] > 0:
@@ -194,10 +189,9 @@ def compute_live_features(ticker: str, period: str = "1y") -> pd.DataFrame:
         vol = pd.Series(log_ret).rolling(window=window, min_periods=window).std().values * np.sqrt(252)
         features[f"realized_vol_{window}d"] = vol
 
-    # Calendar features
-    dates = pd.to_datetime(df.index)
-    features["is_month_end"] = dates.is_month_end.astype(float).values if hasattr(dates.is_month_end, 'values') else np.array(dates.is_month_end, dtype=float)
-    features["is_month_start"] = dates.is_month_start.astype(float).values if hasattr(dates.is_month_start, 'values') else np.array(dates.is_month_start, dtype=float)
+        dates = pd.to_datetime(df.index)
+        features["is_month_end"] = dates.is_month_end.astype(float).values
+        features["is_month_start"] = dates.is_month_start.astype(float).values
 
     # RSI (14-day)
     delta = pd.Series(close).diff()
@@ -245,9 +239,9 @@ def compute_live_features(ticker: str, period: str = "1y") -> pd.DataFrame:
     features["sma_10_50_diff"] = sma_10 - sma_50
 
     # RSI extremes
-    rsi = features["rsi_14"].values if hasattr(features["rsi_14"], 'values') else features["rsi_14"]
-    features["rsi_overbought"] = (rsi > 70).astype(float)
-    features["rsi_oversold"] = (rsi < 30).astype(float)
+    rsi_vals = features["rsi_14"].values if hasattr(features["rsi_14"], "values") else features["rsi_14"]
+    features["rsi_overbought"] = (rsi_vals > 70).astype(float)
+    features["rsi_oversold"] = (rsi_vals < 30).astype(float)
 
     # Momentum / acceleration
     features["ret_momentum"] = pd.Series(close).pct_change(5).values
@@ -309,11 +303,11 @@ class InferenceEngine:
         if isinstance(entry, tuple):
             model_path = entry[0]
             scaler_path = entry[1] if len(entry) > 1 else None
-            manifest_path = entry[2] if len(entry) > 2 else None
+            m_path = entry[2] if len(entry) > 2 else None
         else:
             model_path = entry
             scaler_path = None
-            manifest_path = None
+            m_path = None
 
         if not os.path.exists(model_path):
             raise DegenerateModelError(f"Model artifact not found: {model_path}")
@@ -337,9 +331,9 @@ class InferenceEngine:
             # Raw model object (saved directly via joblib.dump)
             model = artifact
             # Load manifest from sidecar JSON if available
-            if manifest_path and os.path.exists(manifest_path):
+            if m_path and os.path.exists(m_path):
                 import json as _json
-                with open(manifest_path) as _f:
+                with open(m_path) as _f:
                     _md = _json.load(_f)
                 _metrics = _md.get("metrics", {})
                 manifest = {
@@ -388,23 +382,38 @@ class InferenceEngine:
 
         # Get feature names from manifest
         feature_names = manifest.get("feature_names", [])
-        if not feature_names:
+        n_model_features = manifest.get("n_features", 0)
+
+        if feature_names:
+            # Dict artifact with known feature names — ensure alignment
+            missing = [f for f in feature_names if f not in features_df.columns]
+            if missing:
+                log.warning(f"Missing features for {ticker}: {missing}")
+                for f in missing:
+                    features_df[f] = 0.0
+            latest = features_df[feature_names].iloc[-1:]
+        elif n_model_features > 0:
+            # Raw model with n_features_in_ — use first N computed features
+            all_cols = list(features_df.columns)
+            if len(all_cols) >= n_model_features:
+                use_cols = all_cols[:n_model_features]
+            else:
+                use_cols = all_cols
+                for i in range(n_model_features - len(all_cols)):
+                    features_df[f"_pad_{i}"] = 0.0
+                use_cols = list(features_df.columns)[:n_model_features]
+            feature_names = use_cols
+            available = use_cols
+            latest = features_df[use_cols].iloc[-1:]
+        else:
+            # No feature info — use all computed features
             feature_names = list(features_df.columns)
+            available = feature_names
+            latest = features_df.iloc[-1:]
 
-        # Ensure all expected features are present
-        available = [f for f in feature_names if f in features_df.columns]
-        missing = [f for f in feature_names if f not in features_df.columns]
-        if missing:
-            log.warning(f"Missing features for {ticker}: {missing}")
-            # Add missing features as zeros
-            for f in missing:
-                features_df[f] = 0.0
-
-        # Get the latest row for prediction
-        latest = features_df[feature_names].iloc[-1:]
         X = latest.values.astype(float)
 
-        # Run prediction (no scaler for RF models)
+        # Run prediction
         prediction = int(model.predict(X)[0])
         probabilities = None
         if hasattr(model, "predict_proba"):
@@ -414,7 +423,7 @@ class InferenceEngine:
 
         # Build feature values dict for the latest row
         feature_values = {
-            f: float(latest[f].values[0]) for f in feature_names[:10]  # top 10
+            f: float(latest[f].values[0]) for f in feature_names[:10]
         }
 
         now = datetime.now(timezone.utc)
@@ -433,7 +442,7 @@ class InferenceEngine:
             confidence=confidence,
             probabilities=probabilities or [0.5, 0.5],
             model_id=manifest.get("model_id", f"{ticker}_direction_v1.0"),
-            features_used=available,
+            features_used=feature_names,
             feature_values=feature_values,
             timestamp=now.isoformat(),
             data_age_sec=data_age_sec,
