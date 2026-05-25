@@ -14,11 +14,8 @@ Covers:
   - _build_gex_heatmap with mode="absolute" vs mode="signed"
 """
 import json
-import math
 import time
-from unittest.mock import patch, MagicMock
 
-import pytest
 import plotly.graph_objects as go
 
 # ---------------------------------------------------------------------------

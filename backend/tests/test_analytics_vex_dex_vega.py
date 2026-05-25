@@ -23,7 +23,7 @@ from bs_greeks import bs_vanna, bs_delta, bs_vega
 def make_contracts_from_chain(chain_csv_path):
     """Load contracts from a CSV chain file, adding T and iv fields."""
     import csv
-    from datetime import datetime, timezone, timedelta
+    from datetime import datetime, timezone
     contracts = []
     today = datetime.now(timezone.utc).date()
     with open(chain_csv_path) as f:

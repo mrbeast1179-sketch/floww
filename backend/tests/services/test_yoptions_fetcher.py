@@ -17,11 +17,7 @@ from __future__ import annotations
 
 import os
 import sys
-import json
-import tempfile
-import shutil
-from pathlib import Path
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch
 
 import pytest
 import pandas as pd
@@ -33,10 +29,8 @@ os.environ.setdefault("TESTING", "1")
 from services.yoptions_fetcher import (
     fetch_options_chain,
     fetch_all_chains,
-    YOptionsFetchError,
     TICKERS,
     DIVIDEND_YIELDS,
-    RAW_CHAINS_DIR,
     HAS_YOPTIONS,
 )
 

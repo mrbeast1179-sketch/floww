@@ -11,9 +11,7 @@ from __future__ import annotations
 
 import json
 import sys
-import tempfile
 from pathlib import Path
-from unittest.mock import patch
 
 import numpy as np
 import pytest
@@ -25,7 +23,6 @@ from services.anomaly_detector import (
     Conv1DAutoencoder,
     FlowAnomalyDetector,
     StatisticalAnomalyDetector,
-    HAS_TORCH,
 )
 
 

@@ -15,11 +15,8 @@ from __future__ import annotations
 
 import os
 import sys
-import math
 from pathlib import Path
-from unittest.mock import MagicMock, patch
 
-import pytest
 import numpy as np
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))

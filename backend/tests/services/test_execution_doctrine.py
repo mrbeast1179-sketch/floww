@@ -293,7 +293,6 @@ class TestEdgeCases:
         assert "invalid" in reason.lower()
 
     def test_empty_nodes_no_midpoint_check(self, doctrine):
-        from services.execution_doctrine import NODE_STATE_FRESH
         intent = {
             "ticker": "SPY",
             "side": "buy",

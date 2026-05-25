@@ -17,7 +17,6 @@ Coverage:
 import sys
 from pathlib import Path
 
-import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
 
@@ -136,7 +135,7 @@ class TestCausalDAG:
 
     def test_dag_specific_edges(self):
         """Verify the dealer-hedging DAG has expected edges."""
-        from services.causal.dag import CausalDAG, EDGES
+        from services.causal.dag import CausalDAG
         dag = CausalDAG()
         # spot -> GEX (mechanical)
         assert ("spot", "gex") in dag.edges

@@ -16,8 +16,7 @@ import sys, os
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
 
 from services.causal_inference import (
-    CausalGraph, BackdoorCriterion, FrontDoorCriterion,
-    InstrumentalVariables, DoCalculus, CausalEffectEstimator
+    CausalGraph, BackdoorCriterion, InstrumentalVariables, DoCalculus, CausalEffectEstimator
 )
 
 

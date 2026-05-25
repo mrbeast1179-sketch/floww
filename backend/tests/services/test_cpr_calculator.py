@@ -14,12 +14,11 @@ import sys
 from pathlib import Path
 
 import numpy as np
-import pytest
 
 REPO_BACKEND = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPO_BACKEND))
 
-from services.cpr_calculator import CPR_BULLISH_THRESHOLD, CPR_BEARISH_THRESHOLD, CprCalculator
+from services.cpr_calculator import CprCalculator
 
 
 class TestCprBasic:

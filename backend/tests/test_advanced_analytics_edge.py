@@ -7,9 +7,7 @@ Uses hand-calculated values and boundary conditions.
 """
 
 import pytest
-import numpy as np
 import sys
-import os
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))

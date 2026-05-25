@@ -7,7 +7,7 @@ Unit tests for the API Credit & Rate Limit Monitor.
 import sys
 import time
 from pathlib import Path
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch
 
 import pytest
 

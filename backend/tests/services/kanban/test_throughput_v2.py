@@ -1,22 +1,16 @@
 """
 backend/tests/services/kanban/test_throughput_v2.py — Tests for throughput model v2.
 """
-import pytest
 import sys
-import pickle
-import json
 from pathlib import Path
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent.parent))
 
 from scripts.predict_throughput import (
     EnsembleRegressor,
     extract_features,
-    load_history,
     check_drift,
-    save_model,
-    load_model,
 )
 
 

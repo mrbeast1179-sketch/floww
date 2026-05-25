@@ -4,8 +4,6 @@ tests/test_ml_training.py
 Tests for the ML training pipeline (walk-forward CV, baselines, SHIP gate).
 """
 import numpy as np
-import pandas as pd
-import pytest
 import sys
 from pathlib import Path
 
@@ -13,7 +11,6 @@ from pathlib import Path
 SCRIPTS_DIR = Path(__file__).resolve().parent.parent.parent / "scripts"
 sys.path.insert(0, str(SCRIPTS_DIR))
 
-from train_spy_v3 import walk_forward_splits, compute_trading_sharpe
 
 
 class TestWalkForwardSplits:

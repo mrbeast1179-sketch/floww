@@ -2,7 +2,6 @@
 backend/tests/services/kanban/test_rebalancer.py — Tests for capacity rebalancer.
 """
 
-import pytest
 import sys
 from pathlib import Path
 

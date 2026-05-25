@@ -17,8 +17,7 @@ from __future__ import annotations
 import asyncio
 import os
 import sys
-import time
-from unittest.mock import patch, AsyncMock, MagicMock
+from unittest.mock import patch, AsyncMock
 
 import pytest
 import pytest_asyncio
@@ -27,7 +26,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".."))
 
 os.environ.setdefault("TESTING", "1")
 
-from services.scheduler import PollingScheduler, DEFAULT_INTERVAL
+from services.scheduler import PollingScheduler
 
 
 @pytest_asyncio.fixture

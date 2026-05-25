@@ -5,7 +5,6 @@ Tests for the alert engine.
 """
 import pytest
 from unittest.mock import MagicMock, patch
-from datetime import datetime, timezone, timedelta
 
 import sys
 from pathlib import Path

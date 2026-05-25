@@ -17,12 +17,8 @@ All tests are self-contained (no MongoDB dependency).
 
 from __future__ import annotations
 
-import json
-import os
 import sys
-import tempfile
 from pathlib import Path
-from unittest.mock import MagicMock, patch
 
 import numpy as np
 import pytest
@@ -41,7 +37,6 @@ from scripts.train_with_baselines import (
     audit_meta_json,
     MAX_PLAUSIBLE_DAILY_SHARPE,
     EMBARGO_DAYS,
-    MIN_SAMPLES,
     REQUIRED_BASELINES,
 )
 

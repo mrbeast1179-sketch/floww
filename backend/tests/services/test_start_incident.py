@@ -5,9 +5,7 @@ Run with:
     python -m pytest backend/tests/services/test_start_incident.py -v
 """
 
-import os
 import sys
-import tempfile
 from pathlib import Path
 from unittest.mock import patch
 

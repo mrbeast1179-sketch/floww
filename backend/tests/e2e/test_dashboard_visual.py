@@ -24,9 +24,7 @@ import subprocess
 import sys
 import time
 import signal
-import tempfile
 from pathlib import Path
-from typing import Optional
 
 import pytest
 

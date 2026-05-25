@@ -8,12 +8,7 @@ reconnect logic, and token refresh.
 from __future__ import annotations
 
 import asyncio
-import math
-import time
-from typing import Any, Dict, List
-from unittest.mock import AsyncMock, MagicMock, patch
 
-import numpy as np
 import pytest
 
 import sys
@@ -22,7 +17,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from services.duckdb_engine import DuckDBEngine
 from services.ingestion_pipeline import IngestionPipeline
-from services.mock_schwab_feed import MockSchwabFeed, DEFAULT_SPOTS
+from services.mock_schwab_feed import MockSchwabFeed
 
 
 # =============================================================================

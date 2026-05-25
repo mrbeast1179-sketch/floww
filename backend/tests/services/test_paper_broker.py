@@ -5,7 +5,6 @@ backend/tests/services/test_paper_broker.py — Tests for paper broker.
 
 from __future__ import annotations
 
-import pytest
 from services.paper_broker import PaperBroker, PaperBrokerConfig
 
 

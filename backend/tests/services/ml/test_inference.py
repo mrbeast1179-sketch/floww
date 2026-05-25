@@ -13,12 +13,9 @@ from __future__ import annotations
 
 import asyncio
 import json
-import math
-import os
 import sys
-import tempfile
 from pathlib import Path
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import patch
 
 import numpy as np
 import pandas as pd
@@ -302,7 +299,6 @@ class TestInferenceEngine:
 
     def test_model_info(self, trained_model_dir):
         """get_model_info returns correct metadata."""
-        from services.ml import DegenerateModelError
         from services.ml.inference import InferenceEngine, MODEL_REGISTRY
 
         ticker = "TEST"

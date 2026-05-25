@@ -14,14 +14,8 @@ Run with:
 
 from __future__ import annotations
 
-import math
-import os
-import sys
-import tempfile
 from datetime import datetime, timezone
-from unittest.mock import AsyncMock, MagicMock, patch
 
-import pytest
 import pyarrow as pa
 
 # ---------------------------------------------------------------------------

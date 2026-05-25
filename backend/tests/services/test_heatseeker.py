@@ -8,7 +8,7 @@ can be verified by inspection; no random data.
 
 import sys
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any, Dict
 
 import pytest
 

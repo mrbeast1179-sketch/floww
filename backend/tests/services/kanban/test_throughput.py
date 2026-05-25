@@ -2,7 +2,6 @@
 backend/tests/services/kanban/test_throughput.py — Tests for throughput model.
 """
 
-import pytest
 import sys
 from pathlib import Path
 

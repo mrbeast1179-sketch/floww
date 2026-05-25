@@ -6,10 +6,7 @@ Run from repo root:
   cd /Users/nav/Documents/GitHub/floww && python -m pytest backend/tests/test_kanban.py -v
 """
 
-import os
 import sys
-import tempfile
-import shutil
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
 
@@ -23,16 +20,12 @@ sys.path.insert(0, str(REPO_ROOT))
 from kanban.watcher import (
     parse_card,
     write_card,
-    load_board,
     all_cards,
     cards_by_status,
-    update_card_commits,
     check_blocker,
     enforce_wip_limit,
     auto_archive,
     now_iso,
-    BLOCKER_THRESHOLD,
-    ARCHIVE_AFTER,
 )
 
 

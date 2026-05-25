@@ -7,7 +7,6 @@ Tests for the VPIN_HFT paper trading execution adapter.
 
 from __future__ import annotations
 
-import pytest
 
 import sys
 from pathlib import Path

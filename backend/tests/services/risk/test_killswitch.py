@@ -1,7 +1,6 @@
 """
 backend/tests/services/risk/test_killswitch.py — Tests for kill switch.
 """
-import pytest
 import sys
 from pathlib import Path
 

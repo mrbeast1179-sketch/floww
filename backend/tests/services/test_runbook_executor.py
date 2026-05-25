@@ -12,7 +12,6 @@ Coverage:
     - Step timeout handling
 """
 
-import asyncio
 import sys
 import os
 from pathlib import Path

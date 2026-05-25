@@ -12,9 +12,7 @@ from __future__ import annotations
 import os
 import tempfile
 import time
-from unittest.mock import patch
 
-import pytest
 
 from services.risk.gate import (
     DEFAULT_DAILY_LOSS_PCT,

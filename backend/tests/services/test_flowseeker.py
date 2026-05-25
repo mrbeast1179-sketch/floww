@@ -17,7 +17,6 @@ NO real network. All upstream calls are patched at
 import asyncio
 import sys
 from pathlib import Path
-from typing import Any, Dict, List, Optional
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -29,7 +28,6 @@ from services.flowseeker import (  # noqa: E402
     BLOCK_MIN_SIZE,
     SWEEP_MIN_SIZE,
     UNUSUAL_PREMIUM_USD,
-    UNUSUAL_VOL_OI_RATIO,
     classify_print,
     contract_drilldown,
     fetch_live_flow,

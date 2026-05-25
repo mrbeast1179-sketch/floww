@@ -11,7 +11,6 @@ import time
 from pathlib import Path
 
 import numpy as np
-import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[3]))  # repo root
 
@@ -168,7 +167,6 @@ class TestAutoformerInference:
 
     def test_model_parameter_count(self):
         """Model should be <200K parameters."""
-        import torch
         import torch.nn as nn
 
         class SimpleMultiForecaster(nn.Module):
