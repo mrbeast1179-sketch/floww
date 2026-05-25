@@ -309,19 +309,32 @@ class InferenceEngine:
             raise DegenerateModelError(f"Model artifact not found: {model_path}")
 
         artifact = joblib.load(model_path)
-        model = artifact["model"]
 
-        # Build manifest from artifact
-        metrics = artifact.get("metrics", {})
-        manifest = {
-            "model_type": artifact.get("model_name", "unknown"),
-            "feature_names": artifact.get("feature_names", []),
-            "n_features": len(artifact.get("feature_names", [])),
-            "train_accuracy": metrics.get("avg_train_accuracy", 0.0),
-            "test_accuracy": metrics.get("avg_test_accuracy", 0.0),
-            "test_sharpe": metrics.get("avg_test_sharpe", 0.0),
-            "model_path": model_path,
-        }
+        # Handle both raw model objects and dict artifacts
+        if isinstance(artifact, dict):
+            model = artifact["model"]
+            metrics = artifact.get("metrics", {})
+            manifest = {
+                "model_type": artifact.get("model_name", "unknown"),
+                "feature_names": artifact.get("feature_names", []),
+                "n_features": len(artifact.get("feature_names", [])),
+                "train_accuracy": metrics.get("avg_train_accuracy", 0.0),
+                "test_accuracy": metrics.get("avg_test_accuracy", 0.0),
+                "test_sharpe": metrics.get("avg_test_sharpe", 0.0),
+                "model_path": model_path,
+            }
+        else:
+            # Raw model object (saved directly via joblib.dump)
+            model = artifact
+            manifest = {
+                "model_type": type(artifact).__name__,
+                "feature_names": [],
+                "n_features": 0,
+                "train_accuracy": 0.0,
+                "test_accuracy": 0.0,
+                "test_sharpe": 0.0,
+                "model_path": model_path,
+            }
 
         self._model_cache[ticker] = (model, manifest)
         log.info(f"Loaded model for {ticker}: {manifest.get('model_type', 'unknown')}")
