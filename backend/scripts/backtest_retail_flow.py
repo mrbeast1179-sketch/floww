@@ -23,7 +23,6 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from services.backtest.engine import BacktestEngine, EngineConfig
 from services.backtest.retail_flow_signal import RetailFlowSignal, RegimeFilter
-from services.backtest.report import BacktestResult
 
 
 def generate_mock_data(n_bars: int = 252, seed: int = 42):

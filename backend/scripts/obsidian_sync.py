@@ -19,7 +19,6 @@ Environment:
 """
 
 import os
-import sys
 import json
 import hashlib
 import time

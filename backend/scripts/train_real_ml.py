@@ -23,12 +23,11 @@ from __future__ import annotations
 import argparse
 import json
 import logging
-import os
 import sys
 import time
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, Optional
 
 import numpy as np
 import pandas as pd
@@ -253,7 +252,7 @@ def train_model(
     from sklearn.ensemble import GradientBoostingClassifier
     from sklearn.preprocessing import StandardScaler
     from sklearn.model_selection import TimeSeriesSplit
-    from sklearn.metrics import accuracy_score, classification_report
+    from sklearn.metrics import accuracy_score
 
     period = f"{max(days // 21, 12)}mo"  # At least 12mo for rolling windows
     features_df = compute_features(ticker, period=period)

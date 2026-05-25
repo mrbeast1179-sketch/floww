@@ -23,15 +23,12 @@ from __future__ import annotations
 import argparse
 import logging
 import math
-import os
 import sys
 from datetime import date, timedelta
 from pathlib import Path
 
 import duckdb
-import numpy as np
 import pyarrow as pa
-import pyarrow.parquet as pq
 
 log = logging.getLogger(__name__)
 
