@@ -280,6 +280,27 @@ export function MlDashboard({ ticker = "SPY", spot }) {
                     {prediction.drift_status || "—"}
                   </div>
                 </div>
+          {prediction ? (
+            <>
+              <div className="grid grid-cols-2 gap-2 text-[10px]">
+                <div className="bg-slate-800/50 rounded p-2">
+                  <div className="label mb-0.5">Type</div>
+                  <div className="text-slate-200 mono">{prediction.model_type || "—"}</div>
+                </div>
+                <div className="bg-slate-800/50 rounded p-2">
+                  <div className="label mb-0.5">Features</div>
+                  <div className="text-slate-200 mono">{prediction.n_features || "—"}</div>
+                </div>
+                <div className="bg-slate-800/50 rounded p-2">
+                  <div className="label mb-0.5">Train Acc</div>
+                  <div className="text-slate-200 mono">{prediction.train_accuracy ? prediction.train_accuracy.toFixed(4) : "—"}</div>
+                </div>
+                <div className="bg-slate-800/50 rounded p-2">
+                  <div className="label mb-0.5">Drift</div>
+                  <div className={`mono ${prediction.drift_status === "drift_detected" ? "text-amber-400" : "text-emerald-400"}`}>
+                    {prediction.drift_status || "—"}
+                  </div>
+                </div>
               </div>
               {/* Rolling accuracy */}
               {(prediction.rolling_7d_accuracy != null || prediction.rolling_30d_accuracy != null) && (
@@ -307,6 +328,7 @@ export function MlDashboard({ ticker = "SPY", spot }) {
                   </div>
                 </div>
               )}
+            </>
           ) : (
             <div className="text-[10px] text-slate-500 text-center py-4">
               No model info available
