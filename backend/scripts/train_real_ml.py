@@ -359,7 +359,20 @@ def train_model(
         manifest_path = output_dir / f"{ticker}_gbm_production_manifest.json"
 
         import joblib
-        joblib.dump(model, model_path)
+        # Save as dict artifact matching InferenceEngine._load_model expectations
+        artifact = {
+            "model": model,
+            "model_name": "gbm",
+            "feature_names": feature_cols,
+            "scaler": scaler,
+            "metrics": {
+                "avg_train_accuracy": train_acc,
+                "avg_test_accuracy": test_acc,
+                "avg_test_sharpe": 0.0,
+                "beats_baselines": test_acc > 0.52,
+            },
+        }
+        joblib.dump(artifact, model_path)
         joblib.dump(scaler, scaler_path)
 
         manifest = {

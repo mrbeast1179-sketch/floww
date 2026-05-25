@@ -1,0 +1,153 @@
+{
+  "ticker": "SPY",
+  "model": "gbm",
+  "model_id": "SPY_direction_v1.0_gbm",
+  "feature_version": "v2.0",
+  "target": "target_directional_move",
+  "n_samples": 501,
+  "n_features": 42,
+  "feature_names": [
+    "ret_1d",
+    "ret_3d",
+    "ret_5d",
+    "ret_10d",
+    "ret_21d",
+    "log_ret_1d",
+    "overnight_gap",
+    "sma_5",
+    "price_vs_sma_5",
+    "sma_10",
+    "price_vs_sma_10",
+    "sma_21",
+    "price_vs_sma_21",
+    "sma_50",
+    "price_vs_sma_50",
+    "atr_14",
+    "volume_sma_5",
+    "volume_sma_21",
+    "relative_volume",
+    "realized_vol_5d",
+    "realized_vol_10d",
+    "realized_vol_21d",
+    "realized_vol_60d",
+    "rsi_14",
+    "rsi_overbought",
+    "rsi_oversold",
+    "macd",
+    "macd_signal",
+    "macd_hist",
+    "bb_position",
+    "vol_ratio_5_21",
+    "vol_ratio_5_60",
+    "sma_5_21_diff",
+    "sma_5_21_cross",
+    "sma_10_50_diff",
+    "ret_momentum",
+    "ret_accel",
+    "vol_spike",
+    "gap_abs",
+    "gap_large",
+    "is_month_end",
+    "is_month_start"
+  ],
+  "model_params": {
+    "n_estimators": 200,
+    "max_depth": 5,
+    "learning_rate": 0.05,
+    "subsample": 0.8,
+    "min_samples_leaf": 10,
+    "random_state": 42
+  },
+  "metrics": {
+    "overall_accuracy": 0.49404761904761907,
+    "avg_fold_accuracy": 0.494047619047619,
+    "std_fold_accuracy": 0.11403121464683343,
+    "avg_fold_train_accuracy": 0.9305301345479917,
+    "overfit_gap": 0.4364825155003727,
+    "overall_sharpe": 1.2247448591077439,
+    "avg_fold_sharpe": 1.2247448591077439,
+    "train_time_sec": 0.7236320972442627
+  },
+  "fold_metrics": [
+    {
+      "fold": 0,
+      "train_size": 126,
+      "test_size": 21,
+      "accuracy": 0.42857142857142855,
+      "train_acc": 0.9206349206349206
+    },
+    {
+      "fold": 1,
+      "train_size": 147,
+      "test_size": 21,
+      "accuracy": 0.38095238095238093,
+      "train_acc": 0.9319727891156463
+    },
+    {
+      "fold": 2,
+      "train_size": 168,
+      "test_size": 21,
+      "accuracy": 0.42857142857142855,
+      "train_acc": 0.9464285714285714
+    },
+    {
+      "fold": 3,
+      "train_size": 189,
+      "test_size": 21,
+      "accuracy": 0.7619047619047619,
+      "train_acc": 0.9365079365079365
+    },
+    {
+      "fold": 4,
+      "train_size": 210,
+      "test_size": 21,
+      "accuracy": 0.5714285714285714,
+      "train_acc": 0.9333333333333333
+    },
+    {
+      "fold": 5,
+      "train_size": 231,
+      "test_size": 21,
+      "accuracy": 0.47619047619047616,
+      "train_acc": 0.9307359307359307
+    },
+    {
+      "fold": 6,
+      "train_size": 252,
+      "test_size": 21,
+      "accuracy": 0.47619047619047616,
+      "train_acc": 0.9325396825396826
+    },
+    {
+      "fold": 7,
+      "train_size": 273,
+      "test_size": 21,
+      "accuracy": 0.42857142857142855,
+      "train_acc": 0.9120879120879121
+    }
+  ],
+  "top_features": {
+    "vol_ratio_5_21": 0.07843291666413972,
+    "bb_position": 0.07134693400421517,
+    "ret_accel": 0.057521076648976675,
+    "gap_abs": 0.048519753515702715,
+    "rsi_14": 0.047333950166983836,
+    "vol_spike": 0.04416330661173395,
+    "relative_volume": 0.04078403340553131,
+    "overnight_gap": 0.03743378207639533,
+    "realized_vol_60d": 0.037278121191844184,
+    "vol_ratio_5_60": 0.03562041390738279
+  },
+  "gate_results": {
+    "class_balance": true,
+    "sufficient_data": true,
+    "wf_positive": false,
+    "no_overfit": false,
+    "sharpe_positive": true,
+    "fold_consistency": true
+  },
+  "verdict": "HOLD",
+  "created_at": "2026-05-25T03:09:19.300483+00:00",
+  "model_path": "/Users/nav/GitHub/floww/backend/models/SPY_gbm_production.joblib",
+  "scaler_path": "/Users/nav/GitHub/floww/backend/models/SPY_gbm_production_scaler.joblib"
+}

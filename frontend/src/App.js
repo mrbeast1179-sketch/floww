@@ -16,6 +16,7 @@ import {
   MarketRegimePanel, ImpliedPDFPanel, HedgeImpulsePanel,
   PressureCloudPanel, CharmIntegralPanel,
 } from "./components/AdvancedAnalyticsPanel";
+import { MlDashboard } from "./components/MlDashboard";
 import PortfolioPanel from "./components/PortfolioPanel";
 import FlowTicker from "./components/FlowTicker";
 import HistoryPanel from "./components/HistoryPanel";
@@ -705,6 +706,7 @@ export default function App() {
               <HedgeImpulsePanel data={advanced} loading={advancedLoading} error={advancedError} />
               <PressureCloudPanel data={advanced} loading={advancedLoading} error={advancedError} />
               <CharmIntegralPanel data={advanced} loading={advancedLoading} error={advancedError} />
+              <MlDashboard ticker={ticker} spot={livespot?.spot ?? data?.spot} />
               <MultiTimeframeGEXPanel ticker={ticker} />
               <AlertsPanel ticker={ticker} />
               <TradeAnalytics ticker={ticker} />
