@@ -397,8 +397,8 @@ function TradeRow({ trade, onClose, onDelete, onEdit }) {
         </div>
       </div>
       <div className="flex items-center gap-2 mt-0.5 text-[9px] text-slate-500">
-        <span>Entry: ${entry.toFixed(2)}</span>
-        {isClosed && <span>Exit: ${exit.toFixed(2)}</span>}
+        <span>Entry: ${fmt(entry, 2)}</span>
+        {isClosed && <span>Exit: ${fmt(exit, 2)}</span>}
         {trade.gex_regime && <span>• GEX: {trade.gex_regime.replace("_", " ")}</span>}
         {trade.setup && <span>• {trade.setup}</span>}
       </div>

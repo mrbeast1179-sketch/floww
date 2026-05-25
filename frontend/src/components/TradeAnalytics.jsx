@@ -25,28 +25,28 @@ export function TradeAnalytics({ ticker }) {
 
   const stats = useMemo(() => {
     if (filtered.length === 0) return null;
-    
+
     const wins = filtered.filter(t => (t.pnl || 0) > 0);
     const losses = filtered.filter(t => (t.pnl || 0) < 0);
     const totalPnl = filtered.reduce((sum, t) => sum + (t.pnl || 0), 0);
     const avgWin = wins.length > 0 ? wins.reduce((sum, t) => sum + t.pnl, 0) / wins.length : 0;
     const avgLoss = losses.length > 0 ? losses.reduce((sum, t) => sum + t.pnl, 0) / losses.length : 0;
     const winRate = filtered.length > 0 ? (wins.length / filtered.length) * 100 : 0;
-    const profitFactor = Math.abs(avgLoss) > 0 ? Math.abs(avgWin * wins.length) / Math.abs(avgLoss * losses.length) : 0;
-    
+    const profitFactor = Math.abs(avgLoss) > 0 ? Math.abs(avgWin * wins.length) / Math.abs(avgLoss * losses.length) : (wins.length > 0 ? Infinity : 0);
+
     // Daily P&L
     const dailyPnl = {};
     filtered.forEach(t => {
       const date = t.date ? t.date.slice(0, 10) : "unknown";
       dailyPnl[date] = (dailyPnl[date] || 0) + (t.pnl || 0);
     });
-    
+
     const dailyEntries = Object.entries(dailyPnl)
       .sort((a, b) => a[0].localeCompare(b[0]))
       .slice(-14); // Last 14 days
-    
+
     const maxDaily = Math.max(...dailyEntries.map(e => Math.abs(e[1])), 1);
-    
+
     return {
       totalTrades: filtered.length,
       wins: wins.length,
@@ -73,7 +73,7 @@ export function TradeAnalytics({ ticker }) {
   return (
     <div className="panel-2 p-2">
       <div className="label mb-1">Trade Analytics</div>
-      
+
       {/* Summary stats */}
       <div className="grid grid-cols-2 gap-1 mb-2">
         <div className="bg-slate-800/50 rounded px-2 py-1">
@@ -115,18 +115,18 @@ export function TradeAnalytics({ ticker }) {
       </div>
 
       {/* Daily P&L chart */}
-      {stats.dailyEntries.length > 0 && (
+      {stats.dailyEntries?.length > 0 && (
         <div>
           <div className="text-[8px] text-slate-500 mb-1">Daily P&L (14d)</div>
           <div className="flex items-end gap-0.5 h-12">
-            {stats.dailyEntries.map(([date, pnl], i) => {
+            {stats.dailyEntries?.map?.(([date, pnl], i) => {
               const height = Math.max((Math.abs(pnl) / stats.maxDaily) * 100, 5);
               const isPositive = pnl >= 0;
               return (
                 <div
                   key={i}
                   className="flex-1 flex flex-col justify-end items-center"
-                  title={`${date}: ${pnl >= 0 ? "+" : ""}$${pnl.toFixed(2)}`}
+                  title={`${date}: ${pnl >= 0 ? "+" : ""}$${pnl?.toFixed?.(2) ?? "—"}`}
                 >
                   <div
                     className={`w-full rounded-t ${isPositive ? "bg-emerald-500/60" : "bg-rose-500/60"}`}
@@ -141,7 +141,7 @@ export function TradeAnalytics({ ticker }) {
 
       {/* Profit factor */}
       <div className="mt-1.5 text-[8px] text-slate-500 text-right">
-        Profit Factor: {stats.profitFactor.toFixed(2)} · {stats.totalTrades} trades
+        Profit Factor: {isFinite(stats.profitFactor) ? stats.profitFactor.toFixed(2) : "∞"} · {stats.totalTrades} trades
       </div>
     </div>
   );

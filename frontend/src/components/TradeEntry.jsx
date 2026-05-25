@@ -62,28 +62,45 @@ export function TradeEntry({ ticker, spot }) {
   const [selectedTemplate, setSelectedTemplate] = useState("iron_condor");
   const [formData, setFormData] = useState({});
   const [savedTrades, setSavedTrades] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
 
   // Fetch checklist when ticker changes (not on every spot poll to avoid resetting user input)
   useEffect(() => {
     if (!ticker) return;
+    let cancelled = false;
+    setLoading(true);
+    setError(null);
     fetch(`${API}/daily-checklist/${ticker}?expiries=4`)
-      .then(r => r.json())
+      .then(r => {
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        return r.json();
+      })
       .then(d => {
+        if (cancelled) return;
         setChecklist(d);
-        const gf = d.key_levels || {};
+        const gf = d?.key_levels || {};
         setFormData(prev => ({
           ...prev,
-          put_short: gf.put_wall || "",
-          put_long: gf.put_wall ? gf.put_wall - 5 : "",
-          call_short: gf.call_wall || "",
-          call_long: gf.call_wall ? gf.call_wall + 5 : "",
+          put_short: gf?.put_wall ?? "",
+          put_long: gf?.put_wall != null ? gf.put_wall - 5 : "",
+          call_short: gf?.call_wall ?? "",
+          call_long: gf?.call_wall != null ? gf.call_wall + 5 : "",
           strike: Math.round(spot || 0),
           long_strike: Math.round(spot || 0),
-          short_strike: gf.call_wall || "",
-          contracts: prev.contracts || 1,
+          short_strike: gf?.call_wall ?? "",
+          contracts: prev?.contracts || 1,
         }));
       })
-      .catch(() => setChecklist(null));
+      .catch((e) => {
+        if (cancelled) return;
+        setChecklist(null);
+        setError(e?.message || "Failed to load checklist");
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => { cancelled = true; };
   }, [ticker]);
 
   const template = TRADE_TEMPLATES[selectedTemplate];
@@ -97,7 +114,7 @@ export function TradeEntry({ ticker, spot }) {
     const trade = {
       id: Date.now(),
       template: selectedTemplate,
-      templateName: template.name,
+      templateName: template?.name || selectedTemplate,
       ticker,
       spot,
       data: { ...formData },
@@ -111,8 +128,12 @@ export function TradeEntry({ ticker, spot }) {
     <div className="panel p-3 space-y-3">
       <div className="flex items-center justify-between">
         <div className="label mb-0">Trade Entry</div>
-        <div className="text-[9px] text-slate-500">
-          {regime === "positive_gamma" ? "🟢" : regime === "negative_gamma" ? "🔴" : "⚪"} {regime.replace("_", " ")}
+        <div className="flex items-center gap-1.5">
+          {loading && <span className="inline-block w-2 h-2 rounded-full bg-amber-500 animate-pulse" />}
+          {error && <span className="text-[8px] text-rose-400" title={error}>⚠</span>}
+          <div className="text-[9px] text-slate-500">
+            {regime === "positive_gamma" ? "🟢" : regime === "negative_gamma" ? "🔴" : "⚪"} {regime?.replace?.("_", " ") ?? "unknown"}
+          </div>
         </div>
       </div>
 
@@ -130,17 +151,17 @@ export function TradeEntry({ ticker, spot }) {
             </option>
           ))}
         </select>
-        <div className="text-[9px] text-slate-500 mt-0.5">{template.description}</div>
+        <div className="text-[9px] text-slate-500 mt-0.5">{template?.description}</div>
         {recommendedTemplate !== selectedTemplate && (
           <div className="text-[9px] text-amber-400 mt-0.5">
-            ⭐ Recommended for {regime.replace("_", " ")} regime: {TRADE_TEMPLATES[recommendedTemplate].name}
+            ⭐ Recommended for {regime?.replace?.("_", " ") ?? "unknown"} regime: {TRADE_TEMPLATES[recommendedTemplate]?.name}
           </div>
         )}
       </div>
 
       {/* Form Fields */}
       <div className="space-y-1.5">
-        {template.fields.map(field => (
+        {template?.fields?.map(field => (
           <div key={field.key}>
             <div className="label mb-0.5">{field.label}</div>
             {field.type === "select" ? (
@@ -149,15 +170,15 @@ export function TradeEntry({ ticker, spot }) {
                 onChange={e => setFormData(prev => ({ ...prev, [field.key]: e.target.value }))}
                 className="w-full bg-slate-800/60 border border-slate-700 rounded px-2 py-1 text-[11px] text-slate-200 focus:border-teal-500 focus:outline-none"
               >
-                {field.options.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+                {field.options?.map(opt => <option key={opt} value={opt}>{opt}</option>)}
               </select>
             ) : (
               <div className="flex items-center gap-1">
                 <input
                   type={field.type}
                   step={field.step || "1"}
-                  value={formData[field.key] || ""}
-                  onChange={e => setFormData(prev => ({ ...prev, [field.key]: parseFloat(e.target.value) || 0 }))}
+                  value={formData[field.key] ?? ""}
+                  onChange={e => setFormData(prev => ({ ...prev, [field.key]: e.target.value }))}
                   placeholder={field.hint || ""}
                   className="w-full bg-slate-800/60 border border-slate-700 rounded px-2 py-1 text-[11px] text-slate-200 focus:border-teal-500 focus:outline-none"
                 />
@@ -243,7 +264,7 @@ export function TradeEntry({ ticker, spot }) {
               </div>
               <div className="flex justify-between">
                 <span className="text-slate-500">Breakeven</span>
-                <span className="mono text-amber-400">{breakeven || "—"}</span>
+                <span className="mono text-amber-400">{breakeven ?? "—"}</span>
               </div>
             </div>
             {typeof maxProfit === "number" && typeof maxRisk === "number" && maxRisk > 0 && (
@@ -272,10 +293,10 @@ export function TradeEntry({ ticker, spot }) {
               <div key={trade.id} className="bg-slate-800/30 rounded px-2 py-1 text-[9px] flex justify-between items-center">
                 <div>
                   <span className="font-bold text-slate-300">{trade.templateName}</span>
-                  <span className="text-slate-500 ml-1">@ {trade.spot ? Math.round(trade.spot) : "—"}</span>
+                  <span className="text-slate-500 ml-1">@ {trade.spot != null ? Math.round(trade.spot) : "—"}</span>
                 </div>
                 <div className="text-slate-600">
-                  {new Date(trade.timestamp).toLocaleTimeString()}
+                  {trade.timestamp ? new Date(trade.timestamp).toLocaleTimeString() : "—"}
                 </div>
               </div>
             ))}

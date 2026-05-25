@@ -11,10 +11,19 @@ export function PositionSizing({ ticker, spot }) {
 
   useEffect(() => {
     if (!ticker) return;
+    let cancelled = false;
     fetch(`${API}/daily-checklist/${ticker}?expiries=4`)
-      .then(r => r.json())
-      .then(d => setChecklist(d))
-      .catch(() => setChecklist(null));
+      .then(r => {
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        return r.json();
+      })
+      .then(d => {
+        if (!cancelled) setChecklist(d);
+      })
+      .catch(() => {
+        if (!cancelled) setChecklist(null);
+      });
+    return () => { cancelled = true; };
   }, [ticker]);
 
   const account = parseFloat(accountSize) || 0;
@@ -31,9 +40,9 @@ export function PositionSizing({ ticker, spot }) {
   // Adjust risk based on regime
   let riskMultiplier = 1.0;
   if (regime === "negative_gamma") {
-    riskMultiplier = distToFlip !== null && distToFlip < -10 ? 0.5 : 0.75;
+    riskMultiplier = distToFlip != null && distToFlip < -10 ? 0.5 : 0.75;
   } else if (regime === "positive_gamma") {
-    riskMultiplier = distToFlip !== null && Math.abs(distToFlip) < 5 ? 0.75 : 1.0;
+    riskMultiplier = distToFlip != null && Math.abs(distToFlip) < 5 ? 0.75 : 1.0;
   }
 
   const adjustedRiskDollars = riskDollars * riskMultiplier;
@@ -163,15 +172,17 @@ export function PositionSizing({ ticker, spot }) {
                 — {regime === "negative_gamma" ? "Reduce size, momentum trades" : "Normal size, mean-reversion OK"}
               </span>
             </div>
-            {distToFlip !== null && Math.abs(distToFlip) < 5 && (
+            {distToFlip != null && Math.abs(distToFlip) < 5 && (
               <div className="p-1.5 rounded border bg-amber-500/10 border-amber-500/20">
                 <span className="text-amber-400">⚠️ Near Gamma Flip</span>
                 <span className="text-slate-400 ml-1">— Reduce size by 50%, regime could change</span>
               </div>
             )}
-            <div className="text-[9px] text-slate-500 italic">
-              {checklist.strategy?.position_sizing_note}
-            </div>
+            {checklist?.strategy?.position_sizing_note && (
+              <div className="text-[9px] text-slate-500 italic">
+                {checklist.strategy.position_sizing_note}
+              </div>
+            )}
           </div>
         </div>
       )}
