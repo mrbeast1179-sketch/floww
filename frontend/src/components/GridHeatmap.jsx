@@ -8,14 +8,21 @@ export default function GridHeatmap({ data, filters, onCellClick, viewMode = "ge
   }, [data?.ticker, data?.mode]);
 
   if (!data?.grid) return <div className="text-slate-500 text-xs p-4">No grid data</div>;
-  const { spot, grid, charm_grid, nodes } = data;
+  const { spot, grid, nodes } = data;
+  // Charm + vex grids are NESTED under grid.* per backend response shape (verified 2026-05-25).
+  // Prior code destructured charm_grid from top-level data → got undefined → CHARM rendered empty.
+  // Backend currently provides grid.charm_grid; grid.vex_grid is not yet implemented (falls back to gex).
+  const charm_grid = grid.charm_grid;
+  const vex_grid = grid.vex_grid;  // currently undefined; safe fallback below
   const expiries = grid.expiries || [];
   let strikes = (grid.strikes || []).slice().sort((a, b) => b - a);
   if (filters?.side === "above") strikes = strikes.filter(s => s > spot);
   if (filters?.side === "below") strikes = strikes.filter(s => s < spot);
 
   const cellOf = (e, s) => {
-    const g = (viewMode === "charm" ? charm_grid : grid.grid) || {};
+    const g = (viewMode === "charm" ? charm_grid
+            : viewMode === "vex"   ? (vex_grid || grid.grid)
+            : grid.grid) || {};
     const ge = g[e];
     if (!ge) return 0;
     return ge[String(Number.isInteger(s) ? s : s)] ?? ge[String(s)] ?? ge[String(s.toFixed(1))] ?? ge[String(parseInt(s))] ?? 0;
