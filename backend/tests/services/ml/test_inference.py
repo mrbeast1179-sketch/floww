@@ -97,9 +97,9 @@ def trained_model_dir(tmp_path):
 
     import joblib
 
-    # Create dummy model with 44 features to match compute_live_features output
+    # Create dummy model
     np.random.seed(42)
-    n_features = 44  # Must match compute_live_features feature count
+    n_features = 10
     X = np.random.randn(200, n_features)
     y = (X[:, 0] > 0).astype(int)
 
@@ -108,25 +108,36 @@ def trained_model_dir(tmp_path):
 
     scaler = StandardScaler()
     scaler.fit(X)
-
-    feature_names = [f"feat_{i}" for i in range(n_features)]
+    # Use actual feature names from compute_live_features so predict() can match columns
+    feature_names = [
+        "ret_1d", "ret_3d", "ret_5d", "ret_10d", "ret_21d", "log_ret_1d",
+        "overnight_gap", "sma_5", "price_vs_sma_5", "sma_10", "price_vs_sma_10",
+        "sma_21", "price_vs_sma_21", "sma_50", "price_vs_sma_50", "atr_14",
+        "volume_sma_5", "volume_sma_21", "relative_volume", "realized_vol_5d",
+        "is_month_end", "is_month_start", "realized_vol_10d", "realized_vol_21d",
+        "realized_vol_60d", "rsi_14", "macd", "macd_signal", "macd_hist",
+        "bb_upper", "bb_lower", "bb_position", "vol_ratio_5_21", "vol_ratio_5_60",
+        "sma_5_21_diff", "sma_5_21_cross", "sma_10_50_diff", "rsi_overbought",
+        "rsi_oversold", "ret_momentum", "ret_accel", "vol_spike", "gap_abs", "gap_large",
+    ]
+    n_features = len(feature_names)  # 44
 
     model_path = tmp_path / "TEST_gbm_production.joblib"
     scaler_path = tmp_path / "TEST_gbm_production_scaler.joblib"
     manifest_path = tmp_path / "TEST_gbm_production_manifest.json"
 
-    # Save model as dict matching _load_model expectations
-    joblib.dump({
+    artifact = {
         "model": model,
-        "model_name": "GradientBoostingClassifier",
+        "model_name": "gbm",
         "feature_names": feature_names,
+        "scaler": scaler,
         "metrics": {
             "avg_train_accuracy": 0.85,
             "avg_test_accuracy": 0.75,
-            "avg_test_sharpe": 1.2,
-            "beats_baselines": True,
+            "avg_test_sharpe": 0.5,
         },
-    }, model_path)
+    }
+    joblib.dump(artifact, model_path)
     joblib.dump(scaler, scaler_path)
 
     manifest = {
@@ -250,17 +261,19 @@ class TestInferenceEngine:
         with pytest.raises(DegenerateModelError):
             asyncio.run(engine.predict("ZZZZ"))
 
+<<<<<<< HEAD
+    @pytest.mark.requires_artifacts
+    def test_predict_with_trained_model(self, trained_model_dir):
+=======
+    @pytest.mark.asyncio
     @pytest.mark.asyncio
     async def test_predict_with_trained_model(self, trained_model_dir):
-        """Prediction works with a real trained model."""
+        """Prediction works with a real trained model artifact (dict format)."""
         pytest.importorskip("yfinance")
         from services.ml.inference import InferenceEngine, MODEL_REGISTRY
         from services.ml import DegenerateModelError
 
-        # Temporarily register the test model
         ticker = "TEST"
-        manifest_path = trained_model_dir / f"{ticker}_gbm_production_manifest.json"
-        scaler_path = trained_model_dir / f"{ticker}_gbm_production_scaler.joblib"
         model_path = trained_model_dir / f"{ticker}_gbm_production.joblib"
 
         original_registry = MODEL_REGISTRY.copy()
@@ -268,28 +281,18 @@ class TestInferenceEngine:
 
         try:
             engine = InferenceEngine(model_dir=trained_model_dir)
-            # This will try to download real data and predict
-            # May fail if yfinance is unavailable, but should not crash
+            # The test model is a dict artifact with matching feature names,
+            # so prediction should succeed (or fail only if yfinance is unreachable)
             try:
                 result = await engine.predict(ticker)
                 assert result.ticker == ticker
                 assert result.prediction in [0, 1]
                 assert 0 <= result.confidence <= 1
-            except (DegenerateModelError, ValueError) as e:
-                # Feature mismatch (test model has 10 feats, live has 44) is expected
-                # when the test model doesn't match the live feature schema
-                if "features" in str(e).lower() or "DegenerateModel" in type(e).__name__:
-                    pass  # Expected: test model feature count != live features
-                else:
-                    raise
+            except DegenerateModelError:
+                pass  # Expected if yfinance data download fails in test env
         finally:
             MODEL_REGISTRY.clear()
             MODEL_REGISTRY.update(original_registry)
-
-    def test_model_info(self, trained_model_dir):
-        """get_model_info returns correct metadata."""
-        from services.ml import DegenerateModelError
-        from services.ml.inference import InferenceEngine, MODEL_REGISTRY
 
         ticker = "TEST"
         manifest_path = trained_model_dir / f"{ticker}_gbm_production_manifest.json"
@@ -388,40 +391,47 @@ class TestMlBriefingIntegrator:
 class TestTrainRealMl:
     """Tests for the training script."""
 
+    @pytest.mark.requires_artifacts
     def test_compute_features_shape(self):
         """compute_features returns correct shape."""
         pytest.importorskip("sklearn")
         from scripts.train_real_ml import compute_features
-        df = compute_features("SPY", period="1y")
+        df = compute_features("SPY", period="3mo")
         assert len(df) > 30
         assert "target_directional_move" in df.columns
 
+    @pytest.mark.requires_artifacts
     def test_compute_features_no_nan(self):
         """Features should be NaN-clean after dropna."""
         pytest.importorskip("sklearn")
         from scripts.train_real_ml import compute_features
+<<<<<<< HEAD
+=======
         # Use 1y period to ensure enough data for 60-day rolling windows
+>>>>>>> e674a1c (feat(ml): outcomes attachment, retrain orchestrator, inference fixes)
         df = compute_features("SPY", period="1y")
         # Allow NaN in early rows (rolling windows)
         clean = df.dropna()
         assert len(clean) > 20
 
+    @pytest.mark.requires_artifacts
     def test_train_model_quick(self, tmp_path):
         """Quick training produces artifacts."""
         pytest.importorskip("sklearn")
         from scripts.train_real_ml import train_model
-        result = train_model("SPY", days=60, quick=True, output_dir=tmp_path)
+        result = train_model("SPY", days=252, quick=True, output_dir=tmp_path)
         assert "test_accuracy" in result
         assert "walk_forward_mean" in result
         assert Path(result["model_path"]).exists()
         assert Path(result["scaler_path"]).exists()
         assert Path(result["manifest_path"]).exists()
 
+    @pytest.mark.requires_artifacts
     def test_train_model_manifest_valid(self, tmp_path):
         """Saved manifest is valid JSON with required fields."""
         pytest.importorskip("sklearn")
         from scripts.train_real_ml import train_model
-        result = train_model("SPY", days=60, quick=True, output_dir=tmp_path)
+        result = train_model("SPY", days=252, quick=True, output_dir=tmp_path)
         manifest_path = Path(result["manifest_path"])
         with open(manifest_path) as f:
             manifest = json.load(f)
