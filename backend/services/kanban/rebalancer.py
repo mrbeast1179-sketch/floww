@@ -11,7 +11,7 @@ Reference: Brooks (1975) The Mythical Man-Month — Brooks's Law
 """
 
 import math
-from collections import Counter, defaultdict
+from collections import Counter
 from datetime import datetime, timezone
 from pathlib import Path
 

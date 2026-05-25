@@ -24,7 +24,7 @@ from __future__ import annotations
 import math
 from datetime import datetime
 from statistics import median
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional
 
 
 # ---------------------------------------------------------------------------

@@ -27,8 +27,8 @@ in so unit tests can inject a fake DB.
 from __future__ import annotations
 
 import logging
-from datetime import date, datetime, timezone, timedelta
-from typing import Any, Dict, List, Optional
+from datetime import date, datetime, timezone
+from typing import Any, Dict, List
 
 import numpy as np
 from scipy.stats import norm
@@ -232,7 +232,7 @@ def calc_gex_timeframes(
         {"timeframes": {"0DTE": {...}, "1DTE": {...}, "weekly": {...}, "monthly": {...}, "all": {...}}}
         Each bucket contains: {"gex_total": float, "call_gex": float, "put_gex": float, "net_gex": float, "n_contracts": int}
     """
-    from datetime import datetime, timezone, date
+    from datetime import date
 
     today = date.today()
     buckets = {"0DTE": [], "1DTE": [], "weekly": [], "monthly": [], "all": []}

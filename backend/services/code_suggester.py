@@ -26,12 +26,11 @@ Usage:
 import ast
 import json
 import logging
-import os
 import sys
 from pathlib import Path
 from datetime import datetime, timezone
-from typing import List, Dict, Optional, Any
-from dataclasses import dataclass, field, asdict
+from typing import List
+from dataclasses import dataclass, asdict
 
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 sys.path.insert(0, str(REPO_ROOT))

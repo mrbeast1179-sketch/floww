@@ -12,13 +12,12 @@ Usage:
 
 from __future__ import annotations
 
-import json
 import logging
 import time
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any, Callable, Dict, List
 
 logger = logging.getLogger("graph_updater")
 

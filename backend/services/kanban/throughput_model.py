@@ -11,9 +11,8 @@ Reference: Hyndman, Athanasopoulos (2018) Forecasting: Principles and Practice Â
 """
 
 import json
-import os
 import math
-from datetime import datetime, timezone
+from datetime import datetime
 from pathlib import Path
 from collections import defaultdict
 

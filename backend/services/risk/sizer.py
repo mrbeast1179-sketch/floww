@@ -14,8 +14,7 @@ Reference: swarmSPX risk/sizer.py, Kelly (1956)
 from __future__ import annotations
 
 import logging
-import math
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Optional
 
 logger = logging.getLogger(__name__)

@@ -15,7 +15,7 @@ Reference: Imbens, Rubin (2015) Causal Inference for Statistics.
 from __future__ import annotations
 
 import logging
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Optional, Tuple
 
 import numpy as np
 

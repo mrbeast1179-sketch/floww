@@ -10,7 +10,6 @@ Inserts transcript into mem0 with tags [source:voice_memo, audio].
 import json
 import logging
 import hashlib
-import subprocess
 from pathlib import Path
 from typing import Optional
 
@@ -113,4 +112,3 @@ def process_voice_memos(mem0_client, user_id: str = "user_c778280e23af",
 
 # Import at bottom to avoid circular imports
 from datetime import datetime, timezone
-import os

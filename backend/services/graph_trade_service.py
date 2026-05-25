@@ -29,7 +29,6 @@ from __future__ import annotations  # noqa: F821
 
 import json
 import logging
-from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 

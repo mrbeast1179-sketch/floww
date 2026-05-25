@@ -18,21 +18,18 @@ Usage:
 
 from __future__ import annotations
 
-import json
 import logging
 import os
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-import joblib
 import numpy as np
-import pandas as pd
 from motor.motor_asyncio import AsyncIOMotorClient
 from dotenv import load_dotenv
 
-from services.ml.registry import ModelRegistry, compute_psi
+from services.ml.registry import ModelRegistry
 from services.ml.inference import InferenceEngine, MODEL_REGISTRY
 
 log = logging.getLogger("ml.dashboard")

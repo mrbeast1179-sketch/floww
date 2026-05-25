@@ -449,7 +449,6 @@ class SSRNSource(DiscoverySource):
         """Parse SSRN search results HTML. Extract paper titles, IDs, abstracts."""
         results: List[Discovery] = []
         try:
-            from html.parser import HTMLParser
 
             # Simple regex-based extraction (SSRN HTML is fairly stable)
             # Pattern: paper links like /abstract=1234567

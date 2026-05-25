@@ -24,7 +24,6 @@ from typing import Any, Dict, List, Optional
 
 import numpy as np
 
-from services.anomaly_detector import FlowAnomalyDetector, HAS_TORCH
 
 log = logging.getLogger(__name__)
 

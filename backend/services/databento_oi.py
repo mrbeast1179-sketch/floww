@@ -18,16 +18,12 @@ import os
 from datetime import date as date_cls
 from typing import Any, Dict, Optional
 
-import databento as db
-import pandas as pd
 import yfinance as yf
 
 from databento_provider import (
     PARENT_MAP,
     _fetch_oi_sync,
-    _get_client,
     _last_trading_day_utc,
-    parse_osi,
 )
 
 log = logging.getLogger("databento_oi")

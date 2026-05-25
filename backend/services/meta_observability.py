@@ -21,7 +21,6 @@ Persistence: ./project_oracle/models/meta_anomaly_v1.pt (joblib)
 from __future__ import annotations
 
 import logging
-import os
 import time
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
@@ -438,10 +437,8 @@ class DataProviderMonitor:
         """Update Prometheus gauges from current stats."""
         try:
             from services.observability import (
-                provider_calls_total,
                 provider_success_rate,
                 provider_last_success_seconds_ago,
-                provider_alerts_fired_total,
             )
             for name, stats in self._providers.items():
                 # Set success rate gauge

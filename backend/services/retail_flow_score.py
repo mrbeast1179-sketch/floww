@@ -25,8 +25,7 @@ Usage:
     # score.value -> float in [-100, 100]
 """
 
-from dataclasses import dataclass, field
-from typing import Optional
+from dataclasses import dataclass
 
 import numpy as np
 
