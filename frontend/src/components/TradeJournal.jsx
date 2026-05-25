@@ -123,7 +123,7 @@ export function TradeJournal({ ticker }) {
     const exit = parseFloat(t.exit_price) || 0;
     return t.action === "buy" ? exit > entry : exit < entry;
   }).length;
-  const winRate = closedTrades.length > 0 ? (wins / closedTrades.length * 100).toFixed(0) : "—";
+  const winRate = closedTrades.length > 0 ? ((wins / closedTrades.length * 100))?.toFixed(0) ?? "—" : "—";
   const avgWin = wins > 0 ? closedTrades.filter(t => {
     const entry = parseFloat(t.entry_price) || 0;
     const exit = parseFloat(t.exit_price) || 0;

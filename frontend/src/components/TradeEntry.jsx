@@ -213,7 +213,7 @@ export function TradeEntry({ ticker, spot }) {
           maxProfit = "Unlimited";
           maxRisk = total * c * 100;
           const strike = parseFloat(formData.strike) || 0;
-          breakeven = `${(strike - total).toFixed(1)} / ${(strike + total).toFixed(1)}`;
+          breakeven = `${((strike - total))?.toFixed(1) ?? "—"} / ${((strike + total))?.toFixed(1) ?? "—"}`;
         } else if (selectedTemplate === "call_spread") {
           const debit = parseFloat(formData.debit) || 0;
           const ls = parseFloat(formData.long_strike) || 0;
@@ -221,7 +221,7 @@ export function TradeEntry({ ticker, spot }) {
           const width = ss - ls;
           maxProfit = (width - debit) * c * 100;
           maxRisk = debit * c * 100;
-          breakeven = `${(ls + debit).toFixed(1)}`;
+          breakeven = `${((ls + debit))?.toFixed(1) ?? "—"}`;
         } else if (selectedTemplate === "put_spread") {
           const debit = parseFloat(formData.debit) || 0;
           const ls = parseFloat(formData.long_strike) || 0;
@@ -229,7 +229,7 @@ export function TradeEntry({ ticker, spot }) {
           const width = ls - ss;
           maxProfit = (width - debit) * c * 100;
           maxRisk = debit * c * 100;
-          breakeven = `${(ls - debit).toFixed(1)}`;
+          breakeven = `${((ls - debit))?.toFixed(1) ?? "—"}`;
         } else if (selectedTemplate === "single_leg") {
           const premium = parseFloat(formData.premium) || 0;
           const action = formData.action || "";
@@ -253,13 +253,13 @@ export function TradeEntry({ ticker, spot }) {
               <div className="flex justify-between">
                 <span className="text-slate-500">Max Profit</span>
                 <span className="mono text-emerald-400">
-                  {typeof maxProfit === "number" ? `+$${maxProfit.toFixed(0)}` : maxProfit || "—"}
+                  {typeof maxProfit === "number" ? `+$${(maxProfit)?.toFixed(0) ?? "—"}` : maxProfit || "—"}
                 </span>
               </div>
               <div className="flex justify-between">
                 <span className="text-slate-500">Max Risk</span>
                 <span className="mono text-rose-400">
-                  {typeof maxRisk === "number" ? `$${maxRisk.toFixed(0)}` : maxRisk || "—"}
+                  {typeof maxRisk === "number" ? `$${(maxRisk)?.toFixed(0) ?? "—"}` : maxRisk || "—"}
                 </span>
               </div>
               <div className="flex justify-between">
@@ -271,7 +271,7 @@ export function TradeEntry({ ticker, spot }) {
               <div className="mt-1 pt-1 border-t border-slate-700/50 flex justify-between">
                 <span className="text-slate-500">Risk/Reward</span>
                 <span className={`mono ${(maxProfit / maxRisk) >= 2 ? "text-emerald-400" : (maxProfit / maxRisk) >= 1 ? "text-amber-400" : "text-rose-400"}`}>
-                  1:{(maxProfit / maxRisk).toFixed(2)}
+                  1:{((maxProfit / maxRisk))?.toFixed(2) ?? "—"}
                 </span>
               </div>
             )}

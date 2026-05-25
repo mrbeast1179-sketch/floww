@@ -79,20 +79,20 @@ export function TradeAnalytics({ ticker }) {
         <div className="bg-slate-800/50 rounded px-2 py-1">
           <div className="text-[8px] text-slate-500">Total P&L</div>
           <div className={`text-[11px] font-bold ${stats.totalPnl >= 0 ? "text-emerald-400" : "text-rose-400"}`}>
-            {stats.totalPnl >= 0 ? "+" : ""}${stats.totalPnl.toFixed(2)}
+            {stats.totalPnl >= 0 ? "+" : ""}${(stats?.totalPnl)?.toFixed(2) ?? "—"}
           </div>
         </div>
         <div className="bg-slate-800/50 rounded px-2 py-1">
           <div className="text-[8px] text-slate-500">Win Rate</div>
-          <div className="text-[11px] font-bold text-amber-400">{stats.winRate.toFixed(0)}%</div>
+          <div className="text-[11px] font-bold text-amber-400">{(stats?.winRate)?.toFixed(0) ?? "—"}%</div>
         </div>
         <div className="bg-slate-800/50 rounded px-2 py-1">
           <div className="text-[8px] text-slate-500">Avg Win</div>
-          <div className="text-[10px] font-bold text-emerald-400">+${stats.avgWin.toFixed(2)}</div>
+          <div className="text-[10px] font-bold text-emerald-400">+${(stats?.avgWin)?.toFixed(2) ?? "—"}</div>
         </div>
         <div className="bg-slate-800/50 rounded px-2 py-1">
           <div className="text-[8px] text-slate-500">Avg Loss</div>
-          <div className="text-[10px] font-bold text-rose-400">${stats.avgLoss.toFixed(2)}</div>
+          <div className="text-[10px] font-bold text-rose-400">${(stats?.avgLoss)?.toFixed(2) ?? "—"}</div>
         </div>
       </div>
 
@@ -141,7 +141,7 @@ export function TradeAnalytics({ ticker }) {
 
       {/* Profit factor */}
       <div className="mt-1.5 text-[8px] text-slate-500 text-right">
-        Profit Factor: {isFinite(stats.profitFactor) ? stats.profitFactor.toFixed(2) : "∞"} · {stats.totalTrades} trades
+        Profit Factor: {isFinite(stats.profitFactor) ? (stats?.profitFactor)?.toFixed(2) ?? "—" : "∞"} · {stats.totalTrades} trades
       </div>
     </div>
   );
