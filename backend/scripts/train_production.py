@@ -44,7 +44,7 @@ MODEL_DIR.mkdir(exist_ok=True)
 
 def train_production_model(ticker: str, period: str = "2y") -> dict:
     """Train a production model with walk-forward validation and quality gates."""
-    from sklearn.ensemble import GradientBoostingClassifier
+    from sklearn.ensemble import GradientBoostingClassifier, RandomForestClassifier
     from sklearn.preprocessing import StandardScaler
     from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score
 
@@ -103,13 +103,13 @@ def train_production_model(ticker: str, period: str = "2y") -> dict:
         X_test_s = scaler.transform(X_test)
 
         # Train
-        model = GradientBoostingClassifier(
-            n_estimators=100,
-            max_depth=3,
-            learning_rate=0.05,
-            subsample=0.7,
-            min_samples_leaf=20,
+        model = RandomForestClassifier(
+            n_estimators=200,
+            max_depth=4,
+            min_samples_leaf=30,
+            max_features='sqrt',
             random_state=42,
+            n_jobs=-1,
         )
         model.fit(X_train_s, y_train)
 
@@ -174,13 +174,13 @@ def train_production_model(ticker: str, period: str = "2y") -> dict:
     log.info(f"[{ticker}] Training final model on all {n} rows...")
     final_scaler = StandardScaler()
     X_scaled = final_scaler.fit_transform(X)
-    final_model = GradientBoostingClassifier(
-        n_estimators=100,
-        max_depth=3,
-        learning_rate=0.05,
-        subsample=0.7,
-        min_samples_leaf=20,
+    final_model = RandomForestClassifier(
+        n_estimators=200,
+        max_depth=4,
+        min_samples_leaf=30,
+        max_features='sqrt',
         random_state=42,
+        n_jobs=-1,
     )
     t0 = time.time()
     final_model.fit(X_scaled, y)

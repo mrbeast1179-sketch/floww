@@ -9,6 +9,10 @@ GET /api/ml/predict/{ticker}
   → Runs trained model inference
   → Returns prediction with confidence + feature breakdown
 
+GET /api/ml/ensemble
+  → Runs inference on all registered models (SPY, QQQ, TLT, IWM)
+  → Returns combined signal with per-ticker breakdown
+
 POST /api/ml/train
   → Triggers async model retraining on latest data
   → Returns training job status
@@ -136,6 +140,93 @@ def _get_top_features(model, feature_names: List[str], top_n: int = 10) -> Dict[
         pairs.sort(key=lambda x: abs(x[1]), reverse=True)
         return {name: round(float(imp), 6) for name, imp in pairs[:top_n]}
     return {}
+
+
+@router.get("/ensemble")
+async def ensemble_prediction(
+    tickers: str = Query(default="SPY,QQQ,TLT,IWM", description="Comma-separated tickers"),
+    min_confidence: float = Query(default=0.55, ge=0.5, le=0.95),
+):
+    """Run inference on all registered models and return combined signal.
+
+    Combines predictions from SPY, QQQ, TLT, IWM into a single ensemble signal.
+    Each ticker is weighted by its model confidence.
+
+    Response:
+    {
+        "ensemble_signal": "BULLISH" | "BEARISH" | "MIXED",
+        "ensemble_confidence": 0.72,
+        "n_models": 4,
+        "n_bullish": 3,
+        "n_bearish": 1,
+        "tickers": {
+            "SPY": {"prediction": "UP", "confidence": 0.68, "probabilities": {...}},
+            "QQQ": {"prediction": "UP", "confidence": 0.71, "probabilities": {...}},
+            ...
+        },
+        "computed_at": "2026-05-24T..."
+    }
+    """
+    from services.ml.inference import inference_engine, MODEL_REGISTRY
+    from services.ml import DegenerateModelError
+
+    ticker_list = [t.strip().upper() for t in tickers.split(",")]
+    results = {}
+    errors = []
+
+    for ticker in ticker_list:
+        if ticker not in MODEL_REGISTRY:
+            errors.append(f"{ticker}: not registered")
+            continue
+        try:
+            pred = await inference_engine.predict(ticker)
+            results[ticker] = {
+                "prediction": "UP" if pred.prediction == 1 else "DOWN",
+                "confidence": round(pred.confidence, 4),
+                "probabilities": {
+                    "down": round(pred.probabilities[0], 4),
+                    "up": round(pred.probabilities[1], 4),
+                },
+                "model_id": pred.model_id,
+                "data_age_sec": round(pred.data_age_sec, 1),
+            }
+        except DegenerateModelError as e:
+            errors.append(f"{ticker}: {e}")
+        except Exception as e:
+            errors.append(f"{ticker}: {type(e).__name__}: {e}")
+
+    # Compute ensemble signal
+    n_models = len(results)
+    n_bullish = sum(1 for r in results.values() if r["prediction"] == "UP")
+    n_bearish = n_models - n_bullish
+
+    if n_models == 0:
+        ensemble_signal = "NO_DATA"
+        ensemble_confidence = 0.0
+    elif n_bullish > n_bearish:
+        ensemble_signal = "BULLISH"
+        # Average confidence of bullish models
+        bullish_confs = [r["confidence"] for r in results.values() if r["prediction"] == "UP"]
+        ensemble_confidence = sum(bullish_confs) / len(bullish_confs) if bullish_confs else 0.5
+    elif n_bearish > n_bullish:
+        ensemble_signal = "BEARISH"
+        bearish_confs = [r["confidence"] for r in results.values() if r["prediction"] == "DOWN"]
+        ensemble_confidence = sum(bearish_confs) / len(bearish_confs) if bearish_confs else 0.5
+    else:
+        ensemble_signal = "MIXED"
+        ensemble_confidence = 0.5
+
+    from datetime import datetime, timezone
+    return {
+        "ensemble_signal": ensemble_signal,
+        "ensemble_confidence": round(ensemble_confidence, 4),
+        "n_models": n_models,
+        "n_bullish": n_bullish,
+        "n_bearish": n_bearish,
+        "tickers": results,
+        "errors": errors if errors else None,
+        "computed_at": datetime.now(timezone.utc).isoformat(),
+    }
 
 
 @router.post("/train")

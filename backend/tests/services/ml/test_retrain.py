@@ -48,16 +48,19 @@ def orchestrator(mock_db):
 
 
 class TestIsRetrainInFlight:
+    @pytest.mark.asyncio
     async def test_no_active_retrain(self, orchestrator, mock_col):
         mock_col._find_one_return = None
         result = await orchestrator.is_retrain_in_flight("SPY")
         assert result is False
 
+    @pytest.mark.asyncio
     async def test_active_retrain_exists(self, orchestrator, mock_col):
         mock_col._find_one_return = {"ticker": "SPY", "status": "running"}
         result = await orchestrator.is_retrain_in_flight("SPY")
         assert result is True
 
+    @pytest.mark.asyncio
     async def test_pending_retrain_exists(self, orchestrator, mock_col):
         mock_col._find_one_return = {"ticker": "SPY", "status": "pending"}
         result = await orchestrator.is_retrain_in_flight("SPY")
@@ -65,11 +68,13 @@ class TestIsRetrainInFlight:
 
 
 class TestIsRetrainOnCooldown:
+    @pytest.mark.asyncio
     async def test_no_recent_retrain(self, orchestrator, mock_col):
         mock_col._find_one_return = None
         result = await orchestrator.is_retrain_on_cooldown("SPY")
         assert result is False
 
+    @pytest.mark.asyncio
     async def test_recent_retrain_exists(self, orchestrator, mock_col):
         mock_col._find_one_return = {
             "ticker": "SPY",
@@ -80,6 +85,7 @@ class TestIsRetrainOnCooldown:
 
 
 class TestDetectDrift:
+    @pytest.mark.asyncio
     async def test_no_drift(self, orchestrator):
         with patch("services.ml.registry.ModelRegistry") as MockRegistry:
             mock_registry = AsyncMock()
@@ -93,6 +99,7 @@ class TestDetectDrift:
             assert result["drift_detected"] is False
             assert result["n_samples"] == 50
 
+    @pytest.mark.asyncio
     async def test_drift_detected(self, orchestrator):
         with patch("services.ml.registry.ModelRegistry") as MockRegistry:
             mock_registry = AsyncMock()
@@ -106,6 +113,7 @@ class TestDetectDrift:
             assert result["drift_detected"] is True
             assert result["n_drift"] == 1
 
+    @pytest.mark.asyncio
     async def test_no_active_model(self, orchestrator):
         from services.ml import DegenerateModelError
         with patch("services.ml.registry.ModelRegistry") as MockRegistry:
@@ -153,11 +161,13 @@ class TestExtractSnapshotFeatures:
 
 
 class TestCheckAndRetrain:
+    @pytest.mark.asyncio
     async def test_skips_when_in_flight(self, orchestrator, mock_col):
         mock_col._find_one_return = {"status": "running"}
         result = await orchestrator.check_and_retrain("SPY")
         assert result["action"] == "in_flight"
 
+    @pytest.mark.asyncio
     async def test_no_drift_no_action(self, orchestrator, mock_col):
         mock_col._find_one_return = None
         with patch.object(orchestrator, "detect_drift", return_value={"drift_detected": False, "n_samples": 10}):

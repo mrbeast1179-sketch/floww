@@ -446,6 +446,82 @@ async def get_features(ticker: str) -> Dict[str, Any]:
         raise HTTPException(status_code=500, detail=f"Feature computation failed: {e}")
 
 
+# ── GET /api/ml/briefing/{ticker} ─────────────────────────────────────────
+
+
+@router.get("/briefing/{ticker}")
+async def ml_briefing(ticker: str) -> Dict[str, Any]:
+    """Unified ML briefing — combines prediction, model info, regime,
+    rolling accuracy, and feature importance into one response for the
+    MlDashboard frontend component.
+    """
+    from server import db
+    ticker = ticker.upper()
+    result: Dict[str, Any] = {"ticker": ticker, "ts": __import__("datetime").datetime.now(__import__("datetime").timezone.utc).isoformat()}
+
+    # 1. Live prediction
+    try:
+        pred = await inference_engine.predict(ticker)
+        result["prediction"] = pred.prediction
+        result["prediction_label"] = "bullish" if pred.prediction == 1 else "bearish"
+        result["confidence"] = round(pred.confidence, 4)
+        result["probabilities"] = {
+            "bearish": round(pred.probabilities[0], 4) if len(pred.probabilities) > 0 else 0.5,
+            "bullish": round(pred.probabilities[1], 4) if len(pred.probabilities) > 1 else 0.5,
+        }
+        result["features_used"] = len(pred.features_used)
+        result["feature_values"] = {k: round(v, 6) for k, v in pred.feature_values.items()}
+        result["data_age_sec"] = round(pred.data_age_sec, 1)
+    except DegenerateModelError as e:
+        result["prediction_error"] = str(e)
+    except Exception as e:
+        result["prediction_error"] = str(e)
+
+    # 2. Model info
+    try:
+        info = inference_engine.get_model_info(ticker)
+        result["model_id"] = info.model_id
+        result["model_type"] = info.model_type
+        result["n_features"] = info.n_features
+        result["train_accuracy"] = round(info.train_accuracy, 4)
+    except Exception:
+        pass
+
+    # 3. Regime (from advanced analytics if available via db)
+    try:
+        registry = await _get_registry()
+        drift = await registry.compute_drift(ticker)
+        result["drift_status"] = drift.get("status", "unknown")
+        result["drift_features"] = drift.get("n_recent_samples", 0)
+    except Exception:
+        pass
+
+    # 4. Rolling accuracy
+    try:
+        from services.ml.outcomes import compute_rolling_accuracy
+        acc7 = await compute_rolling_accuracy(db, ticker, window_days=7)
+        acc30 = await compute_rolling_accuracy(db, ticker, window_days=30)
+        result["rolling_7d_accuracy"] = acc7.get("accuracy")
+        result["rolling_7d_n"] = acc7.get("n_with_outcomes", 0)
+        result["rolling_30d_accuracy"] = acc30.get("accuracy")
+        result["rolling_30d_n"] = acc30.get("n_with_outcomes", 0)
+    except Exception:
+        pass
+
+    # 5. Combined signal
+    pred_conf = result.get("confidence", 0.5)
+    pred_label = result.get("prediction_label", "neutral")
+    if pred_conf > 0.6:
+        result["combined_signal"] = "STRONG_BULLISH" if pred_label == "bullish" else "STRONG_BEARISH"
+    elif pred_conf > 0.52:
+        result["combined_signal"] = "BULLISH" if pred_label == "bullish" else "BEARISH"
+    else:
+        result["combined_signal"] = "NEUTRAL"
+    result["combined_confidence"] = pred_conf
+
+    return result
+
+
 # ── POST /api/ml/retrain/{ticker} ───────────────────────────────────────
 
 

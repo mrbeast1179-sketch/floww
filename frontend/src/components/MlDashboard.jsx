@@ -108,27 +108,14 @@ export function MlDashboard({ ticker = "SPY", spot }) {
     setLoading(true);
     setError(null);
     try {
-      const r = await fetch(`${API}/ml/dash/${ticker}`);
+      const r = await fetch(`${API}/ml/briefing/${ticker}`);
       if (!r.ok) throw new Error(`HTTP ${r.status}`);
       const data = await r.json();
       setPrediction(data);
       setHistory(prev => {
-        const next = [data, ...prev.filter(p => p.ticker !== data.ticker)].slice(0, 20);
+        const next = [{...prev.filter(p => !(p.ticker === data.ticker && p.ts === data.ts))}, data].slice(0, 20);
         return next;
       });
-    } catch (e) {
-      // Fallback to predict endpoint
-      try {
-        const r2 = await fetch(`${API}/ml/predict/${ticker}`);
-        if (r2.ok) {
-          const data2 = await r2.json();
-          setPrediction(data2);
-        } else {
-          setError(e.message);
-        }
-      } catch (e2) {
-        setError(e.message);
-      }
     } finally {
       setLoading(false);
     }
@@ -272,32 +259,54 @@ export function MlDashboard({ ticker = "SPY", spot }) {
       {/* Model Tab */}
       {activeTab === "model" && (
         <div className="space-y-2">
-          {modelInfo ? (
+          {prediction ? (
             <>
               <div className="grid grid-cols-2 gap-2 text-[10px]">
                 <div className="bg-slate-800/50 rounded p-2">
                   <div className="label mb-0.5">Type</div>
-                  <div className="text-slate-200 mono">{modelInfo.model_type || "—"}</div>
+                  <div className="text-slate-200 mono">{prediction.model_type || "—"}</div>
                 </div>
                 <div className="bg-slate-800/50 rounded p-2">
                   <div className="label mb-0.5">Features</div>
-                  <div className="text-slate-200 mono">{modelInfo.n_features || "—"}</div>
+                  <div className="text-slate-200 mono">{prediction.n_features || "—"}</div>
                 </div>
                 <div className="bg-slate-800/50 rounded p-2">
-                  <div className="label mb-0.5">Accuracy</div>
-                  <div className="text-slate-200 mono">{modelInfo.metrics?.test_accuracy?.toFixed(4) || "—"}</div>
+                  <div className="label mb-0.5">Train Acc</div>
+                  <div className="text-slate-200 mono">{prediction.train_accuracy ? prediction.train_accuracy.toFixed(4) : "—"}</div>
                 </div>
                 <div className="bg-slate-800/50 rounded p-2">
-                  <div className="label mb-0.5">Size</div>
-                  <div className="text-slate-200 mono">{modelInfo.model_size_mb ? `${modelInfo.model_size_mb}MB` : "—"}</div>
+                  <div className="label mb-0.5">Drift</div>
+                  <div className={`mono ${prediction.drift_status === "drift_detected" ? "text-amber-400" : "text-emerald-400"}`}>
+                    {prediction.drift_status || "—"}
+                  </div>
                 </div>
               </div>
-              {modelInfo.trained_at && (
-                <div className="text-[9px] text-slate-500">
-                  Trained: {new Date(modelInfo.trained_at).toLocaleString()}
+              {/* Rolling accuracy */}
+              {(prediction.rolling_7d_accuracy != null || prediction.rolling_30d_accuracy != null) && (
+                <div>
+                  <div className="label mb-1">Rolling Accuracy</div>
+                  <div className="grid grid-cols-2 gap-2 text-[10px]">
+                    <div className="bg-slate-800/50 rounded p-2">
+                      <div className="text-slate-500">7d</div>
+                      <div className="text-slate-200 mono">
+                        {prediction.rolling_7d_accuracy != null
+                          ? `${(prediction.rolling_7d_accuracy * 100).toFixed(1)}%`
+                          : "—"}
+                        <span className="text-slate-600 ml-1">({prediction.rolling_7d_n || 0})</span>
+                      </div>
+                    </div>
+                    <div className="bg-slate-800/50 rounded p-2">
+                      <div className="text-slate-500">30d</div>
+                      <div className="text-slate-200 mono">
+                        {prediction.rolling_30d_accuracy != null
+                          ? `${(prediction.rolling_30d_accuracy * 100).toFixed(1)}%`
+                          : "—"}
+                        <span className="text-slate-600 ml-1">({prediction.rolling_30d_n || 0})</span>
+                      </div>
+                    </div>
+                  </div>
                 </div>
               )}
-            </>
           ) : (
             <div className="text-[10px] text-slate-500 text-center py-4">
               No model info available
