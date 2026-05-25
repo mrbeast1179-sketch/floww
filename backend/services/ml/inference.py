@@ -35,13 +35,34 @@ log = logging.getLogger("ml.inference")
 
 MODEL_DIR = Path(__file__).resolve().parents[2] / "models"
 
-# Map ticker -> model filename (in models/ directory)
-# These are the latest trained models from train_spy_model.py
-MODEL_REGISTRY: Dict[str, str] = {
-    "SPY": str(MODEL_DIR / "SPY_rf_20260524_020801.joblib"),
-    "QQQ": str(MODEL_DIR / "QQQ_rf_20260524_022118.joblib"),
-    "TLT": str(MODEL_DIR / "TLT_rf_20260524_022154.joblib"),
-    "IWM": str(MODEL_DIR / "IWM_rf_20260524_022147.joblib"),
+# Walk-forward trained models from scripts/train_cached_models.py (2026-05-25)
+# Tuple format: (model_path, scaler_path, manifest_path) — matches _load_model signature at line 321
+MODEL_REGISTRY: Dict[str, Tuple[str, ...]] = {
+    "DIA": (
+        str(MODEL_DIR / "DIA_logistic_wf.joblib"),
+        str(MODEL_DIR / "DIA_logistic_wf_scaler.joblib"),
+        str(MODEL_DIR / "DIA_logistic_wf_manifest.json"),
+    ),
+    "IWM": (
+        str(MODEL_DIR / "IWM_gbm_wf.joblib"),
+        str(MODEL_DIR / "IWM_gbm_wf_scaler.joblib"),
+        str(MODEL_DIR / "IWM_gbm_wf_manifest.json"),
+    ),
+    "QQQ": (
+        str(MODEL_DIR / "QQQ_gbm_wf.joblib"),
+        str(MODEL_DIR / "QQQ_gbm_wf_scaler.joblib"),
+        str(MODEL_DIR / "QQQ_gbm_wf_manifest.json"),
+    ),
+    "SPY": (
+        str(MODEL_DIR / "SPY_rf_wf.joblib"),
+        str(MODEL_DIR / "SPY_rf_wf_scaler.joblib"),
+        str(MODEL_DIR / "SPY_rf_wf_manifest.json"),
+    ),
+    "TLT": (
+        str(MODEL_DIR / "TLT_rf_wf.joblib"),
+        str(MODEL_DIR / "TLT_rf_wf_scaler.joblib"),
+        str(MODEL_DIR / "TLT_rf_wf_manifest.json"),
+    ),
 }
 
 # Feature computation constants
