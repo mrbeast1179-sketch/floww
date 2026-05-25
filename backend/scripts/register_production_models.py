@@ -11,9 +11,7 @@ import argparse
 import asyncio
 import json
 import os
-import sys
 from pathlib import Path
-from datetime import datetime, timezone
 
 from dotenv import load_dotenv
 load_dotenv(Path(__file__).resolve().parent.parent / ".env")

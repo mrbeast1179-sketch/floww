@@ -15,7 +15,6 @@ Usage:
 """
 
 import sys
-import os
 import json
 import time
 import logging
@@ -23,7 +22,6 @@ from pathlib import Path
 from datetime import datetime, timezone
 
 import numpy as np
-import pandas as pd
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(SCRIPT_DIR))
@@ -44,9 +42,9 @@ MODEL_DIR.mkdir(exist_ok=True)
 
 def train_production_model(ticker: str, period: str = "2y") -> dict:
     """Train a production model with walk-forward validation and quality gates."""
-    from sklearn.ensemble import GradientBoostingClassifier, RandomForestClassifier
+    from sklearn.ensemble import RandomForestClassifier
     from sklearn.preprocessing import StandardScaler
-    from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score
+    from sklearn.metrics import accuracy_score
 
     log.info(f"[{ticker}] Computing features ({period})...")
     features_df = compute_features(ticker, period=period)
