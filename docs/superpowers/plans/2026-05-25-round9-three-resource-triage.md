@@ -14,10 +14,22 @@ Three independent audits (DEEP_DIVE, JANE_STREET_REVIEW, ROUND3 — all run on `
 | `heatseeker.py:119` `_fetch_history(..., lookback_mins=...)` | Confirmed call site | **REAL** |
 | `ml_training.py` 10 routes call non-existent functions | Architect verified all 10 functions absent AND zero callers in frontend/scripts | **REAL — safe to DELETE** |
 
-**Resources confirmed** (corrected from prior plan):
-- 15 Hermes agents (Owl Alpha via router — the reliable one)
-- 1 DeepSeek V4 Flash (free, hallucinates but rips through volume)
-- 1 OpenCode GLM 5.1
+**Resources confirmed** (corrected 2026-05-25 after user clarification):
+- **Hermes terminal (Herder orchestrator)**: spawns N parallel agents; each agent runs
+  EITHER Owl Alpha model (judgment) OR DeepSeek Flash model (mechanical). Architect
+  picks per-agent. ~15 agent slots available.
+- **freebuff terminal**: 5 SEPARATE hour-long sessions of **DeepSeek Pro** (the new
+  one — heavier than Flash). This is the heaviest model available. Reserve for
+  high-leverage single-mission work.
+- **OpenCode terminal**: 1 GLM 5.1 session for math-heavy research ports.
+
+**Reassignment based on corrected resource map:**
+- **H1 → freebuff DeepSeek Pro session #1** (needs deep pytest-asyncio + Motor + 2,400 test files context — Pro's heavier window is the right fit). Prompt: `DEEPSEEK_PRO_ROUND9_H1_CONFTEST.md`
+- **L4 → freebuff DeepSeek Pro session #2** (synthesizes 3 audit reports + applies 5 cross-file fixes — needs context). Awaits L1+L2+L3 first.
+- **freebuff sessions 3-5**: reserve for contingency / App.js toggle composition / Round 10 heavy work
+- **Hermes Owl Alpha (10 agents)**: H6, H7, H8, H9, H10, H11, H12, H13, H14, H15, L1, L2, L3
+- **Hermes DeepSeek Flash (1-2 agents)**: DS1-DS4 (runs alongside Owl Alphas on same Hermes infra)
+- **OpenCode GLM 5.1**: G1, G2
 
 **User-confirmed decisions** (from AskUserQuestion):
 1. **ml_training.py**: DELETE (architect verified zero usage and zero defined functions)
