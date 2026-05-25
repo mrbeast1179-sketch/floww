@@ -15,7 +15,7 @@ import asyncio
 from datetime import datetime, timezone
 from typing import Dict, Any, Optional
 
-from fastapi import APIRouter, Query, HTTPException, Request
+from fastapi import APIRouter, Query, HTTPException
 
 router = APIRouter()
 

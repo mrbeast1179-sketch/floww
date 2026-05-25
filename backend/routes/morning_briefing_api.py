@@ -12,12 +12,10 @@ so routes here should NOT include the /api prefix. I-7 fix.
 
 from __future__ import annotations
 
-import json
 import time
-from datetime import datetime, timezone
 from typing import Any, Dict, Optional
 
-from fastapi import APIRouter, HTTPException, Path, Query
+from fastapi import APIRouter, HTTPException, Path
 from fastapi.responses import HTMLResponse, JSONResponse
 
 router = APIRouter()

@@ -11,9 +11,9 @@ so the frontend never crashes.
 from __future__ import annotations
 
 import logging
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, Query
 
 logger = logging.getLogger(__name__)
 
@@ -104,7 +104,7 @@ def _get_fragility_index():
 async def _fetch_chain(ticker: str, expiries: int = 5) -> Dict[str, Any]:
     """Fetch option chain, same pattern as existing routes."""
     try:
-        from server import fetch_spot_and_chains_merged, _sanitize
+        from server import fetch_spot_and_chains_merged
         t = ticker.strip().upper()
         if t == "SPX":
             t = "^SPX"

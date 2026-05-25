@@ -6,7 +6,6 @@ Paper trading routes with Almgren-Chriss execution.
 from __future__ import annotations
 
 import logging
-from typing import Any, Dict, Optional
 
 from fastapi import APIRouter, HTTPException, Query
 

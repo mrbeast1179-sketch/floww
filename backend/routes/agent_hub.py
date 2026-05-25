@@ -6,7 +6,7 @@ Agent Hub CRUD endpoints for managing trading agent archetypes.
 from __future__ import annotations
 
 import logging
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict
 
 from fastapi import APIRouter, HTTPException
 

@@ -458,7 +458,6 @@ async def correlation(
     try:
         from server import db as mongo_db
         from datetime import timedelta
-        import numpy as np
         import pandas as pd
         syms = [t.strip().upper() for t in tickers.split(",") if t.strip()]
         cutoff = datetime.now(timezone.utc) - timedelta(days=days)

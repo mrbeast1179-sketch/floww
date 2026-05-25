@@ -18,19 +18,14 @@ from fastapi import APIRouter, HTTPException, Query
 
 from services.heatseeker import (
     _gex_per_strike,
-    _king_node_strike,
     calc_air_pockets,
     calc_flip_zones,
     calc_node_lifecycle,
-    calc_rolling_floors_ceilings,
     calc_trinity_confluence,
-    calc_tug_of_war_zones,
     calc_velocity_mode,
-    classify_nodes,
     detect_beach_ball,
     detect_rainbow_road,
     detect_reverse_rug,
-    detect_stacked_nodes,
 )
 
 logger = logging.getLogger(__name__)
@@ -407,7 +402,7 @@ async def node_classification_route(
     then runs ``classify_nodes`` to assign real/hedge/unknown labels.
     """
     from server import _sanitize
-    from services.heatseeker import _gex_per_strike, calc_node_lifecycle, classify_nodes
+    from services.heatseeker import calc_node_lifecycle, classify_nodes
     t = ticker.strip().upper()
     raw = await _fetch_chain(t, expiries)
     spot = raw.get("spot", 0)

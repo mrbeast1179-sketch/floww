@@ -17,7 +17,7 @@ from __future__ import annotations
 import logging
 from typing import Any, Dict, List, Optional
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException
 
 import numpy as np
 
