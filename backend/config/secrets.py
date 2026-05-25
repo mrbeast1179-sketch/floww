@@ -16,7 +16,6 @@ from __future__ import annotations
 
 import logging
 import os
-import sys
 from functools import lru_cache
 from typing import Optional
 
