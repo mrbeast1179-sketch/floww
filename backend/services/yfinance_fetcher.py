@@ -191,9 +191,9 @@ if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)
     conn = get_duckdb_conn()
     results = fetch_and_store(conn=conn)
-    print(f"\nResults: {results}")
+    logger.info(f"\nResults: {results}")
     for ticker in TICKERS:
         latest = get_latest_ticks(ticker, n=3, conn=conn)
         if not latest.empty:
-            print(f"\n{ticker} latest ticks:")
-            print(latest)
+            logger.info(f"\n{ticker} latest ticks:")
+            logger.info(latest)

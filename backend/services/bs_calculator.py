@@ -18,7 +18,7 @@ Usage:
         ivs=np.array([0.18, 0.17, 0.16, 0.17, 0.18]),
         kinds=np.array([0, 0, 1, 1, 0]),  # 0=call, 1=put
     )
-    print(greeks["delta"])
+    logger.info(greeks["delta"])
 """
 
 from __future__ import annotations
@@ -31,6 +31,9 @@ import numpy as np
 from services.numba_greeks import compute_all_greeks
 
 
+import logging
+
+logger = logging.getLogger(__name__)
 class BSCalculator:
     """Vectorized Black-Scholes Greek calculator (Numba-backed).
 

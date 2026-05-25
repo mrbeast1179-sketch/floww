@@ -24,6 +24,9 @@ import math
 import numba
 import numpy as np
 
+import logging
+
+logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 # Manual normal distribution helpers (scipy not numba-compatible)
 # ---------------------------------------------------------------------------
@@ -543,7 +546,7 @@ def compute_all_greeks(
         ...     ivs=np.array([0.2, 0.2, 0.2]),
         ...     types=np.array([0, 0, 1]),
         ... )
-        >>> print(greeks['delta'])
+        >>> logger.info(greeks['delta'])
     """
     # Ensure contiguous float64 arrays for numba
     K = np.ascontiguousarray(strikes, dtype=np.float64)

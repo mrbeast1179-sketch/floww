@@ -222,11 +222,11 @@ def fetch_all_chains(
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)
-    print("Fetching SPY options chain...")
+    logger.info("Fetching SPY options chain...")
     df = fetch_options_chain("SPY")
-    print(f"Fetched {len(df)} rows")
+    logger.info(f"Fetched {len(df)} rows")
     if not df.empty:
-        print(df.head())
-        print(f"\nColumns: {list(df.columns)}")
-        print(f"\nSample Greeks:")
-        print(df[["strike", "delta", "gamma", "theta", "vega"]].head(10))
+        logger.info(df.head())
+        logger.info(f"\nColumns: {list(df.columns)}")
+        logger.info(f"\nSample Greeks:")
+        logger.info(df[["strike", "delta", "gamma", "theta", "vega"]].head(10))

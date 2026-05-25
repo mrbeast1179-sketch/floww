@@ -25,7 +25,7 @@ Usage:
         ois=np.array([...]),
         types=np.array([...]),
     )
-    print(snapshot.vanna_exposure)
+    logger.info(snapshot.vanna_exposure)
 """
 
 from __future__ import annotations

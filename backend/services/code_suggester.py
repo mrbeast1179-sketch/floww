@@ -421,47 +421,47 @@ def main():
     if args.log:
         entries = suggester.get_log(limit=args.limit)
         if entries:
-            print(f"Last {len(entries)} suggestions:")
+            logger.info(f"Last {len(entries)} suggestions:")
             for entry in entries:
-                print(f"  [{entry['category']}] {entry['title']} — {entry['target_file']}:{entry['target_line']}")
+                logger.info(f"  [{entry['category']}] {entry['title']} — {entry['target_file']}:{entry['target_line']}")
         else:
-            print("No suggestions logged yet.")
+            logger.info("No suggestions logged yet.")
         return
 
     if args.query:
         results = suggester.query(args.query)
         if results:
-            print(f"Memory results for '{args.query}':")
+            logger.info(f"Memory results for '{args.query}':")
             for r in results:
                 mem = r.get("memory", "")
                 score = r.get("score", 0)
-                print(f"  (score={score:.3f}) {mem[:120]}")
+                logger.info(f"  (score={score:.3f}) {mem[:120]}")
         else:
-            print(f"No memory results for '{args.query}'")
+            logger.info(f"No memory results for '{args.query}'")
         return
 
     if args.filepath:
         suggestions = suggester.analyze_file(args.filepath)
         if suggestions:
-            print(suggester.format_suggestions(suggestions))
+            logger.info(suggester.format_suggestions(suggestions))
             suggester.log_suggestions(suggestions)
             logger.info(f"Logged {len(suggestions)} suggestions")
         else:
-            print(f"No suggestions for {args.filepath}")
+            logger.info(f"No suggestions for {args.filepath}")
         return
 
     # Default: analyze a demo file
     demo_file = REPO_ROOT / "backend" / "services" / "signal_translator.py"
     if demo_file.exists():
-        print(f"Analyzing {demo_file}...\n")
+        logger.info(f"Analyzing {demo_file}...\n")
         suggestions = suggester.analyze_file(str(demo_file))
         if suggestions:
-            print(suggester.format_suggestions(suggestions))
+            logger.info(suggester.format_suggestions(suggestions))
             suggester.log_suggestions(suggestions)
         else:
-            print("No suggestions.")
+            logger.info("No suggestions.")
     else:
-        print("Usage: code_suggester.py <filepath> | --query <text> | --log")
+        logger.info("Usage: code_suggester.py <filepath> | --query <text> | --log")
 
 
 if __name__ == "__main__":

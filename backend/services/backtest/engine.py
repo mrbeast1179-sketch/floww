@@ -13,7 +13,7 @@ position tracking, and three evaluation modes:
 Usage:
     engine = BacktestEngine(signal=MySignal(), initial_capital=100_000)
     result = engine.run(snapshots, bars)
-    print(result.summary_text())
+    logger.info(result.summary_text())
 """
 
 from __future__ import annotations
@@ -29,6 +29,8 @@ import numpy as np
 from .signals import Action, Position, Signal
 from .report import BacktestResult, TradeRecord
 
+
+logger = logging.getLogger(__name__)
 log = logging.getLogger("backtest.engine")
 
 DEFAULT_SLIPPAGE_PCT = 0.0005   # 0.05%

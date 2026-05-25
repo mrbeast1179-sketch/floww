@@ -24,6 +24,9 @@ REBALANCE_FILE = KANBAN_DIR / "REBALANCE_PROPOSAL.md"
 def load_cards() -> list[dict]:
     """Load all card files."""
     import yaml
+import logging
+
+logger = logging.getLogger(__name__)
     cards = []
     for f in sorted(CARDS_DIR.glob("*.md")):
         if f.name.startswith("tagging_"):
@@ -232,7 +235,7 @@ if __name__ == "__main__":
     bottleneck_data = run_bottleneck_check()
     result = run_rebalancer(bottleneck_data)
 
-    print(f"Recommendations: {len(result['recommendations'])}")
+    logger.info(f"Recommendations: {len(result['recommendations'])}")
     for rec in result["recommendations"]:
-        print(f"  {rec['card_id']}: {rec['from_agent']} → {rec['to_agent']} "
+        logger.info(f"  {rec['card_id']}: {rec['from_agent']} → {rec['to_agent']} "
               f"(conf: {rec['confidence']})")
