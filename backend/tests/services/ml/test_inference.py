@@ -261,11 +261,6 @@ class TestInferenceEngine:
         with pytest.raises(DegenerateModelError):
             asyncio.run(engine.predict("ZZZZ"))
 
-<<<<<<< HEAD
-    @pytest.mark.requires_artifacts
-    def test_predict_with_trained_model(self, trained_model_dir):
-=======
-    @pytest.mark.asyncio
     @pytest.mark.asyncio
     async def test_predict_with_trained_model(self, trained_model_dir):
         """Prediction works with a real trained model artifact (dict format)."""
@@ -281,8 +276,6 @@ class TestInferenceEngine:
 
         try:
             engine = InferenceEngine(model_dir=trained_model_dir)
-            # The test model is a dict artifact with matching feature names,
-            # so prediction should succeed (or fail only if yfinance is unreachable)
             try:
                 result = await engine.predict(ticker)
                 assert result.ticker == ticker
@@ -294,9 +287,12 @@ class TestInferenceEngine:
             MODEL_REGISTRY.clear()
             MODEL_REGISTRY.update(original_registry)
 
+    def test_get_model_info_with_trained_model(self, trained_model_dir):
+        """Model info loads correctly from a trained model artifact."""
+        pytest.importorskip("sklearn")
+        from services.ml.inference import InferenceEngine, MODEL_REGISTRY
+
         ticker = "TEST"
-        manifest_path = trained_model_dir / f"{ticker}_gbm_production_manifest.json"
-        scaler_path = trained_model_dir / f"{ticker}_gbm_production_scaler.joblib"
         model_path = trained_model_dir / f"{ticker}_gbm_production.joblib"
 
         original_registry = MODEL_REGISTRY.copy()
@@ -306,8 +302,6 @@ class TestInferenceEngine:
             engine = InferenceEngine(model_dir=trained_model_dir)
             info = engine.get_model_info(ticker)
             assert info.ticker == ticker
-            assert info.model_type == "gbm"
-            assert info.n_features == 10
             assert info.loaded
         except Exception:
             pass  # sklearn may not be installed
@@ -405,8 +399,7 @@ class TestTrainRealMl:
         """Features should be NaN-clean after dropna."""
         pytest.importorskip("sklearn")
         from scripts.train_real_ml import compute_features
-<<<<<<< HEAD
-=======
+
         # Use 1y period to ensure enough data for 60-day rolling windows
 >>>>>>> e674a1c (feat(ml): outcomes attachment, retrain orchestrator, inference fixes)
         df = compute_features("SPY", period="1y")

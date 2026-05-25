@@ -81,7 +81,7 @@ class TestIsRetrainOnCooldown:
 
 class TestDetectDrift:
     async def test_no_drift(self, orchestrator):
-        with patch("services.ml.retrain.ModelRegistry") as MockRegistry:
+        with patch("services.ml.registry.ModelRegistry") as MockRegistry:
             mock_registry = AsyncMock()
             mock_registry.compute_drift.return_value = {
                 "status": "ok",
@@ -94,7 +94,7 @@ class TestDetectDrift:
             assert result["n_samples"] == 50
 
     async def test_drift_detected(self, orchestrator):
-        with patch("services.ml.retrain.ModelRegistry") as MockRegistry:
+        with patch("services.ml.registry.ModelRegistry") as MockRegistry:
             mock_registry = AsyncMock()
             mock_registry.compute_drift.return_value = {
                 "status": "drift_detected",
@@ -108,7 +108,7 @@ class TestDetectDrift:
 
     async def test_no_active_model(self, orchestrator):
         from services.ml import DegenerateModelError
-        with patch("services.ml.retrain.ModelRegistry") as MockRegistry:
+        with patch("services.ml.registry.ModelRegistry") as MockRegistry:
             mock_registry = AsyncMock()
             mock_registry.compute_drift.side_effect = DegenerateModelError("no active model")
             MockRegistry.return_value = mock_registry
