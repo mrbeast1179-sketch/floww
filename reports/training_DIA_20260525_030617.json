@@ -1,0 +1,153 @@
+{
+  "ticker": "DIA",
+  "model": "gbm",
+  "model_id": "DIA_direction_v1.0_gbm",
+  "feature_version": "v2.0",
+  "target": "target_directional_move",
+  "n_samples": 501,
+  "n_features": 42,
+  "feature_names": [
+    "ret_1d",
+    "ret_3d",
+    "ret_5d",
+    "ret_10d",
+    "ret_21d",
+    "log_ret_1d",
+    "overnight_gap",
+    "sma_5",
+    "price_vs_sma_5",
+    "sma_10",
+    "price_vs_sma_10",
+    "sma_21",
+    "price_vs_sma_21",
+    "sma_50",
+    "price_vs_sma_50",
+    "atr_14",
+    "volume_sma_5",
+    "volume_sma_21",
+    "relative_volume",
+    "realized_vol_5d",
+    "realized_vol_10d",
+    "realized_vol_21d",
+    "realized_vol_60d",
+    "rsi_14",
+    "rsi_overbought",
+    "rsi_oversold",
+    "macd",
+    "macd_signal",
+    "macd_hist",
+    "bb_position",
+    "vol_ratio_5_21",
+    "vol_ratio_5_60",
+    "sma_5_21_diff",
+    "sma_5_21_cross",
+    "sma_10_50_diff",
+    "ret_momentum",
+    "ret_accel",
+    "vol_spike",
+    "gap_abs",
+    "gap_large",
+    "is_month_end",
+    "is_month_start"
+  ],
+  "model_params": {
+    "n_estimators": 200,
+    "max_depth": 5,
+    "learning_rate": 0.05,
+    "subsample": 0.8,
+    "min_samples_leaf": 10,
+    "random_state": 42
+  },
+  "metrics": {
+    "overall_accuracy": 0.4880952380952381,
+    "avg_fold_accuracy": 0.4880952380952381,
+    "std_fold_accuracy": 0.10309826235529032,
+    "avg_fold_train_accuracy": 0.9163989945239945,
+    "overfit_gap": 0.42830375642875645,
+    "overall_sharpe": 1.0898544772667078,
+    "avg_fold_sharpe": 1.0898544772667078,
+    "train_time_sec": 0.44517016410827637
+  },
+  "fold_metrics": [
+    {
+      "fold": 0,
+      "train_size": 126,
+      "test_size": 21,
+      "accuracy": 0.47619047619047616,
+      "train_acc": 0.9206349206349206
+    },
+    {
+      "fold": 1,
+      "train_size": 147,
+      "test_size": 21,
+      "accuracy": 0.5714285714285714,
+      "train_acc": 0.9523809523809523
+    },
+    {
+      "fold": 2,
+      "train_size": 168,
+      "test_size": 21,
+      "accuracy": 0.42857142857142855,
+      "train_acc": 0.9345238095238095
+    },
+    {
+      "fold": 3,
+      "train_size": 189,
+      "test_size": 21,
+      "accuracy": 0.47619047619047616,
+      "train_acc": 0.9153439153439153
+    },
+    {
+      "fold": 4,
+      "train_size": 210,
+      "test_size": 21,
+      "accuracy": 0.7142857142857143,
+      "train_acc": 0.9285714285714286
+    },
+    {
+      "fold": 5,
+      "train_size": 231,
+      "test_size": 21,
+      "accuracy": 0.38095238095238093,
+      "train_acc": 0.9004329004329005
+    },
+    {
+      "fold": 6,
+      "train_size": 252,
+      "test_size": 21,
+      "accuracy": 0.38095238095238093,
+      "train_acc": 0.8928571428571429
+    },
+    {
+      "fold": 7,
+      "train_size": 273,
+      "test_size": 21,
+      "accuracy": 0.47619047619047616,
+      "train_acc": 0.8864468864468864
+    }
+  ],
+  "top_features": {
+    "bb_position": 0.07553488478578094,
+    "ret_10d": 0.07496847465167943,
+    "gap_abs": 0.05297913899639436,
+    "ret_accel": 0.049951297836860656,
+    "realized_vol_5d": 0.04430800485232423,
+    "price_vs_sma_21": 0.044120364830434404,
+    "vol_ratio_5_21": 0.042809416308236044,
+    "relative_volume": 0.04155800212267047,
+    "price_vs_sma_10": 0.03875125582628319,
+    "volume_sma_5": 0.03706646886496757
+  },
+  "gate_results": {
+    "class_balance": true,
+    "sufficient_data": true,
+    "wf_positive": false,
+    "no_overfit": false,
+    "sharpe_positive": true,
+    "fold_consistency": true
+  },
+  "verdict": "HOLD",
+  "created_at": "2026-05-25T03:06:17.334828+00:00",
+  "model_path": "/Users/nav/GitHub/floww/backend/models/DIA_gbm_production.joblib",
+  "scaler_path": "/Users/nav/GitHub/floww/backend/models/DIA_gbm_production_scaler.joblib"
+}
