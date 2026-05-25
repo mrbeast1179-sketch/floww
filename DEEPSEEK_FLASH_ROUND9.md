@@ -1,7 +1,12 @@
-# DeepSeek V4 Flash — Round 9 Mechanical Cleanup
+# DeepSeek Flash (on Hermes) — Round 9 Mechanical Cleanup
 
-> Self-contained. Paste below the `═══` into a single DeepSeek Flash session.
+> Self-contained. Launch ONE Hermes agent with **DeepSeek Flash model selected**
+> (NOT Owl Alpha, NOT DeepSeek Pro). Paste below the `═══` line.
 > Strict mechanical-only scope. Estimated 4-6 hours sequential.
+>
+> **Resource context**: DeepSeek Flash runs on Hermes terminal alongside Owl
+> Alpha agents. Flash is fast + cheap + good for linter-driven changes; Pro is
+> reserved for the heavy H1 + L4 work on freebuff. Don't confuse Flash with Pro.
 
 ═══════════════════════════════════════════════════════════════════════════════
 

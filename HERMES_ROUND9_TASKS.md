@@ -3,37 +3,14 @@
 > Find your assigned ID below. Append this section to the universal preamble
 > (`HERMES_ROUND9_PREAMBLE.md`) when launching.
 
-## H1 — conftest.py event-loop fixture removal (90 min, HIGHEST LEVERAGE)
+## H1 — REASSIGNED to DeepSeek Pro (freebuff)
 
-**OWNS:** `backend/tests/conftest.py`
+H1 (conftest.py event-loop fix) was moved to a dedicated freebuff DeepSeek Pro
+session because it needs deeper context (pytest-asyncio + Motor + 2,400 test
+files). See `DEEPSEEK_PRO_ROUND9_H1_CONFTEST.md` in repo root.
 
-**Problem:** lines 28-81 contain an `autouse=True` fixture that manually closes
-the asyncio event loop and creates a new one before every test. This conflicts
-with pytest-asyncio's own loop management. Result: 2,343 of 2,378 tests crash.
-
-**Goal:** restore the test suite to ≥ 2,363 passing.
-
-**Steps:**
-
-1. Run baseline: `cd backend && source .venv/bin/activate && python -m pytest -q --ignore=tests/e2e --tb=no 2>&1 | tail -3`
-   Capture the current passing/failing count. Expected: ~35 passed.
-2. Read `backend/tests/conftest.py` start to finish. Understand what the fixture does
-   (resets event loop, creates fresh motor client, resets error log + live policy).
-3. The fix: KEEP the motor-client reset + error-log reset + live-policy reset functionality,
-   but REMOVE the manual `old_loop.close()` and `new_loop = asyncio.new_event_loop()` lines.
-   Let pytest-asyncio create+manage the loop. Convert `autouse=True` to a NAMED fixture
-   that tests opt into when they actually need a fresh motor client.
-4. Alternative if the per-test reset is structurally required: keep the fixture but
-   use pytest_asyncio's `event_loop` fixture (which is the supported integration point).
-5. Re-run pytest: `python -m pytest -q --ignore=tests/e2e --tb=no 2>&1 | tail -3`.
-   Expect ≥ 2,363 passing. If count drops below 35 (baseline): HALT — your change made things worse.
-
-**Commit message must include:**
-```
-$ python -m pytest -q --ignore=tests/e2e --tb=no | tail -3
-Before:  35 passed, 2343 failed, 0 skipped
-After:   2363 passed, ~15 failed (real failures), 0 skipped
-```
+If you were assigned H1 as a Hermes agent: HALT, re-assign to one of H6-H15 or
+L1-L3 (any unclaimed slot).
 
 ---
 
