@@ -2,19 +2,23 @@
 const path = require("path");
 require("dotenv").config();
 
-const webpackConfig = {
+const config = {
   webpack: {
     alias: {
-      '@': path.resolve(__dirname, 'src'),
+      "@": path.resolve(__dirname, "src"),
     },
     cache: false,
     configure: (webpackConfig) => {
       webpackConfig.plugins = webpackConfig.plugins.filter(
-        p => p.constructor?.name !== 'ForkTsCheckerWebpackPlugin' && p.constructor?.name !== 'ESLintWebpackPlugin'
+        (p) =>
+          p.constructor?.name !== "ForkTsCheckerWebpackPlugin" &&
+          p.constructor?.name !== "ESLintWebpackPlugin"
       );
-      webpackConfig.module.rules = webpackConfig.module.rules.map(rule => {
+      webpackConfig.module.rules = webpackConfig.module.rules.map((rule) => {
         if (rule.use) {
-          rule.use = rule.use.filter(u => !u.loader || !u.loader.includes('eslint-loader'));
+          rule.use = rule.use.filter(
+            (u) => !u.loader || !u.loader.includes("eslint-loader")
+          );
         }
         return rule;
       });
@@ -25,6 +29,14 @@ const webpackConfig = {
     hot: true,
     liveReload: true,
   },
+  jest: {
+    configure: {
+      moduleNameMapper: {
+        "^@/(.*)$": "<rootDir>/src/$1",
+        "\\.(css|less|scss|sass)$": "identity-obj-proxy",
+      },
+    },
+  },
 };
 
-module.exports = webpackConfig;
+module.exports = config;
