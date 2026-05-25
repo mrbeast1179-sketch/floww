@@ -1,15 +1,9 @@
 """
-backend/services/ml/outcomes.py
+Realized outcome attachment for ML predictions.
 
-Realized outcome attachment — computes next-day outcomes for predictions.
-
-For every prediction in ml_predictions without a realized_outcome,
-this service:
-  1. Fetches the next day's OHLCV bar for the ticker
-  2. Computes the realized return and directional label
-  3. Updates the prediction document with realized_outcome
-
-This enables rolling accuracy tracking in the ML dashboard.
+Computes next-day realized outcomes (return, directional label) for predictions
+in ml_predictions that don't have realized_outcome yet. Enables rolling accuracy
+tracking in the dashboard.
 """
 
 from __future__ import annotations
@@ -25,26 +19,15 @@ import yfinance as yf
 
 log = logging.getLogger("ml.outcomes")
 
-MONGO_URL = os.environ.get("MONGO_URL", "mongodb://localhost:27017")
-DB_NAME = os.environ.get("DB_NAME", "confluence_decoder")
 COLLECTION_PREDICTIONS = "ml_predictions"
 
 
 async def fetch_next_day_outcome(ticker: str, prediction_date: str) -> Optional[Dict[str, Any]]:
     """Fetch the realized next-day outcome for a prediction via yfinance.
 
-    Returns dict with:
-      - realized_label: 1 if next-day close > open, 0 otherwise
-      - realized_return_pct: (close - open) / open * 100
-      - gap_pct: (open - prev_close) / prev_close * 100
-      - range_pct: (high - low) / open * 100
-      - abs_return_pct: abs(realized_return_pct)
-      - directional_move: bool, True if abs_return > 0.5%
-      - data_source: "yfinance"
-      - bars_used: number of bars fetched
+    Returns dict with realized_label, realized_return_pct, range_pct, etc.
     """
     ticker = ticker.upper()
-
     try:
         pred_dt = pd.Timestamp(prediction_date)
         if pred_dt.tzinfo is None:
@@ -60,17 +43,15 @@ async def fetch_next_day_outcome(ticker: str, prediction_date: str) -> Optional[
             progress=False,
         )
 
-        if data is None or (hasattr(data, 'empty') and data.empty):
+        if data is None or (hasattr(data, "empty") and data.empty):
             return None
 
-        # Handle multi-level columns from yfinance
         if isinstance(data.columns, pd.MultiIndex):
             data.columns = data.columns.get_level_values(0)
 
-        # Get the first trading day bar after the prediction date
         mask = data.index > pred_dt
-        next_bars = data.loc[mask]
-        if next_bars is None or (hasattr(next_bars, 'empty') and next_bars.empty):
+        next_bars = data[mask]
+        if next_bars is None or next_bars.empty:
             return None
 
         bar = next_bars.iloc[0]
@@ -84,19 +65,20 @@ async def fetch_next_day_outcome(ticker: str, prediction_date: str) -> Optional[
 
         realized_return_pct = (close_price - open_price) / open_price * 100.0
         abs_return_pct = abs(realized_return_pct)
+        range_pct = (high_price - low_price) / open_price * 100.0 if open_price > 0 else 0.0
 
         return {
             "realized_label": 1 if close_price > open_price else 0,
             "realized_return_pct": round(realized_return_pct, 4),
             "gap_pct": 0.0,
-            "range_pct": round((high_price - low_price) / open_price * 100, 4),
+            "range_pct": round(range_pct, 4),
             "abs_return_pct": round(abs_return_pct, 4),
             "directional_move": abs_return_pct > 0.5,
             "data_source": "yfinance",
             "bars_used": 1,
         }
     except Exception as e:
-        log.debug(f"yfinance outcome fetch failed for {ticker}@{prediction_date}: {e}")
+        log.debug(f"fetch_next_day_outcome failed for {ticker}@{prediction_date}: {e}")
         return None
 
 
@@ -133,10 +115,10 @@ async def attach_realized_outcomes(db: Any, batch_size: int = 100) -> int:
                 pred_dt = pd.Timestamp(ts)
             else:
                 pred_dt = ts
-            if hasattr(pred_dt, 'tzinfo') and pred_dt.tzinfo is None:
+            if hasattr(pred_dt, "tzinfo") and pred_dt.tzinfo is None:
                 pred_dt = pred_dt.tz_localize("UTC")
-            cutoff = datetime.now(timezone.utc) - timedelta(hours=25)
-            if pred_dt > cutoff:
+            cutoff_check = datetime.now(timezone.utc) - timedelta(hours=25)
+            if pred_dt > cutoff_check:
                 continue
         except Exception:
             continue
@@ -171,7 +153,7 @@ async def _try_underlying_bars(db: Any, ticker: str, prediction_ts: Any) -> Opti
         bars_col = db["underlying_bars"]
         if isinstance(prediction_ts, str):
             pred_str = prediction_ts
-        elif hasattr(prediction_ts, 'isoformat'):
+        elif hasattr(prediction_ts, "isoformat"):
             pred_str = prediction_ts.isoformat()
         else:
             pred_str = str(prediction_ts)
@@ -195,12 +177,13 @@ async def _try_underlying_bars(db: Any, ticker: str, prediction_ts: Any) -> Opti
 
         realized_return_pct = (close_price - open_price) / open_price * 100.0
         abs_return_pct = abs(realized_return_pct)
+        range_pct = (high_price - low_price) / open_price * 100.0 if open_price > 0 else 0.0
 
         return {
             "realized_label": 1 if close_price > open_price else 0,
             "realized_return_pct": round(realized_return_pct, 4),
             "gap_pct": 0.0,
-            "range_pct": round((high_price - low_price) / open_price * 100, 4),
+            "range_pct": round(range_pct, 4),
             "abs_return_pct": round(abs_return_pct, 4),
             "directional_move": abs_return_pct > 0.5,
             "data_source": "underlying_bars",
@@ -210,7 +193,9 @@ async def _try_underlying_bars(db: Any, ticker: str, prediction_ts: Any) -> Opti
         return None
 
 
-async def compute_rolling_accuracy(db: Any, ticker: str, window_days: int = 30) -> Dict[str, Any]:
+async def compute_rolling_accuracy(
+    db: Any, ticker: str, window_days: int = 30,
+) -> Dict[str, Any]:
     """Compute rolling accuracy for a ticker over the given window.
 
     Returns dict with:
@@ -230,8 +215,12 @@ async def compute_rolling_accuracy(db: Any, ticker: str, window_days: int = 30) 
         {"$group": {
             "_id": None,
             "n_total": {"$sum": 1},
-            "n_with_outcome": {"$sum": {"$cond": [{"$ne": ["$realized_outcome", None]}, 1, 0]}},
-            "n_correct": {"$sum": {"$cond": [{"$eq": ["$prediction", "$realized_outcome"]}, 1, 0]}},
+            "n_with_outcome": {
+                "$sum": {"$cond": [{"$ne": ["$realized_outcome", None]}, 1, 0]}
+            },
+            "n_correct": {
+                "$sum": {"$cond": [{"$eq": ["$prediction", "$realized_outcome"]}, 1, 0]}
+            },
             "avg_return": {"$avg": "$realized_return_pct"},
         }},
     ]

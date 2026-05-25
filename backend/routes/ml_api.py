@@ -24,6 +24,8 @@ from fastapi import APIRouter, HTTPException, Query
 from services.ml.inference import inference_engine
 from services.ml.registry import ModelRegistry
 from services.ml import DegenerateModelError
+from services.ml.retrain import RetrainOrchestrator
+from services.ml import outcomes as outcomes_service
 
 logger = logging.getLogger(__name__)
 
@@ -442,3 +444,86 @@ async def get_features(ticker: str) -> Dict[str, Any]:
     except Exception as e:
         logger.error(f"Feature computation failed for {ticker}: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Feature computation failed: {e}")
+
+
+# ── POST /api/ml/retrain/{ticker} ───────────────────────────────────────
+
+
+@router.post("/retrain/{ticker}")
+async def trigger_retrain(ticker: str) -> Dict[str, Any]:
+    """Trigger an automated retraining job for a ticker.
+
+    Checks drift first. Only triggers retraining if:
+      - Drift is detected
+      - No retrain is already in-flight
+      - Cooldown period (24h) has expired since last retrain
+    """
+    from server import db
+    try:
+        orchestrator = RetrainOrchestrator(db)
+        result = await orchestrator.check_and_retrain(ticker.upper())
+        return result
+    except Exception as e:
+        logger.error(f"Retrain trigger failed for {ticker}: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Retrain failed: {e}")
+
+
+# ── POST /api/ml/attach-outcomes ────────────────────────────────────────
+
+
+@router.post("/attach-outcomes")
+async def attach_outcomes(batch_size: int = 100) -> Dict[str, Any]:
+    """Attach realized outcomes to predictions that don't have them yet.
+
+    Processes up to batch_size predictions per call.
+    Idempotent — already-attached predictions are skipped.
+    """
+    from server import db
+    try:
+        n = await outcomes_service.attach_realized_outcomes(db, batch_size=batch_size)
+        return {"status": "ok", "n_attached": n}
+    except Exception as e:
+        logger.error(f"Outcome attachment failed: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Outcome attachment failed: {e}")
+
+
+# ── GET /api/ml/rolling-accuracy/{ticker} ───────────────────────────────
+
+
+@router.get("/rolling-accuracy/{ticker}")
+async def rolling_accuracy(
+    ticker: str,
+    window_days: int = 30,
+) -> Dict[str, Any]:
+    """Get rolling prediction accuracy for a ticker over the given window.
+
+    Returns accuracy, n_predictions, n_with_outcomes, avg_return_pct.
+    """
+    from server import db
+    try:
+        result = await outcomes_service.compute_rolling_accuracy(
+            db, ticker.upper(), window_days=window_days
+        )
+        return result
+    except Exception as e:
+        logger.error(f"Rolling accuracy failed for {ticker}: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Rolling accuracy failed: {e}")
+
+
+# ── GET /api/ml/retrain-status/{ticker} ─────────────────────────────────
+
+
+@router.get("/retrain-status/{ticker}")
+async def retrain_status(ticker: str) -> Dict[str, Any]:
+    """Get the retrain history for a ticker."""
+    from server import db
+    try:
+        col = db["ml_retrain"]
+        cursor = col.find(
+            {"ticker": ticker.upper()}, {"_id": 0}
+        ).sort("created_at", -1).limit(10)
+        history = await cursor.to_list(length=10)
+        return {"ticker": ticker.upper(), "history": history, "count": len(history)}
+    except Exception as e:
+        logger.error(f"Retrain status failed for {ticker}: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
