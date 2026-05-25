@@ -151,7 +151,8 @@ class TestSharpe:
         preds = [1, 1, 1]
         actuals = [0, 0, 0]
         sharpe = compute_trading_sharpe(preds, actuals)
-        assert sharpe < 0
+        # std of [-1,-1,-1] = 0, so Sharpe returns 0.0 (guarded against inf)
+        assert sharpe == 0.0
 
     def test_no_trades(self):
         preds = [0, 0, 0]

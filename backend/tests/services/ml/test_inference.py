@@ -239,7 +239,8 @@ class TestInferenceEngine:
         with pytest.raises(DegenerateModelError):
             asyncio.run(engine.predict("ZZZZ"))
 
-    def test_predict_with_trained_model(self, trained_model_dir):
+    @pytest.mark.asyncio
+    async def test_predict_with_trained_model(self, trained_model_dir):
         """Prediction works with a real trained model."""
         pytest.importorskip("yfinance")
         from services.ml.inference import InferenceEngine, MODEL_REGISTRY
@@ -252,14 +253,14 @@ class TestInferenceEngine:
         model_path = trained_model_dir / f"{ticker}_gbm_production.joblib"
 
         original_registry = MODEL_REGISTRY.copy()
-        MODEL_REGISTRY[ticker] = (str(model_path), str(scaler_path), str(manifest_path))
+        MODEL_REGISTRY[ticker] = str(model_path)
 
         try:
             engine = InferenceEngine(model_dir=trained_model_dir)
             # This will try to download real data and predict
             # May fail if yfinance is unavailable, but should not crash
             try:
-                result = asyncio.run(engine.predict(ticker))
+                result = await engine.predict(ticker)
                 assert result.ticker == ticker
                 assert result.prediction in [0, 1]
                 assert 0 <= result.confidence <= 1
@@ -280,7 +281,7 @@ class TestInferenceEngine:
         model_path = trained_model_dir / f"{ticker}_gbm_production.joblib"
 
         original_registry = MODEL_REGISTRY.copy()
-        MODEL_REGISTRY[ticker] = (str(model_path), str(scaler_path), str(manifest_path))
+        MODEL_REGISTRY[ticker] = str(model_path)
 
         try:
             engine = InferenceEngine(model_dir=trained_model_dir)
@@ -383,7 +384,8 @@ class TestTrainRealMl:
         """Features should be NaN-clean after dropna."""
         pytest.importorskip("sklearn")
         from scripts.train_real_ml import compute_features
-        df = compute_features("SPY", period="3mo")
+        # Use 1y period to ensure enough data for 60-day rolling windows
+        df = compute_features("SPY", period="1y")
         # Allow NaN in early rows (rolling windows)
         clean = df.dropna()
         assert len(clean) > 20

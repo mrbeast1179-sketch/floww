@@ -135,11 +135,11 @@ def compute_features(ticker: str, period: str = "2y") -> pd.DataFrame:
             abs(high[i] - close[i - 1]),
             abs(low[i] - close[i - 1]),
         )
-    features["atr_14"] = pd.Series(tr).rolling(window=14, min_periods=14).mean().values
+    features["atr_14"] = pd.Series(tr).rolling(window=14, min_periods=1).mean().values
 
     # Volume features
-    vol_sma_5 = pd.Series(volume).rolling(window=5, min_periods=5).mean().values
-    vol_sma_21 = pd.Series(volume).rolling(window=21, min_periods=21).mean().values
+    vol_sma_5 = pd.Series(volume).rolling(window=5, min_periods=1).mean().values
+    vol_sma_21 = pd.Series(volume).rolling(window=21, min_periods=1).mean().values
     features["volume_sma_5"] = vol_sma_5
     features["volume_sma_21"] = vol_sma_21
     rel_vol = np.zeros(n)
@@ -155,8 +155,8 @@ def compute_features(ticker: str, period: str = "2y") -> pd.DataFrame:
 
     # RSI
     delta = pd.Series(close).diff()
-    gain = delta.where(delta > 0, 0).rolling(window=14, min_periods=14).mean()
-    loss = (-delta.where(delta < 0, 0)).rolling(window=14, min_periods=14).mean()
+    gain = delta.where(delta > 0, 0).rolling(window=14, min_periods=1).mean()
+    loss = (-delta.where(delta < 0, 0)).rolling(window=14, min_periods=1).mean()
     rs = gain / (loss + 1e-10)
     rsi = (100 - (100 / (1 + rs))).values
     features["rsi_14"] = rsi
@@ -173,8 +173,8 @@ def compute_features(ticker: str, period: str = "2y") -> pd.DataFrame:
     features["macd_hist"] = (macd - macd_signal).values
 
     # Bollinger Bands
-    sma_20 = pd.Series(close).rolling(window=20, min_periods=20).mean()
-    std_20 = pd.Series(close).rolling(window=20, min_periods=20).std()
+    sma_20 = pd.Series(close).rolling(window=20, min_periods=1).mean()
+    std_20 = pd.Series(close).rolling(window=20, min_periods=1).std()
     bb_upper = (sma_20 + 2 * std_20).values
     bb_lower = (sma_20 - 2 * std_20).values
     bb_position = np.zeros(n)
@@ -185,15 +185,15 @@ def compute_features(ticker: str, period: str = "2y") -> pd.DataFrame:
     features["bb_position"] = bb_position
 
     # Volume ratios
-    vol_sma_60 = pd.Series(volume).rolling(window=60, min_periods=60).mean().values
+    vol_sma_60 = pd.Series(volume).rolling(window=60, min_periods=1).mean().values
     features["vol_ratio_5_21"] = vol_sma_5 / (vol_sma_21 + 1e-10)
     features["vol_ratio_5_60"] = vol_sma_5 / (vol_sma_60 + 1e-10)
 
     # SMA crossovers
-    sma_5 = pd.Series(close).rolling(window=5, min_periods=5).mean().values
-    sma_21 = pd.Series(close).rolling(window=21, min_periods=21).mean().values
-    sma_10 = pd.Series(close).rolling(window=10, min_periods=10).mean().values
-    sma_50 = pd.Series(close).rolling(window=50, min_periods=50).mean().values
+    sma_5 = pd.Series(close).rolling(window=5, min_periods=1).mean().values
+    sma_21 = pd.Series(close).rolling(window=21, min_periods=1).mean().values
+    sma_10 = pd.Series(close).rolling(window=10, min_periods=1).mean().values
+    sma_50 = pd.Series(close).rolling(window=50, min_periods=1).mean().values
     features["sma_5_21_diff"] = sma_5 - sma_21
     features["sma_5_21_cross"] = np.sign(features["sma_5_21_diff"])
     features["sma_10_50_diff"] = sma_10 - sma_50
@@ -204,8 +204,8 @@ def compute_features(ticker: str, period: str = "2y") -> pd.DataFrame:
 
     # Vol spike
     features["vol_spike"] = (
-        pd.Series(log_ret).rolling(window=5, min_periods=5).std().values /
-        (pd.Series(log_ret).rolling(window=21, min_periods=21).std().values + 1e-10)
+        pd.Series(log_ret).rolling(window=5, min_periods=1).std().values /
+        (pd.Series(log_ret).rolling(window=21, min_periods=1).std().values + 1e-10)
     )
 
     # Gap features
@@ -214,8 +214,8 @@ def compute_features(ticker: str, period: str = "2y") -> pd.DataFrame:
 
     # Calendar features
     dates = pd.to_datetime(df.index)
-    features["is_month_end"] = dates.is_month_end.astype(float).values
-    features["is_month_start"] = dates.is_month_start.astype(float).values
+    features["is_month_end"] = dates.is_month_end.astype(float)
+    features["is_month_start"] = dates.is_month_start.astype(float)
 
     # Target: next-day directional move (>0.5% abs return)
     target = np.zeros(n)
@@ -227,6 +227,7 @@ def compute_features(ticker: str, period: str = "2y") -> pd.DataFrame:
 
     # Clean up
     features = features.replace([np.inf, -np.inf], np.nan)
+    features = features.fillna(0.0)
 
     logger.info(f"Computed {len(FEATURE_NAMES)} features for {ticker} ({len(features)} rows)")
     return features
@@ -254,7 +255,7 @@ def train_model(
     from sklearn.model_selection import TimeSeriesSplit
     from sklearn.metrics import accuracy_score, classification_report
 
-    period = f"{max(days // 21, 3)}mo"  # Approximate months
+    period = f"{max(days // 21, 12)}mo"  # At least 12mo for rolling windows
     features_df = compute_features(ticker, period=period)
 
     # Drop rows with NaN in features or target
