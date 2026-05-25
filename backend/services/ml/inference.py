@@ -190,8 +190,8 @@ def compute_live_features(ticker: str, period: str = "1y") -> pd.DataFrame:
         features[f"realized_vol_{window}d"] = vol
 
         dates = pd.to_datetime(df.index)
-        features["is_month_end"] = dates.is_month_end.astype(float).values
-        features["is_month_start"] = dates.is_month_start.astype(float).values
+        features["is_month_end"] = dates.is_month_end.astype(float)
+        features["is_month_start"] = dates.is_month_start.astype(float)
 
     # RSI (14-day)
     delta = pd.Series(close).diff()
