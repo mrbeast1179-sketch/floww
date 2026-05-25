@@ -7,8 +7,6 @@ Collects GEX snapshots every 5 minutes for all tracked tickers.
 
 import asyncio
 import logging
-from datetime import datetime, timezone
-from typing import List
 
 logger = logging.getLogger(__name__)
 
