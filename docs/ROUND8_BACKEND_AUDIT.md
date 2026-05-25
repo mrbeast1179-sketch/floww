@@ -1,29 +1,46 @@
-# Round 8 Backend Endpoint Audit (read-only)
+# Round 8 Backend Endpoint Audit (Round 8 Deep Completion)
 
-Generated $(date -u +%Y-%m-%dT%H:%M:%SZ) by DeepSeek V4 Pro.
+Generated 2026-05-25T14:30:11Z by DeepSeek V4 Pro.
+Backend: lsof -i :8000 confirms Python listening.
+React: lsof -i :3000 confirms node listening.
 
 ## Inventory of /api/* endpoints called from React
 
-Total: $(wc -l < /tmp/react_apis.txt | tr -d ' ')
+Total: 5
 
-$(cat /tmp/react_apis.txt | while read line; do echo "- \`$line\`"; done)
+```
+/api/databento
+/api/heatseeker
+/api/live
+/api/ml
+/api/preferences
+```
 
-## Live health probe (via CRA proxy)
+## Live health probe (via CRA proxy port 3000)
 
-$(cat /tmp/api_audit.txt | while read line; do echo "| $line |"; done)
+| Endpoint | HTTP | Content-Type |
+|---|---|---|
+| /api/databento | 200 | text/html; |
+| /api/heatseeker | 200 | text/html; |
+| /api/live | 200 | text/html; |
+| /api/ml | 200 | text/html; |
+| /api/preferences | 200 | text/html; |
 
 ## Findings
 
-- 200 application/json endpoints: $(grep -c "application/json" /tmp/api_audit.txt || echo 0)
-- 200 text/html (proxy passthrough, backend likely not running): $(grep -c "text/html" /tmp/api_audit.txt || echo 0)
-- 404 (route missing): $(grep -c " 404 " /tmp/api_audit.txt || echo 0)
-- 500 (route error): $(grep -c " 500 " /tmp/api_audit.txt || echo 0)
+| Outcome | Count |
+|---|---|
+| 200 application/json (healthy) | 0
+0 |
+| 200 text/html (proxy passthrough / route missing) | 5 |
+| 404 not found | 0
+0 |
+| 500 server error | 0
+0 |
 
 ## Recommendations for Round 9
 
-- All endpoints returned 200 but with text/html content type. This indicates the
-  CRA proxy is falling through to serve the React index.html rather than proxying
-  to a running backend. The backend Python server is likely not running.
-- Start the backend server and re-probe for proper JSON responses.
-- Endpoints returning 404 after backend is running need route implementation.
-- Endpoints returning 500 have backend bugs.
+- Endpoints returning text/html via the proxy mean CRA fell through to index.html — either the path is not in any backend route OR the proxy missed it.
+- 404s need backend route implementation.
+- 500s have backend bugs (check uvicorn logs).
+- Round 9 picks up the failing endpoints in priority order (highest-usage first).
