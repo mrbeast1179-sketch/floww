@@ -305,6 +305,8 @@ export default function PortfolioPanel({ ticker, spot }) {
   const [activeTab, setActiveTab] = useState("positions");
   const [spotInput, setSpotInput] = useState("");
   const [ivInput, setIvInput] = useState("0.15");
+  const [scenarioStatus, setScenarioStatus] = useState(null);
+  const [hedgeStatus, setHedgeStatus] = useState(null);
 
   const currentSpot = parseFloat(spotInput) || spot || 0;
   const currentIv = parseFloat(ivInput) || 0.15;
@@ -347,13 +349,18 @@ export default function PortfolioPanel({ ticker, spot }) {
 
   const runScenarios = async () => {
     setLoading(true);
+    setScenarioStatus(null);
     try {
       const res = await axios.get(`${API}/portfolio/${portfolioName}/scenario`, {
         params: { spot: currentSpot, iv: currentIv },
       });
       setScenarios(res.data.scenarios);
+      setScenarioStatus({ type: "ok", message: `Scenario analysis complete — ${res.data.scenarios?.length || 0} scenarios computed` });
       setActiveTab("scenarios");
     } catch (e) {
+      const msg = e.response?.data?.detail || e.message || "Scenario analysis failed";
+      setScenarioStatus({ type: "error", message: msg });
+      setScenarios(null);
       console.error("Scenario failed:", e);
     }
     setLoading(false);
@@ -362,8 +369,8 @@ export default function PortfolioPanel({ ticker, spot }) {
   const calcHedge = async () => {
     if (positions.length === 0) return;
     setLoading(true);
+    setHedgeStatus(null);
     try {
-      // Build hedge options from current positions' strikes + nearby
       const strikes = [...new Set(positions.map((p) => p.strike))];
       const expiries = [...new Set(positions.map((p) => p.expiry))];
       const hedgeOptions = [];
@@ -379,8 +386,16 @@ export default function PortfolioPanel({ ticker, spot }) {
         hedge_options: hedgeOptions.slice(0, 4),
       });
       setHedgeResult(res.data);
+      if (res.data.error) {
+        setHedgeStatus({ type: "error", message: res.data.error });
+      } else {
+        setHedgeStatus({ type: "ok", message: "Hedge calculation complete" });
+      }
       setActiveTab("hedge");
     } catch (e) {
+      const msg = e.response?.data?.detail || e.message || "Hedge calculation failed";
+      setHedgeStatus({ type: "error", message: msg });
+      setHedgeResult(null);
       console.error("Hedge calc failed:", e);
     }
     setLoading(false);
@@ -531,8 +546,13 @@ export default function PortfolioPanel({ ticker, spot }) {
             <button onClick={runScenarios} className="btn w-full" disabled={loading || positions.length === 0}>
               {loading ? "Running…" : "Run Scenario Analysis"}
             </button>
+            {scenarioStatus && (
+              <div className={`panel p-2.5 text-[10px] border ${scenarioStatus.type === "error" ? "border-rose-500/30 text-rose-400 bg-rose-500/5" : "border-emerald-500/30 text-emerald-400 bg-emerald-500/5"}`}>
+                {scenarioStatus.type === "error" ? "⚠ " : "✓ "}{scenarioStatus.message}
+              </div>
+            )}
             {scenarios && <ScenarioTable scenarios={scenarios} />}
-            {!scenarios && positions.length > 0 && (
+            {!scenarios && !scenarioStatus && positions.length > 0 && (
               <div className="panel p-4 text-center text-slate-500 text-[10px]">
                 Click "Run Scenario Analysis" to see spot/vol shock P&L
               </div>
@@ -546,8 +566,13 @@ export default function PortfolioPanel({ ticker, spot }) {
             <button onClick={calcHedge} className="btn w-full" disabled={loading || positions.length === 0}>
               {loading ? "Calculating…" : "Calculate Greek-Neutral Hedge"}
             </button>
+            {hedgeStatus && (
+              <div className={`panel p-2.5 text-[10px] border ${hedgeStatus.type === "error" ? "border-rose-500/30 text-rose-400 bg-rose-500/5" : "border-emerald-500/30 text-emerald-400 bg-emerald-500/5"}`}>
+                {hedgeStatus.type === "error" ? "⚠ " : "✓ "}{hedgeStatus.message}
+              </div>
+            )}
             {hedgeResult && <div className="panel p-3"><HedgeResult result={hedgeResult} /></div>}
-            {!hedgeResult && positions.length > 0 && (
+            {!hedgeResult && !hedgeStatus && positions.length > 0 && (
               <div className="panel p-4 text-center text-slate-500 text-[10px]">
                 Click "Calculate Greek-Neutral Hedge" to see gamma/vega neutralization
               </div>
@@ -568,6 +593,16 @@ export default function PortfolioPanel({ ticker, spot }) {
               <button onClick={runScenarios} className="btn flex-1 text-[10px]" disabled={loading}>Scenarios</button>
               <button onClick={calcHedge} className="btn flex-1 text-[10px]" disabled={loading}>Hedge</button>
             </div>
+            {scenarioStatus && (
+              <div className={`mt-1.5 p-1.5 text-[9px] rounded ${scenarioStatus.type === "error" ? "bg-rose-500/10 text-rose-400" : "bg-emerald-500/10 text-emerald-400"}`}>
+                Scenarios: {scenarioStatus.message}
+              </div>
+            )}
+            {hedgeStatus && (
+              <div className={`mt-1.5 p-1.5 text-[9px] rounded ${hedgeStatus.type === "error" ? "bg-rose-500/10 text-rose-400" : "bg-emerald-500/10 text-emerald-400"}`}>
+                Hedge: {hedgeStatus.message}
+              </div>
+            )}
           </div>
         )}
       </div>
