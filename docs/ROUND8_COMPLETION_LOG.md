@@ -31,3 +31,31 @@
 ---
 
 *Last updated: 2026-07-14T00:00:00Z*
+
+## DeepSeek V4 Pro compile-fix + audit — $(date -u +%Y-%m-%dT%H:%M:%SZ)
+
+Restored React compilability + audited backend endpoints.
+
+- Phase 1: CharmChart.jsx 3 imports corrected
+- Phase 2: VannaChart.jsx 3 imports corrected
+- Phase 3: App.css unclosed .heatseeker-sidebar-left block closed
+- Phase 4: All components audited for ../../ pattern; only heatseeker/ affected (Hermes F territory)
+- Phase 5: React compiles successfully under craco
+- Phase 6: 5 endpoints catalogued in docs/ROUND8_BACKEND_AUDIT.md
+- Phase 7: committed + pushed
+
+HEAD: $(git rev-parse HEAD)
+
+## DeepSeek V4 Pro compile-fix + audit — 2026-05-25T14:11:04Z
+
+Restored React compilability + audited backend endpoints.
+
+- Phase 1: CharmChart.jsx 3 imports corrected
+- Phase 2: VannaChart.jsx 3 imports corrected
+- Phase 3: App.css unclosed .heatseeker-sidebar-left block closed
+- Phase 4: All components audited for ../../ pattern; only heatseeker/ affected (Hermes F territory)
+- Phase 5: React compiles successfully under craco
+- Phase 6: 5 endpoints catalogued in docs/ROUND8_BACKEND_AUDIT.md
+- Phase 7: committed + pushed
+
+HEAD: edcf7a6219ac7e29e2a38f30434a819a4a5f4103
