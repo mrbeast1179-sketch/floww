@@ -32,21 +32,30 @@ export function DashboardSummary({ ticker, spot }) {
     return (
       <div className="panel-2 p-2">
         <div className="label mb-1">Dashboard</div>
-        <div className="text-[10px] text-slate-500">Loading...</div>
+        <div className="text-[10px] text-slate-500 flex items-center gap-1">
+          <span className="inline-block w-2 h-2 rounded-full bg-slate-600 animate-pulse" />
+          Loading dashboard…
+        </div>
       </div>
     );
   }
 
-  if (!summary) return null;
+  if (!summary) return (
+    <div className="panel-2 p-2">
+      <div className="label mb-1">Dashboard</div>
+      <div className="text-[10px] text-slate-500">No dashboard data available</div>
+    </div>
+  );
 
-  const regime = summary.regime || "unknown";
+  const safeTimestamp = summary?.timestamp != null ? new Date(summary.timestamp).toLocaleTimeString() : "—";
+  const regime = summary?.regime || "unknown";
   const isPositive = regime === "POSITIVE";
   const regimeColor = isPositive ? "text-emerald-400" : "text-rose-400";
   const regimeBg = isPositive ? "bg-emerald-500/10 border-emerald-500/20" : "bg-rose-500/10 border-rose-500/20";
   const regimeIcon = isPositive ? "🟢" : "🔴";
-  const netGex = summary.net_gex || 0;
-  const alertCount = summary.alert_count || 0;
-  const highPriority = summary.high_priority || 0;
+  const netGex = summary?.net_gex || 0;
+  const alertCount = summary?.alert_count || 0;
+  const highPriority = summary?.high_priority || 0;
 
   return (
     <div className="panel-2 p-2">
@@ -58,7 +67,7 @@ export function DashboardSummary({ ticker, spot }) {
             {regimeIcon} <span className={regimeColor}>{regime} GAMMA</span>
           </div>
           <div className="text-[9px] text-slate-400">
-            Spot: {fmtAbs(spot || summary.spot)}
+            Spot: {fmtAbs(spot || summary?.spot)}
           </div>
         </div>
       </div>
@@ -66,7 +75,7 @@ export function DashboardSummary({ ticker, spot }) {
       <div className="grid grid-cols-2 gap-1 mb-1.5">
         <div className="bg-slate-800/50 rounded px-2 py-1">
           <div className="text-[8px] text-slate-500">Gamma Flip</div>
-          <div className="text-[10px] font-bold text-amber-400">{fmtAbs(summary.gamma_flip)}</div>
+          <div className="text-[10px] font-bold text-amber-400">{fmtAbs(summary?.gamma_flip)}</div>
         </div>
         <div className="bg-slate-800/50 rounded px-2 py-1">
           <div className="text-[8px] text-slate-500">Net GEX</div>
@@ -76,11 +85,11 @@ export function DashboardSummary({ ticker, spot }) {
         </div>
         <div className="bg-slate-800/50 rounded px-2 py-1">
           <div className="text-[8px] text-slate-500">Call Wall</div>
-          <div className="text-[10px] font-bold text-sky-400">{fmtAbs(summary.call_wall)}</div>
+          <div className="text-[10px] font-bold text-sky-400">{fmtAbs(summary?.call_wall)}</div>
         </div>
         <div className="bg-slate-800/50 rounded px-2 py-1">
           <div className="text-[8px] text-slate-500">Put Wall</div>
-          <div className="text-[10px] font-bold text-orange-400">{fmtAbs(summary.put_wall)}</div>
+          <div className="text-[10px] font-bold text-orange-400">{fmtAbs(summary?.put_wall)}</div>
         </div>
       </div>
 
@@ -98,7 +107,7 @@ export function DashboardSummary({ ticker, spot }) {
       )}
 
       <div className="text-[8px] text-slate-600 mt-1 text-right">
-        {summary.timestamp ? new Date(summary.timestamp).toLocaleTimeString() : ""}
+        {safeTimestamp}
       </div>
     </div>
   );
