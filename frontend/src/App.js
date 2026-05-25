@@ -692,14 +692,14 @@ export default function App() {
             <div className="p-2 space-y-2">
               {page === "heatseeker" && <MorningBriefing ticker={ticker} spot={livespot?.spot ?? data?.spot} />}
               <DashboardSummary ticker={ticker} spot={livespot?.spot ?? data?.spot} />
-              <FlipZonesPanel data={data} />
-              <StackedNodesPanel data={data} />
-              <TugOfWarPanel data={data} />
-              <ScenarioPanel data={data} />
-              <RiskDashboardPanel data={data} />
-              <OpportunitiesPanel data={data} />
-              <ImpliedMovePanel data={data} />
-              <VolAnalyticsPanel data={data} />
+              <FlipZonesPanel data={data} loading={loading} error={err} />
+              <StackedNodesPanel data={data} loading={loading} error={err} />
+              <TugOfWarPanel data={data} loading={loading} error={err} />
+              <ScenarioPanel data={data} loading={loading} error={err} />
+              <RiskDashboardPanel data={data} loading={loading} error={err} />
+              <OpportunitiesPanel data={data} loading={loading} error={err} />
+              <ImpliedMovePanel data={data} loading={loading} error={err} />
+              <VolAnalyticsPanel data={data} loading={loading} error={err} />
               <MarketRegimePanel data={data} loading={loading} error={!!err} />
               <ImpliedPDFPanel data={data} loading={loading} error={!!err} />
               <HedgeImpulsePanel data={advanced} loading={advancedLoading} error={advancedError} />
