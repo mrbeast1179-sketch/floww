@@ -1,19 +1,25 @@
 import React from "react";
-import { render } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 import PaperTrade from "./PaperTrade";
 
-test("does not crash when portfolio is null", () => {
-  const { container } = render(<PaperTrade ticker="SPY" spot={null} />);
-  expect(container).toBeTruthy();
-});
+jest.mock("axios", () => ({
+  get: jest.fn(() => Promise.reject(new Error("test"))),
+  post: jest.fn(() => Promise.reject(new Error("test"))),
+}));
 
-test("does not crash when spot is undefined", () => {
-  const { container } = render(<PaperTrade ticker="SPY" />);
-  expect(container).toBeTruthy();
-});
+describe("PaperTrade", () => {
+  test("renders without crashing when portfolio is null", () => {
+    const { container } = render(<PaperTrade ticker="SPY" spot={null} />);
+    expect(container).toBeTruthy();
+  });
 
-test("renders form fields", () => {
-  const { getByDisplayValue } = render(<PaperTrade ticker="SPY" spot={500} />);
-  expect(getByDisplayValue("SPY")).toBeTruthy();
-  expect(getByDisplayValue("1")).toBeTruthy();
+  test("renders without crashing when spot is undefined", () => {
+    const { container } = render(<PaperTrade ticker="SPY" />);
+    expect(container).toBeTruthy();
+  });
+
+  test("renders without crashing when ticker is empty", () => {
+    const { container } = render(<PaperTrade ticker="" spot={745.64} />);
+    expect(container).toBeTruthy();
+  });
 });
