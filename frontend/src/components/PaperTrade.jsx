@@ -98,7 +98,7 @@ export default function PaperTrade({ ticker, spot }) {
                 (portfolio?.total_pnl ?? 0) < 0 ? "text-rose-400" : "text-slate-300"
               }`}>
                 {(portfolio?.total_pnl ?? 0) > 0 ? "+" : ""}
-                {(portfolio?.total_pnl ?? 0).toFixed(2)}
+                {(portfolio?.total_pnl)?.toFixed(2) ?? "—"}
               </div>
             </div>
             <div>
