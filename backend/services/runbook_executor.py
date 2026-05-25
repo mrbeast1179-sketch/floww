@@ -33,6 +33,8 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
+
+logger = logging.getLogger(__name__)
 log = logging.getLogger(__name__)
 
 KILL_SWITCH_PATH = "/tmp/runbook_kill_switch"
@@ -121,7 +123,7 @@ class RunbookRegistry:
             RunbookStep(
                 name="check_ws_connections",
                 action="Check WebSocket connection count",
-                command="curl -s http://localhost:8000/api/ws/status | python3 -c \"import sys,json; d=json.load(sys.stdin); print(f'Connections: {d.get(\\\"connections\\\",\\\"N/A\\\")}')\" 2>/dev/null || echo 'Endpoint not available'",
+                command="curl -s http://localhost:8000/api/ws/status | python3 -c \"import sys,json; d=json.load(sys.stdin); logger.info(f'Connections: {d.get(\\\"connections\\\",\\\"N/A\\\")}')\" 2>/dev/null || echo 'Endpoint not available'",
                 timeout=10,
             ),
             RunbookStep(
@@ -171,7 +173,7 @@ class RunbookRegistry:
                 name="restart_streamer",
                 action="Restart Schwab streamer if WS disconnected",
                 command=(
-                    "WS=$(curl -s http://localhost:8000/api/ws/status 2>/dev/null | python3 -c \"import sys,json;print(json.load(sys.stdin).get('active',-1))\" 2>/dev/null); "
+                    "WS=$(curl -s http://localhost:8000/api/ws/status 2>/dev/null | python3 -c \"import sys,json;logger.info(json.load(sys.stdin).get('active',-1))\" 2>/dev/null); "
                     "if [ \"$WS\" = '0' ] || [ \"$WS\" = 'False' ]; then "
                     "  echo 'WS inactive, restarting streamer...'; "
                     "  docker compose -f /Users/nav/GitHub/floww/docker-compose.yml restart backend 2>/dev/null || echo 'Manual restart required'; "

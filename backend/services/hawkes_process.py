@@ -48,6 +48,8 @@ from __future__ import annotations
 import logging
 from typing import Any, Dict, Optional
 
+
+logger = logging.getLogger(__name__)
 import numpy as np
 from scipy.optimize import minimize
 
@@ -86,7 +88,7 @@ class HawkesProcess:
     >>> hp = HawkesProcess(mu=1.0, alpha=0.5, beta=1.0)
     >>> events = hp.simulate(T=100.0)
     >>> result = hp.fit(events)
-    >>> print(f"Fitted mu={result['mu']:.3f}, alpha={result['alpha']:.3f}")
+    >>> logger.info(f"Fitted mu={result['mu']:.3f}, alpha={result['alpha']:.3f}")
     """
 
     def __init__(

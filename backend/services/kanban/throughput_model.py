@@ -34,6 +34,9 @@ def extract_card_features(card_path: Path) -> dict:
         return None
 
     import yaml
+import logging
+
+logger = logging.getLogger(__name__)
     try:
         fm = yaml.safe_load(parts[1]) or {}
     except yaml.YAMLError:
@@ -277,21 +280,21 @@ def get_model() -> ThroughputModel:
 
 if __name__ == "__main__":
     model = get_model()
-    print(f"Trained on {len(model.data)} historical cards")
-    print()
+    logger.info(f"Trained on {len(model.data)} historical cards")
+    logger.info()
 
     # Print agent stats
     stats = model.get_agent_stats()
-    print("Agent Throughput Stats:")
+    logger.info("Agent Throughput Stats:")
     for agent, s in sorted(stats.items()):
-        print(f"  {agent}: mean={s['mean_hours']}h, median={s['median_hours']}h, "
+        logger.info(f"  {agent}: mean={s['mean_hours']}h, median={s['median_hours']}h, "
               f"p90={s['p90_hours']}h, n={s['cards_completed']}")
-    print()
+    logger.info()
 
     # Predict for a new card
-    print("Predictions for new card (Agent 1, 4h estimate, high priority):")
+    logger.info("Predictions for new card (Agent 1, 4h estimate, high priority):")
     pred = model.predict_completion_time("Agent 1", estimate_hours=4, priority="high")
-    print(f"  Predicted: {pred['predicted_hours']}h")
-    print(f"  P(<=4h): {pred['prob_within_4h']}")
-    print(f"  P(<=8h): {pred['prob_within_8h']}")
-    print(f"  P(<=24h): {pred['prob_within_24h']}")
+    logger.info(f"  Predicted: {pred['predicted_hours']}h")
+    logger.info(f"  P(<=4h): {pred['prob_within_4h']}")
+    logger.info(f"  P(<=8h): {pred['prob_within_8h']}")
+    logger.info(f"  P(<=24h): {pred['prob_within_24h']}")

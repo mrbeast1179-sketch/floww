@@ -29,6 +29,8 @@ import pandas as pd
 from motor.motor_asyncio import AsyncIOMotorClient
 from dotenv import load_dotenv
 
+
+logger = logging.getLogger(__name__)
 load_dotenv(os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), ".env"))
 
 log = logging.getLogger("ml.features")
@@ -1001,7 +1003,7 @@ async def main():
     args = parser.parse_args()
 
     result = await store_features(args.ticker, args.as_of, start=args.start, end=args.end)
-    print(json.dumps(result, indent=2))
+    logger.info(json.dumps(result, indent=2))
 
 
 if __name__ == "__main__":

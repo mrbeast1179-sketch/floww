@@ -21,6 +21,9 @@ INCIDENTS_FILE = KANBAN_DIR / "INCIDENTS.md"
 def load_cards() -> list[dict]:
     """Load all card files."""
     import yaml
+import logging
+
+logger = logging.getLogger(__name__)
     cards = []
     for f in sorted(CARDS_DIR.glob("*.md")):
         if f.name.startswith("tagging_"):
@@ -189,7 +192,7 @@ def run_bottleneck_check() -> dict:
 
 if __name__ == "__main__":
     result = run_bottleneck_check()
-    print(result["report"])
-    print(f"\nBottlenecks: {len(result['bottlenecks'])}")
+    logger.info(result["report"])
+    logger.info(f"\nBottlenecks: {len(result['bottlenecks'])}")
     for b in result["bottlenecks"]:
-        print(f"  {b['agent']}: {', '.join(b['reasons'])}")
+        logger.info(f"  {b['agent']}: {', '.join(b['reasons'])}")

@@ -20,7 +20,7 @@ Usage:
         put_ivs={"450": 0.18, "455": 0.17},
         spot=450.0,
     )
-    print(result.skew_atm)  # 0.02 = put IV 2pts higher
+    logger.info(result.skew_atm)  # 0.02 = put IV 2pts higher
 """
 
 from __future__ import annotations
@@ -31,6 +31,9 @@ from typing import Dict, List, Optional, Tuple
 import numpy as np
 
 
+import logging
+
+logger = logging.getLogger(__name__)
 @dataclass
 class IvSkewResult:
     """Container for IV skew analysis results.

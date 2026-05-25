@@ -9,11 +9,14 @@ Cross-repo SWARM_STATUS.md aggregates state from all.
 """
 
 import subprocess
+import logging
 from datetime import datetime, timezone
 from pathlib import Path
 from collections import defaultdict
 
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
+
+logger = logging.getLogger(__name__)
 
 # Known project repos
 PROJECT_REPOS = {
@@ -164,4 +167,4 @@ def generate_multi_repo_status() -> str:
 
 
 if __name__ == "__main__":
-    print(generate_multi_repo_status())
+    logger.info(generate_multi_repo_status())
