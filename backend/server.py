@@ -2684,8 +2684,10 @@ app.include_router(llm_router, prefix="/api", tags=["llm"])
 from routes.memory import router as memory_router
 app.include_router(memory_router, prefix="/api", tags=["memory"])
 
-from routes.ml_training import router as ml_training_router
-app.include_router(ml_training_router, tags=["ml_training"])
+# ml_training_router removed 2026-05-25: all 10 routes called functions that
+# don't exist anywhere in the backend (train_model_endpoint, predict_endpoint, etc.).
+# Zero callers in frontend/scripts/tests verified. Working /api/ml/* routes live
+# in routes/ml_api.py and routes/ml_predict_api.py — those stay intact.
 
 from routes.portfolio import router as portfolio_router
 app.include_router(portfolio_router, prefix="/api", tags=["portfolio"])

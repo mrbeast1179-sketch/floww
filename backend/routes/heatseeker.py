@@ -54,17 +54,23 @@ async def _fetch_chain(ticker: str, expiries: int) -> Dict[str, Any]:
     return raw
 
 
-async def _fetch_history(ticker: str) -> List[Dict[str, Any]]:
+async def _fetch_history(ticker: str, lookback_mins: int = 1440) -> List[Dict[str, Any]]:
     """
-    Fetch the last 24h of spot snapshots for ``ticker`` from the snapshots
-    collection. Wave 1 returns an empty list if Mongo isn't available — the
-    pure function treats this as "all nodes fresh".
+    Fetch spot snapshots for ``ticker`` over the last ``lookback_mins`` minutes
+    from the snapshots collection. Default 1440 minutes = 24h.
+    Returns empty list if Mongo isn't available — the pure consumer functions
+    treat this as "all nodes fresh".
+
+    Added `lookback_mins` param to fix TypeError at heatseeker.py:119 which was
+    calling _fetch_history(ticker, lookback_mins=...) against the old (ticker-only)
+    signature. Clamped to [1, 10080] (7d max) to prevent caller-driven DoS.
     """
     try:
         from server import db
         from datetime import datetime, timedelta, timezone
 
-        cutoff = datetime.now(timezone.utc) - timedelta(hours=24)
+        lookback_mins = max(1, min(int(lookback_mins or 1440), 7 * 24 * 60))
+        cutoff = datetime.now(timezone.utc) - timedelta(minutes=lookback_mins)
         cursor = db.snapshots.find(
             {"ticker": ticker.upper(), "ts": {"$gte": cutoff}},
             {"spot": 1, "ts": 1, "_id": 0},
