@@ -119,7 +119,7 @@ def compute_features(ticker: str, period: str = "2y") -> pd.DataFrame:
 
     # SMAs and price-relative
     for window, name in [(5, "sma_5"), (10, "sma_10"), (21, "sma_21"), (50, "sma_50")]:
-        sma = pd.Series(close).rolling(window=window, min_periods=1).mean().values
+        sma = pd.Series(close).rolling(window=window, min_periods=window).mean().values
         features[name] = sma
         rel = np.zeros(n)
         for i in range(n):
@@ -150,7 +150,7 @@ def compute_features(ticker: str, period: str = "2y") -> pd.DataFrame:
 
     # Realized volatility
     for window, name in [(5, "realized_vol_5d"), (10, "realized_vol_10d"), (21, "realized_vol_21d"), (60, "realized_vol_60d")]:
-        vol = pd.Series(log_ret).rolling(window=window, min_periods=1).std().values * np.sqrt(252)
+        vol = pd.Series(log_ret).rolling(window=window, min_periods=window).std().values * np.sqrt(252)
         features[name] = vol
 
     # RSI
@@ -214,8 +214,8 @@ def compute_features(ticker: str, period: str = "2y") -> pd.DataFrame:
 
     # Calendar features
     dates = pd.to_datetime(df.index)
-    features["is_month_end"] = dates.is_month_end.astype(float)
-    features["is_month_start"] = dates.is_month_start.astype(float)
+    features["is_month_end"] = pd.Series(dates.is_month_end, index=df.index).astype(float).values
+    features["is_month_start"] = pd.Series(dates.is_month_start, index=df.index).astype(float).values
 
     # Target: next-day directional move (>0.5% abs return)
     target = np.zeros(n)
@@ -256,8 +256,6 @@ def train_model(
     from sklearn.metrics import accuracy_score, classification_report
 
     period = f"{max(days // 21, 12)}mo"  # At least 12mo for rolling windows
-    if quick and days <= 60:
-        period = "1y"  # Always use at least 1y for quick tests to survive dropna
     features_df = compute_features(ticker, period=period)
 
     # Drop rows with NaN in features or target
@@ -265,9 +263,8 @@ def train_model(
     clean = features_df[feature_cols + ["target_directional_move"]].dropna()
     clean = clean[clean["target_directional_move"].notna()]
 
-    min_clean = 20 if quick else 30
-    if len(clean) < min_clean:
-        raise ValueError(f"Insufficient clean data for {ticker}: {len(clean)} rows (need {min_clean})")
+    if len(clean) < 30:
+        raise ValueError(f"Insufficient clean data for {ticker}: {len(clean)} rows")
 
     X = clean[feature_cols].values.astype(float)
     y = clean["target_directional_move"].values.astype(int)

@@ -35,10 +35,13 @@ log = logging.getLogger("ml.inference")
 
 MODEL_DIR = Path(__file__).resolve().parents[2] / "models"
 
+# Map ticker -> (model_path, scaler_path, manifest_path)
+# Models live in backend/models/
+MODEL_DIR = Path(__file__).resolve().parents[2] / "models"
+
 # Map ticker -> model filename (in models/ directory)
 # These are the latest trained models from train_spy_model.py
-# Supports both string paths and tuple (model_path, scaler_path, manifest_path)
-MODEL_REGISTRY: Dict[str, Any] = {
+MODEL_REGISTRY: Dict[str, str] = {
     "SPY": str(MODEL_DIR / "SPY_rf_20260524_020801.joblib"),
     "QQQ": str(MODEL_DIR / "QQQ_rf_20260524_022118.joblib"),
     "TLT": str(MODEL_DIR / "TLT_rf_20260524_022154.joblib"),
@@ -191,10 +194,10 @@ def compute_live_features(ticker: str, period: str = "1y") -> pd.DataFrame:
         vol = pd.Series(log_ret).rolling(window=window, min_periods=window).std().values * np.sqrt(252)
         features[f"realized_vol_{window}d"] = vol
 
-        # Calendar features
-        dates = pd.to_datetime(df.index)
-        features["is_month_end"] = dates.is_month_end.astype(float).values if hasattr(dates.is_month_end, 'values') else np.array(dates.is_month_end, dtype=float)
-        features["is_month_start"] = dates.is_month_start.astype(float).values if hasattr(dates.is_month_start, 'values') else np.array(dates.is_month_start, dtype=float)
+    # Calendar features
+    dates = pd.to_datetime(df.index)
+    features["is_month_end"] = dates.is_month_end.astype(float).values if hasattr(dates.is_month_end, 'values') else np.array(dates.is_month_end, dtype=float)
+    features["is_month_start"] = dates.is_month_start.astype(float).values if hasattr(dates.is_month_start, 'values') else np.array(dates.is_month_start, dtype=float)
 
     # RSI (14-day)
     delta = pd.Series(close).diff()
@@ -300,15 +303,6 @@ class InferenceEngine:
                 f"No model registered for {ticker}. Available: {list(MODEL_REGISTRY.keys())}"
             )
 
-        reg = MODEL_REGISTRY[ticker]
-        # Support both string path and tuple (model_path, scaler_path, manifest_path)
-        if isinstance(reg, tuple):
-            model_path = reg[0]
-            scaler_path = reg[1] if len(reg) > 1 else None
-            manifest_path = reg[2] if len(reg) > 2 else None
-        else:
-            model_path = reg
-            scaler_path = None
         entry = MODEL_REGISTRY[ticker]
 
         # Support both string paths and tuple (model_path, scaler_path, manifest_path)
@@ -344,16 +338,17 @@ class InferenceEngine:
             model = artifact
             # Load manifest from sidecar JSON if available
             if manifest_path and os.path.exists(manifest_path):
-                import json
-                with open(manifest_path) as f:
-                    manifest_data = json.load(f)
+                import json as _json
+                with open(manifest_path) as _f:
+                    _md = _json.load(_f)
+                _metrics = _md.get("metrics", {})
                 manifest = {
-                    "model_type": manifest_data.get("model_type", type(artifact).__name__),
-                    "feature_names": manifest_data.get("feature_names", []),
-                    "n_features": len(manifest_data.get("feature_names", [])),
-                    "train_accuracy": manifest_data.get("metrics", {}).get("avg_train_accuracy", 0.0),
-                    "test_accuracy": manifest_data.get("metrics", {}).get("avg_test_accuracy", 0.0),
-                    "test_sharpe": manifest_data.get("metrics", {}).get("avg_test_sharpe", 0.0),
+                    "model_type": _md.get("model_type", type(artifact).__name__),
+                    "feature_names": _md.get("feature_names", []),
+                    "n_features": len(_md.get("feature_names", [])),
+                    "train_accuracy": _metrics.get("avg_train_accuracy", 0.0),
+                    "test_accuracy": _metrics.get("avg_test_accuracy", 0.0),
+                    "test_sharpe": _metrics.get("avg_test_sharpe", 0.0),
                     "model_path": model_path,
                 }
             else:
@@ -393,36 +388,20 @@ class InferenceEngine:
 
         # Get feature names from manifest
         feature_names = manifest.get("feature_names", [])
-        n_model_features = manifest.get("n_features", 0)
-
-        if feature_names:
-            # Dict artifact with known feature names — ensure alignment
-            available = [f for f in feature_names if f in features_df.columns]
-            missing = [f for f in feature_names if f not in features_df.columns]
-            if missing:
-                log.warning(f"Missing features for {ticker}: {missing}")
-                for f in missing:
-                    features_df[f] = 0.0
-            # Get the latest row for prediction
-            latest = features_df[feature_names].iloc[-1:]
-        elif n_model_features > 0:
-            # Raw model with n_features_in_ — use last N computed features
-            all_cols = list(features_df.columns)
-            if len(all_cols) >= n_model_features:
-                use_cols = all_cols[:n_model_features]
-            else:
-                # Pad with zeros if we have fewer features than expected
-                use_cols = all_cols
-                for i in range(n_model_features - len(all_cols)):
-                    features_df[f"_pad_{i}"] = 0.0
-                use_cols = list(features_df.columns)[:n_model_features]
-            feature_names = use_cols
-            latest = features_df[use_cols].iloc[-1:]
-        else:
-            # No feature info — use all computed features
+        if not feature_names:
             feature_names = list(features_df.columns)
-            latest = features_df.iloc[-1:]
 
+        # Ensure all expected features are present
+        available = [f for f in feature_names if f in features_df.columns]
+        missing = [f for f in feature_names if f not in features_df.columns]
+        if missing:
+            log.warning(f"Missing features for {ticker}: {missing}")
+            # Add missing features as zeros
+            for f in missing:
+                features_df[f] = 0.0
+
+        # Get the latest row for prediction
+        latest = features_df[feature_names].iloc[-1:]
         X = latest.values.astype(float)
 
         # Run prediction (no scaler for RF models)
@@ -454,7 +433,7 @@ class InferenceEngine:
             confidence=confidence,
             probabilities=probabilities or [0.5, 0.5],
             model_id=manifest.get("model_id", f"{ticker}_direction_v1.0"),
-            features_used=feature_names,
+            features_used=available,
             feature_values=feature_values,
             timestamp=now.isoformat(),
             data_age_sec=data_age_sec,
