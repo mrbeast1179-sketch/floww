@@ -22,6 +22,9 @@ from motor.motor_asyncio import AsyncIOMotorClient
 import pandas as pd
 import numpy as np
 
+import logging
+
+logger = logging.getLogger(__name__)
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 CACHE_DIR = REPO_ROOT / "data" / "cached_features"
 
@@ -69,7 +72,7 @@ async def upsert_all(dry_run: bool = True):
 
     for ticker, csv_path in CSV_FILES.items():
         if not csv_path.exists():
-            print(f"  SKIP {ticker}: {csv_path} not found")
+            logger.info(f"  SKIP {ticker}: {csv_path} not found")
             continue
 
         df = pd.read_csv(csv_path)
@@ -77,10 +80,10 @@ async def upsert_all(dry_run: bool = True):
 
         # Count existing
         existing = await col.count_documents({"ticker": ticker})
-        print(f"\n{ticker}: {n_rows} rows in CSV, {existing} already in MongoDB")
+        logger.info(f"\n{ticker}: {n_rows} rows in CSV, {existing} already in MongoDB")
 
         if dry_run:
-            print(f"  DRY RUN — would upsert {n_rows} rows")
+            logger.info(f"  DRY RUN — would upsert {n_rows} rows")
             continue
 
         # Upsert each row
@@ -97,13 +100,13 @@ async def upsert_all(dry_run: bool = True):
             )
             inserted += 1
 
-        print(f"  Upserted {inserted} rows")
+        logger.info(f"  Upserted {inserted} rows")
         total_inserted += inserted
 
     # Final count
     for ticker in CSV_FILES:
         count = await col.count_documents({"ticker": ticker})
-        print(f"  {total_inserted} total upserted" if not dry_run else "")
+        logger.info(f"  {total_inserted} total upserted" if not dry_run else "")
         break
 
     client.close()

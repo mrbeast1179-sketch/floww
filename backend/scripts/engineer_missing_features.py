@@ -33,6 +33,9 @@ load_dotenv(Path(__file__).resolve().parent.parent / ".env")
 
 from motor.motor_asyncio import AsyncIOMotorClient
 
+import logging
+
+logger = logging.getLogger(__name__)
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 CACHE_DIR = REPO_ROOT / "data" / "cached_features"
 
@@ -128,7 +131,7 @@ async def update_mongo(ticker: str, df: pd.DataFrame):
             )
             updated += 1
 
-    print(f"  MongoDB: updated {updated} docs with {len(new_cols)} new features")
+    logger.info(f"  MongoDB: updated {updated} docs with {len(new_cols)} new features")
     client.close()
 
 
@@ -138,7 +141,7 @@ async def main():
         ticker = csv_name.split("_")[0]
 
         if not csv_path.exists():
-            print(f"SKIP {ticker}: {csv_path} not found")
+            logger.info(f"SKIP {ticker}: {csv_path} not found")
             continue
 
         df = pd.read_csv(csv_path)
@@ -146,28 +149,28 @@ async def main():
 
         # Check if already has the features
         if 'gap_abs' in df.columns and 'vol_spike' in df.columns:
-            print(f"{ticker}: already has engineered features ({n_before} cols)")
+            logger.info(f"{ticker}: already has engineered features ({n_before} cols)")
             continue
 
         df = compute_missing_features(df)
         n_after = len(df.columns)
-        print(f"{ticker}: {n_before} -> {n_after} columns (+{n_after - n_before} features)")
+        logger.info(f"{ticker}: {n_before} -> {n_after} columns (+{n_after - n_before} features)")
 
         # Save updated CSV
         df.to_csv(csv_path, index=False)
-        print(f"  CSV saved: {csv_path}")
+        logger.info(f"  CSV saved: {csv_path}")
 
         # Update MongoDB
         await update_mongo(ticker, df)
 
-    print("\nDone. Verifying...")
+    logger.info("\nDone. Verifying...")
     # Quick verify
     for csv_name in CSV_FILES:
         csv_path = CACHE_DIR / csv_name
         if csv_path.exists():
             df = pd.read_csv(csv_path, nrows=1)
             has_all = all(f in df.columns for f in ['gap_abs', 'vol_spike', 'ret_accel'])
-            print(f"  {csv_name}: {'OK' if has_all else 'MISSING'} ({len(df.columns)} cols)")
+            logger.info(f"  {csv_name}: {'OK' if has_all else 'MISSING'} ({len(df.columns)} cols)")
 
 
 if __name__ == "__main__":

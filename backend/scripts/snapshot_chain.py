@@ -253,15 +253,15 @@ def main():
         expiries=args.expiries,
     ))
 
-    print(f"\n{'='*60}")
-    print(f"Snapshot complete for {result['ticker']}")
-    print(f"  Spot:        {result.get('spot', 'N/A')}")
-    print(f"  Contracts:   {result['contracts']}")
-    print(f"  Inserted:    {result['inserted']}")
-    print(f"  Total rows:  {result.get('total_rows', 'N/A')}")
-    print(f"  Fetch time:  {result['fetch_ms']}ms")
-    print(f"  Insert time: {result['insert_ms']}ms")
-    print(f"{'='*60}\n")
+    logger.info(f"\n{'='*60}")
+    logger.info(f"Snapshot complete for {result['ticker']}")
+    logger.info(f"  Spot:        {result.get('spot', 'N/A')}")
+    logger.info(f"  Contracts:   {result['contracts']}")
+    logger.info(f"  Inserted:    {result['inserted']}")
+    logger.info(f"  Total rows:  {result.get('total_rows', 'N/A')}")
+    logger.info(f"  Fetch time:  {result['fetch_ms']}ms")
+    logger.info(f"  Insert time: {result['insert_ms']}ms")
+    logger.info(f"{'='*60}\n")
 
 
 if __name__ == "__main__":

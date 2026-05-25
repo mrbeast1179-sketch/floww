@@ -42,6 +42,8 @@ def load_gex_regime(ticker: str, dates: list) -> dict:
     """Load GEX regime for given dates from cached data."""
     try:
         import yfinance as yf
+
+logger = logging.getLogger(__name__)
         # Use a simple heuristic: if spot > 20-day SMA, regime is "positive"
         data = yf.download(ticker, period="6mo", progress=False)
         if data.empty:
@@ -246,7 +248,7 @@ if __name__ == "__main__":
         model_type=args.model_type,
     )
 
-    print(json.dumps(result, indent=2))
+    logger.info(json.dumps(result, indent=2))
 
     if args.output:
         with open(args.output, "w") as f:

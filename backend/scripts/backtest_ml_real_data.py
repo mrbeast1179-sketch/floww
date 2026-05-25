@@ -34,6 +34,9 @@ load_dotenv(Path(__file__).resolve().parent.parent / ".env")
 from motor.motor_asyncio import AsyncIOMotorClient
 from services.ml.registry import ModelRegistry
 
+import logging
+
+logger = logging.getLogger(__name__)
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 CACHE_DIR = REPO_ROOT / "data" / "cached_features"
 REPORTS_DIR = REPO_ROOT / "reports"
@@ -154,10 +157,10 @@ async def run_backtest(tickers=None):
     if tickers:
         all_models = [m for m in all_models if m["ticker"] in [t.upper() for t in tickers]]
 
-    print(f"Active models to backtest: {len(all_models)}")
+    logger.info(f"Active models to backtest: {len(all_models)}")
     for m in all_models:
         mid = m.get('model_id', m.get('id', 'unknown'))
-        print(f"  {mid} | {m.get('ticker','?')} | sharpe={m.get('metrics_summary',{}).get('holdout_sharpe', '?')}")
+        logger.info(f"  {mid} | {m.get('ticker','?')} | sharpe={m.get('metrics_summary',{}).get('holdout_sharpe', '?')}")
 
     results = {}
 
@@ -165,20 +168,20 @@ async def run_backtest(tickers=None):
         ticker = model_doc.get("ticker", "").upper()
         model_id = model_doc.get("model_id", "")
         if not ticker or not model_id:
-            print(f"  SKIP: Missing ticker or model_id in doc: {list(model_doc.keys())}")
+            logger.info(f"  SKIP: Missing ticker or model_id in doc: {list(model_doc.keys())}")
             continue
-        print(f"\n{'='*60}")
-        print(f"  Backtesting {ticker} ({model_id})")
+        logger.info(f"\n{'='*60}")
+        logger.info(f"  Backtesting {ticker} ({model_id})")
 
         # Load CSV features
         csv_path = CACHE_DIR / f"{ticker}_v1.0.csv"
         if not csv_path.exists():
-            print(f"  SKIP: {csv_path} not found")
+            logger.info(f"  SKIP: {csv_path} not found")
             continue
 
         df = pd.read_csv(csv_path)
         df = df.sort_values('date').reset_index(drop=True)
-        print(f"  Loaded {len(df)} rows, {len(df.columns)} cols")
+        logger.info(f"  Loaded {len(df)} rows, {len(df.columns)} cols")
 
         # Determine target
         target_col = None
@@ -187,21 +190,21 @@ async def run_backtest(tickers=None):
                 target_col = t
                 break
         if not target_col:
-            print(f"  SKIP: No target column found")
+            logger.info(f"  SKIP: No target column found")
             continue
 
         # Drop rows with missing target
         df = df.dropna(subset=[target_col]).reset_index(drop=True)
-        print(f"  Target: {target_col}, {len(df)} rows after dropna")
+        logger.info(f"  Target: {target_col}, {len(df)} rows after dropna")
 
         # Get feature columns
         feature_cols = [c for c in df.columns if c not in META_COLS and c not in TARGET_COLS]
-        print(f"  Features: {len(feature_cols)}")
+        logger.info(f"  Features: {len(feature_cols)}")
 
         # Load model artifact
         artifact_path = model_doc.get("artifact_path", "")
         if not artifact_path or not os.path.exists(artifact_path):
-            print(f"  SKIP: Artifact not found: {artifact_path}")
+            logger.info(f"  SKIP: Artifact not found: {artifact_path}")
             continue
 
         import joblib
@@ -214,7 +217,7 @@ async def run_backtest(tickers=None):
                                     n_splits=8, train_size=200, test_size=100, embargo=5)
 
         if not bt['fold_metrics']:
-            print(f"  SKIP: No valid folds")
+            logger.info(f"  SKIP: No valid folds")
             continue
 
         # Aggregate results
@@ -260,13 +263,13 @@ async def run_backtest(tickers=None):
 
         results[ticker] = result
 
-        print(f"  Overall accuracy: {overall_acc:.4f}")
-        print(f"  Avg fold accuracy: {avg_acc:.4f}")
-        print(f"  Overall Sharpe: {overall_sharpe:.4f}")
-        print(f"  Avg fold Sharpe: {avg_sharpe:.4f}")
-        print(f"  Majority baseline: {avg_majority:.4f}")
-        print(f"  Persistence baseline: {persistence_acc:.4f}")
-        print(f"  Beats baseline: {beats_baseline}")
+        logger.info(f"  Overall accuracy: {overall_acc:.4f}")
+        logger.info(f"  Avg fold accuracy: {avg_acc:.4f}")
+        logger.info(f"  Overall Sharpe: {overall_sharpe:.4f}")
+        logger.info(f"  Avg fold Sharpe: {avg_sharpe:.4f}")
+        logger.info(f"  Majority baseline: {avg_majority:.4f}")
+        logger.info(f"  Persistence baseline: {persistence_acc:.4f}")
+        logger.info(f"  Beats baseline: {beats_baseline}")
 
     # Generate report
     report_lines = [
@@ -309,13 +312,13 @@ async def run_backtest(tickers=None):
     report_path = REPORTS_DIR / f"backtest_ml_real_{datetime.now().strftime('%Y%m%d_%H%M%S')}.md"
     with open(report_path, 'w') as f:
         f.write(report_text)
-    print(f"\nReport saved: {report_path}")
+    logger.info(f"\nReport saved: {report_path}")
 
     # Also save JSON
     json_path = report_path.with_suffix('.json')
     with open(json_path, 'w') as f:
         json.dump(results, f, indent=2, default=str)
-    print(f"JSON saved: {json_path}")
+    logger.info(f"JSON saved: {json_path}")
 
     client.close()
     return results

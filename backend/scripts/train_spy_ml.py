@@ -932,7 +932,7 @@ def main():
 
     # 6. Print summary
     result["elapsed_seconds"] = round(time.time() - t0, 2)
-    print(json.dumps(result, indent=2, default=str))
+    logger.info(json.dumps(result, indent=2, default=str))
 
 
 if __name__ == "__main__":
