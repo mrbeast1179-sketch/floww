@@ -55,7 +55,7 @@ export function FlipZonesPanel({ data, loading, error }) {
 }
 
 function FlipBadge({ label, value, spot, color }) {
-  const pct = (spot != null && spot !== 0) ? ((value - spot) / spot * 100).toFixed(2) : "—";
+  const pct = (spot != null && spot !== 0) ? safeFixed((value - spot) / spot * 100, 2) : "—";
   const dotColor = color === "amber" ? "bg-amber-400/60" : color === "pink" ? "bg-pink-500/60" : color === "cyan" ? "bg-cyan-400/60" : "bg-orange-400/60";
   const textColor = color === "amber" ? "text-amber-300" : color === "pink" ? "text-pink-300" : color === "cyan" ? "text-cyan-300" : "text-orange-300";
   return (
@@ -251,11 +251,11 @@ export function VolAnalyticsPanel({ data, loading, error }) {
         {data?.iv_rank && <>
           <div className="text-[8px] text-slate-500 uppercase tracking-wider mt-1">IV Rank / RV</div>
           <div className="grid grid-cols-2 gap-x-3 gap-y-0.5 text-[9px]">
-            <div className="flex justify-between"><span className="text-slate-500">IV Rank</span><span className={`mono font-bold ${data.iv_rank.interpretation === "expensive" ? "text-rose-400" : data.iv_rank.interpretation === "cheap" ? "text-emerald-400" : "text-amber-400"}`}>{data.iv_rank.iv_rank != null ? (data.iv_rank.iv_rank * 100).toFixed(0) + "%" : "—"}</span></div>
-            <div className="flex justify-between"><span className="text-slate-500">IV Pctl</span><span className="mono text-slate-300">{data.iv_rank.iv_percentile != null ? (data.iv_rank.iv_percentile * 100).toFixed(0) + "%" : "—"}</span></div>
+            <div className="flex justify-between"><span className="text-slate-500">IV Rank</span><span className={`mono font-bold ${data.iv_rank.interpretation === "expensive" ? "text-rose-400" : data.iv_rank.interpretation === "cheap" ? "text-emerald-400" : "text-amber-400"}`}>{data.iv_rank.iv_rank != null ? safeFixed(data.iv_rank.iv_rank * 100, 0) + "%" : "—"}</span></div>
+            <div className="flex justify-between"><span className="text-slate-500">IV Pctl</span><span className="mono text-slate-300">{data.iv_rank.iv_percentile != null ? safeFixed(data.iv_rank.iv_percentile * 100, 0) + "%" : "—"}</span></div>
             {data.iv_rank.rv_close != null && <>
               <div className="flex justify-between"><span className="text-slate-500">RV 20d</span><span className="mono text-slate-300">{safeFixed(data.iv_rank.rv_close * 100, 1)}%</span></div>
-              <div className="flex justify-between"><span className="text-slate-500">RV-IV</span><span className={`mono font-bold ${(data.iv_rank.rv_iv_spread || 0) > 0.05 ? "text-rose-400" : (data.iv_rank.rv_iv_spread || 0) < -0.05 ? "text-emerald-400" : "text-slate-300"}`}>{data.iv_rank.rv_iv_spread != null ? (data.iv_rank.rv_iv_spread * 100).toFixed(1) + "%" : "—"}</span></div>
+              <div className="flex justify-between"><span className="text-slate-500">RV-IV</span><span className={`mono font-bold ${(data.iv_rank.rv_iv_spread || 0) > 0.05 ? "text-rose-400" : (data.iv_rank.rv_iv_spread || 0) < -0.05 ? "text-emerald-400" : "text-slate-300"}`}>{data.iv_rank.rv_iv_spread != null ? safeFixed(data.iv_rank.rv_iv_spread * 100, 1) + "%" : "—"}</span></div>
             </>}
           </div>
         </>}
