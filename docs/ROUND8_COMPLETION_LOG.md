@@ -76,3 +76,25 @@ Completed 10-task plan: null-safety, import audit, backend/frontend audits.
 - Task 10: Closure + push
 
 HEAD: 2057e6625be78ce8573486fa08ae548414b5f998
+
+## Round 8 Bulletproof — 2026-05-25
+
+Real per-file work with origin-state gates. Each task verified ON ORIGIN, not just locally.
+
+Phase 1 (3 files): finished prior session's skipped work
+- 1A PaperTrade: ab708e2
+- 1B SidebarPanels: 55b601c
+- 1C AdvancedAnalyticsPanel: 4fde845
+
+Phase 2 (6 test files): per-component Jest smoke tests
+- 2A PaperTrade.test: 64838a1
+- 2B SidebarPanels.test: 1ddb277
+- 2C AdvancedAnalyticsPanel.test: ab6e393
+- 2D Widget tests: 0983e40
+
+Phase 3 (backend diag): 4bb13f2
+Phase 4 (backlog): e89c2a3
+
+HEAD on origin: 4bb13f2 (will be updated after closure commit)
+
+All 9 work tasks completed. Anti-skip verification: 10 commits on origin/main from this session.
