@@ -97,9 +97,20 @@ def trained_model_dir(tmp_path):
 
     import joblib
 
-    # Create dummy model
+    # Create dummy model with 44 features matching compute_live_features output
     np.random.seed(42)
-    n_features = 10
+    feature_names = [
+        "ret_1d", "ret_3d", "ret_5d", "ret_10d", "ret_21d", "log_ret_1d",
+        "overnight_gap", "sma_5", "price_vs_sma_5", "sma_10", "price_vs_sma_10",
+        "sma_21", "price_vs_sma_21", "sma_50", "price_vs_sma_50", "atr_14",
+        "volume_sma_5", "volume_sma_21", "relative_volume", "realized_vol_5d",
+        "is_month_end", "is_month_start", "realized_vol_10d", "realized_vol_21d",
+        "realized_vol_60d", "rsi_14", "macd", "macd_signal", "macd_hist",
+        "bb_upper", "bb_lower", "bb_position", "vol_ratio_5_21", "vol_ratio_5_60",
+        "sma_5_21_diff", "sma_5_21_cross", "sma_10_50_diff", "rsi_overbought",
+        "rsi_oversold", "ret_momentum", "ret_accel", "vol_spike", "gap_abs", "gap_large",
+    ]
+    n_features = len(feature_names)  # 44
     X = np.random.randn(200, n_features)
     y = (X[:, 0] > 0).astype(int)
 
@@ -261,6 +272,7 @@ class TestInferenceEngine:
         with pytest.raises(DegenerateModelError):
             asyncio.run(engine.predict("ZZZZ"))
 
+
     @pytest.mark.asyncio
     async def test_predict_with_trained_model(self, trained_model_dir):
         """Prediction works with a real trained model artifact (dict format)."""
@@ -287,9 +299,9 @@ class TestInferenceEngine:
             MODEL_REGISTRY.clear()
             MODEL_REGISTRY.update(original_registry)
 
-    def test_get_model_info_with_trained_model(self, trained_model_dir):
-        """Model info loads correctly from a trained model artifact."""
-        pytest.importorskip("sklearn")
+    def test_model_info(self, trained_model_dir):
+        """get_model_info returns correct metadata."""
+        from services.ml import DegenerateModelError
         from services.ml.inference import InferenceEngine, MODEL_REGISTRY
 
         ticker = "TEST"
@@ -302,16 +314,14 @@ class TestInferenceEngine:
             engine = InferenceEngine(model_dir=trained_model_dir)
             info = engine.get_model_info(ticker)
             assert info.ticker == ticker
+            assert info.model_type == "gbm"
+            assert info.n_features == 44
             assert info.loaded
         except Exception:
             pass  # sklearn may not be installed
         finally:
             MODEL_REGISTRY.clear()
             MODEL_REGISTRY.update(original_registry)
-
-
-# ── ML Briefing Integrator Tests ───────────────────────────────────────
-
 class TestMlBriefingIntegrator:
     """Tests for MlBriefingIntegrator."""
 
@@ -401,7 +411,6 @@ class TestTrainRealMl:
         from scripts.train_real_ml import compute_features
 
         # Use 1y period to ensure enough data for 60-day rolling windows
->>>>>>> e674a1c (feat(ml): outcomes attachment, retrain orchestrator, inference fixes)
         df = compute_features("SPY", period="1y")
         # Allow NaN in early rows (rolling windows)
         clean = df.dropna()
