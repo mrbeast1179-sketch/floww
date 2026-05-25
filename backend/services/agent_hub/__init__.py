@@ -6,7 +6,6 @@ Agent Hub — YAML-defined trading agent archetypes with trigger-based runtime.
 from __future__ import annotations
 
 import logging
-import os
 import yaml
 from typing import Any, Dict, List, Optional
 from pathlib import Path

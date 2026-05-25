@@ -18,14 +18,11 @@ from collections import deque
 
 import numpy as np
 
+import importlib.util
+
 logger = logging.getLogger(__name__)
 
-try:
-    import torch
-    import torch.nn as nn
-    HAS_TORCH = True
-except ImportError:
-    HAS_TORCH = False
+HAS_TORCH = importlib.util.find_spec("torch") is not None
 
 
 class PlattScaler:
