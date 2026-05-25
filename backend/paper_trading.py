@@ -538,7 +538,7 @@ async def daily_paper_trade_dry_run(ticker: str = "SPY") -> Dict[str, Any]:
 
     # ── 6. Log the intended order ───────────────────────────────────────
     intent_repr = intent.model_dump()
-    print(f"INTENDED ORDER: {intent_repr}")
+    logger.info(f"INTENDED ORDER: {intent_repr}")
     logger.info(f"INTENDED ORDER (dry-run): {intent_repr}")
 
     # NOTE: Live submission is gated behind LIVE_TRADING_ENABLED, but there is
@@ -568,4 +568,4 @@ if __name__ == "__main__":
         parser.error("--dry-run is required; live submission is not wired in this module")
 
     out = asyncio.run(daily_paper_trade_dry_run(args.ticker))
-    print(json.dumps(out, indent=2, default=str))
+    logger.info(json.dumps(out, indent=2, default=str))

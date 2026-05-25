@@ -392,14 +392,14 @@ async def main():
     elif mode == "predict":
         from ml_price_prediction import predict_price_direction
         result = await predict_price_direction(ticker)
-        print(json.dumps(result, indent=2))
+        logger.info(json.dumps(result, indent=2))
     elif mode == "evaluate":
         await evaluate_models()
     elif mode == "full":
         await full_pipeline()
     else:
-        print(f"Unknown mode: {mode}")
-        print("Available modes: collect, train, predict, evaluate, full")
+        logger.info(f"Unknown mode: {mode}")
+        logger.info("Available modes: collect, train, predict, evaluate, full")
 
 
 if __name__ == "__main__":

@@ -15,8 +15,8 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 async def main():
     if len(sys.argv) < 2:
-        print("Usage: python cron_runner.py <job_name>")
-        print("Available jobs: data-collection, morning-briefing, retrain-models, health-check")
+        logger.info("Usage: python cron_runner.py <job_name>")
+        logger.info("Available jobs: data-collection, morning-briefing, retrain-models, health-check")
         sys.exit(1)
     
     job_name = sys.argv[1]
@@ -32,9 +32,12 @@ async def main():
         await retrain_models_job()
     elif job_name == "health-check":
         from cron_config import health_check_job
+import logging
+
+logger = logging.getLogger(__name__)
         await health_check_job()
     else:
-        print(f"Unknown job: {job_name}")
+        logger.info(f"Unknown job: {job_name}")
         sys.exit(1)
 
 
