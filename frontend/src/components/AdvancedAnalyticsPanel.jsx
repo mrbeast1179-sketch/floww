@@ -4,6 +4,7 @@ import { fmt, fmtAbs } from "../lib/helpers";
 // ============ Shared Null-Safe Helpers ============
 const dash = (v, fn) => (v == null ? "—" : (fn ? fn(v) : v));
 const sn = (v) => (v != null && !isNaN(Number(v)) ? Number(v) : 0);
+const safeFixed = (v, d) => (v != null && !isNaN(v)) ? v.toFixed(d) : "—";
 
 // ============ State Wrapper ============
 function StateWrap({ loading, error, empty, children, label }) {
@@ -57,7 +58,7 @@ function MiniBar({ value, max, color = "teal", label }) {
       <div className="flex-1 h-1.5 bg-slate-800 rounded-full overflow-hidden">
         <div className={`h-full rounded-full ${barColor}`} style={{ width: `${pct}%` }} />
       </div>
-      <span className="mono text-slate-400 w-10 text-right">{typeof value === "number" ? value.toFixed(2) : value}</span>
+      <span className="mono text-slate-400 w-10 text-right">{typeof value === "number" ? safeFixed(value, 2) : value}</span>
     </div>
   );
 }
@@ -79,12 +80,12 @@ export function MarketRegimePanel({ data, loading, error }) {
           </div>
         </div>
         <div className="grid grid-cols-2 gap-x-3 gap-y-0.5 text-[9px]">
-          <div className="flex justify-between"><span className="text-slate-500">ATM IV</span><span className="mono text-slate-300">{dash(sn(mr?.atm_iv) * 100, v => v.toFixed(1) + "%")}</span></div>
-          <div className="flex justify-between"><span className="text-slate-500">Skew</span><span className={`mono ${sn(mr?.skew) > 0.02 ? "text-rose-400" : sn(mr?.skew) < -0.02 ? "text-emerald-400" : "text-slate-300"}`}>{dash(sn(mr?.skew) * 100, v => v.toFixed(2) + "%")}</span></div>
+          <div className="flex justify-between"><span className="text-slate-500">ATM IV</span><span className="mono text-slate-300">{dash(sn(mr?.atm_iv) * 100, v => safeFixed(v, 1) + "%")}</span></div>
+          <div className="flex justify-between"><span className="text-slate-500">Skew</span><span className={`mono ${sn(mr?.skew) > 0.02 ? "text-rose-400" : sn(mr?.skew) < -0.02 ? "text-emerald-400" : "text-slate-300"}`}>{dash(sn(mr?.skew) * 100, v => safeFixed(v, 2) + "%")}</span></div>
           <div className="flex justify-between"><span className="text-slate-500">Daily Move</span><span className="mono text-slate-300">±{dash(mr?.expected_daily_spot_move_pct)}%</span></div>
-          <div className="flex justify-between"><span className="text-slate-500">Vol of Vol</span><span className="mono text-slate-300">{dash(sn(mr?.implied_vol_of_vol) * 100, v => v.toFixed(1) + "%")}</span></div>
-          <div className="flex justify-between"><span className="text-slate-500">Spot-Vol ρ</span><span className="mono text-slate-300">{dash(sn(mr?.implied_spot_vol_corr), v => v.toFixed(2))}</span></div>
-          <div className="flex justify-between"><span className="text-slate-500">Curvature</span><span className="mono text-slate-300">{dash(sn(mr?.curvature) * 100, v => v.toFixed(2) + "%")}</span></div>
+          <div className="flex justify-between"><span className="text-slate-500">Vol of Vol</span><span className="mono text-slate-300">{dash(sn(mr?.implied_vol_of_vol) * 100, v => safeFixed(v, 1) + "%")}</span></div>
+          <div className="flex justify-between"><span className="text-slate-500">Spot-Vol ρ</span><span className="mono text-slate-300">{dash(sn(mr?.implied_spot_vol_corr), v => safeFixed(v, 2))}</span></div>
+          <div className="flex justify-between"><span className="text-slate-500">Curvature</span><span className="mono text-slate-300">{dash(sn(mr?.curvature) * 100, v => safeFixed(v, 2) + "%")}</span></div>
         </div>
       </Section>
     </StateWrap>
@@ -108,8 +109,8 @@ export function ImpliedPDFPanel({ data, loading, error }) {
             <div><span className="text-slate-500">Median: </span><span className="mono text-slate-300">{dash(pdf?.median_price, p => fmt(p, 0))}</span></div>
             <div><span className="text-slate-500">E[Move]: </span><span className="mono text-slate-300">±{dash(pdf?.expected_move_pct)}%</span></div>
             <div><span className="text-slate-500">Skew: </span><span className={`mono ${pdf?.interpretation?.skew === "bullish" ? "text-emerald-400" : pdf?.interpretation?.skew === "bearish" ? "text-rose-400" : "text-slate-300"}`}>{dash(pdf?.interpretation?.skew)}</span></div>
-            <div><span className="text-slate-500">P(≤spot): </span><span className="mono text-slate-300">{dash(sn(pdf?.cumulative_below_spot) * 100, v => v.toFixed(1) + "%")}</span></div>
-            <div><span className="text-slate-500">P(1σ): </span><span className="mono text-slate-300">{dash(sn(pdf?.prob_within_1sd) * 100, v => v.toFixed(1) + "%")}</span></div>
+            <div><span className="text-slate-500">P(≤spot): </span><span className="mono text-slate-300">{dash(sn(pdf?.cumulative_below_spot) * 100, v => safeFixed(v, 1) + "%")}</span></div>
+            <div><span className="text-slate-500">P(1σ): </span><span className="mono text-slate-300">{dash(sn(pdf?.prob_within_1sd) * 100, v => safeFixed(v, 1) + "%")}</span></div>
           </div>
         </div>
         <div className="space-y-0.5 max-h-24 overflow-y-auto">
@@ -149,8 +150,8 @@ export function HedgeImpulsePanel({ data, loading, error }) {
           <div className="text-slate-400 mt-0.5">{regimeDesc}</div>
         </div>
         <div className="grid grid-cols-2 gap-x-3 gap-y-0.5 text-[9px] mb-1">
-          <div className="flex justify-between"><span className="text-slate-500">H(spot)</span><span className={`mono font-bold ${sn(hi?.impulse_at_spot) > 0 ? "text-emerald-400" : "text-rose-400"}`}>{dash(sn(hi?.impulse_at_spot), v => v.toFixed(0))}</span></div>
-          <div className="flex justify-between"><span className="text-slate-500">k (coupling)</span><span className="mono text-slate-300">{dash(sn(hi?.spot_vol_coupling), v => v.toFixed(1))}</span></div>
+          <div className="flex justify-between"><span className="text-slate-500">H(spot)</span><span className={`mono font-bold ${sn(hi?.impulse_at_spot) > 0 ? "text-emerald-400" : "text-rose-400"}`}>{dash(sn(hi?.impulse_at_spot), v => safeFixed(v, 0))}</span></div>
+          <div className="flex justify-between"><span className="text-slate-500">k (coupling)</span><span className="mono text-slate-300">{dash(sn(hi?.spot_vol_coupling), v => safeFixed(v, 1))}</span></div>
           <div className="flex justify-between"><span className="text-slate-500">Attractor ↑</span><span className="mono text-emerald-400">{dash(hi?.nearest_attractor_above, a => fmt(a, 0))}</span></div>
           <div className="flex justify-between"><span className="text-slate-500">Attractor ↓</span><span className="mono text-rose-400">{dash(hi?.nearest_attractor_below, a => fmt(a, 0))}</span></div>
         </div>
@@ -185,7 +186,7 @@ export function PressureCloudPanel({ data, loading, error }) {
                 <span className={`font-bold ${z.type === "stability" ? "text-emerald-400" : "text-rose-400"}`}>
                   {z.type === "stability" ? "STABILITY" : "ACCELERATION"}
                 </span>
-                <span className="text-slate-500">{dash(z.side)} · {dash(sn(z.strength) * 100, v => v.toFixed(0) + "%")}</span>
+                <span className="text-slate-500">{dash(z.side)} · {dash(sn(z.strength) * 100, v => safeFixed(v, 0) + "%")}</span>
               </div>
               <div className="flex gap-2 mt-0.5 text-[8px]">
                 <span className="text-slate-500">center: <span className="mono text-slate-300">{dash(z.center, c => fmt(c, 0))}</span></span>
@@ -221,7 +222,7 @@ export function CharmIntegralPanel({ data, loading, error }) {
           <div className="text-slate-400 mt-0.5">Time decay pressure to close</div>
         </div>
         <div className="grid grid-cols-2 gap-x-3 gap-y-0.5 text-[9px]">
-          <div className="flex justify-between"><span className="text-slate-500">Total</span><span className={`mono font-bold ${dirColor}`}>{dash(sn(ci?.total_charm_to_close), v => v.toFixed(0))}</span></div>
+          <div className="flex justify-between"><span className="text-slate-500">Total</span><span className={`mono font-bold ${dirColor}`}>{dash(sn(ci?.total_charm_to_close), v => safeFixed(v, 0))}</span></div>
           <div className="flex justify-between"><span className="text-slate-500">DTE</span><span className="mono text-slate-300">{dash(ci?.days_remaining)}d</span></div>
         </div>
         {ci?.buckets?.length > 0 && (
