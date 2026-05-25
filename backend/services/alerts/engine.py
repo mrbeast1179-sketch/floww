@@ -6,10 +6,9 @@ Alert engine with YAML-defined rules and ML-enriched predicates.
 from __future__ import annotations
 
 import logging
-import os
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
 
 import yaml
 

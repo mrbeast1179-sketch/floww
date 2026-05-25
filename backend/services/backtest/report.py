@@ -17,7 +17,7 @@ from __future__ import annotations
 import math
 import logging
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional
+from typing import Dict, List, Optional
 
 import numpy as np
 

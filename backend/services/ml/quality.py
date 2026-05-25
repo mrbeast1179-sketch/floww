@@ -11,7 +11,6 @@ from __future__ import annotations
 import numpy as np
 import logging
 from typing import Any, Dict, List, Optional, Sequence
-from datetime import datetime
 
 from . import DegenerateModelError
 

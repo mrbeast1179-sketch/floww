@@ -20,14 +20,12 @@ Usage:
 
 from __future__ import annotations
 
-import asyncio
 import logging
 import os
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional
 
 import numpy as np
-import pandas as pd
 
 from services.ml import DegenerateModelError
 
@@ -121,9 +119,7 @@ class RetrainOrchestrator:
         runs the retraining pipeline asynchronously.
         """
         from services.ml.registry import ModelRegistry
-        import joblib
         import numpy as np
-        import pandas as pd
         from sklearn.ensemble import GradientBoostingClassifier
         from sklearn.preprocessing import StandardScaler
         from sklearn.metrics import accuracy_score
@@ -273,7 +269,6 @@ class RetrainOrchestrator:
     async def _build_features_for_ticker(self, ticker: str) -> Optional[Any]:
         """Build feature matrix from recent snapshots + outcomes for retraining."""
         import pandas as pd
-        import numpy as np
 
         # Load recent snapshots (last 252 trading days)
         snapshots = await self.db["snapshots"].find(

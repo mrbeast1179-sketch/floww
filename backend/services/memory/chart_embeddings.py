@@ -9,7 +9,6 @@ Stores in local numpy index for fast similarity search.
 
 import json
 import logging
-import hashlib
 from pathlib import Path
 from typing import Optional
 
@@ -37,14 +36,12 @@ class ChartEmbeddingIndex:
     def model(self):
         if self._model is None:
             import clip
-            import torch
             logger.info(f"Loading CLIP model: {self.model_name}")
             self._model, self._preprocess = clip.load(self.model_name, device="cpu")
         return self._model
 
     def _load_image(self, path: Path):
         """Load and preprocess an image for CLIP."""
-        import torch
         image = self._preprocess(Image.open(str(path))).unsqueeze(0)
         return image
 

@@ -29,9 +29,9 @@ import asyncio
 import logging
 import os
 import time
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import datetime, timezone
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
 log = logging.getLogger(__name__)
 

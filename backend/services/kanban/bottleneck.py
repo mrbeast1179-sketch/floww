@@ -8,9 +8,7 @@ Identify bottlenecks: any agent with cards_in_flight > 3× median OR blocker_rat
 Surface to ARCHITECT_BRIEF.md.
 """
 
-import json
-import math
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timezone
 from pathlib import Path
 from collections import defaultdict
 

@@ -11,7 +11,6 @@ from __future__ import annotations
 import asyncio
 import logging
 import signal
-import sys
 from datetime import datetime, timezone
 from typing import Optional
 

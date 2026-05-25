@@ -14,10 +14,10 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
-from typing import Any, Dict, List, Optional, Set
+from typing import Any, Dict, List, Set
 from datetime import datetime, timezone
 
-from fastapi import WebSocket, WebSocketDisconnect
+from fastapi import WebSocket
 
 import services.observability as obs_metrics
 

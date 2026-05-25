@@ -15,7 +15,7 @@ Used for:
 
 import os
 import logging
-from typing import Optional, Dict, Any, List
+from typing import Dict, Any
 from dotenv import load_dotenv
 
 logger = logging.getLogger(__name__)
@@ -131,7 +131,6 @@ class LLMService:
         self, prompt: str, system_prompt: str, max_tokens: int, temperature: float
     ) -> Dict[str, Any]:
         """Generate using Cerebras."""
-        from cerebras.cloud.sdk import Cerebras
         
         client = self.providers["cerebras"]["client"]
         model = self.providers["cerebras"]["model"]

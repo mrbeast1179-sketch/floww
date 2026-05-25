@@ -8,7 +8,6 @@ Some kanban cards span repos. Schema extension: cards can declare
 Cross-repo SWARM_STATUS.md aggregates state from all.
 """
 
-import json
 import subprocess
 from datetime import datetime, timezone
 from pathlib import Path

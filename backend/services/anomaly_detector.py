@@ -17,7 +17,7 @@ References:
 from __future__ import annotations
 
 import logging
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict
 from collections import deque
 
 import numpy as np
@@ -295,7 +295,6 @@ class FlowAnomalyDetector:
 
     def _train_step(self, x: "torch.Tensor"):
         """Single training step on current buffer."""
-        import torch
         import torch.nn.functional as F
 
         self.model.train()
@@ -325,7 +324,6 @@ class FlowAnomalyDetector:
         Args:
             checkpoint: dict with keys 'model_state_dict', 'config', 'threshold'
         """
-        import torch
 
         if not HAS_TORCH or self.model is None:
             logger.warning("Cannot load checkpoint: PyTorch not available")

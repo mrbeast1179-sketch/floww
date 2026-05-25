@@ -22,7 +22,7 @@ from __future__ import annotations
 import hashlib
 import logging
 import time
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Optional
 
 from pydantic import BaseModel, Field
 

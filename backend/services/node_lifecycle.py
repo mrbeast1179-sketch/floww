@@ -22,7 +22,6 @@ from typing import Any, Dict, List, Optional, Tuple
 from datetime import datetime, timezone
 from collections import deque
 
-import numpy as np
 
 
 class NodeState(Enum):
