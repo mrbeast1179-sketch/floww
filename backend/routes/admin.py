@@ -34,7 +34,9 @@ async def errors_clear():
     from server import db
     from datetime import datetime, timezone, timedelta
     cutoff = datetime.now(timezone.utc) - timedelta(days=7)
-    result = db.errors.delete_many({"ts": {"$lt": cutoff}})
+    # Motor's delete_many is async — must await before reading result.deleted_count.
+    # Without await this returned a coroutine and .deleted_count raised AttributeError.
+    result = await db.errors.delete_many({"ts": {"$lt": cutoff}})
     return {"deleted": result.deleted_count}
 
 
