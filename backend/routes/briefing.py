@@ -10,8 +10,7 @@ so routes here must NOT include the /api prefix. I-7 fix applied.
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Path
-from fastapi.responses import HTMLResponse
+from fastapi import APIRouter
 
 router = APIRouter()
 

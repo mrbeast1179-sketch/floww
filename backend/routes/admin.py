@@ -21,7 +21,6 @@ async def errors_summary():
 
 @router.get("/api/performance/stats")
 async def performance_stats():
-    from server import db
     from server import _rate_limits
     return {
         "rate_limit_tracked_ips": len(_rate_limits),

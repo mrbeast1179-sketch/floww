@@ -11,7 +11,6 @@ Returns JSON with kelly_fraction, dollar_allocation, max_contracts, and flags.
 from __future__ import annotations
 
 import logging
-from typing import Optional
 
 from fastapi import APIRouter, HTTPException, Query
 

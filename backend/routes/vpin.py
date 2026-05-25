@@ -12,9 +12,9 @@ Endpoints:
 from __future__ import annotations
 
 import logging
-from typing import Any, Dict, Optional
+from typing import Any, Dict
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, Query
 
 logger = logging.getLogger(__name__)
 

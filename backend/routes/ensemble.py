@@ -13,7 +13,7 @@ from __future__ import annotations
 import logging
 from typing import Any, Dict
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter
 
 logger = logging.getLogger(__name__)
 

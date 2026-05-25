@@ -233,7 +233,6 @@ async def get_regime(ticker: str) -> Dict[str, Any]:
 
     Returns: regime, vol_30d, vol_percentile, threshold_used, is_anomaly
     """
-    from services.anomaly_detector import FlowAnomalyDetector
     import numpy as np
 
     registry = await _get_registry()
@@ -332,7 +331,6 @@ async def get_ensemble(ticker: str, horizon_minutes: int = 15) -> Dict[str, Any]
     Returns: P(toxic flow), per-component scores, final verdict
     """
     from services.anomaly_detector import FlowAnomalyDetector
-    from services.ml_ensemble import ToxicityEnsemble
     import numpy as np
 
     registry = await _get_registry()

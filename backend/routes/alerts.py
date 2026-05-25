@@ -1,7 +1,7 @@
 """API routes for the alert system."""
 
 import logging
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List
 from fastapi import APIRouter, Query, WebSocket, WebSocketDisconnect
 
 logger = logging.getLogger(__name__)
