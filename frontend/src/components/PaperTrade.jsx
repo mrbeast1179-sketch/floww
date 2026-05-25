@@ -133,7 +133,7 @@ export default function PaperTrade({ ticker, spot }) {
                 </tr>
               </thead>
               <tbody>
-                {portfolio.positions.map((p, i) => (
+                {(portfolio?.positions ?? []).map((p, i) => (
                   <tr key={i} className="border-t border-slate-800/60">
                     <td className="px-1 py-0.5">{p.symbol ?? "—"}</td>
                     <td className={`px-1 py-0.5 ${(p.option_type ?? "") === "call" ? "text-emerald-400" : "text-rose-400"}`}>
