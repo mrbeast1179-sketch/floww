@@ -19,6 +19,7 @@ const ALERT_TYPES = [
   { v: "momentum_extreme", l: "Momentum Extreme", desc: "Strong bullish/bearish momentum" },
   { v: "gex_magnitude_shift", l: "GEX Magnitude Shift", desc: "Total GEX changed > 40%" },
   { v: "pin_risk", l: "Pin Risk", desc: "Spot near max gamma strike" },
+  { v: "ml_prediction", l: "ML Prediction", desc: "ML model predicts direction change" },
 ];
 
 const PRIORITY_STYLES = {
@@ -42,6 +43,7 @@ export default function AlertsPanel({ ticker }) {
     alert_type: "gex_cross", threshold: 0, direction: "below", label: "",
   });
   const [checkResult, setCheckResult] = useState(null);
+  const [mlPrediction, setMlPrediction] = useState(null);
 
   const fetchRules = async () => {
     try {
@@ -88,6 +90,21 @@ export default function AlertsPanel({ ticker }) {
     return () => clearInterval(id);
   }, [ticker]);
 
+  // Fetch ML prediction
+  useEffect(() => {
+    if (!ticker) return;
+    let cancelled = false;
+    const fetchMl = async () => {
+      try {
+        const r = await axios.get(`${API}/ml/predict/${ticker}`);
+        if (!cancelled) setMlPrediction(r.data);
+      } catch { /* noop */ }
+    };
+    fetchMl();
+    const id = setInterval(fetchMl, 60000);
+    return () => { cancelled = true; clearInterval(id); };
+  }, [ticker]);
+
   return (
     <div className="panel-2 p-2">
       <button className="flex items-center justify-between w-full text-left" onClick={() => setOpen(!open)}
@@ -127,6 +144,43 @@ export default function AlertsPanel({ ticker }) {
                   </div>
                 );
               })}
+            </div>
+          )}
+
+          {/* ML Prediction */}
+          {mlPrediction && mlPrediction.prediction && (
+            <div className={`rounded px-2 py-1.5 border ${
+              mlPrediction.prediction === "UP" || mlPrediction.prediction === "BULLISH"
+                ? "bg-emerald-500/5 border-emerald-500/20"
+                : mlPrediction.prediction === "DOWN" || mlPrediction.prediction === "BEARISH"
+                ? "bg-rose-500/5 border-rose-500/20"
+                : "bg-slate-800/50 border-slate-700/50"
+            }`}>
+              <div className="flex items-center justify-between">
+                <div className="text-[9px] font-bold text-slate-400">🤖 ML PREDICTION</div>
+                <span className={`text-[10px] font-bold mono ${
+                  mlPrediction.prediction === "UP" || mlPrediction.prediction === "BULLISH"
+                    ? "text-emerald-400"
+                    : "text-rose-400"
+                }`}>
+                  {mlPrediction.prediction}
+                </span>
+              </div>
+              <div className="flex items-center gap-2 mt-1">
+                <span className="text-[8px] text-slate-500">Confidence:</span>
+                <div className="flex-1 h-1 bg-slate-800 rounded-full overflow-hidden">
+                  <div
+                    className={`h-full rounded-full ${mlPrediction.confidence > 0.6 ? "bg-emerald-500" : mlPrediction.confidence > 0.5 ? "bg-amber-500" : "bg-slate-500"}`}
+                    style={{ width: `${(mlPrediction.confidence || 0) * 100}%` }}
+                  />
+                </div>
+                <span className="text-[8px] mono text-slate-400">{(mlPrediction.confidence || 0).toFixed(2)}</span>
+              </div>
+              {mlPrediction.spot && (
+                <div className="text-[8px] text-slate-600 mt-0.5">
+                  Spot: ${Number(mlPrediction.spot).toFixed(2)}
+                </div>
+              )}
             </div>
           )}
 
