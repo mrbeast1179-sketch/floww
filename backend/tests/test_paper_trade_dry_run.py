@@ -9,11 +9,8 @@ Uses mocks — no MongoDB or Alpaca required.
 import pytest
 import numpy as np
 import sys
-import os
-import json
 from pathlib import Path
-from unittest.mock import patch, MagicMock, AsyncMock
-from datetime import datetime, timezone
+from unittest.mock import patch, MagicMock
 
 # Add repo root to path
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent

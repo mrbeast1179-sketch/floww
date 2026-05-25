@@ -16,15 +16,11 @@ the chain/bar-intersection logic.
 from __future__ import annotations
 
 import math
-import os
 import sys
-from datetime import date, datetime, timezone
+from datetime import date
 from typing import Any, Dict, Iterable, List
-from unittest.mock import MagicMock
 
-import numpy as np
 import pandas as pd
-import pytest
 from scipy.stats import norm
 
 # Make ``services`` and ``services.ml`` importable when pytest is launched

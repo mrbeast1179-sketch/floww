@@ -4,7 +4,6 @@ backend/tests/services/test_order_router.py
 Unit tests for order_router.py — paper-trade order client.
 """
 
-import asyncio
 import sys
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch

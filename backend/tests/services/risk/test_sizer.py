@@ -1,7 +1,6 @@
 """
 backend/tests/services/risk/test_sizer.py — Tests for Kelly sizer.
 """
-import pytest
 import sys
 from pathlib import Path
 

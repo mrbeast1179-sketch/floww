@@ -15,12 +15,9 @@ from __future__ import annotations
 
 import sys
 import os
-import json
-import tempfile
-from datetime import datetime, timedelta, timezone
-from pathlib import Path
-from typing import Any, Dict, List
-from unittest.mock import AsyncMock, MagicMock, patch
+from datetime import datetime, timezone
+from typing import Dict
+from unittest.mock import AsyncMock, MagicMock
 
 import numpy as np
 import pytest
@@ -31,7 +28,6 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from services.ml.registry import (
     ModelRegistry,
     compute_psi,
-    _now_iso,
 )
 from services.ml import DegenerateModelError
 

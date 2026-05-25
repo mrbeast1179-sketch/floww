@@ -10,7 +10,6 @@ import sys
 from pathlib import Path
 from typing import Dict, List
 
-import pytest
 
 # Add backend/ to sys.path so `services.research.discovery` is importable.
 sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
@@ -18,7 +17,6 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
 from services.research.discovery import (
     ArxivSource,
     Discovery,
-    DiscoverySource,
     GitHubTopicSource,
     HuggingFaceSource,
     discover_all,

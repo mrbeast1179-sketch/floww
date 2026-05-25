@@ -20,7 +20,6 @@ import sys
 import time
 from pathlib import Path
 
-import pytest
 import numpy as np
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
@@ -173,7 +172,7 @@ class TestLatencyBudgets:
 
     def test_alert_tuner_analyze_latency(self):
         """Alert tuner precision analysis should be < 10ms p99."""
-        from services.alert_tuner import AlertTuner, AlertRecord, generate_synthetic_training_data
+        from services.alert_tuner import AlertTuner, generate_synthetic_training_data
         alerts, gt = generate_synthetic_training_data(n_alerts=100, fp_rate=0.4)
         tuner = AlertTuner(alerts, gt)
 

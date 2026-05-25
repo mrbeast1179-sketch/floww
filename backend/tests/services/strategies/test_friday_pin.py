@@ -5,7 +5,6 @@ backend/tests/services/strategies/test_friday_pin.py — Tests for Friday Pin st
 
 from __future__ import annotations
 
-import pytest
 from datetime import datetime, timezone, timedelta
 from services.strategies.friday_pin import FridayPinStrategy, FridayPinConfig
 

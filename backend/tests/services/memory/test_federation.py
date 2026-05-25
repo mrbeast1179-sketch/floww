@@ -5,12 +5,9 @@ backend/tests/services/memory/test_federation.py — Tests for federated mem0 sy
 Run: pytest backend/tests/services/memory/test_federation.py -v
 """
 
-import json
 import time
-import tempfile
-import shutil
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 import pytest
 import sys
@@ -21,7 +18,6 @@ from services.memory.federation import (
     FederationEvent,
     FileBasedFederationQueue,
     FederatedMemorySync,
-    NODE_ID,
 )
 
 

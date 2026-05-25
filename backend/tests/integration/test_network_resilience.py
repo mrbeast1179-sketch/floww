@@ -24,8 +24,6 @@ import os
 import sys
 import time
 from datetime import datetime, timezone
-from typing import Any, Dict, List
-from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -36,7 +34,7 @@ os.environ.setdefault("TESTING", "1")
 from services.duckdb_engine import DuckDBEngine
 from services.mock_schwab_feed import MockSchwabFeed
 from services.schwab_streamer import SchwabStreamer
-from services.data_fallback import DataFallbackHandler, DataSource, FallbackConfig, FallbackState
+from services.data_fallback import DataFallbackHandler, DataSource, FallbackConfig
 
 
 # ── Fixtures ──────────────────────────────────────────────────────────────

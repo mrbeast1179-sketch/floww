@@ -10,15 +10,12 @@ from __future__ import annotations
 import json
 import sys
 from pathlib import Path
-from typing import Dict, List
 
-import pytest
 
 # Add repo root so scripts.extract_code_links is importable.
 sys.path.insert(0, str(Path(__file__).resolve().parents[4]))
 
 from scripts.extract_code_links import (  # noqa: E402
-    CODE_URL_RE,
     _strip_trailing_punctuation,
     extract_candidates,
     extract_code_urls,

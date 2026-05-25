@@ -23,7 +23,7 @@ import pytest
 REPO_BACKEND = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPO_BACKEND))
 
-from services.iv_skew_analyzer import IvSkewAnalyzer, IvSkewResult
+from services.iv_skew_analyzer import IvSkewAnalyzer
 
 
 # ==================================================================

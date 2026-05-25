@@ -7,7 +7,6 @@ Tests for the live-trading state machine with circuit breakers.
 
 import os
 import pytest
-from unittest.mock import patch
 from datetime import datetime, timezone, timedelta
 
 # Set dev mode for testing
@@ -18,7 +17,6 @@ from services.live_trading_switch import (
     LiveTradingSwitch,
     TradingState,
     CircuitBreakerReason,
-    switch,
 )
 
 

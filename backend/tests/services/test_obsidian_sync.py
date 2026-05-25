@@ -5,13 +5,9 @@ Tests for obsidian_sync.py — conflict resolution, sync direction, frontmatter 
 Run with: pytest backend/tests/services/test_obsidian_sync.py -v
 """
 
-import os
 import sys
 import time
-import tempfile
-import shutil
 from pathlib import Path
-from unittest.mock import patch
 
 import pytest
 

@@ -18,8 +18,7 @@ import asyncio
 import os
 import sys
 import time
-from typing import Any, Dict, List, Optional
-from unittest.mock import AsyncMock, MagicMock, patch
+from typing import Dict, Optional
 
 import pytest
 
@@ -32,7 +31,6 @@ from services.data_fallback import (
     DataSource,
     FallbackConfig,
     FallbackState,
-    SourceStatus,
 )
 from services.circuit_breaker import CircuitBreaker, BreakerThresholds, CircuitState
 

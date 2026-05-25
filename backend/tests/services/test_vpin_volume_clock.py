@@ -11,7 +11,6 @@ Validates:
 
 from __future__ import annotations
 
-import math
 import sys
 import time
 from pathlib import Path
@@ -22,7 +21,7 @@ import pytest
 REPO_BACKEND = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPO_BACKEND))
 
-from services.volume_clock import VolumeClock, VolumeBucket
+from services.volume_clock import VolumeClock
 
 
 class TestVolumeClockBasic:

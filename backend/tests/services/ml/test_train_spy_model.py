@@ -8,11 +8,9 @@ and model training on real data from MongoDB.
 from __future__ import annotations
 
 import sys
-import os
 import math
 from pathlib import Path
 
-import pytest
 import numpy as np
 
 REPO_BACKEND = Path(__file__).resolve().parents[2]

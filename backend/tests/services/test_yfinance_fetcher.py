@@ -17,7 +17,6 @@ from __future__ import annotations
 import os
 import sys
 from unittest.mock import patch, MagicMock
-from datetime import datetime, timezone
 
 import pytest
 import pandas as pd

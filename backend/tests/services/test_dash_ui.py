@@ -6,7 +6,6 @@ Each tab renders without crashing on empty/malformed data.
 Color coding logic is deterministic.
 """
 import pytest
-import json
 from unittest.mock import patch, MagicMock
 
 # ── Fixtures ─────────────────────────────────────────────────────────────────

@@ -11,7 +11,6 @@ Reference: Hull, J.C. "Options, Futures, and Other Derivatives", 10th Ed.
   - Edge case: zero vol (sigma → 0)
 """
 
-import pytest
 import math
 import sys
 import os
@@ -21,7 +20,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from bs_greeks import (
     bs_call_price, bs_put_price,
     bs_delta, bs_gamma, bs_vega,
-    bs_vanna, bs_vomma, bs_zomma, bs_charm,
+    bs_vanna,
 )
 
 

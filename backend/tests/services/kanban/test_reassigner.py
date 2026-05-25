@@ -1,7 +1,6 @@
 """
 backend/tests/services/kanban/test_reassigner.py — Tests for dynamic task reassigner.
 """
-import pytest
 import sys
 from pathlib import Path
 

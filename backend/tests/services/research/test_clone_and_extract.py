@@ -9,7 +9,6 @@ NOTE: Several tests require network access to GitHub and are skipped.
 from __future__ import annotations
 
 import json
-import os
 import sys
 from pathlib import Path
 

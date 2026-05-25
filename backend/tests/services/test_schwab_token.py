@@ -5,11 +5,10 @@ Tests for Schwab OAuth token auto-refresh.
 """
 from __future__ import annotations
 
-import asyncio
 import json
 import os
 import tempfile
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timezone
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 

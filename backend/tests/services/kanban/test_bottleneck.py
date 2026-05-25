@@ -2,14 +2,13 @@
 backend/tests/services/kanban/test_bottleneck.py — Tests for bottleneck detector.
 """
 
-import pytest
 import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent.parent.parent))
 
 from services.kanban.bottleneck import (
-    compute_agent_metrics, detect_bottlenecks, run_bottleneck_check
+    compute_agent_metrics, detect_bottlenecks
 )
 
 

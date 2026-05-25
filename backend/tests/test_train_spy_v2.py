@@ -9,9 +9,7 @@ Uses synthetic data — no MongoDB required.
 import pytest
 import numpy as np
 import sys
-import os
 from pathlib import Path
-from unittest.mock import patch, MagicMock
 
 # Add repo root to path so we can import scripts
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
@@ -22,7 +20,6 @@ from scripts.train_spy_v2 import (
     compute_baselines,
     compute_trading_sharpe,
     build_feature_matrix,
-    train_model,
 )
 
 

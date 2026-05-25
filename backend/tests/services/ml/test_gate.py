@@ -20,7 +20,6 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
 
 from services.ml.gate import (
     DEFAULT_MAX_SHARPE,
-    DEFAULT_REQUIRED_BASELINES,
     compute_trading_sharpe,
     evaluate_baselines,
     evaluate_ship_verdict,

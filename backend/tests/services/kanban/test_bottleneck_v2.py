@@ -1,10 +1,8 @@
 """
 backend/tests/services/kanban/test_bottleneck_v2.py — Tests for bottleneck detector v2.
 """
-import pytest
 import sys
 from pathlib import Path
-from datetime import datetime, timezone, timedelta
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent.parent))
 

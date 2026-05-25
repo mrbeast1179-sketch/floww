@@ -14,11 +14,8 @@ Coverage:
 """
 
 import sys
-import time
 from pathlib import Path
-from unittest.mock import MagicMock, patch
 
-import pytest
 
 # Ensure backend/ is on path
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
@@ -183,7 +180,7 @@ def test_metrics_endpoint_returns_prometheus_format():
 # ---------------------------------------------------------------------------
 def test_vpin_engine_emits_metrics():
     from services.vpin_engine import VpinEngine
-    from services.observability import vpin_current, get_metrics_bytes
+    from services.observability import get_metrics_bytes
 
     engine = VpinEngine(bucket_size=100.0, window=10, ticker="SPY")
     # Feed enough volume to trigger bucket finalize
@@ -216,7 +213,7 @@ def test_vpin_engine_no_ticker_no_metrics():
 # ---------------------------------------------------------------------------
 def test_anomaly_detector_emits_metrics():
     from services.anomaly_detector import FlowAnomalyDetector
-    from services.observability import anomaly_score, get_metrics_bytes
+    from services.observability import get_metrics_bytes
 
     detector = FlowAnomalyDetector(seq_len=5, latent_dim=4, ticker="SPY")
     # Feed enough observations to warm up buffer (5) + fallback errors (10)
