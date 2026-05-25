@@ -30,6 +30,8 @@ import numpy as np
 import pandas as pd
 from dotenv import load_dotenv
 
+
+logger = logging.getLogger(__name__)
 warnings.filterwarnings("ignore")
 
 # Setup paths
@@ -459,7 +461,7 @@ async def main():
         "models": all_results,
         "timestamp": datetime.now(timezone.utc).isoformat(),
     }
-    print(json.dumps(output, indent=2, default=str))
+    logger.info(json.dumps(output, indent=2, default=str))
 
 
 if __name__ == "__main__":

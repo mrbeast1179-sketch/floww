@@ -29,6 +29,8 @@ import joblib
 import numpy as np
 import pandas as pd
 
+
+logger = logging.getLogger(__name__)
 warnings.filterwarnings("ignore")
 
 SCRIPT_DIR = Path(__file__).resolve().parent
@@ -521,7 +523,7 @@ def main():
         json.dump(summary, f, indent=2, default=str)
     log.info(f"\nSummary saved to {summary_path}")
 
-    print(json.dumps(summary, indent=2, default=str))
+    logger.info(json.dumps(summary, indent=2, default=str))
 
 
 if __name__ == "__main__":

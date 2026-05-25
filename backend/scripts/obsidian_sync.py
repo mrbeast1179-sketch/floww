@@ -29,6 +29,8 @@ import logging
 from pathlib import Path
 from datetime import datetime
 
+
+logger = logging.getLogger(__name__)
 # ── Configuration ──────────────────────────────────────────────────────────
 
 CLAUDE_MEMORY_DIR = Path.home() / ".claude/projects/-Users-nav-Documents-GitHub-floww/memory"
@@ -438,7 +440,7 @@ def main():
     else:
         conflicts = sync.sync_all()
         if conflicts:
-            print(f"\n{conflicts} conflict(s) resolved. Check sync log for details.")
+            logger.info(f"\n{conflicts} conflict(s) resolved. Check sync log for details.")
 
 
 if __name__ == "__main__":

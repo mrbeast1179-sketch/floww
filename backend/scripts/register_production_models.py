@@ -19,6 +19,9 @@ load_dotenv(Path(__file__).resolve().parent.parent / ".env")
 from motor.motor_asyncio import AsyncIOMotorClient
 from services.ml.registry import ModelRegistry
 
+import logging
+
+logger = logging.getLogger(__name__)
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 MODELS_DIR = REPO_ROOT / "models"
 
@@ -119,19 +122,19 @@ async def register_all(dry_run: bool = True, promote: list = None):
 
         training_window = f"2024-01-01 to 2024-12-30 ({metrics['n_train_samples']} samples)"
 
-        print(f"\n{'='*60}")
-        print(f"  Ticker: {ticker}")
-        print(f"  Model ID: {spec['model_id']}")
-        print(f"  Sharpe: {metrics['holdout_sharpe']}")
-        print(f"  Beats baselines: {metrics['beats_baselines']}")
+        logger.info(f"\n{'='*60}")
+        logger.info(f"  Ticker: {ticker}")
+        logger.info(f"  Model ID: {spec['model_id']}")
+        logger.info(f"  Sharpe: {metrics['holdout_sharpe']}")
+        logger.info(f"  Beats baselines: {metrics['beats_baselines']}")
 
         if not os.path.exists(spec["artifact_path"]):
-            print(f"  SKIP: Artifact not found")
+            logger.info(f"  SKIP: Artifact not found")
             results.append((ticker, "skip", "artifact missing"))
             continue
 
         if dry_run:
-            print(f"  DRY RUN — would register as shadow")
+            logger.info(f"  DRY RUN — would register as shadow")
             results.append((ticker, "dry_run", "ok"))
             continue
 
@@ -144,21 +147,21 @@ async def register_all(dry_run: bool = True, promote: list = None):
             artifact_path=spec["artifact_path"],
             status="shadow",
         )
-        print(f"  Registered: {doc['model_id']} status=shadow")
+        logger.info(f"  Registered: {doc['model_id']} status=shadow")
         results.append((ticker, "registered", spec["model_id"]))
 
         if ticker in promote and metrics.get("beats_baselines"):
             result = await registry.promote_model(spec["model_id"])
-            print(f"  Promote: {result}")
+            logger.info(f"  Promote: {result}")
             results.append((ticker, "promoted" if result["success"] else "promote_failed", result.get("reason", "")))
         elif ticker in promote:
-            print(f"  PROMOTE SKIP: beats_baselines=False")
+            logger.info(f"  PROMOTE SKIP: beats_baselines=False")
             results.append((ticker, "promote_skip", "beats_baselines=False"))
 
-    print(f"\n{'='*60}")
-    print("Summary:")
+    logger.info(f"\n{'='*60}")
+    logger.info("Summary:")
     for ticker, action, detail in results:
-        print(f"  {ticker}: {action} ({detail})")
+        logger.info(f"  {ticker}: {action} ({detail})")
 
     client.close()
 
