@@ -1,4 +1,7 @@
 #!/usr/bin/env python3
+import logging
+logger = logging.getLogger(__name__)
+
 """
 backend/scripts/backtest_regime_filtered.py
 
@@ -14,7 +17,6 @@ Uses the same walk-forward CV as train_spy_ml.py but filters trades.
 
 import argparse
 import json
-import logging
 import sys
 import time
 from pathlib import Path
@@ -43,7 +45,6 @@ def load_gex_regime(ticker: str, dates: list) -> dict:
     try:
         import yfinance as yf
 
-logger = logging.getLogger(__name__)
         # Use a simple heuristic: if spot > 20-day SMA, regime is "positive"
         data = yf.download(ticker, period="6mo", progress=False)
         if data.empty:

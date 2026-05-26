@@ -12,6 +12,9 @@ import os
 import sys
 
 # Add project root to path
+import logging
+logger = logging.getLogger(__name__)
+
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 
@@ -47,9 +50,7 @@ async def retrain_models_job():
     """Retrain ML models on latest data."""
     from ml_price_prediction import train_price_direction_model
     from dotenv import load_dotenv
-import logging
 
-logger = logging.getLogger(__name__)
     load_dotenv()
     
     tickers = os.environ.get("ML_TICKERS", "SPY,QQQ").split(",")
