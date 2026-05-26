@@ -39,7 +39,7 @@ async def errors_summary():
 
 
 @router.get("/api/performance/stats")
-async def performance_stats():
+async def performance_stats(_: bool = Depends(_require_admin_auth)):
     from server import _rate_limits
     return {
         "rate_limit_tracked_ips": len(_rate_limits),
@@ -59,7 +59,7 @@ async def errors_clear():
 
 
 @router.get("/databento/usage")
-async def databento_usage():
+async def databento_usage(_: bool = Depends(_require_admin_auth)):
     from server import db, PAID_TICKERS, LIVE_WINDOW, _live_tape_session
     from datetime import datetime, timezone, timedelta
     cutoff = datetime.now(timezone.utc) - timedelta(days=30)
