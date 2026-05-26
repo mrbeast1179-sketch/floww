@@ -83,6 +83,16 @@ _shutdown_event = asyncio.Event()
 _background_tasks: Set[asyncio.Task] = set()
 
 
+async def _logged_task(coro, name: str):
+    """Run a coroutine and log any exception. Used to wrap fire-and-forget tasks."""
+    try:
+        return await coro
+    except asyncio.CancelledError:
+        raise
+    except Exception as e:
+        log.warning(f"background task {name!r} raised: {type(e).__name__}: {e}", exc_info=True)
+
+
 app = FastAPI(title="Confluence Decoder")
 app.add_middleware(CorrelationIdMiddleware)
 
@@ -1582,7 +1592,9 @@ async def build_heatmap(ticker: str, max_expiries: int = 4, with_taps: bool = Tr
         "gamma_flip": gamma_flip_data,
     }
 
-    asyncio.create_task(save_snapshot(ticker, payload))
+    _t = asyncio.create_task(_logged_task(save_snapshot(ticker, payload), f"save_snapshot:{ticker}"))
+    _background_tasks.add(_t)
+    _t.add_done_callback(_background_tasks.discard)
     sanitized = _sanitize(payload)
     _BUILD_HEATMAP_CACHE[cache_key] = {"ts": time.time(), "data": sanitized}
     if len(_BUILD_HEATMAP_CACHE) > 200:
@@ -2626,7 +2638,33 @@ async def on_start():
 
 @app.on_event("shutdown")
 async def on_stop():
+    """Graceful shutdown: signal loops, cancel tracked tasks, close MongoDB."""
+    log.info("on_stop: shutdown signal received")
+    _shutdown_event.set()
+
+    # Cancel the scheduler task first so it stops queueing new work
+    global _scheduler_task
+    if _scheduler_task and not _scheduler_task.done():
+        _scheduler_task.cancel()
+        try:
+            await _scheduler_task
+        except asyncio.CancelledError:
+            pass
+        except Exception as e:
+            log.warning(f"on_stop: scheduler task raised on cancel: {e}")
+
+    # Cancel any remaining tracked background tasks
+    pending = [t for t in _background_tasks if not t.done()]
+    for t in pending:
+        t.cancel()
+    if pending:
+        # Wait with a short bound so a stuck task can't block shutdown
+        await asyncio.wait(pending, timeout=5.0)
+        log.info(f"on_stop: cancelled {len(pending)} background task(s)")
+
+    # Finally close MongoDB
     client.close()
+    log.info("on_stop: shutdown complete")
 
 
 # ============ Health check ============
