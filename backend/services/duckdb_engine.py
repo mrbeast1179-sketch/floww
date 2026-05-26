@@ -26,6 +26,38 @@ import services.observability as obs_metrics
 
 logger = logging.getLogger(__name__)
 
+# Default query timeout in seconds - prevents hanging on malformed queries or lock contention.
+QUERY_TIMEOUT_S = 5.0
+
+
+async def _execute_with_timeout(
+    conn,
+    fn,
+    timeout: float = QUERY_TIMEOUT_S,
+    operation: str = "query",
+) -> Any:
+    """Execute a DuckDB operation via asyncio.to_thread with a timeout.
+
+    Args:
+        conn: DuckDB connection object.
+        fn: Callable that performs the DuckDB operation (runs in thread pool).
+        timeout: Maximum seconds to wait before raising asyncio.TimeoutError.
+        operation: Human-readable name for logging.
+
+    Returns:
+        Result of fn().
+
+    Raises:
+        asyncio.TimeoutError: If the operation exceeds the timeout.
+    """
+    try:
+        return await asyncio.wait_for(asyncio.to_thread(fn), timeout=timeout)
+    except asyncio.TimeoutError:
+        logger.error(f"DuckDB {operation} timeout after {timeout}s")
+        raise
+    except Exception:
+        raise
+
 
 class DuckDBEngine:
     """Thread-safe DuckDB wrapper with async batch writer."""
@@ -42,7 +74,6 @@ class DuckDBEngine:
         self._init_schema()
 
     def _init_schema(self):
-        """Create all tables if they don't exist, then apply migrations."""
         self._create_base_tables()
         self._create_chains_table()
         self._apply_delayed_data_migration()
@@ -50,7 +81,6 @@ class DuckDBEngine:
         logger.info("DuckDB schema initialized with delayed-data support")
 
     def _create_base_tables(self):
-        """Create the original base tables."""
         self._conn.execute("""
             CREATE TABLE IF NOT EXISTS ticks (
                 timestamp    TIMESTAMP,
@@ -127,7 +157,6 @@ class DuckDBEngine:
         """)
 
     def _create_chains_table(self):
-        """Create the chains table for options data with multi-source support."""
         self._conn.execute("""
             CREATE TABLE IF NOT EXISTS chains (
                 timestamp     TIMESTAMP,
@@ -152,7 +181,6 @@ class DuckDBEngine:
         """)
 
     def _apply_delayed_data_migration(self):
-        """Add data_source and delay_seconds columns to existing tables. Safe to call multiple times."""
         for col, typ, default in [("data_source", "VARCHAR", "'Yahoo'"), ("delay_seconds", "INTEGER", "0")]:
             for table in ("ticks", "chains"):
                 try:
@@ -161,10 +189,9 @@ class DuckDBEngine:
                     )
                     logger.info(f"Added {col} to {table}")
                 except Exception:
-                    pass  # Column already exists
+                    pass
 
     def _create_indexes(self):
-        """Create indexes for fast queries."""
         self._conn.execute("CREATE INDEX IF NOT EXISTS idx_ticks_symbol ON ticks(symbol)")
         self._conn.execute("CREATE INDEX IF NOT EXISTS idx_ticks_ts ON ticks(timestamp)")
         self._conn.execute("CREATE INDEX IF NOT EXISTS idx_lob_symbol ON lob_snapshots(symbol)")
@@ -175,13 +202,11 @@ class DuckDBEngine:
         self._conn.execute("CREATE INDEX IF NOT EXISTS idx_chains_ts ON chains(timestamp)")
 
     async def start(self):
-        """Start the background batch writer."""
         self._running = True
         asyncio.create_task(self._flush_loop())
         logger.info("DuckDB async writer started")
 
     async def stop(self):
-        """Stop and flush remaining buffers."""
         self._running = False
         await self._flush_all()
 
@@ -190,7 +215,6 @@ class DuckDBEngine:
                           theta: float, vega: float, vanna: float = 0.0,
                           charm: float = 0.0, vomma: float = 0.0,
                           data_source: str = "Yahoo", delay_seconds: int = 0):
-        """Buffer a tick for batch insert."""
         ts = datetime.now(timezone.utc)
         self._tick_buffer.append((ts, symbol, bid, ask, last, volume, oi,
                                   delta, gamma, theta, vega, vanna, charm, vomma,
@@ -203,14 +227,12 @@ class DuckDBEngine:
 
     async def insert_lob(self, symbol: str, bid_size: int, ask_size: int,
                          bid_price: float, ask_price: float, level: int = 0):
-        """Buffer a LOB snapshot for batch insert."""
         ts = datetime.now(timezone.utc)
         self._lob_buffer.append((ts, symbol, bid_size, ask_size, bid_price, ask_price, level))
         if len(self._lob_buffer) >= self._batch_size:
             await self._flush_lob()
 
     async def insert_flow(self, **kwargs):
-        """Buffer a flow print for batch insert."""
         ts = datetime.now(timezone.utc)
         row = (
             ts,
@@ -235,13 +257,11 @@ class DuckDBEngine:
             await self._flush_flow()
 
     async def _flush_loop(self):
-        """Background loop that flushes buffers every 50ms."""
         while self._running:
             await asyncio.sleep(self._flush_interval_ms / 1000.0)
             await self._flush_all()
 
     async def _flush_all(self):
-        """Flush all buffers."""
         await asyncio.gather(
             self._flush_ticks(),
             self._flush_lob(),
@@ -259,12 +279,16 @@ class DuckDBEngine:
             len(self._tick_buffer) + len(self._lob_buffer) + len(self._flow_buffer)
         )
         try:
-            await asyncio.to_thread(
+            await _execute_with_timeout(
+                self._conn,
                 lambda: self._conn.executemany(
                     """INSERT INTO ticks VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
                     buf,
-                )
+                ),
+                operation="tick flush",
             )
+        except asyncio.TimeoutError:
+            logger.error(f"DuckDB tick flush timeout - {len(buf)} rows dropped")
         except Exception as e:
             logger.error(f"DuckDB tick flush error: {e}")
 
@@ -279,12 +303,16 @@ class DuckDBEngine:
             len(self._tick_buffer) + len(self._lob_buffer) + len(self._flow_buffer)
         )
         try:
-            await asyncio.to_thread(
+            await _execute_with_timeout(
+                self._conn,
                 lambda: self._conn.executemany(
                     """INSERT INTO lob_snapshots VALUES (?,?,?,?,?,?,?)""",
                     buf,
-                )
+                ),
+                operation="LOB flush",
             )
+        except asyncio.TimeoutError:
+            logger.error(f"DuckDB LOB flush timeout - {len(buf)} rows dropped")
         except Exception as e:
             logger.error(f"DuckDB LOB flush error: {e}")
 
@@ -299,12 +327,16 @@ class DuckDBEngine:
             len(self._tick_buffer) + len(self._lob_buffer) + len(self._flow_buffer)
         )
         try:
-            await asyncio.to_thread(
+            await _execute_with_timeout(
+                self._conn,
                 lambda: self._conn.executemany(
                     """INSERT INTO flow_prints VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
                     buf,
-                )
+                ),
+                operation="flow flush",
             )
+        except asyncio.TimeoutError:
+            logger.error(f"DuckDB flow flush timeout - {len(buf)} rows dropped")
         except Exception as e:
             logger.error(f"DuckDB flow flush error: {e}")
 
@@ -317,12 +349,41 @@ class DuckDBEngine:
             logger.error(f"DuckDB query error: {e}")
             return []
 
-    async def query_async(self, sql: str, params: Optional[List] = None) -> List[Dict[str, Any]]:
-        """Async wrapper for query — runs in thread pool to avoid blocking event loop."""
-        return await asyncio.to_thread(self.query, sql, params)
+    async def query_async(
+        self,
+        sql: str,
+        params: Optional[List] = None,
+        timeout: float = QUERY_TIMEOUT_S,
+    ) -> List[Dict[str, Any]]:
+        """Async wrapper for query - runs in thread pool with configurable timeout.
+
+        Args:
+            sql: SQL query string.
+            params: Optional query parameters.
+            timeout: Maximum seconds to wait (default QUERY_TIMEOUT_S=5).
+
+        Returns:
+            List of dicts from query result.
+
+        Raises:
+            asyncio.TimeoutError: If query exceeds timeout.
+        """
+        def _do_query():
+            return self._conn.execute(sql, params or []).fetchdf()
+
+        try:
+            df = await _execute_with_timeout(
+                self._conn, _do_query, timeout=timeout, operation="query"
+            )
+            return df.replace({np.nan: None}).to_dict("records")
+        except asyncio.TimeoutError:
+            logger.error(f"DuckDB query timeout after {timeout}s: {sql[:100]}")
+            raise
+        except Exception as e:
+            logger.error(f"DuckDB query error: {e}")
+            return []
 
     def query_df(self, sql: str, params: Optional[List] = None):
-        """Return result as pandas DataFrame."""
         try:
             return self._conn.execute(sql, params or []).fetchdf()
         except Exception as e:
@@ -334,5 +395,4 @@ class DuckDBEngine:
         return self._conn
 
 
-# Global singleton
 db = DuckDBEngine()
