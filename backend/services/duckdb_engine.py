@@ -99,7 +99,7 @@ class DuckDBEngine:
         self._batch_size = 100
         self._flush_interval_ms = 50
         self._running = False
-        self._init_schema()
+        self._flush_task: Optional[asyncio.Task] = None
 
     def _init_schema(self):
         self._create_base_tables()
@@ -230,12 +230,27 @@ class DuckDBEngine:
         self._conn.execute("CREATE INDEX IF NOT EXISTS idx_chains_ts ON chains(timestamp)")
 
     async def start(self):
+        if self._running:
+            return  # Already started — idempotent
         self._running = True
-        asyncio.create_task(self._flush_loop())
+        # Guard against double-start: only create a new task if none is running
+        existing = getattr(self, '_flush_task', None)
+        if existing is not None and not existing.done():
+            logger.warning("DuckDB _flush_loop task already running, not creating a new one")
+        else:
+            self._flush_task = asyncio.create_task(self._flush_loop())
         logger.info("DuckDB async writer started")
 
     async def stop(self):
         self._running = False
+        task = getattr(self, '_flush_task', None)
+        if task is not None and not task.done():
+            task.cancel()
+            try:
+                await task
+            except asyncio.CancelledError:
+                pass
+        self._flush_task = None
         await self._flush_all()
 
     async def insert_tick(self, symbol: str, bid: float, ask: float, last: float,
