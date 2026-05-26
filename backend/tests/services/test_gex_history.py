@@ -21,6 +21,7 @@ from datetime import date
 from typing import Any, Dict, Iterable, List
 
 import pandas as pd
+import pytest
 from scipy.stats import norm
 
 # Make ``services`` and ``services.ml`` importable when pytest is launched
@@ -85,13 +86,25 @@ def _expected_gex(spot: float, contracts: List[Dict[str, Any]],
 
 class _FakeCursor:
     """Iterable that supports the ``find(...)`` shape used in the codebase
-    (returns documents; projections are ignored — we just yield what we have)."""
+    (returns documents; projections are ignored — we just yield what we have).
+    Supports both sync and async iteration for Motor cursor compatibility."""
 
     def __init__(self, docs: Iterable[Dict[str, Any]]):
         self._docs = list(docs)
 
     def __iter__(self):
         return iter(self._docs)
+
+    def __aiter__(self):
+        self._aiter_idx = 0
+        return self
+
+    async def __anext__(self):
+        if self._aiter_idx >= len(self._docs):
+            raise StopAsyncIteration
+        doc = self._docs[self._aiter_idx]
+        self._aiter_idx += 1
+        return doc
 
 
 class _FakeCollection:
@@ -227,7 +240,8 @@ def test_compute_gex_total_missing_fields_no_crash(caplog):
 # Test 4 — 5 chains + 5 matching bars → 5 rows
 
 
-def test_build_gex_history_five_aligned_days():
+@pytest.mark.asyncio
+async def test_build_gex_history_five_aligned_days():
     days = ["2024-01-02", "2024-01-03", "2024-01-04", "2024-01-05", "2024-01-08"]
     chains = [
         _make_chain(d, [
@@ -239,7 +253,7 @@ def test_build_gex_history_five_aligned_days():
     bars = [_make_bar(d, 470.0 + i) for i, d in enumerate(days)]
     db = _FakeDB({"databento_eod_chains": chains, "underlying_bars": bars})
 
-    rows = build_gex_history(
+    rows = await build_gex_history(
         "SPY", start_date=date(2024, 1, 1), end_date=date(2024, 1, 31),
         mongo_db=db,
     )
@@ -256,7 +270,8 @@ def test_build_gex_history_five_aligned_days():
 # Test 5 — mismatched dates (intersection only)
 
 
-def test_build_gex_history_intersection_only():
+@pytest.mark.asyncio
+async def test_build_gex_history_intersection_only():
     """3 chains, 2 bars; the 2 days that overlap must be the ONLY rows. The
     third chain day has no bar → must be dropped (no synthesis)."""
     chain_days = ["2024-01-02", "2024-01-03", "2024-01-04"]
@@ -270,7 +285,7 @@ def test_build_gex_history_intersection_only():
     bars = [_make_bar(d, 470.0) for d in bar_days]
     db = _FakeDB({"databento_eod_chains": chains, "underlying_bars": bars})
 
-    rows = build_gex_history(
+    rows = await build_gex_history(
         "SPY", start_date=date(2024, 1, 1), end_date=date(2024, 1, 31),
         mongo_db=db,
     )
@@ -283,9 +298,10 @@ def test_build_gex_history_intersection_only():
 # Test 6 — empty Mongo
 
 
-def test_build_gex_history_empty_mongo():
+@pytest.mark.asyncio
+async def test_build_gex_history_empty_mongo():
     db = _FakeDB({"databento_eod_chains": [], "underlying_bars": []})
-    rows = build_gex_history(
+    rows = await build_gex_history(
         "SPY", start_date=date(2024, 1, 1), end_date=date(2024, 1, 31),
         mongo_db=db,
     )
@@ -296,7 +312,8 @@ def test_build_gex_history_empty_mongo():
 # Test 7 — chronological order independent of Mongo iteration order
 
 
-def test_build_gex_history_sorted_regardless_of_mongo_order():
+@pytest.mark.asyncio
+async def test_build_gex_history_sorted_regardless_of_mongo_order():
     days = ["2024-01-04", "2024-01-02", "2024-01-08", "2024-01-03"]  # scrambled
     chains = [
         _make_chain(d, [
@@ -307,7 +324,7 @@ def test_build_gex_history_sorted_regardless_of_mongo_order():
     bars = [_make_bar(d, 470.0) for d in days]  # scrambled too
     db = _FakeDB({"databento_eod_chains": chains, "underlying_bars": bars})
 
-    rows = build_gex_history(
+    rows = await build_gex_history(
         "SPY", start_date=date(2024, 1, 1), end_date=date(2024, 1, 31),
         mongo_db=db,
     )
@@ -371,7 +388,8 @@ def test_fetch_gex_history_lookback_window():
 # to add_gex_features. Confirms the shape contract end-to-end.
 
 
-def test_round_trip_build_fetch_add_gex_features():
+@pytest.mark.asyncio
+async def test_round_trip_build_fetch_add_gex_features():
     days = ["2024-01-02", "2024-01-03", "2024-01-04", "2024-01-05", "2024-01-08"]
     chains = [
         _make_chain(d, [
@@ -383,7 +401,7 @@ def test_round_trip_build_fetch_add_gex_features():
     bars = [_make_bar(d, 470.0 + i * 0.5) for i, d in enumerate(days)]
     write_db = _FakeDB({"databento_eod_chains": chains, "underlying_bars": bars})
 
-    rows = build_gex_history(
+    rows = await build_gex_history(
         "SPY", start_date=date(2024, 1, 1), end_date=date(2024, 1, 31),
         mongo_db=write_db,
     )
@@ -443,9 +461,10 @@ def test_compute_gex_total_zero_spot_returns_zero():
 # Test 12 — bonus: end_date < start_date returns []
 
 
-def test_build_gex_history_inverted_range_empty():
+@pytest.mark.asyncio
+async def test_build_gex_history_inverted_range_empty():
     db = _FakeDB({"databento_eod_chains": [], "underlying_bars": []})
-    rows = build_gex_history(
+    rows = await build_gex_history(
         "SPY", start_date=date(2024, 6, 1), end_date=date(2024, 1, 1),
         mongo_db=db,
     )
