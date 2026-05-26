@@ -1,6 +1,7 @@
 import { useEffect, useState, useRef, useCallback } from "react";
+import { BACKEND_URL } from "../config/api";
 
-const WS_URL = process.env.REACT_APP_BACKEND_URL?.replace("http", "ws") || "ws://localhost:8000";
+const WS_URL = BACKEND_URL.replace("http", "ws");
 const INITIAL_RECONNECT_DELAY = 1000;
 const MAX_RECONNECT_DELAY = 30000;
 const BACKOFF_MULTIPLIER = 2;
