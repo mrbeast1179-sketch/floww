@@ -5,8 +5,25 @@ Admin/utility routes: errors, performance, databento usage.
 """
 from __future__ import annotations
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends, HTTPException, Request
 from typing import Optional
+
+from auth import get_api_key
+
+
+async def _require_admin_auth(request: Request) -> bool:
+    """Auth dependency for admin routes — checks X-API-Key for ALL methods."""
+    api_key = request.headers.get("X-API-Key", "")
+    expected_key = get_api_key()
+    if not expected_key:
+        raise HTTPException(
+            status_code=503,
+            detail="Authentication not configured. Set API_SECRET_KEY.",
+        )
+    if api_key != expected_key:
+        raise HTTPException(status_code=401, detail="Invalid or missing API key")
+    return True
+
 
 router = APIRouter()
 
@@ -95,8 +112,8 @@ async def databento_usage():
 # Schwab Health
 # ---------------------------------------------------------------------------
 
-@router.get("/api/admin/schwab/health")
-async def schwab_health():
+@router.get("/admin/schwab/health")
+async def schwab_health(_: bool = Depends(_require_admin_auth)):
     """Return Schwab streamer health status.
 
     All values cached in process memory; does not hit Schwab API.
@@ -141,8 +158,8 @@ async def schwab_health():
 # Trading State + Circuit Breaker
 # ---------------------------------------------------------------------------
 
-@router.get("/api/admin/trading/status")
-async def trading_status():
+@router.get("/admin/trading/status")
+async def trading_status(_: bool = Depends(_require_admin_auth)):
     """Return current trading state, circuit breaker status, and SLO summary."""
     from services.live_trading_switch import switch
     from services.circuit_breaker import main_breaker
@@ -155,8 +172,8 @@ async def trading_status():
     }
 
 
-@router.post("/api/admin/trading/transition")
-async def trading_transition(request: dict):
+@router.post("/admin/trading/transition")
+async def trading_transition(request: dict, _: bool = Depends(_require_admin_auth)):
     """
     Request a trading state transition.
     Requires 2FA: totp_code + email_code in request body.
@@ -176,8 +193,8 @@ async def trading_transition(request: dict):
     return {"success": ok, "message": msg, "state": switch.get_status()}
 
 
-@router.post("/api/admin/trading/circuit-breaker/reset")
-async def circuit_breaker_reset(request: Optional[dict] = None):
+@router.post("/admin/trading/circuit-breaker/reset")
+async def circuit_breaker_reset(request: Optional[dict] = None, _: bool = Depends(_require_admin_auth)):
     """Manually reset the circuit breaker (requires admin auth)."""
     from services.circuit_breaker import main_breaker
 
@@ -186,8 +203,8 @@ async def circuit_breaker_reset(request: Optional[dict] = None):
     return {"success": True, "state": main_breaker.get_status()}
 
 
-@router.post("/api/admin/trading/circuit-breaker/trip")
-async def circuit_breaker_trip(request: Optional[dict] = None):
+@router.post("/admin/trading/circuit-breaker/trip")
+async def circuit_breaker_trip(request: Optional[dict] = None, _: bool = Depends(_require_admin_auth)):
     """Manually trip the circuit breaker (emergency stop)."""
     from services.circuit_breaker import main_breaker
 
@@ -197,8 +214,8 @@ async def circuit_breaker_trip(request: Optional[dict] = None):
     return {"success": True, "state": main_breaker.get_status()}
 
 
-@router.get("/api/admin/trading/circuit-breaker/log")
-async def circuit_breaker_log():
+@router.get("/admin/trading/circuit-breaker/log")
+async def circuit_breaker_log(_: bool = Depends(_require_admin_auth)):
     """Return circuit breaker trip log."""
     from services.circuit_breaker import main_breaker
 
