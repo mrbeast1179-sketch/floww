@@ -16,6 +16,8 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import time
+from functools import wraps
 from typing import Any, Dict, List, Optional
 from datetime import datetime, timezone
 
@@ -25,6 +27,32 @@ import numpy as np
 import services.observability as obs_metrics
 
 logger = logging.getLogger(__name__)
+
+def retry_on_failure(max_retries=3, base_delay=0.1):
+    """Decorator that retries an async function on failure with exponential backoff."""
+    def decorator(func):
+        @wraps(func)
+        async def wrapper(*args, **kwargs):
+            last_exception = None
+            for attempt in range(max_retries):
+                try:
+                    return await func(*args, **kwargs)
+                except Exception as e:
+                    last_exception = e
+                    if attempt < max_retries - 1:
+                        delay = base_delay * (2 ** attempt)
+                        logger.warning(
+                            "%s failed (attempt %d/%d), retrying in %.2fs: %s",
+                            func.__name__, attempt + 1, max_retries, delay, e,
+                        )
+                        await asyncio.sleep(delay)
+            logger.error(
+                "%s failed after %d attempts: %s",
+                func.__name__, max_retries, last_exception,
+            )
+            raise last_exception
+        return wrapper
+    return decorator
 
 # Default query timeout in seconds - prevents hanging on malformed queries or lock contention.
 QUERY_TIMEOUT_S = 5.0
@@ -268,6 +296,7 @@ class DuckDBEngine:
             self._flush_flow(),
         )
 
+    @retry_on_failure(max_retries=3, base_delay=0.1)
     async def _flush_ticks(self):
         if not self._tick_buffer:
             return
@@ -292,6 +321,7 @@ class DuckDBEngine:
         except Exception as e:
             logger.error(f"DuckDB tick flush error: {e}")
 
+    @retry_on_failure(max_retries=3, base_delay=0.1)
     async def _flush_lob(self):
         if not self._lob_buffer:
             return
@@ -316,6 +346,7 @@ class DuckDBEngine:
         except Exception as e:
             logger.error(f"DuckDB LOB flush error: {e}")
 
+    @retry_on_failure(max_retries=3, base_delay=0.1)
     async def _flush_flow(self):
         if not self._flow_buffer:
             return
