@@ -121,7 +121,9 @@ export function useMarketData(endpoint, options = {}) {
       });
       const url = `${API}/${endpoint}${qs.toString() ? `?${qs}` : ""}`;
 
-      const res = await fetch(url, { signal: controller.signal, timeout: 30000 });
+      const timeoutSignal = AbortSignal.timeout(30000);
+      const combinedSignal = AbortSignal.any([controller.signal, timeoutSignal]);
+      const res = await fetch(url, { signal: combinedSignal });
       if (!res.ok) {
         const body = await res.text().catch(() => "");
         throw new Error(`HTTP ${res.status}${body ? `: ${body.slice(0, 120)}` : ""}`);
