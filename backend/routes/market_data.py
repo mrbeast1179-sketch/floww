@@ -181,7 +181,8 @@ async def chain(
     min_oi: int = Query(0, ge=0),
     expiry: Optional[str] = None,
 ):
-    from server import fetch_spot_and_chains_merged, _sanitize
+    from server import fetch_spot_and_chains_merged, _sanitize, DIV_YIELD
+    from bs_greeks import bs_vanna, bs_charm
     t = ticker.strip().upper()
     if t == "SPX":
         t = "^SPX"
@@ -199,6 +200,22 @@ async def chain(
         gamma = c.get("gamma", 0)
         oi = c.get("oi", c.get("open_interest", 0))
         gex = gamma * oi * 100 * spot * (1 if c["type"] == "call" else -1)
+        # Compute T (time to expiry in years) from expiry date string
+        expiry_str = c.get("expiry", "")
+        T = 0.0
+        if expiry_str and spot > 0:
+            try:
+                exp_date = datetime.strptime(expiry_str, "%Y-%m-%d")
+                T = max(0.0, (exp_date - datetime.now()).total_seconds() / (365.25 * 86400))
+            except (ValueError, TypeError):
+                T = 0.0
+        strike = c["strike"]
+        iv = c.get("iv", 0)
+        q = DIV_YIELD.get(t, 0.0)
+        vanna = bs_vanna(spot, strike, T, iv, q=q) if spot > 0 and iv > 0 and T > 0 else 0
+        charm = bs_charm(spot, strike, T, iv, q=q, kind=c["type"]) if spot > 0 and iv > 0 and T > 0 else 0
+        moneyness_pct = ((spot - strike) / spot * 100) if spot > 0 else 0
+        dte_val = max(1, int(T * 365.25)) if T > 0 else 0
         rows.append({
             "type": c["type"],
             "strike": c["strike"],
@@ -208,6 +225,10 @@ async def chain(
             "gamma": c.get("gamma", 0),
             "vega": c.get("vega", 0),
             "theta": c.get("theta", 0),
+            "vanna": vanna,
+            "charm": charm,
+            "moneyness_pct": moneyness_pct,
+            "dte": dte_val,
             "oi": c.get("oi", c.get("open_interest", 0)),
             "volume": c.get("volume", 0),
             "bid": c.get("bid", 0),

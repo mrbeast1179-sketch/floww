@@ -85,19 +85,25 @@ async def predict(ticker: str) -> Dict[str, Any]:
     Downloads recent market data, computes features in real-time,
     and runs inference using the pre-trained model.
 
-    Returns prediction (1=bullish, 0=bearish), confidence, and metadata.
+    Returns prediction (2=UP, 1=HOLD, 0=DOWN), confidence, 3-way probabilities,
+    and GEX regime signal.
     """
+    from services.ml.inference import CLASS_LABELS
     try:
         result = await inference_engine.predict(ticker)
+        label = CLASS_LABELS.get(result.prediction, "?")
         return {
             "ticker": result.ticker,
             "prediction": result.prediction,
-            "prediction_label": "bullish" if result.prediction == 1 else "bearish",
+            "prediction_label": label.lower(),
             "confidence": round(result.confidence, 4),
             "probabilities": {
-                "bearish": round(result.probabilities[0], 4),
-                "bullish": round(result.probabilities[1], 4),
+                "down": round(result.probabilities[0], 4) if len(result.probabilities) > 0 else 0.33,
+                "hold": round(result.probabilities[1], 4) if len(result.probabilities) > 1 else 0.34,
+                "up": round(result.probabilities[2], 4) if len(result.probabilities) > 2 else 0.33,
             },
+            "gex_signal": result.gex_signal,
+            "gex_snapshot_date": result.gex_snapshot_date,
             "model_id": result.model_id,
             "features_used": len(result.features_used),
             "data_age_sec": round(result.data_age_sec, 1),
@@ -602,3 +608,100 @@ async def retrain_status(ticker: str) -> Dict[str, Any]:
     except Exception as e:
         logger.error(f"Retrain status failed for {ticker}: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
+
+
+# ── GET /api/ml/calibration/{ticker} ────────────────────────────────────
+
+
+@router.get("/calibration/{ticker}")
+async def get_calibration(ticker: str, window: int = Query(default=30, ge=7, le=90)):
+    """Get prediction confidence calibration for a ticker.
+
+    Binds predictions into confidence buckets and computes actual
+    accuracy per bucket. Well-calibrated model should have
+    accuracy ≈ confidence in each bucket.
+
+    Query params:
+        window: Number of recent predictions to analyze (default 30, max 90)
+    """
+    from server import db
+    preds_col = db["ml_predictions"]
+    ticker = ticker.upper()
+
+    # Fetch recent predictions with realized outcomes
+    recent = await preds_col.find({
+        "ticker": ticker,
+        "realized_outcome": {"$ne": None},
+        "confidence": {"$ne": None},
+    }).sort("ts", -1).limit(window).to_list(length=window)
+
+    if not recent:
+        return {
+            "ticker": ticker,
+            "calibration": [],
+            "total_samples": 0,
+            "message": "No predictions with realized outcomes found",
+        }
+
+    # Bin predictions by confidence
+    bins = {
+        "0.50-0.60": {"predicted": [], "actual": []},
+        "0.60-0.70": {"predicted": [], "actual": []},
+        "0.70-0.80": {"predicted": [], "actual": []},
+        "0.80-0.90": {"predicted": [], "actual": []},
+        "0.90-1.00": {"predicted": [], "actual": []},
+    }
+
+    for r in recent:
+        conf = r.get("confidence", 0)
+        pred = r.get("prediction")
+        actual = r.get("realized_outcome")
+        if conf is None or pred is None or actual is None:
+            continue
+
+        if 0.50 <= conf < 0.60:
+            bin_key = "0.50-0.60"
+        elif 0.60 <= conf < 0.70:
+            bin_key = "0.60-0.70"
+        elif 0.70 <= conf < 0.80:
+            bin_key = "0.70-0.80"
+        elif 0.80 <= conf < 0.90:
+            bin_key = "0.80-0.90"
+        elif 0.90 <= conf <= 1.00:
+            bin_key = "0.90-1.00"
+        else:
+            continue
+
+        bins[bin_key]["predicted"].append(pred)
+        bins[bin_key]["actual"].append(actual)
+
+    calibration = []
+    for bin_key, data in bins.items():
+        n = len(data["predicted"])
+        if n == 0:
+            continue
+        correct = sum(1 for p, a in zip(data["predicted"], data["actual"]) if p == a)
+        avg_conf = sum(data["predicted"]) / n if n > 0 else 0
+        calibration.append({
+            "bin": bin_key,
+            "n_samples": n,
+            "accuracy": round(correct / n, 4),
+            "mean_confidence": round(avg_conf, 4),
+            "calibration_error": round(abs(avg_conf - correct / n), 4),
+        })
+
+    # Overall calibration error (ECE)
+    total_samples = sum(c["n_samples"] for c in calibration)
+    ece = (
+        sum(c["n_samples"] * c["calibration_error"] for c in calibration) / total_samples
+        if total_samples > 0
+        else None
+    )
+
+    return {
+        "ticker": ticker,
+        "window": window,
+        "total_samples": total_samples,
+        "expected_calibration_error": round(ece, 4) if ece is not None else None,
+        "calibration": calibration,
+    }

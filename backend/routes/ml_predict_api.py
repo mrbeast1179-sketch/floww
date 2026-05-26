@@ -33,6 +33,27 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/ml", tags=["ml-predict"])
 
 
+# ── Prediction cache ─────────────────────────────────────────────────────
+_pred_cache: Dict[str, Dict] = {}
+_pred_cache_ttl_sec = 60  # Cache predictions for 60 seconds
+
+
+def _get_cached_prediction(ticker: str) -> Optional[Dict]:
+    """Get cached prediction if fresh enough."""
+    import time
+    entry = _pred_cache.get(ticker.upper())
+    if entry and (time.time() - entry["ts"]) < _pred_cache_ttl_sec:
+        return entry["data"]
+    return None
+
+
+def _set_cached_prediction(ticker: str, data: Dict):
+    """Cache a prediction result."""
+    import time
+    _pred_cache[ticker.upper()] = {"ts": time.time(), "data": data}
+
+
+
 @router.get("/predict/{ticker}")
 async def predict_direction(
     ticker: str,

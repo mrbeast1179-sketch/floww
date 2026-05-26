@@ -184,3 +184,49 @@ async def ml_reload_model(ticker: str) -> Dict[str, Any]:
         raise HTTPException(status_code=404, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+# ── GET /api/ml/compare ─────────────────────────────────────────────────
+
+
+@router.get("/compare")
+async def compare_models(
+    tickers: Optional[str] = Query(None, description="Comma-separated tickers, default=all"),
+):
+    """Compare all registered models on current live data.
+
+    Runs inference for each ticker and returns a side-by-side comparison
+    of predictions, confidence, model type, and data freshness.
+    """
+    engine = await _get_inference_engine()
+
+    if tickers:
+        ticker_list = [t.strip().upper() for t in tickers.split(",")]
+    else:
+        ticker_list = list(engine.MODEL_REGISTRY.keys())
+
+    results = []
+    errors = []
+
+    for ticker in ticker_list:
+        try:
+            pred = await engine.predict(ticker)
+            results.append({
+                "ticker": ticker,
+                "prediction": pred.prediction,
+                "prediction_label": {0: "DOWN", 1: "HOLD", 2: "UP"}.get(pred.prediction, "UNKNOWN"),
+                "confidence": round(pred.confidence, 4),
+                "model_id": pred.model_id,
+                "data_age_sec": round(pred.data_age_sec, 1),
+                "gex_signal": pred.gex_signal,
+                "timestamp": pred.timestamp,
+            })
+        except Exception as e:
+            errors.append({"ticker": ticker, "error": str(e)})
+
+    return {
+        "comparison": results,
+        "errors": errors,
+        "count": len(results),
+        "error_count": len(errors),
+    }
