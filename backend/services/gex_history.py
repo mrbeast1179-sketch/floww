@@ -156,7 +156,7 @@ def _iso_utc(d: str) -> str:
     return datetime.strptime(d, "%Y-%m-%d").replace(tzinfo=timezone.utc).isoformat()
 
 
-def build_gex_history(
+async def build_gex_history(
     ticker: str,
     *,
     start_date: date,
@@ -188,7 +188,7 @@ def build_gex_history(
         {"date": 1, "close": 1, "_id": 0},
     )
     spots: Dict[str, float] = {}
-    for b in bars_cur:
+    async for b in bars_cur:
         d = b.get("date")
         c = _safe_float(b.get("close"), 0.0)
         if d and c > 0:
@@ -200,7 +200,7 @@ def build_gex_history(
     )
 
     rows: List[Dict[str, Any]] = []
-    for chain in chains_cur:
+    async for chain in chains_cur:
         day = chain.get("day")
         if not day:
             continue

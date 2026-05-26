@@ -20,6 +20,7 @@ Usage::
 from __future__ import annotations
 
 import argparse
+import asyncio
 import json
 import os
 import statistics
@@ -149,9 +150,9 @@ def run(
 
     for ticker in tickers:
         print(f"\n=== {ticker} ===")
-        rows = build_gex_history(
+        rows = asyncio.run(build_gex_history(
             ticker, start_date=start, end_date=end, mongo_db=db
-        )
+        ))
         gaps = _count_missing(db, ticker, start, end)
         manifest = _build_manifest(
             ticker,
