@@ -2,7 +2,7 @@ import React, { useEffect, useState } from "react";
 import axios from "axios";
 import { fmtAbs, pctClass } from "../lib/helpers";
 
-const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
+import { API } from "../config/api";
 
 const SENTIMENT_COLOR = {
   bullish: "text-emerald-400",
@@ -25,7 +25,9 @@ export default function UOAPanel({ ticker }) {
 
   useEffect(() => {
     if (!ticker) return;
-    axios.get(`${API}/uoa/${ticker}?min_premium=${minPremium}`).then(r => setData(r.data)).catch(() => {});
+    axios.get(`${API}/uoa/${ticker}?min_premium=${minPremium}`).then(r => setData(r.data)).catch((e) => {
+      console.error("UOAPanel fetch failed:", e);
+    });
   }, [ticker, minPremium]);
 
   if (!data) return null;
