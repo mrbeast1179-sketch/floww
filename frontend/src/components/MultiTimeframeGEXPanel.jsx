@@ -13,7 +13,9 @@ export default function MultiTimeframeGEXPanel({ ticker }) {
 
   useEffect(() => {
     if (!ticker) return;
-    axios.get(`${API}/gex-timeframes/${ticker}`).then(r => setData(r.data)).catch(() => {});
+    axios.get(`${API}/gex-timeframes/${ticker}`).then(r => setData(r.data)).catch((e) => {
+      console.error("MultiTimeframeGEXPanel fetch failed:", e);
+    });
   }, [ticker]);
 
   if (!data?.timeframes) return null;

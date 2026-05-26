@@ -29,7 +29,9 @@ export function TradeJournal({ ticker }) {
     try {
       const saved = localStorage.getItem("floww_trades");
       if (saved) setTrades(JSON.parse(saved));
-    } catch {}
+    } catch (e) {
+      console.error("TradeJournal load from localStorage failed:", e);
+    }
   }, []);
 
   // Save trades to localStorage (skip initial empty state)

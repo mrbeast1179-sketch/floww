@@ -2,8 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from "react";
 import axios from "axios";
 import { fmt } from "../lib/helpers";
 
-const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
-const API = `${BACKEND_URL}/api`;
+import { API } from "../config/api";
 
 // ============ Flow Tape Viewer ============
 export default function FlowTicker({ ticker }) {
@@ -116,7 +115,10 @@ export default function FlowTicker({ ticker }) {
       esRef.current = null;
     }
     // Also tell backend to stop
-    axios.post(`${API}/live/tape/stop`).catch(() => {});
+    axios.post(`${API}/live/tape/stop`).catch((e) => {
+      console.error("FlowTicker stop tape failed:", e);
+      setError("Failed to stop tape stream");
+    });
     setStatus("idle");
   };
 
