@@ -27,6 +27,7 @@ import yfinance as yf
 import pandas as pd
 import numpy as np
 from scipy.stats import norm
+from services.logging_config import setup_logging, CorrelationIdMiddleware
 
 from services.duckdb_engine import db as duckdb_engine
 from services.vpin_engine import VpinEngine
@@ -71,15 +72,8 @@ db = client[DB_NAME]
 LOG_DIR = ROOT_DIR / "logs"
 LOG_DIR.mkdir(exist_ok=True)
 
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s %(levelname)s %(name)s: %(message)s",
-    handlers=[
-        logging.StreamHandler(),
-        logging.FileHandler(LOG_DIR / "app.log", mode="a"),
-    ],
-)
-log = logging.getLogger("heatseeker")
+setup_logging(level=logging.INFO)
+app.add_middleware(CorrelationIdMiddleware)
 
 app = FastAPI(title="Confluence Decoder")
 
@@ -1441,7 +1435,16 @@ def compute_gex_by_strike_volume(spot: float, contracts: List[Dict[str, Any]], t
 
 # ----------------------------- Heatmap Core -----------------------------------
 
+_BUILD_HEATMAP_CACHE: Dict[str, Any] = {}
+_BUILD_HEATMAP_CACHE_TTL = 60
+
 async def build_heatmap(ticker: str, max_expiries: int = 4, with_taps: bool = True, mode: str = "day", dte: Optional[int] = None, scalp: bool = False) -> Dict[str, Any]:
+    # Check cache first
+    cache_key = f"{ticker}:{max_expiries}:{mode}:{dte}:{scalp}:{with_taps}"
+    cached = _BUILD_HEATMAP_CACHE.get(cache_key)
+    if cached and (time.time() - cached["ts"]) < _BUILD_HEATMAP_CACHE_TTL:
+        return cached["data"]
+
     if mode == "swing":
         max_expiries = max(max_expiries, 8)
     raw = await fetch_spot_and_chains_merged(ticker, max_expiries)
@@ -1571,7 +1574,13 @@ async def build_heatmap(ticker: str, max_expiries: int = 4, with_taps: bool = Tr
     }
 
     asyncio.create_task(save_snapshot(ticker, payload))
-    return _sanitize(payload)
+    sanitized = _sanitize(payload)
+    _BUILD_HEATMAP_CACHE[cache_key] = {"ts": time.time(), "data": sanitized}
+    if len(_BUILD_HEATMAP_CACHE) > 200:
+        oldest = sorted(_BUILD_HEATMAP_CACHE.keys(), key=lambda k: _BUILD_HEATMAP_CACHE[k]["ts"])[:50]
+        for k in oldest:
+            del _BUILD_HEATMAP_CACHE[k]
+    return sanitized
 
 
 def _sanitize(obj):
@@ -2575,6 +2584,12 @@ async def metrics_middleware(request: Request, call_next):
         method=request.method,
         status=str(response.status_code),
     ).observe(duration)
+
+    obs_metrics.http_requests_total.labels(
+        method=request.method,
+        endpoint=route,
+        status=str(response.status_code),
+    ).inc()
 
     return response
 
