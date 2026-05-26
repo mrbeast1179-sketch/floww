@@ -16,16 +16,16 @@ Low severity: 4
 
 | # | File:Line | Type | Severity | Fix Suggestion |
 |---|-----------|------|----------|----------------|
-| 1 | `backend/server.py:1573` | dangling asyncio task | High | `save_snapshot()` task is fire-and-forget with no error handling; if it raises, the exception is silently lost. Store the task reference and add a done callback, or wrap in try/except within the coroutine. |
-| 2 | `backend/server.py:2623` | dangling asyncio task | High | `_scheduler_loop()` is started as a fire-and-forget task with no stored reference. On shutdown there is no cancel/await, so the task may outlive the event loop. Store the task and cancel it in `on_stop()`. |
-| 3 | `backend/server.py:2817` | dangling asyncio task | High | `_mock_feed.start()` is fire-and-forget. While `shutdown_ingestion()` stops `_mock_feed`, the task itself is never cancelled. Store the task reference and cancel on shutdown. |
-| 4 | `backend/services/duckdb_engine.py:180` | dangling asyncio task | High | `_flush_loop()` is started as fire-and-forget in `start()`. The `stop()` method sets `_running = False` but never cancels or awaits the task. Store the task reference and cancel it in `stop()`. |
+| 1 | `backend/server.py:1573` | dangling asyncio task | DONE 2026-05-27 5c60a2a | Wrapped in `_logged_task()` + tracked in `_background_tasks` |
+| 2 | `backend/server.py:2623` | dangling asyncio task | DONE 2026-05-27 5c60a2a | Cancelled + awaited in enlarged `on_stop()` body |
+| 3 | `backend/server.py:2817` | dangling asyncio task | DONE 2026-05-26 e3844b7 | Already fixed by H25 (commit e3844b7) — `_mock_feed_task` stored + cancelled in `shutdown_ingestion()` |
+| 4 | `backend/services/duckdb_engine.py:180` | dangling asyncio task | DONE 2026-05-27 d322d79 | `_flush_task` stored + cancelled/awaited in `stop()` + double-start guard |
 | 5 | `backend/server.py:2182` | dangling asyncio task | Med | `_prefetch_paid_oi()` is fire-and-forget inside the scheduler loop. If the scheduler runs faster than prefetch completes, tasks accumulate. Store reference or use a semaphore to limit concurrency. |
 | 6 | `backend/routes/ml_predict_api.py:246` | dangling asyncio task | Med | `_run_training_job()` is fire-and-forget. If training fails, the error is silently lost. Store the task and add error logging, or use a job-tracking dict. |
 | 7 | `backend/routes/replay.py:64` | dangling asyncio task | Med | `engine.start()` is fire-and-forget. The engine task is never stored or cancelled. Store the task and cancel in the `/stop` endpoint. |
 | 8 | `backend/services/paper_trader.py:411` | dangling asyncio task | Med | `self.mongo.insert_one(order)` is fire-and-forget. If the insert fails, the order is silently lost. Store the task or use `await` with try/except. |
 | 9 | `backend/services/paper_trader.py:427` | dangling asyncio task | Med | Same pattern as line 411 -- `self.mongo.insert_one(doc)` is fire-and-forget. Trade records may be lost on failure. |
-| 10 | `backend/services/gex_history.py:186` | sync iteration on async cursor | Med | `for b in bars_cur` uses synchronous iteration on what is likely an async Motor cursor. This will either block the event loop or raise `TypeError`. Should be `async for b in bars_cur`. Same issue on line 197 (`for chain in chains_cur`). |
+| 10 | `backend/services/gex_history.py:186,197` | sync iteration on async cursor | DONE 2026-05-27 27d3598 | Changed to `async for` + made `build_gex_history` async |
 | 11 | `backend/services/code_suggester.py:249` | file handle leak (low) | Low | `open(cfg_path)` is used without `with` statement. If `json.load()` raises, the file handle leaks. Use `with open(cfg_path) as f: cfg = json.load(f)`. |
 | 12 | `backend/error_tracking.py:107` | unbounded dict growth (low) | Low | `_error_counts` dict keys grow with every unique error type string. If error types contain dynamic content (e.g., with IDs), this grows without bound. Use a fixed set of error type buckets. |
 | 13 | `backend/error_tracking.py:117` | unbounded list growth (low) | Low | `_error_log` is capped at 1000 entries (good), but `_error_counts` dict is never pruned. Over long runtimes with many error types, this grows. Add periodic pruning or use `MAX_ERROR_TYPES`. |
@@ -92,15 +92,15 @@ All other `open()` calls in production code use `with` blocks correctly.
 
 ## Top 5 for L4 to Fix
 
-1. **`backend/server.py:2623`** -- `_scheduler_loop()` fire-and-forget with no shutdown cancel. This is the highest-impact leak: the scheduler task runs forever and is never cleaned up. On server restart or reload, a new task is spawned while the old one may still run.
+1. ~~**`backend/server.py:2623`**~~ [DONE in commit 5c60a2a] -- `_scheduler_loop()` fire-and-forget with no shutdown cancel. This is the highest-impact leak: the scheduler task runs forever and is never cleaned up. On server restart or reload, a new task is spawned while the old one may still run.
 
-2. **`backend/server.py:1573`** -- `save_snapshot()` fire-and-forget. Called on every snapshot save. Under high-frequency tick data, this creates unbounded tasks. Failed saves are silently lost.
+2. ~~**`backend/server.py:1573`**~~ [DONE in commit 5c60a2a] -- `save_snapshot()` fire-and-forget. Called on every snapshot save. Under high-frequency tick data, this creates unbounded tasks. Failed saves are silently lost.
 
-3. **`backend/services/duckdb_engine.py:180`** -- `_flush_loop()` fire-and-forget with no task reference stored. On `stop()`, the loop exits via `_running = False` but the task is never awaited, so buffered data may be lost.
+3. ~~**`backend/services/duckdb_engine.py:180`**~~ [DONE in commit d322d79] -- `_flush_loop()` fire-and-forget with no task reference stored. On `stop()`, the loop exits via `_running = False` but the task is never awaited, so buffered data may be lost.
 
-4. **`backend/services/gex_history.py:186,197`** -- Synchronous `for` on async Motor cursors. This is a runtime bug (TypeError) and also leaks MongoDB connections. Must be `async for`.
+4. ~~**`backend/services/gex_history.py:186,197`**~~ [DONE in commit 27d3598] -- Synchronous `for` on async Motor cursors. This is a runtime bug (TypeError) and also leaks MongoDB connections. Must be `async for`.
 
-5. **`backend/server.py:2817`** -- `_mock_feed.start()` fire-and-forget. The mock feed task runs forever with no stored reference. On shutdown, `_mock_feed.stop()` is called but the underlying task is never cancelled.
+5. ~~**`backend/server.py:2817`**~~ [DONE in commit e3844b7 (H25)] -- `_mock_feed.start()` fire-and-forget. The mock feed task runs forever with no stored reference. On shutdown, `_mock_feed.stop()` is called but the underlying task is never cancelled.
 
 ---
 
