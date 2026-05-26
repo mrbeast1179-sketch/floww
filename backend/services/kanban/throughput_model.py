@@ -1,4 +1,7 @@
 #!/usr/bin/env python3
+import logging
+logger = logging.getLogger(__name__)
+
 """
 backend/services/kanban/throughput_model.py — Agent throughput prediction model.
 
@@ -34,9 +37,7 @@ def extract_card_features(card_path: Path) -> dict:
         return None
 
     import yaml
-import logging
 
-logger = logging.getLogger(__name__)
     try:
         fm = yaml.safe_load(parts[1]) or {}
     except yaml.YAMLError:

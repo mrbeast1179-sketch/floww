@@ -1,4 +1,7 @@
 #!/usr/bin/env python3
+import logging
+logger = logging.getLogger(__name__)
+
 """
 Cron runner for Confluence Decoder scheduled jobs.
 
@@ -32,9 +35,7 @@ async def main():
         await retrain_models_job()
     elif job_name == "health-check":
         from cron_config import health_check_job
-import logging
 
-logger = logging.getLogger(__name__)
         await health_check_job()
     else:
         logger.info(f"Unknown job: {job_name}")

@@ -1,4 +1,7 @@
 #!/usr/bin/env python3
+import logging
+logger = logging.getLogger(__name__)
+
 """
 backend/services/kanban/bottleneck.py — Bottleneck detector for agent swarm.
 
@@ -21,9 +24,7 @@ INCIDENTS_FILE = KANBAN_DIR / "INCIDENTS.md"
 def load_cards() -> list[dict]:
     """Load all card files."""
     import yaml
-import logging
 
-logger = logging.getLogger(__name__)
     cards = []
     for f in sorted(CARDS_DIR.glob("*.md")):
         if f.name.startswith("tagging_"):

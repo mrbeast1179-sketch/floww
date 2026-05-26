@@ -1,4 +1,7 @@
 #!/usr/bin/env python3
+import logging
+logger = logging.getLogger(__name__)
+
 """
 backend/services/kanban/rebalancer.py — Capacity rebalancing recommender.
 
@@ -24,9 +27,7 @@ REBALANCE_FILE = KANBAN_DIR / "REBALANCE_PROPOSAL.md"
 def load_cards() -> list[dict]:
     """Load all card files."""
     import yaml
-import logging
 
-logger = logging.getLogger(__name__)
     cards = []
     for f in sorted(CARDS_DIR.glob("*.md")):
         if f.name.startswith("tagging_"):
