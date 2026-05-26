@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import logging
 import os
+import sys
 from functools import lru_cache
 from typing import Optional
 
@@ -31,6 +32,19 @@ def is_production() -> bool:
 def is_azure() -> bool:
     """Check if running on Azure App Service."""
     return os.environ.get("WEBSITE_SITE_NAME", "") != ""
+
+
+# ── Production Safety: Refuse to start without secrets ────────────────────────
+
+_ENVIRONMENT = os.environ.get("ENVIRONMENT", "dev").lower()
+if _ENVIRONMENT in {"production", "staging"} and not is_azure():
+    _api_secret = os.environ.get("API_SECRET_KEY")
+    if not _api_secret:
+        sys.exit(
+            "FATAL: API_SECRET_KEY env var is required when ENVIRONMENT="
+            f"{_ENVIRONMENT!r}. Refusing to start with default dev key. "
+            "Set API_SECRET_KEY in your environment or Azure Key Vault."
+        )
 
 
 # ── Azure Key Vault Client ───────────────────────────────────────────────────
