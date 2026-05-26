@@ -94,14 +94,20 @@ async def flip_zones_route(
     expiries: int = Query(default=4, ge=1, le=12),
 ):
     """All cumulative-GEX sign changes within +/-window_pct of spot."""
-    from server import _sanitize
-    raw = await _fetch_chain(ticker, expiries)
-    spot = raw.get("spot")
-    contracts = raw.get("contracts") or []
-    if not spot or not contracts:
-        raise HTTPException(404, "No options data for " + ticker)
-    result = calc_flip_zones(spot, contracts, window_pct=window_pct, min_gap_pct=min_gap_pct)
-    return _sanitize({"ticker": ticker.upper(), "spot": spot, **result})
+    try:
+        from server import _sanitize
+        raw = await _fetch_chain(ticker, expiries)
+        spot = raw.get("spot")
+        contracts = raw.get("contracts") or []
+        if not spot or not contracts:
+            raise HTTPException(404, "No options data for " + ticker)
+        result = calc_flip_zones(spot, contracts, window_pct=window_pct)
+        return _sanitize({"ticker": ticker.upper(), "spot": spot, **result})
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.warning(f"flip-zones route fail: {e}")
+        return {"ticker": ticker.upper() if isinstance(ticker, str) else "unknown", "spot": 0, "zones": [], "error": str(e), "status": "degraded"}
 
 
 @router.get("/node-lifecycle")
@@ -111,20 +117,26 @@ async def node_lifecycle_route(
     expiries: int = Query(default=4, ge=1, le=12),
 ):
     """Top 10 |GEX| nodes classified Fresh/Tested/Delivered/Decaying."""
-    from server import _sanitize
-    raw = await _fetch_chain(ticker, expiries)
-    spot = raw.get("spot")
-    contracts = raw.get("contracts") or []
-    if not spot or not contracts:
-        raise HTTPException(404, "No options data for " + ticker)
-    history = await _fetch_history(ticker.upper(), lookback_mins=lookback_mins)
-    result = calc_node_lifecycle(spot, contracts, history)
-    return _sanitize({
-        "ticker": ticker.upper(),
-        "spot": spot,
-        "history_points": len(history),
-        **result,
-    })
+    try:
+        from server import _sanitize
+        raw = await _fetch_chain(ticker, expiries)
+        spot = raw.get("spot")
+        contracts = raw.get("contracts") or []
+        if not spot or not contracts:
+            raise HTTPException(404, "No options data for " + ticker)
+        history = await _fetch_history(ticker.upper(), lookback_mins=lookback_mins)
+        result = calc_node_lifecycle(spot, contracts, history)
+        return _sanitize({
+            "ticker": ticker.upper(),
+            "spot": spot,
+            "history_points": len(history),
+            **result,
+        })
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.warning(f"node-lifecycle route fail: {e}")
+        return {"ticker": ticker.upper() if isinstance(ticker, str) else "unknown", "spot": 0, "nodes": [], "n_nodes": 0, "error": str(e), "status": "degraded"}
 
 
 @router.get("/air-pockets")
@@ -134,14 +146,20 @@ async def air_pockets_route(
     expiries: int = Query(default=4, ge=1, le=12),
 ):
     """Contiguous strike ranges with |GEX| below 20% of the local median."""
-    from server import _sanitize
-    raw = await _fetch_chain(ticker, expiries)
-    spot = raw.get("spot")
-    contracts = raw.get("contracts") or []
-    if not spot or not contracts:
-        raise HTTPException(404, "No options data for " + ticker)
-    result = calc_air_pockets(spot, contracts, min_gap_pct=min_gap_pct)
-    return _sanitize({"ticker": ticker.upper(), "spot": spot, **result})
+    try:
+        from server import _sanitize
+        raw = await _fetch_chain(ticker, expiries)
+        spot = raw.get("spot")
+        contracts = raw.get("contracts") or []
+        if not spot or not contracts:
+            raise HTTPException(404, "No options data for " + ticker)
+        result = calc_air_pockets(spot, contracts, min_gap_pct=min_gap_pct)
+        return _sanitize({"ticker": ticker.upper(), "spot": spot, **result})
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.warning(f"air-pockets route fail: {e}")
+        return {"ticker": ticker.upper() if isinstance(ticker, str) else "unknown", "spot": 0, "pockets": [], "error": str(e), "status": "degraded"}
 
 
 # ---------------------------------------------------------------------------
@@ -280,14 +298,20 @@ async def beach_ball_route(
     expiries: int = Query(4, ge=1, le=12),
 ):
     """Beach Ball: spot stretched past the King Node (overshoot/reversion)."""
-    from server import _sanitize
-    raw = await _fetch_chain(ticker, expiries)
-    spot = raw.get("spot")
-    contracts = raw.get("contracts") or []
-    if not spot or not contracts:
-        raise HTTPException(404, f"No options data for {ticker}")
-    result = detect_beach_ball(spot, contracts)
-    return _sanitize({"ticker": ticker.upper(), "spot": spot, **result})
+    try:
+        from server import _sanitize
+        raw = await _fetch_chain(ticker, expiries)
+        spot = raw.get("spot")
+        contracts = raw.get("contracts") or []
+        if not spot or not contracts:
+            raise HTTPException(404, f"No options data for {ticker}")
+        result = detect_beach_ball(spot, contracts)
+        return _sanitize({"ticker": ticker.upper(), "spot": spot, **result})
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.warning(f"beach-ball route fail: {e}")
+        return {"ticker": ticker.upper() if isinstance(ticker, str) else "unknown", "spot": 0, "beach_ball": False, "error": str(e), "status": "degraded"}
 
 
 @router.get("/reverse-rug")
@@ -296,14 +320,20 @@ async def reverse_rug_route(
     expiries: int = Query(4, ge=1, le=12),
 ):
     """Reverse Rug: positive floor below + negative ceiling above."""
-    from server import _sanitize
-    raw = await _fetch_chain(ticker, expiries)
-    spot = raw.get("spot")
-    contracts = raw.get("contracts") or []
-    if not spot or not contracts:
-        raise HTTPException(404, f"No options data for {ticker}")
-    result = detect_reverse_rug(spot, contracts)
-    return _sanitize({"ticker": ticker.upper(), "spot": spot, **result})
+    try:
+        from server import _sanitize
+        raw = await _fetch_chain(ticker, expiries)
+        spot = raw.get("spot")
+        contracts = raw.get("contracts") or []
+        if not spot or not contracts:
+            raise HTTPException(404, f"No options data for {ticker}")
+        result = detect_reverse_rug(spot, contracts)
+        return _sanitize({"ticker": ticker.upper(), "spot": spot, **result})
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.warning(f"reverse-rug route fail: {e}")
+        return {"ticker": ticker.upper() if isinstance(ticker, str) else "unknown", "spot": 0, "reverse_rug": False, "error": str(e), "status": "degraded"}
 
 
 @router.get("/rainbow-road")
@@ -313,14 +343,20 @@ async def rainbow_road_route(
     expiries: int = Query(4, ge=1, le=12),
 ):
     """Rainbow Road: no dominant structure — chaos, sit out."""
-    from server import _sanitize
-    raw = await _fetch_chain(ticker, expiries)
-    spot = raw.get("spot")
-    contracts = raw.get("contracts") or []
-    if not spot or not contracts:
-        raise HTTPException(404, f"No options data for {ticker}")
-    result = detect_rainbow_road(spot, contracts, max_dominant_share=max_dominant_share)
-    return _sanitize({"ticker": ticker.upper(), "spot": spot, **result})
+    try:
+        from server import _sanitize
+        raw = await _fetch_chain(ticker, expiries)
+        spot = raw.get("spot")
+        contracts = raw.get("contracts") or []
+        if not spot or not contracts:
+            raise HTTPException(404, f"No options data for {ticker}")
+        result = detect_rainbow_road(spot, contracts, max_dominant_share=max_dominant_share)
+        return _sanitize({"ticker": ticker.upper(), "spot": spot, **result})
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.warning(f"rainbow-road route fail: {e}")
+        return {"ticker": ticker.upper() if isinstance(ticker, str) else "unknown", "spot": 0, "rainbow_road": False, "error": str(e), "status": "degraded"}
 
 
 @router.get("/velocity-mode")
@@ -333,10 +369,14 @@ async def velocity_mode_route(ticker: str = "SPY"):
     the pure function returns ``velocity=0, mode="calm", n_snapshots=0`` —
     matching Wave 1's node-lifecycle fallback shape.
     """
-    from server import _sanitize
-    history = await _fetch_king_node_history(ticker.upper())
-    result = calc_velocity_mode(history)
-    return _sanitize({"ticker": ticker.upper(), **result})
+    try:
+        from server import _sanitize
+        history = await _fetch_king_node_history(ticker.upper())
+        result = calc_velocity_mode(history)
+        return _sanitize({"ticker": ticker.upper(), **result})
+    except Exception as e:
+        logger.warning(f"velocity-mode route fail: {e}")
+        return {"ticker": ticker.upper() if isinstance(ticker, str) else "unknown", "velocity": 0, "mode": "calm", "error": str(e), "status": "degraded"}
 
 
 @router.get("/trinity-confluence")
@@ -351,14 +391,18 @@ async def trinity_confluence_route(
     the request.
     """
     from server import _sanitize
-    spx = await _trinity_snapshot("SPX", expiries)
-    spy = await _trinity_snapshot("SPY", expiries)
-    qqq = await _trinity_snapshot("QQQ", expiries)
-    result = calc_trinity_confluence(spx, spy, qqq)
-    return _sanitize({
-        "snapshots": {"SPX": spx, "SPY": spy, "QQQ": qqq},
-        **result,
-    })
+    try:
+        spx = await _trinity_snapshot("SPX", expiries)
+        spy = await _trinity_snapshot("SPY", expiries)
+        qqq = await _trinity_snapshot("QQQ", expiries)
+        result = calc_trinity_confluence(spx, spy, qqq)
+        return _sanitize({
+            "snapshots": {"SPX": spx, "SPY": spy, "QQQ": qqq},
+            **result,
+        })
+    except Exception as e:
+        logger.warning(f"trinity-confluence route fail: {e}")
+        return {"score": 0, "status": "degraded", "error": str(e)}
 
 
 # ---------------------------------------------------------------------------
@@ -372,20 +416,26 @@ async def rolling_floors_ceilings_route(
     lookback_days: int = Query(20, ge=1, le=60),
 ):
     """Rolling floors/ceilings tracker — trend formation signals."""
-    from server import _sanitize
-    from services.heatseeker import calc_rolling_floors_ceilings
-    from server import fetch_spot_and_chains_merged
-    t = ticker.strip().upper()
-    # Fetch daily snapshots for the lookback period
-    raw = await fetch_spot_and_chains_merged(t, expiries)
-    spot = raw.get("spot", 0)
-    contracts = raw.get("contracts", [])
-    if not spot or not contracts:
-        raise HTTPException(404, f"No options data for {ticker}")
-    # Build synthetic daily snapshots from available data
-    snapshots = [{"spot": spot, "contracts": contracts}]
-    result = calc_rolling_floors_ceilings(spot, snapshots, ticker=t, lookback_days=lookback_days)
-    return _sanitize({"ticker": t, **result})
+    try:
+        from server import _sanitize
+        from services.heatseeker import calc_rolling_floors_ceilings
+        from server import fetch_spot_and_chains_merged
+        t = ticker.strip().upper()
+        # Fetch daily snapshots for the lookback period
+        raw = await fetch_spot_and_chains_merged(t, expiries)
+        spot = raw.get("spot", 0)
+        contracts = raw.get("contracts", [])
+        if not spot or not contracts:
+            raise HTTPException(404, f"No options data for {ticker}")
+        # Build synthetic daily snapshots from available data
+        snapshots = [{"spot": spot, "contracts": contracts}]
+        result = calc_rolling_floors_ceilings(spot, snapshots, ticker=t, lookback_days=lookback_days)
+        return _sanitize({"ticker": t, **result})
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.warning(f"rolling-floors-ceilings route fail: {e}")
+        return {"ticker": ticker.upper() if isinstance(ticker, str) else "unknown", "floors": [], "ceilings": [], "error": str(e), "status": "degraded"}
 
 
 @router.get("/node-classification")
@@ -401,41 +451,47 @@ async def node_classification_route(
     ``oi_trend`` (growing/fading based on 24h OI history when available),
     then runs ``classify_nodes`` to assign real/hedge/unknown labels.
     """
-    from server import _sanitize
-    from services.heatseeker import calc_node_lifecycle, classify_nodes
-    t = ticker.strip().upper()
-    raw = await _fetch_chain(t, expiries)
-    spot = raw.get("spot", 0)
-    contracts = raw.get("contracts", [])
-    if not spot or not contracts:
-        raise HTTPException(404, f"No options data for {ticker}")
+    try:
+        from server import _sanitize
+        from services.heatseeker import calc_node_lifecycle, classify_nodes
+        t = ticker.strip().upper()
+        raw = await _fetch_chain(t, expiries)
+        spot = raw.get("spot", 0)
+        contracts = raw.get("contracts", [])
+        if not spot or not contracts:
+            raise HTTPException(404, f"No options data for {ticker}")
 
-    history = await _fetch_history(t)
+        history = await _fetch_history(t)
 
-    # Lifecycle nodes give us strike/net_gex/taps/state/tap_probability for the
-    # top-10 |GEX| strikes — the same set used by the lifecycle panel.
-    lifecycle = calc_node_lifecycle(spot, contracts, history)
-    raw_nodes = lifecycle.get("nodes", [])
+        # Lifecycle nodes give us strike/net_gex/taps/state/tap_probability for the
+        # top-10 |GEX| strikes — the same set used by the lifecycle panel.
+        lifecycle = calc_node_lifecycle(spot, contracts, history)
+        raw_nodes = lifecycle.get("nodes", [])
 
-    # Attach gamma_sign + oi_trend so classify_nodes can apply its rules.
-    # gamma_sign comes straight from the signed net_gex. oi_trend is
-    # "growing" for fresh/tested nodes (no/few taps → intent forming) and
-    # "fading" for delivered/decaying nodes (protection has expired).
-    annotated = []
-    for n in raw_nodes:
-        net = float(n.get("net_gex") or 0.0)
-        state = str(n.get("state") or "").lower()
-        gamma_sign = "positive" if net > 0 else "negative" if net < 0 else "neutral"
-        if state in ("fresh", "tested"):
-            oi_trend = "growing"
-        elif state in ("delivered", "decaying"):
-            oi_trend = "fading"
-        else:
-            oi_trend = "unknown"
-        annotated.append({**n, "gamma_sign": gamma_sign, "oi_trend": oi_trend})
+        # Attach gamma_sign + oi_trend so classify_nodes can apply its rules.
+        # gamma_sign comes straight from the signed net_gex. oi_trend is
+        # "growing" for fresh/tested nodes (no/few taps → intent forming) and
+        # "fading" for delivered/decaying nodes (protection has expired).
+        annotated = []
+        for n in raw_nodes:
+            net = float(n.get("net_gex") or 0.0)
+            state = str(n.get("state") or "").lower()
+            gamma_sign = "positive" if net > 0 else "negative" if net < 0 else "neutral"
+            if state in ("fresh", "tested"):
+                oi_trend = "growing"
+            elif state in ("delivered", "decaying"):
+                oi_trend = "fading"
+            else:
+                oi_trend = "unknown"
+            annotated.append({**n, "gamma_sign": gamma_sign, "oi_trend": oi_trend})
 
-    result = classify_nodes(annotated)
-    return _sanitize({"ticker": t, "spot": spot, **result})
+        result = classify_nodes(annotated)
+        return _sanitize({"ticker": t, "spot": spot, **result})
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.warning(f"node-classification route fail: {e}")
+        return {"ticker": ticker.upper() if isinstance(ticker, str) else "unknown", "spot": 0, "nodes": [], "error": str(e), "status": "degraded"}
 
 
 @router.get("/stacked-nodes")
@@ -445,16 +501,22 @@ async def stacked_nodes_route(
     threshold_pct: float = Query(0.3, ge=0.1, le=0.9),
 ):
     """Detect stacked nodes — both call+put GEX significant at same strike."""
-    from server import _sanitize, fetch_spot_and_chains_merged
-    from services.heatseeker import detect_stacked_nodes
-    t = ticker.strip().upper()
-    raw = await fetch_spot_and_chains_merged(t, expiries)
-    spot = raw.get("spot", 0)
-    contracts = raw.get("contracts", [])
-    if not spot or not contracts:
-        raise HTTPException(404, f"No options data for {ticker}")
-    result = detect_stacked_nodes(contracts, threshold_pct=threshold_pct)
-    return _sanitize({"ticker": t, "spot": spot, **result})
+    try:
+        from server import _sanitize, fetch_spot_and_chains_merged
+        from services.heatseeker import detect_stacked_nodes
+        t = ticker.strip().upper()
+        raw = await fetch_spot_and_chains_merged(t, expiries)
+        spot = raw.get("spot", 0)
+        contracts = raw.get("contracts", [])
+        if not spot or not contracts:
+            raise HTTPException(404, f"No options data for {ticker}")
+        result = detect_stacked_nodes(contracts, threshold_pct=threshold_pct)
+        return _sanitize({"ticker": t, "spot": spot, **result})
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.warning(f"stacked-nodes route fail: {e}")
+        return {"ticker": ticker.upper() if isinstance(ticker, str) else "unknown", "spot": 0, "stacked_nodes": [], "error": str(e), "status": "degraded"}
 
 
 @router.get("/tug-of-war")
@@ -463,13 +525,19 @@ async def tug_of_war_route(
     expiries: int = Query(4, ge=1, le=12),
 ):
     """Detect tug-of-war zones — positive/negative GEX conflict near spot."""
-    from server import _sanitize, fetch_spot_and_chains_merged
-    from services.heatseeker import calc_tug_of_war_zones
-    t = ticker.strip().upper()
-    raw = await fetch_spot_and_chains_merged(t, expiries)
-    spot = raw.get("spot", 0)
-    contracts = raw.get("contracts", [])
-    if not spot or not contracts:
-        raise HTTPException(404, f"No options data for {ticker}")
-    result = calc_tug_of_war_zones(contracts, spot)
-    return _sanitize({"ticker": t, **result})
+    try:
+        from server import _sanitize, fetch_spot_and_chains_merged
+        from services.heatseeker import calc_tug_of_war_zones
+        t = ticker.strip().upper()
+        raw = await fetch_spot_and_chains_merged(t, expiries)
+        spot = raw.get("spot", 0)
+        contracts = raw.get("contracts", [])
+        if not spot or not contracts:
+            raise HTTPException(404, f"No options data for {ticker}")
+        result = calc_tug_of_war_zones(contracts, spot)
+        return _sanitize({"ticker": t, **result})
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.warning(f"tug-of-war route fail: {e}")
+        return {"ticker": ticker.upper() if isinstance(ticker, str) else "unknown", "zones": [], "error": str(e), "status": "degraded"}
