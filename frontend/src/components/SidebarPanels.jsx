@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { fmt, fmtAbs } from "../lib/helpers";
+import { BACKEND_URL, API } from "../config/api";
 
 // ============ Shared Null-Safety Helpers (no new imports) ============
 const dash = (v, fn) => (v == null ? "—" : (fn ? fn(v) : v));
@@ -310,7 +311,7 @@ export function UsagePanel() {
     setLoading(true);
     setError(null);
     try {
-      const base = process.env.REACT_APP_BACKEND_URL || "";
+      const base = BACKEND_URL;
       const res = await axios.get(`${base}/api/databento/usage`);
       setUsage(res.data);
     } catch (e) {
@@ -362,7 +363,7 @@ export function LivePolicyPanel() {
     setLoading(true);
     setError(null);
     try {
-      const base = process.env.REACT_APP_BACKEND_URL || "";
+      const base = BACKEND_URL;
       const res = await axios.get(`${base}/api/live/policy`);
       setPolicy(res.data);
       if (res.data.paid_tickers) setTickers(res.data.paid_tickers.join(", "));
@@ -380,7 +381,7 @@ export function LivePolicyPanel() {
     setLoading(true);
     setError(null);
     try {
-      const base = process.env.REACT_APP_BACKEND_URL || "";
+      const base = BACKEND_URL;
       const res = await axios.post(`${base}/api/live/policy`, {
         paid_tickers: tickers.split(",").map((t) => t.trim().toUpperCase()).filter(Boolean),
         window_start: windowStart,

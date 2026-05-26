@@ -5,8 +5,9 @@
  drift status, and prediction history. Uses the unified /api/ml/briefing endpoint.
  */
 import React, { useState, useEffect, useCallback } from "react";
+import { BACKEND_URL, API } from "../config/api";
 
-const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
+// API imported from config/api.js
 
 function SignalBadge({ signal, confidence }) {
   const colorMap = {

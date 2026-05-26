@@ -2,8 +2,9 @@ import React, { useEffect, useState } from "react";
 import axios from "axios";
 import { fmt, fmtAbs, pctClass, TRINITY } from "../lib/helpers";
 import BarHeatmap from "./BarHeatmap";
+import { BACKEND_URL, API } from "../config/api";
 
-const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
+// API imported from config/api.js
 
 export default function TrinityView({ onFocusTicker }) {
   const [data, setData] = useState({});

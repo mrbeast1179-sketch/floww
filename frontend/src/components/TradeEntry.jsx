@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
+import { BACKEND_URL, API } from "../config/api";
 
-const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
+// API imported from config/api.js
 
 const TRADE_TEMPLATES = {
   iron_condor: {

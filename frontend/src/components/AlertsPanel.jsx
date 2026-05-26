@@ -1,8 +1,9 @@
 import React, { useEffect, useState } from "react";
 import axios from "axios";
 import { fmtAbs } from "../lib/helpers";
+import { BACKEND_URL, API } from "../config/api";
 
-const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
+// API imported from config/api.js
 
 const ALERT_TYPES = [
   { v: "gex_cross", l: "GEX Cross", desc: "Total GEX crosses threshold" },
