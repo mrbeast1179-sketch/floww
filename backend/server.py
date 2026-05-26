@@ -13,7 +13,7 @@ from dotenv import load_dotenv
 from motor.motor_asyncio import AsyncIOMotorClient
 from pydantic import BaseModel
 from pathlib import Path
-from typing import List, Optional, Dict, Any
+from typing import List, Optional, Dict, Any, Set
 from datetime import datetime, timezone, timedelta
 import os
 import json
@@ -21,6 +21,8 @@ import logging
 import asyncio
 import math
 import time
+import signal
+import sys
 from collections import deque
 import httpx
 import yfinance as yf
@@ -73,6 +75,13 @@ LOG_DIR = ROOT_DIR / "logs"
 LOG_DIR.mkdir(exist_ok=True)
 
 setup_logging(level=logging.INFO)
+
+log = logging.getLogger("heatseeker")
+
+# -- Graceful shutdown infrastructure --
+_shutdown_event = asyncio.Event()
+_background_tasks: Set[asyncio.Task] = set()
+
 
 app = FastAPI(title="Confluence Decoder")
 app.add_middleware(CorrelationIdMiddleware)
@@ -2106,6 +2115,7 @@ async def schwab_import_to_portfolio(name: str, account_hash: str) -> dict:
 
 # ---------- Scheduled pre-fetch (APScheduler) ----------
 _scheduler_started = False
+_scheduler_task: Optional[asyncio.Task] = None
 
 
 async def _prefetch_paid_oi():
@@ -2604,10 +2614,12 @@ async def on_start():
     except Exception as e:
         log.warning(f"MongoDB unavailable during startup ({type(e).__name__}): {e}")
         log.warning("Server running in degraded mode — DB-dependent endpoints will fail")
-    global _scheduler_started
+    global _scheduler_started, _scheduler_task
     if not _scheduler_started:
         _scheduler_started = True
-        asyncio.create_task(_scheduler_loop())
+        _scheduler_task = asyncio.create_task(_scheduler_loop())
+        _background_tasks.add(_scheduler_task)
+        _scheduler_task.add_done_callback(_background_tasks.discard)
         log.info(f"scheduler started · prefetch at {PREFETCH_HHMM} ET")
     log.info("databento cache initialized")
 
@@ -2784,11 +2796,12 @@ from services.mock_schwab_feed import MockSchwabFeed
 
 _ingestion_pipeline: Optional[IngestionPipeline] = None
 _mock_feed: Optional[MockSchwabFeed] = None
+_mock_feed_task: Optional[asyncio.Task] = None
 
 @app.on_event("startup")
 async def startup_ingestion():
     """Launch ingestion pipeline with mock feed on startup."""
-    global _ingestion_pipeline, _mock_feed
+    global _ingestion_pipeline, _mock_feed, _mock_feed_task
     try:
         _ingestion_pipeline = IngestionPipeline(
             db=duckdb_engine,
@@ -2804,8 +2817,10 @@ async def startup_ingestion():
         _mock_feed.on_lob(_ingestion_pipeline.enqueue_lob)
         _mock_feed.on_lob_depth(_ingestion_pipeline.enqueue_lob_depth)
 
-        # Run mock feed in background
-        asyncio.create_task(_mock_feed.start())
+        # Run mock feed in background with tracked task
+        _mock_feed_task = asyncio.create_task(_mock_feed.start())
+        _background_tasks.add(_mock_feed_task)
+        _mock_feed_task.add_done_callback(_background_tasks.discard)
         log.info("Ingestion pipeline + mock feed started")
     except Exception as e:
         log.warning(f"Ingestion startup failed (non-fatal): {e}")
@@ -2813,8 +2828,14 @@ async def startup_ingestion():
 @app.on_event("shutdown")
 async def shutdown_ingestion():
     """Drain queue and stop ingestion on shutdown."""
-    global _ingestion_pipeline, _mock_feed
+    global _ingestion_pipeline, _mock_feed, _mock_feed_task
     try:
+        if _mock_feed_task and not _mock_feed_task.done():
+            _mock_feed_task.cancel()
+            try:
+                await _mock_feed_task
+            except asyncio.CancelledError:
+                pass
         if _mock_feed:
             await _mock_feed.stop()
         if _ingestion_pipeline:
