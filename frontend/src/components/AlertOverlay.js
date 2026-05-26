@@ -133,48 +133,48 @@ export default function AlertOverlay({ onSignalClick, maxVisible = 3 }) {
     });
   }, [maxVisible]);
 
+  // Lifted to component scope: both useEffects below reference connect.
+  const connect = useCallback(() => {
+    try {
+      const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || 'http://localhost:8000';
+      const WS_URL = BACKEND_URL.replace('http', 'ws');
+      const ws = new WebSocket(`${WS_URL}/ws/signals`);
+
+      ws.onopen = () => {
+        if (!mountedRef.current) { ws.close(); return; }
+        wsRef.current = ws;
+      };
+
+      ws.onmessage = (e) => {
+        if (!mountedRef.current) return;
+        try {
+          const data = JSON.parse(e.data);
+          if (data.type === 'signal' || data.signal) {
+            addAlert(data);
+          }
+        } catch { /* skip malformed */ }
+      };
+
+      ws.onclose = () => {
+        if (!mountedRef.current) return;
+        wsRef.current = null;
+        // Exponential backoff reconnect (mobile-friendly)
+        const delay = Math.min(1000 * Math.pow(2, (reconnectRef.current?.attempts || 0)), 30000);
+        reconnectRef.current = {
+          attempts: (reconnectRef.current?.attempts || 0) + 1,
+          timer: setTimeout(connect, delay),
+        };
+      };
+
+      ws.onerror = () => {
+        try { ws.close(); } catch { /* noop */ }
+      };
+    } catch { /* noop */ }
+  }, [addAlert]);
+
   // WebSocket connection for real-time signals
   useEffect(() => {
     mountedRef.current = true;
-
-    const connect = () => {
-      try {
-        const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || 'http://localhost:8000';
-        const WS_URL = BACKEND_URL.replace('http', 'ws');
-        const ws = new WebSocket(`${WS_URL}/ws/signals`);
-
-        ws.onopen = () => {
-          if (!mountedRef.current) { ws.close(); return; }
-          wsRef.current = ws;
-        };
-
-        ws.onmessage = (e) => {
-          if (!mountedRef.current) return;
-          try {
-            const data = JSON.parse(e.data);
-            if (data.type === 'signal' || data.signal) {
-              addAlert(data);
-            }
-          } catch { /* skip malformed */ }
-        };
-
-        ws.onclose = () => {
-          if (!mountedRef.current) return;
-          wsRef.current = null;
-          // Exponential backoff reconnect (mobile-friendly)
-          const delay = Math.min(1000 * Math.pow(2, (reconnectRef.current?.attempts || 0)), 30000);
-          reconnectRef.current = {
-            attempts: (reconnectRef.current?.attempts || 0) + 1,
-            timer: setTimeout(connect, delay),
-          };
-        };
-
-        ws.onerror = () => {
-          try { ws.close(); } catch { /* noop */ }
-        };
-      } catch { /* noop */ }
-    };
-
     connect();
 
     return () => {
@@ -186,18 +186,18 @@ export default function AlertOverlay({ onSignalClick, maxVisible = 3 }) {
         wsRef.current = null;
       }
     };
-  }, [addAlert]);
+  }, [connect]);
 
   // Handle visibility change - reconnect when tab becomes visible
   useEffect(() => {
-    const handler = () => {
-      if (!document.hidden && mountedRef.current && !wsRef.current) {
+    const onVisibilityChange = () => {
+      if (document.visibilityState === 'visible' && mountedRef.current && !wsRef.current) {
         connect();
       }
     };
-    document.addEventListener('visibilitychange', handler);
-    return () => document.removeEventListener('visibilitychange', handler);
-  }, []);
+    document.addEventListener('visibilitychange', onVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', onVisibilityChange);
+  }, [connect]);
 
   if (alerts.length === 0) return null;
 
