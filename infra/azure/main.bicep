@@ -251,11 +251,6 @@ resource cosmos 'Microsoft.DocumentDB/databaseAccounts@2023-09-15' = {
         isZoneRedundant: false
       }
     ]
-    capabilities: [
-      {
-        name: 'EnableMongo'
-      }
-    ]
     apiProperties: {
       serverVersion: '4.2'
     }

@@ -99,3 +99,6 @@ data/x-scrape/
 .claude/worktrees/
 .emergent/
 backend/.venv_old
+
+# ML model binaries
+models/
