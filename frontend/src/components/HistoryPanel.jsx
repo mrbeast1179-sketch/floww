@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from "react";
 import axios from "axios";
 import { fmt, fmtAbs } from "../lib/helpers";
+import { BACKEND_URL, API } from "../config/api";
 
-const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
+// API imported from config/api.js
 
 export default function HistoryPanel({ ticker }) {
   const [snapshots, setSnapshots] = useState([]);

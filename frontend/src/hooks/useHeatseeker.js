@@ -1,6 +1,7 @@
 import { useEffect, useState, useRef, useCallback } from "react";
+import { BACKEND_URL } from "../config/api";
 
-const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || "";
+// BACKEND_URL imported from config/api.js
 const API = `${BACKEND_URL}/api/heatseeker`;
 
 /**

@@ -1,8 +1,9 @@
 // @ts-nocheck
 import React, { useState, useEffect } from "react";
 import { fmtAbs } from "../lib/helpers";
+import { BACKEND_URL, API } from "../config/api";
 
-const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
+// API imported from config/api.js
 
 export function DashboardSummary({ ticker, spot }) {
   const [summary, setSummary] = useState(null);

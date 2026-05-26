@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState, useCallback, memo } from 'react';
+import { BACKEND_URL } from "../config/api";
 
 const SIGNAL_STYLES = {
   BUY: 'toast-buy',
@@ -136,7 +137,7 @@ export default function AlertOverlay({ onSignalClick, maxVisible = 3 }) {
   // Lifted to component scope: both useEffects below reference connect.
   const connect = useCallback(() => {
     try {
-      const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || 'http://localhost:8000';
+      // BACKEND_URL imported from config/api.js
       const WS_URL = BACKEND_URL.replace('http', 'ws');
       const ws = new WebSocket(`${WS_URL}/ws/signals`);
 

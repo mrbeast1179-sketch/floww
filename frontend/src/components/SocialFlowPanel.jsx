@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from "react";
 import { fmt, pctClass } from "../lib/helpers";
+import { BACKEND_URL, API } from "../config/api";
 
-const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
+// API imported from config/api.js
 
 export function SocialFlowPanel({ ticker }) {
   const [report, setReport] = useState(null);

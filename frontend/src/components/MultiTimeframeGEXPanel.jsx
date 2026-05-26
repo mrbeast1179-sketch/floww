@@ -1,8 +1,9 @@
 import React, { useEffect, useState } from "react";
 import axios from "axios";
 import { fmt, fmtAbs } from "../lib/helpers";
+import { BACKEND_URL, API } from "../config/api";
 
-const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
+// API imported from config/api.js
 
 const TF_ORDER = ["0DTE", "1DTE", "weekly", "monthly", "all"];
 const TF_LABELS = { "0DTE": "0DTE", "1DTE": "1DTE", "weekly": "Weekly", "monthly": "Monthly", "all": "All" };

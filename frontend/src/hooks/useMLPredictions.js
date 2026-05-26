@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback, useRef } from "react";
+import { BACKEND_URL } from "../config/api";
 
-const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || "";
 const API = `${BACKEND_URL}/api/ml`;
 
 /**

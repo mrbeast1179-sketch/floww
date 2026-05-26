@@ -1,8 +1,9 @@
 import React, { useEffect, useState, useMemo, useRef, useCallback } from "react";
 import axios from "axios";
 import { fmt, fmtAbs, pctClass } from "../lib/helpers";
+import { BACKEND_URL, API } from "../config/api";
 
-const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
+// API imported from config/api.js
 
 const SORT_OPTIONS = [
   { v: "strike", l: "Strike" }, { v: "expiry", l: "Expiry" },

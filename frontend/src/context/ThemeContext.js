@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import { BACKEND_URL } from "../config/api";
 
 const ThemeContext = createContext({
   theme: 'dark',
@@ -49,8 +50,7 @@ export function ThemeProvider({ children }) {
   useEffect(() => {
     const syncToBackend = async () => {
       try {
-        const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
-        if (!BACKEND_URL) return;
+        // BACKEND_URL imported from config/api.js
         await fetch(`${BACKEND_URL}/api/preferences/theme`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },

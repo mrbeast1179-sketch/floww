@@ -3,8 +3,9 @@
  * Displays real-time quota usage with color-coded bars.
  */
 import React, { useState, useEffect, useCallback } from "react";
+import { BACKEND_URL, API } from "../config/api";
 
-const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
+// API imported from config/api.js
 
 function QuotaBar({ used, limit, label, pctUsed }) {
   const pct = limit > 0 ? Math.min(100, (used / limit) * 100) : 0;

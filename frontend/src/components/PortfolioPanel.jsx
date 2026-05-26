@@ -1,9 +1,9 @@
 import React, { useState, useCallback } from "react";
 import axios from "axios";
 import { fmt, fmtAbs, pctClass } from "../lib/helpers";
+import { BACKEND_URL, API } from "../config/api";
 
-const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
-const API = `${BACKEND_URL}/api`;
+// BACKEND_URL and API imported from config/api.js
 
 // ============ Position Sizing Widget ============
 function PositionSizing({ spot }) {
