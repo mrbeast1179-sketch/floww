@@ -22,6 +22,8 @@ from fastapi import APIRouter, HTTPException, Query
 
 import aiohttp
 
+from services.rate_limit_tracker import av_rate_tracker
+
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/alpha", tags=["alpha-vantage"])
@@ -51,6 +53,7 @@ async def _av_request(params: Dict[str, str]) -> Dict[str, Any]:
     never logged in URL form.
     """
     params["apikey"] = ALPHA_VANTAGE_KEY
+    av_rate_tracker.record_call()
     try:
         async with aiohttp.ClientSession() as session:
             async with session.get(ALPHA_VANTAGE_BASE, params=params, timeout=aiohttp.ClientTimeout(total=15)) as resp:

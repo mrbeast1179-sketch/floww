@@ -10,6 +10,8 @@ from typing import Optional
 
 from auth import get_api_key
 
+from services.rate_limit_tracker import av_rate_tracker
+
 
 async def _require_admin_auth(request: Request) -> bool:
     """Auth dependency for admin routes — checks X-API-Key for ALL methods."""
@@ -106,6 +108,16 @@ async def databento_usage():
         "live_tape_state": "active" if _live_tape_session.get("active") else "stopped",
         "budget_usd": BUDGET_USD,
     }
+
+
+# ---------------------------------------------------------------------------
+# Rate Limit Tracking
+# ---------------------------------------------------------------------------
+
+@router.get("/admin/rate-limits")
+async def get_rate_limits(_: bool = Depends(_require_admin_auth)):
+    """Return Alpha Vantage API rate limit status."""
+    return av_rate_tracker.get_status()
 
 
 # ---------------------------------------------------------------------------
