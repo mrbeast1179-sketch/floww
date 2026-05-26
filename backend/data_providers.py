@@ -214,11 +214,15 @@ class AlphaVantageProvider(FreeDataProvider):
         """Get real-time quote. 5 calls/min, 500/day free tier."""
         if not self.enabled:
             return None
-        data = await self._get(self.base, {
-            "function": "GLOBAL_QUOTE",
-            "symbol": ticker,
-            "apikey": ALPHA_VANTAGE_KEY,
-        })
+        try:
+            data = await circuit.call(self._get, self.base, {
+                "function": "GLOBAL_QUOTE",
+                "symbol": ticker,
+                "apikey": ALPHA_VANTAGE_KEY,
+            })
+        except CircuitBreakerOpenError:
+            logger.warning("AlphaVantage circuit OPEN — skipping get_quote(%s)", ticker)
+            return None
         if data and "Global Quote" in data and data["Global Quote"]:
             q = data["Global Quote"]
             price = float(q.get("05. price", 0))
@@ -266,7 +270,11 @@ class AlphaVantageProvider(FreeDataProvider):
             "apikey": ALPHA_VANTAGE_KEY,
         }
         
-        data = await self._get(self.base, params)
+        try:
+            data = await circuit.call(self._get, self.base, params)
+        except CircuitBreakerOpenError:
+            logger.warning("AlphaVantage circuit OPEN — skipping get_technical_indicator(%s, %s)", ticker, indicator)
+            return None
         if data and "Error Message" not in data:
             # Get latest value
             tech_key = f"Technical Analysis: {function}"
@@ -287,12 +295,16 @@ class AlphaVantageProvider(FreeDataProvider):
         """Get forex rate."""
         if not self.enabled:
             return None
-        data = await self._get(self.base, {
-            "function": "CURRENCY_EXCHANGE_RATE",
-            "from_currency": from_cur,
-            "to_currency": to_cur,
-            "apikey": ALPHA_VANTAGE_KEY,
-        })
+        try:
+            data = await circuit.call(self._get, self.base, {
+                "function": "CURRENCY_EXCHANGE_RATE",
+                "from_currency": from_cur,
+                "to_currency": to_cur,
+                "apikey": ALPHA_VANTAGE_KEY,
+            })
+        except CircuitBreakerOpenError:
+            logger.warning("AlphaVantage circuit OPEN — skipping get_forex_rate(%s, %s)", from_cur, to_cur)
+            return None
         if data and "Realtime Currency Exchange Rate" in data:
             rate = data["Realtime Currency Exchange Rate"].get("5. Exchange Rate")
             return float(rate) if rate else None

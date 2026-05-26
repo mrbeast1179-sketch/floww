@@ -105,6 +105,13 @@ anomaly_detected_total = Counter(
 # ---------------------------------------------------------------------------
 # API / HTTP metrics
 # ---------------------------------------------------------------------------
+http_requests_total = Counter(
+    "http_requests_total",
+    "Total HTTP requests",
+    labelnames=["method", "endpoint", "status"],
+    registry=REGISTRY,
+)
+
 api_request_duration_seconds = Histogram(
     "floww_api_request_duration_seconds",
     "HTTP request duration in seconds",

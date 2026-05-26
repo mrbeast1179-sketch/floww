@@ -73,9 +73,9 @@ LOG_DIR = ROOT_DIR / "logs"
 LOG_DIR.mkdir(exist_ok=True)
 
 setup_logging(level=logging.INFO)
-app.add_middleware(CorrelationIdMiddleware)
 
 app = FastAPI(title="Confluence Decoder")
+app.add_middleware(CorrelationIdMiddleware)
 
 # ----------------------------- Rate Limiting -----------------------------
 from collections import defaultdict
@@ -1598,10 +1598,6 @@ def _sanitize(obj):
     return obj
 
 
-@app.get("/health")
-async def health_root():
-    return await health()
-
 
 # ----------------------------- API Endpoints ------------------------------
 
@@ -1632,30 +1628,6 @@ async def list_tickers():
         "default": DEFAULT_TICKERS,
         "popular": POPULAR_UNIVERSE,
     }
-
-
-@app.get("/api/health")
-async def health():
-    """Health check with dependency status."""
-    status = {"app": "confluence-decoder", "version": "2.0", "ts": datetime.now(timezone.utc).isoformat(), "dependencies": {}}
-    # Check Mongo
-    try:
-        await db.command("ping")
-        status["dependencies"]["mongodb"] = "ok"
-    except Exception as e:
-        status["dependencies"]["mongodb"] = f"error: {str(e)}"
-    # Check yfinance (lightweight)
-    try:
-        import yfinance as yf
-        t = yf.Ticker("SPY")
-        _ = t.fast_info
-        status["dependencies"]["yfinance"] = "ok"
-    except Exception as e:
-        status["dependencies"]["yfinance"] = f"error: {str(e)}"
-    # Overall
-    all_ok = all(v == "ok" for v in status["dependencies"].values())
-    status["status"] = "healthy" if all_ok else "degraded"
-    return status
 
 
 def _get_strategy_recommendation(gf: Dict, regime: Dict, skew: Dict) -> Dict[str, Any]:
@@ -2644,6 +2616,10 @@ async def on_start():
 async def on_stop():
     client.close()
 
+
+# ============ Health check ============
+from routes.health import router as health_router
+app.include_router(health_router, tags=["health"])
 
 # ============ Flowseeker route wiring ============
 # Skylit-parity live institutional options flow + drilldown.

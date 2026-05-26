@@ -23,6 +23,7 @@ from fastapi import APIRouter, HTTPException, Query
 import aiohttp
 
 from services.rate_limit_tracker import av_rate_tracker
+from services.alpha_vantage_client import circuit, CircuitBreakerOpenError
 
 logger = logging.getLogger(__name__)
 
@@ -76,10 +77,26 @@ async def _av_request(params: Dict[str, str]) -> Dict[str, Any]:
         raise HTTPException(status_code=502, detail=str(e))
 
 
+async def _av_request_circuit(params: Dict[str, Any]) -> Dict[str, Any]:
+    """Alpha Vantage request wrapper with circuit breaker protection.
+
+    Wraps _av_request_circuit() with the circuit breaker. If the circuit is OPEN,
+    returns a 503 response immediately instead of hitting the API.
+    """
+    try:
+        return await circuit.call(_av_request, params)
+    except CircuitBreakerOpenError as e:
+        logger.warning("Circuit breaker OPEN for Alpha Vantage: %s", e)
+        raise HTTPException(
+            status_code=503,
+            detail=f"Alpha Vantage circuit breaker is open. Service temporarily unavailable. {e}",
+        )
+
+
 @router.get("/quote/{ticker}")
 async def get_quote(ticker: str):
     """Get real-time quote for a ticker."""
-    data = await _av_request({
+    data = await _av_request_circuit({
         "function": "GLOBAL_QUOTE",
         "symbol": ticker.upper(),
     })
@@ -108,7 +125,7 @@ async def get_options_chain(
     }
     if date:
         params["date"] = date
-    data = await _av_request(params)
+    data = await _av_request_circuit(params)
     return data
 
 
@@ -124,7 +141,7 @@ async def get_technical_indicator(
 
     Supported indicators: SMA, EMA, RSI, MACD, BBANDS, STOCH, ADX, CCI, AROON, OBV, WILLR, MFI, TEMA, TRIMA, KAMA, MAMA, VWAP, HT_TRENDLINE, HT_SINE, HT_TRENDMODE, HT_DCPERIOD, HT_DCPHASE, HT_PHASOR
     """
-    data = await _av_request({
+    data = await _av_request_circuit({
         "function": indicator.upper(),
         "symbol": ticker.upper(),
         "interval": interval,
@@ -140,7 +157,7 @@ async def get_forex_rate(
     to_currency: str,
 ):
     """Get forex exchange rate."""
-    data = await _av_request({
+    data = await _av_request_circuit({
         "function": "CURRENCY_EXCHANGE_RATE",
         "from_currency": from_currency.upper(),
         "to_currency": to_currency.upper(),
@@ -163,7 +180,7 @@ async def get_crypto_price(
     market: str = Query("USD"),
 ):
     """Get cryptocurrency price."""
-    data = await _av_request({
+    data = await _av_request_circuit({
         "function": "CURRENCY_EXCHANGE_RATE",
         "from_currency": symbol.upper(),
         "to_currency": market.upper(),
@@ -181,7 +198,7 @@ async def get_crypto_price(
 @router.get("/overview/{ticker}")
 async def get_company_overview(ticker: str):
     """Get company overview/fundamentals."""
-    data = await _av_request({
+    data = await _av_request_circuit({
         "function": "OVERVIEW",
         "symbol": ticker.upper(),
     })
@@ -193,7 +210,7 @@ async def get_company_overview(ticker: str):
 @router.get("/earnings/{ticker}")
 async def get_earnings(ticker: str):
     """Get earnings data."""
-    data = await _av_request({
+    data = await _av_request_circuit({
         "function": "EARNINGS",
         "symbol": ticker.upper(),
     })
@@ -215,14 +232,14 @@ async def get_news(
         params["tickers"] = tickers.upper()
     if topics:
         params["topics"] = topics.lower()
-    data = await _av_request(params)
+    data = await _av_request_circuit(params)
     return data
 
 
 @router.get("/market-status")
 async def get_market_status():
     """Get current market status (open/closed)."""
-    data = await _av_request({
+    data = await _av_request_circuit({
         "function": "MARKET_STATUS",
     })
     return data
@@ -231,7 +248,7 @@ async def get_market_status():
 @router.get("/top-gainers-losers")
 async def get_top_gainers_losers():
     """Get top gainers, losers, and most active stocks."""
-    data = await _av_request({
+    data = await _av_request_circuit({
         "function": "TOP_GAINERS_LOSERS",
     })
     return data
@@ -249,7 +266,7 @@ async def get_historical(
         "weekly": "TIME_SERIES_WEEKLY",
         "monthly": "TIME_SERIES_MONTHLY",
     }
-    data = await _av_request({
+    data = await _av_request_circuit({
         "function": func_map[interval],
         "symbol": ticker.upper(),
         "outputsize": output_size,
@@ -264,7 +281,7 @@ async def get_intraday(
     output_size: str = Query("compact", pattern="^(compact|full)$"),
 ):
     """Get intraday OHLCV data."""
-    data = await _av_request({
+    data = await _av_request_circuit({
         "function": "TIME_SERIES_INTRADAY",
         "symbol": ticker.upper(),
         "interval": interval,
