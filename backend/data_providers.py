@@ -202,6 +202,62 @@ class FinnhubProvider(FreeDataProvider):
         return None
 
 
+class PolygonProvider(FreeDataProvider):
+    """Polygon.io free tier: 5 calls/min."""
+    
+    def __init__(self):
+        super().__init__("Polygon", rate_limit=5)
+        self.enabled = bool(POLYGON_API_KEY)
+        self.base = "https://api.polygon.io"
+        self._headers = {"Authorization": f"Bearer {POLYGON_API_KEY}"} if POLYGON_API_KEY else {}
+    
+    async def get_ticker_details(self, ticker: str) -> Optional[dict]:
+        """Get ticker details."""
+        if not self.enabled:
+            return None
+        data = await self._get(f"{self.base}/v3/reference/tickers/{ticker}", headers=self._headers)
+        if data and data.get("results"):
+            r = data["results"]
+            return {
+                "name": r.get("name", ""),
+                "market": r.get("market", ""),
+                "locale": r.get("locale", ""),
+                "active": r.get("active", True),
+                "source": "polygon",
+            }
+        return None
+    
+    async def get_options_contracts(self, ticker: str, limit: int = 20) -> List[dict]:
+        """Get options contracts for a ticker."""
+        if not self.enabled:
+            return []
+        data = await self._get(f"{self.base}/v3/reference/options/contracts", params={"underlying_ticker": ticker, "limit": limit}, headers=self._headers)
+        if data and data.get("results"):
+            return [{
+                "ticker": c.get("ticker", ""),
+                "strike": c.get("strike_price", 0),
+                "expiry": c.get("expiration_date", ""),
+                "type": c.get("contract_type", ""),
+                "exercise": c.get("exercise_style", ""),
+            } for c in data["results"]]
+        return []
+    
+    async def get_last_trade(self, ticker: str) -> Optional[dict]:
+        """Get last trade."""
+        if not self.enabled:
+            return None
+        data = await self._get(f"{self.base}/v2/last/trade/{ticker}", headers=self._headers)
+        if data and data.get("results"):
+            r = data["results"]
+            return {
+                "price": r.get("p", 0),
+                "size": r.get("s", 0),
+                "timestamp": r.get("t", 0),
+                "source": "polygon",
+            }
+        return None
+
+
 class DataAggregator:
     """
     Aggregates data from all free providers with fallback.
