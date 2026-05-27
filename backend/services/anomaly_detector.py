@@ -218,6 +218,7 @@ class FlowAnomalyDetector:
             self.model = None
             self._fallback = StatisticalAnomalyDetector(window=seq_len, threshold_sigma=threshold_sigma)
             self._trained = False
+            self._update_count = 0
 
     def update(self, vpin: float, qi: float) -> Dict[str, Any]:
         """Add a new (VPIN, QI) observation and compute anomaly score."""
