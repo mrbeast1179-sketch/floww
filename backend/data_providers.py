@@ -46,6 +46,58 @@ ALPHA_VANTAGE_KEY = os.environ.get("ALPHA_VANTAGE_KEY", "")
 POLYGON_API_KEY = os.environ.get("POLYGON_API_KEY", "")
 
 
+class RateLimiter:
+    """Simple rate limiter for API calls with async lock."""
+    def __init__(self, calls_per_minute: int):
+        self.interval = 60.0 / calls_per_minute
+        self.last_call = 0
+        self._lock = asyncio.Lock()
+    
+    async def wait(self):
+        async with self._lock:
+            now = time.time()
+            elapsed = now - self.last_call
+            if elapsed < self.interval:
+                await asyncio.sleep(self.interval - elapsed)
+            self.last_call = time.time()
+
+
+class FreeDataProvider:
+    """Base class for free data providers."""
+    
+    def __init__(self, name: str, rate_limit: int = 60):
+        self.name = name
+        self.rate_limiter = RateLimiter(rate_limit)
+        self.enabled = False
+    
+    async def _get(self, url: str, params: dict = None, headers: dict = None) -> Optional[dict]:
+        await self.rate_limiter.wait()
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.get(url, params=params or {}, headers=headers or {},
+                                       timeout=aiohttp.ClientTimeout(total=10)) as resp:
+                    if resp.status == 200:
+                        _record_provider_call(self.name, True)
+                        return await resp.json()
+                    elif resp.status == 429:
+                        logger.warning(f"{self.name}: Rate limited")
+                        _record_provider_call(self.name, False)
+                        try:
+                            from services.observability import provider_calls_total
+                            provider_calls_total.labels(provider=self.name, status="rate_limited").inc()
+                        except Exception:
+                            pass
+                        return None
+                    else:
+                        logger.warning(f"{self.name}: HTTP {resp.status}")
+                        _record_provider_call(self.name, False)
+                        return None
+        except Exception as e:
+            logger.warning(f"{self.name}: {e}")
+            _record_provider_call(self.name, False)
+            return None
+
+
 class FinnhubProvider(FreeDataProvider):
     """Finnhub free tier: 60 calls/min."""
     

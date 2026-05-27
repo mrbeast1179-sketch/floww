@@ -100,6 +100,7 @@ class DuckDBEngine:
         self._flush_interval_ms = 50
         self._running = False
         self._flush_task: Optional[asyncio.Task] = None
+        self._init_schema()  # Ensure tables exist on creation
 
     def _init_schema(self):
         self._create_base_tables()

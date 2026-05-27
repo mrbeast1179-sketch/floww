@@ -79,5 +79,15 @@ class ConnectionManager:
         for ws in disconnected:
             self.disconnect(ws)
 
+    async def close_all(self, code: int = 1001, reason: str = "Server shutting down"):
+        """Close all connected WebSocket clients gracefully."""
+        for ws in list(self._all):
+            try:
+                await ws.close(code=code, reason=reason)
+            except Exception:
+                pass
+        self._all.clear()
+        self._active.clear()
+
 
 manager = ConnectionManager()

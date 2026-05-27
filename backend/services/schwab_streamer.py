@@ -76,6 +76,7 @@ class SchwabStreamer:
             "lob_depth_rows_24h": 0,
         }
         self._message_timestamps: list = []  # for rate calculation
+        self._reconnect_timestamps: list = []  # for rolling 24h reconnect count
 
     # ------------------------------------------------------------------
     # Handler registration
@@ -160,6 +161,12 @@ class SchwabStreamer:
             self._reconnect_delay = self.initial_reconnect_delay
             self._health["connected"] = True
             self._health["reconnect_count_24h"] = self._metrics["reconnects"]
+            self._reconnect_timestamps.append(datetime.now(timezone.utc).timestamp())
+            # Prune reconnects older than 24h
+            cutoff_24h = datetime.now(timezone.utc).timestamp() - 86400
+            self._reconnect_timestamps = [t for t in self._reconnect_timestamps if t > cutoff_24h]
+            self._health["reconnect_count_24h"] = len(self._reconnect_timestamps)
+            self._message_timestamps = []  # Reset on successful reconnect
             logger.info("Schwab WebSocket connected")
 
             # Subscribe to default symbols

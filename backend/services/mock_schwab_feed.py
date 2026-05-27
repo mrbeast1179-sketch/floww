@@ -207,7 +207,7 @@ class MockSchwabFeed:
 
                         # BS price for bid/ask
                         from scipy.stats import norm
-                        d1 = (math.log(strike / spot) + (0.05 + 0.5 * iv**2) * T) / (iv * math.sqrt(T))
+                        d1 = (math.log(spot / strike) + (0.05 + 0.5 * iv**2) * T) / (iv * math.sqrt(T))
                         if opt_type == "call":
                             theo = spot * norm.cdf(d1) - strike * math.exp(-0.05 * T) * norm.cdf(d1 - iv * math.sqrt(T))
                         else:
