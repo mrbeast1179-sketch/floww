@@ -78,11 +78,12 @@ export default function NodeClassificationPanel({ ticker = "SPY" }) {
     ticker,
   });
 
-  const { realNodes, hedgeNodes } = useMemo(() => {
+  const { realNodes, hedgeNodes, unknownNodes } = useMemo(() => {
     const nodes = data?.nodes || [];
     return {
       realNodes: nodes.filter((n) => n.classification === "real"),
       hedgeNodes: nodes.filter((n) => n.classification === "hedge"),
+      unknownNodes: nodes.filter((n) => n.classification === "unknown" || !n.classification),
     };
   }, [data]);
 
@@ -99,7 +100,7 @@ export default function NodeClassificationPanel({ ticker = "SPY" }) {
       )}
       {error && <div className="text-rose-400 text-[10px]">Error: {error}</div>}
       {data && (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
           <div>
             <div className="label text-emerald-400 mb-1">
               Real ({realNodes.length})
@@ -130,6 +131,23 @@ export default function NodeClassificationPanel({ ticker = "SPY" }) {
               <div>
                 {hedgeNodes.map((n, i) => (
                   <NodeRow key={`hedge-${n.strike}-${i}`} n={n} />
+                ))}
+              </div>
+            )}
+          </div>
+          <div>
+            <div className="label text-slate-400 mb-1">
+              Unknown ({unknownNodes.length})
+            </div>
+            <div className="text-[9px] text-slate-600 mb-1">
+              unclassified
+            </div>
+            {unknownNodes.length === 0 ? (
+              <div className="text-slate-600 text-[10px]">—</div>
+            ) : (
+              <div>
+                {unknownNodes.map((n, i) => (
+                  <NodeRow key={`unk-${n.strike}-${i}`} n={n} />
                 ))}
               </div>
             )}
