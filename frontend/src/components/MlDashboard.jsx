@@ -4,7 +4,7 @@
  * Shows live ML predictions, model health, rolling accuracy,
  drift status, and prediction history. Uses the unified /api/ml/briefing endpoint.
  */
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import { BACKEND_URL, API } from "../config/api";
 
 // API imported from config/api.js
@@ -71,6 +71,7 @@ export function MlDashboard({ ticker = "SPY", spot }) {
   const [history, setHistory] = useState([]);
   const [training, setTraining] = useState(false);
   const [activeTab, setActiveTab] = useState("predict");
+  const trainTimerRef = useRef(null);
 
   const fetchPrediction = useCallback(async () => {
     if (!ticker) return;
@@ -93,7 +94,7 @@ export function MlDashboard({ ticker = "SPY", spot }) {
     setTraining(true);
     try {
       await fetch(`${API}/ml/retrain/${ticker}`, { method: "POST" });
-      setTimeout(fetchPrediction, 3000);
+      trainTimerRef.current = setTimeout(fetchPrediction, 3000);
     } catch (e) {
       setError(e.message);
     } finally {
@@ -104,7 +105,7 @@ export function MlDashboard({ ticker = "SPY", spot }) {
   useEffect(() => {
     fetchPrediction();
     const id = setInterval(fetchPrediction, 60000);
-    return () => clearInterval(id);
+    return () => { clearInterval(id); if (trainTimerRef.current) clearTimeout(trainTimerRef.current); };
   }, [fetchPrediction]);
 
   const predSignal = prediction?.combined_signal || prediction?.prediction_label?.toUpperCase();

@@ -40,21 +40,19 @@ export default function FlowTicker({ ticker }) {
       } catch (err) { /* skip malformed */ }
     };
 
-    es.addEventListener("ready", (e) => {
+    const onReady = (e) => {
       try {
         const info = JSON.parse(e.data);
         setStatus("live");
       } catch (err) { /* skip */ }
-    });
-
-    es.addEventListener("warning", (e) => {
+    };
+    const onWarning = (e) => {
       try {
         const warn = JSON.parse(e.data);
         setError(warn.warning || warn.error || "Warning");
       } catch (err) { /* skip */ }
-    });
-
-    es.addEventListener("error", (e) => {
+    };
+    const onError = (e) => {
       try {
         const err = JSON.parse(e.data);
         setError(err.error || err.detail || "Stream error");
@@ -64,12 +62,16 @@ export default function FlowTicker({ ticker }) {
         setStatus("error");
       }
       es.close();
-    });
-
-    es.addEventListener("end", () => {
+    };
+    const onEnd = () => {
       setStatus("ended");
       es.close();
-    });
+    };
+
+    es.addEventListener("ready", onReady);
+    es.addEventListener("warning", onWarning);
+    es.addEventListener("error", onError);
+    es.addEventListener("end", onEnd);
 
     es.onerror = () => {
       if (status === "connecting") {
@@ -79,7 +81,6 @@ export default function FlowTicker({ ticker }) {
       es.close();
     };
   }, [ticker, paused]);
-
   const rafRef = useRef(null);
   const pendingTradesRef = useRef([]);
 
