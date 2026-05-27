@@ -2182,7 +2182,9 @@ async def _scheduler_loop():
             today_et = et.date().isoformat()
             if hhmm >= PREFETCH_HHMM and fired_for_date != today_et and et.weekday() < 5:
                 fired_for_date = today_et
-                asyncio.create_task(_prefetch_paid_oi())
+                _t = asyncio.create_task(_logged_task(_prefetch_paid_oi(), "_prefetch_paid_oi"))
+                _background_tasks.add(_t)
+                _t.add_done_callback(_background_tasks.discard)
         except Exception as e:
             log.warning(f"scheduler tick err: {e}")
         await asyncio.sleep(60)
