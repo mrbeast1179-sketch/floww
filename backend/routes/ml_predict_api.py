@@ -263,8 +263,16 @@ async def trigger_training(
     import uuid
     job_id = str(uuid.uuid4())[:8]
 
-    # Run training in background
-    asyncio.create_task(_run_training_job(job_id, ticker, days, n_splits))
+    # Run training in background (deferred import to avoid circular dep)
+    from server import _logged_task, _background_tasks
+    _t = asyncio.create_task(
+        _logged_task(
+            _run_training_job(job_id, ticker, days, n_splits),
+            f"train:{ticker}:{job_id}",
+        )
+    )
+    _background_tasks.add(_t)
+    _t.add_done_callback(_background_tasks.discard)
 
     return {
         "status": "started",
