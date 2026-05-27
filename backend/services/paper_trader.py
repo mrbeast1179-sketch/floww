@@ -32,6 +32,19 @@ from services.trading_signals import Signal
 logger = logging.getLogger(__name__)
 
 
+_pt_log = logging.getLogger("paper_trader")
+
+async def _log_failed_insert(coro, kind: str):
+    """Wrap a fire-and-forget DB insert so failures are logged, not silent."""
+    try:
+        await coro
+    except Exception as e:
+        _pt_log.error(
+            "paper_trader insert (%s) failed: %s: %s",
+            kind, type(e).__name__, e, exc_info=True,
+        )
+
+
 @dataclass
 class PaperPosition:
     """Represents a single paper trade position."""
@@ -408,7 +421,7 @@ class PaperTrader:
             import asyncio
             loop = asyncio.get_event_loop()
             if loop.is_running():
-                asyncio.create_task(self.mongo.insert_one(order))
+                asyncio.create_task(_log_failed_insert(self.mongo.insert_one(order), "order"))
             else:
                 loop.run_until_complete(self.mongo.insert_one(order))
         except Exception as e:
@@ -424,7 +437,7 @@ class PaperTrader:
             doc = trade.to_dict()
             doc["logged_at"] = datetime.now(timezone.utc).isoformat()
             if loop.is_running():
-                asyncio.create_task(self.mongo.insert_one(doc))
+                asyncio.create_task(_log_failed_insert(self.mongo.insert_one(doc), "trade"))
             else:
                 loop.run_until_complete(self.mongo.insert_one(doc))
         except Exception as e:
