@@ -62,9 +62,12 @@ export default function ToxicityGauge({ ensemble, onRefresh }) {
   const components = ensemble?.component_scores || {};
   const status = ensemble?.status || "inactive";
   const ticker = ensemble?.ticker || "";
+  const hasData = ensemble != null && Object.keys(probs).length > 0;
 
-  const maxProb = Math.max(...HORIZONS.map(h => probs[h.key] || 0));
-  const overallColor = probColor(maxProb);
+  const maxProb = hasData
+    ? Math.max(...HORIZONS.map(h => (probs[h.key] != null ? probs[h.key] : 0)))
+    : 0;
+  const overallColor = probColor(hasData ? maxProb : null);
 
   return (
     <div className="panel-2 p-3" data-testid="toxicity-gauge">
@@ -96,7 +99,7 @@ export default function ToxicityGauge({ ensemble, onRefresh }) {
       <div className="grid grid-cols-4 gap-2 mb-3">
         {HORIZONS.map(h => (
           <div key={h.key} className="flex flex-col items-center">
-            <GaugeArc prob={probs[h.key] || 0} />
+            <GaugeArc prob={probs[h.key] ?? 0} />
             <div className="text-[10px] text-slate-500 mt-1">{h.label}</div>
           </div>
         ))}
@@ -129,13 +132,16 @@ export default function ToxicityGauge({ ensemble, onRefresh }) {
 
       {/* Anomaly flags */}
       <div className="flex gap-2 mt-2">
-        {ensemble?.cnn_anomaly && (
+        {!hasData && (
+          <span className="text-[10px] text-slate-600">No toxicity data — feed VPIN + QI to activate</span>
+        )}
+        {hasData && ensemble?.cnn_anomaly && (
           <span className="tag danger text-[10px]">CNN ANOMALY</span>
         )}
-        {ensemble?.statistical_anomaly && (
+        {hasData && ensemble?.statistical_anomaly && (
           <span className="tag warning text-[10px]">STATISTICAL ANOMALY</span>
         )}
-        {!ensemble?.cnn_anomaly && !ensemble?.statistical_anomaly && (
+        {hasData && !ensemble?.cnn_anomaly && !ensemble?.statistical_anomaly && (
           <span className="text-[10px] text-slate-600">No anomalies detected</span>
         )}
       </div>
