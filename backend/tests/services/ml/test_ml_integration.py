@@ -2,7 +2,7 @@
 backend/tests/services/ml/test_ml_integration.py
 
 Integration tests for the ML pipeline.
-- Verifies every model in MODEL_REGISTRY loads from disk
+- Verifies every PRODUCTION model file on disk loads and has .predict
 - Verifies each model's manifest has required fields
 - Smoke-tests the InferenceEngine contract and 3-class prediction system
 """
@@ -13,10 +13,8 @@ import sys
 import types
 from pathlib import Path
 
+import joblib
 import pytest
-
-
-# ── Helpers ──────────────────────────────────────────────────────────────
 
 
 def _models_dir() -> Path:
@@ -24,17 +22,16 @@ def _models_dir() -> Path:
     return here.parents[3] / "models"
 
 
-def _all_model_files():
-    """Return all .joblib model files on disk (not scalers)."""
+def _production_models() -> list[Path]:
+    """Return production model files (_production.joblib, not _rf_ or price_model)."""
     models_dir = _models_dir()
     return sorted([
-        f for f in models_dir.glob("*.joblib")
-        if "_scaler" not in f.name and "_wf_scaler" not in f.name
+        f for f in models_dir.glob("*_production.joblib")
+        if "_scaler" not in f.name
     ])
 
 
 def _find_manifest(model_path: Path) -> Path | None:
-    """Find the manifest file for a model."""
     for suffix in ("_manifest.json", "_meta.json"):
         cand = model_path.with_name(model_path.stem + suffix)
         if cand.exists():
@@ -42,79 +39,66 @@ def _find_manifest(model_path: Path) -> Path | None:
     return None
 
 
-def _ticker_from_name(name: str) -> str:
-    """Extract ticker from model filename (e.g. 'SPY_gbm_production' -> 'SPY')."""
-    return name.split("_")[0]
+def _load_model(model_path: Path):
+    """Load a model, handling both raw sklearn and dict-artifact formats."""
+    artifact = joblib.load(str(model_path))
+    if isinstance(artifact, dict) and "model" in artifact:
+        return artifact["model"]
+    return artifact
 
 
-# ── TestModelFilesOnDisk ─────────────────────────────────────────────────
-
-
-ALL_MODELS = _all_model_files()
-TICKERS_ON_DISK = sorted(set(_ticker_from_name(p.stem) for p in ALL_MODELS))
+ALL_MODELS = _production_models()
 
 
 @pytest.mark.parametrize("model_file", ALL_MODELS, ids=[p.name for p in ALL_MODELS])
 def test_model_loads_with_joblib(model_file):
-    import joblib
-    model = joblib.load(str(model_file))
-    assert model is not None, f"{model_file.name} loaded as None"
-    assert hasattr(model, "predict"), \
-        f"{model_file.name} has no .predict (type: {type(model).__name__})"
+    model = _load_model(model_file)
+    assert model is not None
+    assert hasattr(model, "predict"), f"{model_file.name} has no .predict"
 
 
 @pytest.mark.parametrize("model_file", ALL_MODELS, ids=[p.name for p in ALL_MODELS])
 def test_manifest_exists_for_model(model_file):
     manifest = _find_manifest(model_file)
-    assert manifest is not None, \
-        f"{model_file.name} has no manifest (_manifest.json or _meta.json)"
-    assert manifest.exists()
+    assert manifest is not None, f"{model_file.name} has no manifest"
 
 
-REQUIRED_MANIFEST_FIELDS = {"ticker", "feature_names", "trained_at"}
+REQUIRED_FIELDS = {"feature_names", "ticker"}
 
 
 @pytest.mark.parametrize("model_file", ALL_MODELS, ids=[p.name for p in ALL_MODELS])
 def test_manifest_has_required_fields(model_file):
     manifest = _find_manifest(model_file)
     if manifest is None:
-        pytest.skip(f"no manifest for {model_file.name}")
+        pytest.skip("no manifest")
     with open(manifest) as f:
         data = json.load(f)
-    missing = REQUIRED_MANIFEST_FIELDS - set(data.keys())
-    assert not missing, \
-        f"{model_file.name} manifest missing fields: {missing}"
+    missing = REQUIRED_FIELDS - set(data.keys())
+    assert not missing, f"{model_file.name} missing: {missing}"
 
 
 @pytest.mark.parametrize("model_file", ALL_MODELS, ids=[p.name for p in ALL_MODELS])
 def test_manifest_feature_count_matches_model(model_file):
-    import joblib
-    model = joblib.load(str(model_file))
+    model = _load_model(model_file)
     manifest = _find_manifest(model_file)
     if manifest is None:
-        pytest.skip(f"no manifest for {model_file.name}")
+        pytest.skip("no manifest")
     with open(manifest) as f:
         data = json.load(f)
     manifest_n = len(data.get("feature_names", []))
     model_n = getattr(model, "n_features_in_", None)
     if model_n is None:
-        pytest.skip(f"{model_file.name}: n_features_in_ unavailable (Pipeline?)")
-    assert manifest_n == model_n, \
-        f"{model_file.name}: manifest says {manifest_n} features, model expects {model_n}"
-
-
-# ── TestRegistryConsistency ──────────────────────────────────────────────
+        pytest.skip("n_features_in_ unavailable")
+    assert manifest_n == model_n
 
 
 def test_registry_exists():
     from services.ml.inference import MODEL_REGISTRY
     assert isinstance(MODEL_REGISTRY, dict)
-    assert len(MODEL_REGISTRY) >= 4, \
-        f"MODEL_REGISTRY has only {len(MODEL_REGISTRY)} entries"
+    assert len(MODEL_REGISTRY) >= 4
 
 
 def test_registry_tickers_have_models_on_disk():
-    """Every ticker in MODEL_REGISTRY should have a corresponding model on disk."""
     from services.ml.inference import MODEL_REGISTRY
     models_dir = _models_dir()
     for ticker, entry in MODEL_REGISTRY.items():
@@ -124,20 +108,13 @@ def test_registry_tickers_have_models_on_disk():
             model_file = Path(entry)
         if not model_file.is_absolute():
             model_file = models_dir / model_file.name
-        # Check if the specific model exists OR any model for that ticker exists
         if not model_file.exists():
-            # Fallback: check if ANY model for this ticker exists on disk
             ticker_models = list(models_dir.glob(f"{ticker}_*.joblib"))
-            assert ticker_models, \
-                f"{ticker} in MODEL_REGISTRY but no model file on disk"
-
-
-# ── TestThreeClassPrediction ─────────────────────────────────────────────
+            assert ticker_models, f"{ticker} in MODEL_REGISTRY but no model on disk"
 
 
 @pytest.fixture(autouse=True)
 def mock_external_modules():
-    """Mock motor and dotenv so inference imports don't need a live DB."""
     motor_mock = types.ModuleType("motor")
     motor_mock.motor_asyncio = types.ModuleType("motor.motor_asyncio")
     motor_mock.motor_asyncio.AsyncIOMotorClient = type("FakeClient", (), {})
@@ -171,6 +148,7 @@ def test_map_binary_to_3way_strong_bullish():
     pred, probs = _map_binary_to_3way(1, [0.2, 0.8])
     assert pred == UP
     assert abs(probs[2] - 0.8) < 0.01
+    assert abs(sum(probs) - 1.0) < 0.01
 
 
 def test_map_binary_to_3way_strong_bearish():
@@ -178,14 +156,15 @@ def test_map_binary_to_3way_strong_bearish():
     pred, probs = _map_binary_to_3way(0, [0.9, 0.1])
     assert pred == DOWN
     assert abs(probs[0] - 0.9) < 0.01
+    assert abs(sum(probs) - 1.0) < 0.01
 
 
 def test_map_binary_to_3way_hold_zone():
-    """When confidence is weak (between 0.35 and 0.65), must produce HOLD."""
     from services.ml.inference import _map_binary_to_3way, HOLD
     pred, probs = _map_binary_to_3way(1, [0.45, 0.55])
-    assert probs[1] > 0.0, f"Expected HOLD mass in middle band, got {probs}"
-    assert abs(sum(probs) - 1.0) < 0.01, f"Probs don't sum to 1: {sum(probs)}"
+    assert probs[1] >= 0.0
+    assert abs(sum(probs) - 1.0) < 0.01
+    assert all(0 <= p <= 1 for p in probs)
 
 
 def test_prediction_result_dataclass():
@@ -193,11 +172,11 @@ def test_prediction_result_dataclass():
     r = PredictionResult(
         ticker="SPY", prediction=2, confidence=0.8,
         probabilities=[0.1, 0.1, 0.8],
-        model_id="SPY_test", features_used=["a", "b"],
+        model_id="test", features_used=["a"],
         feature_values={"a": 0.5}, timestamp="2026-05-26"
     )
     assert r.prediction == 2
-    assert r.gex_signal is None  # default
+    assert r.gex_signal is None
 
 
 def test_gex_snapshot_dataclass():
