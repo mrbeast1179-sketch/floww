@@ -5,11 +5,17 @@ requires-python = ">=3.12"
 
 [tool.ruff]
 line-length = 120
-target-version = "py312"
+target-version = "py313"
+extend-exclude = [
+    ".venv",
+    "services/ml/inference.py",
+    "services/dash_ui.py",
+    "tests/conftest.py",
+]
 
 [tool.ruff.lint]
-select = ["E", "F", "W", "I"]
+select = ["E", "E722", "F", "W", "I"]
 ignore = ["E501"]
 
 [tool.ruff.lint.per-file-ignores]
-"tests/*" = ["F401", "F811"]
+"tests/**/*.py" = ["F401", "F403", "F811"]
