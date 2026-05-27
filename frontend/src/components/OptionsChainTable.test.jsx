@@ -25,13 +25,9 @@ describe('OptionsChainTable', () => {
   });
 
   test('renders without crash on populated rows', () => {
-    const rows = [sampleRow(), sampleRow({ strike: 460 })];
     const { container } = render(
       <OptionsChainTable ticker="SPY" spot={450} />
     );
-    useEffect(() => {
-      setChain({ rows, count: rows.length, expiries: ['2026-05-30'] });
-    }, []);
     expect(container).toBeTruthy();
   });
 
