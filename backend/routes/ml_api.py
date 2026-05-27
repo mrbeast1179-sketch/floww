@@ -705,3 +705,35 @@ async def get_calibration(ticker: str, window: int = Query(default=30, ge=7, le=
         "expected_calibration_error": round(ece, 4) if ece is not None else None,
         "calibration": calibration,
     }
+
+
+# ── GET /api/ml/health/{ticker} ───────────────────────────────────────────
+
+
+@router.get("/health/{ticker}")
+async def ml_health_check(ticker: str) -> Dict[str, Any]:
+    """Get ML model health assessment for a ticker."""
+    try:
+        from services.ml.health_monitor import assess_model_health
+        from server import db
+        result = await assess_model_health(db, ticker.upper())
+        return result
+    except Exception as e:
+        logger.error(f"Health check failed for {ticker}: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Health check failed: {e}")
+
+
+# ── GET /api/ml/health ────────────────────────────────────────────────────
+
+
+@router.get("/health")
+async def ml_health_all() -> Dict[str, Any]:
+    """Get health assessment for all active ML models."""
+    try:
+        from services.ml.health_monitor import get_all_models_health
+        from server import db
+        result = await get_all_models_health(db)
+        return result
+    except Exception as e:
+        logger.error(f"Health check all failed: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Health check failed: {e}")
