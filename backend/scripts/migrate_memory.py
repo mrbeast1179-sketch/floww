@@ -45,14 +45,6 @@ def get_api_key():
     return key
 
 
-def get_user_id():
-    if MEM0_CONFIG.exists():
-        with open(MEM0_CONFIG) as f:
-            cfg = json.load(f)
-        return cfg.get("defaults", {}).get("user_id", "user_c778280e23af")
-    return "user_c778280e23af"
-
-
 def parse_frontmatter(content: str) -> dict:
     m = re.match(r"^---\s*\n(.*?)\n---", content, re.DOTALL)
     if m:
@@ -70,83 +62,6 @@ def extract_body(content: str) -> str:
         return content[m.end():].strip()
     return content.strip()
 
-
-def make_memory_text(name: str, description: str, body: str) -> str:
-    """Build a clean memory text from Claude Code memory file."""
-    parts = []
-    if name:
-        parts.append(f"## {name}")
-    if description:
-        parts.append(f"**Description:** {description}")
-    if body:
-        parts.append(body)
-    return "\n\n".join(parts)
-
-
-# ── mem0 SDK wrapper ───────────────────────────────────────────────────────
-
-class Mem0Migrator:
-    def __init__(self, api_key: str, user_id: str):
-        self.api_key = api_key
-        self.user_id = user_id
-        self.client = None
-        self._init_client()
-
-    def _init_client(self):
-        try:
-            from mem0 import MemoryClient
-            self.client = MemoryClient(api_key=self.api_key)
-            logger.info(f"mem0 client initialized (Platform mode)")
-        except Exception as e:
-            logger.warning(f"ERROR initializing mem0 client: {e}")
-            sys.exit(1)
-
-    def add(self, text: str, categories: list = None, metadata: dict = None, dry_run=False) -> dict:
-        if dry_run:
-            logger.info(f"  [DRY-RUN] {text[:80]}...")
-            return {"status": "dry_run", "id": "dry-run"}
-
-        try:
-            result = self.client.add(
-                messages=[{"role": "user", "content": text}],
-                user_id=self.user_id,
-                categories=categories or {},
-                metadata=metadata or {},
-            )
-            return {"status": "success", "result": result}
-        except Exception as e:
-            return {"status": "error", "error": str(e)}
-
-    def search(self, query: str, limit=3) -> list:
-        try:
-            results = self.client.search(
-                query=query,
-                user_id=self.user_id,
-                limit=limit,
-            )
-            return results if isinstance(results, list) else results.get("results", results.get("data", []))
-        except Exception:
-            return []
-
-    def is_duplicate(self, text: str, threshold=0.85) -> bool:
-        results = self.search(text[:100], limit=3)
-        for r in results:
-            score = r.get("score", 0)
-            if score >= threshold:
-                return True
-        return False
-
-    def count_memories(self) -> int:
-        try:
-            results = self.client.get_all(user_id=self.user_id, limit=1)
-            if isinstance(results, dict):
-                return results.get("total", len(results.get("results", results.get("data", []))))
-            return len(results) if isinstance(results, list) else 0
-        except Exception:
-            return -1
-
-
-# ── Migration Logic ────────────────────────────────────────────────────────
 
 def migrate_claude_memory(migrator: Mem0Migrator, dry_run=False) -> dict:
     stats = {"total": 0, "added": 0, "skipped": 0, "errors": 0, "files": []}

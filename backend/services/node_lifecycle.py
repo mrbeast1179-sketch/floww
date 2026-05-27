@@ -51,11 +51,6 @@ class Node:
         self.structural_weight = 1.0  # 1.0 = full strength, decays with taps
         self.opacity = 1.0  # visual opacity, decays with taps
 
-    def check_tap(self, spot: float) -> bool:
-        """Check if spot price taps this node."""
-        threshold = self.strike * self.tap_threshold_pct
-        return abs(spot - self.strike) <= threshold
-
     def tap(self):
         """Record a tap on this node."""
         now = datetime.now(timezone.utc)

@@ -47,39 +47,7 @@ MODEL_DIR = Path(__file__).resolve().parents[2] / "models"
 
 
 @dataclass
-class ModelHealth:
-    """Health status for a single model."""
-    ticker: str
-    model_id: str
-    model_type: str
-    status: str  # "healthy", "stale", "drift", "error"
-    loaded: bool
-    prediction: Optional[int]
-    confidence: Optional[float]
-    data_age_sec: Optional[float]
-    rolling_7d_accuracy: Optional[float]
-    rolling_30d_accuracy: Optional[float]
-    total_predictions: int
-    drift_status: str
-    drift_alerts: List[str]
-    last_prediction_ts: Optional[str]
-    train_accuracy: float
-    n_features: int
-
-
 @dataclass
-class DashboardReport:
-    """Full ML dashboard report."""
-    timestamp: str
-    models: List[ModelHealth]
-    total_models: int
-    healthy_count: int
-    drift_count: int
-    error_count: int
-    avg_confidence: float
-    avg_data_age_sec: float
-
-
 class ModelDashboard:
     """ML model health dashboard.
 

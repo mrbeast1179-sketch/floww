@@ -36,18 +36,6 @@ class FridayPinConfig:
 
 
 @dataclass
-class FridayPinSignal:
-    """Output signal from the Friday Pin strategy."""
-    action: str = "SHORT_STRADDLE"
-    strike: float = 0.0
-    spot: float = 0.0
-    target_premium_bps: int = 30
-    stop_bps: int = 60
-    reason: str = ""
-    range_pct: float = 0.0
-    timestamp: str = ""
-
-
 class FridayPinStrategy:
     """Friday Late-Day Pin strategy.
 

@@ -205,17 +205,6 @@ class PreTradeRiskGate:
 # ── RiskConfig / TradeIntent / AccountState (original API) ────────────────────
 
 @dataclass
-class RiskConfig:
-    """Risk gate configuration."""
-    max_consecutive_losses: int = 3
-    max_daily_loss_pct: float = -0.02
-    max_position_pct: float = 0.10
-    max_open_positions: int = 5
-    kyle_lambda_threshold: float = 0.05
-    max_position_value: float = 5000.0
-    min_account_equity: float = 1000.0
-
-
 @dataclass
 class TradeIntent:
     """Minimal trade intent for risk checking."""

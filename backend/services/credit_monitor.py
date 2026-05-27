@@ -28,17 +28,6 @@ CRITICAL = "CRITICAL"
 
 
 @dataclass
-class CreditConfig:
-    """Configuration for credit monitoring."""
-    budget: int = 0  # Total credit budget from env
-    warning_pct: float = 0.80
-    critical_pct: float = 0.95
-    # Rate limit tracking
-    rate_limit_window_seconds: float = 300.0  # 5-min rolling window
-    rate_limit_warning_threshold: int = 3     # 429s in window → MEDIUM
-    rate_limit_critical_threshold: int = 10   # 429s in window → CRITICAL
-
-
 @dataclass
 class CreditState:
     """Current state of API credits."""

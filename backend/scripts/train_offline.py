@@ -172,14 +172,6 @@ def train_logistic(X_train, y_train):
     return {"model": model, "scaler": scaler, "type": "logistic"}
 
 
-def predict_model(model, X):
-    """Get predictions from a model (handles pipeline dict for logistic)."""
-    if isinstance(model, dict) and model.get("type") == "logistic":
-        X_s = model["scaler"].transform(X)
-        return model["model"].predict(X_s)
-    return model.predict(X)
-
-
 def evaluate_fold(name, model, X_train, y_train, X_test, y_test, dates_test):
     """Evaluate a single fold. Only reports OOS (test) metrics for gate."""
     test_pred = predict_model(model, X_test).astype(int)

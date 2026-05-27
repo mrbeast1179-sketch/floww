@@ -196,14 +196,3 @@ class BacktestResult:
         return "\n".join(lines)
 
 
-def format_metric(value: Optional[float], digits: int = 3) -> str:
-    """Format a metric value for display."""
-    if value is None:
-        return "—"
-    if isinstance(value, float):
-        if math.isnan(value):
-            return "—"
-        if math.isinf(value):
-            return "inf"
-        return f"{value:.{digits}f}"
-    return str(value)

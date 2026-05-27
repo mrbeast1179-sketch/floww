@@ -73,30 +73,6 @@ class Strangle(BaseModel):
     expiry: str
     qty: int = 1
 
-class VerticalSpread(BaseModel):
-    type: str = "vertical"
-    side: str  # "call" or "put"
-    buy_strike: float
-    sell_strike: float
-    expiry: str
-    qty: int = 1
-
-class CalendarSpread(BaseModel):
-    type: str = "calendar"
-    side: str
-    strike: float
-    near_expiry: str
-    far_expiry: str
-    qty: int = 1
-
-class SingleLeg(BaseModel):
-    type: str = "single_leg"
-    option_type: str
-    strike: float
-    expiry: str
-    side: str  # "buy" or "sell"
-    qty: int = 1
-
 Strategy = Union[IronCondor, Straddle, Strangle, VerticalSpread, CalendarSpread, SingleLeg]
 
 

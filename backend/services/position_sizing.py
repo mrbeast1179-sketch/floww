@@ -29,22 +29,6 @@ DEFAULT_KELLY_FRACTION = 0.5  # half-Kelly by default
 # ── Data class ─────────────────────────────────────────────────────────────
 
 @dataclass(frozen=True)
-class KellyResult:
-    """Immutable result of a Kelly sizing calculation."""
-    kelly_fraction: float       # raw Kelly fraction (before fractional scaling)
-    adjusted_fraction: float    # after applying kelly_fraction multiplier
-    kelly_pct: float            # final % of account to allocate (clamped)
-    dollar_allocation: float    # dollar amount to allocate
-    max_contracts: int          # max whole contracts (assuming contract_value)
-    win_rate: float             # input
-    payoff_ratio: float         # input
-    kelly_multiplier: float     # fractional Kelly multiplier used
-    account_size: float         # input
-    capped: bool                # True if the raw value exceeded MAX_RISK_PCT
-
-
-# ── Core engine ────────────────────────────────────────────────────────────
-
 def compute_kelly(
     win_rate: float,
     payoff_ratio: float,

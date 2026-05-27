@@ -127,21 +127,6 @@ class GEXSnapshot:
 
 
 @dataclass
-class ModelInfo:
-    """Model metadata."""
-    ticker: str
-    model_id: str
-    model_type: str
-    n_features: int
-    feature_names: List[str]
-    train_accuracy: float
-    artifact_path: str
-    loaded: bool = False
-
-
-# ── Vectorized Feature Engineering ────────────────────────────────────
-
-
 def compute_live_features(ticker: str, period: str = "1y") -> pd.DataFrame:
     """Compute features from live yfinance data (fully vectorized).
 

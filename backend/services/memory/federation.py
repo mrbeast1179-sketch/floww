@@ -112,35 +112,6 @@ class FileBasedFederationQueue:
             src.rename(dst)
 
 
-class RedisFederationQueue:
-    """Redis-based federation queue for multi-machine setup."""
-
-    def __init__(self, redis_url: str = None):
-        if redis is None:
-            raise ImportError("redis package required for RedisFederationQueue. pip install redis")
-        self.redis_url = redis_url or os.environ.get(
-            "REDIS_FEDERATION_URL", "redis://localhost:6379/0"
-        )
-        self.channel = "mem0_writes"
-        self._redis = None
-
-    @property
-    def redis_client(self):
-        if self._redis is None:
-            self._redis = redis.from_url(self.redis_url, decode_responses=True)
-        return self._redis
-
-    def publish(self, event: FederationEvent):
-        """Publish event to Redis pub-sub channel."""
-        self.redis_client.publish(self.channel, json.dumps(event.to_dict()))
-
-    def subscribe(self):
-        """Subscribe to federation channel. Returns pubsub object."""
-        pubsub = self.redis_client.pubsub()
-        pubsub.subscribe(self.channel)
-        return pubsub
-
-
 class FederatedMemorySync:
     """
     Federated memory sync service.

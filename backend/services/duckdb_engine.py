@@ -268,37 +268,6 @@ class DuckDBEngine:
         if len(self._tick_buffer) >= self._batch_size:
             await self._flush_ticks()
 
-    async def insert_lob(self, symbol: str, bid_size: int, ask_size: int,
-                         bid_price: float, ask_price: float, level: int = 0):
-        ts = datetime.now(timezone.utc)
-        self._lob_buffer.append((ts, symbol, bid_size, ask_size, bid_price, ask_price, level))
-        if len(self._lob_buffer) >= self._batch_size:
-            await self._flush_lob()
-
-    async def insert_flow(self, **kwargs):
-        ts = datetime.now(timezone.utc)
-        row = (
-            ts,
-            kwargs.get("ticker", ""),
-            kwargs.get("strike", 0.0),
-            kwargs.get("expiration", ""),
-            kwargs.get("side", ""),
-            kwargs.get("type", ""),
-            kwargs.get("size", 0),
-            kwargs.get("price", 0.0),
-            kwargs.get("premium", 0.0),
-            kwargs.get("volume", 0),
-            kwargs.get("oi", 0),
-            kwargs.get("exchange", ""),
-            kwargs.get("classification", "regular"),
-            kwargs.get("bid", 0.0),
-            kwargs.get("ask", 0.0),
-            kwargs.get("spot", 0.0),
-        )
-        self._flow_buffer.append(row)
-        if len(self._flow_buffer) >= self._batch_size:
-            await self._flush_flow()
-
     async def _flush_loop(self):
         while self._running:
             await asyncio.sleep(self._flush_interval_ms / 1000.0)
@@ -428,13 +397,6 @@ class DuckDBEngine:
         except Exception as e:
             logger.error(f"DuckDB query error: {e}")
             return []
-
-    def query_df(self, sql: str, params: Optional[List] = None):
-        try:
-            return self._conn.execute(sql, params or []).fetchdf()
-        except Exception as e:
-            logger.error(f"DuckDB query error: {e}")
-            return None
 
     @property
     def conn(self):

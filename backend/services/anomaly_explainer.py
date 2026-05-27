@@ -68,45 +68,6 @@ ANOMALY_PATTERNS = {
 
 
 @dataclass
-class AnomalyExplanation:
-    """A natural language explanation for an anomaly."""
-    title: str
-    summary: str
-    details: List[str]
-    contributing_factors: List[str]
-    regime: str
-    confidence: float
-    recommended_action: str
-    raw_data: Dict[str, Any] = field(default_factory=dict)
-
-    def to_dict(self) -> Dict[str, Any]:
-        return {
-            "title": self.title,
-            "summary": self.summary,
-            "details": self.details,
-            "contributing_factors": self.contributing_factors,
-            "regime": self.regime,
-            "confidence": self.confidence,
-            "recommended_action": self.recommended_action,
-            "raw_data": self.raw_data,
-        }
-
-    def to_message(self) -> str:
-        """Format as a concise alert message."""
-        parts = [f"{self.title}", f"{self.summary}", ""]
-        if self.details:
-            parts.append("Details:")
-            for d in self.details:
-                parts.append(f"  - {d}")
-        if self.contributing_factors:
-            parts.append("Contributing factors:")
-            for f in self.contributing_factors:
-                parts.append(f"  - {f}")
-        parts.append(f"Regime: {self.regime} | Confidence: {self.confidence:.0%}")
-        parts.append(f"Action: {self.recommended_action}")
-        return "\n".join(parts)
-
-
 class AnomalyExplainer:
     """Generates natural language explanations for flow toxicity anomalies.
 

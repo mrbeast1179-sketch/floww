@@ -75,27 +75,6 @@ async def health_check_job():
         logger.warning(f"Health check failed: {e}")
 
 
-async def paper_trade_dry_run_job():
-    """Daily SPY paper-trade dry-run.
-
-    DRY-RUN ONLY — no Alpaca order submission. Intents are persisted to the
-    ``orders_dry_run`` Mongo collection. Live wiring stays disabled until the
-    SPY v1.0 model audit returns PASS.
-    """
-    from paper_trading import daily_paper_trade_dry_run
-    from dotenv import load_dotenv
-    load_dotenv()
-
-    ticker = os.environ.get("PAPER_TRADE_TICKER", "SPY")
-    result = await daily_paper_trade_dry_run(ticker)
-    logger.info(f"Paper trade dry-run {ticker}: {result.get('action', 'unknown')}")
-
-
-# Cron schedule configuration
-# NOTE on TZ: schedules run in the system tz of the box that owns this
-# crontab. For paper-trade-dry-run we want America/New_York 09:35 weekdays —
-# install with `TZ=America/New_York` in the crontab header on prod, OR
-# express in UTC.
 CRON_JOBS = [
     {
         "name": "data-collection",
@@ -124,29 +103,6 @@ CRON_JOBS = [
         "job": health_check_job,
     },
 ]
-
-
-def setup_cron_jobs():
-    """Set up cron jobs using the system crontab."""
-    
-    for job_config in CRON_JOBS:
-        name = job_config["name"]
-        schedule = job_config["schedule"]
-        
-        # Build the command
-        python_path = os.path.join(os.path.dirname(__file__), ".venv", "bin", "python")
-        script_path = os.path.join(os.path.dirname(__file__), "cron_runner.py")
-        
-        command = f"{python_path} {script_path} {name}"
-        
-        # Add to crontab
-        cron_line = f"{schedule} {command} >> /tmp/confluence-cron.log 2>&1"
-        
-        logger.info(f"Cron job: {name}")
-        logger.info(f"  Schedule: {schedule}")
-        logger.info(f"  Command: {command}")
-        logger.info(f"  Cron line: {cron_line}")
-        logger.info()
 
 
 if __name__ == "__main__":

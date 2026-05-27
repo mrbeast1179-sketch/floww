@@ -125,21 +125,6 @@ class PollingScheduler:
         return self._running
 
 
-async def run_scheduler(interval: int = DEFAULT_INTERVAL):
-    """Convenience function to run the scheduler."""
-    scheduler = PollingScheduler(interval=interval)
-
-    loop = asyncio.get_event_loop()
-    for sig in (signal.SIGINT, signal.SIGTERM):
-        try:
-            loop.add_signal_handler(sig, scheduler.stop)
-        except NotImplementedError:
-            # Windows doesn't support add_signal_handler
-            pass
-
-    await scheduler.start()
-
-
 if __name__ == "__main__":
     logging.basicConfig(
         level=logging.INFO,

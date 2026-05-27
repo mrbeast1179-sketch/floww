@@ -76,63 +76,6 @@ class AlertHistory(BaseModel):
         }
 
 
-class OrderRecord(BaseModel):
-    """Order record document schema."""
-    client_order_id: str  # Deterministic hash
-    ticker: str
-    side: str
-    qty: int
-    strategy: str
-    status: str = "pending"  # pending, filled, rejected, cancelled
-    alpaca_order_id: Optional[str] = None
-    filled_price: Optional[float] = None
-    created_at: str
-    updated_at: str
-    
-    class Config:
-        json_schema_extra = {
-            "example": {
-                "client_order_id": "abc123",
-                "ticker": "SPY",
-                "side": "sell",
-                "qty": 1,
-                "strategy": "iron_condor",
-                "status": "pending",
-            }
-        }
-
-
-class PositionRecord(BaseModel):
-    """Position record document schema."""
-    ticker: str
-    side: str
-    qty: int
-    strategy: str
-    entry_price: float
-    entry_ts: str
-    exit_price: Optional[float] = None
-    exit_ts: Optional[str] = None
-    pnl: Optional[float] = None
-    status: str = "open"  # open, closed
-    legs: List[Dict[str, Any]] = []
-    events: List[Dict[str, Any]] = []  # Append-only event log
-    
-    class Config:
-        json_schema_extra = {
-            "example": {
-                "ticker": "SPY",
-                "side": "sell",
-                "qty": 1,
-                "strategy": "iron_condor",
-                "entry_price": 5.50,
-                "entry_ts": "2025-01-01T00:00:00Z",
-                "status": "open",
-            }
-        }
-
-
-# ─── Repository Pattern ───
-
 class GexSnapshotRepository:
     """Repository for GEX snapshots."""
     

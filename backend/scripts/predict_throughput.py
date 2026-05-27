@@ -326,12 +326,6 @@ class EnsembleRegressor:
         confidence_high = predicted_hours + std
         
         # Probability within thresholds (exponential CDF approximation)
-        def prob_within(hours: float) -> float:
-            if predicted_hours <= 0:
-                return 1.0
-            rate = 1.0 / predicted_hours
-            return 1.0 - math.exp(-rate * hours)
-        
         return {
             "predicted_hours": round(predicted_hours, 2),
             "confidence_low": round(confidence_low, 2),

@@ -11,26 +11,6 @@ from datetime import datetime, timezone
 correlation_id_var = contextvars.ContextVar('correlation_id', default=None)
 
 
-class StructuredFormatter(logging.Formatter):
-    def format(self, record):
-        log_data = {
-            "timestamp": datetime.now(timezone.utc).isoformat(),
-            "level": record.levelname,
-            "message": record.getMessage(),
-            "module": record.module,
-            "function": record.funcName,
-            "line": record.lineno,
-        }
-        cid = correlation_id_var.get()
-        if cid:
-            log_data["correlation_id"] = cid
-        if hasattr(record, 'correlation_id') and record.correlation_id:
-            log_data["correlation_id"] = record.correlation_id
-        if hasattr(record, 'extra') and isinstance(record.extra, dict):
-            log_data.update(record.extra)
-        return json.dumps(log_data, default=str)
-
-
 def setup_logging(level=logging.INFO):
     handler = logging.StreamHandler()
     handler.setFormatter(StructuredFormatter())

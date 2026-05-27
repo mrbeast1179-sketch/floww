@@ -528,23 +528,6 @@ def get_top_movers_from_db(
         ).fetchdf()
 
         # Convert to chain format for compute_oi_delta
-        def rows_to_contracts(df):
-            records = df.where(df.notna(), None).to_dict("records")
-            return [
-                {
-                    "ticker": r["ticker"],
-                    "expiry": r["expiry"],
-                    "strike": r["strike"],
-                    "type": r["type"],
-                    "oi": r["oi"],
-                    "volume": r["volume"],
-                    "iv": r["iv"],
-                    "delta": r.get("delta_val", 0),
-                    "gamma": r.get("gamma_val", 0),
-                }
-                for r in records
-            ]
-
         current = {"contracts": rows_to_contracts(latest_rows)}
         previous = {"contracts": rows_to_contracts(prev_rows)}
 

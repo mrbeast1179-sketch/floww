@@ -29,41 +29,7 @@ OI_CHANGE_THRESHOLD = 0.10  # 10%
 
 
 @dataclass
-class OiStrikeChange:
-    """OI change for a single strike-expiry pair.
-
-    Attributes:
-        strike: Strike price.
-        expiry: Expiry date string.
-        current_oi: Current open interest.
-        previous_oi: Previous-day open interest.
-        pct_change: Fractional change (0.10 = +10%). NaN-safe.
-        flag: 'New Positioning' if abs(pct_change) > threshold, else ''.
-    """
-    strike: float
-    expiry: str
-    current_oi: float
-    previous_oi: float
-    pct_change: float
-    flag: str = ""
-
-
 @dataclass
-class OiChangeSnapshot:
-    """Full OI change snapshot for one expiry.
-
-    Attributes:
-        changes: Dict[strike -> OiStrikeChange].
-        significant: List of strikes flagged as "New Positioning".
-        max_increase: Largest % increase (0.0 if none).
-        max_decrease: Largest % decrease (0.0 if none).
-    """
-    changes: Dict[float, OiStrikeChange] = field(default_factory=dict)
-    significant: List[float] = field(default_factory=list)
-    max_increase: float = 0.0
-    max_decrease: float = 0.0
-
-
 class OiChangeDetector:
     """Detect significant day-over-day Open Interest changes.
 

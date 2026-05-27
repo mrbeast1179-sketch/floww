@@ -135,6 +135,7 @@ def bs_delta_vec(
     T: np.ndarray,
     sigma: np.ndarray,
     q: float = 0.0,
+    r: float = 0.05,
     kind: int = 0,
 ) -> np.ndarray:
     """Vectorized Black-Scholes delta for an array of options.

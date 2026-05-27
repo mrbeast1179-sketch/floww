@@ -133,43 +133,6 @@ def _fetch_oi_sync(parent: str, day: date_cls) -> Dict[str, Any]:
     return out
 
 
-class DatabentoCache:
-    """Mongo-backed OI cache: doc per (parent, day) holds full snapshot."""
-
-    def __init__(self, mongo_db):
-        self.col = mongo_db.databento_oi
-        self._mem: Dict[str, Dict[str, Any]] = {}
-
-    async def ensure_index(self):
-        try:
-            await self.col.create_index([("parent", 1), ("day", 1)], unique=True)
-        except Exception:
-            pass
-
-    async def get(self, parent: str, day: date_cls) -> Dict[str, Any]:
-        key = f"{parent}:{day.isoformat()}"
-        if key in self._mem:
-            return self._mem[key]
-        doc = await self.col.find_one({"parent": parent, "day": day.isoformat()}, {"_id": 0})
-        if doc and doc.get("contracts"):
-            self._mem[key] = doc["contracts"]
-            return doc["contracts"]
-
-        log.info(f"databento: fetching OI {parent} {day} (cache miss)")
-        contracts = await asyncio.to_thread(_fetch_oi_sync, parent, day)
-        if not contracts:
-            return {}
-        await self.col.update_one(
-            {"parent": parent, "day": day.isoformat()},
-            {"$set": {"parent": parent, "day": day.isoformat(),
-                      "contracts": contracts, "fetched_at": datetime.now(timezone.utc).isoformat(),
-                      "count": len(contracts)}},
-            upsert=True,
-        )
-        self._mem[key] = contracts
-        return contracts
-
-
 _cache: Optional[DatabentoCache] = None
 
 

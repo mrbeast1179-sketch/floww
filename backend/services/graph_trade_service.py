@@ -254,16 +254,6 @@ class GraphTradeService:
             self.upsert_trade(t)
         return len(trades)
 
-    def get_trade(self, trade_id: str) -> Optional[Dict]:
-        """Get a single trade by ID."""
-        row = self.conn.execute(
-            "SELECT * FROM trades WHERE id = ?", [trade_id]
-        ).fetchone()
-        if not row:
-            return None
-        cols = [d[0] for d in self.conn.description]
-        return dict(zip(cols, row))
-
     def get_trades_by_symbol(self, symbol: str, limit: int = 50) -> List[Dict]:
         """Get all trades for a symbol."""
         rows = self.conn.execute("""
@@ -273,33 +263,8 @@ class GraphTradeService:
         cols = [d[0] for d in self.conn.description]
         return [dict(zip(cols, r)) for r in rows]
 
-    def get_trades_by_pnl(self, min_pnl: float = None, max_pnl: float = None,
-                          limit: int = 50) -> List[Dict]:
-        """Get trades filtered by P&L range."""
-        query = "SELECT * FROM trades WHERE 1=1"
-        params = []
-        if min_pnl is not None:
-            query += " AND pnl >= ?"
-            params.append(min_pnl)
-        if max_pnl is not None:
-            query += " AND pnl <= ?"
-            params.append(max_pnl)
-        query += " ORDER BY pnl DESC LIMIT ?"
-        params.append(limit)
-        rows = self.conn.execute(query, params).fetchall()
-        cols = [d[0] for d in self.conn.description]
-        return [dict(zip(cols, r)) for r in rows]
-
     def get_trade_count(self) -> int:
         return self.conn.execute("SELECT COUNT(*) FROM trades").fetchone()[0]
-
-    def get_profitable_trades(self, limit: int = 50) -> List[Dict]:
-        return self.get_trades_by_pnl(min_pnl=0.01, limit=limit)
-
-    def get_losing_trades(self, limit: int = 50) -> List[Dict]:
-        return self.get_trades_by_pnl(max_pnl=-0.01, limit=limit)
-
-    # ── Signal CRUD ────────────────────────────────────────────────────
 
     def upsert_signal(self, signal: Dict[str, Any]) -> None:
         """Insert or update a signal node."""
@@ -330,14 +295,6 @@ class GraphTradeService:
             self.upsert_signal(s)
         return len(signals)
 
-    def get_signals_by_type(self, signal_type: str, limit: int = 50) -> List[Dict]:
-        rows = self.conn.execute("""
-            SELECT * FROM signals WHERE signal_type = ?
-            ORDER BY timestamp DESC LIMIT ?
-        """, [signal_type, limit]).fetchall()
-        cols = [d[0] for d in self.conn.description]
-        return [dict(zip(cols, r)) for r in rows]
-
     def get_signal_count(self) -> int:
         return self.conn.execute("SELECT COUNT(*) FROM signals").fetchone()[0]
 
@@ -366,15 +323,6 @@ class GraphTradeService:
             condition.get("correlation_zscore", 0.0),
             condition.get("timestamp"), json.dumps(metadata),
         ])
-
-    def get_market_conditions_by_regime(self, regime: str,
-                                         limit: int = 50) -> List[Dict]:
-        rows = self.conn.execute("""
-            SELECT * FROM market_conditions WHERE regime = ?
-            ORDER BY timestamp DESC LIMIT ?
-        """, [regime, limit]).fetchall()
-        cols = [d[0] for d in self.conn.description]
-        return [dict(zip(cols, r)) for r in rows]
 
     def get_market_condition_count(self) -> int:
         return self.conn.execute(
@@ -703,64 +651,6 @@ class GraphTradeService:
         """, [condition_id, symbol_id])
 
     # ── Graph queries ──────────────────────────────────────────────────
-
-    def get_trades_with_signals(self, limit: int = 50) -> List[Dict]:
-        """MATCH (t:Trade)-[:TRIGGERED_BY]->(s:Signal) RETURN t, s."""
-        rows = self.conn.execute("""
-            SELECT t.id as trade_id, t.symbol, t.side, t.pnl, t.pnl_pct,
-                   t.trade_type, t.strategy,
-                   s.id as signal_id, s.signal_type, s.value, s.z_score,
-                   s.direction, s.threshold
-            FROM trades t
-            JOIN trade_triggered_by ttb ON t.id = ttb.trade_id
-            JOIN signals s ON ttb.signal_id = s.id
-            ORDER BY t.entry_time DESC
-            LIMIT ?
-        """, [limit]).fetchall()
-        cols = [d[0] for d in self.conn.description]
-        return [dict(zip(cols, r)) for r in rows]
-
-    def get_trades_with_conditions(self, limit: int = 50) -> List[Dict]:
-        """MATCH (t:Trade)-[:EXECUTED_IN]->(mc) RETURN t, mc."""
-        rows = self.conn.execute("""
-            SELECT t.id as trade_id, t.symbol, t.side, t.pnl,
-                   mc.regime, mc.volatility, mc.vpin_cdf
-            FROM trades t
-            JOIN trade_executed_in tei ON t.id = tei.trade_id
-            JOIN market_conditions mc ON tei.condition_id = mc.id
-            ORDER BY t.entry_time DESC
-            LIMIT ?
-        """, [limit]).fetchall()
-        cols = [d[0] for d in self.conn.description]
-        return [dict(zip(cols, r)) for r in rows]
-
-    def get_full_trade_context(self, trade_id: str) -> Dict:
-        """Get trade + all connected signals, conditions, symbols."""
-        trade = self.get_trade(trade_id)
-        if not trade:
-            return {}
-
-        signals = self.conn.execute("""
-            SELECT s.* FROM signals s
-            JOIN trade_triggered_by ttb ON s.id = ttb.signal_id
-            WHERE ttb.trade_id = ?
-        """, [trade_id]).fetchall()
-        signal_cols = [d[0] for d in self.conn.description]
-        signals = [dict(zip(signal_cols, r)) for r in signals]
-
-        conditions = self.conn.execute("""
-            SELECT mc.* FROM market_conditions mc
-            JOIN trade_executed_in tei ON mc.id = tei.condition_id
-            WHERE tei.trade_id = ?
-        """, [trade_id]).fetchall()
-        cond_cols = [d[0] for d in self.conn.description]
-        conditions = [dict(zip(cond_cols, r)) for r in conditions]
-
-        return {
-            "trade": trade,
-            "signals": signals,
-            "market_conditions": conditions,
-        }
 
     def get_trade_stats(self) -> Dict[str, Any]:
         """Aggregate trade statistics."""

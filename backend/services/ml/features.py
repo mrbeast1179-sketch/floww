@@ -41,34 +41,6 @@ DB_NAME = os.environ.get("DB_NAME", "confluence_decoder")
 COLLECTION_FEATURES = "ml_features"
 
 
-def get_async_db():
-    client = AsyncIOMotorClient(MONGO_URL)
-    return client[DB_NAME]
-
-
-# ============================================================================
-# Data loading helpers
-# ============================================================================
-
-async def load_gex_snapshots(db, ticker: str = "SPY") -> List[Dict]:
-    """
-    Load GEX snapshots for a ticker, sorted by date.
-
-    Snapshots may either carry an explicit `ticker` field (newer ingests) or
-    only an `_source` tag (legacy SPY backfill). We match either way; tickers
-    other than SPY get only docs with `ticker == <ticker>`.
-    """
-    if ticker == "SPY":
-        query = {"$or": [
-            {"ticker": "SPY"},
-            {"_source": "issue_141_enhanced_dataset"},
-        ]}
-    else:
-        query = {"ticker": ticker}
-    cursor = db["gex_enhanced_snapshots"].find(query).sort("date", 1)
-    return await cursor.to_list(length=10000)
-
-
 async def load_outcomes(db, ticker: str = "SPY") -> List[Dict]:
     """
     Load labeled outcomes for a ticker, sorted by date.
@@ -94,51 +66,6 @@ async def load_outcomes(db, ticker: str = "SPY") -> List[Dict]:
 DIRECTIONAL_MOVE_THRESHOLD = 0.005  # >0.5% abs next-day return
 RANGE_EXPANSION_THRESHOLD = 0.015   # >1.5% next-day intraday range
 GAP_MOVE_THRESHOLD = 0.003          # >0.3% overnight gap
-
-
-def derive_outcomes_from_bars(bars: List[Dict]) -> Dict[str, Dict]:
-    """
-    Derive next-day outcomes from OHLCV bars using the canonical thresholds.
-
-    Returns a dict keyed by the *snapshot date* (i.e. t0), with the outcome
-    measured on t1 — matching the convention in `gex_llm_patterns_outcomes`
-    where the row date is t0 and fields describe what happened on t1.
-    """
-    out: Dict[str, Dict] = {}
-    n = len(bars)
-    for i in range(n - 1):
-        t0 = bars[i]
-        t1 = bars[i + 1]
-        close_t0 = _safe_float(t0.get("close"))
-        open_t1 = _safe_float(t1.get("open"))
-        close_t1 = _safe_float(t1.get("close"))
-        high_t1 = _safe_float(t1.get("high"))
-        low_t1 = _safe_float(t1.get("low"))
-        if close_t0 <= 0 or open_t1 <= 0:
-            continue
-
-        return_pct = (close_t1 - open_t1) / open_t1 * 100.0
-        abs_return = abs(return_pct) / 100.0
-        gap = abs(open_t1 - close_t0) / close_t0
-        rng = (high_t1 - low_t1) / open_t1 if open_t1 > 0 else 0.0
-
-        directional = abs_return > DIRECTIONAL_MOVE_THRESHOLD
-        range_exp = rng > RANGE_EXPANSION_THRESHOLD
-        gap_move = gap > GAP_MOVE_THRESHOLD
-
-        out[t0["date"]] = {
-            "date": t0["date"],
-            "directional_move": directional,
-            "range_expansion": range_exp,
-            "gap_move": gap_move,
-            "any_materialization": directional or range_exp or gap_move,
-            "return_pct": return_pct,
-            "abs_return_pct": abs_return * 100.0,
-            "gap_pct": gap * 100.0,
-            "range_pct": rng * 100.0,
-            "_derived_from": "underlying_bars",
-        }
-    return out
 
 
 async def load_underlying_bars(db, ticker: str) -> List[Dict]:
@@ -735,42 +662,6 @@ def add_gex_features(
 
     return out
 
-
-def compute_calendar_features(dates: List[str]) -> Dict[str, List[float]]:
-    """Compute calendar-based features."""
-    n = len(dates)
-    features = {}
-
-    dow = [0.0] * n  # Day of week (0=Mon)
-    dom = [0.0] * n  # Day of month
-    month = [0.0] * n
-    is_month_end = [0.0] * n
-    is_month_start = [0.0] * n
-
-    for i, d in enumerate(dates):
-        try:
-            dt = datetime.strptime(d, "%Y-%m-%d")
-            dow[i] = float(dt.weekday())
-            dom[i] = float(dt.day)
-            month[i] = float(dt.month)
-            # Month end: last 3 trading days
-            is_month_end[i] = 1.0 if dt.day >= 28 else 0.0
-            is_month_start[i] = 1.0 if dt.day <= 3 else 0.0
-        except Exception:
-            pass
-
-    features["day_of_week"] = dow
-    features["day_of_month"] = dom
-    features["month"] = month
-    features["is_month_end"] = is_month_end
-    features["is_month_start"] = is_month_start
-
-    return features
-
-
-# ============================================================================
-# Main feature computation pipeline
-# ============================================================================
 
 async def compute_features(
     ticker: str = "SPY",

@@ -24,29 +24,6 @@ log = logging.getLogger("ml_briefing")
 
 
 @dataclass
-class MlBriefingSignal:
-    """Unified ML + deterministic briefing signal."""
-    ticker: str
-    # Deterministic regime
-    regime: str  # BULLISH / BEARISH / NEUTRAL / UNKNOWN
-    regime_confidence: float  # 0-1
-    # ML prediction
-    ml_prediction: Optional[int]  # 1 = bullish, 0 = bearish, None = no model
-    ml_confidence: Optional[float]  # 0-1
-    ml_model_id: Optional[str]
-    # Combined signal
-    combined_signal: str  # STRONG_BULLISH / BULLISH / NEUTRAL / BEARISH / STRONG_BEARISH / UNKNOWN
-    combined_confidence: float
-    # Supporting data
-    spot_price: Optional[float]
-    net_gex: Optional[float]
-    gex_regime: Optional[str]
-    top_movers: List[Dict[str, Any]]
-    feature_values: Dict[str, float]
-    alerts: List[str]
-    timestamp: str
-
-
 class MlBriefingIntegrator:
     """Combines morning briefing with ML predictions."""
 

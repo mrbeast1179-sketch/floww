@@ -104,14 +104,6 @@ class SchwabStreamer:
         """
         self._lob_depth_handlers.append(handler)
 
-    def on_error(self, handler: Callable[[str], Any]):
-        """Register a handler for stream errors."""
-        self._error_handlers.append(handler)
-
-    # ------------------------------------------------------------------
-    # Lifecycle
-    # ------------------------------------------------------------------
-
     async def start(self):
         """Start the WebSocket client with auto-reconnect."""
         self._running = True

@@ -90,16 +90,6 @@ MODEL_SPECS = {
 }
 
 
-def load_manifest_for_ticker(ticker: str) -> dict:
-    manifest_path = MODELS_DIR / f"{ticker}_gbm_production_manifest.json"
-    if not manifest_path.exists():
-        manifest_path = MODELS_DIR / f"{ticker}_gbm_deep_production_manifest.json"
-    if manifest_path.exists():
-        with open(manifest_path) as f:
-            return json.load(f)
-    return {}
-
-
 async def register_all(dry_run: bool = True, promote: list = None):
     mongo_url = os.environ.get("MONGO_URL", "mongodb://localhost:27017")
     db_name = os.environ.get("DB_NAME", "confluence_decoder")

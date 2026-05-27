@@ -21,29 +21,6 @@ CARDS_DIR = KANBAN_DIR / "cards"
 INCIDENTS_FILE = KANBAN_DIR / "INCIDENTS.md"
 
 
-def load_cards() -> list[dict]:
-    """Load all card files."""
-    import yaml
-
-    cards = []
-    for f in sorted(CARDS_DIR.glob("*.md")):
-        if f.name.startswith("tagging_"):
-            continue
-        try:
-            content = f.read_text()
-            if not content.startswith("---"):
-                continue
-            parts = content.split("---", 2)
-            if len(parts) < 3:
-                continue
-            fm = yaml.safe_load(parts[1]) or {}
-            fm["_file"] = str(f)
-            cards.append(fm)
-        except Exception:
-            continue
-    return cards
-
-
 def compute_agent_metrics(cards: list[dict]) -> dict:
     """Compute per-agent metrics."""
     agents = defaultdict(lambda: {
@@ -140,40 +117,6 @@ def detect_bottlenecks(agent_metrics: dict) -> list[dict]:
             })
 
     return bottlenecks
-
-
-def format_bottleneck_report(bottlenecks: list[dict], agent_metrics: dict) -> str:
-    """Format bottleneck report for ARCHITECT_BRIEF.md."""
-    lines = [
-        f"## Bottleneck Report — {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC')}",
-        "",
-    ]
-
-    if not bottlenecks:
-        lines.append("No bottlenecks detected. All agents within normal parameters.")
-    else:
-        lines.append(f"**{len(bottlenecks)} bottleneck(s) detected:**")
-        lines.append("")
-        for b in bottlenecks:
-            lines.append(f"### {b['agent']}")
-            for reason in b["reasons"]:
-                lines.append(f"- ⚠ {reason}")
-            lines.append("")
-
-    # Summary table
-    lines.append("### Agent Metrics Summary")
-    lines.append("")
-    lines.append("| Agent | In Progress | Done | Blocked | Blocker Rate | Last Update |")
-    lines.append("|-------|-------------|------|---------|--------------|-------------|")
-    for agent, m in sorted(agent_metrics.items()):
-        last = f"{m['last_update_hours_ago']:.0f}h ago" if m['last_update_hours_ago'] else "N/A"
-        lines.append(
-            f"| {agent} | {m['cards_in_progress']} | {m['cards_done']} | "
-            f"{m['cards_blocked']} | {m['blocker_rate']:.2f} | {last} |"
-        )
-    lines.append("")
-
-    return "\n".join(lines)
 
 
 def run_bottleneck_check() -> dict:
