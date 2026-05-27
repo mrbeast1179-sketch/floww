@@ -180,6 +180,7 @@ async def chain(
     expiries: int = Query(4, ge=1, le=12),
     min_oi: int = Query(0, ge=0),
     expiry: Optional[str] = None,
+    dte_max: Optional[int] = Query(None, ge=0, le=365),
 ):
     from server import fetch_spot_and_chains_merged, _sanitize, DIV_YIELD
     from bs_greeks import bs_vanna, bs_charm
@@ -235,6 +236,9 @@ async def chain(
             "ask": c.get("ask", 0),
             "gex": gex,
         })
+    # Apply DTE filter if specified
+    if dte_max is not None:
+        rows = [r for r in rows if r.get("dte", 0) <= dte_max]
     return _sanitize({"ticker": t, "spot": raw["spot"], "expiries": raw.get("expiries", []), "rows": rows, "count": len(rows)})
 
 
