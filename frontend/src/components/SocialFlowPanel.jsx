@@ -11,15 +11,19 @@ export function SocialFlowPanel({ ticker }) {
 
   useEffect(() => {
     if (!ticker) return;
+    const ctrl = new AbortController();
     setLoading(true);
-    fetch(`${API}/social/report/${ticker}`)
+    fetch(`${API}/social/report/${ticker}`, { signal: ctrl.signal })
       .then(r => r.json())
       .then(d => {
         setReport(d.cached ? d : null);
         setError(null);
       })
-      .catch(e => setError(e.message))
+      .catch((e) => {
+        if (e.name !== "AbortError") setError(e.message);
+      })
       .finally(() => setLoading(false));
+    return () => ctrl.abort();
   }, [ticker]);
 
   if (loading) return <div className="panel p-3 text-slate-500 text-xs">Loading social flow data…</div>;
