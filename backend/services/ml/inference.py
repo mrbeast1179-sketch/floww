@@ -296,10 +296,13 @@ def _map_binary_to_3way(prediction: int, proba: List[float]) -> Tuple[int, List[
     elif p_down >= STRONG_CONFIDENCE:
         return DOWN, [p_down, 0.0, 1.0 - p_down]
     else:
-        # HOLD zone — distribute remaining mass
+        # HOLD zone — distribute remaining mass, normalized to sum=1.0
         hold_mass = 1.0 - abs(p_up - p_down)
         hold_mass = max(hold_mass, 0.0)
-        return (DOWN if prediction == 0 else UP), [p_down, hold_mass, p_up]
+        total = p_down + hold_mass + p_up
+        if total > 0:
+            return HOLD, [p_down / total, hold_mass / total, p_up / total]
+        return HOLD, [0.0, 1.0, 0.0]
 
 
 # ── GEX Signal Fetcher ────────────────────────────────────────────────
