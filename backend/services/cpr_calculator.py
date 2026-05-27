@@ -43,37 +43,7 @@ def _float_or_zero(v) -> float:
 
 
 @dataclass
-class CprResult:
-    """Container for a single-expiry CPR computation.
-
-    Attributes:
-        expiry: Expiry date string (YYYY-MM-DD).
-        cpr: Call/Put Volume Ratio (NaN-safe: 0.0 when put_vol==0 and call_vol==0).
-        call_volume: Total call volume for the expiry.
-        put_volume: Total put volume for the expiry.
-        label: One of 'Bullish', 'Bearish', 'Neutral'.
-    """
-    expiry: str
-    cpr: float
-    call_volume: float
-    put_volume: float
-    label: str = "Neutral"
-
-
 @dataclass
-class CprSnapshot:
-    """Full CPR snapshot including rolling averages and anomalies.
-
-    Attributes:
-        current: Dict[expiry -> CprResult] for today.
-        rolling_avg: Dict[expiry -> float] 5-day rolling CPR.
-        anomalies: List of anomaly strings for dashboard display.
-    """
-    current: Dict[str, CprResult] = field(default_factory=dict)
-    rolling_avg: Dict[str, float] = field(default_factory=dict)
-    anomalies: List[str] = field(default_factory=list)
-
-
 class CprCalculator:
     """Call/Put Volume Ratio calculator with rolling-average tracking.
 

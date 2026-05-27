@@ -41,22 +41,6 @@ class AlertRecord:
 
 
 @dataclass
-class TuningResult:
-    """Result of threshold optimization for one alert type."""
-    alert_id: str
-    metric_name: str
-    old_threshold: float
-    new_threshold: float
-    old_precision: float
-    new_precision: float
-    old_recall: float
-    new_recall: float
-    false_positive_reduction_pct: float
-    n_samples: int
-    n_true_positives: int
-    n_false_positives: int
-
-
 class AlertTuner:
     """Analyzes historical alerts and optimizes thresholds for precision.
 

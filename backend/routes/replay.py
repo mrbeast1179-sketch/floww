@@ -24,12 +24,6 @@ _replay_engine = None
 _engine_task: Optional[asyncio.Task] = None
 
 
-def set_replay_engine(engine):
-    """Called by server.py to inject the replay engine."""
-    global _replay_engine
-    _replay_engine = engine
-
-
 @router.post("/start")
 async def start_replay(
     start: str = Query(..., description="ISO start datetime"),

@@ -22,19 +22,6 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/alerts", tags=["alerts"])
 
 
-class FireAlertRequest(BaseModel):
-    alert_id: str
-    severity: str = "CRITICAL"
-    title: str = ""
-    message: str = ""
-    category: str = ""
-
-
-class AcknowledgeRequest(BaseModel):
-    alert_id: str
-    resolved: bool = True
-
-
 @router.post("/fire")
 async def fire_alert(req: FireAlertRequest):
     """Fire an alert through the dispatcher. Called by Alertmanager webhook."""

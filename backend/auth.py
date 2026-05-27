@@ -84,22 +84,6 @@ async def verify_api_key(request: Request):
     return True
 
 
-def require_auth(func):
-    """Decorator to require auth for a specific route."""
-    @wraps(func)
-    async def wrapper(*args, **kwargs):
-        request = kwargs.get("request")
-        if request:
-            await verify_api_key(request)
-        return await func(*args, **kwargs)
-    return wrapper
-
-
-def get_ws_token() -> str:
-    """Get the WebSocket token from environment."""
-    return os.environ.get("WS_API_TOKEN", "")
-
-
 async def verify_ws_token(websocket: WebSocket) -> bool:
     """Verify the WebSocket connection token.
 

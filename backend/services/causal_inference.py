@@ -103,34 +103,10 @@ class CausalGraph:
                 to_visit.extend(self._children.get(child, set()))
         return descendants
 
-    def get_nodes(self) -> Set[str]:
-        """Get all nodes in the graph."""
-        return self._nodes.copy()
-
-    def get_edges(self) -> List[Tuple[str, str]]:
-        """Get all directed edges."""
-        edges = []
-        for parent, children in self._adj.items():
-            for child in children:
-                edges.append((parent, child))
-        return edges
-
     def _has_cycle(self) -> bool:
         """Check if the graph has a cycle (DFS)."""
         visited = set()
         rec_stack = set()
-
-        def dfs(node):
-            visited.add(node)
-            rec_stack.add(node)
-            for child in self._adj.get(node, set()):
-                if child not in visited:
-                    if dfs(child):
-                        return True
-                elif child in rec_stack:
-                    return True
-            rec_stack.discard(node)
-            return False
 
         for node in self._nodes:
             if node not in visited:
@@ -161,22 +137,6 @@ class CausalGraph:
                                      max_length: int = 15) -> List[List[str]]:
         """Find all undirected paths between source and target."""
         paths = []
-
-        def dfs(current, path, visited):
-            if len(path) > max_length:
-                return
-            if current == target and len(path) > 1:
-                paths.append(path[:])
-                return
-            # Follow both parents and children (undirected)
-            neighbors = (self._parents.get(current, set()) |
-                        self._children.get(current, set())) - visited
-            for neighbor in neighbors:
-                visited.add(neighbor)
-                path.append(neighbor)
-                dfs(neighbor, path, visited)
-                path.pop()
-                visited.discard(neighbor)
 
         visited = {source}
         dfs(source, [source], visited)
@@ -226,18 +186,6 @@ class CausalGraph:
         """Find all directed paths from source to target."""
         paths = []
 
-        def dfs(current, path):
-            if len(path) > max_length:
-                return
-            if current == target and len(path) > 1:
-                paths.append(path[:])
-                return
-            for child in self._children.get(current, set()):
-                if child not in path:  # avoid cycles
-                    path.append(child)
-                    dfs(child, path)
-                    path.pop()
-
         dfs(source, [source])
         return paths
 
@@ -275,21 +223,6 @@ class BackdoorCriterion:
                 return False
 
         return True
-
-    def find_adjustment_sets(self, x: str, y: str, max_size: int = 4) -> List[Set[str]]:
-        """Find all valid backdoor adjustment sets up to max_size."""
-        # Candidate nodes: all nodes except X, Y, and descendants of X
-        excluded = {x, y} | self.graph.get_descendants(x)
-        candidates = self.graph.get_nodes() - excluded
-
-        valid_sets = []
-        for size in range(1, min(max_size + 1, len(candidates) + 1)):
-            for combo in combinations(candidates, size):
-                z = set(combo)
-                if self.is_valid_adjustment_set(x, y, z):
-                    valid_sets.append(z)
-
-        return valid_sets
 
     def find_minimal_adjustment_set(self, x: str, y: str) -> Optional[Set[str]]:
         """Find the smallest valid backdoor adjustment set."""
@@ -360,51 +293,6 @@ class BackdoorCriterion:
 
 # =============================================================================
 # Front-Door Criterion
-# =============================================================================
-
-class FrontDoorCriterion:
-    """Identify valid front-door adjustment sets.
-
-    A set Z satisfies the front-door criterion for (X, Y) if:
-    1. Z intercepts all directed paths from X to Y
-    2. There is no unblocked backdoor path from X to Z
-    3. All backdoor paths from Z to Y are blocked by X
-
-    Estimation formula:
-    P(Y | do(X)) = Σ_z P(Z=z | X) Σ_x' P(Y | X=x', Z=z) P(X=x')
-    """
-
-    def __init__(self, graph: CausalGraph):
-        self.graph = graph
-        self.backdoor = BackdoorCriterion(graph)
-
-    def is_valid_frontdoor_set(self, x: str, y: str, z: Set[str]) -> bool:
-        """Check if Z satisfies the front-door criterion for (X, Y)."""
-        # Condition 1: Z intercepts all directed paths from X to Y
-        directed_paths = self.graph.find_all_paths(x, y)
-        for path in directed_paths:
-            if not (set(path) & z):
-                return False  # Path not intercepted
-
-        # Condition 2: No unblocked backdoor path from X to Z
-        for z_node in z:
-            backdoor_paths = self.backdoor._find_backdoor_paths(x, z_node)
-            for path in backdoor_paths:
-                if not self.backdoor._is_path_blocked(path, set()):
-                    return False
-
-        # Condition 3: All backdoor paths from Z to Y are blocked by X
-        for z_node in z:
-            backdoor_paths = self.backdoor._find_backdoor_paths(z_node, y)
-            for path in backdoor_paths:
-                if not self.backdoor._is_path_blocked(path, {x}):
-                    return False
-
-        return True
-
-
-# =============================================================================
-# Instrumental Variables
 # =============================================================================
 
 class InstrumentalVariables:

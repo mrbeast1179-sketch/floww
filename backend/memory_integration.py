@@ -16,53 +16,6 @@ logger = logging.getLogger(__name__)
 _memory_client = None
 
 
-def get_memory_client():
-    """Get or create the Mem0 memory client."""
-    global _memory_client
-    if _memory_client is not None:
-        return _memory_client
-    
-    try:
-        from mem0 import Memory
-        import os
-        
-        # Use OpenAI for embeddings (Gemini-compatible)
-        config = {
-            "llm": {
-                "provider": "openai",
-                "config": {
-                    "model": "gpt-4o-mini",
-                    "api_key": os.environ.get("OPENAI_API_KEY", ""),
-                }
-            },
-            "embedder": {
-                "provider": "openai",
-                "config": {
-                    "model": "text-embedding-3-small",
-                    "api_key": os.environ.get("OPENAI_API_KEY", ""),
-                }
-            },
-            "vector_store": {
-                "provider": "qdrant",
-                "config": {
-                    "host": os.environ.get("QDRANT_HOST", "localhost"),
-                    "port": int(os.environ.get("QDRANT_PORT", "6333")),
-                }
-            }
-        }
-        
-        _memory_client = Memory.from_config(config)
-        logger.info("Mem0 memory client initialized")
-    except ImportError:
-        logger.warning("mem0ai not installed — memory features disabled")
-        return None
-    except Exception as e:
-        logger.warning(f"Failed to initialize Mem0: {e}")
-        return None
-    
-    return _memory_client
-
-
 def remember_trade(ticker: str, trade_data: Dict[str, Any]) -> Optional[str]:
     """Store a trade observation in memory."""
     client = get_memory_client()

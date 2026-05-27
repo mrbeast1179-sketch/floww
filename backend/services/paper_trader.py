@@ -86,34 +86,6 @@ class PaperPosition:
 
 
 @dataclass
-class PaperTradeRecord:
-    """Record of a completed round-trip trade."""
-    trade_id: str
-    symbol: str
-    side: str
-    quantity: int
-    entry_price: float
-    exit_price: float
-    entry_time: str
-    exit_time: str
-    realized_pnl: float
-    signal_data: Dict[str, Any] = field(default_factory=dict)
-
-    def to_dict(self) -> Dict[str, Any]:
-        return {
-            "trade_id": self.trade_id,
-            "symbol": self.symbol,
-            "side": self.side,
-            "quantity": self.quantity,
-            "entry_price": self.entry_price,
-            "exit_price": self.exit_price,
-            "entry_time": self.entry_time,
-            "exit_time": self.exit_time,
-            "realized_pnl": round(self.realized_pnl, 2),
-            "signal_data": self.signal_data,
-        }
-
-
 class PaperTrader:
     """Paper trading execution adapter for VPIN_HFT strategy.
 

@@ -140,17 +140,6 @@ class VpinCdfCalculator:
         """True when VPIN is above its historical median (CDF > 0.5)."""
         return self._current_cdf > 0.5
 
-    def percentile_rank(self, value: float) -> float:
-        """Return the percentile rank of an arbitrary VPIN value."""
-        if len(self._history) == 0:
-            return 0.0
-        arr = np.array(self._history, dtype=np.float64)
-        return float(np.mean(arr <= value))
-
-    # ------------------------------------------------------------------
-    # State
-    # ------------------------------------------------------------------
-
     def get_state(self) -> Dict[str, Any]:
         return {
             "vpin": self._current_vpin,

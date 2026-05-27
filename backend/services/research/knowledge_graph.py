@@ -219,12 +219,6 @@ class KnowledgeGraph:
             paper.get("discovered_at"), json.dumps(metadata),
         ])
 
-    def upsert_papers_batch(self, papers: List[Dict[str, Any]]) -> int:
-        """Batch insert papers. Returns count."""
-        for p in papers:
-            self.upsert_paper(p)
-        return len(papers)
-
     def find_papers_by_concept(self, concept_name: str, limit: int = 20) -> List[Dict]:
         """Find papers that mention a given concept."""
         rows = self.conn.execute("""
@@ -240,21 +234,6 @@ class KnowledgeGraph:
             {"id": r[0], "title": r[1], "url": r[2], "source": r[3], "published": r[4], "relevance": r[5]}
             for r in rows
         ]
-
-    def find_papers_by_repo(self, repo_id: str) -> List[Dict]:
-        """Find papers that cite a given repo."""
-        rows = self.conn.execute("""
-            SELECT p.id, p.title, p.url, p.source
-            FROM papers p
-            JOIN paper_cites_repo pcr ON p.id = pcr.paper_id
-            WHERE pcr.repo_id = ?
-        """, [repo_id]).fetchall()
-        return [{"id": r[0], "title": r[1], "url": r[2], "source": r[3]} for r in rows]
-
-    def get_paper_count(self) -> int:
-        return self.conn.execute("SELECT COUNT(*) FROM papers").fetchone()[0]
-
-    # ── Repo operations ─────────────────────────────────────────────────
 
     def upsert_repo(self, repo: Dict[str, Any]) -> None:
         """Insert or update a repo node."""
@@ -291,11 +270,6 @@ class KnowledgeGraph:
             {"id": r[0], "owner": r[1], "repo": r[2], "stars": r[3], "license": r[4], "cloned_path": r[5]}
             for r in rows
         ]
-
-    def get_repo_count(self) -> int:
-        return self.conn.execute("SELECT COUNT(*) FROM repos").fetchone()[0]
-
-    # ── Function operations ─────────────────────────────────────────────
 
     def upsert_function(self, func: Dict[str, Any]) -> None:
         """Insert or update a code function node."""
@@ -406,17 +380,6 @@ class KnowledgeGraph:
             INSERT OR IGNORE INTO paper_cites_repo (paper_id, repo_id, confidence)
             VALUES (?, ?, ?)
         """, [paper_id, repo_id, confidence])
-
-    def add_function_port_edge(self, function_id: str, service_id: str,
-                                ported: bool = False, quality: float = 0.0,
-                                proposal_path: str = "") -> None:
-        self.conn.execute("""
-            INSERT OR REPLACE INTO function_ports_to_service
-                (function_id, service_id, ported, port_quality, proposal_path)
-            VALUES (?, ?, ?, ?, ?)
-        """, [function_id, service_id, ported, quality, proposal_path])
-
-    # ── Graph analytics ─────────────────────────────────────────────────
 
     def compute_paper_similarity(self) -> int:
         """Compute paper-paper similarity based on shared concepts. Returns count of pairs."""

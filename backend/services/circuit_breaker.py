@@ -51,24 +51,7 @@ class BreakerThresholds:
 
 
 @dataclass
-class Measurement:
-    timestamp: float
-    is_error: bool = False
-    latency_ms: float = 0.0
-    metadata: Dict[str, Any] = field(default_factory=dict)
-
-
 @dataclass
-class TripRecord:
-    timestamp: str
-    reason: str
-    details: str
-    state_before: str
-    measurements_at_trip: int
-    error_rate_at_trip: float
-    latency_p99_at_trip: float
-
-
 class CircuitBreaker:
     """
     Circuit breaker for trading protection.

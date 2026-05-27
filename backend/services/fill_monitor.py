@@ -32,16 +32,6 @@ P95_SLIPPAGE_ALERT_BPS = 5.0
 
 
 @dataclass
-class FillRecord:
-    """A single fill record for slippage tracking."""
-    ticker: str
-    fill_price: float
-    limit_price: float
-    slippage_bps: float
-    timestamp: float
-    side: str  # "buy" or "sell"
-
-
 class FillMonitor:
     """Monitors fill quality and tracks slippage per ticker."""
 

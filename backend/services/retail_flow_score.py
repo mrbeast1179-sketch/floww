@@ -39,23 +39,6 @@ assert abs(WEIGHT_CPR + WEIGHT_OI + WEIGHT_IV_SKEW - 1.0) < 1e-9
 
 
 @dataclass
-class FlowScoreResult:
-    """Result of a composite retail flow score computation.
-
-    Attributes:
-        value: Composite score in [-100, +100].
-        cpr_score: CPR subscore contribution.
-        oi_score: OI change subscore contribution.
-        iv_skew_score: IV skew subscore contribution.
-        label: Human-readable sentiment label.
-    """
-    value: float
-    cpr_score: float = 0.0
-    oi_score: float = 0.0
-    iv_skew_score: float = 0.0
-    label: str = "Neutral"
-
-
 def _clamp(value: float, lo: float = -100.0, hi: float = 100.0) -> float:
     return max(lo, min(hi, value))
 

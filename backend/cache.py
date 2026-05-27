@@ -19,27 +19,6 @@ logger = logging.getLogger(__name__)
 _redis_client = None
 
 
-def get_redis_client():
-    """Get or create Redis client."""
-    global _redis_client
-    if _redis_client is not None:
-        return _redis_client
-    
-    try:
-        import redis.asyncio as redis
-        redis_url = os.environ.get("REDIS_URL", "redis://localhost:6379")
-        _redis_client = redis.from_url(redis_url, decode_responses=True)
-        logger.info(f"Redis client initialized: {redis_url}")
-    except ImportError:
-        logger.warning("redis package not installed — caching disabled")
-        return None
-    except Exception as e:
-        logger.warning(f"Failed to connect to Redis: {e}")
-        return None
-    
-    return _redis_client
-
-
 def cache_response(ttl: int = 60, key_prefix: str = "api"):
     """Decorator to cache API response in Redis."""
     def decorator(func):
@@ -85,18 +64,3 @@ def cache_response(ttl: int = 60, key_prefix: str = "api"):
     return decorator
 
 
-async def invalidate_cache(pattern: str = "api:*"):
-    """Invalidate cached entries matching a pattern."""
-    client = get_redis_client()
-    if not client:
-        return
-    
-    try:
-        keys = []
-        async for key in client.scan_iter(match=pattern):
-            keys.append(key)
-        if keys:
-            await client.delete(*keys)
-            logger.info(f"Invalidated {len(keys)} cache entries matching {pattern}")
-    except Exception as e:
-        logger.warning(f"Cache invalidation error: {e}")

@@ -64,25 +64,6 @@ EXCLUDE_COLS = {
 }
 
 
-def load_features_from_db(ticker: str = "SPY") -> pd.DataFrame:
-    """Load feature documents from MongoDB into a DataFrame."""
-    import pymongo
-
-    client = pymongo.MongoClient(MONGO_URL)
-    db = client[DB_NAME]
-    docs = list(db["ml_features"].find({"ticker": ticker}).sort("date", 1))
-    client.close()
-
-    if not docs:
-        log.error(f"No ml_features found for {ticker}")
-        return pd.DataFrame()
-
-    df = pd.DataFrame(docs)
-    df = df.sort_values("date").reset_index(drop=True)
-    log.info(f"Loaded {len(df)} rows for {ticker}, {len(df.columns)} columns")
-    return df
-
-
 def prepare_data(df: pd.DataFrame) -> tuple:
     """Split DataFrame into feature matrix X and target y."""
     feature_cols = [c for c in df.columns if c not in EXCLUDE_COLS]
@@ -212,14 +193,6 @@ def train_rf(X_train, y_train, X_test, y_test):
     )
     model.fit(X_train, y_train)
     return model
-
-
-def predict_model(model, X):
-    """Get predictions from a model (handles pipeline dict for logistic)."""
-    if isinstance(model, dict) and model.get("type") == "logistic":
-        X_s = model["scaler"].transform(X)
-        return model["model"].predict(X_s)
-    return model.predict(X)
 
 
 def evaluate_model(name, model, X_train, y_train, X_test, y_test, dates_test):

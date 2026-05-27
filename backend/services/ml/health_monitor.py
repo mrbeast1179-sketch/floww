@@ -31,14 +31,6 @@ from services.ml import DegenerateModelError
 log = logging.getLogger("ml.health")
 
 
-class ModelHealthStatus:
-    HEALTHY = "HEALTHY"
-    DEGRADED = "DEGRADED"
-    CRITICAL = "CRITICAL"
-    STALE = "STALE"
-    UNKNOWN = "UNKNOWN"
-
-
 def compute_psi(expected: np.ndarray, actual: np.ndarray, bins: int = 10) -> float:
     """Compute Population Stability Index between two distributions.
 

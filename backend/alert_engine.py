@@ -109,16 +109,6 @@ class AlertEngine:
         if len(self._snapshots[ticker]) > 100:
             self._snapshots[ticker] = self._snapshots[ticker][-100:]
     
-    def get_latest(self, ticker: str) -> Optional[GEXSnapshot]:
-        """Get the latest snapshot for a ticker."""
-        snapshots = self._snapshots.get(ticker, [])
-        return snapshots[-1] if snapshots else None
-    
-    def get_previous(self, ticker: str) -> Optional[GEXSnapshot]:
-        """Get the second-to-last snapshot for comparison."""
-        snapshots = self._snapshots.get(ticker, [])
-        return snapshots[-2] if len(snapshots) >= 2 else None
-    
     def detect_alerts(self, ticker: str, momentum_score: int = 50) -> List[Alert]:
         """
         Compare current vs previous snapshot and detect trading alerts.

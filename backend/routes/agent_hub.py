@@ -19,12 +19,6 @@ _archetypes: Dict[str, Dict] = {}
 _runtime = None
 
 
-def set_runtime(runtime):
-    """Called by server.py to inject the agent hub runtime."""
-    global _runtime
-    _runtime = runtime
-
-
 @router.get("/archetypes")
 async def list_archetypes():
     """List all agent archetypes."""

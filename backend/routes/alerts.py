@@ -15,18 +15,6 @@ _alert_engine = None
 _signal_clients: List[WebSocket] = []
 
 
-async def broadcast_signal(signal: Dict[str, Any]):
-    """Broadcast a trading signal to all connected WebSocket clients."""
-    disconnected = []
-    for ws in _signal_clients:
-        try:
-            await ws.send_json(signal)
-        except Exception:
-            disconnected.append(ws)
-    for ws in disconnected:
-        _signal_clients.remove(ws)
-
-
 @router.websocket("/ws/signals")
 async def websocket_signals(websocket: WebSocket):
     """WebSocket endpoint for real-time trading signal streaming.
@@ -50,15 +38,6 @@ async def websocket_signals(websocket: WebSocket):
         logger.error(f"Signal WebSocket error: {e}")
         if websocket in _signal_clients:
             _signal_clients.remove(websocket)
-
-def get_alert_engine():
-    """Get or create the global alert engine."""
-    global _alert_engine
-    if _alert_engine is None:
-        from alert_engine import AlertEngine
-        _alert_engine = AlertEngine()
-    return _alert_engine
-
 
 @router.get("/summary")
 async def get_alerts_summary():

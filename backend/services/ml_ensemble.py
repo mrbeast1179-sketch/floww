@@ -41,13 +41,6 @@ class PlattScaler:
         """
         from scipy.optimize import minimize
 
-        def neg_log_likelihood(params):
-            A, B = params
-            probs = 1.0 / (1.0 + np.exp(A * scores + B))
-            probs = np.clip(probs, 1e-12, 1 - 1e-12)
-            ll = np.sum(labels * np.log(probs) + (1 - labels) * np.log(1 - probs))
-            return -ll
-
         try:
             result = minimize(neg_log_likelihood, [0.0, 0.0], method="Nelder-Mead")
             self.A, self.B = result.x

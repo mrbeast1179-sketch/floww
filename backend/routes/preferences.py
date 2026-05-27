@@ -83,6 +83,3 @@ async def set_preferences(prefs: Dict[str, Any]):
     return {"status": "ok", "preferences": dict(_preferences)}
 
 
-def get_preference(key: str, default: Any = None) -> Any:
-    """Get a preference value."""
-    return _preferences.get(key, default)

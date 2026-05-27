@@ -519,11 +519,3 @@ class ModelRegistry:
 _registry_instance: Optional[ModelRegistry] = None
 
 
-def get_registry(db: Optional[Any] = None) -> ModelRegistry:
-    """Get or create the module-level ModelRegistry singleton."""
-    global _registry_instance
-    if _registry_instance is None:
-        if db is None:
-            db = _get_db()
-        _registry_instance = ModelRegistry(db)
-    return _registry_instance
