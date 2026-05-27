@@ -55,6 +55,7 @@ class IngestionPipeline:
         self._writer_task: Optional[asyncio.Task] = None
 
         # Metrics
+        self._last_drop_warning: float = 0.0
         self._metrics = {
             "enqueued": 0,
             "dequeued": 0,
@@ -131,6 +132,14 @@ class IngestionPipeline:
                 self._metrics["enqueued"] += 1
             except asyncio.QueueFull:
                 self._metrics["dropped"] += 1
+            # Rate-limited warning log (max 1 per 10s)
+            now = time.monotonic()
+            if now - self._last_drop_warning > 10.0:
+                self._last_drop_warning = now
+                logger.warning(
+                    f"Ingestion queue full ({self._queue.qsize()}/{self.max_queue_size}) — "
+                    f"dropped {self._metrics['dropped']} messages total"
+                )
 
     # ------------------------------------------------------------------
     # Writer loop
