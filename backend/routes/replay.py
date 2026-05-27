@@ -11,6 +11,7 @@ from __future__ import annotations
 import asyncio
 import logging
 from datetime import datetime
+from typing import Optional
 
 from fastapi import APIRouter, HTTPException, Query
 
@@ -20,6 +21,7 @@ router = APIRouter(prefix="/api/replay", tags=["replay"])
 
 # Global replay engine instance (set by server.py on startup)
 _replay_engine = None
+_engine_task: Optional[asyncio.Task] = None
 
 
 def set_replay_engine(engine):
@@ -61,17 +63,25 @@ async def start_replay(
         pass
 
     set_replay_engine(engine)
-    asyncio.create_task(engine.start())
+    global _engine_task
+    _engine_task = asyncio.create_task(engine.start())
     return {"status": "started", "start": start, "end": end, "speed": speed}
 
 
 @router.post("/stop")
 async def stop_replay():
     """Stop the current replay."""
-    global _replay_engine
+    global _replay_engine, _engine_task
     if not _replay_engine:
         raise HTTPException(404, "No replay running")
+    if _engine_task is not None and not _engine_task.done():
+        _engine_task.cancel()
+        try:
+            await _engine_task
+        except asyncio.CancelledError:
+            pass
     await _replay_engine.stop()
+    _engine_task = None
     return {"status": "stopped"}
 
 
