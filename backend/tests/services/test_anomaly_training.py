@@ -20,10 +20,12 @@ import pytest
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from services.anomaly_detector import (
-    Conv1DAutoencoder,
     FlowAnomalyDetector,
     StatisticalAnomalyDetector,
 )
+
+pytest.importorskip("torch")
+from services.anomaly_detector import Conv1DAutoencoder
 
 
 # ── Fixtures ─────────────────────────────────────────────────────────────────
