@@ -22,6 +22,7 @@ export default function OptionsChainTable({ ticker, spot }) {
   const [sortBy, setSortBy] = useState("strike");
   const [sortDir, setSortDir] = useState("asc");
   const [side, setSide] = useState("all"); // all, calls, puts
+  const [dteMax, setDteMax] = useState(null);
 
   const fetchChain = useCallback(async () => {
     setLoading(true);
@@ -31,11 +32,12 @@ export default function OptionsChainTable({ ticker, spot }) {
         moneyness: moneyness === "all" ? "" : moneyness,
       });
       if (expiry) params.set("expiry", expiry);
+      if (dteMax !== null) params.set("dte_max", String(dteMax));
       const res = await axios.get(`${API}/chain/${ticker}?${params}`);
       setChain(res.data);
     } catch (e) { /* noop */ }
     setLoading(false);
-  }, [ticker, expiry, moneyness, minOi, sortBy, sortDir]);
+  }, [ticker, expiry, dteMax, moneyness, minOi, sortBy, sortDir]);
 
   useEffect(() => { fetchChain(); }, [fetchChain]);
 
@@ -76,7 +78,7 @@ export default function OptionsChainTable({ ticker, spot }) {
   useEffect(() => {
     if (scrollRef.current) scrollRef.current.scrollTop = 0;
     setScrollTop(0);
-  }, [side, moneyness, expiry, minOi, sortBy, sortDir, ticker]);
+  }, [side, moneyness, expiry, dteMax, minOi, sortBy, sortDir, ticker]);
 
   if (loading && !chain) return <div className="panel p-3 text-slate-500 text-xs">Loading chain…</div>;
 
@@ -99,6 +101,8 @@ export default function OptionsChainTable({ ticker, spot }) {
           <option value="">All Expiries</option>
           {chain?.expiries?.map(e => <option key={e} value={e}>{e}</option>)}
         </select>
+        <input type="number" value={dteMax ?? ""} onChange={e => setDteMax(e.target.value === "" ? null : Number(e.target.value))}
+          className="btn text-[9px] px-1 py-0.5 w-16" placeholder="Max DTE" min={0} max={365} />
         <input type="number" value={minOi} onChange={e => setMinOi(Number(e.target.value))}
           className="btn text-[9px] px-1 py-0.5 w-16" placeholder="Min OI" />
         <select value={sortBy} onChange={e => setSortBy(e.target.value)} className="btn text-[9px] px-1 py-0.5">
@@ -158,7 +162,7 @@ export default function OptionsChainTable({ ticker, spot }) {
                     <td className={`px-1 py-0.5 font-bold ${isCall ? "text-teal-400" : "text-purple-400"}`}>{isCall ? "C" : "P"}</td>
                     <td className="text-right px-1 py-0.5 mono">{r.strike.toFixed(r.strike < 10 ? 2 : 0)}</td>
                     <td className="text-right px-1 py-0.5 text-slate-400">{r.expiry?.slice(5)}</td>
-                    <td className="text-right px-1 py-0.5 text-slate-400">{r.dte}</td>
+                    <td className="text-right px-1 py-0.5 text-slate-400">{r.dte ?? "—"}</td>
                     <td className="text-right px-1 py-0.5 mono">{(r.iv * 100).toFixed(1)}%</td>
                     <td className="text-right px-1 py-0.5 mono">{r.delta.toFixed(2)}</td>
                     <td className="text-right px-1 py-0.5 mono">{r.gamma.toFixed(4)}</td>
@@ -167,7 +171,7 @@ export default function OptionsChainTable({ ticker, spot }) {
                     <td className={`text-right px-1 py-0.5 mono ${gexClass}`}>{fmtAbs(r.gex)}</td>
                     <td className="text-right px-1 py-0.5 mono">{fmtAbs(r.vanna)}</td>
                     <td className="text-right px-1 py-0.5 mono">{fmtAbs(r.charm)}</td>
-                    <td className={`text-right px-1 py-0.5 mono ${pctClass(r.moneyness_pct)}`}>{r.moneyness_pct > 0 ? "+" : ""}{r.moneyness_pct.toFixed(1)}%</td>
+                    <td className={`text-right px-1 py-0.5 mono ${pctClass(r.moneyness_pct)}`}>{r.moneyness_pct != null ? (r.moneyness_pct > 0 ? "+" : "") + r.moneyness_pct.toFixed(1) + "%" : "—"}</td>
                   </tr>
                 );
               })}
