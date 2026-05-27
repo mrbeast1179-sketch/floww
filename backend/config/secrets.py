@@ -24,6 +24,18 @@ logger = logging.getLogger("config.secrets")
 
 # ── Environment Detection ────────────────────────────────────────────────────
 
+def is_production() -> bool:
+    """Check if running in production (Azure App Service)."""
+    return os.environ.get("ENVIRONMENT", "").lower() == "production"
+
+
+def is_azure() -> bool:
+    """Check if running on Azure App Service."""
+    return os.environ.get("WEBSITE_SITE_NAME", "") != ""
+
+
+# ── Production Safety: Refuse to start without secrets ────────────────────────
+
 _ENVIRONMENT = os.environ.get("ENVIRONMENT", "dev").lower()
 if _ENVIRONMENT in {"production", "staging"} and not is_azure():
     _api_secret = os.environ.get("API_SECRET_KEY")
@@ -36,6 +48,119 @@ if _ENVIRONMENT in {"production", "staging"} and not is_azure():
 
 
 # ── Azure Key Vault Client ───────────────────────────────────────────────────
+
+class AzureKeyVaultClient:
+    """Retrieve secrets from Azure Key Vault using Managed Identity."""
+
+    def __init__(self, vault_url: Optional[str] = None):
+        self._vault_url = vault_url or os.environ.get("AZURE_KEY_VAULT_URI", "")
+        self._client = None
+
+    def _get_client(self):
+        """Lazy-init the Key Vault client."""
+        if self._client is not None:
+            return self._client
+
+        if not self._vault_url:
+            return None
+
+        try:
+            from azure.identity import DefaultAzureCredential  # type: ignore
+            from azure.keyvault.secrets import SecretClient  # type: ignore
+
+            credential = DefaultAzureCredential()
+            self._client = SecretClient(
+                vault_url=self._vault_url,
+                credential=credential,
+            )
+            logger.info(f"Key Vault client initialized: {self._vault_url}")
+            return self._client
+        except ImportError:
+            logger.error("azure-identity or azure-keyvault-secrets not installed")
+            return None
+        except Exception as e:
+            logger.error(f"Key Vault client init failed: {e}")
+            return None
+
+    def get_secret(self, name: str) -> Optional[str]:
+        """Get a secret from Key Vault. Returns None if not found."""
+        client = self._get_client()
+        if not client:
+            return None
+
+        try:
+            # Key Vault secret names use hyphens, env vars use underscores
+            kv_name = name.replace("_", "-").lower()
+            secret = client.get_secret(kv_name)
+            return secret.value
+        except Exception as e:
+            logger.debug(f"Key Vault secret '{name}' not found: {e}")
+            return None
+
+
+class LocalEnvClient:
+    """Fallback: read secrets from environment / .env file.
+
+    WARNING: Only used in development. In production, this client is
+    disabled and require_secret() will raise RuntimeError if the
+    secret is not in Key Vault.
+    """
+
+    def get_secret(self, name: str) -> Optional[str]:
+        return os.environ.get(name)
+
+
+# ── Unified Secret Resolver ──────────────────────────────────────────────────
+
+class SecretResolver:
+    """
+    Resolves secrets in priority order:
+    1. Azure Key Vault (production — REQUIRED)
+    2. Environment variables (development only)
+    3. Default value (if provided)
+
+    In production, if a required secret is not in Key Vault,
+    RuntimeError is raised immediately — no .env fallback.
+    """
+
+    def __init__(self):
+        self._kv = AzureKeyVaultClient() if is_azure() else None
+        self._local = LocalEnvClient()
+
+    def get(self, name: str, default: Optional[str] = None) -> Optional[str]:
+        """Get a secret value. Returns default if not found anywhere."""
+        # 1. Try Key Vault in Azure (production)
+        if self._kv:
+            value = self._kv.get_secret(name)
+            if value is not None:
+                return value
+            # In production, do NOT fall back to env vars
+            if is_production():
+                logger.error(f"Secret '{name}' not found in Key Vault (production mode)")
+                return default
+            # In development, log a warning but continue
+            logger.warning(f"Secret '{name}' not in Key Vault, falling back to env")
+
+        # 2. Try environment (development only)
+        value = self._local.get_secret(name)
+        if value is not None:
+            return value
+
+        # 3. Default
+        return default
+
+    def require(self, name: str) -> str:
+        """Get a required secret. Raises RuntimeError if not found."""
+        value = self.get(name)
+        if value is None:
+            raise RuntimeError(
+                f"Required secret '{name}' not found. "
+                f"{'Set it in Azure Key Vault.' if is_azure() else 'Set it as environment variable or in .env file.'}"
+            )
+        return value
+
+
+# ── Module-level API ─────────────────────────────────────────────────────────
 
 _resolver = SecretResolver()
 

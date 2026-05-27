@@ -126,7 +126,6 @@ class GEXSnapshot:
     spot: float
 
 
-@dataclass
 def compute_live_features(ticker: str, period: str = "1y") -> pd.DataFrame:
     """Compute features from live yfinance data (fully vectorized).
 

@@ -1755,6 +1755,16 @@ _alert_rules: List[Dict[str, Any]] = []
 _alert_history: List[Dict[str, Any]] = []
 
 
+class AlertRule(BaseModel):
+    ticker: str
+    alert_type: str  # "gex_cross", "gex_spike", "oi_spike", "iv_spike"
+    threshold: float
+    direction: str = "above"  # "above" or "below"
+    expiry: Optional[str] = None
+    strike: Optional[float] = None
+    label: Optional[str] = None
+
+
 @app.post("/api/alerts")
 async def create_alert(rule: AlertRule):
     """Create a new GEX alert rule."""
