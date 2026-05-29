@@ -2334,6 +2334,22 @@ app.include_router(greeks_router, prefix="/api/greeks", tags=["greeks"])
 from routes.position_sizing_api import router as position_sizing_router
 app.include_router(position_sizing_router, tags=["position-sizing"])
 
+# ============ AgentField Hub Initialization ============
+from services.agentfield_hub import init_hub as _init_agentfield_hub
+
+@app.on_event("startup")
+async def startup_agentfield():
+    """Initialize AgentField hub (reasoners, cost tracker, dev_mode)."""
+    try:
+        await _init_agentfield_hub()
+        log.info("AgentField hub initialized (node_id=floww-trading, dev_mode=True)")
+    except Exception as e:
+        log.warning(f"AgentField hub startup failed (non-fatal): {e}")
+
+# ============ AgentField REST API Routes ============
+from routes.agentfield_api import router as agentfield_api_router
+app.include_router(agentfield_api_router, prefix="/api", tags=["agentfield"])
+
 # ============ DuckDB Engine Initialization ============
 
 @app.on_event("startup")
