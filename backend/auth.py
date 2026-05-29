@@ -18,6 +18,7 @@ PROTECTED_METHODS = {"POST", "PUT", "DELETE", "PATCH"}
 # Routes that are always public (no auth needed)
 PUBLIC_PATHS = {
     "/health",
+    "/api/preferences",  # non-sensitive UI prefs (theme/ticker/refresh) — safe to mutate without API key
     "/api/spot/",
     "/api/data/",
     "/api/chain/",
@@ -40,6 +41,15 @@ PUBLIC_PATHS = {
 def get_api_key() -> str:
     """Get the API secret key from environment."""
     return os.environ.get("API_SECRET_KEY", "")
+
+
+def get_ws_token() -> str:
+    """Get the WebSocket auth token from environment.
+
+    Empty string means no token is configured → verify_ws_token allows the
+    connection (development mode). Mirrors get_api_key for HTTP routes.
+    """
+    return os.environ.get("WS_API_TOKEN", "")
 
 
 def is_public_path(path: str) -> bool:
