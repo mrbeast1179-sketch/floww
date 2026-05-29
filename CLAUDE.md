@@ -22,9 +22,10 @@
 
 ## Canonical paths (BURN THESE IN)
 
-- **Working clone (production-tracked):** `/Users/nav/Documents/GitHub/floww`
-- **STALE clone (DO NOT TOUCH):** `/Users/nav/GitHub/floww` — caused 3+ production incidents
-- If `pwd` doesn't end in `Documents/GitHub/floww` → STOP and re-cd. Never start work in the stale clone.
+- **THE ONLY clone (production-tracked):** `/Users/nav/Documents/GitHub/floww`
+- The old stale clone `/Users/nav/GitHub/floww` (cause of 3+ incidents) was **DELETED 2026-05-29**. Do not re-clone floww there. `/Users/nav/GitHub/agentfield` (the AgentField SDK source) is unrelated and stays.
+- If `pwd` doesn't end in `Documents/GitHub/floww` → STOP and re-cd.
+- **The terminal = the "Confluence Decoder" Chrome PWA** (`~/Applications/Chrome Apps.localized/Confluence Decoder.app`). It is a window onto React :3000 (→ backend :8000); there is no separate terminal codebase — edits to `frontend/`+`backend/` here ARE the terminal. Launch with `decoder` (→ `scripts/launch_decoder.sh`), which `open -a`'s the .app. NEVER `open <URL>` (that's a tab).
 
 **PWA launch:** `open -a "$HOME/Applications/Chrome Apps.localized/Confluence Decoder.app"` (alias `decoder` in `~/.zshrc`). **Never** `open <URL>` — that spawns a Chrome tab, not the PWA. The PWA expects React on :3000 + backend on :8000 already running.
 
