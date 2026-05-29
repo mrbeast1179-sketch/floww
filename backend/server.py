@@ -343,6 +343,427 @@ def _in_window_now_et() -> bool:
     return LIVE_WINDOW["start_hhmm"] <= hhmm <= LIVE_WINDOW["stop_hhmm"]
 
 
+# ===== RESTORED (7ec433f over-deletion): cache + gex/pdf/opportunity helpers =====
+
+# --- restored: cache_get + cache_set ---
+def cache_get(key: str):
+    item = _cache.get(key)
+    if not item:
+        return None
+    if time.time() - item["ts"] > CACHE_TTL_SEC:
+        return None
+    return item["data"]
+
+
+def cache_set(key: str, data: Any):
+    _cache[key] = {"ts": time.time(), "data": data}
+
+
+
+
+# --- restored: compute_gex_grid ---
+def compute_gex_grid(spot: float, contracts: List[Dict[str, Any]], ticker: str = "") -> Dict[str, Any]:
+    """2D grid: GEX per (strike, expiry). Skylit-style heatmap layout."""
+    if spot <= 0 or not contracts:
+        return {"expiries": [], "strikes": [], "grid": {}, "charm_grid": {}}
+    q = DIV_YIELD.get(ticker, 0.0)
+    grid: Dict[str, Dict[float, float]] = {}
+    charm_grid: Dict[str, Dict[float, float]] = {}
+    strike_totals: Dict[float, float] = {}
+    for c in contracts:
+        gamma = bs_gamma(spot, c["strike"], c["T"], c["iv"], q=q)
+        charm = bs_charm(spot, c["strike"], c["T"], c["iv"], q=q, kind=c["type"])
+        if gamma <= 0:
+            continue
+        gex_unit = gamma * c["oi"] * 100.0 * spot * spot * 0.01
+        charm_unit = charm * c["oi"] * 100.0 * spot * 0.01
+        sign = 1.0 if c["type"] == "call" else -1.0
+        cell = sign * gex_unit
+        charm_cell = sign * charm_unit
+        d = grid.setdefault(c["expiry"], {})
+        d[c["strike"]] = d.get(c["strike"], 0.0) + cell
+        dc = charm_grid.setdefault(c["expiry"], {})
+        dc[c["strike"]] = dc.get(c["strike"], 0.0) + charm_cell
+        strike_totals[c["strike"]] = strike_totals.get(c["strike"], 0.0) + cell
+
+    expiries = sorted(grid.keys())
+    strikes = sorted(strike_totals.keys())
+
+    def _k(x: float) -> str:
+        return str(int(x)) if float(x).is_integer() else str(x)
+
+    return {
+        "expiries": expiries,
+        "strikes": strikes,
+        "grid": {e: {_k(k): v for k, v in grid[e].items()} for e in expiries},
+        "charm_grid": {e: {_k(k): v for k, v in charm_grid[e].items()} for e in expiries},
+        "strike_totals": [{"strike": k, "gex": v} for k, v in sorted(strike_totals.items())],
+    }
+# Import from shared module to avoid circular imports with portfolio.py
+from bs_greeks import (
+    bs_gamma, bs_delta, bs_vanna, bs_charm, bs_vomma, bs_zomma, bs_vega,
+    bs_call_price, bs_put_price,
+    RISK_FREE_RATE as BS_RISK_FREE_RATE,
+)
+
+RISK_FREE_RATE = BS_RISK_FREE_RATE
+
+
+# --- restored: calc_probability_distribution ---
+def calc_probability_distribution(spot: float, contracts: List[Dict[str, Any]],
+                                   risk_free_rate: float = RISK_FREE_RATE) -> List[Dict[str, Any]]:
+    """Risk-neutral probability distribution from option prices.
+    Returns list of {strike, prob_above, prob_below, delta} per strike."""
+    if spot <= 0 or not contracts:
+        return []
+    strikes = sorted(set(c["strike"] for c in contracts))
+    result = []
+    for k in strikes:
+        # Get call IV at this strike
+        calls = [c for c in contracts if c["strike"] == k and c["type"] == "call"]
+        puts = [c for c in contracts if c["strike"] == k and c["type"] == "put"]
+        iv = None
+        T = None
+        if calls:
+            iv = calls[0].get("iv", 0.2)
+            T = calls[0].get("T", 1/365)
+        elif puts:
+            iv = puts[0].get("iv", 0.2)
+            T = puts[0].get("T", 1/365)
+        if not iv or iv <= 0 or not T or T <= 0:
+            continue
+        try:
+            d1 = (math.log(spot / k) + (risk_free_rate + 0.5 * iv**2) * T) / (iv * math.sqrt(T))
+            d2 = d1 - iv * math.sqrt(T)
+            prob_above = float(norm.cdf(d2))  # risk-neutral prob of finishing above K
+            prob_below = 1.0 - prob_above
+            delta_call = float(norm.cdf(d1))
+            result.append({
+                "strike": k,
+                "prob_above": round(prob_above, 4),
+                "prob_below": round(prob_below, 4),
+                "delta": round(delta_call, 4),
+                "iv": round(iv, 4),
+            })
+        except Exception:
+            continue
+    return result
+
+
+
+
+# --- restored: detect_opportunities ---
+def detect_opportunities(strikes: List[Dict[str, Any]], nodes: Dict[str, Any],
+                          spot: float, contracts: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """Detect trading opportunities from GEX analysis.
+    Categories: gamma_squeeze, wall_support, wall_resistance, vol_expansion, vol_compression, pin_risk, gamma_ladder"""
+    opportunities = []
+    if not strikes or spot <= 0:
+        return opportunities
+
+    king = nodes.get("king")
+    if not king:
+        return opportunities
+    abs(king.get("gex", 0)) or 1.0
+    total_gex = nodes.get("total_gex", 0)
+    polarity = nodes.get("polarity_level", spot)
+    regime = nodes.get("regime", "neutral")
+
+    # --- Gamma Squeeze: price approaching call wall from below ---
+    call_wall = nodes.get("ceilings", [{}])
+    call_wall_strike = call_wall[0]["strike"] if call_wall else None
+    if call_wall_strike and spot < call_wall_strike:
+        dist_pct = (call_wall_strike - spot) / spot * 100
+        if dist_pct < 3.0:
+            # Concentration of call GEX at wall
+            calls_above = [s for s in strikes if s["strike"] > spot and s.get("call_gex", 0) > 0]
+            total_call_gex = sum(s.get("call_gex", 0) for s in calls_above)
+            max_call_gex = max((s.get("call_gex", 0) for s in calls_above), default=0)
+            concentration = max_call_gex / total_call_gex if total_call_gex > 0 else 0
+            proximity = 1 - (dist_pct / 3.0)
+            confidence = min((concentration + proximity) / 2, 1.0)
+            if confidence >= 0.3:
+                opportunities.append({
+                    "type": "gamma_squeeze",
+                    "name": "Gamma Squeeze Setup",
+                    "direction": "bullish",
+                    "risk": "high",
+                    "confidence": round(confidence, 2),
+                    "description": f"Price {dist_pct:.1f}% below call wall at {call_wall_strike:.1f}. Breakout could trigger dealer hedging acceleration.",
+                    "trigger": {"call_wall": call_wall_strike, "distance_pct": round(dist_pct, 2), "concentration": round(concentration, 2)},
+                    "entry": (round(spot * 0.995, 2), round(call_wall_strike * 0.99, 2)),
+                    "target": round(call_wall_strike * 1.02, 2),
+                    "stop": round(spot * 0.97, 2),
+                })
+
+    # --- Put Wall Support ---
+    put_wall = nodes.get("floors", [{}])
+    put_wall_strike = put_wall[0]["strike"] if put_wall else None
+    if put_wall_strike and spot > put_wall_strike:
+        dist_pct = (spot - put_wall_strike) / spot * 100
+        if dist_pct < 3.0:
+            proximity = 1 - (dist_pct / 3.0)
+            regime_bonus = 0.2 if regime == "positive" else 0
+            confidence = min(proximity + regime_bonus, 1.0)
+            if confidence >= 0.4:
+                opportunities.append({
+                    "type": "put_wall_support",
+                    "name": "Put Wall Support",
+                    "direction": "bullish",
+                    "risk": "low",
+                    "confidence": round(confidence, 2),
+                    "description": f"Price {dist_pct:.1f}% above put wall at {put_wall_strike:.1f}. Dealers likely to buy dips here.",
+                    "trigger": {"put_wall": put_wall_strike, "distance_pct": round(dist_pct, 2), "regime": regime},
+                    "entry": (round(put_wall_strike * 1.005, 2), round(spot * 1.01, 2)),
+                    "target": round(polarity, 2),
+                    "stop": round(put_wall_strike * 0.98, 2),
+                })
+
+    # --- Call Wall Resistance ---
+    if call_wall_strike and spot < call_wall_strike:
+        dist_pct = (call_wall_strike - spot) / spot * 100
+        if dist_pct < 3.0:
+            proximity = 1 - (dist_pct / 3.0)
+            regime_bonus = 0.2 if regime == "positive" else 0
+            confidence = min(proximity + regime_bonus, 1.0)
+            if confidence >= 0.4:
+                opportunities.append({
+                    "type": "call_wall_resistance",
+                    "name": "Call Wall Resistance",
+                    "direction": "bearish",
+                    "risk": "low",
+                    "confidence": round(confidence, 2),
+                    "description": f"Price {dist_pct:.1f}% below call wall at {call_wall_strike:.1f}. Dealers likely to sell rallies here.",
+                    "trigger": {"call_wall": call_wall_strike, "distance_pct": round(dist_pct, 2), "regime": regime},
+                    "entry": (round(call_wall_strike * 0.99, 2), round(call_wall_strike * 1.005, 2)),
+                    "target": round(polarity, 2),
+                    "stop": round(call_wall_strike * 1.02, 2),
+                })
+
+    # --- Volatility Expansion (negative gamma regime) ---
+    if regime in ("negative", "neutral") and total_gex < 0:
+        dist_to_flip = ((spot - polarity) / spot) * 100 if polarity else 0
+        confidence = min(abs(dist_to_flip) / 5, 1.0)
+        if confidence >= 0.3:
+            opportunities.append({
+                "type": "volatility_expansion",
+                "name": "Volatility Expansion",
+                "direction": "neutral",
+                "risk": "medium",
+                "confidence": round(confidence, 2),
+                "description": "Negative gamma regime. Dealers amplifying moves. Expect increased volatility.",
+                "trigger": {"regime": regime, "total_gex": total_gex, "dist_to_flip_pct": round(dist_to_flip, 2)},
+            })
+
+    # --- Volatility Compression (positive gamma regime) ---
+    if regime == "positive" and total_gex > 0:
+        dist_to_flip = ((spot - polarity) / spot) * 100 if polarity else 0
+        confidence = min(dist_to_flip / 5, 1.0)
+        if confidence >= 0.3:
+            opportunities.append({
+                "type": "volatility_compression",
+                "name": "Volatility Compression",
+                "direction": "neutral",
+                "risk": "low",
+                "confidence": round(confidence, 2),
+                "description": "Positive gamma regime. Dealers dampening moves. Good for selling premium.",
+                "trigger": {"regime": regime, "total_gex": total_gex, "dist_to_flip_pct": round(dist_to_flip, 2)},
+            })
+
+    # --- Pin Risk: high OI at ATM strike near expiration ---
+    if contracts:
+        # Find nearest expiry
+        expiries = sorted(set(c["expiry"] for c in contracts))
+        if expiries:
+            nearest_exp = expiries[0]
+            try:
+                exp_date = datetime.strptime(nearest_exp, "%Y-%m-%d").date()
+                dte = (exp_date - datetime.now(timezone.utc).date()).days
+            except Exception:
+                dte = 999
+            if dte <= 5:
+                # Find ATM strike with highest OI
+                atm_strike_val = min(strikes, key=lambda s: abs(s["strike"] - spot))["strike"]
+                atm_strikes_data = [s for s in strikes if abs(s["strike"] - atm_strike_val) < spot * 0.01]
+                if atm_strikes_data:
+                    max_oi = max(s.get("total_oi", 0) for s in atm_strikes_data)
+                    if max_oi > 1000:
+                        confidence = min(0.3 + (max_oi / 10000) * 0.3 + (1 - dte / 5) * 0.3, 1.0)
+                        if confidence >= 0.4:
+                            opportunities.append({
+                                "type": "pin_risk",
+                                "name": "Expiration Pin Risk",
+                                "direction": "neutral",
+                                "risk": "medium",
+                                "confidence": round(confidence, 2),
+                                "description": f"High OI ({max_oi:,.0f}) at {atm_strike_val:.0f} with {dte} DTE. Price may gravitate here.",
+                                "trigger": {"pin_strike": atm_strike_val, "oi": max_oi, "dte": dte},
+                                "target": atm_strike_val,
+                            })
+
+    # --- Gamma Ladder: multiple call strikes with increasing GEX above price ---
+    calls_above = sorted([s for s in strikes if s["strike"] > spot and s.get("call_gex", 0) > 0],
+                         key=lambda s: s["strike"])
+    if len(calls_above) >= 3:
+        call_gex_vals = [s.get("call_gex", 0) for s in calls_above[:5]]
+        ascending = sum(1 for i in range(len(call_gex_vals) - 1) if call_gex_vals[i + 1] > call_gex_vals[i] * 0.8)
+        if ascending >= 2:
+            pattern_strength = ascending / (len(call_gex_vals) - 1)
+            total_call_gex_above = sum(call_gex_vals)
+            total_call_gex_all = sum(s.get("call_gex", 0) for s in strikes if s.get("call_gex", 0) > 0)
+            concentration = total_call_gex_above / total_call_gex_all if total_call_gex_all > 0 else 0
+            confidence = min((pattern_strength + concentration) / 2, 1.0)
+            if confidence >= 0.35:
+                rungs = [s["strike"] for s in calls_above[:3]]
+                opportunities.append({
+                    "type": "gamma_ladder",
+                    "name": "Gamma Call Ladder",
+                    "direction": "bullish",
+                    "risk": "medium",
+                    "confidence": round(confidence, 2),
+                    "description": f"Call ladder with {ascending} rungs. Targets: {', '.join(f'{r:.0f}' for r in rungs)}.",
+                    "trigger": {"rungs": rungs, "ascending": ascending, "concentration": round(concentration, 2)},
+                    "entry": (round(spot * 0.99, 2), round(rungs[0] * 0.995, 2)),
+                    "target": rungs[-1],
+                    "stop": round(spot * 0.97, 2),
+                })
+
+    # Sort by confidence
+    opportunities.sort(key=lambda o: o.get("confidence", 0), reverse=True)
+    return opportunities[:8]  # max 8 opportunities
+
+
+# ----------------------------- Node Hierarchy ---------------------------------
+
+
+
+# --- restored: save_snapshot + velocity_and_rolling ---
+async def save_snapshot(ticker: str, payload: Dict[str, Any]):
+    try:
+        doc = {
+            "ticker": ticker,
+            "ts": datetime.now(timezone.utc).isoformat(),
+            "spot": payload["spot"],
+            "king_strike": payload["nodes"]["king"]["strike"] if payload["nodes"].get("king") else None,
+            "king_gex": payload["nodes"]["king"]["gex"] if payload["nodes"].get("king") else None,
+            "top_floor": payload["nodes"]["floors"][0]["strike"] if payload["nodes"].get("floors") else None,
+            "top_ceiling": payload["nodes"]["ceilings"][0]["strike"] if payload["nodes"].get("ceilings") else None,
+            "regime": payload["nodes"].get("regime"),
+            "strikes_compact": [{"strike": s["strike"], "gex": s["gex"]} for s in payload["strikes"][:200]],
+        }
+        await db.snapshots.insert_one(doc)
+        # Keep last 50 per ticker
+        cursor = db.snapshots.find({"ticker": ticker}, {"_id": 1}).sort("ts", -1).skip(50)
+        ids = [d["_id"] async for d in cursor]
+        if ids:
+            await db.snapshots.delete_many({"_id": {"$in": ids}})
+    except Exception as e:
+        log.warning(f"snapshot save fail: {e}")
+
+
+async def velocity_and_rolling(ticker: str, current_nodes: Dict[str, Any]) -> Dict[str, Any]:
+    """Compute rate of change vs prior snapshot + rolling floor/ceiling sequence."""
+    cur = db.snapshots.find({"ticker": ticker}, {"_id": 0}).sort("ts", -1).limit(10)
+    history = [d async for d in cur]
+    if len(history) < 1:
+        return {"velocity_score": 0, "rolling_floor": "stable", "rolling_ceiling": "stable", "history": []}
+
+    floor_seq = [h["top_floor"] for h in history if h.get("top_floor")][:5]
+    ceiling_seq = [h["top_ceiling"] for h in history if h.get("top_ceiling")][:5]
+
+    def trend(seq):
+        if len(seq) < 2:
+            return "stable"
+        # seq is newest-first; we want oldest -> newest order
+        seq = list(reversed(seq))
+        ups = sum(1 for i in range(1, len(seq)) if seq[i] > seq[i - 1])
+        downs = sum(1 for i in range(1, len(seq)) if seq[i] < seq[i - 1])
+        if ups >= 2 and downs == 0:
+            return "rolling_up"
+        if downs >= 2 and ups == 0:
+            return "rolling_down"
+        return "stable"
+
+    # Velocity: how much the strike-level GEX has changed since last snapshot
+    velocity = 0.0
+    if history:
+        prev = history[0]
+        prev_map = {s["strike"]: s["gex"] for s in prev.get("strikes_compact", [])}
+        cur_map = {s["strike"]: s["gex"] for s in current_nodes.get("strikes_compact", [])}
+        common = set(prev_map.keys()) & set(cur_map.keys())
+        if common:
+            deltas = [abs(cur_map[k] - prev_map[k]) for k in common]
+            base = max(sum(abs(prev_map[k]) for k in common), 1.0)
+            velocity = min(1.0, sum(deltas) / base)
+
+    return {
+        "velocity_score": round(velocity, 3),
+        "rolling_floor": trend(floor_seq),
+        "rolling_ceiling": trend(ceiling_seq),
+        "floor_sequence": floor_seq,
+        "ceiling_sequence": ceiling_seq,
+        "snapshots_count": len(history) + 1,
+    }
+
+
+# ----------------------------- Top Movers (Polygon) ---------------------------
+
+
+
+# ===== END RESTORED =====
+
+
+def fetch_spot_and_chains(ticker: str, max_expiries: int = 4) -> Dict[str, Any]:
+    """Returns spot + flattened option contracts (limited expiries near term)."""
+    key = f"chain:{ticker}:{max_expiries}"
+    hit = cache_get(key)
+    if hit:
+        return hit
+
+    t = yf.Ticker(ticker)
+    try:
+        fi = t.fast_info
+        spot = float(fi.get("lastPrice") or fi.get("last_price") or 0)
+    except Exception:
+        spot = 0.0
+    if not spot:
+        try:
+            spot = float(t.history(period="1d")["Close"].iloc[-1])
+        except Exception:
+            spot = 0.0
+
+    expiries = list(t.options or [])[:max_expiries]
+    contracts: List[Dict[str, Any]] = []
+    today = datetime.now(timezone.utc).date()
+
+    for exp in expiries:
+        try:
+            ch = t.option_chain(exp)
+        except Exception as e:
+            log.warning(f"chain fail {ticker} {exp}: {e}")
+            continue
+        exp_date = pd.to_datetime(exp).date()
+        T = max((exp_date - today).days, 1) / 365.0
+        for df, kind in [(ch.calls, "call"), (ch.puts, "put")]:
+            if df is None or df.empty:
+                continue
+            for _, row in df.iterrows():
+                strike = float(row.get("strike", 0))
+                oi = float(row.get("openInterest", 0) or 0)
+                iv = float(row.get("impliedVolatility", 0) or 0)
+                vol = float(row.get("volume", 0) or 0)
+                if strike <= 0 or oi <= 0 or iv <= 0:
+                    continue
+                contracts.append({
+                    "expiry": exp, "T": T, "type": kind,
+                    "strike": strike, "oi": oi, "iv": iv, "volume": vol,
+                })
+
+    data = {"ticker": ticker, "spot": spot, "expiries": expiries, "contracts": contracts}
+    cache_set(key, data)
+    return data
+
+
 async def fetch_spot_and_chains_merged(ticker: str, max_expiries: int = 4) -> Dict[str, Any]:
     """yfinance for spot+IV + Databento for OI (only if ticker is in PAID_TICKERS).
     Falls back to pure yfinance for free-tier tickers."""
@@ -2079,7 +2500,7 @@ async def dash_auth_middleware(request: Request, call_next):
             token = request.query_params.get("token", "") or request.cookies.get("session_token", "")
             expected = os.environ.get("DASH_SESSION_TOKEN", "")
             if not expected:
-                logger.critical("DASH_SESSION_TOKEN not set — /dashboard/ is INSECURE")
+                log.critical("DASH_SESSION_TOKEN not set — /dashboard/ is INSECURE")
                 from fastapi.responses import JSONResponse
                 return JSONResponse(status_code=503, detail="Dashboard auth not configured")
             if token != expected:
