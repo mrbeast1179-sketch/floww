@@ -35,9 +35,39 @@ sys.path.insert(0, str(BACKEND_DIR))
 from scripts.train_spy_ml import (
     fetch_spot_history,
     build_dataset,
-    walk_forward_splits,
-    compute_trading_sharpe,
+    train_walk_forward,
 )
+from scripts.train_with_baselines import compute_trading_sharpe
+def _sharpe(predictions, actuals):
+    """Compute annualized trading Sharpe."""
+    rets = []
+    for p, a in zip(predictions, actuals):
+        if p == 1:
+            rets.append(1.0 if a == 1 else -1.0)
+    if len(rets) < 2:
+        return 0.0
+    std = np.std(rets)
+    if std < 1e-10:
+        return 0.0
+    return float(np.mean(rets) / std * np.sqrt(252))
+
+
+def make_walk_forward_splits(X, y, timestamps, n_splits=5):
+    """Create walk-forward train/test splits."""
+    n = len(X)
+    split_size = n // (n_splits + 1)
+    splits = []
+    for i in range(n_splits):
+        train_end = split_size * (i + 1)
+        test_end = min(train_end + split_size, n)
+        if test_end <= train_end or train_end < 50:
+            continue
+        splits.append((
+            X[:train_end], y[:train_end],
+            X[train_end:test_end], y[train_end:test_end],
+            timestamps[train_end:test_end],
+        ))
+    return splits
 
 
 def load_gex_regime(ticker: str, dates: list) -> dict:
@@ -115,7 +145,7 @@ def backtest_regime_filtered(
     vol_20d = pd.Series(returns).rolling(20).std().values * np.sqrt(252)
 
     # Walk-forward backtest
-    splits = walk_forward_splits(X, y, timestamps, n_splits=n_splits)
+    splits = make_walk_forward_splits(X, y, timestamps, n_splits=n_splits)
 
     all_preds = []
     all_actuals = []

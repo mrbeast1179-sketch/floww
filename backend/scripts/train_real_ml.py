@@ -56,7 +56,7 @@ FEATURE_NAMES = [
     "realized_vol_5d", "realized_vol_10d", "realized_vol_21d", "realized_vol_60d",
     "rsi_14", "rsi_overbought", "rsi_oversold",
     "macd", "macd_signal", "macd_hist",
-    "bb_position",
+    "bb_upper", "bb_lower", "bb_position",
     "vol_ratio_5_21", "vol_ratio_5_60",
     "sma_5_21_diff", "sma_5_21_cross", "sma_10_50_diff",
     "ret_momentum", "ret_accel",
