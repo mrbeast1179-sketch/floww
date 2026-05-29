@@ -2335,20 +2335,34 @@ from routes.position_sizing_api import router as position_sizing_router
 app.include_router(position_sizing_router, tags=["position-sizing"])
 
 # ============ AgentField Hub Initialization ============
-from services.agentfield_hub import init_hub as _init_agentfield_hub
+# NOTE: the import itself must be non-fatal. If the optional `agentfield`
+# package (or its deps) isn't installed in this venv, the whole server must
+# still boot — the feature simply stays disabled. Guarding only the runtime
+# startup (below) is NOT enough; an unguarded top-level import kills boot.
+try:
+    from services.agentfield_hub import init_hub as _init_agentfield_hub
+    _AGENTFIELD_AVAILABLE = True
+except Exception as _agentfield_import_err:  # noqa: BLE001 - intentionally broad; optional feature
+    _AGENTFIELD_AVAILABLE = False
+    log.warning(
+        f"AgentField hub import failed (non-fatal, feature disabled): {_agentfield_import_err}"
+    )
 
-@app.on_event("startup")
-async def startup_agentfield():
-    """Initialize AgentField hub (reasoners, cost tracker, dev_mode)."""
-    try:
-        await _init_agentfield_hub()
-        log.info("AgentField hub initialized (node_id=floww-trading, dev_mode=True)")
-    except Exception as e:
-        log.warning(f"AgentField hub startup failed (non-fatal): {e}")
+if _AGENTFIELD_AVAILABLE:
+    @app.on_event("startup")
+    async def startup_agentfield():
+        """Initialize AgentField hub (reasoners, cost tracker, dev_mode)."""
+        try:
+            await _init_agentfield_hub()
+            log.info("AgentField hub initialized (node_id=floww-trading, dev_mode=True)")
+        except Exception as e:
+            log.warning(f"AgentField hub startup failed (non-fatal): {e}")
 
-# ============ AgentField REST API Routes ============
-from routes.agentfield_api import router as agentfield_api_router
-app.include_router(agentfield_api_router, prefix="/api", tags=["agentfield"])
+    # ============ AgentField REST API Routes ============
+    from routes.agentfield_api import router as agentfield_api_router
+    app.include_router(agentfield_api_router, prefix="/api", tags=["agentfield"])
+else:
+    log.warning("AgentField REST routes (/api/agentfield/*) disabled — package unavailable")
 
 # ============ DuckDB Engine Initialization ============
 
