@@ -49,7 +49,8 @@ async def implied_pdf(
     max_age_seconds: int = Query(default=300, ge=0, le=3600, description="Max cache age in seconds"),
 ):
     try:
-        from server import calc_implied_pdf, _sanitize
+        from server import _sanitize
+        from advanced_analytics import calc_implied_pdf
         raw = await _cache.get_chain(ticker, expiries, max_age_seconds, _coordinator)
         _check_chain(raw, ticker)
         return _sanitize(calc_implied_pdf(raw["spot"], raw["contracts"]))
@@ -67,7 +68,8 @@ async def regime(
     max_age_seconds: int = Query(default=300, ge=0, le=3600),
 ):
     try:
-        from server import calc_market_regime, _sanitize
+        from server import _sanitize
+        from advanced_analytics import calc_market_regime
         raw = await _cache.get_chain(ticker, expiries, max_age_seconds, _coordinator)
         _check_chain(raw, ticker)
         return _sanitize(calc_market_regime(raw["spot"], raw["contracts"]))
@@ -85,7 +87,8 @@ async def hedge_impulse(
     max_age_seconds: int = Query(default=300, ge=0, le=3600),
 ):
     try:
-        from server import calc_hedge_impulse_curve, _sanitize
+        from server import _sanitize
+        from advanced_analytics import calc_hedge_impulse_curve
         raw = await _cache.get_chain(ticker, expiries, max_age_seconds, _coordinator)
         _check_chain(raw, ticker)
         return _sanitize(calc_hedge_impulse_curve(raw["spot"], raw["contracts"], ticker.strip().upper()))
@@ -103,7 +106,8 @@ async def pressure_cloud(
     max_age_seconds: int = Query(default=300, ge=0, le=3600),
 ):
     try:
-        from server import calc_pressure_cloud, _sanitize
+        from server import _sanitize
+        from advanced_analytics import calc_pressure_cloud
         raw = await _cache.get_chain(ticker, expiries, max_age_seconds, _coordinator)
         _check_chain(raw, ticker)
         return _sanitize(calc_pressure_cloud(raw["spot"], raw["contracts"], ticker.strip().upper()))
@@ -121,7 +125,8 @@ async def charm_integral_endpoint(
     max_age_seconds: int = Query(default=300, ge=0, le=3600),
 ):
     try:
-        from server import calc_charm_integral, _sanitize
+        from server import _sanitize
+        from advanced_analytics import calc_charm_integral
         raw = await _cache.get_chain(ticker, expiries, max_age_seconds, _coordinator)
         _check_chain(raw, ticker)
         return _sanitize(calc_charm_integral(raw["spot"], raw["contracts"], ticker.strip().upper()))
@@ -206,9 +211,10 @@ async def advanced_analytics(
     max_age_seconds: int = Query(default=300, ge=0, le=3600),
 ):
     try:
-        from server import (
+        from server import _sanitize
+        from advanced_analytics import (
             calc_implied_pdf, calc_market_regime, calc_hedge_impulse_curve,
-            calc_pressure_cloud, calc_charm_integral, _sanitize,
+            calc_pressure_cloud, calc_charm_integral,
         )
         raw = await _cache.get_chain(ticker, expiries, max_age_seconds, _coordinator)
         _check_chain(raw, ticker)
@@ -240,7 +246,8 @@ async def gamma_flip(
     max_age_seconds: int = Query(default=300, ge=0, le=3600),
 ):
     try:
-        from server import calc_gamma_flip_levels, _sanitize
+        from server import _sanitize
+        from advanced_analytics import calc_gamma_flip_levels
         raw = await _cache.get_chain(ticker, expiries, max_age_seconds, _coordinator)
         spot = raw.get("spot")
         if not spot or spot != spot or not raw.get("contracts"):
@@ -260,10 +267,9 @@ async def daily_checklist(
     max_age_seconds: int = Query(default=300, ge=0, le=3600),
 ):
     try:
-        from server import (
-            calc_gamma_flip_levels, calc_market_regime, calc_iv_surface_data,
-            calc_skew_metrics, _sanitize,
-        )
+        from server import _sanitize
+        from advanced_analytics import calc_gamma_flip_levels, calc_market_regime
+        from vol_analytics import calc_iv_surface_data, calc_skew_metrics
         raw = await _cache.get_chain(ticker, expiries, max_age_seconds, _coordinator)
         spot = raw.get("spot")
         if not spot or spot != spot or not raw.get("contracts"):
