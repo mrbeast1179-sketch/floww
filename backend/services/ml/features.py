@@ -902,7 +902,7 @@ def get_async_db():
     return client[DB_NAME]
 
 
-def load_gex_snapshots(db, ticker: str = "SPY") -> List[Dict]:
+async def load_gex_snapshots(db, ticker: str = "SPY") -> List[Dict]:
     """
     Load GEX snapshots for a ticker, sorted by date.
 

@@ -203,7 +203,8 @@ async def compare_models(
     if tickers:
         ticker_list = [t.strip().upper() for t in tickers.split(",")]
     else:
-        ticker_list = list(engine.MODEL_REGISTRY.keys())
+        from services.ml.inference import MODEL_REGISTRY
+        ticker_list = list(MODEL_REGISTRY.keys())
 
     results = []
     errors = []
