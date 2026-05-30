@@ -100,8 +100,8 @@ No deletions without per-name caller verification and architect sign-off.
 1. ✅ `src/App.tsx:115` — AbortController (A3)
 2. ✅ `backend/services/websocket_streamer.py:96-98` — managed list
 3. ✅ `backend/services/order_manager.py:420` — logged_task tracking
-4. ✅ `backend/services/market_data_scheduler.py:156` — prefetch tracking
-5. ✅ `backend/services/backtest_engine.py:89` — replay task tracking
+4. ✅ `backend/services/scheduler.py` — prefetch tracking
+5. ✅ `backend/services/ml/backtest.py` — replay task tracking
 6. ✅ `backend/services/ml/retrain.py:212` — training job tracking
 7. ✅ `backend/services/paper_trader.py` — error-logging helper
 8. ✅ `backend/services/ml/inference.py` — _gex_cache bounded

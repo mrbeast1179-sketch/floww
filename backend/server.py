@@ -6,42 +6,43 @@ Confluence Decoder - Skylit-style Heatseeker GEX Analytics
 - Black-Scholes gamma -> per-strike (and per-strike×expiry) GEX
 - Node hierarchy, patterns, velocity, rolling, trinity
 """
-from fastapi import FastAPI, HTTPException, Query, Request, WebSocket, WebSocketDisconnect
-from fastapi.responses import StreamingResponse
-from fastapi.middleware.cors import CORSMiddleware
-from dotenv import load_dotenv
-from motor.motor_asyncio import AsyncIOMotorClient
-from pydantic import BaseModel
-from pathlib import Path
-from typing import List, Optional, Dict, Any, Set, Set
-from datetime import datetime, timezone, timedelta
-import os
-import logging
 import asyncio
+import logging
 import math
+import os
 import time
 from collections import deque
-import httpx
-import yfinance as yf
-import pandas as pd
-import numpy as np
-from scipy.stats import norm
-from services.logging_config import setup_logging, CorrelationIdMiddleware
+from datetime import datetime, timedelta, timezone
+from pathlib import Path
+from typing import Any, Dict, List, Optional, Set
 
-from services.duckdb_engine import db as duckdb_engine
-from services.websocket_streamer import manager as ws_manager
-from databento_provider import init_cache, fetch_oi_for_ticker
-from portfolio import Position, Portfolio, calc_position_size
-from vol_analytics import (
-    calc_iv_surface_data,
-    calc_skew_metrics,
-    calc_realized_volatility,
-    calc_iv_rank_percentile,
-)
+import httpx
+import numpy as np
+import pandas as pd
+import yfinance as yf
+from dotenv import load_dotenv
+from fastapi import FastAPI, HTTPException, Query, Request, WebSocket, WebSocketDisconnect
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import StreamingResponse
+from motor.motor_asyncio import AsyncIOMotorClient
+from pydantic import BaseModel
+from scipy.stats import norm
+
 from advanced_analytics import (
+    calc_gamma_flip_levels,
     calc_implied_pdf,
     calc_market_regime,
-    calc_gamma_flip_levels,
+)
+from databento_provider import fetch_oi_for_ticker, init_cache
+from portfolio import Portfolio, Position, calc_position_size
+from services.duckdb_engine import db as duckdb_engine
+from services.logging_config import CorrelationIdMiddleware, setup_logging
+from services.websocket_streamer import manager as ws_manager
+from vol_analytics import (
+    calc_iv_rank_percentile,
+    calc_iv_surface_data,
+    calc_realized_volatility,
+    calc_skew_metrics,
 )
 
 ROOT_DIR = Path(__file__).parent
@@ -97,15 +98,15 @@ async def rate_limit_middleware(request: Request, call_next):
     client_ip = request.client.host if request.client else "unknown"
     now = time.time()
     window = 60.0  # 1 minute
-    
+
     if client_ip not in _rate_limits:
         _rate_limits[client_ip] = deque()
-    
+
     # Remove entries outside the sliding window
     dq = _rate_limits[client_ip]
     while dq and now - dq[0] >= window:
         dq.popleft()
-    
+
     if len(dq) >= RATE_LIMIT:
         retry_after = int(window - (now - dq[0])) + 1
         log.warning(f"Rate limit exceeded for {client_ip} ({len(dq)}/{RATE_LIMIT})")
@@ -130,24 +131,25 @@ async def rate_limit_middleware(request: Request, call_next):
                 "Access-Control-Allow-Headers": "Content-Type, Authorization, X-API-Key",
             },
         )
-    
+
     dq.append(now)
-    
+
     # Periodically clean empty IPs to prevent memory leak
     if len(_rate_limits) > 10000:
         empty_ips = [ip for ip, dq in _rate_limits.items() if not dq]
         for ip in empty_ips:
             del _rate_limits[ip]
-    
+
     response = await call_next(request)
     return response
 
 
 # ----------------------------- Global Exception Handler ------------------------------
 
-from fastapi.responses import JSONResponse
 from fastapi.exceptions import RequestValidationError
+from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
+
 
 @app.exception_handler(StarletteHTTPException)
 async def http_exception_handler(request: Request, exc: StarletteHTTPException):
@@ -207,7 +209,7 @@ async def performance_middleware(request: Request, call_next):
     start = time.time()
     response = await call_next(request)
     duration_ms = (time.time() - start) * 1000
-    
+
     try:
         from error_tracking import perf_monitor, set_request_id
         endpoint = f"{request.method} {request.url.path}"
@@ -215,7 +217,7 @@ async def performance_middleware(request: Request, call_next):
         set_request_id()
     except Exception:
         pass
-    
+
     response.headers["X-Response-Time-Ms"] = str(round(duration_ms, 2))
     return response
 
@@ -283,9 +285,9 @@ async def _load_portfolio_from_mongo(name: str) -> Optional[Portfolio]:
         return None
     p = Portfolio(doc.get("name", name))
     p.cash = doc.get("cash", 0.0)
-    for pd in doc.get("positions", []):
+    for pos in doc.get("positions", []):
         try:
-            p.positions.append(_pos_from_dict(pd))
+            p.positions.append(_pos_from_dict(pos))
         except Exception:
             continue
     return p
@@ -384,8 +386,15 @@ def compute_gex_grid(spot: float, contracts: List[Dict[str, Any]], ticker: str =
     }
 # Import from shared module to avoid circular imports with portfolio.py
 from bs_greeks import (
-    bs_gamma, bs_vanna, bs_charm, bs_vomma, bs_zomma, bs_vega,
     RISK_FREE_RATE as BS_RISK_FREE_RATE,
+)
+from bs_greeks import (
+    bs_charm,
+    bs_gamma,
+    bs_vanna,
+    bs_vega,
+    bs_vomma,
+    bs_zomma,
 )
 
 RISK_FREE_RATE = BS_RISK_FREE_RATE
@@ -880,9 +889,9 @@ def compute_gex_by_strike(spot: float, contracts: List[Dict[str, Any]], ticker: 
 
 
 from bs_greeks import (
-    bs_gamma, bs_vanna, bs_charm, bs_vomma, bs_zomma, bs_vega,
     RISK_FREE_RATE as BS_RISK_FREE_RATE,
 )
+
 RISK_FREE_RATE = BS_RISK_FREE_RATE
 
 
@@ -1593,6 +1602,7 @@ def _sanitize(obj):
 
 # Cache import (lazy — only loaded when Redis is available)
 from functools import wraps as _wraps
+
 _cache_available = False
 try:
     from cache import cache_response
@@ -1876,9 +1886,10 @@ async def calc_portfolio_scenario(portfolio: dict, spot: float, iv: float) -> di
 
 async def calc_hedge_recommendation(portfolio: dict, hedge_request: dict) -> dict:
     """Calculate Greek-neutral hedge for a portfolio."""
-    from portfolio import Position
     import numpy as np
-    from bs_greeks import bs_gamma, bs_vega, bs_delta
+
+    from bs_greeks import bs_delta, bs_gamma, bs_vega
+    from portfolio import Position
 
     spot = float(hedge_request.get("spot", 0))
     iv = float(hedge_request.get("iv", 0.15))
@@ -1918,7 +1929,8 @@ async def calc_hedge_recommendation(portfolio: dict, hedge_request: dict) -> dic
 
     option_greeks = []
     for opt in hedge_options[:2]:
-        from datetime import datetime, date as date_type
+        from datetime import date as date_type
+        from datetime import datetime
         exp_date = datetime.strptime(opt["expiry"], "%Y-%m-%d").date()
         T = max((exp_date - date_type.today()).days / 365.0, 0.001)
         K = opt["strike"]
@@ -1966,7 +1978,7 @@ async def calc_hedge_recommendation(portfolio: dict, hedge_request: dict) -> dic
     }
 
 
-def calc_position_size(account_size: float, risk_per_trade_pct: float,
+def calc_position_size(account_size: float, risk_per_trade_pct: float,  # noqa: F811
                         spot: float, gex_level: float,
                         max_position_pct: float = 0.25) -> dict:
     """Calculate position size based on GEX levels and risk parameters."""
@@ -2326,9 +2338,10 @@ async def flow_sse(
 
     # Stream flow data
     async def _flow_stream():
-        from services.flowseeker import fetch_live_flow
         import asyncio as _asyncio
         import json as _json
+
+        from services.flowseeker import fetch_live_flow
         deadline = datetime.now(timezone.utc).timestamp() + max_seconds
         sent = False
         while datetime.now(timezone.utc).timestamp() < deadline:
@@ -2365,10 +2378,10 @@ async def websocket_gex(websocket: WebSocket, ticker: str):
     t = ticker.strip().upper()
     if t == "SPX":
         t = "^SPX"
-    
+
     consecutive_errors = 0
     max_errors = 10
-    
+
     try:
         while True:
             try:
@@ -2384,7 +2397,7 @@ async def websocket_gex(websocket: WebSocket, ticker: str):
                     positive = sorted([s for s in strikes if s["gex"] > 0], key=lambda x: x["gex"], reverse=True)
                     negative = sorted([s for s in strikes if s["gex"] < 0], key=lambda x: x["gex"])
                     nodes = classify_nodes(strikes, spot)
-                    
+
                     payload = {
                         "ticker": t,
                         "spot": spot,
@@ -2396,11 +2409,11 @@ async def websocket_gex(websocket: WebSocket, ticker: str):
                         "asof": datetime.now(timezone.utc).isoformat(),
                     }
                     await websocket.send_json(_sanitize(payload))
-                
+
                 # Back off on repeated errors
                 sleep_time = min(5 * (2 ** consecutive_errors), 60)
                 await asyncio.sleep(sleep_time)
-                
+
             except WebSocketDisconnect:
                 raise
             except Exception as e:
@@ -2458,6 +2471,7 @@ async def security_headers_middleware(request: Request, call_next):
 
 # Auth middleware — checks X-API-Key header for mutating routes
 from auth import verify_api_key
+
 
 @app.middleware("http")
 async def auth_middleware(request: Request, call_next):
@@ -2596,11 +2610,13 @@ async def on_stop():
 
 # ============ Health check ============
 from routes.health import router as health_router
+
 app.include_router(health_router, tags=["health"])
 
 # ============ Flowseeker route wiring ============
 # Skylit-parity live institutional options flow + drilldown.
 from routes.flowseeker import router as flowseeker_router
+
 app.include_router(flowseeker_router, tags=["flowseeker"])
 
 # ============ Route module wiring ============
@@ -2608,51 +2624,67 @@ app.include_router(flowseeker_router, tags=["flowseeker"])
 # All modules mounted with prefix="/api" for consistent URL structure.
 
 from routes.admin import router as admin_router
+
 app.include_router(admin_router, prefix="/api", tags=["admin"])
 
 from routes.alpaca import router as alpaca_router
+
 app.include_router(alpaca_router, tags=["alpaca"])
 
 from routes.analytics import router as analytics_router
+
 app.include_router(analytics_router, prefix="/api", tags=["analytics"])
 
 from routes.briefing import router as briefing_router
+
 app.include_router(briefing_router, prefix="/api", tags=["briefing"])
 
 from routes.morning_briefing_api import router as morning_briefing_router
+
 app.include_router(morning_briefing_router, prefix="/api", tags=["morning-briefing"])
 
 from routes.data_providers import router as data_providers_router
+
 app.include_router(data_providers_router, tags=["data"])
 
 from routes.flashalpha import router as flashalpha_router
+
 app.include_router(flashalpha_router, tags=["flashalpha"])
 
 from routes.gemini import router as gemini_router
+
 app.include_router(gemini_router, tags=["ai"])
 
 from routes.heatseeker import router as heatseeker_router
+
 app.include_router(heatseeker_router, tags=["heatseeker"])
 
 from routes.heatseeker_snapshots_api import router as heatseeker_snapshots_router
+
 app.include_router(heatseeker_snapshots_router, prefix="/api/heatseeker", tags=["heatseeker-snapshots"])
 
 from routes.ml_predict_api import router as ml_predict_router
+
 app.include_router(ml_predict_router, tags=["ml-predict"])
 
 from routes.ml_outcome_api import router as ml_outcome_router
+
 app.include_router(ml_outcome_router, tags=["ml-outcome"])
 
 from routes.predictive import router as predictive_router
+
 app.include_router(predictive_router, tags=["predictive"])
 
 from routes.live_trading import router as live_trading_router
+
 app.include_router(live_trading_router, prefix="/api", tags=["live_trading"])
 
 from routes.llm import router as llm_router
+
 app.include_router(llm_router, prefix="/api", tags=["llm"])
 
 from routes.memory import router as memory_router
+
 app.include_router(memory_router, prefix="/api", tags=["memory"])
 
 # ml_training_router removed 2026-05-25: all 10 routes called functions that
@@ -2661,87 +2693,112 @@ app.include_router(memory_router, prefix="/api", tags=["memory"])
 # in routes/ml_api.py and routes/ml_predict_api.py — those stay intact.
 
 from routes.portfolio import router as portfolio_router
+
 app.include_router(portfolio_router, prefix="/api", tags=["portfolio"])
 
 from routes.schwab import router as schwab_router
+
 app.include_router(schwab_router, prefix="/api", tags=["schwab"])
 
 from routes.social_flow import router as social_flow_router
+
 app.include_router(social_flow_router, tags=["social"])
 
 # Wire previously orphaned modules
 from routes.alerts import router as alerts_router
+
 app.include_router(alerts_router, tags=["alerts"])
 
 from routes.alerts_api import router as alerts_api_router
+
 app.include_router(alerts_api_router, tags=["alerts-api"])
 
 # Preferences & theme sync
 from routes.preferences import router as preferences_router
+
 app.include_router(preferences_router, tags=["preferences"])
 
 from routes.market_data import router as market_data_router
+
 app.include_router(market_data_router, prefix="/api", tags=["market_data"])
 
 from routes.ml_api import router as ml_api_router
+
 app.include_router(ml_api_router, tags=["ml_api"])
 
 from routes.ml_dashboard import router as ml_dashboard_router
+
 app.include_router(ml_dashboard_router, tags=["ml-dashboard"])
 
 from routes.chain import router as chain_router
+
 app.include_router(chain_router, tags=["chain"])
 
 # ============ Paper Blueprint Route Wiring ============
 # New API routes from the Project Oracle Master Directive
 
 from routes.vpin import router as vpin_router
+
 app.include_router(vpin_router, tags=["vpin"])
 
 from routes.retail_flow import router as retail_flow_router
+
 app.include_router(retail_flow_router, tags=["retail-flow"])
 
 from routes.trinity import router as trinity_router
+
 app.include_router(trinity_router, tags=["trinity"])
 
 from routes.anomaly import router as anomaly_router
+
 app.include_router(anomaly_router, tags=["anomaly"])
 
 from routes.ensemble import router as ensemble_router
+
 app.include_router(ensemble_router, tags=["ensemble"])
 
 from routes.liquidity import router as liquidity_router
+
 app.include_router(liquidity_router, tags=["liquidity"])
 
 from routes.hawkes import router as hawkes_router
+
 app.include_router(hawkes_router, tags=["hawkes"])
 
 from routes.vol_surface import router as vol_surface_router
+
 app.include_router(vol_surface_router, tags=["vol_surface"])
 
 # ============ Microstructure Combined API ============
 from routes.microstructure import router as microstructure_router
+
 app.include_router(microstructure_router, tags=["microstructure"])
 
 # ============ Replay, Agent Hub, Nexus ============
 from routes.replay import router as replay_router
+
 app.include_router(replay_router, tags=["replay"])
 
 from routes.agent_hub import router as agent_hub_router
+
 app.include_router(agent_hub_router, tags=["agent-hub"])
 
 from routes.nexus import router as nexus_router
+
 app.include_router(nexus_router, tags=["nexus"])
 
 # ============ Alpha Advantage Data API ============
 from routes.alpha_advantage import router as alpha_advantage_router
+
 app.include_router(alpha_advantage_router, tags=["alpha-advantage"])
 
 from routes.greeks import router as greeks_router
+
 app.include_router(greeks_router, prefix="/api/greeks", tags=["greeks"])
 
 # ============ Position Sizing (Kelly Criterion) ============
 from routes.position_sizing_api import router as position_sizing_router
+
 app.include_router(position_sizing_router, tags=["position-sizing"])
 
 # ============ AgentField Hub Initialization ============
@@ -2850,8 +2907,8 @@ async def shutdown_ingestion():
         log.warning(f"Ingestion shutdown error: {e}")
 
 # ============ Paper Trading Engine ============
-from services.paper_trading import PaperTradingEngine
 from routes.paper_trading import set_paper_engine as _set_paper_engine
+from services.paper_trading import PaperTradingEngine
 
 _paper_engine: Optional[PaperTradingEngine] = None
 
@@ -2893,10 +2950,12 @@ async def websocket_endpoint(websocket: WebSocket, topic: str):
 
 # ============ Paper Trading Routes ============
 from routes.paper_trading import router as paper_trading_router
+
 app.include_router(paper_trading_router, tags=["paper_trading"])
 
 # ============ Replay Route ============
 from routes.replay import router as replay_router
+
 app.include_router(replay_router, tags=["replay"])
 
 # ============ Dash UI Mount ============

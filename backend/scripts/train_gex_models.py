@@ -22,7 +22,6 @@ from __future__ import annotations
 import argparse
 import json
 import logging
-import os
 import sys
 import time
 from datetime import datetime, timezone
@@ -134,7 +133,6 @@ def walk_forward_cv(model, X, y, n_splits=5, embargo=5):
     fold_size = len(X) // (n_splits + 1)
     scores = []
     train_scores = []
-    sharpes = []
 
     for fold in range(n_splits):
         train_end = fold_size * (fold + 1)
@@ -153,11 +151,9 @@ def walk_forward_cv(model, X, y, n_splits=5, embargo=5):
             tr_pred = m.predict(X_tr)
             te_acc = accuracy_score(y_te, te_pred)
             tr_acc = accuracy_score(y_tr, tr_pred)
-            sharpe = te_acc / (1.0 - te_acc + 0.01)
             scores.append(te_acc)
             train_scores.append(tr_acc)
-            sharpes.append(sharpe)
-            log.info(f"  Fold {fold+1}: train={tr_acc:.4f} test={te_acc:.4f} gap={tr_acc-te_acc:.4f} sharpe={sharpe:.2f}")
+            log.info(f"  Fold {fold+1}: train={tr_acc:.4f} test={te_acc:.4f} gap={tr_acc-te_acc:.4f}")
         except Exception as e:
             log.warning(f"  Fold {fold+1}: failed: {e}")
 
@@ -170,7 +166,6 @@ def walk_forward_cv(model, X, y, n_splits=5, embargo=5):
         "mean_test": float(np.mean(scores)),
         "std_test": float(np.std(scores)),
         "mean_gap": float(np.mean([t - s for t, s in zip(train_scores, scores)])),
-        "mean_sharpe": float(np.mean(sharpes)),
     }
 
 
@@ -199,19 +194,22 @@ def train_ticker(ticker: str, output_dir: Path = None) -> dict:
     X_full = df[feature_cols].values.astype(float)
     y = df["target_3class"].values.astype(int)
 
-    # Feature selection
-    selected_names, selected_idx = select_features(X_full, y, feature_cols, max_features=25)
-    X = X_full[:, selected_idx]
+    # Train/test split FIRST — prevent leakage
+    split_idx = int(len(X_full) * 0.8)
+    X_full_train, X_full_test = X_full[:split_idx], X_full[split_idx:]
+    y_train, y_test = y[:split_idx], y[split_idx:]
 
-    # Scale
+    # Feature selection on train-only (no leakage)
+    selected_names, selected_idx = select_features(X_full_train, y_train, feature_cols, max_features=25)
+
+    X_train_sel = X_full_train[:, selected_idx]
+    X_test_sel = X_full_test[:, selected_idx]
+
+    # Scale on train-only (no leakage), then transform test
     from sklearn.preprocessing import StandardScaler
     scaler = StandardScaler()
-    X_scaled = scaler.fit_transform(X)
-
-    # Train/test split
-    split_idx = int(len(X) * 0.8)
-    X_train, X_test = X_scaled[:split_idx], X_scaled[split_idx:]
-    y_train, y_test = y[:split_idx], y[split_idx:]
+    X_train = scaler.fit_transform(X_train_sel)
+    X_test = scaler.transform(X_test_sel)
 
     # Candidate models
     from sklearn.ensemble import GradientBoostingClassifier, RandomForestClassifier
@@ -227,7 +225,7 @@ def train_ticker(ticker: str, output_dir: Path = None) -> dict:
 
     best_model = None
     best_name = None
-    best_sharpe = -999
+    best_score = -999
     best_cv = None
 
     for name, model in candidates.items():
@@ -235,9 +233,9 @@ def train_ticker(ticker: str, output_dir: Path = None) -> dict:
         cv = walk_forward_cv(model, X_train, y_train, n_splits=5, embargo=5)
         if "error" in cv:
             continue
-        log.info(f"  {name}: test={cv['mean_test']:.4f} gap={cv['mean_gap']:.4f} sharpe={cv['mean_sharpe']:.2f}")
-        if cv["mean_sharpe"] > best_sharpe:
-            best_sharpe = cv["mean_sharpe"]
+        log.info(f"  {name}: test={cv['mean_test']:.4f} gap={cv['mean_gap']:.4f}")
+        if cv["mean_test"] > best_score:
+            best_score = cv["mean_test"]
             best_model = model
             best_name = name
             best_cv = cv
@@ -246,7 +244,7 @@ def train_ticker(ticker: str, output_dir: Path = None) -> dict:
         return {"error": "no model trained successfully"}
 
     # Train best on full training set
-    log.info(f"Best: {best_name} (sharpe={best_sharpe:.2f})")
+    log.info(f"Best: {best_name} (OOS acc={best_score:.4f})")
     best_model.fit(X_train, y_train)
 
     from sklearn.metrics import accuracy_score
@@ -269,7 +267,7 @@ def train_ticker(ticker: str, output_dir: Path = None) -> dict:
     result = {
         "ticker": ticker,
         "model_type": best_name,
-        "n_samples": len(X),
+        "n_samples": len(X_train) + len(X_test),
         "n_train": len(X_train),
         "n_test": len(X_test),
         "n_features": len(selected_names),
@@ -281,7 +279,6 @@ def train_ticker(ticker: str, output_dir: Path = None) -> dict:
         "walk_forward_mean": best_cv["mean_test"],
         "walk_forward_std": best_cv["std_test"],
         "walk_forward_gap": best_cv["mean_gap"],
-        "walk_forward_sharpe": best_cv["mean_sharpe"],
         "n_folds": best_cv["n_folds"],
         "per_class_test": per_class,
         "feature_version": "v3.0_gex",
@@ -336,13 +333,13 @@ def main():
     log.info(f"\n{'=' * 70}")
     log.info("GEX TRAINING SUMMARY")
     log.info(f"{'=' * 70}")
-    print(f"\n{'Ticker':<8} {'Model':<10} {'Test':>8} {'Gap':>8} {'WF Sharpe':>10} {'Features':>10} {'Time':>8}")
+    print(f"\n{'Ticker':<8} {'Model':<10} {'Test':>8} {'Gap':>8} {'Features':>10} {'Time':>8}")
     print("-" * 70)
     for ticker, r in results.items():
         if "error" in r:
             print(f"{ticker:<8} ERROR: {r['error'][:40]}")
         else:
-            print(f"{ticker:<8} {r['model_type']:<10} {r['test_accuracy']:>8.4f} {r['overfit_gap']:>8.4f} {r['walk_forward_sharpe']:>10.2f} {r['n_features']:>10} {r['time_sec']:>7.1f}s")
+            print(f"{ticker:<8} {r['model_type']:<10} {r['test_accuracy']:>8.4f} {r['overfit_gap']:>8.4f} {r['n_features']:>10} {r['time_sec']:>7.1f}s")
 
     # Save report
     REPORTS_DIR.mkdir(parents=True, exist_ok=True)
