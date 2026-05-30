@@ -274,6 +274,16 @@ fills_total = Counter(
 )
 
 # ---------------------------------------------------------------------------
+# Circuit Breaker metrics
+# ---------------------------------------------------------------------------
+circuit_breaker_state = Gauge(
+    "floww_circuit_breaker_state",
+    "Circuit breaker state per provider (0=closed, 1=open, 2=half_open)",
+    labelnames=["provider"],
+    registry=REGISTRY,
+)
+
+# ---------------------------------------------------------------------------
 # Cache & Rate Limit metrics
 # ---------------------------------------------------------------------------
 cache_hit_ratio = Gauge(

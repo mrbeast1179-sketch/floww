@@ -11,6 +11,68 @@ from datetime import datetime, timezone
 
 
 # ---------------------------------------------------------------------------
+# Async websocket mocks
+#
+# Production does `async with websockets.connect(...) as ws:` then
+# `async for msg in ws:`. websockets.connect() is called synchronously and
+# returns an async context manager, so a patched side_effect must be a *sync*
+# function returning an async-CM whose __aenter__ yields an async-iterable ws.
+# (The old AsyncMock(side_effect=iter(...)) produced a coroutine and never
+# satisfied the async-CM / async-iterator protocols — the source of the failures.)
+# ---------------------------------------------------------------------------
+
+class _FakeWS:
+    """Async-iterable fake websocket: yields `messages` then ends the stream."""
+
+    def __init__(self, messages=None, closed=False):
+        self._messages = list(messages or [])
+        self.closed = closed
+        self.sent = []
+
+    async def send(self, data):
+        self.sent.append(data)
+
+    async def close(self):
+        self.closed = True
+
+    def __aiter__(self):
+        return self
+
+    async def __anext__(self):
+        if not self._messages:
+            self.closed = True  # stream ended => connection closed (matches real ws)
+            raise StopAsyncIteration
+        return self._messages.pop(0)
+
+
+class _FakeConnect:
+    """Async context manager returned by a mocked websockets.connect()."""
+
+    def __init__(self, ws=None, raise_on_enter=None):
+        self._ws = ws if ws is not None else _FakeWS()
+        self._raise = raise_on_enter
+
+    async def __aenter__(self):
+        if self._raise is not None:
+            raise self._raise
+        return self._ws
+
+    async def __aexit__(self, *exc):
+        return False
+
+
+def _connect_side_effect(ws=None, raise_on_enter=None, capture_headers=None):
+    """Sync side_effect mimicking websockets.connect(url, extra_headers=...)."""
+
+    def _connect(url, extra_headers=None, **kwargs):
+        if capture_headers is not None and extra_headers:
+            capture_headers.update(extra_headers)
+        return _FakeConnect(ws=ws, raise_on_enter=raise_on_enter)
+
+    return _connect
+
+
+# ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------
 
@@ -70,16 +132,14 @@ async def test_token_refresh_when_expired(streamer, mock_token_manager):
     mock_token_manager.is_expired.return_value = True
     mock_token_manager.refresh_token = AsyncMock(return_value="new-refreshed-token")
 
-    # Mock websockets.connect to capture the auth header
+    # Capture the auth header; the connection raises after capture to exit.
     captured_headers = {}
+    side_effect = _connect_side_effect(
+        raise_on_enter=ConnectionError("mock connection failed"),
+        capture_headers=captured_headers,
+    )
 
-    async def mock_connect(url, extra_headers=None, **kwargs):
-        if extra_headers:
-            captured_headers.update(extra_headers)
-        # Immediately raise to exit the connection attempt
-        raise ConnectionError("mock connection failed")
-
-    with patch("services.schwab_streamer.websockets.connect", side_effect=mock_connect):
+    with patch("services.schwab_streamer.websockets.connect", side_effect=side_effect):
         streamer._running = True
         try:
             await streamer._connect_and_stream()
@@ -120,15 +180,10 @@ async def test_resubscribe_after_reconnect(streamer, mock_token_manager):
 
     streamer._subscribe_default = tracking_subscribe
 
-    # Simulate a successful connection that immediately drops
-    mock_ws = AsyncMock()
-    mock_ws.__aiter__ = AsyncMock(side_effect=iter([]))  # empty message stream
-    mock_ws.closed = True
+    # Successful connection with an empty message stream (drops immediately).
+    side_effect = _connect_side_effect(ws=_FakeWS(messages=[], closed=True))
 
-    async def mock_connect(*args, **kwargs):
-        return mock_ws
-
-    with patch("services.schwab_streamer.websockets.connect", side_effect=mock_connect):
+    with patch("services.schwab_streamer.websockets.connect", side_effect=side_effect):
         streamer._running = True
         try:
             await streamer._connect_and_stream()
@@ -208,6 +263,7 @@ async def test_exponential_backoff_respects_max(streamer, mock_token_manager):
     """Reconnect delay doubles but never exceeds max_reconnect_delay."""
     streamer.initial_reconnect_delay = 1.0
     streamer.max_reconnect_delay = 5.0
+    streamer._reconnect_delay = 1.0
 
     delays_seen = []
     original_sleep = asyncio.sleep
@@ -232,13 +288,13 @@ async def test_exponential_backoff_respects_max(streamer, mock_token_manager):
     with patch("asyncio.sleep", side_effect=tracking_sleep):
         await streamer.start()
 
-    # Delays should be: 1.0, 2.0, 4.0 (doubling, capped at 5.0)
-    assert len(delays_seen) >= 2, f"Expected ≥2 delays, got {len(delays_seen)}"
-    assert delays_seen[0] == 1.0, f"First delay should be 1.0, got {delays_seen[0]}"
-    assert delays_seen[1] == 2.0, f"Second delay should be 2.0, got {delays_seen[1]}"
-    # Third delay should be 4.0 (doubled from 2.0, still under 5.0 cap)
+    # Base delay doubles 1.0 -> 2.0 -> 4.0 (capped at 5.0); start() adds 0..30%
+    # jitter on top, so each observed sleep is in [base, base * 1.3).
+    assert len(delays_seen) >= 2, f"Expected >=2 delays, got {len(delays_seen)}"
+    assert 1.0 <= delays_seen[0] < 1.3, f"1st delay (base 1.0 + jitter) out of range: {delays_seen[0]}"
+    assert 2.0 <= delays_seen[1] < 2.6, f"2nd delay (base 2.0 + jitter) out of range: {delays_seen[1]}"
     if len(delays_seen) >= 3:
-        assert delays_seen[2] == 4.0, f"Third delay should be 4.0, got {delays_seen[2]}"
+        assert 4.0 <= delays_seen[2] < 5.2, f"3rd delay (base 4.0 + jitter) out of range: {delays_seen[2]}"
 
 
 # ---------------------------------------------------------------------------
@@ -248,21 +304,15 @@ async def test_exponential_backoff_respects_max(streamer, mock_token_manager):
 @pytest.mark.asyncio
 async def test_health_tracking(streamer, mock_token_manager):
     """Health dict updates correctly on connect/disconnect."""
-    mock_ws = AsyncMock()
-    mock_ws.closed = False
-
-    # Simulate receiving 3 messages then disconnect
+    # Stream 3 messages then disconnect.
     messages = [
         json.dumps({"service": "HEARTBEAT"}),
         json.dumps({"service": "LEVELONE_EQUITIES", "content": [{"key": "SPY", "1": 450.0, "2": 450.1, "3": 450.05, "4": 100, "5": 200, "6": 1000}]}),
         json.dumps({"service": "HEARTBEAT"}),
     ]
-    mock_ws.__aiter__ = AsyncMock(side_effect=iter(messages))
+    side_effect = _connect_side_effect(ws=_FakeWS(messages=messages))
 
-    async def mock_connect(*args, **kwargs):
-        return mock_ws
-
-    with patch("services.schwab_streamer.websockets.connect", side_effect=mock_connect):
+    with patch("services.schwab_streamer.websockets.connect", side_effect=side_effect):
         streamer._running = True
         try:
             await streamer._connect_and_stream()
@@ -286,19 +336,13 @@ async def test_error_handler_dispatch(streamer, mock_token_manager):
     error_handler = AsyncMock()
     streamer._error_handlers.append(error_handler)
 
-    mock_ws = AsyncMock()
-    mock_ws.closed = False
-
-    # Send an error message then disconnect
+    # Send an error message then disconnect.
     messages = [
         json.dumps({"error": "RATE_LIMIT_EXCEEDED", "message": "Too many requests"}),
     ]
-    mock_ws.__aiter__ = AsyncMock(side_effect=iter(messages))
+    side_effect = _connect_side_effect(ws=_FakeWS(messages=messages))
 
-    async def mock_connect(*args, **kwargs):
-        return mock_ws
-
-    with patch("services.schwab_streamer.websockets.connect", side_effect=mock_connect):
+    with patch("services.schwab_streamer.websockets.connect", side_effect=side_effect):
         streamer._running = True
         try:
             await streamer._connect_and_stream()

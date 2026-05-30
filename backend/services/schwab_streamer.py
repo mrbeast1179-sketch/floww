@@ -21,6 +21,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import random
 from typing import Any, Callable, Dict, List, Optional, Set
 from datetime import datetime, timezone
 
@@ -116,12 +117,16 @@ class SchwabStreamer:
                 if not self._running:
                     break
                 self._metrics["reconnects"] += 1
+                # Exponential backoff with jitter (±30%) to prevent
+                # thundering herd when multiple clients reconnect.
+                jitter = random.uniform(0, 0.3 * self._reconnect_delay)
+                delay = self._reconnect_delay + jitter
                 logger.warning(
                     f"Schwab streamer disconnected: {e}. "
-                    f"Reconnecting in {self._reconnect_delay:.1f}s "
+                    f"Reconnecting in {delay:.1f}s "
                     f"(attempt {self._metrics['reconnects']})"
                 )
-                await asyncio.sleep(self._reconnect_delay)
+                await asyncio.sleep(delay)
                 self._reconnect_delay = min(
                     self._reconnect_delay * 2, self.max_reconnect_delay
                 )
