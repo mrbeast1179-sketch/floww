@@ -136,7 +136,7 @@ class ModelInfo:
     feature_names: List[str]
     train_accuracy: float
     test_accuracy: float = 0.0
-    artifact_path: str
+    artifact_path: str = ""
     loaded: bool = False
 
 
@@ -434,9 +434,9 @@ class InferenceEngine:
                 "model_type": artifact.get("model_name", "unknown"),
                 "feature_names": artifact.get("feature_names", []),
                 "n_features": len(artifact.get("feature_names", [])),
-                "train_accuracy": metrics.get("avg_train_accuracy", 0.0),
-                "test_accuracy": metrics.get("avg_test_accuracy", 0.0),
-                "test_sharpe": metrics.get("avg_test_sharpe", 0.0),
+                "train_accuracy": metrics.get("avg_train_accuracy", metrics.get("overall_accuracy", 0.0)),
+                "test_accuracy": metrics.get("avg_test_accuracy", metrics.get("avg_fold_accuracy", 0.0)),
+                "test_sharpe": metrics.get("avg_test_sharpe", metrics.get("overall_sharpe", 0.0)),
                 "model_path": model_path,
             }
         else:
@@ -446,13 +446,17 @@ class InferenceEngine:
                 with open(m_path) as _f:
                     _md = _json.load(_f)
                 _metrics = _md.get("metrics", _md)
+                # Support both old manifest format and new format
+                # New: metrics.avg_fold_train_accuracy / overall_accuracy; Old: avg_train_accuracy / avg_test_accuracy
+                _train_acc = _md.get("train_accuracy") or _metrics.get("avg_fold_train_accuracy") or _metrics.get("avg_train_accuracy", 0.0)
+                _test_acc = _md.get("test_accuracy") or _metrics.get("overall_accuracy") or _metrics.get("avg_test_accuracy", 0.0)
                 manifest = {
                     "model_type": _md.get("model_type", type(artifact).__name__),
                     "feature_names": _md.get("feature_names", []),
                     "n_features": len(_md.get("feature_names", [])),
-                    "train_accuracy": _md.get("train_accuracy", _metrics.get("avg_train_accuracy", 0.0)),
-                    "test_accuracy": _md.get("test_accuracy", _metrics.get("avg_test_accuracy", 0.0)),
-                    "test_sharpe": _md.get("test_sharpe", _metrics.get("avg_test_sharpe", 0.0)),
+                    "train_accuracy": _train_acc,
+                    "test_accuracy": _test_acc,
+                    "test_sharpe": _md.get("test_sharpe", _metrics.get("avg_test_sharpe", _metrics.get("overall_sharpe", 0.0))),
                     "model_path": model_path,
                 }
             else:
