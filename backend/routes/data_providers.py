@@ -1,7 +1,7 @@
 import logging
 from typing import Any, Dict, Optional
 
-from backend.services.request_deduplicator import deduplicator
+from services.request_deduplicator import deduplicator
 
 logger = logging.getLogger(__name__)
 
