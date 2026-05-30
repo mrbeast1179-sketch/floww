@@ -459,6 +459,7 @@ class InferenceEngine:
                     "test_accuracy": _test_acc,
                     "test_sharpe": _md.get("test_sharpe", _metrics.get("avg_test_sharpe", _metrics.get("overall_sharpe", 0.0))),
                     "model_path": model_path,
+                    "model_id": _md.get("model_id", f"{ticker}_{_md.get('model_type', 'unknown')}_v1"),
                 }
             else:
                 n_feat = getattr(artifact, "n_features_in_", 0)
@@ -519,14 +520,29 @@ class InferenceEngine:
 
         X = latest.values.astype(float)
 
+        # Apply scaler if model registry has one
+        entry = MODEL_REGISTRY.get(ticker.upper())
+        if entry and len(entry) > 1 and entry[1]:
+            scaler_path = entry[1]
+            if os.path.exists(scaler_path):
+                import joblib as _jb
+                if not hasattr(self, "_scaler_cache"):
+                    self._scaler_cache = {}
+                if ticker.upper() not in self._scaler_cache:
+                    self._scaler_cache[ticker.upper()] = _jb.load(scaler_path)
+                X = self._scaler_cache[ticker.upper()].transform(X)
+
         # Run prediction
         raw_prediction = int(model.predict(X)[0])
         probabilities = None
         if hasattr(model, "predict_proba"):
             probabilities = model.predict_proba(X)[0].tolist()
 
-        # Map to 3-class
-        if probabilities and len(probabilities) == 2:
+        # Handle 3-class natively, or binary→3way mapping for legacy
+        if probabilities and len(probabilities) == 3:
+            prediction_3way = int(np.argmax(probabilities))
+            confidence = float(max(probabilities))
+        elif probabilities and len(probabilities) == 2:
             prediction_3way, proba_3way = _map_binary_to_3way(raw_prediction, probabilities)
             confidence = max(proba_3way)
             probabilities = proba_3way
