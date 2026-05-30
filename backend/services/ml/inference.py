@@ -49,24 +49,24 @@ MODEL_DIR = Path(__file__).resolve().parents[2] / "models"
 # Tuple format: (model_path, scaler_path, manifest_path)
 MODEL_REGISTRY: Dict[str, Tuple[str, ...]] = {
     "DIA": (
-        str(MODEL_DIR / "DIA_gbm_production.joblib"),
-        str(MODEL_DIR / "DIA_gbm_production_scaler.joblib"),
-        str(MODEL_DIR / "DIA_gbm_production_manifest.json"),
+        str(MODEL_DIR / "DIA_rf_production.joblib"),
+        str(MODEL_DIR / "DIA_rf_production_scaler.joblib"),
+        str(MODEL_DIR / "DIA_rf_production_manifest.json"),
     ),
     "IWM": (
-        str(MODEL_DIR / "IWM_gbm_production.joblib"),
-        str(MODEL_DIR / "IWM_gbm_production_scaler.joblib"),
-        str(MODEL_DIR / "IWM_gbm_production_manifest.json"),
+        str(MODEL_DIR / "IWM_rf_production.joblib"),
+        str(MODEL_DIR / "IWM_rf_production_scaler.joblib"),
+        str(MODEL_DIR / "IWM_rf_production_manifest.json"),
     ),
     "QQQ": (
-        str(MODEL_DIR / "QQQ_gbm_production.joblib"),
-        str(MODEL_DIR / "QQQ_gbm_production_scaler.joblib"),
-        str(MODEL_DIR / "QQQ_gbm_production_manifest.json"),
+        str(MODEL_DIR / "QQQ_rf_production.joblib"),
+        str(MODEL_DIR / "QQQ_rf_production_scaler.joblib"),
+        str(MODEL_DIR / "QQQ_rf_production_manifest.json"),
     ),
     "SPY": (
-        str(MODEL_DIR / "SPY_gbm_production.joblib"),
-        str(MODEL_DIR / "SPY_gbm_production_scaler.joblib"),
-        str(MODEL_DIR / "SPY_gbm_production_manifest.json"),
+        str(MODEL_DIR / "SPY_rf_production.joblib"),
+        str(MODEL_DIR / "SPY_rf_production_scaler.joblib"),
+        str(MODEL_DIR / "SPY_rf_production_manifest.json"),
     ),
     "TLT": (
         str(MODEL_DIR / "TLT_rf_production.joblib"),
@@ -432,7 +432,7 @@ class InferenceEngine:
             model = artifact["model"]
             metrics = artifact.get("metrics", {})
             manifest = {
-                "model_type": artifact.get("model_name", "unknown"),
+                "model_type": artifact.get("model_name", artifact.get("model", "unknown")),
                 "feature_names": artifact.get("feature_names", []),
                 "n_features": len(artifact.get("feature_names", [])),
                 "train_accuracy": metrics.get("avg_train_accuracy", metrics.get("overall_accuracy", 0.0)),
@@ -452,7 +452,7 @@ class InferenceEngine:
                 _train_acc = _md.get("train_accuracy") or _metrics.get("avg_fold_train_accuracy") or _metrics.get("avg_train_accuracy", 0.0)
                 _test_acc = _md.get("test_accuracy") or _metrics.get("overall_accuracy") or _metrics.get("avg_test_accuracy", 0.0)
                 manifest = {
-                    "model_type": _md.get("model_type", type(artifact).__name__),
+                    "model_type": _md.get("model_type", _md.get("model", type(artifact).__name__)),
                     "feature_names": _md.get("feature_names", []),
                     "n_features": len(_md.get("feature_names", [])),
                     "train_accuracy": _train_acc,
