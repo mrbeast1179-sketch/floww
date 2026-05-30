@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import sys
 import types
+import importlib.util
 from pathlib import Path
 
 import numpy as np
@@ -15,14 +16,13 @@ import pytest
 
 # ── Bootstrap: mock heavy dependencies ──────────────────────────────────
 
-# Mock services.observability
+# Stub services.observability — setdefault only; NEVER replace
+# sys.modules["services"]: clobbering the package strips __path__ and poisons
+# `from services.X import ...` collection for the rest of the session.
 obs = types.ModuleType("services.observability")
 obs.duckdb_queue_depth = type("M", (), {"set": lambda s, v: None})()
 obs.duckdb_batch_size = type("M", (), {"observe": lambda s, v: None})()
-sys.modules["services.observability"] = obs
-if "services" not in sys.modules:
-    sys.modules["services"] = types.ModuleType("services")
-sys.modules["services"].observability = obs
+sys.modules.setdefault("services.observability", obs)
 
 # Mock torch (not available in test env)
 torch_mock = types.ModuleType("torch")
@@ -34,15 +34,21 @@ torch_mock.device = lambda *a, **kw: "cpu"
 torch_mock.no_grad = lambda: types.ModuleType("_ctx")
 torch_mock.no_grad.__enter__ = lambda s: None
 torch_mock.no_grad.__exit__ = lambda s, *a: None
-sys.modules["torch"] = torch_mock
-sys.modules["torch.nn"] = torch_mock.nn
+# setdefault only — use real torch/scipy when installed (they are, locally),
+# fall back to the stub only when absent (e.g. CI without torch). NEVER replace
+# real modules: clobbering sys.modules["scipy"] breaks scipy-using tests later in
+# the session (test_train_spy_v2, test_pipeline_integration).
+if importlib.util.find_spec("torch") is None:  # stub only when truly absent (minimal CI)
+    sys.modules.setdefault("torch", torch_mock)
+    sys.modules.setdefault("torch.nn", torch_mock.nn)
 
-# Mock scipy
+# Stub scipy (fallback only)
 scipy_mock = types.ModuleType("scipy")
 scipy_mock.optimize = types.ModuleType("scipy.optimize")
 scipy_mock.optimize.minimize = lambda *a, **kw: type("R", (), {"x": [1.0, 0.0]})()
-sys.modules["scipy"] = scipy_mock
-sys.modules["scipy.optimize"] = scipy_mock.optimize
+if importlib.util.find_spec("scipy") is None:  # stub only when truly absent
+    sys.modules.setdefault("scipy", scipy_mock)
+    sys.modules.setdefault("scipy.optimize", scipy_mock.optimize)
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 

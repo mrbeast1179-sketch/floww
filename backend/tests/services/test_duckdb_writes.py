@@ -8,13 +8,14 @@ from unittest.mock import AsyncMock, patch
 import logging
 import sys, types
 
-# Mock services.observability before importing
+# Stub services.observability so importing duckdb_engine doesn't pull in the
+# real prometheus-backed module. setdefault only — NEVER replace
+# sys.modules['services'] itself: clobbering the package strips its __path__ and
+# breaks every later `from services.X import ...` in the session (poisons collection).
 obs = types.ModuleType('services.observability')
 obs.duckdb_queue_depth = type('M', (), {'set': lambda s, v: None})()
 obs.duckdb_batch_size = type('M', (), {'observe': lambda s, v: None})()
-sys.modules['services.observability'] = obs
-sys.modules['services'] = types.ModuleType('services')
-sys.modules['services'].observability = obs
+sys.modules.setdefault('services.observability', obs)
 
 from services.duckdb_engine import retry_on_failure
 
