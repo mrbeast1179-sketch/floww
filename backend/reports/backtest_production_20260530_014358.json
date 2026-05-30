@@ -1,0 +1,572 @@
+{
+  "SPY": {
+    "overall_accuracy": 0.47333333333333333,
+    "per_class": {
+      "DOWN": {
+        "accuracy": 0.4225352112676056,
+        "support": 71
+      },
+      "HOLD": {
+        "accuracy": 0.5189873417721519,
+        "support": 79
+      }
+    },
+    "directional_accuracy": 1.0,
+    "majority_baseline": 0.5266666666666666,
+    "persistence_baseline": 0.5,
+    "n_predictions": 150,
+    "n_folds": 3,
+    "fold_metrics": [
+      {
+        "fold": 6,
+        "test_acc": 0.38,
+        "n_train": 12,
+        "n_test": 50,
+        "date_start": "2024-02-01 00:00:00",
+        "date_end": "2024-05-03 00:00:00"
+      },
+      {
+        "fold": 7,
+        "test_acc": 0.52,
+        "n_train": 62,
+        "n_test": 50,
+        "date_start": "2024-05-07 00:00:00",
+        "date_end": "2024-09-18 00:00:00"
+      },
+      {
+        "fold": 8,
+        "test_acc": 0.52,
+        "n_train": 112,
+        "n_test": 50,
+        "date_start": "2024-09-19 00:00:00",
+        "date_end": "2024-12-30 00:00:00"
+      }
+    ],
+    "pnl": {
+      "total_return": -1.0,
+      "buy_hold_return": -1.000026278941329,
+      "sharpe": -2.0214780879497574,
+      "max_drawdown": -1.0000816543448445,
+      "win_rate": 0.4117647058823529,
+      "total_trades": 68,
+      "avg_win": 0.5537182970371252,
+      "avg_loss": -0.6245199556920517,
+      "n_days": 150
+    },
+    "ticker": "SPY",
+    "model_type": "rf",
+    "n_features": 20,
+    "data_rows": 167,
+    "feature_names": [
+      "ret_10d",
+      "ret_21d",
+      "sma_10",
+      "sma_21",
+      "price_vs_sma_21",
+      "atr_14",
+      "volume_sma_5",
+      "volume_sma_21",
+      "relative_volume",
+      "realized_vol_5d",
+      "realized_vol_10d",
+      "realized_vol_21d",
+      "realized_vol_60d",
+      "rsi_14",
+      "macd_hist",
+      "bb_position",
+      "vol_ratio_5_21",
+      "vol_ratio_5_60",
+      "sma_5_21_diff",
+      "vol_spike"
+    ],
+    "time_sec": 0.9541370868682861
+  },
+  "QQQ": {
+    "overall_accuracy": 0.5575,
+    "per_class": {
+      "DOWN": {
+        "accuracy": 0.17647058823529413,
+        "support": 170
+      },
+      "HOLD": {
+        "accuracy": 0.8391304347826087,
+        "support": 230
+      }
+    },
+    "directional_accuracy": 1.0,
+    "majority_baseline": 0.575,
+    "persistence_baseline": 0.4975,
+    "n_predictions": 400,
+    "n_folds": 8,
+    "fold_metrics": [
+      {
+        "fold": 1,
+        "test_acc": 0.62,
+        "n_train": 495,
+        "n_test": 50,
+        "date_start": "2024-10-10 00:00:00",
+        "date_end": "2024-12-19 00:00:00"
+      },
+      {
+        "fold": 2,
+        "test_acc": 0.52,
+        "n_train": 495,
+        "n_test": 50,
+        "date_start": "2024-12-20 00:00:00",
+        "date_end": "2025-03-06 00:00:00"
+      },
+      {
+        "fold": 3,
+        "test_acc": 0.58,
+        "n_train": 495,
+        "n_test": 50,
+        "date_start": "2025-03-07 00:00:00",
+        "date_end": "2025-05-16 00:00:00"
+      },
+      {
+        "fold": 4,
+        "test_acc": 0.58,
+        "n_train": 495,
+        "n_test": 50,
+        "date_start": "2025-05-19 00:00:00",
+        "date_end": "2025-07-30 00:00:00"
+      },
+      {
+        "fold": 5,
+        "test_acc": 0.52,
+        "n_train": 495,
+        "n_test": 50,
+        "date_start": "2025-07-31 00:00:00",
+        "date_end": "2025-10-09 00:00:00"
+      },
+      {
+        "fold": 6,
+        "test_acc": 0.6,
+        "n_train": 495,
+        "n_test": 50,
+        "date_start": "2025-10-10 00:00:00",
+        "date_end": "2025-12-19 00:00:00"
+      },
+      {
+        "fold": 7,
+        "test_acc": 0.5,
+        "n_train": 495,
+        "n_test": 50,
+        "date_start": "2025-12-22 00:00:00",
+        "date_end": "2026-03-05 00:00:00"
+      },
+      {
+        "fold": 8,
+        "test_acc": 0.54,
+        "n_train": 495,
+        "n_test": 50,
+        "date_start": "2026-03-06 00:00:00",
+        "date_end": "2026-05-15 00:00:00"
+      }
+    ],
+    "pnl": {
+      "total_return": -0.020462219161412998,
+      "buy_hold_return": 0.4506470522709718,
+      "sharpe": -0.18230566619678049,
+      "max_drawdown": -0.10059513235634261,
+      "win_rate": 0.4393939393939394,
+      "total_trades": 66,
+      "avg_win": 0.007940985265398453,
+      "avg_loss": -0.006702662368632881,
+      "n_days": 400
+    },
+    "ticker": "QQQ",
+    "model_type": "logistic",
+    "n_features": 20,
+    "data_rows": 2799,
+    "feature_names": [
+      "ret_3d",
+      "ret_5d",
+      "ret_10d",
+      "ret_21d",
+      "sma_5",
+      "sma_21",
+      "price_vs_sma_21",
+      "atr_14",
+      "volume_sma_21",
+      "relative_volume",
+      "realized_vol_5d",
+      "realized_vol_10d",
+      "realized_vol_21d",
+      "rsi_14",
+      "macd_hist",
+      "bb_position",
+      "vol_ratio_5_21",
+      "vol_ratio_5_60",
+      "sma_5_21_diff",
+      "vol_spike"
+    ],
+    "time_sec": 0.030405282974243164
+  },
+  "DIA": {
+    "overall_accuracy": 0.525,
+    "per_class": {
+      "DOWN": {
+        "accuracy": 0.1164021164021164,
+        "support": 189
+      },
+      "HOLD": {
+        "accuracy": 0.8909952606635071,
+        "support": 211
+      }
+    },
+    "directional_accuracy": 1.0,
+    "majority_baseline": 0.5275,
+    "persistence_baseline": 0.4825,
+    "n_predictions": 400,
+    "n_folds": 8,
+    "fold_metrics": [
+      {
+        "fold": 1,
+        "test_acc": 0.44,
+        "n_train": 495,
+        "n_test": 50,
+        "date_start": "2024-10-10 00:00:00",
+        "date_end": "2024-12-19 00:00:00"
+      },
+      {
+        "fold": 2,
+        "test_acc": 0.5,
+        "n_train": 495,
+        "n_test": 50,
+        "date_start": "2024-12-20 00:00:00",
+        "date_end": "2025-03-06 00:00:00"
+      },
+      {
+        "fold": 3,
+        "test_acc": 0.52,
+        "n_train": 495,
+        "n_test": 50,
+        "date_start": "2025-03-07 00:00:00",
+        "date_end": "2025-05-16 00:00:00"
+      },
+      {
+        "fold": 4,
+        "test_acc": 0.56,
+        "n_train": 495,
+        "n_test": 50,
+        "date_start": "2025-05-19 00:00:00",
+        "date_end": "2025-07-30 00:00:00"
+      },
+      {
+        "fold": 5,
+        "test_acc": 0.54,
+        "n_train": 495,
+        "n_test": 50,
+        "date_start": "2025-07-31 00:00:00",
+        "date_end": "2025-10-09 00:00:00"
+      },
+      {
+        "fold": 6,
+        "test_acc": 0.58,
+        "n_train": 495,
+        "n_test": 50,
+        "date_start": "2025-10-10 00:00:00",
+        "date_end": "2025-12-19 00:00:00"
+      },
+      {
+        "fold": 7,
+        "test_acc": 0.56,
+        "n_train": 495,
+        "n_test": 50,
+        "date_start": "2025-12-22 00:00:00",
+        "date_end": "2026-03-05 00:00:00"
+      },
+      {
+        "fold": 8,
+        "test_acc": 0.5,
+        "n_train": 495,
+        "n_test": 50,
+        "date_start": "2026-03-06 00:00:00",
+        "date_end": "2026-05-15 00:00:00"
+      }
+    ],
+    "pnl": {
+      "total_return": -0.012965114125198296,
+      "buy_hold_return": 0.1949259517017845,
+      "sharpe": -0.18489120903599882,
+      "max_drawdown": -0.05261660856754326,
+      "win_rate": 0.4888888888888889,
+      "total_trades": 45,
+      "avg_win": 0.0056744080667388355,
+      "avg_loss": -0.005939415781484011,
+      "n_days": 400
+    },
+    "ticker": "DIA",
+    "model_type": "rf",
+    "n_features": 20,
+    "data_rows": 2799,
+    "feature_names": [
+      "ret_10d",
+      "ret_21d",
+      "sma_21",
+      "sma_50",
+      "price_vs_sma_50",
+      "atr_14",
+      "volume_sma_5",
+      "volume_sma_21",
+      "relative_volume",
+      "realized_vol_5d",
+      "realized_vol_10d",
+      "realized_vol_21d",
+      "realized_vol_60d",
+      "rsi_14",
+      "macd_hist",
+      "bb_position",
+      "vol_ratio_5_21",
+      "vol_ratio_5_60",
+      "sma_5_21_diff",
+      "vol_spike"
+    ],
+    "time_sec": 0.8286459445953369
+  },
+  "IWM": {
+    "overall_accuracy": 0.5225,
+    "per_class": {
+      "DOWN": {
+        "accuracy": 0.34972677595628415,
+        "support": 183
+      },
+      "HOLD": {
+        "accuracy": 0.6682027649769585,
+        "support": 217
+      }
+    },
+    "directional_accuracy": 1.0,
+    "majority_baseline": 0.5425,
+    "persistence_baseline": 0.4875,
+    "n_predictions": 400,
+    "n_folds": 8,
+    "fold_metrics": [
+      {
+        "fold": 1,
+        "test_acc": 0.6,
+        "n_train": 495,
+        "n_test": 50,
+        "date_start": "2024-10-10 00:00:00",
+        "date_end": "2024-12-19 00:00:00"
+      },
+      {
+        "fold": 2,
+        "test_acc": 0.58,
+        "n_train": 495,
+        "n_test": 50,
+        "date_start": "2024-12-20 00:00:00",
+        "date_end": "2025-03-06 00:00:00"
+      },
+      {
+        "fold": 3,
+        "test_acc": 0.46,
+        "n_train": 495,
+        "n_test": 50,
+        "date_start": "2025-03-07 00:00:00",
+        "date_end": "2025-05-16 00:00:00"
+      },
+      {
+        "fold": 4,
+        "test_acc": 0.5,
+        "n_train": 495,
+        "n_test": 50,
+        "date_start": "2025-05-19 00:00:00",
+        "date_end": "2025-07-30 00:00:00"
+      },
+      {
+        "fold": 5,
+        "test_acc": 0.54,
+        "n_train": 495,
+        "n_test": 50,
+        "date_start": "2025-07-31 00:00:00",
+        "date_end": "2025-10-09 00:00:00"
+      },
+      {
+        "fold": 6,
+        "test_acc": 0.52,
+        "n_train": 495,
+        "n_test": 50,
+        "date_start": "2025-10-10 00:00:00",
+        "date_end": "2025-12-19 00:00:00"
+      },
+      {
+        "fold": 7,
+        "test_acc": 0.48,
+        "n_train": 495,
+        "n_test": 50,
+        "date_start": "2025-12-22 00:00:00",
+        "date_end": "2026-03-05 00:00:00"
+      },
+      {
+        "fold": 8,
+        "test_acc": 0.5,
+        "n_train": 495,
+        "n_test": 50,
+        "date_start": "2026-03-06 00:00:00",
+        "date_end": "2026-05-15 00:00:00"
+      }
+    ],
+    "pnl": {
+      "total_return": -0.05978284676051815,
+      "buy_hold_return": 0.3006970733463854,
+      "sharpe": -0.3106323053746838,
+      "max_drawdown": -0.15654839660745773,
+      "win_rate": 0.47058823529411764,
+      "total_trades": 136,
+      "avg_win": 0.009353533296244474,
+      "avg_loss": -0.009044797756323351,
+      "n_days": 400
+    },
+    "ticker": "IWM",
+    "model_type": "rf",
+    "n_features": 20,
+    "data_rows": 2799,
+    "feature_names": [
+      "ret_3d",
+      "ret_5d",
+      "ret_10d",
+      "ret_21d",
+      "sma_50",
+      "price_vs_sma_50",
+      "atr_14",
+      "volume_sma_5",
+      "volume_sma_21",
+      "relative_volume",
+      "realized_vol_5d",
+      "realized_vol_10d",
+      "realized_vol_21d",
+      "realized_vol_60d",
+      "macd_hist",
+      "bb_position",
+      "vol_ratio_5_21",
+      "vol_ratio_5_60",
+      "sma_5_21_diff",
+      "vol_spike"
+    ],
+    "time_sec": 0.825469970703125
+  },
+  "TLT": {
+    "overall_accuracy": 0.5025,
+    "per_class": {
+      "DOWN": {
+        "accuracy": 0.46733668341708545,
+        "support": 199
+      },
+      "HOLD": {
+        "accuracy": 0.5373134328358209,
+        "support": 201
+      }
+    },
+    "directional_accuracy": 1.0,
+    "majority_baseline": 0.5025,
+    "persistence_baseline": 0.4675,
+    "n_predictions": 400,
+    "n_folds": 8,
+    "fold_metrics": [
+      {
+        "fold": 1,
+        "test_acc": 0.48,
+        "n_train": 495,
+        "n_test": 50,
+        "date_start": "2024-10-10 00:00:00",
+        "date_end": "2024-12-19 00:00:00"
+      },
+      {
+        "fold": 2,
+        "test_acc": 0.56,
+        "n_train": 495,
+        "n_test": 50,
+        "date_start": "2024-12-20 00:00:00",
+        "date_end": "2025-03-06 00:00:00"
+      },
+      {
+        "fold": 3,
+        "test_acc": 0.5,
+        "n_train": 495,
+        "n_test": 50,
+        "date_start": "2025-03-07 00:00:00",
+        "date_end": "2025-05-16 00:00:00"
+      },
+      {
+        "fold": 4,
+        "test_acc": 0.58,
+        "n_train": 495,
+        "n_test": 50,
+        "date_start": "2025-05-19 00:00:00",
+        "date_end": "2025-07-30 00:00:00"
+      },
+      {
+        "fold": 5,
+        "test_acc": 0.46,
+        "n_train": 495,
+        "n_test": 50,
+        "date_start": "2025-07-31 00:00:00",
+        "date_end": "2025-10-09 00:00:00"
+      },
+      {
+        "fold": 6,
+        "test_acc": 0.48,
+        "n_train": 495,
+        "n_test": 50,
+        "date_start": "2025-10-10 00:00:00",
+        "date_end": "2025-12-19 00:00:00"
+      },
+      {
+        "fold": 7,
+        "test_acc": 0.5,
+        "n_train": 495,
+        "n_test": 50,
+        "date_start": "2025-12-22 00:00:00",
+        "date_end": "2026-03-05 00:00:00"
+      },
+      {
+        "fold": 8,
+        "test_acc": 0.46,
+        "n_train": 495,
+        "n_test": 50,
+        "date_start": "2026-03-06 00:00:00",
+        "date_end": "2026-05-15 00:00:00"
+      }
+    ],
+    "pnl": {
+      "total_return": 0.0913840048219281,
+      "buy_hold_return": -0.047167257206153,
+      "sharpe": 0.7644690912717895,
+      "max_drawdown": -0.052054607427948776,
+      "win_rate": 0.5,
+      "total_trades": 186,
+      "avg_win": 0.005915535847612031,
+      "avg_loss": -0.004926237963640653,
+      "n_days": 400
+    },
+    "ticker": "TLT",
+    "model_type": "logistic",
+    "n_features": 20,
+    "data_rows": 2799,
+    "feature_names": [
+      "ret_21d",
+      "sma_5",
+      "sma_10",
+      "sma_21",
+      "sma_50",
+      "price_vs_sma_50",
+      "atr_14",
+      "volume_sma_5",
+      "volume_sma_21",
+      "relative_volume",
+      "realized_vol_5d",
+      "realized_vol_10d",
+      "realized_vol_21d",
+      "realized_vol_60d",
+      "rsi_14",
+      "macd",
+      "macd_hist",
+      "bb_position",
+      "vol_ratio_5_21",
+      "sma_5_21_diff"
+    ],
+    "time_sec": 0.024738073348999023
+  }
+}

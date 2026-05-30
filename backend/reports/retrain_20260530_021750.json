@@ -1,0 +1,26 @@
+[
+  {
+    "ticker": "QQQ",
+    "new_sharpe": 0.6577532206308664,
+    "prod_sharpe": 0,
+    "prod_model_type": "rf",
+    "improvement": 65.77532206308663,
+    "should_promote": true,
+    "n_samples": 2799,
+    "n_features": 25,
+    "time_sec": 1.1896710395812988,
+    "promoted": false
+  },
+  {
+    "ticker": "IWM",
+    "new_sharpe": 0.6568986081282319,
+    "prod_sharpe": 0.6748995372099895,
+    "prod_model_type": "rf",
+    "improvement": -0.026282583216636905,
+    "should_promote": false,
+    "n_samples": 2799,
+    "n_features": 25,
+    "time_sec": 0.4530179500579834,
+    "promoted": false
+  }
+]
