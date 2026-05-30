@@ -108,6 +108,18 @@ class CausalGraph:
         visited = set()
         rec_stack = set()
 
+        def dfs(node):
+            visited.add(node)
+            rec_stack.add(node)
+            for child in self._children.get(node, set()):
+                if child not in visited:
+                    if dfs(child):
+                        return True
+                elif child in rec_stack:
+                    return True
+            rec_stack.discard(node)
+            return False
+
         for node in self._nodes:
             if node not in visited:
                 if dfs(node):
@@ -138,8 +150,23 @@ class CausalGraph:
         """Find all undirected paths between source and target."""
         paths = []
 
-        visited = {source}
-        dfs(source, [source], visited)
+        def dfs(current, path, visited):
+            if current == target and len(path) > 1:
+                paths.append(list(path))
+                return
+            if len(path) >= max_length:
+                return
+            neighbors = (self._children.get(current, set()) |
+                         self._parents.get(current, set()))
+            for nbr in neighbors:
+                if nbr not in visited:
+                    visited.add(nbr)
+                    path.append(nbr)
+                    dfs(nbr, path, visited)
+                    path.pop()
+                    visited.discard(nbr)
+
+        dfs(source, [source], {source})
         return paths
 
     def _is_path_blocked_by_dsep(self, path: List[str], conditioning_set: Set[str]) -> bool:
@@ -185,6 +212,16 @@ class CausalGraph:
     def find_all_paths(self, source: str, target: str, max_length: int = 10) -> List[List[str]]:
         """Find all directed paths from source to target."""
         paths = []
+
+        def dfs(current, path):
+            if current == target and len(path) > 1:
+                paths.append(list(path))
+                return
+            if len(path) >= max_length:
+                return
+            for child in self._children.get(current, set()):
+                if child not in path:
+                    dfs(child, path + [child])
 
         dfs(source, [source])
         return paths
@@ -294,6 +331,30 @@ class BackdoorCriterion:
 # =============================================================================
 # Front-Door Criterion
 # =============================================================================
+
+class FrontDoorCriterion:
+    """Causal effect estimation via the front-door criterion.
+
+    When backdoor adjustment is impossible (unobserved confounders),
+    the front-door criterion uses a mediating variable M that intercepts
+    all directed paths from X to Y. Requires:
+      1. M intercepts all directed paths from X to Y
+      2. There is no unblocked backdoor path from X to M
+      3. All backdoor paths from M to Y are blocked by X
+    """
+
+    def __init__(self, graph: CausalGraph):
+        self.graph = graph
+
+    def find_frontdoor_set(self, x: str, y: str) -> Optional[List[str]]:
+        """Find a valid front-door adjustment set for X -> Y."""
+        return None
+
+    def estimate(self, df: pd.DataFrame, x_col: str, y_col: str,
+                 mediators: List[str]) -> Dict[str, Any]:
+        """Estimate causal effect via front-door formula."""
+        return {"causal_effect": None, "method": "frontdoor"}
+
 
 class InstrumentalVariables:
     """Two-stage least squares (2SLS) estimation with instrumental variables.

@@ -18,9 +18,9 @@ Endpoints:
 from __future__ import annotations
 
 import logging
-from typing import Any, Dict
+from typing import Optional, Any, Dict
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Query
 
 from services.ml import DegenerateModelError
 

@@ -12,6 +12,7 @@ import logging
 import hashlib
 from pathlib import Path
 from typing import Optional
+import os
 
 logger = logging.getLogger(__name__)
 

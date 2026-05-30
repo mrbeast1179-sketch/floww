@@ -43,6 +43,57 @@ logger = logging.getLogger(__name__)
 
 
 @dataclass
+class GreekSnapshot:
+    """Unified Greek snapshot for an entire option chain.
+
+    All arrays are 1D numpy float64 of length N (number of contracts).
+
+    Attributes:
+        delta: Option delta.
+        gamma: Option gamma.
+        theta: Option theta (per day).
+        vega: Option vega (per 1 vol point).
+        vanna: Option vanna (dDelta/dVol).
+        charm: Option charm (dDelta/dTime per day).
+        vomma: Option vomma (dVega/dVol).
+        zomma: Option zomma (dGamma/dVol).
+        gex_1d: Net gamma exposure per strike (aggregated across expiries).
+        vex_1d: Net vomma exposure per strike.
+        vanna_exposure: Vanna * OI * spot * 0.01 per contract.
+        charm_exposure: Charm * OI * spot * 0.01 per contract.
+        total_gex: Scalar total GEX (positive - negative).
+        net_gex: Scalar net GEX.
+        max_gex_strike: Strike with highest positive GEX.
+        min_gex_strike: Strike with most negative GEX.
+        zero_gamma_levels: Strikes where net GEX crosses zero.
+        n_filled: Number of contracts where BS fallback was used.
+        strikes: Strike array (for reference).
+        expiries: Expiry array (for reference).
+        types: Option type array (0=call, 1=put).
+    """
+    delta: np.ndarray = field(default_factory=lambda: np.array([]))
+    gamma: np.ndarray = field(default_factory=lambda: np.array([]))
+    theta: np.ndarray = field(default_factory=lambda: np.array([]))
+    vega: np.ndarray = field(default_factory=lambda: np.array([]))
+    vanna: np.ndarray = field(default_factory=lambda: np.array([]))
+    charm: np.ndarray = field(default_factory=lambda: np.array([]))
+    vomma: np.ndarray = field(default_factory=lambda: np.array([]))
+    zomma: np.ndarray = field(default_factory=lambda: np.array([]))
+    gex_1d: List[float] = field(default_factory=list)
+    vex_1d: List[float] = field(default_factory=list)
+    vanna_exposure: np.ndarray = field(default_factory=lambda: np.array([]))
+    charm_exposure: np.ndarray = field(default_factory=lambda: np.array([]))
+    total_gex: float = 0.0
+    net_gex: float = 0.0
+    max_gex_strike: float = 0.0
+    min_gex_strike: float = 0.0
+    zero_gamma_levels: List[float] = field(default_factory=list)
+    n_filled: int = 0
+    strikes: np.ndarray = field(default_factory=lambda: np.array([]))
+    expiries: np.ndarray = field(default_factory=lambda: np.array([]))
+    types: np.ndarray = field(default_factory=lambda: np.array([]))
+
+
 class GreekAggregator:
     """Orchestrate Greek computation with NaN-fallback and exposure metrics.
 

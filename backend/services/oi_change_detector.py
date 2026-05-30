@@ -29,6 +29,25 @@ OI_CHANGE_THRESHOLD = 0.10  # 10%
 
 
 @dataclass
+class OiStrikeChange:
+    """OI change for a single strike."""
+    strike: float
+    expiry: str
+    current_oi: float
+    previous_oi: float
+    pct_change: float
+    flag: str = ""
+
+
+@dataclass
+class OiChangeSnapshot:
+    """Snapshot of OI changes across all strikes for one expiry."""
+    changes: Dict[float, OiStrikeChange] = field(default_factory=dict)
+    significant: List[float] = field(default_factory=list)
+    max_increase: float = 0.0
+    max_decrease: float = 0.0
+
+
 @dataclass
 class OiChangeDetector:
     """Detect significant day-over-day Open Interest changes.

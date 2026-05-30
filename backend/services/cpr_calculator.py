@@ -32,6 +32,24 @@ CPR_BEARISH_THRESHOLD = 0.5
 ROLLING_WINDOW_DAYS = 5
 
 
+@dataclass
+class CprResult:
+    """CPR for a single expiry."""
+    expiry: str
+    cpr: float
+    call_volume: float
+    put_volume: float
+    label: str  # Bullish, Bearish, Neutral
+
+
+@dataclass
+class CprSnapshot:
+    """CPR snapshot across expiries with rolling averages and anomalies."""
+    current: Dict[str, CprResult] = field(default_factory=dict)
+    rolling_avg: Dict[str, float] = field(default_factory=dict)
+    anomalies: List[str] = field(default_factory=list)
+
+
 def _float_or_zero(v) -> float:
     """Safe float conversion; returns 0.0 for NaN/None."""
     try:
@@ -42,7 +60,6 @@ def _float_or_zero(v) -> float:
         return 0.0
 
 
-@dataclass
 @dataclass
 class CprCalculator:
     """Call/Put Volume Ratio calculator with rolling-average tracking.

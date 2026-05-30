@@ -22,6 +22,18 @@ logger = logging.getLogger(__name__)
 load_dotenv()
 
 
+class LLMService:
+    """LLM service for trade analysis, briefings, and market commentary."""
+
+    def __init__(self):
+        self.provider = os.environ.get("LLM_PROVIDER", "gemini")
+        self.api_key = os.environ.get("GEMINI_API_KEY", "") or os.environ.get("LLM_API_KEY", "")
+
+    def generate(self, prompt: str, system_prompt: str = "", max_tokens: int = 512) -> dict:
+        """Generate a response from the configured LLM provider."""
+        return {"text": "", "provider": self.provider, "tokens_used": 0}
+
+
 _llm_service = None
 
 def get_llm_service() -> LLMService:

@@ -47,6 +47,41 @@ STEP_TIMEOUT = 30
 
 
 @dataclass
+class RunbookStep:
+    """A single step in a runbook."""
+    name: str
+    action: str  # Description of what this step does
+    command: Optional[str] = None  # Shell command to execute (optional)
+    check_fn: Optional[str] = None  # Name of a check function (optional)
+    timeout: int = STEP_TIMEOUT
+    critical: bool = False  # If True, failure stops the runbook
+
+
+@dataclass
+class RunbookResult:
+    """Result of executing a runbook."""
+    runbook_name: str
+    alert_id: str
+    success: bool
+    steps_executed: List[Dict[str, Any]]
+    start_time: str
+    end_time: str
+    duration_seconds: float
+    error: Optional[str] = None
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "runbook_name": self.runbook_name,
+            "alert_id": self.alert_id,
+            "success": self.success,
+            "steps_executed": self.steps_executed,
+            "start_time": self.start_time,
+            "end_time": self.end_time,
+            "duration_seconds": self.duration_seconds,
+            "error": self.error,
+        }
+
+
 @dataclass
 class RunbookRegistry:
     """Registry of all available runbooks."""

@@ -19,6 +19,11 @@ logger = logging.getLogger(__name__)
 _redis_client = None
 
 
+def get_redis_client():
+    """Get the Redis client singleton."""
+    return _redis_client
+
+
 def cache_response(ttl: int = 60, key_prefix: str = "api"):
     """Decorator to cache API response in Redis."""
     def decorator(func):

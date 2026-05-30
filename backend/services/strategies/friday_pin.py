@@ -36,6 +36,19 @@ class FridayPinConfig:
 
 
 @dataclass
+class FridayPinSignal:
+    """A trade signal from the Friday Pin strategy."""
+    action: str
+    strike: float
+    spot: float
+    target_premium_bps: int
+    stop_bps: int
+    reason: str
+    range_pct: float
+    timestamp: str
+
+
+@dataclass
 class FridayPinStrategy:
     """Friday Late-Day Pin strategy.
 

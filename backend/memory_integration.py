@@ -16,6 +16,11 @@ logger = logging.getLogger(__name__)
 _memory_client = None
 
 
+def get_memory_client():
+    """Get the memory client singleton."""
+    return _memory_client
+
+
 def remember_trade(ticker: str, trade_data: Dict[str, Any]) -> Optional[str]:
     """Store a trade observation in memory."""
     client = get_memory_client()

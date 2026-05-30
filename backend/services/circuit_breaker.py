@@ -30,6 +30,30 @@ class CircuitState(Enum):
 
 
 @dataclass
+class Measurement:
+    """A single request measurement for circuit breaker monitoring."""
+    timestamp: float
+    is_error: bool
+    latency_ms: float = 0.0
+    metadata: Dict[str, Any] = field(default_factory=dict)
+
+
+@dataclass
+class TripRecord:
+    """Record of a circuit breaker trip event."""
+    timestamp: str
+    reason: str
+    details: str = ""
+    actor: str = "system"
+    error_rate: float = 0.0
+    latency_p99: float = 0.0
+    state_before: str = ""
+    measurements_at_trip: int = 0
+    error_rate_at_trip: float = 0.0
+    latency_p99_at_trip: float = 0.0
+
+
+@dataclass
 class BreakerThresholds:
     """Configurable thresholds for circuit breaker triggers."""
     # Error rate: if error_count / total_count > this, trip
@@ -50,7 +74,6 @@ class BreakerThresholds:
     half_open_successes_needed: int = 10
 
 
-@dataclass
 @dataclass
 class CircuitBreaker:
     """

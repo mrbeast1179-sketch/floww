@@ -31,6 +31,19 @@ COOLDOWN_SECONDS = 15 * 60        # 15-minute dedup cooldown
 
 
 @dataclass
+class StalenessAlert:
+    """A single staleness alert."""
+    alert_id: str
+    severity: str  # MEDIUM, CRITICAL
+    cache_age_seconds: float
+    threshold_seconds: float
+    timestamp: float
+    message: str
+    table: str = ""
+    details: Optional[Dict[str, Any]] = field(default_factory=dict)
+
+
+@dataclass
 class StalenessAlertManager:
     """
     Monitors data freshness and fires deduplicated staleness alerts.

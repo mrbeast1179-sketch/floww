@@ -183,6 +183,16 @@ class CausalDAG:
         WHITE, GRAY, BLACK = 0, 1, 2
         color = {n: WHITE for n in self.nodes}
 
+        def dfs(node):
+            color[node] = GRAY
+            for neighbor in adj.get(node, []):
+                if color[neighbor] == GRAY:
+                    return True  # Back edge = cycle
+                if color[neighbor] == WHITE and dfs(neighbor):
+                    return True
+            color[node] = BLACK
+            return False
+
         for node in self.nodes:
             if color[node] == WHITE:
                 if dfs(node):

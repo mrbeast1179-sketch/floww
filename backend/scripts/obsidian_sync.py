@@ -287,5 +287,55 @@ def main():
             logger.info(f"\n{conflicts} conflict(s) resolved. Check sync log for details.")
 
 
+def watch_loop(sync: ObsidianSync, interval=30):
+    """Run sync in a watch loop."""
+    try:
+        from watchdog.observers import Observer
+        from watchdog.events import FileSystemEventHandler
+
+        class SyncHandler(FileSystemEventHandler):
+            def __init__(self, sync):
+                self.sync = sync
+                self.last_event = 0
+
+            def on_modified(self, event):
+                if event.is_directory:
+                    return
+                if not event.src_path.endswith(".md"):
+                    return
+                now = time.time()
+                if now - self.last_event < 2:  # debounce
+                    return
+                self.last_event = now
+                time.sleep(1)  # wait for write to finish
+                self.sync.sync_all()
+
+        observer = Observer()
+        handler = SyncHandler(sync)
+        observer.schedule(handler, str(sync.memory_dir), recursive=False)
+        observer.schedule(handler, str(sync.vault_dir), recursive=False)
+        observer.start()
+        logger.info(f"Watching {sync.memory_dir} and {sync.vault_dir}...")
+
+        try:
+            while True:
+                time.sleep(interval)
+                # Periodic full sync as fallback
+                sync.sync_all()
+        except KeyboardInterrupt:
+            observer.stop()
+        observer.join()
+
+    except ImportError:
+        logger.warning("watchdog not installed, falling back to polling loop")
+        while True:
+            sync.sync_all()
+            time.sleep(interval)
+
+
+# ── Main ───────────────────────────────────────────────────────────────────
+
+
+
 if __name__ == "__main__":
     main()

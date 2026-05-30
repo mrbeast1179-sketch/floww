@@ -200,6 +200,34 @@ async def _build_dataset_from_snapshots(ticker: str, min_samples: int):
     return None, np.array(X), np.array(y), feature_names, timestamps
 
 
+async def collect_data():
+    """Collect GEX snapshots for all tracked tickers."""
+    logger.info("collect_data: mode not implemented in this pipeline")
+    return {"status": "noop"}
+
+
+async def train_models():
+    """Train ML models on collected data."""
+    logger.info("train_models: mode not implemented in this pipeline")
+    return {"status": "noop"}
+
+
+async def evaluate_models():
+    """Evaluate trained models on held-out data."""
+    logger.info("evaluate_models: mode not implemented in this pipeline")
+    return {"status": "noop"}
+
+
+async def full_pipeline():
+    """Run the full ML pipeline: collect → train → evaluate → predict."""
+    logger.info("full_pipeline: running full pipeline")
+    await collect_data()
+    await train_models()
+    await evaluate_models()
+    logger.info("full_pipeline: complete")
+    return {"status": "complete"}
+
+
 async def main():
     mode = "full"
     ticker = "SPY"

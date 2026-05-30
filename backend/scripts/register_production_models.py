@@ -156,6 +156,16 @@ async def register_all(dry_run: bool = True, promote: list = None):
     client.close()
 
 
+def load_manifest_for_ticker(ticker: str) -> dict:
+    manifest_path = MODELS_DIR / f"{ticker}_gbm_production_manifest.json"
+    if not manifest_path.exists():
+        manifest_path = MODELS_DIR / f"{ticker}_gbm_deep_production_manifest.json"
+    if manifest_path.exists():
+        with open(manifest_path) as f:
+            return json.load(f)
+    return {}
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Register production ML models")
     parser.add_argument("--register", action="store_true", help="Actually register (default: dry-run)")

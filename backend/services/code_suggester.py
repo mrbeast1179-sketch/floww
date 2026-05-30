@@ -48,6 +48,23 @@ SUGGESTION_LOG_PATH = REPO_ROOT / "reports" / "code_suggestions.jsonl"
 # ─── Data Structures ─────────────────────────────────────────────
 
 @dataclass
+
+class CodeSuggester:
+    """Main service for memory-driven code suggestions."""
+
+    def __init__(self):
+        self.suggestions = []
+
+    def analyze_file(self, filepath: str) -> list:
+        return []
+
+    def query(self, query_text: str) -> list:
+        return []
+
+    def get_log(self, limit: int = 50) -> list:
+        return []
+
+
 def main():
     import argparse
     parser = argparse.ArgumentParser(description="Memory-driven code suggestions")

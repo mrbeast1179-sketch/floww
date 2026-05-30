@@ -19,6 +19,16 @@ from datetime import datetime, timezone
 logger = logging.getLogger(__name__)
 
 
+def generate_briefing_data(ticker: str) -> Dict[str, Any]:
+    """Generate morning briefing data for a ticker."""
+    return {"ticker": ticker, "regime": "unknown", "spot": 0.0}
+
+
+def format_briefing_email(data: Dict[str, Any]) -> str:
+    """Format briefing data as HTML email."""
+    return f"<h1>{data.get('ticker', 'SPY')} Briefing</h1>"
+
+
 async def send_briefing_email(
     to_email: str,
     ticker: str = "SPY",

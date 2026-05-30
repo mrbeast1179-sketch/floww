@@ -11,6 +11,15 @@ router = APIRouter(prefix="/api/alerts", tags=["alerts"])
 # Global alert engine instance
 _alert_engine = None
 
+def get_alert_engine():
+    """Get the global alert engine instance."""
+    global _alert_engine
+    if _alert_engine is None:
+        from alert_engine import AlertEngine
+        _alert_engine = AlertEngine()
+    return _alert_engine
+
+
 # Connected WebSocket clients for signal streaming
 _signal_clients: List[WebSocket] = []
 
