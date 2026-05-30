@@ -117,6 +117,21 @@ async def get_alerts_summary():
         }
 
 
+@router.get("/status")
+async def get_alert_status():
+    """Get alert system status."""
+    try:
+        engine = get_alert_engine()
+        tickers = list(engine._snapshots.keys())
+        return {
+            "status": "active",
+            "monitored_tickers": tickers,
+            "snapshot_counts": {t: len(s) for t, s in engine._snapshots.items()},
+        }
+    except Exception as e:
+        return {"error": str(e)}
+
+
 @router.get("/{ticker}")
 async def get_alerts(ticker: str, momentum_score: int = Query(50, ge=0, le=100)):
     """Get current alerts for a ticker."""
@@ -159,21 +174,6 @@ async def add_snapshot(snapshot: Dict[str, Any]):
             "snapshot_stored": True,
             "alerts_detected": len(alerts),
             "alerts": [a.to_dict() for a in alerts],
-        }
-    except Exception as e:
-        return {"error": str(e)}
-
-
-@router.get("/status")
-async def get_alert_status():
-    """Get alert system status."""
-    try:
-        engine = get_alert_engine()
-        tickers = list(engine._snapshots.keys())
-        return {
-            "status": "active",
-            "monitored_tickers": tickers,
-            "snapshot_counts": {t: len(s) for t, s in engine._snapshots.items()},
         }
     except Exception as e:
         return {"error": str(e)}

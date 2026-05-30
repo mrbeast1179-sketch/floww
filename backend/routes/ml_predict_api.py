@@ -297,8 +297,8 @@ async def _run_training_job(job_id: str, ticker: str, days: int, n_splits: int):
         live_chain = None
         try:
             live_chain = fetch_options_chain_on_date(ticker, datetime.now())
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning(f"Training job {job_id}: failed to fetch live chain for {ticker}: {e}")
 
         X, y, feature_names, timestamps = build_dataset(price_df, live_chain, days_back=days)
         result, model, scaler, final_features = train_walk_forward(

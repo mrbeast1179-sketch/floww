@@ -293,8 +293,8 @@ async def get_accuracy(
                 "count": doc["count"],
                 "accuracy": round(doc["accuracy"], 4),
             })
-    except Exception:
-        pass
+    except Exception as e:
+        logger.warning(f"Calibration pipeline failed: {e}")
 
     if not stats:
         return {"message": "No outcomes yet. Run POST /api/ml/outcome/compute after predictions mature."}

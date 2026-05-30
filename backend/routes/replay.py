@@ -62,8 +62,8 @@ async def start_replay(
             engine.on_tick(_ingestion_pipeline.enqueue_tick)
             engine.on_chain(_ingestion_pipeline.enqueue_chain)
             engine.on_lob(_ingestion_pipeline.enqueue_lob)
-    except Exception:
-        pass
+    except Exception as e:
+        logger.warning(f"Failed to wire replay into ingestion pipeline: {e}")
 
     set_replay_engine(engine)
     global _engine_task
