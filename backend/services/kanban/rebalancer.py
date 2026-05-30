@@ -210,7 +210,7 @@ def run_rebalancer(bottleneck_data: dict) -> dict:
 
 if __name__ == "__main__":
     # Test with current state
-    from backend.services.kanban.bottleneck import run_bottleneck_check
+    from services.kanban.bottleneck import run_bottleneck_check
 
     bottleneck_data = run_bottleneck_check()
     result = run_rebalancer(bottleneck_data)
