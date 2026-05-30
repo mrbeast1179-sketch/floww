@@ -610,6 +610,15 @@ async def retrain_status(ticker: str) -> Dict[str, Any]:
         raise HTTPException(status_code=500, detail=str(e))
 
 
+
+# ── GET /api/ml/calibration ────────────────────────────────--------------
+
+
+@router.get("/calibration")
+async def get_calibration_default(ticker: str = Query(default="SPY"), window: int = Query(default=30, ge=7, le=90)):
+    """Get prediction confidence calibration for a ticker (query-param variant)."""
+    return await get_calibration(ticker, window)
+
 # ── GET /api/ml/calibration/{ticker} ────────────────────────────────────
 
 
