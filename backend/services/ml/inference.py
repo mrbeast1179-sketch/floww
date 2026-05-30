@@ -49,29 +49,29 @@ MODEL_DIR = Path(__file__).resolve().parents[2] / "models"
 # Tuple format: (model_path, scaler_path, manifest_path)
 MODEL_REGISTRY: Dict[str, Tuple[str, ...]] = {
     "DIA": (
-        str(MODEL_DIR / "DIA_rf_production.joblib"),
-        str(MODEL_DIR / "DIA_rf_production_scaler.joblib"),
-        str(MODEL_DIR / "DIA_rf_production_manifest.json"),
+        str(MODEL_DIR / "DIA_gbm_production.joblib"),
+        str(MODEL_DIR / "DIA_gbm_production_scaler.joblib"),
+        str(MODEL_DIR / "DIA_gbm_production_manifest.json"),
     ),
     "IWM": (
-        str(MODEL_DIR / "IWM_rf_production.joblib"),
-        str(MODEL_DIR / "IWM_rf_production_scaler.joblib"),
-        str(MODEL_DIR / "IWM_rf_production_manifest.json"),
+        str(MODEL_DIR / "IWM_gbm_production.joblib"),
+        str(MODEL_DIR / "IWM_gbm_production_scaler.joblib"),
+        str(MODEL_DIR / "IWM_gbm_production_manifest.json"),
     ),
     "QQQ": (
-        str(MODEL_DIR / "QQQ_logistic_production.joblib"),
-        str(MODEL_DIR / "QQQ_logistic_production_scaler.joblib"),
-        str(MODEL_DIR / "QQQ_logistic_production_manifest.json"),
+        str(MODEL_DIR / "QQQ_gbm_production.joblib"),
+        str(MODEL_DIR / "QQQ_gbm_production_scaler.joblib"),
+        str(MODEL_DIR / "QQQ_gbm_production_manifest.json"),
     ),
     "SPY": (
-        str(MODEL_DIR / "SPY_rf_production.joblib"),
-        str(MODEL_DIR / "SPY_rf_production_scaler.joblib"),
-        str(MODEL_DIR / "SPY_rf_production_manifest.json"),
+        str(MODEL_DIR / "SPY_gbm_production.joblib"),
+        str(MODEL_DIR / "SPY_gbm_production_scaler.joblib"),
+        str(MODEL_DIR / "SPY_gbm_production_manifest.json"),
     ),
     "TLT": (
-        str(MODEL_DIR / "TLT_gbm_production.joblib"),
-        str(MODEL_DIR / "TLT_gbm_production_scaler.joblib"),
-        str(MODEL_DIR / "TLT_gbm_production_manifest.json"),
+        str(MODEL_DIR / "TLT_rf_production.joblib"),
+        str(MODEL_DIR / "TLT_rf_production_scaler.joblib"),
+        str(MODEL_DIR / "TLT_rf_production_manifest.json"),
     ),
 }
 
