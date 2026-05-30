@@ -30,7 +30,7 @@ async def _require_admin_auth(request: Request) -> bool:
 router = APIRouter()
 
 
-@router.get("/api/errors/summary")
+@router.get("/errors/summary")
 async def errors_summary():
     from server import db
     cutoff = __import__("datetime").datetime.now(__import__("datetime").timezone.utc) - __import__("datetime").timedelta(hours=24)
@@ -38,7 +38,7 @@ async def errors_summary():
     return {"errors": await errors.to_list(length=100)}
 
 
-@router.get("/api/performance/stats")
+@router.get("/performance/stats")
 async def performance_stats(_: bool = Depends(_require_admin_auth)):
     from server import _rate_limits
     return {
@@ -47,7 +47,7 @@ async def performance_stats(_: bool = Depends(_require_admin_auth)):
     }
 
 
-@router.post("/api/errors/clear")
+@router.post("/errors/clear")
 async def errors_clear():
     from server import db
     from datetime import datetime, timezone, timedelta
