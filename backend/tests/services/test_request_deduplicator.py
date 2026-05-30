@@ -3,7 +3,7 @@ import time
 
 import pytest
 
-from backend.services.request_deduplicator import RequestDeduplicator
+from services.request_deduplicator import RequestDeduplicator
 
 
 @pytest.fixture
