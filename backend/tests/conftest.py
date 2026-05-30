@@ -1,6 +1,10 @@
 """Shared test fixtures."""
 import asyncio
 import os
+import sys
+
+# Skip stale duplicate test directory
+collect_ignore = ["service_tests"]
 
 import pytest
 import pytest_asyncio
