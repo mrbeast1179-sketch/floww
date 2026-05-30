@@ -167,7 +167,7 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
     log.error(f"Validation error {request.url.path}: {exc.errors()}")
     return JSONResponse(
         status_code=422,
-        content={"error": "Validation failed", "details": exc.errors(), "path": request.url.path},
+        content={"detail": exc.errors()},
         headers={
             "Access-Control-Allow-Origin": "*",
             "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
