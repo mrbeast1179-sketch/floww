@@ -9,6 +9,41 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/data", tags=["data"])
 
 
+@router.get("/status")
+async def get_data_status():
+    """Get status of all data providers."""
+    try:
+        from data_providers import DataAggregator, FINNHUB_API_KEY, ALPHA_VANTAGE_KEY, POLYGON_API_KEY
+        agg = DataAggregator()
+        status = agg.get_status()
+        return {
+            "providers": status,
+            "env_vars_set": {
+                "FINNHUB_API_KEY": bool(FINNHUB_API_KEY),
+                "ALPHA_VANTAGE_KEY": bool(ALPHA_VANTAGE_KEY),
+                "POLYGON_API_KEY": bool(POLYGON_API_KEY),
+            }
+        }
+    except Exception as e:
+        return {"error": str(e)}
+
+
+@router.get("/health")
+async def get_data_health():
+    """Get detailed health metrics for all data providers including success rates and alerts."""
+    try:
+        from services.meta_observability import provider_monitor
+
+        health = provider_monitor.get_health()
+
+        # Update Prometheus gauges
+        provider_monitor.update_prometheus()
+
+        return health
+    except Exception as e:
+        return {"error": str(e)}
+
+
 @router.get("/{ticker}")
 async def get_ticker_data(
     ticker: str,
@@ -72,38 +107,3 @@ async def get_news(ticker: str, count: int = Query(10, ge=1, le=50)):
         return {"ticker": ticker.upper(), "news": news, "count": len(news)}
     except Exception as e:
         return {"ticker": ticker.upper(), "error": str(e), "news": []}
-
-
-@router.get("/status")
-async def get_data_status():
-    """Get status of all data providers."""
-    try:
-        from data_providers import DataAggregator, FINNHUB_API_KEY, ALPHA_VANTAGE_KEY, POLYGON_API_KEY
-        agg = DataAggregator()
-        status = agg.get_status()
-        return {
-            "providers": status,
-            "env_vars_set": {
-                "FINNHUB_API_KEY": bool(FINNHUB_API_KEY),
-                "ALPHA_VANTAGE_KEY": bool(ALPHA_VANTAGE_KEY),
-                "POLYGON_API_KEY": bool(POLYGON_API_KEY),
-            }
-        }
-    except Exception as e:
-        return {"error": str(e)}
-
-
-@router.get("/health")
-async def get_data_health():
-    """Get detailed health metrics for all data providers including success rates and alerts."""
-    try:
-        from services.meta_observability import provider_monitor
-
-        health = provider_monitor.get_health()
-
-        # Update Prometheus gauges
-        provider_monitor.update_prometheus()
-
-        return health
-    except Exception as e:
-        return {"error": str(e)}

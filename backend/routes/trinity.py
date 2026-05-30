@@ -55,28 +55,6 @@ def _extract_zero_gamma_levels(spot: float, contracts: List[Dict]) -> List[float
     return levels
 
 
-@router.get("/{ticker}")
-async def get_trinity_for_ticker(ticker: str, expiries: int = Query(4, ge=1, le=12)):
-    """Get zero-gamma levels and GEX data for a single ticker."""
-    t = ticker.upper()
-    raw = await _fetch_chain(t, expiries)
-    spot = raw.get("spot", 0)
-    contracts = raw.get("contracts", [])
-    if not spot or not contracts:
-        raise HTTPException(404, f"No options data for {t}")
-
-    from server import compute_gex_by_strike
-    strikes_data = compute_gex_by_strike(spot, contracts, t)
-    flip_levels = _extract_zero_gamma_levels(spot, contracts)
-
-    return {
-        "ticker": t,
-        "spot": spot,
-        "zero_gamma_levels": flip_levels,
-        "strikes": strikes_data,
-    }
-
-
 @router.get("/align")
 async def get_trinity_alignment(
     expiries: int = Query(4, ge=1, le=12),
@@ -115,3 +93,25 @@ async def get_trinity_alignment(
     obs_metrics.trinity_score.set(result.get("score", 0.0))
 
     return result
+
+
+@router.get("/{ticker}")
+async def get_trinity_for_ticker(ticker: str, expiries: int = Query(4, ge=1, le=12)):
+    """Get zero-gamma levels and GEX data for a single ticker."""
+    t = ticker.upper()
+    raw = await _fetch_chain(t, expiries)
+    spot = raw.get("spot", 0)
+    contracts = raw.get("contracts", [])
+    if not spot or not contracts:
+        raise HTTPException(404, f"No options data for {t}")
+
+    from server import compute_gex_by_strike
+    strikes_data = compute_gex_by_strike(spot, contracts, t)
+    flip_levels = _extract_zero_gamma_levels(spot, contracts)
+
+    return {
+        "ticker": t,
+        "spot": spot,
+        "zero_gamma_levels": flip_levels,
+        "strikes": strikes_data,
+    }
