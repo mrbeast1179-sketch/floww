@@ -69,9 +69,9 @@ MODEL_REGISTRY: Dict[str, Tuple[str, ...]] = {
         str(MODEL_DIR / "SPY_rf_production_manifest.json"),
     ),
     "TLT": (
-        str(MODEL_DIR / "TLT_logistic_production.joblib"),
-        str(MODEL_DIR / "TLT_logistic_production_scaler.joblib"),
-        str(MODEL_DIR / "TLT_logistic_production_manifest.json"),
+        str(MODEL_DIR / "TLT_gbm_production.joblib"),
+        str(MODEL_DIR / "TLT_gbm_production_scaler.joblib"),
+        str(MODEL_DIR / "TLT_gbm_production_manifest.json"),
     ),
 }
 
