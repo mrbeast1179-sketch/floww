@@ -40,7 +40,29 @@ MIN_SAMPLES = 10
 
 
 @dataclass
+class MetricForecast:
+    """A single metric's forecast result."""
+    metric_name: str
+    current_value: float
+    forecast_value: float
+    horizon_seconds: int
+    confidence: float  # 0-1, based on recent prediction accuracy
+    will_breach: bool
+    breach_threshold: float
+    breach_eta_seconds: Optional[float]  # estimated seconds until breach
+
+
 @dataclass
+class ChaosScenario:
+    """A simulated failure scenario."""
+    name: str
+    description: str
+    injected_metrics: Dict[str, float]  # metric_name -> simulated value
+    cascade_predictions: List[str]  # human-readable cascade effects
+    max_severity: str  # CRITICAL, MEDIUM, LOW
+    recommended_action: str
+
+
 class ExponentialSmoother:
     """Double exponential smoothing (Holt's method) for forecasting."""
 

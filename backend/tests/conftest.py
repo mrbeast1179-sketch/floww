@@ -6,7 +6,12 @@ import pytest
 import pytest_asyncio
 from httpx import AsyncClient, ASGITransport
 
-from server import app
+try:
+    from server import app
+except ImportError:
+    import sys, os
+    sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    from server import app
 
 
 @pytest.fixture(scope="session")

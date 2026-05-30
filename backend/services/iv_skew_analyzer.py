@@ -35,6 +35,37 @@ import logging
 
 logger = logging.getLogger(__name__)
 @dataclass
+class IvSkewResult:
+    """Container for IV skew analysis results.
+
+    Attributes:
+        skew_atm: ATM IV skew (put IV - call IV), positive = fear.
+        call_iv_atm: Interpolated ATM call IV.
+        put_iv_atm: Interpolated ATM put IV.
+        call_iv_weighted: Open-interest-weighted average call IV.
+        put_iv_weighted: OI-weighted average put IV.
+        skew_weighted: OI-weighted skew (put - call).
+        term_structure_ratio: Short-dated skew / long-dated skew. >1 means
+            near-term fear exceeds longer-term.
+        skew_percentile: Percentile rank of current skew vs historical
+            (0-100, >80 = extreme fear).
+        call_ivs_by_strike: Dict mapping strike -> call IV.
+        put_ivs_by_strike: Dict mapping strike -> put IV.
+        flags: List of human-readable anomaly flags.
+    """
+    skew_atm: float = 0.0
+    call_iv_atm: float = 0.0
+    put_iv_atm: float = 0.0
+    call_iv_weighted: float = 0.0
+    put_iv_weighted: float = 0.0
+    skew_weighted: float = 0.0
+    term_structure_ratio: float = 1.0
+    skew_percentile: float = 50.0
+    call_ivs_by_strike: Dict[str, float] = field(default_factory=dict)
+    put_ivs_by_strike: Dict[str, float] = field(default_factory=dict)
+    flags: List[str] = field(default_factory=list)
+
+
 class IvSkewAnalyzer:
     """Analyze implied volatility skew from option chain data.
 

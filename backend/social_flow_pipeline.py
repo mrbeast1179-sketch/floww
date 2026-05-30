@@ -147,6 +147,57 @@ class TwitterCollector:
 # Utility: Save/Load reports
 # ============================================================
 
+class TickerSentiment:
+    """Aggregated sentiment for a ticker."""
+    ticker: str
+    tweet_count: int = 0
+    avg_vader: float = 0.0
+    avg_textblob: float = 0.0
+    bullish_count: int = 0
+    bearish_count: int = 0
+    neutral_count: int = 0
+    total_likes: int = 0
+    total_retweets: int = 0
+    sentiment_label: str = "neutral"  # bullish, bearish, neutral
+    confidence: float = 0.0
+    top_tweets: List[Dict] = field(default_factory=list)
+    updated_at: str = ""
+
+@dataclass
+
+
+class OptionsFlowSignal:
+    """Unusual options activity signal."""
+    ticker: str
+    strike: float
+    expiry: str
+    option_type: str  # call or put
+    volume: int
+    open_interest: int
+    premium_usd: float
+    iv: float
+    spot_price: float
+    volume_oi_ratio: float = 0.0
+    signal_type: str = ""  # sweep, block, unusual, dark_pool
+    timestamp: str = ""
+    source: str = ""
+
+@dataclass
+
+
+class SocialFlowReport:
+    """Combined social + flow report for a ticker."""
+    ticker: str
+    generated_at: str = ""
+    sentiment: Optional[TickerSentiment] = None
+    flow_signals: List[OptionsFlowSignal] = field(default_factory=list)
+    gex_summary: Dict[str, Any] = field(default_factory=dict)
+    social_score: float = 0.0  # -1 to 1
+    flow_score: float = 0.0    # -1 to 1
+    combined_score: float = 0.0  # -1 to 1
+    signals: List[str] = field(default_factory=list)
+
+
 def save_report(report: SocialFlowReport, path: str):
     """Save a report to JSON."""
     data = asdict(report)

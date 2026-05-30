@@ -31,6 +31,34 @@ EMBEDDINGS_CACHE = Path.home() / ".hermes" / "code_embeddings.npz"
 EMBEDDINGS_META = Path.home() / ".hermes" / "code_embeddings_meta.json"
 
 
+class CodeChunk:
+    """A chunk of code (function, class, or module docstring)."""
+
+    def __init__(self, file_path: str, line_start: int, line_end: int,
+                 chunk_type: str, name: str, text: str):
+        self.file_path = file_path
+        self.line_start = line_start
+        self.line_end = line_end
+        self.chunk_type = chunk_type
+        self.name = name
+        self.text = text
+
+    @property
+    def id(self) -> str:
+        raw = f"{self.file_path}:{self.line_start}:{self.name}"
+        return hashlib.md5(raw.encode()).hexdigest()[:12]
+
+    def to_dict(self) -> dict:
+        return {
+            "file": self.file_path,
+            "line_start": self.line_start,
+            "line_end": self.line_end,
+            "type": self.chunk_type,
+            "name": self.name,
+            "text": self.text[:500],
+        }
+
+
 def extract_python_chunks(file_path: Path) -> list[CodeChunk]:
     """Extract code chunks from a Python file."""
     chunks = []
@@ -115,6 +143,81 @@ def extract_js_chunks(file_path: Path) -> list[CodeChunk]:
         logger.warning(f"Failed to parse {file_path}: {e}")
 
     return chunks
+
+
+
+class CodeEmbeddingIndex:
+    """Local code embedding index using sentence-transformers."""
+
+    def __init__(self, model_name: str = EMBED_MODEL_NAME):
+        self.model_name = model_name
+        self._model = None
+        self._embeddings = None
+        self._metadata = []
+
+    @property
+    def model(self):
+        if self._model is None:
+            from sentence_transformers import SentenceTransformer
+            logger.info(f"Loading embedding model: {self.model_name}")
+            self._model = SentenceTransformer(self.model_name)
+        return self._model
+
+    def build_index(self, repo_root: Path = REPO_ROOT) -> int:
+        """Build embedding index for all code files. Returns number of chunks indexed."""
+        all_chunks = []
+        for dir_name in CODE_DIRS:
+            dir_path = repo_root / dir_name
+            if not dir_path.exists():
+                continue
+            for file_path in dir_path.rglob("*"):
+                if file_path.suffix == ".py":
+                    all_chunks.extend(extract_python_chunks(file_path))
+                elif file_path.suffix in (".js", ".ts", ".tsx", ".jsx"):
+                    all_chunks.extend(extract_js_chunks(file_path))
+        if not all_chunks:
+            logger.warning("No code chunks found")
+            return 0
+        texts = [c.text for c in all_chunks]
+        logger.info(f"Embedding {len(texts)} code chunks...")
+        embeddings = self.model.encode(texts, show_progress_bar=False)
+        EMBEDDINGS_CACHE.parent.mkdir(parents=True, exist_ok=True)
+        np.savez_compressed(EMBEDDINGS_CACHE, embeddings=embeddings)
+        EMBEDDINGS_META.write_text(json.dumps([c.to_dict() for c in all_chunks]))
+        self._embeddings = embeddings
+        self._metadata = [c.to_dict() for c in all_chunks]
+        logger.info(f"Indexed {len(all_chunks)} code chunks from {len(CODE_DIRS)} directories")
+        return len(all_chunks)
+
+    def load_index(self) -> bool:
+        """Load cached embeddings."""
+        if not EMBEDDINGS_CACHE.exists() or not EMBEDDINGS_META.exists():
+            return False
+        data = np.load(str(EMBEDDINGS_CACHE))
+        self._embeddings = data["embeddings"]
+        self._metadata = json.loads(EMBEDDINGS_META.read_text())
+        return True
+
+    def search(self, query: str, top_k: int = 5) -> list:
+        """Search code by semantic similarity."""
+        if self._embeddings is None:
+            if not self.load_index():
+                return []
+        query_embedding = self.model.encode([query])
+        similarities = np.dot(self._embeddings, query_embedding.T).flatten()
+        top_indices = np.argsort(similarities)[-top_k:][::-1]
+        results = []
+        for idx in top_indices:
+            meta = self._metadata[idx]
+            results.append({
+                "file": meta["file"],
+                "line": meta["line_start"],
+                "name": meta["name"],
+                "type": meta["type"],
+                "score": float(similarities[idx]),
+                "snippet": meta["text"][:200],
+            })
+        return results
 
 
 _code_index: Optional[CodeEmbeddingIndex] = None

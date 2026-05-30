@@ -367,3 +367,11 @@ class DataAggregator:
             "alphavantage": {"enabled": self.alphavantage.enabled, "rate_limit": "5/min, 500/day"},
             "yfinance": {"enabled": True, "rate_limit": "unlimited (unofficial)"},
         }
+
+
+class AlphaVantageProvider:
+    """Alpha Vantage data provider stub."""
+
+    async def get_spot_price(self, ticker: str):
+        return None
+

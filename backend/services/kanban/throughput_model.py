@@ -257,6 +257,28 @@ def get_model() -> ThroughputModel:
     return _model
 
 
+def load_historical_data() -> list[dict]:
+    """Load historical card data for training."""
+    history = []
+
+    # Load from history file if exists
+    if HISTORY_FILE.exists():
+        try:
+            history = json.loads(HISTORY_FILE.read_text())
+        except (json.JSONDecodeError, IOError):
+            history = []
+
+    # Also scan current cards for completed ones
+    for card_file in CARDS_DIR.glob("*.md"):
+        if card_file.name.startswith("tagging_"):
+            continue
+        features = extract_card_features(card_file)
+        if features and features["status"] == "done":
+            history.append(features)
+
+    return history
+
+
 if __name__ == "__main__":
     model = get_model()
     logger.info(f"Trained on {len(model.data)} historical cards")

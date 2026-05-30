@@ -39,6 +39,16 @@ assert abs(WEIGHT_CPR + WEIGHT_OI + WEIGHT_IV_SKEW - 1.0) < 1e-9
 
 
 @dataclass
+@dataclass
+class FlowScoreResult:
+    """Result of a composite retail flow score computation."""
+    value: float
+    cpr_score: float = 0.0
+    oi_score: float = 0.0
+    iv_skew_score: float = 0.0
+    label: str = "Neutral"
+
+
 def _clamp(value: float, lo: float = -100.0, hi: float = 100.0) -> float:
     return max(lo, min(hi, value))
 

@@ -29,6 +29,20 @@ DEFAULT_KELLY_FRACTION = 0.5  # half-Kelly by default
 # ── Data class ─────────────────────────────────────────────────────────────
 
 @dataclass(frozen=True)
+class KellyResult:
+    """Result of a fractional Kelly position sizing calculation."""
+    kelly_fraction: float
+    adjusted_fraction: float
+    kelly_pct: float
+    dollar_allocation: float
+    max_contracts: int
+    win_rate: float
+    payoff_ratio: float
+    kelly_multiplier: float
+    account_size: float
+    capped: bool
+
+
 def compute_kelly(
     win_rate: float,
     payoff_ratio: float,

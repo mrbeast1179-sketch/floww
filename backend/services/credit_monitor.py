@@ -20,6 +20,15 @@ import time
 from dataclasses import dataclass, field
 from typing import Any, Callable, Dict, List, Optional
 
+@dataclass
+class CreditConfig:
+    """Configuration for credit monitoring."""
+    budget: int = 0
+    warning_pct: float = 0.80
+    critical_pct: float = 0.95
+
+
+
 log = logging.getLogger(__name__)
 
 # Severity constants

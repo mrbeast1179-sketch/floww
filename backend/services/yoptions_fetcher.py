@@ -64,6 +64,11 @@ def _save_raw_json(ticker: str, data: dict, expiry: str, option_type: str) -> No
         logger.warning(f"Failed to save raw JSON: {e}")
 
 
+
+class YOptionsFetchError(Exception):
+    """Raised when yoptions fetch fails after all retries."""
+    pass
+
 @retry(
     stop=stop_after_attempt(3),
     wait=wait_exponential(multiplier=1, min=1, max=4),

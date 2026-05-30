@@ -111,4 +111,24 @@ def clear_error_log() -> None:
     _error_log = []
 
 
+class StructuredFormatter(logging.Formatter):
+    """Structured JSON log formatter."""
+
+    def format(self, record):
+        import json
+        return json.dumps({
+            "timestamp": self.formatTime(record),
+            "level": record.levelname,
+            "name": record.name,
+            "message": record.getMessage(),
+        })
+
+
+class PerformanceMonitor:
+    """Simple performance monitor."""
+
+    def __init__(self):
+        self._metrics = {}
+
+
 perf_monitor = PerformanceMonitor()

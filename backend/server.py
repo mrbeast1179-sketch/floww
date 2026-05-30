@@ -2703,6 +2703,9 @@ app.include_router(market_data_router, prefix="/api", tags=["market_data"])
 from routes.ml_api import router as ml_api_router
 app.include_router(ml_api_router, tags=["ml_api"])
 
+from routes.ml_dashboard import router as ml_dashboard_router
+app.include_router(ml_dashboard_router, tags=["ml-dashboard"])
+
 # ============ Paper Blueprint Route Wiring ============
 # New API routes from the Project Oracle Master Directive
 

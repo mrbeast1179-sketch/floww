@@ -294,6 +294,175 @@ def _kurtosis(values: list) -> float:
     return float(np.mean(((arr - mean) / std) ** 4) - 3.0)
 
 
+def compute_oi_features(chain: Dict[str, Any]) -> Dict[str, float]:
+    """Compute Open Interest features from chain."""
+    features = {}
+    contracts = chain.get("contracts", [])
+    spot = chain.get("spot", 0)
+
+    calls = [c for c in contracts if c["type"] in ("C", "CALL")]
+    puts = [c for c in contracts if c["type"] in ("P", "PUT")]
+
+    # Total OI
+    total_call_oi = sum(c["oi"] for c in calls)
+    total_put_oi = sum(c["oi"] for c in puts)
+    features["total_call_oi"] = total_call_oi
+    features["total_put_oi"] = total_put_oi
+    features["put_call_oi_ratio"] = total_put_oi / (total_call_oi + 1e-8)
+
+    # ATM OI (within 1% of spot)
+    if spot > 0:
+        atm_calls = [c for c in calls if abs(c["strike"] - spot) / spot < 0.01]
+        atm_puts = [c for c in puts if abs(c["strike"] - spot) / spot < 0.01]
+        features["atm_call_oi"] = sum(c["oi"] for c in atm_calls)
+        features["atm_put_oi"] = sum(c["oi"] for c in atm_puts)
+        features["atm_put_call_oi_ratio"] = features["atm_put_oi"] / (features["atm_call_oi"] + 1e-8)
+    else:
+        features["atm_call_oi"] = 0.0
+        features["atm_put_oi"] = 0.0
+        features["atm_put_call_oi_ratio"] = 0.0
+
+    # OI-weighted strike (center of gravity)
+    total_oi = sum(c["oi"] for c in contracts)
+    if total_oi > 0:
+        oi_weighted_strike = sum(c["strike"] * c["oi"] for c in contracts) / total_oi
+        features["oi_weighted_strike"] = oi_weighted_strike
+        features["oi_weighted_distance"] = (spot - oi_weighted_strike) / spot if spot > 0 else 0.0
+    else:
+        features["oi_weighted_strike"] = 0.0
+        features["oi_weighted_distance"] = 0.0
+
+    # Volume features
+    total_call_vol = sum(c["volume"] for c in calls)
+    total_put_vol = sum(c["volume"] for c in puts)
+    features["total_call_volume"] = total_call_vol
+    features["total_put_volume"] = total_put_vol
+    features["put_call_volume_ratio"] = total_put_vol / (total_call_vol + 1e-8)
+
+    return features
+
+
+def compute_iv_features(chain: Dict[str, Any]) -> Dict[str, float]:
+    """Compute Implied Volatility features from chain."""
+    features = {}
+    contracts = chain.get("contracts", [])
+    spot = chain.get("spot", 0)
+
+    calls = [c for c in contracts if c["type"] in ("C", "CALL") and c["iv"] > 0]
+    puts = [c for c in contracts if c["type"] in ("P", "PUT") and c["iv"] > 0]
+
+    if not calls and not puts:
+        return {k: 0.0 for k in [
+            "avg_call_iv", "avg_put_iv", "iv_skew", "iv_spread",
+            "atm_iv", "min_iv", "max_iv", "iv_range",
+            "call_iv_skew", "put_iv_skew"
+        ]}
+
+    # Average IV
+    features["avg_call_iv"] = np.mean([c["iv"] for c in calls]) if calls else 0.0
+    features["avg_put_iv"] = np.mean([c["iv"] for c in puts]) if puts else 0.0
+    features["iv_skew"] = features["avg_put_iv"] - features["avg_call_iv"]
+
+    all_ivs = [c["iv"] for c in contracts if c["iv"] > 0]
+    features["avg_iv"] = np.mean(all_ivs) if all_ivs else 0.0
+    features["min_iv"] = min(all_ivs) if all_ivs else 0.0
+    features["max_iv"] = max(all_ivs) if all_ivs else 0.0
+    features["iv_range"] = features["max_iv"] - features["min_iv"]
+
+    # ATM IV
+    if spot > 0:
+        atm = [c for c in contracts if abs(c["strike"] - spot) / spot < 0.005 and c["iv"] > 0]
+        features["atm_iv"] = np.mean([c["iv"] for c in atm]) if atm else 0.0
+    else:
+        features["atm_iv"] = 0.0
+
+    # IV skew (25-delta put IV - 25-delta call IV)
+    puts_25d = [c for c in puts if 0.20 <= abs(c.get("delta", 0)) <= 0.30]
+    calls_25d = [c for c in calls if 0.20 <= abs(c.get("delta", 0)) <= 0.30]
+    put_25d_iv = np.mean([c["iv"] for c in puts_25d]) if puts_25d else 0.0
+    call_25d_iv = np.mean([c["iv"] for c in calls_25d]) if calls_25d else 0.0
+    features["put_25d_iv"] = put_25d_iv
+    features["call_25d_iv"] = call_25d_iv
+    features["iv_25d_skew"] = put_25d_iv - call_25d_iv
+
+    return features
+
+
+def compute_all_features(chain: Dict[str, Any]) -> Dict[str, float]:
+    """Compute all features from an options chain."""
+    features = {"spot": chain.get("spot", 0)}
+    features.update(compute_gex_features(chain))
+    features.update(compute_oi_features(chain))
+    features.update(compute_iv_features(chain))
+    return features
+
+
+# ===================================================================
+# 3. Price-based features
+# ===================================================================
+
+def compute_price_features(price_df: pd.DataFrame, idx: int) -> Dict[str, float]:
+    """Compute technical/price features from historical price data at index idx."""
+    features = {}
+    row = price_df.iloc[idx]
+
+    features["close"] = float(row.get("Close", 0))
+    features["volume"] = float(row.get("Volume", 0))
+    features["high_low_range"] = float(row.get("High", 0) - row.get("Low", 0))
+    features["open_close_diff"] = float(row.get("Close", 0) - row.get("Open", 0))
+
+    close = float(row.get("Close", 0))
+
+    # Moving averages
+    for window in [5, 10, 20, 50]:
+        if idx >= window:
+            ma = price_df["Close"].iloc[idx - window:idx].mean()
+            features[f"ma_{window}"] = float(ma)
+            features[f"close_to_ma_{window}"] = (close - ma) / (ma + 1e-8)
+        else:
+            features[f"ma_{window}"] = close
+            features[f"close_to_ma_{window}"] = 0.0
+
+    # Returns
+    for period in [1, 2, 3, 5, 10, 20]:
+        if idx >= period:
+            prev = float(price_df["Close"].iloc[idx - period])
+            features[f"return_{period}d"] = (close - prev) / (prev + 1e-8) if prev > 0 else 0.0
+        else:
+            features[f"return_{period}d"] = 0.0
+
+    # Volatility
+    if idx >= 20:
+        returns = price_df["Close"].iloc[idx - 20:idx].pct_change().dropna()
+        features["realized_vol_20d"] = float(returns.std() * np.sqrt(252))
+    else:
+        features["realized_vol_20d"] = 0.0
+
+    # RSI-14
+    if idx >= 14:
+        deltas = price_df["Close"].iloc[idx - 14:idx + 1].diff()
+        gains = deltas.where(deltas > 0, 0).sum()
+        losses = (-deltas.where(deltas < 0, 0)).sum()
+        rs = gains / (losses + 1e-8)
+        features["rsi_14"] = 100.0 - (100.0 / (1.0 + rs))
+    else:
+        features["rsi_14"] = 50.0
+
+    # MACD
+    if idx >= 26:
+        ema12 = price_df["Close"].iloc[:idx + 1].ewm(span=12).mean().iloc[-1]
+        ema26 = price_df["Close"].iloc[:idx + 1].ewm(span=26).mean().iloc[-1]
+        features["macd"] = float(ema12 - ema26)
+    else:
+        features["macd"] = 0.0
+
+    return features
+
+
+# ===================================================================
+# 4. Walk-forward training
+# ===================================================================
+
 def build_dataset(
     price_df: pd.DataFrame,
     live_chain: Optional[Dict[str, Any]] = None,

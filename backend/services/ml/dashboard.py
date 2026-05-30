@@ -46,8 +46,6 @@ DB_NAME = os.environ.get("DB_NAME", "confluence_decoder")
 MODEL_DIR = Path(__file__).resolve().parents[2] / "models"
 
 
-@dataclass
-@dataclass
 class ModelDashboard:
     """ML model health dashboard.
 
@@ -263,3 +261,25 @@ class ModelDashboard:
 
     async def close(self):
         self._client.close()
+
+
+class ModelHealth:
+    """Health status for a single model."""
+    ticker: str
+    model_id: str
+    model_type: str
+    status: str  # "healthy", "stale", "drift", "error"
+    loaded: bool
+    prediction: Optional[int]
+    confidence: Optional[float]
+    data_age_sec: Optional[float]
+    rolling_7d_accuracy: Optional[float]
+    rolling_30d_accuracy: Optional[float]
+    total_predictions: int
+    drift_status: str
+    drift_alerts: List[str]
+    last_prediction_ts: Optional[str]
+    train_accuracy: float
+    n_features: int
+
+

@@ -24,7 +24,7 @@ import asyncio
 import json
 import logging
 import os
-from typing import Dict, List
+from typing import Dict, List, Optional
 
 from fastapi import APIRouter, HTTPException, Query
 

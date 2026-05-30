@@ -8,6 +8,11 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/flashalpha", tags=["flashalpha"])
 
 
+def get_client():
+    from flashalpha_client import FlashAlphaClient
+    return FlashAlphaClient()
+
+
 @router.get("/exposure/{symbol}")
 async def get_exposure(symbol: str):
     """Get full exposure data (GEX, DEX, VEX, CHEX)."""

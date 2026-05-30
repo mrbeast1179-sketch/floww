@@ -271,3 +271,16 @@ class FederatedMemorySync:
         self._running = False
         if self._poll_thread:
             self._poll_thread.join(timeout=5)
+
+class RedisFederationQueue:
+    """Redis-based federation queue for multi-machine setup."""
+
+    def __init__(self, redis_url: str = None):
+        if redis is None:
+            raise ImportError("redis package required for RedisFederationQueue. pip install redis")
+        self.redis_url = redis_url or os.environ.get(
+            "REDIS_FEDERATION_URL", "redis://localhost:6379/0"
+        )
+        self.channel = "mem0_writes"
+        self._redis = None
+

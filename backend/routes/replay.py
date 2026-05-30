@@ -15,6 +15,15 @@ from typing import Optional
 
 from fastapi import APIRouter, HTTPException, Query
 
+_replay_engine = None
+
+def set_replay_engine(engine):
+    """Called by server.py to inject the replay engine."""
+    global _replay_engine
+    _replay_engine = engine
+
+
+
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/replay", tags=["replay"])

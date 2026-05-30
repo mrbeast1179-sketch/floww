@@ -63,7 +63,7 @@ class AlertHistory(BaseModel):
     ml_prediction: Optional[Dict[str, Any]] = None
     realized_outcome: Optional[Dict[str, Any]] = None  # Filled later
     quality_score: Optional[float] = None  # From backtest
-    
+
     class Config:
         json_schema_extra = {
             "example": {
@@ -74,6 +74,33 @@ class AlertHistory(BaseModel):
                 "message": "Regime change detected",
             }
         }
+
+
+class OrderRecord(BaseModel):
+    """Order record document schema."""
+    client_order_id: str
+    ticker: str
+    status: str  # pending, partial, filled, cancelled
+    side: str  # buy, sell
+    quantity: float
+    order_type: str  # market, limit, stop
+    limit_price: Optional[float] = None
+    alpaca_order_id: Optional[str] = None
+    filled_price: Optional[float] = None
+    created_at: str = ""
+    updated_at: str = ""
+
+
+class PositionRecord(BaseModel):
+    """Position record document schema."""
+    ticker: str
+    status: str  # open, closed
+    quantity: float
+    entry_price: float
+    entry_ts: str = ""
+    exit_price: Optional[float] = None
+    exit_ts: Optional[str] = None
+    events: List[Dict[str, Any]] = []
 
 
 class GexSnapshotRepository:

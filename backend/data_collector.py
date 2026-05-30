@@ -1,3 +1,21 @@
+async def store_snapshot(snapshot: dict) -> bool:
+    """Store a snapshot in MongoDB."""
+    if not snapshot:
+        return False
+    
+    client = AsyncIOMotorClient(os.environ.get("MONGO_URL", ""))
+    db = client[os.environ.get("DB_NAME", "confluence_decoder")]
+    
+    try:
+        await db.snapshots.insert_one(snapshot)
+        logger.info(f"Stored snapshot: {snapshot['ticker']} @ {snapshot['spot']:.2f} ({snapshot['regime']})")
+        return True
+    except Exception as e:
+        logger.error(f"Failed to store snapshot: {e}")
+        return False
+    finally:
+        client.close()
+
 """
 Data collection script for ML training.
 
@@ -65,3 +83,12 @@ async def collect_multiple_tickers(tickers: list = None) -> list:
         results.append(result)
     
     return results
+
+
+def collect_and_store(ticker: str = "SPY") -> dict:
+    """Collect and store a snapshot."""
+    snapshot = await collect_snapshot(ticker)
+    if snapshot:
+        success = await store_snapshot(snapshot)
+        return {"status": "stored" if success else "error", "snapshot": snapshot}
+    return {"status": "no_data"}

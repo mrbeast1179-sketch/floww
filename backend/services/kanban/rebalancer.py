@@ -18,6 +18,34 @@ from collections import Counter
 from datetime import datetime, timezone
 from pathlib import Path
 
+REPO_ROOT = Path(__file__).resolve().parent.parent.parent.parent
+KANBAN_DIR = REPO_ROOT / "kanban"
+CARDS_DIR = KANBAN_DIR / "cards"
+
+def load_cards() -> list[dict]:
+    """Load all card files."""
+    import yaml
+
+    cards = []
+    for f in sorted(CARDS_DIR.glob("*.md")):
+        if f.name.startswith("tagging_"):
+            continue
+        try:
+            content = f.read_text()
+            if not content.startswith("---"):
+                continue
+            parts = content.split("---", 2)
+            if len(parts) < 3:
+                continue
+            fm = yaml.safe_load(parts[1]) or {}
+            fm["_file"] = str(f)
+            cards.append(fm)
+        except Exception:
+            continue
+    return cards
+
+
+
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 KANBAN_DIR = REPO_ROOT / "kanban"
 CARDS_DIR = KANBAN_DIR / "cards"
@@ -147,6 +175,39 @@ def recommend_reassignment(bottleneck_agent: str, cards: list[dict],
     return recommendations
 
 
+def run_rebalancer(bottleneck_data: dict) -> dict:
+    """Run rebalancer for detected bottlenecks."""
+    cards = load_cards()
+    recommendations = []
+
+    for bottleneck in bottleneck_data.get("bottlenecks", []):
+        recs = recommend_reassignment(
+            bottleneck["agent"], cards, bottleneck_data.get("agent_metrics", {})
+        )
+        recommendations.extend(recs)
+
+    if recommendations:
+        # Group by bottleneck
+        proposal_parts = []
+        for bottleneck in bottleneck_data.get("bottlenecks", []):
+            bottleneck_recs = [r for r in recommendations if r["from_agent"] == bottleneck["agent"]]
+            if bottleneck_recs:
+                proposal_parts.append(format_rebalance_proposal(bottleneck_recs, bottleneck))
+
+        proposal = "\n\n".join(proposal_parts)
+        REBALANCE_FILE.write_text(proposal + "\n")
+    else:
+        proposal = ""
+        if REBALANCE_FILE.exists():
+            REBALANCE_FILE.unlink()
+
+    return {
+        "recommendations": recommendations,
+        "proposal": proposal,
+        "proposal_file": str(REBALANCE_FILE) if recommendations else None,
+    }
+
+
 if __name__ == "__main__":
     # Test with current state
     from backend.services.kanban.bottleneck import run_bottleneck_check
@@ -158,3 +219,15 @@ if __name__ == "__main__":
     for rec in result["recommendations"]:
         logger.info(f"  {rec['card_id']}: {rec['from_agent']} → {rec['to_agent']} "
               f"(conf: {rec['confidence']})")
+
+def format_rebalance_proposal(recommendations: list[dict], bottleneck: dict) -> str:
+    """Format rebalance proposal for Nav."""
+    lines = [
+        f"# Rebalance Proposal — {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC')}",
+        "",
+        f"**Bottleneck:** {bottleneck['agent']}",
+        f"**Reasons:** {', '.join(bottleneck['reasons'])}",
+        "",
+        f"**Recommendations:** {len(recommendations)}",
+        "",
+    ]

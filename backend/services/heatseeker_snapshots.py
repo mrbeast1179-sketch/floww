@@ -537,3 +537,21 @@ def get_top_movers_from_db(
     except Exception as e:
         logger.error(f"get_top_movers_from_db error: {e}")
         return []
+
+def rows_to_contracts(df):
+            records = df.where(df.notna(), None).to_dict("records")
+            return [
+                {
+                    "ticker": r["ticker"],
+                    "expiry": r["expiry"],
+                    "strike": r["strike"],
+                    "type": r["type"],
+                    "oi": r["oi"],
+                    "volume": r["volume"],
+                    "iv": r["iv"],
+                    "delta": r.get("delta_val", 0),
+                    "gamma": r.get("gamma_val", 0),
+                }
+                for r in records
+            ]
+
