@@ -26,6 +26,9 @@ class CreditConfig:
     budget: int = 0
     warning_pct: float = 0.80
     critical_pct: float = 0.95
+    rate_limit_window_seconds: float = 300.0
+    rate_limit_warning_threshold: int = 3
+    rate_limit_critical_threshold: int = 10
 
 
 
@@ -36,7 +39,6 @@ MEDIUM = "MEDIUM"
 CRITICAL = "CRITICAL"
 
 
-@dataclass
 @dataclass
 class CreditState:
     """Current state of API credits."""
