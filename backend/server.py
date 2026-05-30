@@ -2640,6 +2640,9 @@ app.include_router(heatseeker_snapshots_router, prefix="/api/heatseeker", tags=[
 from routes.ml_predict_api import router as ml_predict_router
 app.include_router(ml_predict_router, tags=["ml-predict"])
 
+from routes.ml_outcome_api import router as ml_outcome_router
+app.include_router(ml_outcome_router, tags=["ml-outcome"])
+
 from routes.predictive import router as predictive_router
 app.include_router(predictive_router, tags=["predictive"])
 
