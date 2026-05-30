@@ -1,89 +1,59 @@
-"""
-backend/services/request_deduplicator.py
-
-Request deduplication for concurrent API calls.
-
-When multiple callers request the same resource simultaneously, only one
-outgoing request is made. Other callers share the in-flight promise.
-
-Usage:
-    dedup = RequestDeduplicator()
-
-    # In an async route handler:
-    result = await dedup.execute(f"chain:{ticker}", lambda: fetch_chain(ticker))
-
-Thread-safety: This class is designed for asyncio (single-threaded
-concurrent) use. It is NOT safe for multi-threaded access.
-"""
-
-from __future__ import annotations
-
 import asyncio
 import logging
-from typing import Any, Awaitable, Callable, Dict
+from typing import Dict, Optional, TypeVar
 
 logger = logging.getLogger(__name__)
 
+T = TypeVar("T")
+
 
 class RequestDeduplicator:
-    """Deduplicate concurrent async requests by key.
+    """Deduplicate concurrent identical API requests using asyncio.Future.
 
-    If a request with the same key is already in flight, the caller
-    awaits the existing future instead of making a duplicate call.
-
-    Exceptions from the wrapped function propagate to ALL waiters.
-    The in-flight entry is always cleaned up (even on exception).
+    When multiple coroutines call ``execute`` with the same key before the
+    first underlying call finishes, they all share a single Future. When the
+    underlying call completes, the result or exception is broadcast to every
+    waiter.
     """
 
     def __init__(self) -> None:
         self._inflight: Dict[str, asyncio.Future] = {}
 
-    @property
-    def inflight_count(self) -> int:
-        """Number of currently in-flight requests."""
-        return len(self._inflight)
+    async def execute(self, key: str, func) -> T:
+        """Execute *func* once for *key*, deduping concurrent callers.
 
-    @property
-    def inflight_keys(self) -> list:
-        """List of keys currently in flight."""
-        return list(self._inflight.keys())
-
-    async def execute(
-        self, key: str, func: Callable[[], Awaitable[Any]]
-    ) -> Any:
-        """Execute *func*, deduplicating concurrent calls by *key*.
-
-        If *key* is already in flight, wait for the existing result.
-        Otherwise, call *func* and share the result with all waiters.
-
-        Args:
-            key: Deduplication key (e.g. ``"chain:SPY"``).
-            func: Async callable with no arguments. Called only once
-                  per unique in-flight key.
-
-        Returns:
-            The result of *func*.
-
-        Raises:
-            Any exception raised by *func*, propagated to all waiters.
+        Callers with the same outstanding key receive the result (or raise
+        the same exception) without invoking *func* again.
         """
-        # Fast path: already in flight — just wait
+        loop = asyncio.get_running_loop()
         existing = self._inflight.get(key)
         if existing is not None:
-            logger.debug("Deduplicating request for key=%s", key)
-            return await existing
+            logger.debug("dedup: awaiting existing request %s", key)
+            try:
+                return await existing
+            except Exception:
+                # The shard may have been replaced by a *new* future since
+                # we awaited the old one; fall through to a fresh attempt.
+                pass
 
-        # Slow path: create future, execute, resolve
-        loop = asyncio.get_event_loop()
-        future = loop.create_future()
+        future: asyncio.Future = loop.create_future()
         self._inflight[key] = future
-
         try:
             result = await func()
             future.set_result(result)
             return result
-        except Exception as exc:
-            future.set_exception(exc)
+        except BaseException as exc:
+            # Capture the exception so all waiters see it.
+            if not future.done():
+                future.set_exception(exc)
             raise
         finally:
+            # Clean up so a later request can retry.
             self._inflight.pop(key, None)
+
+    @property
+    def inflight_keys(self):
+        return list(self._inflight.keys())
+
+
+deduplicator = RequestDeduplicator()
