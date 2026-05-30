@@ -72,6 +72,10 @@ class CausalGraph:
         for cause, effect in edges:
             self.add_edge(cause, effect)
 
+    def get_nodes(self) -> Set[str]:
+        """Get all nodes in the graph."""
+        return self._nodes.copy()
+
     def get_parents(self, node: str) -> Set[str]:
         """Get direct parents (causes) of a node."""
         return self._parents.get(node, set()).copy()
@@ -259,6 +263,23 @@ class BackdoorCriterion:
                 return False
 
         return True
+
+    def find_adjustment_sets(self, x: str, y: str) -> List[Set[str]]:
+        """Find all valid backdoor adjustment sets for (X, Y)."""
+        # Candidates: all nodes that are not X, Y, or descendants of X
+        descendants = self.graph.get_descendants(x)
+        candidates = [n for n in self.graph.get_nodes()
+                      if n not in {x, y} and n not in descendants]
+        
+        valid_sets = []
+        # Try all subsets of candidates (limit to reasonable size)
+        from itertools import combinations
+        for size in range(len(candidates) + 1):
+            for subset in combinations(candidates, size):
+                z = set(subset)
+                if self.is_valid_adjustment_set(x, y, z):
+                    valid_sets.append(z)
+        return valid_sets
 
     def find_minimal_adjustment_set(self, x: str, y: str) -> Optional[Set[str]]:
         """Find the smallest valid backdoor adjustment set."""
