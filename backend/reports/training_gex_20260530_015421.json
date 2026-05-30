@@ -1,0 +1,14 @@
+{
+  "QQQ": {
+    "error": "not enough values to unpack (expected 3, got 0)"
+  },
+  "DIA": {
+    "error": "not enough values to unpack (expected 3, got 0)"
+  },
+  "IWM": {
+    "error": "not enough values to unpack (expected 3, got 0)"
+  },
+  "TLT": {
+    "error": "not enough values to unpack (expected 3, got 0)"
+  }
+}

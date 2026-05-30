@@ -66,7 +66,7 @@
     "overfit_gap": 0.04235671735671742,
     "overall_sharpe": 3.7330498896197315,
     "avg_fold_sharpe": 3.7330498896197315,
-    "train_time_sec": 0.09047198295593262
+    "train_time_sec": 0.0916130542755127
   },
   "fold_metrics": [
     {
@@ -127,15 +127,15 @@
     }
   ],
   "top_features": {
-    "sma_5": 0.08097101917800305,
+    "sma_5": 0.08177792248065568,
     "atr_14": 0.0764751474797261,
     "sma_50": 0.07215194588861927,
     "sma_21": 0.05289210556098834,
-    "realized_vol_60d": 0.04913441807576942,
+    "realized_vol_60d": 0.04960553035556807,
     "realized_vol_21d": 0.0456730053829467,
-    "sma_10": 0.044842102484441836,
+    "sma_10": 0.0442973160744021,
     "realized_vol_10d": 0.0411748617074142,
-    "volume_sma_21": 0.03735767672428543,
+    "volume_sma_21": 0.036574268742189005,
     "vol_ratio_5_21": 0.030013839884402416
   },
   "gate_results": {
@@ -147,7 +147,7 @@
     "fold_consistency": true
   },
   "verdict": "SHIP",
-  "created_at": "2026-05-30T01:43:37.576870+00:00",
+  "created_at": "2026-05-30T02:01:21.500071+00:00",
   "model_path": "/Users/nav/Documents/GitHub/floww/backend/models/TLT_gbm_production.joblib",
   "scaler_path": "/Users/nav/Documents/GitHub/floww/backend/models/TLT_gbm_production_scaler.joblib"
 }
