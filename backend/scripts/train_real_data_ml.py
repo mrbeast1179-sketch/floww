@@ -326,7 +326,6 @@ def walk_forward_cv(
     fold_size = len(X) // (n_splits + 1)
     scores = []
     train_scores = []
-    sharpe_scores = []
 
     for fold in range(n_splits):
         train_end = fold_size * (fold + 1)
@@ -352,15 +351,11 @@ def walk_forward_cv(
         test_acc = accuracy_score(y_test, test_pred)
         gap = train_acc - test_acc
 
-        # Simple Sharpe proxy: accuracy / (1 - accuracy + epsilon)
-        sharpe = test_acc / (1.0 - test_acc + 0.01)
-
         train_scores.append(train_acc)
         scores.append(test_acc)
-        sharpe_scores.append(sharpe)
 
-        log.info("  Fold %d: train=%.4f test=%.4f gap=%.4f sharpe=%.2f (%d train, %d test)",
-                 fold + 1, train_acc, test_acc, gap, sharpe, len(X_train), len(X_test))
+        log.info("  Fold %d: train=%.4f test=%.4f gap=%.4f (%d train, %d test)",
+                 fold + 1, train_acc, test_acc, gap, len(X_train), len(X_test))
 
     return {
         "n_folds": len(scores),
@@ -368,7 +363,6 @@ def walk_forward_cv(
         "mean_test_accuracy": float(np.mean(scores)),
         "std_test_accuracy": float(np.std(scores)),
         "mean_gap": float(np.mean([t - s for t, s in zip(train_scores, scores)])),
-        "mean_test_sharpe": float(np.mean(sharpe_scores)),
         "fold_test_scores": [float(s) for s in scores],
     }
 
@@ -384,7 +378,6 @@ def train_model(
     from sklearn.linear_model import LogisticRegression
     from sklearn.preprocessing import StandardScaler
 
-    from sklearn.ensemble import GradientBoostingClassifier, RandomForestClassifier
 
     # Use 2 years of data for robust features
     period = f"{max(days // 21, 24)}mo"
@@ -404,26 +397,30 @@ def train_model(
     X_full = clean[feature_cols].values.astype(float)
     y = clean[target_col].values.astype(int)
 
-    # Feature selection on full dataset
-    log.info("Running feature selection for %s (%d samples, %d raw features)...",
-             ticker, len(X_full), len(feature_cols))
+    # Train/test split (80/20 temporal) FIRST — prevent leakage
+    split_idx = int(len(X_full) * 0.8)
+    X_full_train, X_full_test = X_full[:split_idx], X_full[split_idx:]
+    y_train, y_test = y[:split_idx], y[split_idx:]
+
+    # Feature selection on train-only (no leakage)
+    log.info("Running feature selection for %s (%d train samples, %d raw features)...",
+             ticker, len(X_full_train), len(feature_cols))
     selected_names, selected_indices = select_features(
-        X_full, y, feature_cols,
+        X_full_train, y_train, feature_cols,
         min_variance=0.0005,
         max_correlation=0.90,
         max_features=20,
         quick=quick,
     )
-    X = X_full[:, selected_indices]
 
-    # Scale
+    # Slice selected features
+    X_train_sel = X_full_train[:, selected_indices]
+    X_test_sel = X_full_test[:, selected_indices]
+
+    # Scale on train-only (no leakage), then transform test
     scaler = StandardScaler()
-    X_scaled = scaler.fit_transform(X)
-
-    # Train/test split (80/20 temporal)
-    split_idx = int(len(X) * 0.8)
-    X_train, X_test = X_scaled[:split_idx], X_scaled[split_idx:]
-    y_train, y_test = y[:split_idx], y[split_idx:]
+    X_train = scaler.fit_transform(X_train_sel)
+    X_test = scaler.transform(X_test_sel)
 
     # Class distribution
     for cls, label in [(0, "DOWN"), (1, "HOLD"), (2, "UP")]:
@@ -457,25 +454,25 @@ def train_model(
     # Walk-forward CV each candidate
     best_model = None
     best_name = None
-    best_sharpe = -999
+    best_score = -999
     best_cv = None
 
     for name, model in candidates.items():
         log.info("Evaluating %s %s...", ticker, name)
         cv = walk_forward_cv(model, X_train, y_train,
                              n_splits=3 if quick else 5, embargo=5)
-        log.info("  %s: test_acc=%.4f ± %.4f, gap=%.4f, sharpe=%.2f",
+        log.info("  %s: test_acc=%.4f ± %.4f, gap=%.4f",
                  name, cv["mean_test_accuracy"], cv["std_test_accuracy"],
-                 cv["mean_gap"], cv["mean_test_sharpe"])
+                 cv["mean_gap"])
 
-        if cv["mean_test_sharpe"] > best_sharpe:
-            best_sharpe = cv["mean_test_sharpe"]
+        if cv["mean_test_accuracy"] > best_score:
+            best_score = cv["mean_test_accuracy"]
             best_model = model
             best_name = name
             best_cv = cv
 
     # Train best model on full training set
-    log.info("Best model for %s: %s (sharpe=%.2f)", ticker, best_name, best_sharpe)
+    log.info("Best model for %s: %s (OOS acc=%.4f)", ticker, best_name, best_score)
     best_model.fit(X_train, y_train)
 
     from sklearn.metrics import accuracy_score
@@ -490,7 +487,7 @@ def train_model(
     result = {
         "ticker": ticker,
         "model_type": best_name,
-        "n_samples": len(X),
+        "n_samples": len(X_train) + len(X_test),
         "n_train": len(X_train),
         "n_test": len(X_test),
         "n_features": len(selected_names),
@@ -502,7 +499,6 @@ def train_model(
         "walk_forward_mean": best_cv["mean_test_accuracy"],
         "walk_forward_std": best_cv["std_test_accuracy"],
         "walk_forward_gap": best_cv["mean_gap"],
-        "walk_forward_sharpe": best_cv["mean_test_sharpe"],
         "n_folds": best_cv["n_folds"],
         "fold_scores": best_cv["fold_test_scores"],
         "candidate_scores": {},
@@ -586,9 +582,9 @@ def main():
             result = train_model(ticker, days=args.days, quick=args.quick, output_dir=output_dir)
             result["total_time_sec"] = time.time() - t0
             results[ticker] = result
-            log.info("✓ %s: %s test_acc=%.4f gap=%.4f sharpe=%.2f in %.1fs",
+            log.info("✓ %s: %s test_acc=%.4f gap=%.4f in %.1fs",
                      ticker, result["model_type"], result["test_accuracy"],
-                     result["overfit_gap"], result["walk_forward_sharpe"],
+                     result["overfit_gap"],
                      result["total_time_sec"])
         except Exception as e:
             log.error("✗ %s FAILED: %s", ticker, e, exc_info=True)
@@ -602,9 +598,9 @@ def main():
         if "error" in r:
             log.info("%s: ERROR — %s", ticker, r["error"])
         else:
-            log.info("%s: %s | test=%.4f | gap=%.4f | sharpe=%.2f | %d features",
+            log.info("%s: %s | test=%.4f | gap=%.4f | %d features",
                      ticker, r["model_type"], r["test_accuracy"],
-                     r["overfit_gap"], r["walk_forward_sharpe"], r["n_features"])
+                     r["overfit_gap"], r["n_features"])
 
     # Save summary report
     report_path = SCRIPT_DIR.parent / "reports" / f"training_real_data_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}.json"

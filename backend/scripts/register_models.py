@@ -9,11 +9,11 @@ Usage:
     cd backend && ./venv/bin/python scripts/register_models.py
 """
 
-import sys
-import os
-import json
 import asyncio
+import json
 import logging
+import os
+import sys
 from pathlib import Path
 
 SCRIPT_DIR = Path(__file__).resolve().parent
@@ -50,7 +50,7 @@ async def register_all():
 
         model_id = manifest.get("model_id", f"{ticker}_direction_v1.0_gbm")
         model_path = Path(manifest["model_path"])
-        scaler_path = Path(manifest["scaler_path"])
+        _scaler_path = Path(manifest["scaler_path"])
         verdict = manifest.get("verdict", "HOLD")
         metrics = manifest.get("metrics", {})
         gate_results = manifest.get("gate_results", {})
@@ -74,7 +74,7 @@ async def register_all():
             model_id=model_id,
             ticker=ticker,
             feature_version=manifest.get("feature_version", "v2.0"),
-            training_window=f"2y_walkforward_8folds",
+            training_window="2y_walkforward_8folds",
             metrics_summary=metrics_summary,
             artifact_path=str(model_path),
             status=status,

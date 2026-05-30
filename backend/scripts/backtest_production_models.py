@@ -251,9 +251,9 @@ def walk_forward_backtest(
         for cls in [0, 1, 2]:
             mask = y_test == cls
             if mask.sum() > 0:
-                cls_acc = accuracy_score(y_test[mask], test_pred[mask])
+                _cls_acc = accuracy_score(y_test[mask], test_pred[mask])
             else:
-                cls_acc = 0.0
+                _cls_acc = 0.0
 
         fold_metrics.append({
             "fold": i + 1,

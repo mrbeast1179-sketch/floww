@@ -6,8 +6,9 @@ Compute GEX features from a live options chain for ML inference.
 from __future__ import annotations
 
 import logging
-import numpy as np
 from typing import Any, Dict, Optional
+
+import numpy as np
 
 log = logging.getLogger("ml.gex_inference")
 
@@ -181,7 +182,7 @@ def _empty_gex_features(features: Dict[str, float]) -> Dict[str, float]:
         "realized_vol_t1": 0.0, "realized_vol_t3": 0.0,
         "realized_vol_rolling_3d": 0.0, "realized_vol_rolling_5d": 0.0,
         "net_gex_roc_1d": 0.0, "net_gex_roc_3d": 0.0,
-        "net_gex_roc_5d": 0.0, "net_gex_roc_1d": 0.0,
+        "net_gex_roc_5d": 0.0,
         "net_gex_zscore_60d": 0.0,
     }
     for k, v in defaults.items():

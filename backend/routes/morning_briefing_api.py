@@ -67,7 +67,7 @@ async def get_briefing(
 
     # Build briefing
     try:
-        from services.morning_briefing import build_briefing, BriefingResult
+        from services.morning_briefing import BriefingResult, build_briefing
 
         # Try to get top movers from server's cache
         top_movers = []
@@ -142,7 +142,7 @@ async def get_briefing_html(
 
     regime = cached.get("regime", "UNKNOWN")
     narrative = cached.get("narrative", "No narrative available.")
-    metrics = cached.get("metrics", {})
+    _metrics = cached.get("metrics", {})
     timestamp = cached.get("timestamp", "")
 
     regime_color = {

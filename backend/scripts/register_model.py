@@ -22,7 +22,6 @@ import joblib
 import pymongo
 from dotenv import load_dotenv
 
-
 logger = logging.getLogger(__name__)
 SCRIPT_DIR = Path(__file__).resolve().parent
 BACKEND_DIR = SCRIPT_DIR.parent
@@ -49,7 +48,7 @@ def register_model(model_path: str, ticker: str, promote: bool = False):
         sys.exit(1)
 
     artifact = joblib.load(path)
-    model = artifact["model"]
+    _model = artifact["model"]
     feature_names = artifact.get("feature_names", [])
     metrics = artifact.get("metrics", {})
 
