@@ -44,33 +44,34 @@ log = logging.getLogger("ml.inference")
 
 MODEL_DIR = Path(__file__).resolve().parents[2] / "models"
 
-# Walk-forward trained models from scripts/train_cached_models.py (2026-05-25)
+# Real-data 3-class models from scripts/train_real_data_ml.py (2026-05-30)
+# Walk-forward CV + feature selection, 500 samples, rf/logistic
 # Tuple format: (model_path, scaler_path, manifest_path)
 MODEL_REGISTRY: Dict[str, Tuple[str, ...]] = {
     "DIA": (
-        str(MODEL_DIR / "DIA_gbm_production.joblib"),
-        str(MODEL_DIR / "DIA_gbm_production_scaler.joblib"),
-        str(MODEL_DIR / "DIA_gbm_production_manifest.json"),
+        str(MODEL_DIR / "DIA_rf_production.joblib"),
+        str(MODEL_DIR / "DIA_rf_production_scaler.joblib"),
+        str(MODEL_DIR / "DIA_rf_production_manifest.json"),
     ),
     "IWM": (
-        str(MODEL_DIR / "IWM_gbm_production.joblib"),
-        str(MODEL_DIR / "IWM_gbm_production_scaler.joblib"),
-        str(MODEL_DIR / "IWM_gbm_production_manifest.json"),
+        str(MODEL_DIR / "IWM_rf_production.joblib"),
+        str(MODEL_DIR / "IWM_rf_production_scaler.joblib"),
+        str(MODEL_DIR / "IWM_rf_production_manifest.json"),
     ),
     "QQQ": (
-        str(MODEL_DIR / "QQQ_gbm_production.joblib"),
-        str(MODEL_DIR / "QQQ_gbm_production_scaler.joblib"),
-        str(MODEL_DIR / "QQQ_gbm_production_manifest.json"),
+        str(MODEL_DIR / "QQQ_logistic_production.joblib"),
+        str(MODEL_DIR / "QQQ_logistic_production_scaler.joblib"),
+        str(MODEL_DIR / "QQQ_logistic_production_manifest.json"),
     ),
     "SPY": (
-        str(MODEL_DIR / "SPY_gbm_production.joblib"),
-        str(MODEL_DIR / "SPY_gbm_production_scaler.joblib"),
-        str(MODEL_DIR / "SPY_gbm_production_manifest.json"),
+        str(MODEL_DIR / "SPY_rf_production.joblib"),
+        str(MODEL_DIR / "SPY_rf_production_scaler.joblib"),
+        str(MODEL_DIR / "SPY_rf_production_manifest.json"),
     ),
     "TLT": (
-        str(MODEL_DIR / "TLT_rf_20260524_022154.joblib"),
-        None,
-        None,
+        str(MODEL_DIR / "TLT_logistic_production.joblib"),
+        str(MODEL_DIR / "TLT_logistic_production_scaler.joblib"),
+        str(MODEL_DIR / "TLT_logistic_production_manifest.json"),
     ),
 }
 

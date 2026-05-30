@@ -1,0 +1,5 @@
+{
+  "SPY": {
+    "error": "LogisticRegression.__init__() got an unexpected keyword argument 'multi_class'"
+  }
+}
