@@ -74,7 +74,6 @@ MODEL_REGISTRY: Dict[str, Tuple[str, ...]] = {
         str(MODEL_DIR / "TLT_rf_production_manifest.json"),
     ),
 }
-
 # Prediction classes
 DOWN = 0
 HOLD = 1
@@ -430,14 +429,14 @@ class InferenceEngine:
 
         if isinstance(artifact, dict):
             model = artifact["model"]
-            metrics = artifact.get("metrics", {})
+            _metrics = artifact.get("metrics", {})
             manifest = {
                 "model_type": artifact.get("model_name", artifact.get("model", "unknown")),
                 "feature_names": artifact.get("feature_names", []),
                 "n_features": len(artifact.get("feature_names", [])),
-                "train_accuracy": metrics.get("avg_train_accuracy", metrics.get("overall_accuracy", 0.0)),
-                "test_accuracy": metrics.get("avg_test_accuracy", metrics.get("avg_fold_accuracy", 0.0)),
-                "test_sharpe": metrics.get("avg_test_sharpe", metrics.get("overall_sharpe", 0.0)),
+                "train_accuracy": _metrics.get("avg_train_accuracy", 0.0),
+                "test_accuracy": _metrics.get("avg_test_accuracy", 0.0),
+                "test_sharpe": _metrics.get("avg_test_sharpe", _metrics.get("overall_sharpe", 0.0)),
                 "model_path": model_path,
             }
         else:
@@ -601,6 +600,7 @@ class InferenceEngine:
             n_features=manifest.get("n_features", 0),
             feature_names=manifest.get("feature_names", []),
             train_accuracy=manifest.get("train_accuracy", 0.0),
+            test_accuracy=manifest.get("test_accuracy", 0.0),
             artifact_path=manifest.get("model_path", ""),
             loaded=True,
         )
