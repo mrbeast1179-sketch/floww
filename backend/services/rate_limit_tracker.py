@@ -1,36 +1,25 @@
-"""
-backend/services/rate_limit_tracker.py
-
-Alpha Vantage API rate limit tracker.
-Free tier: 5 calls/min, 500 calls/day.
-"""
+"""backend/services/rate_limit_tracker.py"""
 
 from __future__ import annotations
-import logging
 from collections import deque
-from datetime import datetime, timedelta
+import logging
+import time
 
 logger = logging.getLogger(__name__)
 
 
-
 class RateLimitTracker:
-    """Track API call rates and enforce limits.
-
-    Sliding window rate limiter that tracks per-minute and per-day call counts.
-    """
-
-    def __init__(self, per_minute: int = 5, per_day: int = 500):
+    def __init__(self, per_minute: int = 5, per_day: int = 500) -> None:
         self.per_minute = per_minute
         self.per_day = per_day
         self._minute_window: deque = deque()
         self._day_window: deque = deque()
 
-    def _prune(self, now: datetime | None = None):
+    def _prune(self, now: float | None = None) -> None:
         if now is None:
-            now = datetime.utcnow()
-        minute_ago = now - timedelta(minutes=1)
-        day_ago = now - timedelta(days=1)
+            now = time.time()
+        minute_ago = now - 60
+        day_ago = now - 86400
         while self._minute_window and self._minute_window[0] <= minute_ago:
             self._minute_window.popleft()
         while self._day_window and self._day_window[0] <= day_ago:
@@ -38,13 +27,13 @@ class RateLimitTracker:
 
     def can_call(self) -> bool:
         self._prune()
-        return (len(self._minute_window) < self.per_minute and
-                len(self._day_window) < self.per_day)
+        return (len(self._minute_window) < self.per_minute and len(self._day_window) < self.per_day)
 
-    def record_call(self):
-        now = datetime.utcnow()
-        self._minute_window.append(now)
-        self._day_window.append(now)
+    def record_call(self, ts: float | None = None) -> None:
+        if ts is None:
+            ts = time.time()
+        self._minute_window.append(ts)
+        self._day_window.append(ts)
 
     @property
     def remaining_minute(self) -> int:
@@ -55,6 +44,13 @@ class RateLimitTracker:
     def remaining_day(self) -> int:
         self._prune()
         return max(0, self.per_day - len(self._day_window))
+
+    def get_status(self) -> dict:
+        self._prune()
+        return {
+            "per_minute": {"limit": self.per_minute, "used": len(self._minute_window), "remaining": self.remaining_minute},
+            "per_day": {"limit": self.per_day, "used": len(self._day_window), "remaining": self.remaining_day},
+        }
 
 
 av_rate_tracker = RateLimitTracker(per_minute=5, per_day=500)
