@@ -1,4 +1,4 @@
-# Bottleneck Alerts — 2026-05-24 02:07 UTC
+# Bottleneck Alerts — 2026-05-30 12:24 UTC
 
 ✅ No bottlenecks detected. All agents within normal parameters.
 
@@ -17,5 +17,7 @@
 | Agent 7 | 0 | 0 | 2 | 0 | 0.00 | — |
 | Agent 8 | 0 | 0 | 4 | 0 | 0.00 | — |
 | Agent 9 | 0 | 0 | 3 | 0 | 0.00 | — |
+| deepseek-v4-pro | 0 | 0 | 2 | 0 | 0.00 | — |
+| deepseek-v4-pro-bulletproof | 0 | 0 | 1 | 0 | 0.00 | — |
 
-*Next check: 02:12 UTC*
+*Next check: 12:29 UTC*

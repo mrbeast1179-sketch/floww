@@ -14,6 +14,7 @@ from fastapi import APIRouter
 from config.secrets import get_alpha_vantage_key
 from services.duckdb_engine import db as duckdb_engine
 from services.websocket_streamer import manager as ws_manager
+from services.alpha_vantage_client import circuit as av_circuit
 
 logger = logging.getLogger(__name__)
 
@@ -80,6 +81,14 @@ async def health_check():
     # WebSocket check
     ws_count = len(ws_manager._all)
     checks["websocket"] = {"status": "healthy", "active_connections": ws_count}
+
+    # Alpha Vantage Circuit Breaker check
+    checks["circuit_breaker"] = {
+        "status": "unhealthy" if av_circuit.state.value == "open" else "healthy",
+        "state": av_circuit.state.value,
+        "failure_count": av_circuit.failure_count,
+        "success_count": av_circuit.success_count,
+    }
 
     overall = (
         "healthy"
