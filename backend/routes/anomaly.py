@@ -52,31 +52,6 @@ def _get_detector(ticker: str, seq_len: int = 50, latent_dim: int = 8, device: s
     return _detectors[ticker]
 
 
-@router.get("/{ticker}")
-async def get_anomaly_state(ticker: str):
-    """Return the current anomaly detection state."""
-    t = ticker.upper()
-    detector = _get_detector(t)
-    return detector.get_state()
-
-
-@router.post("/{ticker}/update")
-async def update_anomaly(ticker: str, vpin: float, qi: float):
-    """Feed a new (VPIN, QI) observation and get anomaly score."""
-    t = ticker.upper()
-    detector = _get_detector(t)
-    result = detector.update(vpin, qi)
-    return {"ticker": t, **result}
-
-
-@router.get("/{ticker}/status")
-async def get_detector_status(ticker: str):
-    """Return model configuration and buffer status."""
-    t = ticker.upper()
-    detector = _get_detector(t)
-    return detector.get_state()
-
-
 @router.get("/ensemble")
 async def get_ensemble_prediction(
     ticker: str,
@@ -124,6 +99,31 @@ async def get_ensemble_state(ticker: str):
     if t not in _ensembles:
         _ensembles[t] = ToxicityEnsemble()
     return {"ticker": t, **_ensembles[t].get_state()}
+
+
+@router.get("/{ticker}")
+async def get_anomaly_state(ticker: str):
+    """Return the current anomaly detection state."""
+    t = ticker.upper()
+    detector = _get_detector(t)
+    return detector.get_state()
+
+
+@router.post("/{ticker}/update")
+async def update_anomaly(ticker: str, vpin: float, qi: float):
+    """Feed a new (VPIN, QI) observation and get anomaly score."""
+    t = ticker.upper()
+    detector = _get_detector(t)
+    result = detector.update(vpin, qi)
+    return {"ticker": t, **result}
+
+
+@router.get("/{ticker}/status")
+async def get_detector_status(ticker: str):
+    """Return model configuration and buffer status."""
+    t = ticker.upper()
+    detector = _get_detector(t)
+    return detector.get_state()
 
 
 @router.post("/{ticker}/load")
