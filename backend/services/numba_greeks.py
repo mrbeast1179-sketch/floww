@@ -562,11 +562,11 @@ def compute_all_greeks(
 
     if np.any(call_mask):
         delta[call_mask] = bs_delta_vec(
-            spot, K[call_mask], T[call_mask], IV[call_mask], q, 0
+            spot, K[call_mask], T[call_mask], IV[call_mask], q, r, 0
         )
     if np.any(put_mask):
         delta[put_mask] = bs_delta_vec(
-            spot, K[put_mask], T[put_mask], IV[put_mask], q, 1
+            spot, K[put_mask], T[put_mask], IV[put_mask], q, r, 1
         )
 
     # Gamma (same for calls and puts)
