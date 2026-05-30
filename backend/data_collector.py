@@ -85,7 +85,7 @@ async def collect_multiple_tickers(tickers: list = None) -> list:
     return results
 
 
-def collect_and_store(ticker: str = "SPY") -> dict:
+async def collect_and_store(ticker: str = "SPY") -> dict:
     """Collect and store a snapshot."""
     snapshot = await collect_snapshot(ticker)
     if snapshot:

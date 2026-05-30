@@ -125,7 +125,7 @@ class PollingScheduler:
         return self._running
 
 
-def run_scheduler(interval: int = DEFAULT_INTERVAL):
+async def run_scheduler(interval: int = DEFAULT_INTERVAL):
     """Convenience function to run the scheduler."""
     scheduler = PollingScheduler(interval=interval)
 

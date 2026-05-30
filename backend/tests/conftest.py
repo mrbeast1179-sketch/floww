@@ -8,7 +8,7 @@ from httpx import AsyncClient, ASGITransport
 
 try:
     from server import app
-except ImportError:
+except (ImportError, SyntaxError):
     import sys, os
     sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
     from server import app

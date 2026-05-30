@@ -40,7 +40,7 @@ CSV_FILES = {
 META_COLS = {'ticker', 'date', 'feature_version', '_computed_at', '_id'}
 
 
-def upsert_all(dry_run: bool = True):
+async def upsert_all(dry_run: bool = True):
     mongo_url = os.environ.get("MONGO_URL", "mongodb://localhost:27017")
     db_name = os.environ.get("DB_NAME", "confluence_decoder")
     client = AsyncIOMotorClient(mongo_url, serverSelectionTimeoutMS=5000)

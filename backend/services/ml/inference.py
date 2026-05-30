@@ -48,29 +48,29 @@ MODEL_DIR = Path(__file__).resolve().parents[2] / "models"
 # Tuple format: (model_path, scaler_path, manifest_path)
 MODEL_REGISTRY: Dict[str, Tuple[str, ...]] = {
     "DIA": (
-        str(MODEL_DIR / "DIA_logistic_wf.joblib"),
-        str(MODEL_DIR / "DIA_logistic_wf_scaler.joblib"),
-        str(MODEL_DIR / "DIA_logistic_wf_manifest.json"),
+        str(MODEL_DIR / "DIA_gbm_production.joblib"),
+        str(MODEL_DIR / "DIA_gbm_production_scaler.joblib"),
+        str(MODEL_DIR / "DIA_gbm_production_manifest.json"),
     ),
     "IWM": (
-        str(MODEL_DIR / "IWM_gbm_wf.joblib"),
-        str(MODEL_DIR / "IWM_gbm_wf_scaler.joblib"),
-        str(MODEL_DIR / "IWM_gbm_wf_manifest.json"),
+        str(MODEL_DIR / "IWM_gbm_production.joblib"),
+        str(MODEL_DIR / "IWM_gbm_production_scaler.joblib"),
+        str(MODEL_DIR / "IWM_gbm_production_manifest.json"),
     ),
     "QQQ": (
-        str(MODEL_DIR / "QQQ_gbm_wf.joblib"),
-        str(MODEL_DIR / "QQQ_gbm_wf_scaler.joblib"),
-        str(MODEL_DIR / "QQQ_gbm_wf_manifest.json"),
+        str(MODEL_DIR / "QQQ_gbm_production.joblib"),
+        str(MODEL_DIR / "QQQ_gbm_production_scaler.joblib"),
+        str(MODEL_DIR / "QQQ_gbm_production_manifest.json"),
     ),
     "SPY": (
-        str(MODEL_DIR / "SPY_rf_wf.joblib"),
-        str(MODEL_DIR / "SPY_rf_wf_scaler.joblib"),
-        str(MODEL_DIR / "SPY_rf_wf_manifest.json"),
+        str(MODEL_DIR / "SPY_gbm_production.joblib"),
+        str(MODEL_DIR / "SPY_gbm_production_scaler.joblib"),
+        str(MODEL_DIR / "SPY_gbm_production_manifest.json"),
     ),
     "TLT": (
-        str(MODEL_DIR / "TLT_rf_wf.joblib"),
-        str(MODEL_DIR / "TLT_rf_wf_scaler.joblib"),
-        str(MODEL_DIR / "TLT_rf_wf_manifest.json"),
+        str(MODEL_DIR / "TLT_rf_20260524_022154.joblib"),
+        None,
+        None,
     ),
 }
 
@@ -124,6 +124,20 @@ class GEXSnapshot:
     net_gex: float
     regime: str
     spot: float
+
+
+@dataclass
+class ModelInfo:
+    """Model metadata."""
+    ticker: str
+    model_id: str
+    model_type: str
+    n_features: int
+    feature_names: List[str]
+    train_accuracy: float
+    test_accuracy: float = 0.0
+    artifact_path: str
+    loaded: bool = False
 
 
 def compute_live_features(ticker: str, period: str = "1y") -> pd.DataFrame:
@@ -431,14 +445,14 @@ class InferenceEngine:
                 import json as _json
                 with open(m_path) as _f:
                     _md = _json.load(_f)
-                _metrics = _md.get("metrics", {})
+                _metrics = _md.get("metrics", _md)
                 manifest = {
                     "model_type": _md.get("model_type", type(artifact).__name__),
                     "feature_names": _md.get("feature_names", []),
                     "n_features": len(_md.get("feature_names", [])),
-                    "train_accuracy": _metrics.get("avg_train_accuracy", 0.0),
-                    "test_accuracy": _metrics.get("avg_test_accuracy", 0.0),
-                    "test_sharpe": _metrics.get("avg_test_sharpe", 0.0),
+                    "train_accuracy": _md.get("train_accuracy", _metrics.get("avg_train_accuracy", 0.0)),
+                    "test_accuracy": _md.get("test_accuracy", _metrics.get("avg_test_accuracy", 0.0)),
+                    "test_sharpe": _md.get("test_sharpe", _metrics.get("avg_test_sharpe", 0.0)),
                     "model_path": model_path,
                 }
             else:
