@@ -139,14 +139,24 @@ def _error_response(reason: str, detail: str) -> Dict[str, Any]:
     }
 
 
-def degraded_response(error_type: str, detail: str) -> Dict[str, Any]:
-    """Return a structured degradation payload (standalone function for routes)."""
+def degraded_response(error_type: str, detail: str, retry_after: int = 15) -> Dict[str, Any]:
+    """Return a structured degradation payload (standalone function for routes).
+
+    Returns a superset that satisfies both the canonical test contract
+    (status/reason/stale/retry_after/asof) AND legacy callers that read
+    degraded/error_type."""
     return {
         "degraded": True,
         "error_type": error_type,
+        "status": "degraded",
+        "reason": error_type,
         "detail": detail,
-        "spot": None,
+        "retry_after": retry_after,
+        "stale": True,
+        "asof": time.time(),
+        "data": None,
         "contracts": [],
+        "spot": None,
     }
 
 

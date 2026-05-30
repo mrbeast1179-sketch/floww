@@ -31,7 +31,7 @@ class TestFallbackResponses:
     def test_implied_pdf_external_error_returns_200(self, client):
         with patch("routes.analytics._cache") as mock_cache:
             mock_cache.get_chain = AsyncMock(side_effect=ConnectionError("API down"))
-            r = client.get("/api/analytics/implied-pdf/SPY")
+            r = client.get("/api/implied-pdf/SPY")
         assert r.status_code == 200
         d = r.json()
         assert d["status"] == "degraded"
@@ -42,22 +42,22 @@ class TestFallbackResponses:
         bad_data = {"spot": None, "contracts": []}
         with patch("routes.analytics._cache") as mock_cache:
             mock_cache.get_chain = AsyncMock(return_value=bad_data)
-            r = client.get("/api/analytics/regime/SPY")
+            r = client.get("/api/regime/SPY")
         # Should get 404 from _check_chain since spot is None
         assert r.status_code in (200, 404)
 
     def test_movers_error_returns_200_with_empty_results(self, client):
-        with patch("routes.analytics._fetch_movers_sync", side_effect=Exception("fail")):
-            r = client.get("/api/analytics/movers")
+        with patch("server._fetch_movers_sync", side_effect=Exception("fail")):
+            r = client.get("/api/movers")
         assert r.status_code == 200
         d = r.json()
         assert d["results"] == []
         assert d["status"] == "degraded"
 
     def test_history_error_returns_200_with_empty_snapshots(self, client):
-        with patch("routes.analytics.mongo_db") as mock_db:
+        with patch("server.db") as mock_db:
             mock_db.snapshots.find.side_effect = Exception("mongo down")
-            r = client.get("/api/analytics/history/SPY")
+            r = client.get("/api/history/SPY")
         assert r.status_code == 200
         d = r.json()
         assert d["snapshots"] == []
@@ -68,7 +68,7 @@ class TestFallbackResponses:
         """Verify the degraded response structure."""
         with patch("routes.analytics._cache") as mock_cache:
             mock_cache.get_chain = AsyncMock(side_effect=Exception("test"))
-            r = client.get("/api/analytics/implied-pdf/SPY")
+            r = client.get("/api/implied-pdf/SPY")
         d = r.json()
         required = ["status", "reason", "stale", "retry_after", "asof"]
         for field in required:
