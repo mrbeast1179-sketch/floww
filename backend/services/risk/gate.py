@@ -206,14 +206,20 @@ class PreTradeRiskGate:
 
 @dataclass
 class RiskConfig:
-    """Configuration for the RiskGate."""
-    max_daily_loss_pct: float = -3.0
-    max_consecutive_losses: int = 5
-    min_account_equity: float = 5000.0
-    max_position_pct: float = 0.01
-    max_position_value: float = 100000.0
+    """Configuration for the RiskGate.
+
+    Conservative defaults — override per-account via RiskConfig(...). Owner decision
+    2026-05-30: prior defaults were at broken scales (-3.0 = -300% daily loss never
+    triggered; 1e-6 Kyle rejected every trade; 1% concentration rejected normal
+    ~1-2% positions). Realigned to a sane, configurable policy.
+    """
+    max_daily_loss_pct: float = -0.03      # -3% realized daily loss trips the breaker
+    max_consecutive_losses: int = 3
+    min_account_equity: float = 1000.0
+    max_position_pct: float = 0.10         # <=10% of equity per position (relative cap)
+    max_position_value: float = 5000.0     # absolute $ cap per position (usual binder)
     max_open_positions: int = 5
-    kyle_lambda_threshold: float = 1e-6
+    kyle_lambda_threshold: float = 0.05    # liquidity gate (Kyle's lambda)
 
 
 @dataclass
