@@ -224,6 +224,61 @@ class ObsidianSync:
 
         return make_claude_file(title, mem_type, f"From Obsidian: {title}", body)
 
+    # ── Path mapping helpers ──────────────────────────────────────────────
+    def get_obsidian_path(self, claude_name: str) -> Path:
+        """Map a Claude memory filename to its Obsidian vault path."""
+        mapped = FILE_MAPPING.get(claude_name)
+        return self.vault_dir / (mapped if mapped else claude_name)
+
+    def get_claude_path(self, obsidian_name: str) -> Path:
+        """Map an Obsidian filename back to its Claude memory path."""
+        mapped = REVERSE_MAPPING.get(obsidian_name)
+        return self.memory_dir / (mapped if mapped else obsidian_name)
+
+    def save_log(self):
+        """Persist the change log for this run (skipped on dry-run / no changes)."""
+        if self.dry_run or not self.changes:
+            return
+        try:
+            self.log_file.write_text("\n".join(self.changes) + "\n")
+        except Exception:
+            pass
+
+    def sync_file(self, src: Path, dst: Path, key: str):
+        """Sync one Claude->Obsidian file with mtime-based conflict detection."""
+        new_content = self._convert_to_obsidian(src)
+        src_hash = file_hash(src)
+        last_hash = self.state.get_last_hash(key)
+
+        # First-time create (destination absent)
+        if not dst.exists():
+            if not self.dry_run:
+                dst.write_text(new_content)
+            self.log(f"CREATE: {dst.name}")
+            self.state.update(key, src_hash, file_mtime(src))
+            return
+
+        dst_hash = file_hash(dst)
+        src_changed = src_hash != last_hash and last_hash != ""
+        dst_changed = dst_hash != last_hash and last_hash != ""
+
+        # Both sides changed since last sync -> conflict, newer mtime wins
+        if src_changed and dst_changed:
+            winner = "src" if file_mtime(src) >= file_mtime(dst) else "dst"
+            self.conflicts.append({"file": key, "winner": winner})
+            self.log(f"CONFLICT: {key} -> {winner} won", "warning")
+            if winner == "src" and not self.dry_run:
+                dst.write_text(new_content)
+            self.state.update(key, file_hash(dst), file_mtime(dst))
+            return
+
+        # One-way update: source body differs from destination body
+        if extract_body(new_content) != extract_body(dst.read_text()):
+            if not self.dry_run:
+                dst.write_text(new_content)
+            self.log(f"UPDATE: {dst.name}")
+        self.state.update(key, src_hash, file_mtime(src))
+
     def sync_all(self):
         """Run full bidirectional sync."""
         self.log("Starting sync...")
