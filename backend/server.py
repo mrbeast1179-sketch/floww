@@ -6,7 +6,7 @@ Confluence Decoder - Skylit-style Heatseeker GEX Analytics
 - Black-Scholes gamma -> per-strike (and per-strike×expiry) GEX
 - Node hierarchy, patterns, velocity, rolling, trinity
 """
-from fastapi import FastAPI, APIRouter, HTTPException, Query, Request, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, HTTPException, Query, Request, WebSocket, WebSocketDisconnect
 from fastapi.responses import StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
@@ -16,13 +16,10 @@ from pathlib import Path
 from typing import List, Optional, Dict, Any, Set, Set
 from datetime import datetime, timezone, timedelta
 import os
-import json
 import logging
 import asyncio
 import math
 import time
-import signal
-import sys
 from collections import deque
 import httpx
 import yfinance as yf
@@ -32,19 +29,9 @@ from scipy.stats import norm
 from services.logging_config import setup_logging, CorrelationIdMiddleware
 
 from services.duckdb_engine import db as duckdb_engine
-from services.vpin_engine import VpinEngine
-from services.trinity_alignment import TrinityAlignmentIndex
-from services.node_lifecycle import NodeLifecycleTracker
-from services.anomaly_detector import FlowAnomalyDetector
-from services.liquidity_metrics import KyleLambda, AmihudIlliquidity, MarketFragilityIndex
-from services.numba_greeks import compute_all_greeks
-from services.gex_aggregator import GexAggregator
-from services.stochastic_vol import SABRModel, SVIProfile, VolSurfaceConstructor
-from services.hawkes_process import HawkesProcess
 from services.websocket_streamer import manager as ws_manager
-from databento_provider import init_cache, fetch_oi_for_ticker, PARENT_MAP, stream_live_trades
+from databento_provider import init_cache, fetch_oi_for_ticker
 from portfolio import Position, Portfolio, calc_position_size
-from schwab import SCHWAB_CLIENT_ID
 from vol_analytics import (
     calc_iv_surface_data,
     calc_skew_metrics,
@@ -54,11 +41,7 @@ from vol_analytics import (
 from advanced_analytics import (
     calc_implied_pdf,
     calc_market_regime,
-    calc_hedge_impulse_curve,
-    calc_pressure_cloud,
-    calc_charm_integral,
     calc_gamma_flip_levels,
-    calc_vex,
 )
 
 ROOT_DIR = Path(__file__).parent
@@ -401,8 +384,7 @@ def compute_gex_grid(spot: float, contracts: List[Dict[str, Any]], ticker: str =
     }
 # Import from shared module to avoid circular imports with portfolio.py
 from bs_greeks import (
-    bs_gamma, bs_delta, bs_vanna, bs_charm, bs_vomma, bs_zomma, bs_vega,
-    bs_call_price, bs_put_price,
+    bs_gamma, bs_vanna, bs_charm, bs_vomma, bs_zomma, bs_vega,
     RISK_FREE_RATE as BS_RISK_FREE_RATE,
 )
 
@@ -898,8 +880,7 @@ def compute_gex_by_strike(spot: float, contracts: List[Dict[str, Any]], ticker: 
 
 
 from bs_greeks import (
-    bs_gamma, bs_delta, bs_vanna, bs_charm, bs_vomma, bs_zomma, bs_vega,
-    bs_call_price, bs_put_price,
+    bs_gamma, bs_vanna, bs_charm, bs_vomma, bs_zomma, bs_vega,
     RISK_FREE_RATE as BS_RISK_FREE_RATE,
 )
 RISK_FREE_RATE = BS_RISK_FREE_RATE
@@ -2559,7 +2540,6 @@ async def prometheus_metrics():
         media_type=get_metrics_content_type(),
     )
 
-from memory_integration import remember_trade, remember_gex_observation, recall_trading_context, get_trading_summary
 
 
 @app.on_event("startup")
@@ -2705,6 +2685,9 @@ app.include_router(ml_api_router, tags=["ml_api"])
 
 from routes.ml_dashboard import router as ml_dashboard_router
 app.include_router(ml_dashboard_router, tags=["ml-dashboard"])
+
+from routes.chain import router as chain_router
+app.include_router(chain_router, tags=["chain"])
 
 # ============ Paper Blueprint Route Wiring ============
 # New API routes from the Project Oracle Master Directive

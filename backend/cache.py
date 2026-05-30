@@ -8,7 +8,6 @@ Caches expensive computations like:
 - Alert summaries (30-sec TTL)
 """
 
-import os
 import json
 import logging
 import hashlib

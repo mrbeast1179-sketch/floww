@@ -29,7 +29,6 @@ from __future__ import annotations
 import logging
 from typing import Any, Dict, List, Optional, Set, Tuple
 from collections import defaultdict
-from itertools import combinations
 
 import numpy as np
 import pandas as pd

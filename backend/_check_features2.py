@@ -1,4 +1,4 @@
-import sys, os
+import sys
 sys.path.insert(0, 'backend')
 
 from scripts.train_real_ml import FEATURE_NAMES

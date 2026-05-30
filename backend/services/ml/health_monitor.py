@@ -20,13 +20,11 @@ Alert thresholds:
 from __future__ import annotations
 
 import logging
-import math
 from datetime import datetime, timezone, timedelta
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict
 
 import numpy as np
 
-from services.ml import DegenerateModelError
 
 log = logging.getLogger("ml.health")
 

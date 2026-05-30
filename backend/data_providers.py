@@ -369,9 +369,112 @@ class DataAggregator:
         }
 
 
-class AlphaVantageProvider:
-    """Alpha Vantage data provider stub."""
+class AlphaVantageProvider(FreeDataProvider):
+    """Alpha Vantage free tier: 5 calls/min, 500/day."""
 
-    async def get_spot_price(self, ticker: str):
+    def __init__(self):
+        super().__init__("AlphaVantage", rate_limit=5)
+        self.enabled = bool(ALPHA_VANTAGE_KEY)
+        self.base = "https://www.alphavantage.co/query"
+
+    async def get_quote(self, ticker: str) -> Optional[dict]:
+        """Get real-time quote. 5 calls/min, 500/day free tier."""
+        if not self.enabled:
+            return None
+        try:
+            from services.alpha_vantage_client import circuit, CircuitBreakerOpenError
+            data = await circuit.call(self._get, self.base, {
+                "function": "GLOBAL_QUOTE",
+                "symbol": ticker,
+                "apikey": ALPHA_VANTAGE_KEY,
+            })
+        except CircuitBreakerOpenError:
+            logger.warning("AlphaVantage circuit OPEN — skipping get_quote(%s)", ticker)
+            return None
+        if data and "Global Quote" in data and data["Global Quote"]:
+            q = data["Global Quote"]
+            price = float(q.get("05. price", 0))
+            if price > 0:
+                prev_close = float(q.get("08. previous close", 0))
+                change = float(q.get("09. change", 0))
+                change_pct = float(q.get("10. change percent", "0%").replace("%", ""))
+                return {
+                    "price": price,
+                    "open": float(q.get("02. open", 0)),
+                    "high": float(q.get("03. high", 0)),
+                    "low": float(q.get("04. low", 0)),
+                    "volume": int(q.get("06. volume", 0)),
+                    "prev_close": prev_close,
+                    "change": change,
+                    "change_pct": change_pct,
+                    "latest_trading_day": q.get("07. latest trading day", ""),
+                    "source": "alphavantage",
+                }
+        return None
+
+    async def get_technical_indicator(self, ticker: str, indicator: str = "RSI", period: int = 14) -> Optional[dict]:
+        """Get technical indicator (RSI, MACD, SMA, EMA, etc.)."""
+        if not self.enabled:
+            return None
+
+        function_map = {
+            "RSI": "RSI",
+            "MACD": "MACD",
+            "SMA": "SMA",
+            "EMA": "EMA",
+            "BBANDS": "BBANDS",
+            "STOCH": "STOCH",
+            "ADX": "ADX",
+            "ATR": "ATR",
+        }
+
+        function = function_map.get(indicator, indicator)
+        params = {
+            "function": function,
+            "symbol": ticker,
+            "interval": "daily",
+            "time_period": period,
+            "series_type": "close",
+            "apikey": ALPHA_VANTAGE_KEY,
+        }
+
+        try:
+            from services.alpha_vantage_client import circuit, CircuitBreakerOpenError
+            data = await circuit.call(self._get, self.base, params)
+        except CircuitBreakerOpenError:
+            logger.warning("AlphaVantage circuit OPEN — skipping get_technical_indicator(%s, %s)", ticker, indicator)
+            return None
+        if data and "Error Message" not in data:
+            tech_key = f"Technical Analysis: {function}"
+            if tech_key in data:
+                dates = sorted(data[tech_key].keys(), key=lambda d: datetime.strptime(d[:10], "%Y-%m-%d"))
+                latest_date = dates[-1]
+                values = data[tech_key][latest_date]
+                return {
+                    "indicator": indicator,
+                    "date": latest_date,
+                    "values": values,
+                    "source": "alphavantage",
+                }
+        return None
+
+    async def get_forex_rate(self, from_cur: str = "USD", to_cur: str = "EUR") -> Optional[float]:
+        """Get forex rate."""
+        if not self.enabled:
+            return None
+        try:
+            from services.alpha_vantage_client import circuit, CircuitBreakerOpenError
+            data = await circuit.call(self._get, self.base, {
+                "function": "CURRENCY_EXCHANGE_RATE",
+                "from_currency": from_cur,
+                "to_currency": to_cur,
+                "apikey": ALPHA_VANTAGE_KEY,
+            })
+        except CircuitBreakerOpenError:
+            logger.warning("AlphaVantage circuit OPEN — skipping get_forex_rate(%s, %s)", from_cur, to_cur)
+            return None
+        if data and "Realtime Currency Exchange Rate" in data:
+            rate = data["Realtime Currency Exchange Rate"].get("5. Exchange Rate")
+            return float(rate) if rate else None
         return None
 

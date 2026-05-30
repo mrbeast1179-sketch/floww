@@ -12,13 +12,11 @@ Usage:
 import sys
 import os
 import json
-import time
 import logging
 from pathlib import Path
 from datetime import datetime, timezone
 
 import numpy as np
-import pandas as pd
 import joblib
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -26,8 +24,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 log = logging.getLogger("backtest")
 
-from train_real_ml import compute_features, FEATURE_NAMES
-from train_with_baselines import compute_trading_sharpe
+from train_real_ml import compute_features
 
 MODEL_DIR = Path(__file__).resolve().parents[1] / "models"
 
