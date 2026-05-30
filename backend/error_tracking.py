@@ -10,7 +10,6 @@ Features:
 """
 
 import os
-import json
 import logging
 import uuid
 from typing import Optional, Dict, Any

@@ -15,7 +15,6 @@ import json
 import asyncio
 import logging
 from pathlib import Path
-from datetime import datetime, timezone
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(SCRIPT_DIR.parent))

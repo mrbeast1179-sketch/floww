@@ -11,10 +11,9 @@ Features:
 - Position sizing based on GEX levels
 """
 
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any
 from datetime import datetime, timezone, date
 import math
-import numpy as np
 from scipy.stats import norm
 
 from bs_greeks import (

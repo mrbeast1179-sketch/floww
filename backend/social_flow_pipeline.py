@@ -15,11 +15,9 @@ Also handles X/Twitter data collection via xurl (when authenticated).
 import json
 import time
 import logging
-from datetime import datetime
 from typing import Dict, List, Optional, Any
 from dataclasses import dataclass, field, asdict
 
-import numpy as np
 
 logger = logging.getLogger(__name__)
 

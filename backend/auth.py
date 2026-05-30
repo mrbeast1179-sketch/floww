@@ -8,7 +8,6 @@ The API key is stored in the .env file as API_SECRET_KEY.
 import os
 import logging
 from fastapi import Request, HTTPException, WebSocket
-from functools import wraps
 
 logger = logging.getLogger(__name__)
 

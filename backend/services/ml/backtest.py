@@ -18,10 +18,9 @@ from __future__ import annotations
 
 import asyncio
 import logging
-import math
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Dict, List, Optional
 
 import numpy as np
 import pandas as pd
@@ -177,7 +176,7 @@ class ModelBacktester:
                 log.warning(f"Prediction failed for {ticker} on {current_date}: {e}")
                 continue
 
-            from services.ml.inference import _map_binary_to_3way, STRONG_CONFIDENCE
+            from services.ml.inference import _map_binary_to_3way
             if probabilities and len(probabilities) == 2:
                 pred_3way, proba_3way = _map_binary_to_3way(raw_pred, probabilities)
                 confidence = max(proba_3way)

@@ -12,7 +12,7 @@ Setup:
 
 import os
 import logging
-from typing import List, Optional, Any
+from typing import Optional, Any
 
 import aiohttp
 

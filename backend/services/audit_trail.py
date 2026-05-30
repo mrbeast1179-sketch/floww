@@ -10,13 +10,8 @@ Reference: SEC Rule 17a-4, FINRA Rule 4511, NIST SP 800-53
 
 from __future__ import annotations
 
-import hashlib
-import json
 import logging
-from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional
 
-from motor.motor_asyncio import AsyncIOMotorDatabase
 
 logger = logging.getLogger("audit_trail")
 

@@ -35,7 +35,6 @@ sys.path.insert(0, str(BACKEND_DIR))
 from scripts.train_spy_ml import (
     fetch_spot_history,
     build_dataset,
-    train_walk_forward,
 )
 from scripts.train_with_baselines import compute_trading_sharpe
 def _sharpe(predictions, actuals):

@@ -7,11 +7,8 @@ Transcribes via whisper-base (local model, ~150MB).
 Inserts transcript into mem0 with tags [source:voice_memo, audio].
 """
 
-import json
 import logging
-import hashlib
 from pathlib import Path
-from typing import Optional
 import os
 
 logger = logging.getLogger(__name__)
@@ -26,4 +23,3 @@ VOICE_MEMOS_DIR = Path(os.environ.get(
 PROCESSED_STATE = Path.home() / ".hermes" / "voice_memos_processed.json"
 
 
-from datetime import datetime, timezone
