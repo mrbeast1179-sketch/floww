@@ -103,3 +103,6 @@ backend/.venv_old
 # ML model binaries
 models/
 reports/training_*.json
+
+# Stale duplicate test directory (content mirrored in backend/tests/services/)
+backend/tests/service_tests/
