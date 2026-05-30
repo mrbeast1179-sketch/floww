@@ -732,6 +732,142 @@ async def ml_health_check(ticker: str) -> Dict[str, Any]:
         raise HTTPException(status_code=500, detail=f"Health check failed: {e}")
 
 
+# ── GET /api/ml/compare ─────────────────────────────────────────────────
+
+
+@router.get("/compare")
+async def ml_compare(
+    tickers: Optional[str] = Query(default=None, description="Comma-separated tickers (default: SPY,QQQ,DIA,IWM,TLT)"),
+) -> Dict[str, Any]:
+    """Compare ML model predictions across all 5 tickers.
+
+    Returns a dict keyed by ticker with:
+      - model_id: active model identifier
+      - prediction_label: "up"|"hold"|"down"
+      - confidence: prediction confidence (0-1)
+      - sharpe_90d: Sharpe ratio from realized outcomes over last 90 days
+      - last_retrain_date: ISO date of last model retrain
+
+    If a ticker has no data, its value is null.
+
+    Query params:
+        tickers: Comma-separated list (default: SPY,QQQ,DIA,IWM,TLT)
+    """
+    from server import db
+    from datetime import datetime, timezone, timedelta
+    import numpy as np
+
+    DEFAULT_TICKERS = ["SPY", "QQQ", "DIA", "IWM", "TLT"]
+
+    if tickers:
+        target_tickers = [t.strip().upper() for t in tickers.split(",") if t.strip()]
+    else:
+        target_tickers = DEFAULT_TICKERS
+
+    result: Dict[str, Any] = {}
+
+    for ticker in target_tickers:
+        try:
+            ticker_data: Dict[str, Any] = {}
+
+            # 1. Latest prediction from ml_predictions
+            preds_col = db["ml_predictions"]
+            latest_pred = await preds_col.find_one(
+                {"ticker": ticker},
+                sort=[("ts", -1)],
+            )
+
+            if latest_pred:
+                prediction_val = latest_pred.get("prediction")
+                if prediction_val is not None:
+                    # Map prediction int to label (matching the /predict endpoint pattern)
+                    if prediction_val == 2:
+                        ticker_data["prediction_label"] = "up"
+                    elif prediction_val == 1:
+                        ticker_data["prediction_label"] = "hold"
+                    elif prediction_val == 0:
+                        ticker_data["prediction_label"] = "down"
+                    else:
+                        ticker_data["prediction_label"] = "unknown"
+                else:
+                    ticker_data["prediction_label"] = None
+
+                # Confidence from probability if available
+                prob = latest_pred.get("probability")
+                if prob and isinstance(prob, list) and len(prob) > 0:
+                    ticker_data["confidence"] = round(float(max(prob)), 4)
+                else:
+                    ticker_data["confidence"] = latest_pred.get("confidence") or None
+
+                ticker_data["model_id"] = latest_pred.get("model_id")
+            else:
+                ticker_data["prediction_label"] = None
+                ticker_data["confidence"] = None
+                ticker_data["model_id"] = None
+
+            # 2. Model metadata (last retrain date) from ml_models
+            models_col = db["ml_models"]
+            active_model = await models_col.find_one(
+                {"ticker": ticker, "status": "active"},
+                {"_id": 0, "model_id": 1, "created_at": 1, "promoted_at": 1},
+            )
+            if active_model:
+                ticker_data["model_id"] = ticker_data.get("model_id") or active_model.get("model_id")
+                ticker_data["last_retrain_date"] = active_model.get("promoted_at") or active_model.get("created_at")
+            else:
+                ticker_data["last_retrain_date"] = None
+
+            # 3. Sharpe ratio over 90 days from realized outcomes
+            cutoff_90d = (datetime.now(timezone.utc) - timedelta(days=90)).isoformat()
+            pipeline = [
+                {"$match": {
+                    "ticker": ticker,
+                    "ts": {"$gte": cutoff_90d},
+                    "realized_outcome": {"$ne": None},
+                    "realized_return_pct": {"$ne": None},
+                }},
+                {"$sort": {"ts": 1}},
+                {"$group": {
+                    "_id": None,
+                    "returns": {"$push": "$realized_return_pct"},
+                }},
+            ]
+            try:
+                agg_result = await preds_col.aggregate(pipeline).to_list(length=1)
+                if agg_result and agg_result[0].get("returns"):
+                    returns = [float(r) for r in agg_result[0]["returns"]]
+                    n = len(returns)
+                    if n >= 5:  # Need at least 5 data points for meaningful Sharpe
+                        mean_ret = np.mean(returns)
+                        std_ret = np.std(returns, ddof=1)
+                        if std_ret > 0:
+                            # Annualized Sharpe: daily mean/std * sqrt(252)
+                            annual_factor = np.sqrt(252)
+                            sharpe = (mean_ret / std_ret) * annual_factor
+                            ticker_data["sharpe_90d"] = round(float(sharpe), 4)
+                            ticker_data["sharpe_90d_n"] = n
+                        else:
+                            ticker_data["sharpe_90d"] = 0.0
+                            ticker_data["sharpe_90d_n"] = n
+                    else:
+                        ticker_data["sharpe_90d"] = None
+                        ticker_data["sharpe_90d_n"] = n
+                else:
+                    ticker_data["sharpe_90d"] = None
+                    ticker_data["sharpe_90d_n"] = 0
+            except Exception:
+                ticker_data["sharpe_90d"] = None
+                ticker_data["sharpe_90d_n"] = 0
+
+            result[ticker] = ticker_data
+
+        except Exception as e:
+            logger.error(f"Compare failed for {ticker}: {e}")
+            result[ticker] = None
+
+    return result
+
+
 # ── GET /api/ml/health ────────────────────────────────────────────────────
 
 
