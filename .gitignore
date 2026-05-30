@@ -102,3 +102,4 @@ backend/.venv_old
 
 # ML model binaries
 models/
+reports/training_*.json
