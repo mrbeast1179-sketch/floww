@@ -3,7 +3,7 @@
  *
  * Displays charm (delta decay) exposure.
  *
- * Backend /api/analytics/charm-integral/{ticker} returns:
+ * Backend /api/charm-integral/{ticker} returns:
  *   { spot, expiry, minutes_remaining, days_remaining,
  *     total_charm_to_close, direction,
  *     buckets: [{minutes_remaining, instantaneous_charm, cumulative_charm}] }
@@ -18,7 +18,7 @@ import { ErrorState } from "./RetryButton";
 
 var CharmChart = memo(function CharmChart({ ticker = "SPY", spot: spotPrice }) {
   var _useMarketData = useMarketData(
-    "analytics/charm-integral/" + ticker,
+    "charm-integral/" + ticker,
     { refreshMs: 60000, query: { expiries: 4 } }
   );
   var data = _useMarketData.data;
