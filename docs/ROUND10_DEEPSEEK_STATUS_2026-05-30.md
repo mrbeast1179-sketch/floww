@@ -72,7 +72,7 @@ Started from 9 failures → 0 failures. All fixes verified with real pytest outp
 | Task | Status | Evidence |
 |---|---|---|
 | 3.1 — ruff clean | ⚠️ PARTIAL | Fixed all F821/F601/F402/F811 in non-test source files. Fixed 4 F841 (metrics→_metrics, model→_model, scaler_path→_scaler_path, cls_acc→_cls_acc). Fixed F401 in data/__init__.py. **Remaining**: ~60+ F841/F541 in scripts/ and services/ — non-critical, safe to defer |
-| 3.2 — coverage for fixes | ⚠️ PARTIAL | Added llm endpoint tests (3) + leakage regression test (5). Missing: explicit regression tests for degraded_response shape contract and route-ordering reachability |
+| 3.2 — coverage for fixes | ✅ DONE | Added llm endpoint tests (3) + leakage regression test (5) + degraded_response contract tests (7) + route-ordering reachability tests (5). 20 total new regression tests. Route-ordering tests properly reject 422 (the shadowing-bug response code) |
 
 ### Phase 4 — ML Leakage Fix
 
@@ -88,7 +88,7 @@ Started from 9 failures → 0 failures. All fixes verified with real pytest outp
 |---|---|---|
 | 5.1 — doc-rot | ✅ DONE | ROUND9_FINAL_CLOSURE.md: market_data_scheduler.py → scheduler.py, backtest_engine.py → services/ml/backtest.py. Both files verified to exist via ls. Removed incorrect line numbers |
 | 5.2 — type hints + mypy | ✅ DONE | mypy --ignore-missing-imports on 4 target files exits 0: "Success: no issues found in 4 source files" |
-| 5.3 — dead-code phase 2 | ⚠️ SKIPPED | Grep verified 4 candidates (AcknowledgeRequest, AnomalyExplanation, CprResult, CprSnapshot) are internally used (type hints/constructors within defining module). AuditEntry already removed. Per ROUND9 postmortem lessons, no deletion without architect sign-off on internal-use types |
+| 5.3 — dead-code phase 2 | ⚠️ PARTIAL | Removed services/code_suggester.py (zero external callers, all methods return [] — pure dead stub). Investigated 10+ other audit candidates: AlphaVantageProvider is internally used by DataProviderAggregator; AlertDispatcher self-instantiates; CprResult/CprSnapshot used as return types; FreeDataProvider is parent class for live FinnhubProvider. Most "confirmed dead" audit entries are internally-referenced types — not safe to delete without architect review |
 
 ### Phase 6 — Stretch
 
@@ -100,18 +100,20 @@ Started from 9 failures → 0 failures. All fixes verified with real pytest outp
 
 | Commit | Phase | Summary |
 |---|---|---|
-| (Phase 1) | 1 | Fix 8 failing tests — stale paths, validation handler shape, fill_monitor side field, degraded_response unification |
-| (Phase 2) | 2 | Route hardening — llm tests, dedup ml_dashboard, catch-all fix, silent-failure logging |
-| (Phase 3-4) | 3-4 | ML leakage fix, ruff clean, doc-rot, leakage regression test |
+| `f3a0e8b` | 1 | Fix 8 failing tests — stale paths, validation handler shape, fill_monitor side field, degraded_response unification |
+| `e79f15a` | 2 | Route hardening — llm tests, dedup ml_dashboard, catch-all fix, silent-failure logging |
+| `2e712df` | 3-4 | ML leakage fix, ruff clean, doc-rot, leakage regression test |
+| `c937027` | 5+FINAL | Latency budget fix, Round-11 honest status update |
+| `67a7fcc` | 3.2+5.3 | Coverage tests (12 new: degraded-response contract + route-ordering reachability) + dead-code removal (code_suggester.py) |
 
 ## Comparison to Round 10 baseline
 
 | Metric | Round 10 (start) | Round 11 (end) |
 |---|---|---|
 | Failed | 9 | 0 |
-| Passed | 2563 | 2580 |
+| Passed | 2563 | 2591 |
 | Skipped | 45 | 45 |
-| New tests | 0 | 8 (3 llm + 5 leakage) |
+| New tests | 0 | 20 (3 llm + 5 leakage + 7 degraded-contract + 5 route-ordering) |
 | Fake Sharpe metric | Present | Killed |
 | ML preproc leakage | Full-X fit | Train-only fit |
 
@@ -122,7 +124,7 @@ Started from 9 failures → 0 failures. All fixes verified with real pytest outp
 - Fake Sharpe killed, replaced with raw OOS accuracy ✅
 - Route hardening complete (shadow dedup, catch-all fix, silent-failure logging) ✅
 - ruff mostly clean in source files; ~60 F841/F541 remain in scripts/services (non-critical)
-- Dead-code Phase 2 skipped: audit candidates are internally-used types → need architect review
-- Stretch (lifespan migration) not reached
+- Dead-code Phase 2 partial: removed code_suggester.py (dead stub, zero callers); most other audit candidates are internally-referenced types — deeper cleanup needs architect sign-off
+- Stretch (lifespan migration) not reached — deferred to future round
 - **No model artifacts touched, no MODEL_REGISTRY edited, no .joblib files written**
 - **No test skipped/xfailed to make numbers look better**
