@@ -33,6 +33,41 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/heatseeker", tags=["heatseeker"])
 
 
+def _ensure_gamma(raw: Dict[str, Any]) -> Dict[str, Any]:
+    """Populate Black-Scholes ``gamma`` on each contract when the upstream
+    chain omits it.
+
+    ``fetch_spot_and_chains_merged`` returns contracts with only
+    strike/T/type/oi/iv/volume — no ``gamma``. Every GEX-based Heatseeker
+    panel aggregates via ``_gex_per_strike``, which skips contracts with
+    ``gamma <= 0``; that left the entire Skylit GEX surface empty. Compute
+    gamma from spot/strike/T/iv (same convention as
+    ``server.compute_gex_by_strike``). Contracts that already carry a positive
+    gamma are left untouched, so enriched chains and test fixtures are no-ops.
+    """
+    try:
+        spot = float(raw.get("spot") or 0.0)
+        contracts = raw.get("contracts") or []
+        if spot <= 0 or not contracts:
+            return raw
+        from bs_greeks import bs_gamma
+        for c in contracts:
+            g = c.get("gamma")
+            if g is not None and float(g) > 0:
+                continue
+            try:
+                strike = float(c.get("strike") or 0.0)
+                T = float(c.get("T") or 0.0)
+                iv = float(c.get("iv") or 0.0)
+            except (TypeError, ValueError):
+                continue
+            if strike > 0 and T > 0 and iv > 0:
+                c["gamma"] = float(bs_gamma(spot, strike, T, iv))
+    except Exception as e:  # never break the fetch path over enrichment
+        logger.warning("heatseeker gamma enrichment failed: %s", e)
+    return raw
+
+
 async def _fetch_chain(ticker: str, expiries: int) -> Dict[str, Any]:
     """
     Resolve the option chain for ``ticker`` using the same fetcher the rest
@@ -46,7 +81,7 @@ async def _fetch_chain(ticker: str, expiries: int) -> Dict[str, Any]:
     if t == "SPX":
         t = "^SPX"
     raw = await fetch_spot_and_chains_merged(t, expiries)
-    return raw
+    return _ensure_gamma(raw)
 
 
 async def _fetch_history(ticker: str, lookback_mins: int = 1440) -> List[Dict[str, Any]]:
@@ -107,7 +142,7 @@ async def flip_zones_route(
         raise
     except Exception as e:
         logger.warning(f"flip-zones route fail: {e}")
-        return {"ticker": ticker.upper() if isinstance(ticker, str) else "unknown", "spot": 0, "zones": [], "error": str(e), "status": "degraded"}
+        return {"ticker": ticker.upper() if isinstance(ticker, str) else "unknown", "spot": 0, "flip_zones": [], "count": 0, "error": str(e), "status": "degraded"}
 
 
 @router.get("/node-lifecycle")
@@ -159,7 +194,7 @@ async def air_pockets_route(
         raise
     except Exception as e:
         logger.warning(f"air-pockets route fail: {e}")
-        return {"ticker": ticker.upper() if isinstance(ticker, str) else "unknown", "spot": 0, "pockets": [], "error": str(e), "status": "degraded"}
+        return {"ticker": ticker.upper() if isinstance(ticker, str) else "unknown", "spot": 0, "air_pockets": [], "error": str(e), "status": "degraded"}
 
 
 # ---------------------------------------------------------------------------
@@ -376,7 +411,7 @@ async def velocity_mode_route(ticker: str = "SPY"):
         return _sanitize({"ticker": ticker.upper(), **result})
     except Exception as e:
         logger.warning(f"velocity-mode route fail: {e}")
-        return {"ticker": ticker.upper() if isinstance(ticker, str) else "unknown", "velocity": 0, "mode": "calm", "error": str(e), "status": "degraded"}
+        return {"ticker": ticker.upper() if isinstance(ticker, str) else "unknown", "velocity_strikes_per_min": 0.0, "mode": "calm", "n_snapshots": 0, "error": str(e), "status": "degraded"}
 
 
 @router.get("/trinity-confluence")
@@ -435,7 +470,7 @@ async def rolling_floors_ceilings_route(
         raise
     except Exception as e:
         logger.warning(f"rolling-floors-ceilings route fail: {e}")
-        return {"ticker": ticker.upper() if isinstance(ticker, str) else "unknown", "floors": [], "ceilings": [], "error": str(e), "status": "degraded"}
+        return {"ticker": ticker.upper() if isinstance(ticker, str) else "unknown", "floor_series": [], "ceiling_series": [], "error": str(e), "status": "degraded"}
 
 
 @router.get("/node-classification")

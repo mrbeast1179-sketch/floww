@@ -105,6 +105,32 @@ def patched_chain():
 
 
 # ---------------------------------------------------------------------------
+# Regression: gamma enrichment (Skylit GEX panels rendered empty)
+# ---------------------------------------------------------------------------
+
+def test_fetch_chain_enriches_missing_gamma():
+    """Production chains from ``fetch_spot_and_chains_merged`` carry no
+    ``gamma`` field, so ``_gex_per_strike`` skipped every contract and all
+    Skylit GEX panels rendered empty. ``routes.heatseeker._ensure_gamma``
+    must compute Black-Scholes gamma from spot/strike/T/iv; contracts that
+    already include gamma are left untouched.
+    """
+    from routes.heatseeker import _ensure_gamma
+    from services.heatseeker import _gex_per_strike
+
+    chain = _chain_fixture()
+    for c in chain["contracts"]:
+        c.pop("gamma", None)
+    # Baseline documents the bug: with no gamma field the GEX map is empty.
+    assert _gex_per_strike(chain["spot"], chain["contracts"]) == {}
+    # Fix: enrichment computes a positive gamma -> non-empty GEX map.
+    enriched = _ensure_gamma(chain)
+    assert all(float(c.get("gamma", 0)) > 0 for c in enriched["contracts"])
+    gex = _gex_per_strike(enriched["spot"], enriched["contracts"])
+    assert gex, "GEX map still empty after _ensure_gamma enrichment"
+
+
+# ---------------------------------------------------------------------------
 # Wave 1 routes
 # ---------------------------------------------------------------------------
 
