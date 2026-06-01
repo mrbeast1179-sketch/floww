@@ -95,8 +95,13 @@ import RollingFloorsCeilingsPanelBase from "./RollingFloorsCeilingsPanel";
 import NodeClassificationPanelBase from "./NodeClassificationPanel";
 import StackedNodesPanelBase from "./StackedNodesPanel";
 import TugOfWarZonesPanelBase from "./TugOfWarZonesPanel";
-import VannaChart from "../VannaChart";
-import CharmChart from "../CharmChart";
+import ErrorBoundary from "../ErrorBoundary";
+
+// Lazy-loaded chart components — Plotly is ~3MB and only needed below the fold.
+// Dynamic import splits it into a separate chunk and isolates failures so a
+// chart crash can't take down the GEX panels above.
+const VannaChart = React.lazy(() => import("../VannaChart"));
+const CharmChart = React.lazy(() => import("../CharmChart"));
 
 // Memo-wrapped panels prevent re-renders when parent re-renders with
 // the same ticker/spot props (e.g. spot micro-ticks that don't affect panels).
@@ -191,11 +196,19 @@ export default function HeatseekerDashboard({
         </div>
       </LazyRow>
 
-      {/* Row 6 — Vanna + Charm charts (lazy-loaded, below-the-fold) */}
+      {/* Row 6 — Vanna + Charm charts (code-split + below-the-fold lazy) */}
       <LazyRow rootMargin="100px">
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
-          <VannaChart ticker={normalizedTicker} spot={spot} />
-          <CharmChart ticker={normalizedTicker} spot={spot} />
+          <ErrorBoundary>
+            <React.Suspense fallback={<div className="panel p-4 text-slate-500 text-xs">Loading Vanna chart…</div>}>
+              <VannaChart ticker={normalizedTicker} spot={spot} />
+            </React.Suspense>
+          </ErrorBoundary>
+          <ErrorBoundary>
+            <React.Suspense fallback={<div className="panel p-4 text-slate-500 text-xs">Loading Charm chart…</div>}>
+              <CharmChart ticker={normalizedTicker} spot={spot} />
+            </React.Suspense>
+          </ErrorBoundary>
         </div>
       </LazyRow>
     </div>
