@@ -4,7 +4,7 @@
  * Displays vanna exposure by strike price.
  * Vanna = d(Delta)/d(Vol) — how delta changes with implied volatility.
  *
- * Backend /api/analytics/vanna-exposure/{ticker} returns:
+ * Backend /api/vanna-exposure/{ticker} returns:
  *   { ticker, spot, strikes: [...], vanna: [...], asof }
  */
 import React, { useMemo, memo } from "react";
@@ -15,7 +15,7 @@ import { ErrorState } from "./RetryButton";
 
 var VannaChart = memo(function VannaChart({ ticker = "SPY", spot: spotPrice }) {
   var _useMarketData = useMarketData(
-    "analytics/vanna-exposure/" + ticker,
+    "vanna-exposure/" + ticker,
     { refreshMs: 60000, query: { expiries: 4 } }
   );
   var data = _useMarketData.data;
