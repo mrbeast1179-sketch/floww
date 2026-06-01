@@ -37,6 +37,7 @@ import { TradeAnalytics } from "./components/TradeAnalytics";
 import { SocialFlowPanel } from "./components/SocialFlowPanel";
 import HeatseekerDashboard from "./components/heatseeker/HeatseekerDashboard";
 import SwarmFrame from "./components/SwarmFrame";
+import FlowseekerTab from "./components/flowseeker/FlowseekerTab";
 import AlertOverlay from "./components/AlertOverlay";
 import PWAInstallBanner from "./components/PWAInstallBanner";
 import { useTheme } from "./context/ThemeContext";
@@ -506,6 +507,7 @@ export default function App() {
           <button onClick={() => setPage("portfolio")} className={`btn ${page === "portfolio" ? "active" : ""}`}>Portfolio</button>
           <button onClick={() => setPage("journal")} className={`btn ${page === "journal" ? "active" : ""}`}>Journal</button>
           <button onClick={() => setPage("swarmspx")} className={`btn ${page === "swarmspx" ? "active" : ""}`}>SwarmSPX</button>
+          <button onClick={() => setPage("flowseeker")} className={`btn ${page === "flowseeker" ? "active" : ""}`}>Flowseeker</button>
         </div>
         <div className="header-right">
           {tickers && (
@@ -796,6 +798,15 @@ export default function App() {
 
       {/* SwarmSPX Neural Intelligence */}
       {page === "swarmspx" && <SwarmFrame />}
+
+      {/* Flowseeker Tab */}
+      {page === "flowseeker" && (
+        <div className="flex-1 overflow-auto">
+          <ErrorBoundary>
+            <FlowseekerTab active={page === "flowseeker"} />
+          </ErrorBoundary>
+        </div>
+      )}
 
       {/* Drilldown Modal */}
       {drilldown && <Drilldown {...drilldown} onClose={() => setDrilldown(null)} />}
