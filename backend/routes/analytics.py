@@ -172,12 +172,13 @@ async def vanna_exposure_endpoint(
             if iv <= 0:
                 continue
             oi = c.get("oi", c.get("open_interest", 0))
-            T = c.get("dte", 30) / 365.0
+            T = c.get("T")
+            T = float(T) if T is not None else c.get("dte", 30) / 365.0
             if T <= 0:
                 continue
 
             vanna = float(bs_vanna_vec(
-                np.array([float(spot)]),
+                float(spot),
                 np.array([float(strike)]),
                 np.array([T]),
                 np.array([float(iv)]),
@@ -352,9 +353,13 @@ async def contract(
         if expiry:
             contracts = [c for c in contracts if c.get("expiry") == expiry]
         spot = raw["spot"]
+        from bs_greeks import bs_gamma
         rows = []
         for c in contracts:
-            gamma = c.get("gamma", 0)
+            gamma = c.get("gamma")
+            if not gamma:
+                _k, _T, _iv = float(c.get("strike") or 0), float(c.get("T") or 0), float(c.get("iv") or 0)
+                gamma = bs_gamma(spot, _k, _T, _iv) if (spot > 0 and _k > 0 and _T > 0 and _iv > 0) else 0
             oi = c.get("oi", c.get("open_interest", 0))
             gex = gamma * oi * 100 * spot * (1 if c["type"] == "call" else -1)
             rows.append({
@@ -363,7 +368,7 @@ async def contract(
                 "expiry": c["expiry"],
                 "iv": c.get("iv", 0),
                 "delta": c.get("delta", 0),
-                "gamma": c.get("gamma", 0),
+                "gamma": gamma,
                 "vega": c.get("vega", 0),
                 "theta": c.get("theta", 0),
                 "oi": c.get("oi", c.get("open_interest", 0)),

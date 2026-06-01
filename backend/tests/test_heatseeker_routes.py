@@ -105,6 +105,32 @@ def patched_chain():
 
 
 # ---------------------------------------------------------------------------
+# Regression: gamma enrichment (Skylit GEX panels rendered empty)
+# ---------------------------------------------------------------------------
+
+def test_fetch_chain_enriches_missing_gamma():
+    """Production chains from ``fetch_spot_and_chains_merged`` carry no
+    ``gamma`` field, so ``_gex_per_strike`` skipped every contract and all
+    Skylit GEX panels rendered empty. ``routes.heatseeker._ensure_gamma``
+    must compute Black-Scholes gamma from spot/strike/T/iv; contracts that
+    already include gamma are left untouched.
+    """
+    from routes.heatseeker import _ensure_gamma
+    from services.heatseeker import _gex_per_strike
+
+    chain = _chain_fixture()
+    for c in chain["contracts"]:
+        c.pop("gamma", None)
+    # Baseline documents the bug: with no gamma field the GEX map is empty.
+    assert _gex_per_strike(chain["spot"], chain["contracts"]) == {}
+    # Fix: enrichment computes a positive gamma -> non-empty GEX map.
+    enriched = _ensure_gamma(chain)
+    assert all(float(c.get("gamma", 0)) > 0 for c in enriched["contracts"])
+    gex = _gex_per_strike(enriched["spot"], enriched["contracts"])
+    assert gex, "GEX map still empty after _ensure_gamma enrichment"
+
+
+# ---------------------------------------------------------------------------
 # Wave 1 routes
 # ---------------------------------------------------------------------------
 
@@ -301,3 +327,58 @@ def test_trinity_confluence_all_missing(client):
     d = r.json()
     assert d["score"] == 0
     assert d["verdict"] == "divergence"
+
+
+# ---------------------------------------------------------------------------
+# TASK 3 — Regression: field-name mismatch between writer and reader
+# ---------------------------------------------------------------------------
+
+def test_velocity_mode_reads_writer_field():
+    """save_snapshot writes 'king_strike'; the velocity-mode read path must
+    read the SAME field, or n_snapshots is always 0."""
+    import inspect
+    import re
+
+    import server
+    import routes.heatseeker as hr
+
+    write_src = inspect.getsource(server.save_snapshot)
+    read_src = inspect.getsource(hr._fetch_king_node_history)
+    written = set(re.findall(r'"(king[_a-z]*)"', write_src))
+    read = set(re.findall(r'"(king[_a-z]*)"', read_src))
+    assert written & read, \
+        f"writer fields {written} and reader fields {read} do not overlap"
+
+
+# ---------------------------------------------------------------------------
+# TASK 3 — Regression: snapshot POST writes to shared DB (not :memory:)
+# ---------------------------------------------------------------------------
+
+def test_snapshot_top_movers_roundtrip(client):
+    """POST a snapshot → GET top-movers → assert ≥1 row from the shared DB."""
+    # fetch_spot_and_chains_merged is imported locally inside the POST handler,
+    # so patch it on server where it lives.
+    headers = {"X-API-Key": "test-secret-key"}
+    with patch(
+        "server.fetch_spot_and_chains_merged",
+        AsyncMock(return_value=_chain_fixture()),
+    ):
+        # POST a snapshot
+        r = client.post("/api/heatseeker/snapshot/SPY", headers=headers)
+        assert r.status_code == 200, r.text
+        d = r.json()
+        assert d["status"] == "ok", d
+        assert d["result"]["inserted"] > 0, d
+
+        # GET top-movers — should return rows from the shared DB
+        r2 = client.get("/api/heatseeker/top-movers/SPY?top_n=5")
+        assert r2.status_code == 200, r2.text
+        d2 = r2.json()
+        assert d2["ticker"] == "SPY"
+        assert d2["n_contracts"] >= 1, \
+            f"top-movers should have ≥1 row after snapshot, got {d2['n_contracts']}"
+        assert len(d2["movers"]) >= 1
+        # Verify mover shape
+        m = d2["movers"][0]
+        for k in ("ticker", "expiry", "strike", "type", "oi", "iv"):
+            assert k in m, f"missing mover field {k}"

@@ -308,6 +308,31 @@ def test_charm_integral_spy(client, patched_chain):
         assert "buckets" in d
 
 
+@pytest.fixture
+def patched_analytics_chain():
+    """Feed a full fixture chain into the analytics cache router so the
+    compute-heavy endpoints (vanna/charm) exercise the real Greek path
+    instead of 404-ing on an empty test cache."""
+    fake = _fake_chain()
+    with patch("routes.analytics._cache.get_chain", AsyncMock(return_value=fake)):
+        yield fake
+
+
+def test_vanna_exposure_spy(client, patched_analytics_chain):
+    """Regression: vanna-exposure must COMPUTE, not return a degraded
+    'computation_error'. The endpoint previously passed spot as a 1-D numpy
+    array into the scalar-S ``bs_vanna_vec`` njit function, which triggered
+    'No implementation of function log() for array(float64, 1d)' in Numba's
+    nopython pipeline. With a valid chain the response must carry real vanna.
+    """
+    r = client.get("/api/vanna-exposure/SPY?expiries=4")
+    assert r.status_code == 200
+    d = r.json()
+    assert not d.get("degraded"), f"vanna-exposure degraded: {d.get('detail')}"
+    assert "strikes" in d and isinstance(d["strikes"], list)
+    assert "vanna" in d and isinstance(d["vanna"], list)
+
+
 def test_gex_timeframes_spy(client, patched_chain):
     r = client.get("/api/gex-timeframes/SPY")
     assert r.status_code == 200

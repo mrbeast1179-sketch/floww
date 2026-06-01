@@ -36,6 +36,7 @@ import { DashboardSummary } from "./components/DashboardSummary";
 import { TradeAnalytics } from "./components/TradeAnalytics";
 import { SocialFlowPanel } from "./components/SocialFlowPanel";
 import HeatseekerDashboard from "./components/heatseeker/HeatseekerDashboard";
+import SwarmFrame from "./components/SwarmFrame";
 import AlertOverlay from "./components/AlertOverlay";
 import PWAInstallBanner from "./components/PWAInstallBanner";
 import { useTheme } from "./context/ThemeContext";
@@ -794,16 +795,7 @@ export default function App() {
       )}
 
       {/* SwarmSPX Neural Intelligence */}
-      {page === "swarmspx" && (
-        <div className="flex-1 overflow-hidden" style={{ display: "flex", flexDirection: "column" }}>
-          <iframe
-            src="http://localhost:8099/"
-            style={{ flex: 1, border: "none", width: "100%", height: "100%" }}
-            title="SwarmSPX Neural Intelligence"
-            sandbox="allow-scripts allow-same-origin allow-forms allow-popups"
-          />
-        </div>
-      )}
+      {page === "swarmspx" && <SwarmFrame />}
 
       {/* Drilldown Modal */}
       {drilldown && <Drilldown {...drilldown} onClose={() => setDrilldown(null)} />}

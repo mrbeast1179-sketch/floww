@@ -95,6 +95,15 @@ async def rate_limit_middleware(request: Request, call_next):
     Disabled in TESTING mode to avoid flaky test failures."""
     if _TEST_MODE:
         return await call_next(request)
+    # Read-only dashboard GETs are exempt from the per-IP burst limit: the Skylit
+    # dashboard fires ~20+ panel reads on load + polling, which blows past a
+    # 60/min budget and surfaced as HTTP 429 on nearly every panel. Mutating
+    # routes (POST/DELETE: snapshots, portfolio writes, alerts) stay limited.
+    if request.method == "GET" and request.url.path.startswith((
+        "/api/heatseeker", "/api/analytics", "/api/flowseeker", "/api/heatmap",
+        "/api/spot", "/api/data", "/api/tickers", "/api/portfolio", "/api/alerts",
+    )):
+        return await call_next(request)
     client_ip = request.client.host if request.client else "unknown"
     now = time.time()
     window = 60.0  # 1 minute
@@ -296,7 +305,11 @@ async def _load_portfolio_from_mongo(name: str) -> Optional[Portfolio]:
 # ============ Data Fetching Functions (moved here to maintain correct order) ============
 
 DEFAULT_PAID_TICKERS = {"SPY"}
-PAID_TICKERS: set = set(DEFAULT_PAID_TICKERS)
+PAID_TICKERS: set = (
+    set()
+    if os.environ.get("DISABLE_DATABENTO", "").lower() in ("1", "true", "yes")
+    else set(DEFAULT_PAID_TICKERS)
+)
 
 # Session tracking for cost meter
 _session_state: Dict[str, Any] = {
