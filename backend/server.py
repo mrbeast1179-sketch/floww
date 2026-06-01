@@ -305,7 +305,11 @@ async def _load_portfolio_from_mongo(name: str) -> Optional[Portfolio]:
 # ============ Data Fetching Functions (moved here to maintain correct order) ============
 
 DEFAULT_PAID_TICKERS = {"SPY"}
-PAID_TICKERS: set = set(DEFAULT_PAID_TICKERS)
+PAID_TICKERS: set = (
+    set()
+    if os.environ.get("DISABLE_DATABENTO", "").lower() in ("1", "true", "yes")
+    else set(DEFAULT_PAID_TICKERS)
+)
 
 # Session tracking for cost meter
 _session_state: Dict[str, Any] = {
