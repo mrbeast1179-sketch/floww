@@ -204,11 +204,13 @@ async def air_pockets_route(
 async def _fetch_king_node_history(ticker: str) -> List[Dict[str, Any]]:
     """
     Build a king-node history for ``ticker``. Each entry is
-    ``{"timestamp": iso8601, "king_node_strike": float, "spot": float}``.
+    ``{"timestamp": iso8601, "king_strike": float, "spot": float}``.
 
     Strategy: query last 30 minutes of spot snapshots from ``db.snapshots``.
-    If a snapshot has a stored ``king_node_strike``, use it; otherwise leave
-    the history empty (the pure function returns calm/0 in that case). On
+    If a snapshot has a stored ``king_strike`` (the Mongo field written by
+    ``save_snapshot``), use it to build a ``king_node_strike`` output entry;
+    otherwise leave the history empty (the pure function returns calm/0 in
+    that case). On
     any Mongo failure, return an empty list so the route still returns a
     well-formed payload.
     """
@@ -219,11 +221,11 @@ async def _fetch_king_node_history(ticker: str) -> List[Dict[str, Any]]:
         cutoff = datetime.now(timezone.utc) - timedelta(minutes=30)
         cursor = db.snapshots.find(
             {"ticker": ticker.upper(), "ts": {"$gte": cutoff}},
-            {"spot": 1, "ts": 1, "king_node_strike": 1, "_id": 0},
+            {"spot": 1, "ts": 1, "king_strike": 1, "_id": 0},
         ).sort("ts", 1)
         history: List[Dict[str, Any]] = []
         async for doc in cursor:
-            kn = doc.get("king_node_strike")
+            kn = doc.get("king_strike")
             if kn is None:
                 continue
             ts = doc.get("ts")

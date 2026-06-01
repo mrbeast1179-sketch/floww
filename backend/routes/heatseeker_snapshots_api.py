@@ -175,22 +175,34 @@ async def trigger_snapshot(
 ):
     """Trigger a live snapshot of the options chain.
 
-    Fetches the current chain from the data source and inserts into DuckDB.
-    Returns a summary of the operation.
+    Fetches the current chain from the data source and inserts into the
+    shared DuckDB connection so that top-movers, history, and latest endpoints
+    can read the data (previously wrote to a throwaway :memory: DB).
 
     This is an admin/debug endpoint. In production, snapshots are triggered
     by the scheduler/cron.
     """
-    from scripts.snapshot_chain import snapshot_chain
-
-    result = await snapshot_chain(
-        ticker=ticker,
-        source=source,
-        db_path=":memory:",  # Uses the in-memory DB; in prod, use file path
-        expiries=expiries,
+    from server import fetch_spot_and_chains_merged
+    from services.heatseeker_snapshots import (
+        bulk_insert,
+        contracts_to_recordbatch,
+        create_snapshot_table,
     )
+
+    conn = _get_duckdb_conn()
+    create_snapshot_table(conn)
+
+    raw = await fetch_spot_and_chains_merged(ticker, expiries)
+    if not raw or raw.get("spot") != raw.get("spot"):  # NaN check
+        return {
+            "status": "error",
+            "result": f"No options data for {ticker}",
+        }
+
+    batch = contracts_to_recordbatch(raw)
+    n_rows = bulk_insert(conn, batch)
 
     return {
         "status": "ok",
-        "result": result,
+        "result": {"inserted": n_rows, "ticker": ticker.upper()},
     }

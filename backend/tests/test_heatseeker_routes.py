@@ -327,3 +327,58 @@ def test_trinity_confluence_all_missing(client):
     d = r.json()
     assert d["score"] == 0
     assert d["verdict"] == "divergence"
+
+
+# ---------------------------------------------------------------------------
+# TASK 3 — Regression: field-name mismatch between writer and reader
+# ---------------------------------------------------------------------------
+
+def test_velocity_mode_reads_writer_field():
+    """save_snapshot writes 'king_strike'; the velocity-mode read path must
+    read the SAME field, or n_snapshots is always 0."""
+    import inspect
+    import re
+
+    import server
+    import routes.heatseeker as hr
+
+    write_src = inspect.getsource(server.save_snapshot)
+    read_src = inspect.getsource(hr._fetch_king_node_history)
+    written = set(re.findall(r'"(king[_a-z]*)"', write_src))
+    read = set(re.findall(r'"(king[_a-z]*)"', read_src))
+    assert written & read, \
+        f"writer fields {written} and reader fields {read} do not overlap"
+
+
+# ---------------------------------------------------------------------------
+# TASK 3 — Regression: snapshot POST writes to shared DB (not :memory:)
+# ---------------------------------------------------------------------------
+
+def test_snapshot_top_movers_roundtrip(client):
+    """POST a snapshot → GET top-movers → assert ≥1 row from the shared DB."""
+    # fetch_spot_and_chains_merged is imported locally inside the POST handler,
+    # so patch it on server where it lives.
+    headers = {"X-API-Key": "test-secret-key"}
+    with patch(
+        "server.fetch_spot_and_chains_merged",
+        AsyncMock(return_value=_chain_fixture()),
+    ):
+        # POST a snapshot
+        r = client.post("/api/heatseeker/snapshot/SPY", headers=headers)
+        assert r.status_code == 200, r.text
+        d = r.json()
+        assert d["status"] == "ok", d
+        assert d["result"]["inserted"] > 0, d
+
+        # GET top-movers — should return rows from the shared DB
+        r2 = client.get("/api/heatseeker/top-movers/SPY?top_n=5")
+        assert r2.status_code == 200, r2.text
+        d2 = r2.json()
+        assert d2["ticker"] == "SPY"
+        assert d2["n_contracts"] >= 1, \
+            f"top-movers should have ≥1 row after snapshot, got {d2['n_contracts']}"
+        assert len(d2["movers"]) >= 1
+        # Verify mover shape
+        m = d2["movers"][0]
+        for k in ("ticker", "expiry", "strike", "type", "oi", "iv"):
+            assert k in m, f"missing mover field {k}"
