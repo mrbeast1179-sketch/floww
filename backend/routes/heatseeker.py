@@ -121,11 +121,30 @@ async def _fetch_history(ticker: str, lookback_mins: int = 1440) -> List[Dict[st
         return []
 
 
+def _norm_frac(value, lo: float, hi: float) -> float:
+    """Coerce a fraction-or-percent query param into [lo, hi] — NEVER 422.
+
+    Panels historically send percents (5 for 5%, 1 for 1%) while these
+    endpoints expect fractions of spot (0.05, 0.01). Instead of rejecting with
+    HTTP 422 (which blanks the panel), normalize: a value above ``hi`` is
+    treated as a percent and divided by 100, then clamped into [lo, hi].
+    """
+    try:
+        v = float(value)
+    except (TypeError, ValueError):
+        return lo
+    if v != v or v in (float("inf"), float("-inf")):  # NaN / inf guard
+        return lo
+    if v > hi:                       # looks like a percent -> fraction
+        v = v / 100.0
+    return max(lo, min(hi, v))        # clamp into range
+
+
 @router.get("/flip-zones")
 async def flip_zones_route(
     ticker: str = "SPY",
-    window_pct: float = Query(default=0.05, ge=0.01, le=0.50, description="Window size as fraction of spot"),
-    min_gap_pct: float = Query(default=0.02, ge=0.005, le=0.20, description="Minimum gap between flip zones"),
+    window_pct: float = Query(default=0.05, description="Window as fraction of spot; percents (e.g. 5) normalized, never 422"),
+    min_gap_pct: float = Query(default=0.02, description="Minimum gap as fraction of spot; percents normalized, never 422"),
     expiries: int = Query(default=4, ge=1, le=12),
 ):
     """All cumulative-GEX sign changes within +/-window_pct of spot."""
@@ -136,6 +155,7 @@ async def flip_zones_route(
         contracts = raw.get("contracts") or []
         if not spot or not contracts:
             raise HTTPException(404, "No options data for " + ticker)
+        window_pct = _norm_frac(window_pct, 0.01, 0.50)
         result = calc_flip_zones(spot, contracts, window_pct=window_pct)
         return _sanitize({"ticker": ticker.upper(), "spot": spot, **result})
     except HTTPException:
@@ -177,7 +197,7 @@ async def node_lifecycle_route(
 @router.get("/air-pockets")
 async def air_pockets_route(
     ticker: str = "SPY",
-    min_gap_pct: float = Query(default=0.02, ge=0.005, le=0.20, description="Minimum gap between air pockets"),
+    min_gap_pct: float = Query(default=0.02, description="Minimum gap as fraction of spot; percents normalized, never 422"),
     expiries: int = Query(default=4, ge=1, le=12),
 ):
     """Contiguous strike ranges with |GEX| below 20% of the local median."""
@@ -188,6 +208,7 @@ async def air_pockets_route(
         contracts = raw.get("contracts") or []
         if not spot or not contracts:
             raise HTTPException(404, "No options data for " + ticker)
+        min_gap_pct = _norm_frac(min_gap_pct, 0.005, 0.20)
         result = calc_air_pockets(spot, contracts, min_gap_pct=min_gap_pct)
         return _sanitize({"ticker": ticker.upper(), "spot": spot, **result})
     except HTTPException:

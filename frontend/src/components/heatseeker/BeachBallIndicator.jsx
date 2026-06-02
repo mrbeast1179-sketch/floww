@@ -11,8 +11,8 @@ export default function BeachBallIndicator({ ticker = "SPY" }) {
   const active = !!data?.active;
   const conf = Math.max(0, Math.min(1, Number(data?.confidence) || 0));
   const dirSign =
-    data?.direction === "up" || data?.direction === "bullish" ? 1 :
-    data?.direction === "down" || data?.direction === "bearish" ? -1 : 0;
+    data?.direction === "above" ? 1 :
+    data?.direction === "below" ? -1 : 0;
 
   return (
     <div
@@ -52,7 +52,7 @@ export default function BeachBallIndicator({ ticker = "SPY" }) {
               }`}
             >
               {data.spot_distance_pct != null
-                ? `${(data.spot_distance_pct).toFixed(2)}%`
+                ? `${(data.spot_distance_pct * 100).toFixed(2)}%`
                 : "—"}
             </span>
           </div>

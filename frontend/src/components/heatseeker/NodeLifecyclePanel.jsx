@@ -51,7 +51,7 @@ export default function NodeLifecyclePanel({ ticker = "SPY" }) {
             <tbody>
               {nodes.map((n, i) => {
                 const tp = n.tap_probability;
-                const tpPct = tp == null || isNaN(tp) ? "—" : `${Math.round(tp * 100)}%`;
+                const tpPct = tp == null || isNaN(tp) ? "—" : `${Math.round(Number(tp))}%`;
                 return (
                   <tr
                     key={`${n.strike}-${i}`}

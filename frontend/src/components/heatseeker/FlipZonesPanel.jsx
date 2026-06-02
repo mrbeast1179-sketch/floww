@@ -40,8 +40,8 @@ export default function FlipZonesPanel({ ticker = "SPY", spot = null, windowPct 
       {rows.length > 0 && (
         <div className="space-y-1">
           {rows.map((z, i) => {
-            const dir = `${z.from_sign > 0 ? "+" : "−"} → ${z.to_sign > 0 ? "+" : "−"}`;
-            const isBullish = z.to_sign > 0;
+            const dir = `${z.from_sign === "positive" ? "+" : "−"} → ${z.to_sign === "positive" ? "+" : "−"}`;
+            const isBullish = z.to_sign === "positive";
             return (
               <div
                 key={`${z.price}-${i}`}
