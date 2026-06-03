@@ -40,6 +40,7 @@ import SwarmFrame from "./components/SwarmFrame";
 import FlowseekerTab from "./components/flowseeker/FlowseekerTab";
 import AlertOverlay from "./components/AlertOverlay";
 import PWAInstallBanner from "./components/PWAInstallBanner";
+import AppShell from "./shell/AppShell";
 import { useTheme } from "./context/ThemeContext";
 import { autoDecimate } from "./utils/dataDecimator";
 
@@ -491,25 +492,17 @@ export default function App() {
   }, [data]);
 
   return (
-    <div className="App">
-      {/* Alert Overlay - Real-time signal toasts */}
-      <AlertOverlay onSignalClick={handleSignalClick} maxVisible={3} />
+    <AppShell page={page} onNavigate={setPage}>
+      <div className="App">
+        {/* Alert Overlay - Real-time signal toasts */}
+        <AlertOverlay onSignalClick={handleSignalClick} maxVisible={3} />
 
-      {/* PWA Install Banner */}
-      <PWAInstallBanner />
+        {/* PWA Install Banner */}
+        <PWAInstallBanner />
 
-      {/* Header */}
-      <header className="app-header">
-        <div className="nav-tabs">
-          <button onClick={() => setPage("trinity")} className={`btn ${page === "trinity" ? "active" : ""}`}>Trinity</button>
-          <button onClick={() => setPage("heatseeker")} className={`btn ${page === "heatseeker" ? "active" : ""}`}>Heatseeker</button>
-          <button onClick={() => setPage("skylit")} className={`btn ${page === "skylit" ? "active" : ""}`}>Skylit</button>
-          <button onClick={() => setPage("portfolio")} className={`btn ${page === "portfolio" ? "active" : ""}`}>Portfolio</button>
-          <button onClick={() => setPage("journal")} className={`btn ${page === "journal" ? "active" : ""}`}>Journal</button>
-          <button onClick={() => setPage("swarmspx")} className={`btn ${page === "swarmspx" ? "active" : ""}`}>SwarmSPX</button>
-          <button onClick={() => setPage("flowseeker")} className={`btn ${page === "flowseeker" ? "active" : ""}`}>Flowseeker</button>
-        </div>
-        <div className="header-right">
+        {/* Header */}
+        <header className="app-header">
+          <div className="header-right">
           {tickers && (
             <TickerSearch
               tickers={[...(tickers.trinity || []), ...(tickers.default || []), ...(tickers.popular || [])]}
@@ -535,14 +528,14 @@ export default function App() {
 
       {/* Trinity View */}
       {page === "trinity" && (
-        <div className="p-4 flex-1 overflow-auto">
+        <div className="legacy-theme p-4 flex-1 overflow-auto">
           <TrinityView onFocusTicker={handleFocusTicker} />
         </div>
       )}
 
       {/* Single Ticker Heatseeker */}
       {page === "heatseeker" && (
-        <div className="heatseeker-layout">
+        <div className="legacy-theme heatseeker-layout">
           {/* Left Sidebar - Filters & Summary */}
           <aside className={`heatseeker-sidebar-left ${showLeftSidebar ? 'open' : ''}`}>
             <div className="p-2 space-y-2">
@@ -824,6 +817,7 @@ export default function App() {
       {page === "heatseeker" && (
         <ShortcutsModal />
       )}
-    </div>
+      </div>
+    </AppShell>
   );
 }
