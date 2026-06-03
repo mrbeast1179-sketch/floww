@@ -1,23 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Sora:wght@400;500;600;700&display=swap');
-
-:root {
-  --bg: #07080a;
-  --bg-2: #0c0e12;
-  --panel: rgba(18, 20, 24, 0.72);
-  --border: #1c1f24;
-  --pika: #facc15;
-  --barney: #a855f7;
-}
-
-/* Light theme overrides */
-[data-theme="light"] {
-  --bg: #f8f9fa;
-  --bg-2: #ffffff;
-  --panel: rgba(255, 255, 255, 0.85);
-  --border: #e2e8f0;
-  --pika: #ca8a04;
-  --barney: #7c3aed;
-}
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap');
 
 * { box-sizing: border-box; }
 
@@ -29,17 +10,12 @@ html {
 html, body, #root, .App {
   background: var(--bg);
   color: #e4e4e7;
-  font-family: 'Sora', system-ui, sans-serif;
+  font-family: var(--font-sans);
   letter-spacing: 0.01em;
   min-height: 100vh;
   margin: 0;
   padding: 0;
   overflow-x: hidden;
-}
-
-[data-theme="light"] body,
-[data-theme="light"] .App {
-  color: #1e293b;
 }
 
 body {
