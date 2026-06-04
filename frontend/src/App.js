@@ -43,6 +43,7 @@ import PWAInstallBanner from "./components/PWAInstallBanner";
 import AppShell from "./shell/AppShell";
 import { useTheme } from "./context/ThemeContext";
 import { autoDecimate } from "./utils/dataDecimator";
+import { PAGE_NAMES } from "./shell/navConfig";
 
 import ToxicityGauge from "./components/ToxicityGauge";
 import ErrorBoundary from "./components/ErrorBoundary";
@@ -98,12 +99,11 @@ function Movers({ onPick }) {
       <div className="label mb-2">Top Movers (prev session %)</div>
       <div className="flex flex-col gap-1 text-[11px]">
         {rows.length === 0 && <div className="text-slate-500">…</div>}
-        {rows.map((r) => (
-          <button key={r.ticker} data-testid={`mover-${r.ticker}`} onClick={() => onPick && onPick(r.ticker)} className="flex justify-between items-center px-2 py-1 hover:bg-slate-800/40 rounded">
-            <span className="font-bold w-14 text-left">{r.ticker}</span>
-            <span className="mono text-slate-400 w-20 text-right">${fmt(r.close, 2)}</span>
-            <span className={`mono w-16 text-right ${pctClass(r.pct)}`}>{r.pct >= 0 ? "+" : ""}{r.pct}%</span>
-          </button>
+        {rows.map((r, i) => (
+          <div key={i} className="flex justify-between bar-row cursor-pointer" onClick={() => onPick && onPick(r.ticker)}>
+            <span className="mono text-amber-300">{r.ticker}</span>
+            <span className={pctClass(r.change)}>{r.change > 0 ? "+" : ""}{r.change}%</span>
+          </div>
         ))}
       </div>
     </div>
@@ -112,170 +112,364 @@ function Movers({ onPick }) {
 
 // ============ Nodes Table ============
 function NodesTable({ data }) {
-  const [sortKey, setSortKey] = useState("mag");
-  const [sortDir, setSortDir] = useState("desc");
   if (!data?.nodes) return null;
-  const spot = data.spot;
-  const all = (data.strikes || []).map((s) => {
-    const role = s.strike === data.nodes.king?.strike ? "King" : data.nodes.floors?.some(f => f.strike === s.strike) ? "Floor" : data.nodes.ceilings?.some(f => f.strike === s.strike) ? "Ceiling" : data.nodes.gatekeepers?.some(f => f.strike === s.strike) ? "Gatekeeper" : null;
-    return { ...s, role, mag: Math.abs(s.gex), dist: Math.abs(s.strike - spot) / spot * 100 };
-  }).filter(s => s.role || s.mag > 0);
-  const sorted = [...all].sort((a, b) => { const va = a[sortKey], vb = b[sortKey]; if (va == null) return 1; if (vb == null) return -1; return sortDir === "desc" ? vb - va : va - vb; });
-  const head = (k, l) => (
-    <th className="text-left text-[10px] uppercase tracking-widest text-slate-500 font-normal px-2 py-1 cursor-pointer hover:text-teal-400" onClick={() => { setSortKey(k); setSortDir(d => sortKey === k && d === "desc" ? "asc" : "desc"); }}>
-      {l}{sortKey === k ? (sortDir === "desc" ? " ↓" : " ↑") : ""}
-    </th>
-  );
   return (
     <div className="panel p-3" data-testid="nodes-table">
-      <div className="label mb-2">Structural Nodes</div>
-      <div className="overflow-y-auto" style={{ maxHeight: 280 }}>
-        <table className="w-full text-[11px] mono">
-          <thead className="sticky top-0" style={{ background: "var(--panel)" }}>
-            <tr>
-              {head("strike", "Strike")}
-              <th className="text-left text-[10px] uppercase tracking-widest text-slate-500 font-normal px-2 py-1">Role</th>
-              {head("mag", "|GEX|")}
-              {head("gex", "Net")}
-              {head("dist", "Δ Spot")}
-              {head("taps", "Taps")}
-              <th className="text-left text-[10px] uppercase tracking-widest text-slate-500 font-normal px-2 py-1">Life</th>
+      <div className="label mb-2">Key Nodes</div>
+      <table className="w-full text-[11px] mono">
+        <thead className="text-slate-500 text-[10px] uppercase tracking-widest">
+          <tr>
+            <th className="text-left text-[10px] uppercase tracking-widest text-slate-500 font-normal px-2 py-1">Strike</th>
+            <th className="text-left text-[10px] uppercase tracking-widest text-slate-500 font-normal px-2 py-1">GEX</th>
+            <th className="text-left text-[10px] uppercase tracking-widest text-slate-500 font-normal px-2 py-1">Role</th>
+            <th className="text-left text-[10px] uppercase tracking-widest text-slate-500 font-normal px-2 py-1">Life</th>
+          </tr>
+        </thead>
+        <tbody>
+          {(data.nodes.key_nodes || []).map((n, i) => (
+            <tr key={i} className="bar-row">
+              <td className="px-2 py-1">{fmt(n.strike, 0)}</td>
+              <td className={`px-2 py-1 ${n.gex > 0 ? "text-emerald-400" : "text-rose-400"}`}>{n.gex > 0 ? "+" : ""}{fmtAbs(n.gex)}</td>
+              <td className="px-2 py-1"><span className={`tag ${n.role}`}>{n.role}</span></td>
+              <td className="px-2 py-1 text-slate-500">{n.life || "—"}</td>
             </tr>
-          </thead>
-          <tbody>
-            {sorted.slice(0, 30).map((s) => (
-              <tr key={s.strike} className="bar-row border-t border-slate-800/60">
-                <td className="px-2 py-1 font-bold text-slate-200">{fmt(s.strike, 0)}</td>
-                <td className="px-2 py-1">{s.role && <span className={`tag ${s.role === "King" ? "king" : s.role === "Floor" ? "floor" : s.role === "Ceiling" ? "ceiling" : "gate"}`}>{s.role}</span>}</td>
-                <td className="px-2 py-1 text-slate-300">{fmtAbs(s.mag)}</td>
-                <td className={`px-2 py-1 ${s.gex > 0 ? "text-emerald-400" : "text-rose-400"}`}>{s.gex > 0 ? "+" : ""}{fmtAbs(s.gex)}</td>
-                <td className="px-2 py-1 text-slate-500">{s.dist.toFixed(2)}%</td>
-                <td className="px-2 py-1 text-slate-500">{s.taps}</td>
-                <td className="px-2 py-1"><span className={tagFor(s.lifecycle)}>{s.lifecycle}</span></td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+          ))}
+        </tbody>
+      </table>
     </div>
   );
 }
 
-// ============ Drilldown ============
-function Drilldown({ ticker, expiry, strike, onClose }) {
-  const [data, setData] = useState(null);
-  const [loading, setLoading] = useState(false);
-  useEffect(() => {
-    if (!ticker) return;
-    setLoading(true);
-    const params = new URLSearchParams();
-    if (expiry) params.set("expiry", expiry);
-    if (strike) params.set("strike", strike);
-    axios.get(`${API}/contract/${encodeURIComponent(ticker)}?${params.toString()}`).then(r => setData(r.data)).catch(() => setData(null)).finally(() => setLoading(false));
-  }, [ticker, expiry, strike]);
-  if (!data && !loading) return null;
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ background: "rgba(0,0,0,0.7)" }} onClick={onClose}>
-      <div className="panel p-4 max-w-4xl w-[90%] max-h-[80vh] overflow-auto" onClick={(e) => e.stopPropagation()} data-testid="drilldown-modal">
-        <div className="flex justify-between items-center mb-3">
-          <div><div className="label">Contract Drilldown</div><div className="text-lg font-bold">{ticker} {strike ? `· ${strike}` : ""} {expiry ? `· ${expiry}` : ""}</div></div>
-          <button onClick={onClose} className="btn" data-testid="drilldown-close">close ✕</button>
-        </div>
-        {loading && <div className="text-slate-500">loading…</div>}
-        {data && (
-          <div>
-            <div className="text-[11px] text-slate-500 mb-2">Spot {fmt(data.spot, 2)} · {data.count} contracts · source {data.data_source}</div>
-            {data.count === 0 ? (
-              <div className="text-slate-500 text-xs py-8 text-center">No contracts at this strike × expiry combination.</div>
-            ) : (
-              <table className="w-full text-[11px] mono">
-                <thead className="text-slate-500 text-[10px] uppercase tracking-widest">
-                  <tr>
-                    <th className="text-left px-2 py-1">Type</th><th className="text-left px-2 py-1">Strike</th><th className="text-left px-2 py-1">Expiry</th>
-                    <th className="text-right px-2 py-1">OI</th><th className="text-right px-2 py-1">Volume</th><th className="text-right px-2 py-1">IV</th>
-                    <th className="text-right px-2 py-1">Δ</th><th className="text-right px-2 py-1">Γ</th><th className="text-right px-2 py-1">GEX</th><th className="text-left px-2 py-1">Src</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {data.rows.map((r, i) => (
-                    <tr key={i} className="bar-row border-t border-slate-800/60">
-                      <td className={`px-2 py-1 ${r.type === "call" ? "text-emerald-400" : "text-rose-400"}`}>{r.type}</td>
-                      <td className="px-2 py-1 font-bold">{fmt(r.strike, 0)}</td>
-                      <td className="px-2 py-1 text-slate-400">{r.expiry}</td>
-                      <td className="px-2 py-1 text-right">{fmt(r.oi, 0)}</td>
-                      <td className="px-2 py-1 text-right text-slate-500">{fmt(r.volume, 0)}</td>
-                      <td className="px-2 py-1 text-right text-slate-400">{(r.iv * 100).toFixed(1)}%</td>
-                      <td className="px-2 py-1 text-right text-slate-400">{r.delta?.toFixed(3)}</td>
-                      <td className="px-2 py-1 text-right text-slate-500">{r.gamma?.toFixed(5)}</td>
-                      <td className={`px-2 py-1 text-right ${r.gex > 0 ? "text-emerald-400" : "text-rose-400"}`}>{fmtAbs(r.gex)}</td>
-                      <td className="px-2 py-1 text-[10px] text-slate-600">{r.oi_source}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            )}
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
-
-// ============ Ticker Search / Autocomplete ============
+// ============ Ticker Search ============
 function TickerSearch({ tickers, value, onChange }) {
-  const [query, setQuery] = useState("");
   const [open, setOpen] = useState(false);
-  const inputRef = useRef(null);
-  const ref = useRef(null);
-
-  const filtered = useMemo(() => {
-    const q = query.toUpperCase().replace("^", "");
-    if (!q) return tickers.slice(0, 10);
-    return tickers.filter(t => t.toUpperCase().replace("^", "").includes(q)).slice(0, 10);
-  }, [query, tickers]);
-
+  const [q, setQ] = useState("");
+  const ref = useRef();
+  const filtered = (tickers || []).filter(t => !q || t.toLowerCase().includes(q.toLowerCase())).slice(0, 12);
   useEffect(() => {
-    const handler = (e) => {
-      if (ref.current && !ref.current.contains(e.target)) setOpen(false);
-    };
+    const handler = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
     document.addEventListener("mousedown", handler);
     return () => document.removeEventListener("mousedown", handler);
   }, []);
-
   return (
     <div ref={ref} className="relative">
       <input
-        ref={inputRef}
-        value={open ? query : value.replace("^", "")}
-        onChange={e => { setQuery(e.target.value); setOpen(true); }}
-        onFocus={() => { setQuery(""); setOpen(true); }}
-        onKeyDown={e => {
-          if (e.key === "Enter" && filtered.length > 0) {
-            onChange(filtered[0]);
-            setOpen(false);
-            inputRef.current?.blur();
-          }
-          if (e.key === "Escape") { setOpen(false); inputRef.current?.blur(); }
-        }}
-        placeholder="Search ticker…"
-        className="btn"
-        style={{ padding: "4px 8px", width: 120 }}
+        className="mono text-[12px] px-2 py-1 rounded"
+        style={{ background: "var(--surface-1)", border: "1px solid var(--border-c)", color: "var(--text-primary)", width: 100 }}
+        value={q}
+        onChange={e => { setQ(e.target.value); setOpen(true); }}
+        onFocus={() => setOpen(true)}
+        placeholder={value || "SPY"}
       />
       {open && filtered.length > 0 && (
-        <div className="absolute top-full left-0 mt-1 w-40 rounded border border-slate-700 shadow-xl z-50 overflow-hidden" style={{ background: "var(--panel)" }}>
+        <div className="absolute top-full mt-1 z-50 rounded-lg overflow-hidden" style={{ background: "var(--panel)", border: "1px solid var(--border)", minWidth: 120 }}>
           {filtered.map(t => (
-            <button
-              key={t}
-              onClick={() => { onChange(t); setOpen(false); setQuery(""); }}
-              className="block w-full text-left px-3 py-1.5 text-[11px] hover:bg-slate-700/60 transition-colors"
-              style={{ background: t === value ? "var(--bg-2)" : "transparent" }}
-            >
-              <span className="font-bold">{t.replace("^", "")}</span>
-              {t.startsWith("^") && <span className="text-slate-500 ml-1 text-[9px]">IDX</span>}
-            </button>
+            <div key={t} className="px-3 py-1.5 cursor-pointer text-[12px] mono bar-row" onClick={() => { onChange(t); setOpen(false); setQ(""); }}
+              style={{ color: t === value ? "var(--gold)" : "var(--text-secondary)" }}>
+              {t}
+            </div>
           ))}
         </div>
       )}
+    </div>
+  );
+}
+
+// ============ AlphaPod-style Header ============
+function ApHeader({ page, ticker, onTickerChange, tickers, data, onSignOut, userEmail, userTier }) {
+  const pageName = PAGE_NAMES[page] || page;
+  const isLive = page === "flow-alerts" || page === "alpha-flow";
+
+  return (
+    <header className="ap-header">
+      <div className="ap-header-inner">
+        {/* Breadcrumb */}
+        <div className="ap-breadcrumb">
+          <span className="hidden lg:inline" style={{ color: "var(--text-tertiary)" }}>Alpha Flow</span>
+          <svg className="hidden lg:block" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ color: "var(--text-quaternary)" }}>
+            <path d="M9 18l6-6-6-6"/>
+          </svg>
+          <span className="truncate font-semibold" style={{ color: "var(--text-primary)" }}>{pageName}</span>
+        </div>
+
+        {/* Right side actions */}
+        <div className="ap-header-actions">
+          {/* Ticker search for relevant pages */}
+          {tickers && (page === "heatseeker" || page === "trinity" || page === "skylit" || page === "ticker-analysis") && (
+            <TickerSearch
+              tickers={[...(tickers.trinity || []), ...(tickers.default || []), ...(tickers.popular || [])]}
+              value={ticker}
+              onChange={onTickerChange}
+            />
+          )}
+
+          {/* Live badge */}
+          <div className="ap-live-badge" title="Live">
+            <span className="dot" />
+            <span>Live</span>
+          </div>
+
+          {/* Data source indicator */}
+          {data?.data_source && (
+            <span className="mono text-[10px] uppercase tracking-wider hidden lg:inline" style={{ color: "var(--text-tertiary)" }}>
+              {data.data_source}
+            </span>
+          )}
+
+          {/* User chip */}
+          {userEmail && (
+            <div className="ap-user-chip">
+              <span className="hidden lg:inline" style={{ color: "var(--text-secondary)" }}>{userEmail}</span>
+              {userTier && <span className="tier">{userTier}</span>}
+            </div>
+          )}
+
+          {/* Sign out */}
+          <button
+            onClick={onSignOut}
+            className="ap-icon-btn"
+            title="Sign out"
+            style={{ color: "var(--text-tertiary)" }}
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
+              <polyline points="16 17 21 12 16 7"/>
+              <line x1="21" y1="12" x2="9" y2="12"/>
+            </svg>
+          </button>
+        </div>
+      </div>
+    </header>
+  );
+}
+
+// ============ AlphaPod-style Page Placeholders ============
+function PagePlaceholder({ title, subtitle }) {
+  return (
+    <div className="ap-main" style={{ flex: 1 }}>
+      <div className="flow-alerts-terminal-glass" style={{ padding: 24 }}>
+        <h1 className="display text-[22px] font-semibold leading-none" style={{ color: "var(--text-primary)", marginBottom: 8 }}>
+          {title}
+        </h1>
+        {subtitle && (
+          <p style={{ color: "var(--text-tertiary)", fontSize: 13 }}>
+            {subtitle}
+          </p>
+        )}
+        <div className="panel p-6 mt-4" style={{ textAlign: "center" }}>
+          <div style={{ color: "var(--text-quaternary)", fontSize: 13 }}>
+            This page is under construction. Data will be populated from the backend.
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ============ Dashboard Page ============
+function DashboardPage({ ticker, data, livespot }) {
+  return (
+    <div className="ap-main" style={{ flex: 1 }}>
+      <div className="flow-alerts-terminal-glass" style={{ padding: 24 }}>
+        <h1 className="display text-[22px] font-semibold leading-none" style={{ color: "var(--text-primary)", marginBottom: 16 }}>
+          Dashboard
+        </h1>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: 12 }}>
+          <div className="panel p-4">
+            <div className="label mb-2">Market Overview</div>
+            <div className="text-[28px] mono font-bold" style={{ color: "var(--text-primary)" }}>
+              {ticker} ${fmt(livespot?.spot ?? data?.spot, 2)}
+            </div>
+            {data?.nodes?.regime && (
+              <div className="mt-2 text-[12px]" style={{ color: data.nodes.regime === "positive" ? "var(--pos)" : "var(--neg)" }}>
+                {data.nodes.regime} γ regime
+              </div>
+            )}
+          </div>
+          <div className="panel p-4">
+            <div className="label mb-2">Key Levels</div>
+            {data?.nodes?.king && (
+              <div className="text-[13px] mono">
+                <div>King: <span style={{ color: "var(--king)" }}>{fmt(data.nodes.king.strike, 0)}</span></div>
+                <div>Floor: <span style={{ color: "var(--pos)" }}>{fmt(data.nodes.floors?.[0]?.strike, 0) || "—"}</span></div>
+                <div>Ceiling: <span style={{ color: "var(--neg)" }}>{fmt(data.nodes.ceilings?.[0]?.strike, 0) || "—"}</span></div>
+              </div>
+            )}
+          </div>
+          <div className="panel p-4">
+            <div className="label mb-2">Data Source</div>
+            <div className="text-[13px]" style={{ color: "var(--text-secondary)" }}>
+              {data?.data_source || "Loading…"}
+            </div>
+            {data?.asof && (
+              <div className="text-[11px] mt-1" style={{ color: "var(--text-quaternary)" }}>
+                Last update: {new Date(data.asof).toLocaleTimeString()}
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ============ Flow Alerts Page (AlphaPod style) ============
+function FlowAlertsPage({ ticker }) {
+  const [alerts, setAlerts] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [filter, setFilter] = useState("all");
+  const [search, setSearch] = useState("");
+
+  useEffect(() => {
+    let mounted = true;
+    const fetchAlerts = async () => {
+      try {
+        const res = await axios.get(`${API}/alerts?limit=50${ticker && ticker !== "SPY" ? `&ticker=${ticker}` : ""}`);
+        if (mounted) setAlerts(res.data.alerts || res.data || []);
+      } catch (e) { /* noop */ }
+      if (mounted) setLoading(false);
+    };
+    fetchAlerts();
+    const id = setInterval(fetchAlerts, 30000);
+    return () => { mounted = false; clearInterval(id); };
+  }, [ticker]);
+
+  const filtered = alerts.filter(a => {
+    if (filter === "calls" && a.type !== "CALL") return false;
+    if (filter === "puts" && a.type !== "PUT") return false;
+    if (search && !a.ticker?.toLowerCase().includes(search.toLowerCase())) return false;
+    return true;
+  });
+
+  const totalPremium = filtered.reduce((s, a) => s + (a.premium || 0), 0);
+  const calls = filtered.filter(a => a.type === "CALL").length;
+  const puts = filtered.filter(a => a.type === "PUT").length;
+
+  return (
+    <div className="ap-main" style={{ flex: 1, padding: 0 }}>
+      <div className="flow-alerts-terminal-glass">
+        {/* Page header */}
+        <div className="fa-page-header">
+          <h1>Flow Alerts</h1>
+          <div className="flex items-center justify-between gap-2 sm:flex-wrap sm:justify-end">
+            <div className="min-w-0 flex-1 sm:flex-none">
+              <span className="mono text-[12px]" style={{ color: "var(--text-tertiary)" }}>Today · {new Date().toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })}</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Summary stats */}
+        <div className="fa-summary-shell">
+          <div className="fa-summary-stats">
+            <span className="inline-flex items-baseline gap-1.5">
+              <span className="fa-summary-stat-value mono" style={{ color: "var(--text-primary)" }}>{filtered.length}</span>
+              <span className="fa-summary-stat-label">Alerts</span>
+            </span>
+            <span className="fa-summary-divider" />
+            <span className="inline-flex items-baseline gap-1.5">
+              <span className="fa-summary-stat-value mono" style={{ color: "var(--emerald)" }}>{calls}</span>
+              <span className="fa-summary-stat-label">Calls</span>
+            </span>
+            <span className="inline-flex items-baseline gap-1.5">
+              <span className="fa-summary-stat-value mono" style={{ color: "var(--red)" }}>{puts}</span>
+              <span className="fa-summary-stat-label">Puts</span>
+            </span>
+            <span className="fa-summary-divider" />
+            <span className="inline-flex items-baseline gap-1.5">
+              <span className="fa-summary-stat-value mono" style={{ color: "var(--text-primary)" }}>${(totalPremium / 1e6).toFixed(1)}M</span>
+              <span className="fa-summary-stat-label">Premium</span>
+            </span>
+          </div>
+        </div>
+
+        {/* Filter bar */}
+        <div className="fa-filter-shell">
+          <div className="flex flex-wrap items-center gap-2">
+            <label className="fa-search-field">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ color: "var(--text-quaternary)", flexShrink: 0 }}>
+                <circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/>
+              </svg>
+              <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search ticker…" />
+            </label>
+            <button className={`fa-chip ${filter === "all" ? "active" : ""}`} onClick={() => setFilter("all")}>All Types</button>
+            <button className={`fa-chip ${filter === "calls" ? "active" : ""}`} onClick={() => setFilter("calls")}>Calls</button>
+            <button className={`fa-chip ${filter === "puts" ? "active" : ""}`} onClick={() => setFilter("puts")}>Puts</button>
+            <button className={`fa-chip ${filter === "bullish" ? "active" : ""}`} onClick={() => setFilter("bullish")}>Bullish</button>
+            <button className={`fa-chip ${filter === "bearish" ? "active" : ""}`} onClick={() => setFilter("bearish")}>Bearish</button>
+            <button className={`fa-chip`} onClick={() => setFilter("all")}>≥ $500K</button>
+            <button className={`fa-chip`} onClick={() => setFilter("all")}>≥ $1M</button>
+            <button className={`fa-chip`} onClick={() => setFilter("all")}>Sweep Only</button>
+            <button className={`fa-chip`} onClick={() => setFilter("all")}>HIGH Conf</button>
+            <button className={`fa-chip`} onClick={() => setFilter("all")}>Reset</button>
+          </div>
+        </div>
+
+        {/* Alerts table */}
+        <div style={{ overflowX: "auto" }}>
+          {loading ? (
+            <div className="panel p-6" style={{ textAlign: "center", color: "var(--text-quaternary)" }}>
+              Loading alerts…
+            </div>
+          ) : filtered.length === 0 ? (
+            <div className="panel p-6" style={{ textAlign: "center", color: "var(--text-quaternary)" }}>
+              No alerts match the current filters.
+            </div>
+          ) : (
+            <table style={{ width: "100%", fontSize: 12, borderCollapse: "collapse" }}>
+              <thead>
+                <tr style={{ borderBottom: "1px solid var(--border-c)" }}>
+                  {["TIME", "TICKER", "TYPE", "SIDE", "SENTIMENT", "EXEC", "CONTRACT", "SIZE", "OI", "PREMIUM", "SPOT", "RULE", "CONF."].map(h => (
+                    <th key={h} className="text-left text-[10px] uppercase tracking-widest font-normal px-3 py-2" style={{ color: "var(--text-quaternary)", cursor: "pointer" }}>
+                      {h}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {filtered.map((a, i) => (
+                  <tr key={i} style={{ borderBottom: "1px solid var(--border-c)", cursor: "pointer" }} className="bar-row">
+                    <td className="px-3 py-2 mono" style={{ color: "var(--text-tertiary)" }}>{a.time || a.timestamp || "—"}</td>
+                    <td className="px-3 py-2 mono font-semibold" style={{ color: "var(--text-primary)" }}>{a.ticker || "—"}</td>
+                    <td className="px-3 py-2">
+                      <span className="mono text-[11px] font-semibold" style={{ color: a.type === "CALL" ? "var(--emerald)" : "var(--red)" }}>
+                        {a.type || "—"}
+                      </span>
+                    </td>
+                    <td className="px-3 py-2 mono" style={{ color: a.side === "BUY" ? "var(--emerald)" : "var(--red)" }}>{a.side || "—"}</td>
+                    <td className="px-3 py-2">
+                      <span className="text-[10px] uppercase tracking-wider" style={{ color: a.sentiment === "BULLISH" ? "var(--emerald)" : a.sentiment === "BEARISH" ? "var(--red)" : "var(--text-tertiary)" }}>
+                        {a.sentiment || "—"}
+                      </span>
+                    </td>
+                    <td className="px-3 py-2">
+                      <span className="mono text-[10px] px-1.5 py-0.5 rounded" style={{ background: "var(--surface-1)", color: "var(--text-secondary)", border: "1px solid var(--border-c)" }}>
+                        {a.execution || a.exec || "—"}
+                      </span>
+                    </td>
+                    <td className="px-3 py-2 mono" style={{ color: "var(--text-secondary)" }}>{a.contract || `${a.strike || ""} ${a.expiry || ""}`}</td>
+                    <td className="px-3 py-2 mono" style={{ color: "var(--text-secondary)" }}>{a.size || "—"}</td>
+                    <td className="px-3 py-2 mono" style={{ color: "var(--text-tertiary)" }}>{a.oi ?? "—"}</td>
+                    <td className="px-3 py-2 mono font-semibold" style={{ color: "var(--text-primary)" }}>
+                      {a.premium ? `$${(a.premium / 1000).toFixed(0)}K` : "—"}
+                    </td>
+                    <td className="px-3 py-2 mono" style={{ color: "var(--text-secondary)" }}>{a.spot ? `$${fmt(a.spot, 2)}` : "—"}</td>
+                    <td className="px-3 py-2">
+                      <span className="text-[10px]" style={{ color: "var(--text-tertiary)" }}>{a.rule || "—"}</span>
+                    </td>
+                    <td className="px-3 py-2">
+                      <span className="text-[10px] uppercase tracking-wider font-semibold" style={{
+                        color: a.confidence === "HIGH" ? "var(--conf-high)" : a.confidence === "MED" ? "var(--gold)" : "var(--amber)"
+                      }}>
+                        {a.confidence || "—"}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+      </div>
     </div>
   );
 }
@@ -285,7 +479,7 @@ const regimeColor = (regime) => regime === "positive" ? "text-emerald-400" : reg
 
 // ============ Main App ============
 export default function App() {
-  const [page, setPage] = useState("trinity");
+  const [page, setPage] = useState("dashboard");
   const [ticker, setTicker] = useState(() => {
     try { return localStorage.getItem("floww_settings") ? JSON.parse(localStorage.getItem("floww_settings")).defaultTicker || "SPY" : "SPY"; } catch { return "SPY"; }
   });
@@ -311,6 +505,8 @@ export default function App() {
   const wsGex = useWebSocketGex(page === "heatseeker" ? ticker : null);
   const { theme, toggleTheme } = useTheme();
   const [ensembleData, setEnsembleData] = useState(null);
+  const [userEmail] = useState("demo@alphapod.dev");
+  const [userTier] = useState("PRO");
 
   // Debounced filter values to prevent API spam
   const debouncedMode = useDebounce(mode, 300);
@@ -336,7 +532,7 @@ export default function App() {
       } else if (e.response) {
         const detail = e.response.data?.detail;
         if (typeof detail === "string") msg = detail;
-        else if (Array.isArray(detail) && detail[0]?.msg) msg = detail[0].msg;
+        else if (Array.isArray(detail) && detail[0]?.msg) msg = detail[0]?.msg;
         else if (detail?.error) msg = detail.error;
         else if (typeof detail === "object") msg = JSON.stringify(detail);
       } else if (e.request) {
@@ -481,6 +677,12 @@ export default function App() {
     }
   }, []);
 
+  const handleSignOut = () => {
+    // Clear any auth state
+    localStorage.removeItem("floww_token");
+    window.location.reload();
+  };
+
   // Decimate data for performance
   const displayData = useMemo(() => {
     if (!data) return data;
@@ -492,331 +694,386 @@ export default function App() {
   }, [data]);
 
   return (
-    <AppShell page={page} onNavigate={setPage}>
-      <div className="App">
+    <AppShell page={page} onNavigate={setPage} userEmail={userEmail} userTier={userTier}>
+      <div style={{ display: "flex", flexDirection: "column", flex: 1, minHeight: "100vh" }}>
         {/* Alert Overlay - Real-time signal toasts */}
         <AlertOverlay onSignalClick={handleSignalClick} maxVisible={3} />
 
         {/* PWA Install Banner */}
         <PWAInstallBanner />
 
-        {/* Header */}
-        <header className="app-header">
-          <div className="header-right">
-          {tickers && (
-            <TickerSearch
-              tickers={[...(tickers.trinity || []), ...(tickers.default || []), ...(tickers.popular || [])]}
-              value={ticker}
-              onChange={setTicker}
-            />
-          )}
-          <div className="text-[10px] text-slate-500 hidden-mobile">
-            {data?.data_source && <span>{data.data_source}</span>}
-            {data?.asof && <span className="ml-2">· {new Date(data.asof).toLocaleTimeString()}</span>}
+        {/* AlphaPod-style Header */}
+        <ApHeader
+          page={page}
+          ticker={ticker}
+          onTickerChange={setTicker}
+          tickers={tickers}
+          data={data}
+          onSignOut={handleSignOut}
+          userEmail={userEmail}
+          userTier={userTier}
+        />
+
+        {/* ===== NEW ALPHA PAGES ===== */}
+
+        {/* Dashboard */}
+        {page === "dashboard" && (
+          <DashboardPage ticker={ticker} data={data} livespot={livespot} />
+        )}
+
+        {/* Alpha Flow */}
+        {page === "alpha-flow" && (
+          <PagePlaceholder title="Alpha Flow" subtitle="Intraday flow report with executive summary, top 10, and sector heatmap." />
+        )}
+
+        {/* Daily Report */}
+        {page === "daily-report" && (
+          <PagePlaceholder title="Daily Report" subtitle="End-of-day flow digest and market summary." />
+        )}
+
+        {/* Flow Alerts */}
+        {page === "flow-alerts" && (
+          <FlowAlertsPage ticker={ticker} />
+        )}
+
+        {/* Heatmaps */}
+        {page === "heatmaps" && (
+          <PagePlaceholder title="Heatmaps" subtitle="GEX/VEX/Charm heatmaps across tickers and expiries." />
+        )}
+
+        {/* Ticker Analysis */}
+        {page === "ticker-analysis" && (
+          <PagePlaceholder title="Ticker Analysis" subtitle={`Deep-dive analysis for ${ticker}.`} />
+        )}
+
+        {/* Earnings */}
+        {page === "earnings" && (
+          <PagePlaceholder title="Earnings" subtitle="Upcoming earnings calendar and options implications." />
+        )}
+
+        {/* Active Signals */}
+        {page === "signals" && (
+          <PagePlaceholder title="Active Signals" subtitle="Kairos algo active trading signals." />
+        )}
+
+        {/* Trade Log */}
+        {page === "trade-log" && (
+          <PagePlaceholder title="Trade Log" subtitle="Historical trade log from Kairos algo." />
+        )}
+
+        {/* Performance */}
+        {page === "performance" && (
+          <PagePlaceholder title="Performance" subtitle="Algo performance metrics and equity curve." />
+        )}
+
+        {/* SPX GEX */}
+        {page === "spx-gex" && (
+          <PagePlaceholder title="SPX GEX" subtitle="SPX Gamma Exposure analysis with key levels." />
+        )}
+
+        {/* Key Levels */}
+        {page === "key-levels" && (
+          <PagePlaceholder title="Key Levels" subtitle="SPX key support and resistance levels." />
+        )}
+
+        {/* SPX Alerts */}
+        {page === "spx-alerts" && (
+          <PagePlaceholder title="SPX Alerts" subtitle="SPX-specific flow alerts and unusual activity." />
+        )}
+
+        {/* ===== LEGACY PAGES (preserved as-is) ===== */}
+
+        {/* Trinity View */}
+        {page === "trinity" && (
+          <div className="legacy-theme p-4 flex-1 overflow-auto">
+            <TrinityView onFocusTicker={handleFocusTicker} />
           </div>
-          {/* Theme Toggle */}
-          <button
-            className="theme-toggle"
-            onClick={toggleTheme}
-            aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} theme`}
-            title={`Switch to ${theme === 'dark' ? 'light' : 'dark'} theme`}
-          >
-            {theme === 'dark' ? '☀️' : '🌙'}
-          </button>
-        </div>
-      </header>
+        )}
 
-      {/* Trinity View */}
-      {page === "trinity" && (
-        <div className="legacy-theme p-4 flex-1 overflow-auto">
-          <TrinityView onFocusTicker={handleFocusTicker} />
-        </div>
-      )}
-
-      {/* Single Ticker Heatseeker */}
-      {page === "heatseeker" && (
-        <div className="legacy-theme heatseeker-layout">
-          {/* Left Sidebar - Filters & Summary */}
-          <aside className={`heatseeker-sidebar-left ${showLeftSidebar ? 'open' : ''}`}>
-            <div className="p-2 space-y-2">
-              {/* Ticker Summary */}
-              <div className="panel p-3">
-                <div className="flex justify-between items-baseline">
-                  <div className="text-lg font-bold tracking-wider">{ticker.replace("^", "")}</div>
-                  <div className={`text-xs uppercase tracking-widest ${regimeColor(data?.nodes?.regime)}`}>{data?.nodes?.regime || "—"} γ</div>
-                </div>
-                <div className="text-2xl mono mt-1" data-testid="spot-price">
-                  ${fmt(livespot?.spot ?? data?.spot, 2)}
-                  {livespot && data?.spot && Math.abs(spotDelta) > 0.01 && (
-                    <span className={`ml-2 text-xs ${spotDelta > 0 ? "text-emerald-400" : "text-rose-400"}`} data-testid="spot-delta">
-                      {spotDelta > 0 ? "▲" : "▼"} {Math.abs(spotDelta).toFixed(2)}
-                    </span>
-                  )}
-                  {livespot && <span className="ml-2 text-[9px] uppercase tracking-widest text-teal-500 flash-pulse">● live</span>}
-                </div>
-                <div className="text-[10px] text-slate-500">
-                  {data?.expiries_used?.length ? `${data.expiries_used.length} exp · ${data.expiries_used[0]} → ${data.expiries_used.slice(-1)[0]}` : ""}
-                </div>
-                {err && (
-                  <ErrorState
-                    error={err}
-                    onRetry={() => { setErr(null); fetchData(); }}
-                    title="Data load failed"
-                  />
-                )}
-                {loading && !data && (
-                  <div className="text-sky-400 text-[11px] mt-2 bg-sky-500/10 rounded px-2 py-1.5 flex items-center gap-2 border border-sky-500/20">
-                    <span className="inline-block w-2 h-2 bg-sky-400 rounded-full animate-pulse" />
-                    Loading market data…
+        {/* Single Ticker Heatseeker */}
+        {page === "heatseeker" && (
+          <div className="legacy-theme heatseeker-layout">
+            {/* Left Sidebar - Filters & Summary */}
+            <aside className={`heatseeker-sidebar-left ${showLeftSidebar ? 'open' : ''}`}>
+              <div className="p-2 space-y-2">
+                {/* Ticker Summary */}
+                <div className="panel p-3">
+                  <div className="flex justify-between items-baseline">
+                    <div className="text-lg font-bold tracking-wider">{ticker.replace("^", "")}</div>
+                    <div className={`text-xs uppercase tracking-widest ${regimeColor(data?.nodes?.regime)}`}>{data?.nodes?.regime || "—"} γ</div>
                   </div>
-                )}
-                <div className="dotted-divider my-3" />
-                <div className="grid grid-cols-2 gap-2 text-[11px]">
-                  <div><div className="label">King</div><div className="mono text-amber-300">{fmt(data?.nodes?.king?.strike, 0)}</div></div>
-                  <div><div className="label">|GEX|</div><div className="mono">{fmtAbs(data?.nodes?.king?.gex)}</div></div>
-                  <div><div className="label">Top Floor</div><div className="mono text-emerald-400">{fmt(data?.nodes?.floors?.[0]?.strike, 0) || "—"}</div></div>
-                  <div><div className="label">Top Ceiling</div><div className="mono text-rose-400">{fmt(data?.nodes?.ceilings?.[0]?.strike, 0) || "—"}</div></div>
-                  <div><div className="label">Polarity</div><div className="mono text-sky-300">{data?.nodes?.polarity_level ? fmt(data.nodes.polarity_level, 1) : "—"}</div></div>
-                  <div><div className="label">Gatekeepers</div><div className="mono">{data?.nodes?.gatekeepers?.length || 0}</div></div>
-                </div>
-
-                {/* Live GEX WebSocket indicator */}
-                <div className="dotted-divider my-2" />
-                <div className="flex items-center justify-between text-[9px]">
-                  {wsGex.connected ? (
-                    <span className="text-teal-400 font-bold flash-pulse">● LIVE GEX</span>
-                  ) : wsGex.reconnectAttempt > 0 ? (
-                    <span className="text-amber-400">⟳ Reconnecting ({wsGex.reconnectAttempt})</span>
-                  ) : (
-                    <span className="text-slate-500">○ Disconnected</span>
-                  )}
-                </div>
-                {wsGex.connected && wsGex.data && (
-                  <>
-                    <div className="flex items-center justify-between text-[9px]">
-                      <span className="text-slate-500">{new Date(wsGex.data.asof).toLocaleTimeString()}</span>
-                    </div>
-                    <div className="grid grid-cols-2 gap-x-3 gap-y-0.5 text-[9px] mt-1">
-                      <div className="flex justify-between"><span className="text-slate-500">Spot</span><span className="mono text-slate-300">${fmt(wsGex.data.spot, 2)}</span></div>
-                      <div className="flex justify-between"><span className="text-slate-500">Total GEX</span><span className={`mono ${wsGex.data.total_gex > 0 ? "text-emerald-400" : "text-rose-400"}`}>{wsGex.data.total_gex > 0 ? "+" : ""}{fmtAbs(wsGex.data.total_gex)}</span></div>
-                      <div className="flex justify-between"><span className="text-slate-500">King</span><span className="mono text-amber-300">{wsGex.data.king ? fmt(wsGex.data.king.strike, 0) : "—"}</span></div>
-                      <div className="flex justify-between"><span className="text-slate-500">Regime</span><span className={`mono ${regimeColor(wsGex.data.regime)}`}>{wsGex.data.regime || "—"}</span></div>
-                    </div>
-                  </>
-                )}
-              </div>
-
-              {/* Filters */}
-              <div className="panel p-3">
-                <div className="label mb-2">View</div>
-                <div className="flex gap-1 mb-2">
-                  <button onClick={() => setView("grid")} className={`btn flex-1 ${view === "grid" ? "active" : ""}`}>2D Grid</button>
-                  <button onClick={() => setView("bar")} className={`btn flex-1 ${view === "bar" ? "active" : ""}`}>Bars</button>
-                  <button onClick={() => setView("chain")} className={`btn flex-1 ${view === "chain" ? "active" : ""}`}>Chain</button>
-                </div>
-                <div className="text-slate-500 mb-1 text-[10px]">Mode</div>
-                <div className="flex gap-1 mb-2">
-                  {["day", "swing", "scalp"].map(m => (
-                    <button key={m} onClick={() => setMode(m)} className={`btn flex-1 ${mode === m ? "active" : ""}`}>{m.toUpperCase()}</button>
-                  ))}
-                </div>
-                <div className="flex gap-1 mb-2">
-                  {["gex", "vex", "charm"].map(m => (
-                    <button key={m} onClick={() => setViewMode(m)} className={`btn flex-1 ${viewMode === m ? "active" : ""}`}>{m.toUpperCase()}</button>
-                  ))}
-                </div>
-                <div className="text-slate-500 mb-1 text-[10px]">DTE</div>
-                <div className="flex gap-1 mb-2">
-                  {[{l:"0DTE",v:0},{l:"1DTE",v:1},{l:"Week",v:7},{l:"All",v:null}].map(({l,v}) => (
-                    <button key={l} onClick={() => setDte(v)} className={`btn flex-1 ${dte === v ? "active" : ""}`}>{l}</button>
-                  ))}
-                </div>
-                <div className="text-slate-500 mb-1 text-[10px]">Expiries</div>
-                <div className="flex gap-1">
-                  {[2,4,6,8,12].map(n => (
-                    <button key={n} onClick={() => setExpiries(n)} className={`btn flex-1 ${expiries === n ? "active" : ""}`}>{n}</button>
-                  ))}
-                </div>
-              </div>
-
-              <Movers onPick={(t) => setTicker(t)} />
-              <HistoryPanel ticker={ticker} />
-              <SettingsPanel
-                refreshMs={refreshMs}
-                onRefreshMsChange={setRefreshMs}
-                defaultTicker={ticker}
-                onDefaultTickerChange={setTicker}
-              />
-            </div>
-          </aside>
-
-          {/* Main Content - Heatmap */}
-          <main className="heatseeker-main">
-            <div className="panel m-2 p-3 flex-1 flex flex-col overflow-hidden">
-              <div className="flex justify-between items-center mb-2 flex-shrink-0">
-                <div>
-                  <div className="label">Heatseeker · {viewMode === "vex" ? "VEX" : viewMode === "charm" ? "Charm" : "GEX"} {view === "grid" ? "Grid (Strike × Expiry)" : "Bars"}</div>
+                  <div className="text-2xl mono mt-1" data-testid="spot-price">
+                    ${fmt(livespot?.spot ?? data?.spot, 2)}
+                    {livespot && data?.spot && Math.abs(spotDelta) > 0.01 && (
+                      <span className={`ml-2 text-xs ${spotDelta > 0 ? "text-emerald-400" : "text-rose-400"}`} data-testid="spot-delta">
+                        {spotDelta > 0 ? "▲" : "▼"} {Math.abs(spotDelta).toFixed(2)}
+                      </span>
+                    )}
+                    {livespot && <span className="ml-2 text-[9px] uppercase tracking-widest text-teal-500 flash-pulse">● live</span>}
+                  </div>
                   <div className="text-[10px] text-slate-500">
-                    {viewMode === "vex" ? "Amber = positive vanna · Pink = negative vanna" : viewMode === "charm" ? "Cyan = positive charm · Violet = negative charm" : "Teal (Pika) = positive γ · Purple (Barney) = negative · Yellow-green = King"}
+                    {data?.expiries_used?.length ? `${data.expiries_used.length} exp · ${data.expiries_used[0]} → ${data.expiries_used.slice(-1)[0]}` : ""}
                   </div>
-                </div>
-                <div className="flex gap-2 text-[10px]">
-                  <span className="tag king">KING</span>
-                  <span className="tag floor">FLOOR</span>
-                  <span className="tag ceiling">CEIL</span>
-                  <span className="tag gate">GATE</span>
-                  <span className="tag air">AIR</span>
-                </div>
-              </div>
-              <div className="flex-1 overflow-hidden heatmap-scroll-container">
-                <ErrorBoundary>
-                  {displayData ? (
-                    view === "chain"
-                      ? <OptionsChainTable ticker={ticker} spot={livespot?.spot ?? displayData?.spot} />
-                      : view === "grid"
-                      ? <GridHeatmap data={displayData} filters={filters} onCellClick={(s, e) => setDrilldown({ ticker, expiry: e, strike: s })} viewMode={viewMode} />
-                      : <BarHeatmap data={displayData} filters={filters} compact={false} viewMode={viewMode} />
-                  ) : (
-                    <div className="text-slate-500 text-xs p-6 text-center">Loading…</div>
+                  {err && (
+                    <ErrorState
+                      error={err}
+                      onRetry={() => { setErr(null); fetchData(); }}
+                      title="Data load failed"
+                    />
                   )}
-                </ErrorBoundary>
-              </div>
-            </div>
-          </main>
-
-          {/* Right Sidebar - Analytics Panels */}
-          <aside className={`heatseeker-sidebar-right ${showRightSidebar ? 'open' : ''}`}>
-            <div className="p-2 space-y-2">
-              {page === "heatseeker" && <MorningBriefing ticker={ticker} spot={livespot?.spot ?? data?.spot} />}
-              <DashboardSummary ticker={ticker} spot={livespot?.spot ?? data?.spot} />
-              <FlipZonesPanel data={data} loading={loading} error={err} />
-              <StackedNodesPanel data={data} loading={loading} error={err} />
-              <TugOfWarPanel data={data} loading={loading} error={err} />
-              <ScenarioPanel data={data} loading={loading} error={err} />
-              <RiskDashboardPanel data={data} loading={loading} error={err} />
-              <OpportunitiesPanel data={data} loading={loading} error={err} />
-              <ImpliedMovePanel data={data} loading={loading} error={err} />
-              <VolAnalyticsPanel data={data} loading={loading} error={err} />
-              <MarketRegimePanel data={data} loading={loading} error={!!err} />
-              <ImpliedPDFPanel data={data} loading={loading} error={!!err} />
-              <HedgeImpulsePanel data={advanced} loading={advancedLoading} error={advancedError} />
-              <PressureCloudPanel data={advanced} loading={advancedLoading} error={advancedError} />
-              <CharmIntegralPanel data={advanced} loading={advancedLoading} error={advancedError} />
-              <MlDashboard ticker={ticker} spot={livespot?.spot ?? data?.spot} />
-              <MultiTimeframeGEXPanel ticker={ticker} />
-              <AlertsPanel ticker={ticker} />
-              <TradeAnalytics ticker={ticker} />
-              <UOAPanel ticker={ticker} />
-              {page === "heatseeker" && <FlowTicker ticker={ticker} />}
-              <UsagePanel />
-              <LivePolicyPanel />
-              {page === "heatseeker" && <PositionSizing ticker={ticker} spot={livespot?.spot ?? data?.spot} />}
-              {page === "heatseeker" && <TradeEntry ticker={ticker} spot={livespot?.spot ?? data?.spot} />}
-
-              <div className="panel p-3" data-testid="patterns-panel">
-                <div className="label mb-2">Patterns Detected</div>
-                <div className="space-y-2">
-                  {data?.patterns?.length ? data.patterns.map((p, i) => <PatternCard key={i} p={p} />) : (
-                    <div className="text-slate-500 text-xs">No textbook pattern. A+ setups only.</div>
+                  {loading && !data && (
+                    <div className="text-sky-400 text-[11px] mt-2 bg-sky-500/10 rounded px-2 py-1.5 flex items-center gap-2 border border-sky-500/20">
+                      <span className="inline-block w-2 h-2 bg-sky-400 rounded-full animate-pulse" />
+                      Loading market data…
+                    </div>
                   )}
-                </div>
-              </div>
+                  <div className="dotted-divider my-3" />
+                  <div className="grid grid-cols-2 gap-2 text-[11px]">
+                    <div><div className="label">King</div><div className="mono text-amber-300">{fmt(data?.nodes?.king?.strike, 0)}</div></div>
+                    <div><div className="label">|GEX|</div><div className="mono">{fmtAbs(data?.nodes?.king?.gex)}</div></div>
+                    <div><div className="label">Top Floor</div><div className="mono text-emerald-400">{fmt(data?.nodes?.floors?.[0]?.strike, 0) || "—"}</div></div>
+                    <div><div className="label">Top Ceiling</div><div className="mono text-rose-400">{fmt(data?.nodes?.ceilings?.[0]?.strike, 0) || "—"}</div></div>
+                    <div><div className="label">Polarity</div><div className="mono text-sky-300">{data?.nodes?.polarity_level ? fmt(data.nodes.polarity_level, 1) : "—"}</div></div>
+                    <div><div className="label">Gatekeepers</div><div className="mono">{data?.nodes?.gatekeepers?.length || 0}</div></div>
+                  </div>
 
-              <VelocityGauge velocity={data?.velocity} />
-              <ToxicityGauge
-                ensemble={ensembleData}
-                onRefresh={() => {
-                  axios.get(`${API}/anomaly/ensemble/state?ticker=${ticker}`).then(r => setEnsembleData(r.data)).catch(() => {});
-                }}
-              />
-              {data && <NodesTable data={data} />}
-
-              {data?.nodes?.air_pockets?.length > 0 && (
-                <div className="panel p-3" data-testid="air-pockets-panel">
-                  <div className="label mb-2">Air Pockets</div>
-                  <div className="space-y-1 text-[11px]">
-                    {data.nodes.air_pockets.map((a, i) => (
-                      <div key={i} className="flex justify-between text-slate-400">
-                        <span className="mono">{fmt(a.low, 0)} – {fmt(a.high, 0)}</span>
-                        <span className="text-slate-500">w {a.width} · mid {fmt(a.mid, 0)}</span>
+                  {/* Live GEX WebSocket indicator */}
+                  <div className="dotted-divider my-2" />
+                  <div className="flex items-center justify-between text-[9px]">
+                    {wsGex.connected ? (
+                      <span className="text-teal-400 font-bold flash-pulse">● LIVE GEX</span>
+                    ) : wsGex.reconnectAttempt > 0 ? (
+                      <span className="text-amber-400">⟳ Reconnecting ({wsGex.reconnectAttempt})</span>
+                    ) : (
+                      <span className="text-slate-500">○ Disconnected</span>
+                    )}
+                  </div>
+                  {wsGex.connected && wsGex.data && (
+                    <>
+                      <div className="flex items-center justify-between text-[9px]">
+                        <span className="text-slate-500">{new Date(wsGex.data.asof).toLocaleTimeString()}</span>
                       </div>
+                      <div className="grid grid-cols-2 gap-x-3 gap-y-0.5 text-[9px] mt-1">
+                        <div className="flex justify-between"><span className="text-slate-500">Spot</span><span className="mono text-slate-300">${fmt(wsGex.data.spot, 2)}</span></div>
+                        <div className="flex justify-between"><span className="text-slate-500">Total GEX</span><span className={`mono ${wsGex.data.total_gex > 0 ? "text-emerald-400" : "text-rose-400"}`}>{wsGex.data.total_gex > 0 ? "+" : ""}{fmtAbs(wsGex.data.total_gex)}</span></div>
+                        <div className="flex justify-between"><span className="text-slate-500">King</span><span className="mono text-amber-300">{wsGex.data.king ? fmt(wsGex.data.king.strike, 0) : "—"}</span></div>
+                        <div className="flex justify-between"><span className="text-slate-500">Regime</span><span className={`mono ${regimeColor(wsGex.data.regime)}`}>{wsGex.data.regime || "—"}</span></div>
+                      </div>
+                    </>
+                  )}
+                </div>
+
+                {/* Filters */}
+                <div className="panel p-3">
+                  <div className="label mb-2">View</div>
+                  <div className="flex gap-1 mb-2">
+                    <button onClick={() => setView("grid")} className={`btn flex-1 ${view === "grid" ? "active" : ""}`}>2D Grid</button>
+                    <button onClick={() => setView("bar")} className={`btn flex-1 ${view === "bar" ? "active" : ""}`}>Bars</button>
+                    <button onClick={() => setView("chain")} className={`btn flex-1 ${view === "chain" ? "active" : ""}`}>Chain</button>
+                  </div>
+                  <div className="text-slate-500 mb-1 text-[10px]">Mode</div>
+                  <div className="flex gap-1 mb-2">
+                    {["day", "swing", "scalp"].map(m => (
+                      <button key={m} onClick={() => setMode(m)} className={`btn flex-1 ${mode === m ? "active" : ""}`}>{m.toUpperCase()}</button>
                     ))}
                   </div>
-                  <div className="text-[10px] text-slate-600 mt-2 italic">Pathways, not targets.</div>
+                  <div className="flex gap-1 mb-2">
+                    {["gex", "vex", "charm"].map(m => (
+                      <button key={m} onClick={() => setViewMode(m)} className={`btn flex-1 ${viewMode === m ? "active" : ""}`}>{m.toUpperCase()}</button>
+                    ))}
+                  </div>
+                  <div className="text-slate-500 mb-1 text-[10px]">DTE</div>
+                  <div className="flex gap-1 mb-2">
+                    {[{l:"0DTE",v:0},{l:"1DTE",v:1},{l:"Week",v:7},{l:"All",v:null}].map(({l,v}) => (
+                      <button key={l} onClick={() => setDte(v)} className={`btn flex-1 ${dte === v ? "active" : ""}`}>{l}</button>
+                    ))}
+                  </div>
+                  <div className="text-slate-500 mb-1 text-[10px]">Expiries</div>
+                  <div className="flex gap-1">
+                    {[2,4,6,8,12].map(n => (
+                      <button key={n} onClick={() => setExpiries(n)} className={`btn flex-1 ${expiries === n ? "active" : ""}`}>{n}</button>
+                    ))}
+                  </div>
                 </div>
-              )}
 
-              <GreekReferencePanel />
-            </div>
-          </aside>
-        </div>
-      )}
+                <Movers onPick={(t) => setTicker(t)} />
+                <HistoryPanel ticker={ticker} />
+                <SettingsPanel
+                  refreshMs={refreshMs}
+                  onRefreshMsChange={setRefreshMs}
+                  defaultTicker={ticker}
+                  onDefaultTickerChange={setTicker}
+                />
+              </div>
+            </aside>
 
-      {/* Mobile Toggle Bar */}
-      {page === "heatseeker" && (
-        <div className="mobile-toggle-bar">
-          <button className="toggle-btn" onClick={() => { setShowLeftSidebar(!showLeftSidebar); setShowRightSidebar(false); }}>
-            ◀ Filters
-          </button>
-          <button className="toggle-btn" onClick={() => { setShowRightSidebar(!showRightSidebar); setShowLeftSidebar(false); }}>
-            Analytics ▶
-          </button>
-        </div>
-      )}
+            {/* Main Content - Heatmap */}
+            <main className="heatseeker-main">
+              <div className="panel m-2 p-3 flex-1 flex flex-col overflow-hidden">
+                <div className="flex justify-between items-center mb-2 flex-shrink-0">
+                  <div>
+                    <div className="label">Heatseeker · {viewMode === "vex" ? "VEX" : viewMode === "charm" ? "Charm" : "GEX"} {view === "grid" ? "Grid (Strike × Expiry)" : "Bars"}</div>
+                    <div className="text-[10px] text-slate-500">
+                      {viewMode === "vex" ? "Amber = positive vanna · Pink = negative vanna" : viewMode === "charm" ? "Cyan = positive charm · Violet = negative charm" : "Teal (Pika) = positive γ · Purple (Barney) = negative · Yellow-green = King"}
+                    </div>
+                  </div>
+                  <div className="flex gap-2 text-[10px]">
+                    <span className="tag king">KING</span>
+                    <span className="tag floor">FLOOR</span>
+                    <span className="tag ceiling">CEIL</span>
+                    <span className="tag gate">GATE</span>
+                    <span className="tag air">AIR</span>
+                  </div>
+                </div>
+                <div className="flex-1 overflow-hidden heatmap-scroll-container">
+                  <ErrorBoundary>
+                    {displayData ? (
+                      view === "chain"
+                        ? <OptionsChainTable ticker={ticker} spot={livespot?.spot ?? displayData?.spot} />
+                        : view === "grid"
+                        ? <GridHeatmap data={displayData} filters={filters} onCellClick={(s, e) => setDrilldown({ ticker, expiry: e, strike: s })} viewMode={viewMode} />
+                        : <BarHeatmap data={displayData} filters={filters} compact={false} viewMode={viewMode} />
+                    ) : (
+                      <div className="text-slate-500 text-xs p-6 text-center">Loading…</div>
+                    )}
+                  </ErrorBoundary>
+                </div>
+              </div>
+            </main>
 
-      {/* Skylit Heatseeker */}
-      {page === "skylit" && (
-        <div className="flex-1 overflow-auto">
-          <ErrorBoundary>
-            <HeatseekerDashboard
-              ticker={ticker}
-              spot={livespot?.spot ?? data?.spot}
-              isOffline={data?.data_fallback === true}
-              dataAge={data?.stale_age_s != null ? data.stale_age_s * 1000 : null}
-              dataFallback={data?.data_fallback === true}
-            />
-          </ErrorBoundary>
-        </div>
-      )}
+            {/* Right Sidebar - Analytics Panels */}
+            <aside className={`heatseeker-sidebar-right ${showRightSidebar ? 'open' : ''}`}>
+              <div className="p-2 space-y-2">
+                {page === "heatseeker" && <MorningBriefing ticker={ticker} spot={livespot?.spot ?? data?.spot} />}
+                <DashboardSummary ticker={ticker} spot={livespot?.spot ?? data?.spot} />
+                <FlipZonesPanel data={data} loading={loading} error={err} />
+                <StackedNodesPanel data={data} loading={loading} error={err} />
+                <TugOfWarPanel data={data} loading={loading} error={err} />
+                <ScenarioPanel data={data} loading={loading} error={err} />
+                <RiskDashboardPanel data={data} loading={loading} error={err} />
+                <OpportunitiesPanel data={data} loading={loading} error={err} />
+                <ImpliedMovePanel data={data} loading={loading} error={err} />
+                <VolAnalyticsPanel data={data} loading={loading} error={err} />
+                <MarketRegimePanel data={data} loading={loading} error={!!err} />
+                <ImpliedPDFPanel data={data} loading={loading} error={!!err} />
+                <HedgeImpulsePanel data={advanced} loading={advancedLoading} error={advancedError} />
+                <PressureCloudPanel data={advanced} loading={advancedLoading} error={advancedError} />
+                <CharmIntegralPanel data={advanced} loading={advancedLoading} error={advancedError} />
+                <MlDashboard ticker={ticker} spot={livespot?.spot ?? data?.spot} />
+                <MultiTimeframeGEXPanel ticker={ticker} />
+                <AlertsPanel ticker={ticker} />
+                <TradeAnalytics ticker={ticker} />
+                <UOAPanel ticker={ticker} />
+                {page === "heatseeker" && <FlowTicker ticker={ticker} />}
+                <UsagePanel />
+                <LivePolicyPanel />
+                {page === "heatseeker" && <PositionSizing ticker={ticker} spot={livespot?.spot ?? data?.spot} />}
+                {page === "heatseeker" && <TradeEntry ticker={ticker} spot={livespot?.spot ?? data?.spot} />}
 
-      {/* Portfolio View */}
-      {page === "portfolio" && (
-        <PortfolioPanel ticker={ticker} spot={livespot?.spot ?? data?.spot} />
-      )}
+                <div className="panel p-3" data-testid="patterns-panel">
+                  <div className="label mb-2">Patterns Detected</div>
+                  <div className="space-y-2">
+                    {data?.patterns?.length ? data.patterns.map((p, i) => <PatternCard key={i} p={p} />) : (
+                      <div className="text-slate-500 text-xs">No textbook pattern. A+ setups only.</div>
+                    )}
+                  </div>
+                </div>
 
-      {/* Trade Journal */}
-      {page === "journal" && (
-        <TradeJournal ticker={ticker} />
-      )}
+                <VelocityGauge velocity={data?.velocity} />
+                <ToxicityGauge
+                  ensemble={ensembleData}
+                  onRefresh={() => {
+                    axios.get(`${API}/anomaly/ensemble/state?ticker=${ticker}`).then(r => setEnsembleData(r.data)).catch(() => {});
+                  }}
+                />
+                {data && <NodesTable data={data} />}
 
-      {/* SwarmSPX Neural Intelligence */}
-      {page === "swarmspx" && <SwarmFrame />}
+                {data?.nodes?.air_pockets?.length > 0 && (
+                  <div className="panel p-3" data-testid="air-pockets-panel">
+                    <div className="label mb-2">Air Pockets</div>
+                    <div className="space-y-1 text-[11px]">
+                      {data.nodes.air_pockets.map((a, i) => (
+                        <div key={i} className="flex justify-between text-slate-400">
+                          <span className="mono">{fmt(a.low, 0)} – {fmt(a.high, 0)}</span>
+                          <span className="text-slate-500">w {a.width} · mid {fmt(a.mid, 0)}</span>
+                        </div>
+                      ))}
+                    </div>
+                    <div className="text-[10px] text-slate-600 mt-2 italic">Pathways, not targets.</div>
+                  </div>
+                )}
 
-      {/* Flowseeker Tab */}
-      {page === "flowseeker" && (
-        <div className="flex-1 overflow-auto">
-          <ErrorBoundary>
-            <FlowseekerTab active={page === "flowseeker"} />
-          </ErrorBoundary>
-        </div>
-      )}
+                <GreekReferencePanel />
+              </div>
+            </aside>
+          </div>
+        )}
 
-      {/* Drilldown Modal */}
-      {drilldown && <Drilldown {...drilldown} onClose={() => setDrilldown(null)} />}
+        {/* Mobile Toggle Bar */}
+        {page === "heatseeker" && (
+          <div className="mobile-toggle-bar">
+            <button className="toggle-btn" onClick={() => { setShowLeftSidebar(!showLeftSidebar); setShowRightSidebar(false); }}>
+              ◀ Filters
+            </button>
+            <button className="toggle-btn" onClick={() => { setShowRightSidebar(!showRightSidebar); setShowLeftSidebar(false); }}>
+              Analytics ▶
+            </button>
+          </div>
+        )}
 
-      {/* Footer */}
-      <footer className="border-t border-slate-800 px-4 py-2 text-[10px] text-slate-600 flex justify-between flex-shrink-0">
-        <span>Data: Databento OPRA (OI) · yfinance (IV) · Polygon (aggs). GEX via Black-Scholes γ.</span>
-        <span className="hidden md:inline text-slate-700">
-          Keys: 1/2/3 pages · G/B/C views · D/S/X modes · E/V/H overlays · ↑↓ tickers · ? shortcuts
-        </span>
-        <span>Confluence Decoder · Institutional Grade · {new Date().getFullYear()}</span>
-      </footer>
+        {/* Skylit Heatseeker */}
+        {page === "skylit" && (
+          <div className="flex-1 overflow-auto">
+            <ErrorBoundary>
+              <HeatseekerDashboard
+                ticker={ticker}
+                spot={livespot?.spot ?? data?.spot}
+                isOffline={data?.data_fallback === true}
+                dataAge={data?.stale_age_s != null ? data.stale_age_s * 1000 : null}
+                dataFallback={data?.data_fallback === true}
+              />
+            </ErrorBoundary>
+          </div>
+        )}
 
-      {/* Shortcuts Modal */}
-      {page === "heatseeker" && (
-        <ShortcutsModal />
-      )}
+        {/* Portfolio View */}
+        {page === "portfolio" && (
+          <PortfolioPanel ticker={ticker} spot={livespot?.spot ?? data?.spot} />
+        )}
+
+        {/* Trade Journal */}
+        {page === "journal" && (
+          <TradeJournal ticker={ticker} />
+        )}
+
+        {/* SwarmSPX Neural Intelligence */}
+        {page === "swarmspx" && <SwarmFrame />}
+
+        {/* Flowseeker Tab */}
+        {page === "flowseeker" && (
+          <div className="flex-1 overflow-auto">
+            <ErrorBoundary>
+              <FlowseekerTab active={page === "flowseeker"} />
+            </ErrorBoundary>
+          </div>
+        )}
+
+        {/* Drilldown Modal */}
+        {drilldown && <Drilldown {...drilldown} onClose={() => setDrilldown(null)} />}
+
+        {/* Footer */}
+        <footer className="border-t border-slate-800 px-4 py-2 text-[10px] text-slate-600 flex justify-between flex-shrink-0">
+          <span>Data: Databento OPRA (OI) · yfinance (IV) · Polygon (aggs). GEX via Black-Scholes γ.</span>
+          <span className="hidden md:inline text-slate-700">
+            Keys: 1/2/3 pages · G/B/C views · D/S/X modes · E/V/H overlays · ↑↓ tickers · ? shortcuts
+          </span>
+          <span>Confluence Decoder · Institutional Grade · {new Date().getFullYear()}</span>
+        </footer>
+
+        {/* Shortcuts Modal */}
+        {page === "heatseeker" && (
+          <ShortcutsModal />
+        )}
       </div>
     </AppShell>
   );
