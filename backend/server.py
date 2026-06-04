@@ -2206,13 +2206,38 @@ async def create_alert(rule: AlertRule):
 
 @app.get("/api/alerts")
 async def list_alerts(ticker: Optional[str] = None, active_only: bool = True):
-    """List alert rules."""
+    """List alert rules + AlphaPod-shape flow alerts.
+
+    Returns BOTH the legacy `rules`/`count` payload (consumed by tests and the
+    legacy CRA UI) AND the AlphaPod-shape `alerts`/`page`/`page_size`/`total`
+    payload (consumed by the AlphaPod SPA). The AlphaPod alerts list is shaped
+    from triggered alert history; when no triggers exist, rules are reshaped
+    as placeholders so the UI has something to render.
+    """
     rules = _alert_rules
     if ticker:
         rules = [r for r in rules if r["ticker"] == ticker.upper()]
     if active_only:
         rules = [r for r in rules if r.get("active", True)]
-    return {"rules": rules, "count": len(rules)}
+
+    try:
+        from routes.alphapod_compat import _shape_alert
+        source = list(_alert_history) or list(rules)
+        if ticker:
+            tu = ticker.upper()
+            source = [s for s in source if (s.get("ticker") or "").upper() == tu]
+        alpha_alerts = [_shape_alert(s, i) for i, s in enumerate(source)]
+    except Exception:
+        alpha_alerts = []
+
+    return {
+        "rules": rules,
+        "count": len(rules),
+        "alerts": alpha_alerts,
+        "page": 1,
+        "page_size": len(alpha_alerts),
+        "total": len(alpha_alerts),
+    }
 
 
 @app.delete("/api/alerts/{alert_id}")
@@ -2813,6 +2838,14 @@ app.include_router(greeks_router, prefix="/api/greeks", tags=["greeks"])
 from routes.position_sizing_api import router as position_sizing_router
 
 app.include_router(position_sizing_router, tags=["position-sizing"])
+
+# ============ AlphaPod-SPA Compatibility Layer ============
+# Provides /api/alpha-flow, /api/flow-digest, /api/deep-dive/{ticker},
+# /api/gex/spx, /api/earnings/*, /api/flow-alerts. Mounted last so it cannot
+# shadow earlier domain routes.
+from routes.alphapod_compat import router as alphapod_compat_router
+
+app.include_router(alphapod_compat_router, tags=["alphapod-compat"])
 
 # ============ AgentField Hub Initialization ============
 # NOTE: the import itself must be non-fatal. If the optional `agentfield`
