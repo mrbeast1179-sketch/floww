@@ -1,6 +1,9 @@
 import React, { useEffect, useMemo, useState, useCallback, useRef } from "react";
 import axios from "axios";
 import "@/App.css";
+import { useAuth } from "./context/AuthContext";
+import { ALPHAPOD_API } from "./config/api";
+import SignInPage from "./components/SignInPage";
 
 import { fmt, fmtAbs, pctClass, tagFor, TRINITY, DEFAULT_TICKERS } from "./lib/helpers";
 import GridHeatmap from "./components/GridHeatmap";
@@ -314,7 +317,7 @@ function DashboardPage({ ticker, data, livespot }) {
 }
 
 // ============ Flow Alerts Page (AlphaPod style) ============
-function FlowAlertsPage({ ticker }) {
+function FlowAlertsPage({ ticker, token }) {
   const [alerts, setAlerts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState("all");
@@ -324,7 +327,10 @@ function FlowAlertsPage({ ticker }) {
     let mounted = true;
     const fetchAlerts = async () => {
       try {
-        const res = await axios.get(`${API}/alerts?limit=50${ticker && ticker !== "SPY" ? `&ticker=${ticker}` : ""}`);
+        // Try AlphaPod API first, fall back to local backend
+        const base = token ? ALPHAPOD_API : API;
+        const headers = token ? { Authorization: `Bearer ${token}` } : {};
+        const res = await axios.get(`${base}/api/alerts?page=1&page_size=50${ticker && ticker !== "SPY" ? `&ticker=${ticker}` : ""}`, { headers });
         if (mounted) setAlerts(res.data.alerts || res.data || []);
       } catch (e) { /* noop */ }
       if (mounted) setLoading(false);
@@ -332,18 +338,19 @@ function FlowAlertsPage({ ticker }) {
     fetchAlerts();
     const id = setInterval(fetchAlerts, 30000);
     return () => { mounted = false; clearInterval(id); };
-  }, [ticker]);
+  }, [ticker, token]);
 
   const filtered = alerts.filter(a => {
-    if (filter === "calls" && a.type !== "CALL") return false;
-    if (filter === "puts" && a.type !== "PUT") return false;
+    const optType = a.option_type || a.type;
+    if (filter === "calls" && optType !== "call" && optType !== "CALL") return false;
+    if (filter === "puts" && optType !== "put" && optType !== "PUT") return false;
     if (search && !a.ticker?.toLowerCase().includes(search.toLowerCase())) return false;
     return true;
   });
 
   const totalPremium = filtered.reduce((s, a) => s + (a.premium || 0), 0);
-  const calls = filtered.filter(a => a.type === "CALL").length;
-  const puts = filtered.filter(a => a.type === "PUT").length;
+  const calls = filtered.filter(a => (a.option_type || a.type) === "call" || (a.option_type || a.type) === "CALL").length;
+  const puts = filtered.filter(a => (a.option_type || a.type) === "put" || (a.option_type || a.type) === "PUT").length;
 
   return (
     <div className="ap-main" style={{ flex: 1, padding: 0 }}>
@@ -428,37 +435,37 @@ function FlowAlertsPage({ ticker }) {
               <tbody>
                 {filtered.map((a, i) => (
                   <tr key={i} style={{ borderBottom: "1px solid var(--border-c)", cursor: "pointer" }} className="bar-row">
-                    <td className="px-3 py-2 mono" style={{ color: "var(--text-tertiary)" }}>{a.time || a.timestamp || "—"}</td>
+                    <td className="px-3 py-2 mono" style={{ color: "var(--text-tertiary)" }}>{a.created_at ? new Date(a.created_at).toLocaleTimeString("en-US", {hour:"2-digit",minute:"2-digit"}) : a.time || "—"}</td>
                     <td className="px-3 py-2 mono font-semibold" style={{ color: "var(--text-primary)" }}>{a.ticker || "—"}</td>
                     <td className="px-3 py-2">
-                      <span className="mono text-[11px] font-semibold" style={{ color: a.type === "CALL" ? "var(--emerald)" : "var(--red)" }}>
-                        {a.type || "—"}
+                      <span className="mono text-[11px] font-semibold" style={{ color: (a.option_type||"").toUpperCase()==="CALL" ? "var(--emerald)" : "var(--red)" }}>
+                        {(a.option_type || a.type || "—").toUpperCase()}
                       </span>
                     </td>
-                    <td className="px-3 py-2 mono" style={{ color: a.side === "BUY" ? "var(--emerald)" : "var(--red)" }}>{a.side || "—"}</td>
+                    <td className="px-3 py-2 mono" style={{ color: (a.side||"").toUpperCase()==="BUY" ? "var(--emerald)" : "var(--red)" }}>{(a.side || "—").toUpperCase()}</td>
                     <td className="px-3 py-2">
-                      <span className="text-[10px] uppercase tracking-wider" style={{ color: a.sentiment === "BULLISH" ? "var(--emerald)" : a.sentiment === "BEARISH" ? "var(--red)" : "var(--text-tertiary)" }}>
+                      <span className="text-[10px] uppercase tracking-wider" style={{ color: (a.sentiment||"").toUpperCase()==="BULLISH" ? "var(--emerald)" : (a.sentiment||"").toUpperCase()==="BEARISH" ? "var(--red)" : "var(--text-tertiary)" }}>
                         {a.sentiment || "—"}
                       </span>
                     </td>
                     <td className="px-3 py-2">
                       <span className="mono text-[10px] px-1.5 py-0.5 rounded" style={{ background: "var(--surface-1)", color: "var(--text-secondary)", border: "1px solid var(--border-c)" }}>
-                        {a.execution || a.exec || "—"}
+                        {a.exec_type || a.execution || "—"}
                       </span>
                     </td>
-                    <td className="px-3 py-2 mono" style={{ color: "var(--text-secondary)" }}>{a.contract || `${a.strike || ""} ${a.expiry || ""}`}</td>
+                    <td className="px-3 py-2 mono" style={{ color: "var(--text-secondary)" }}>{a.contract || `$${a.strike||""} ${(a.option_type||"").toUpperCase()} ${a.expiration||""}`}</td>
                     <td className="px-3 py-2 mono" style={{ color: "var(--text-secondary)" }}>{a.size || "—"}</td>
-                    <td className="px-3 py-2 mono" style={{ color: "var(--text-tertiary)" }}>{a.oi ?? "—"}</td>
+                    <td className="px-3 py-2 mono" style={{ color: "var(--text-tertiary)" }}>{a.open_interest ?? a.oi ?? "—"}</td>
                     <td className="px-3 py-2 mono font-semibold" style={{ color: "var(--text-primary)" }}>
                       {a.premium ? `$${(a.premium / 1000).toFixed(0)}K` : "—"}
                     </td>
-                    <td className="px-3 py-2 mono" style={{ color: "var(--text-secondary)" }}>{a.spot ? `$${fmt(a.spot, 2)}` : "—"}</td>
+                    <td className="px-3 py-2 mono" style={{ color: "var(--text-secondary)" }}>{a.spot_price ? `$${fmt(a.spot_price, 2)}` : "—"}</td>
                     <td className="px-3 py-2">
-                      <span className="text-[10px]" style={{ color: "var(--text-tertiary)" }}>{a.rule || "—"}</span>
+                      <span className="text-[10px]" style={{ color: "var(--text-tertiary)" }}>{a.alert_rule || a.rule || "—"}</span>
                     </td>
                     <td className="px-3 py-2">
                       <span className="text-[10px] uppercase tracking-wider font-semibold" style={{
-                        color: a.confidence === "HIGH" ? "var(--conf-high)" : a.confidence === "MED" ? "var(--gold)" : "var(--amber)"
+                        color: (a.confidence||"").toUpperCase()==="HIGH" ? "var(--conf-high)" : (a.confidence||"").toUpperCase()==="MED" || (a.confidence||"").toUpperCase()==="MEDIUM" ? "var(--gold)" : "var(--amber)"
                       }}>
                         {a.confidence || "—"}
                       </span>
@@ -479,6 +486,7 @@ const regimeColor = (regime) => regime === "positive" ? "text-emerald-400" : reg
 
 // ============ Main App ============
 export default function App() {
+  const { token, user, isAuthenticated, logout } = useAuth();
   const [page, setPage] = useState("dashboard");
   const [ticker, setTicker] = useState(() => {
     try { return localStorage.getItem("floww_settings") ? JSON.parse(localStorage.getItem("floww_settings")).defaultTicker || "SPY" : "SPY"; } catch { return "SPY"; }
@@ -505,8 +513,9 @@ export default function App() {
   const wsGex = useWebSocketGex(page === "heatseeker" ? ticker : null);
   const { theme, toggleTheme } = useTheme();
   const [ensembleData, setEnsembleData] = useState(null);
-  const [userEmail] = useState("demo@alphapod.dev");
-  const [userTier] = useState("PRO");
+  // Use auth context for user info
+  const userEmail = user?.email || null;
+  const userTier = user?.tier || null;
 
   // Debounced filter values to prevent API spam
   const debouncedMode = useDebounce(mode, 300);
@@ -678,9 +687,7 @@ export default function App() {
   }, []);
 
   const handleSignOut = () => {
-    // Clear any auth state
-    localStorage.removeItem("floww_token");
-    window.location.reload();
+    logout();
   };
 
   // Decimate data for performance
@@ -692,6 +699,11 @@ export default function App() {
       strikes: autoDecimate(data.strikes, 5000),
     };
   }, [data]);
+
+  // If not authenticated, show sign-in page
+  if (!isAuthenticated) {
+    return <SignInPage onSignIn={() => {}} />;
+  }
 
   return (
     <AppShell page={page} onNavigate={setPage} userEmail={userEmail} userTier={userTier}>
@@ -733,7 +745,7 @@ export default function App() {
 
         {/* Flow Alerts */}
         {page === "flow-alerts" && (
-          <FlowAlertsPage ticker={ticker} />
+          <FlowAlertsPage ticker={ticker} token={token} />
         )}
 
         {/* Heatmaps */}
