@@ -22,8 +22,10 @@ export function AuthProvider({ children }) {
   });
 
   const login = useCallback(async (email, tier) => {
+    // Use local backend for dev-token (not the real AlphaPod API)
+    const base = process.env.REACT_APP_BACKEND_URL || "http://localhost:8000";
     const res = await axios.post(
-      `${process.env.REACT_APP_API_URL || 'https://api.alphapodtrading.com'}/api/auth/dev-token`,
+      `${base}/api/auth/dev-token`,
       { email, tier }
     );
     const { access_token, subscriber } = res.data;
