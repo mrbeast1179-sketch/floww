@@ -601,6 +601,27 @@ input:focus, select:focus, textarea:focus, button:focus-visible {
     background: var(--gold-dim);
 }
 
+/* ===== AlphaPod Page Layout ===== */
+.flow-alerts-terminal-glass {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-height: 0;
+}
+
+/* Card component for AlphaPod-style pages */
+.card {
+    background: var(--panel);
+    border: 1px solid var(--border-c);
+    border-radius: 8px;
+    overflow: hidden;
+}
+
+/* Display font for headings */
+.display {
+    font-family: var(--font-display, "Space Grotesk", system-ui, sans-serif);
+}
+
 /* ===== Mobile Responsive ===== */
 @media (max-width: 480px) {
     html { font-size: 13px; }
