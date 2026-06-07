@@ -193,7 +193,7 @@ export default function AlertOverlay({ onSignalClick, maxVisible = 3 }) {
   useEffect(() => {
     const onVisibilityChange = () => {
       if (document.visibilityState === 'visible' && mountedRef.current && !wsRef.current) {
-        connect();
+        try { connect(); } catch { /* noop */ }
       }
     };
     document.addEventListener('visibilitychange', onVisibilityChange);
