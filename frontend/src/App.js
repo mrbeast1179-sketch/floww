@@ -52,6 +52,15 @@ import ToxicityGauge from "./components/ToxicityGauge";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { RetryButton, ErrorState } from "./components/RetryButton";
 
+// AlphaPod pages
+import SpxGexPage from "./pages/SpxGexPage";
+import AlphaFlowPage from "./pages/AlphaFlowPage";
+import DailyReportPage from "./pages/DailyReportPage";
+import TickerAnalysisPage from "./pages/TickerAnalysisPage";
+import EarningsPage from "./pages/EarningsPage";
+import HeatmapsPage from "./pages/HeatmapsPage";
+import { SignalsPage, TradeLogPage, PerformancePage, KeyLevelsPage, SpxAlertsPage } from "./pages/PlaceholderPages";
+
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
 
@@ -734,14 +743,10 @@ export default function App() {
         )}
 
         {/* Alpha Flow */}
-        {page === "alpha-flow" && (
-          <PagePlaceholder title="Alpha Flow" subtitle="Intraday flow report with executive summary, top 10, and sector heatmap." />
-        )}
+        {page === "alpha-flow" && <AlphaFlowPage />}
 
         {/* Daily Report */}
-        {page === "daily-report" && (
-          <PagePlaceholder title="Daily Report" subtitle="End-of-day flow digest and market summary." />
-        )}
+        {page === "daily-report" && <DailyReportPage />}
 
         {/* Flow Alerts */}
         {page === "flow-alerts" && (
@@ -749,49 +754,31 @@ export default function App() {
         )}
 
         {/* Heatmaps */}
-        {page === "heatmaps" && (
-          <PagePlaceholder title="Heatmaps" subtitle="GEX/VEX/Charm heatmaps across tickers and expiries." />
-        )}
+        {page === "heatmaps" && <HeatmapsPage />}
 
         {/* Ticker Analysis */}
-        {page === "ticker-analysis" && (
-          <PagePlaceholder title="Ticker Analysis" subtitle={`Deep-dive analysis for ${ticker}.`} />
-        )}
+        {page === "ticker-analysis" && <TickerAnalysisPage ticker={ticker} />}
 
         {/* Earnings */}
-        {page === "earnings" && (
-          <PagePlaceholder title="Earnings" subtitle="Upcoming earnings calendar and options implications." />
-        )}
+        {page === "earnings" && <EarningsPage />}
 
         {/* Active Signals */}
-        {page === "signals" && (
-          <PagePlaceholder title="Active Signals" subtitle="Kairos algo active trading signals." />
-        )}
+        {page === "signals" && <SignalsPage />}
 
         {/* Trade Log */}
-        {page === "trade-log" && (
-          <PagePlaceholder title="Trade Log" subtitle="Historical trade log from Kairos algo." />
-        )}
+        {page === "trade-log" && <TradeLogPage />}
 
         {/* Performance */}
-        {page === "performance" && (
-          <PagePlaceholder title="Performance" subtitle="Algo performance metrics and equity curve." />
-        )}
+        {page === "performance" && <PerformancePage />}
 
         {/* SPX GEX */}
-        {page === "spx-gex" && (
-          <PagePlaceholder title="SPX GEX" subtitle="SPX Gamma Exposure analysis with key levels." />
-        )}
+        {page === "spx-gex" && <SpxGexPage />}
 
         {/* Key Levels */}
-        {page === "key-levels" && (
-          <PagePlaceholder title="Key Levels" subtitle="SPX key support and resistance levels." />
-        )}
+        {page === "key-levels" && <KeyLevelsPage />}
 
         {/* SPX Alerts */}
-        {page === "spx-alerts" && (
-          <PagePlaceholder title="SPX Alerts" subtitle="SPX-specific flow alerts and unusual activity." />
-        )}
+        {page === "spx-alerts" && <SpxAlertsPage />}
 
         {/* ===== LEGACY PAGES (preserved as-is) ===== */}
 
