@@ -1,11 +1,16 @@
 #!/usr/bin/env python3
 """OOS backtest for freshly trained models using the real feature pipeline."""
-import sys, json, joblib, numpy as np, pandas as pd, yfinance as yf
+import json
+import sys
 from pathlib import Path
+
+import joblib
+import numpy as np
 from sklearn.metrics import accuracy_score
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import scripts.train_real_data_ml as trd
+
 compute_features = trd.compute_features
 FEATURE_NAMES = trd.FEATURE_NAMES
 
@@ -66,14 +71,22 @@ for ticker, name in MODELS.items():
     for i in range(len(y_oos) - 1):
         if preds[i] == 2:  # predicted UP
             total_trades += 1
-            if y_oos[i+1] == 2: correct_directional += 1; daily_pnl.append(1)
-            elif y_oos[i+1] == 0: daily_pnl.append(-1)
-            else: daily_pnl.append(0)
+            if y_oos[i + 1] == 2:
+                correct_directional += 1
+                daily_pnl.append(1)
+            elif y_oos[i + 1] == 0:
+                daily_pnl.append(-1)
+            else:
+                daily_pnl.append(0)
         elif preds[i] == 0:  # predicted DOWN
             total_trades += 1
-            if y_oos[i+1] == 0: correct_directional += 1; daily_pnl.append(1)
-            elif y_oos[i+1] == 2: daily_pnl.append(-1)
-            else: daily_pnl.append(0)
+            if y_oos[i + 1] == 0:
+                correct_directional += 1
+                daily_pnl.append(1)
+            elif y_oos[i + 1] == 2:
+                daily_pnl.append(-1)
+            else:
+                daily_pnl.append(0)
         # HOLD: no trade, no pnl
 
     win_rate = correct_directional / max(total_trades, 1)
