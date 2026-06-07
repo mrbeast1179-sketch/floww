@@ -294,3 +294,39 @@ async def earnings_ticker_detail(ticker: str) -> Dict[str, Any]:
         "history": [],
         "source": "stub",
     }
+
+
+# ----- Dev Auth (local development only) ----------------------------------
+
+
+@router.post("/auth/dev-token")
+async def dev_token(body: Dict[str, Any]) -> Dict[str, Any]:
+    """Issue a local dev JWT for the React frontend sign-in page."""
+    import hashlib, time, hmac, base64, json as _json
+
+    email = (body.get("email") or "dev@local").lower().strip()
+    tier = (body.get("tier") or "pro").lower().strip()
+
+    header = base64.urlsafe_b64encode(
+        _json.dumps({"alg": "HS256", "typ": "JWT"}).encode()
+    ).rstrip(b"=").decode()
+    payload = base64.urlsafe_b64encode(
+        _json.dumps({
+            "sub": email,
+            "tier": tier,
+            "iat": int(time.time()),
+            "exp": int(time.time()) + 86400 * 30,
+            "iss": "floww-dev",
+        }).encode()
+    ).rstrip(b"=").decode()
+    sig = base64.urlsafe_b64encode(
+        hmac.new(b"floww-dev-secret", f"{header}.{payload}".encode(), hashlib.sha256).digest()
+    ).rstrip(b"=").decode()
+
+    access_token = f"{header}.{payload}.{sig}"
+    subscriber = {
+        "email": email,
+        "tier": tier,
+        "display_name": email.split("@")[0],
+    }
+    return {"access_token": access_token, "subscriber": subscriber}

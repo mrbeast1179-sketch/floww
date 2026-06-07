@@ -30,6 +30,7 @@ PUBLIC_PATHS = {
     "/api/alerts/check",
     "/api/memory/recall/",
     "/api/memory/summary/",
+    "/api/auth/",         # dev-token login — must be public
     "/dashboard/_dash-update-component",
     "/dashboard/_dash-layout",
     "/dashboard/_dash-dependencies",
