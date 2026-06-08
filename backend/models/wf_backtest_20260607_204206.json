@@ -1,0 +1,27 @@
+{
+  "SPY": {
+    "mean_acc": 0.4122,
+    "mean_sharpe": 0.99,
+    "nfolds": 5
+  },
+  "QQQ": {
+    "mean_acc": 0.3863,
+    "mean_sharpe": 0.52,
+    "nfolds": 5
+  },
+  "DIA": {
+    "mean_acc": 0.364,
+    "mean_sharpe": -0.07,
+    "nfolds": 5
+  },
+  "IWM": {
+    "mean_acc": 0.4206,
+    "mean_sharpe": 0.3,
+    "nfolds": 5
+  },
+  "TLT": {
+    "mean_acc": 0.3878,
+    "mean_sharpe": 0.57,
+    "nfolds": 5
+  }
+}
