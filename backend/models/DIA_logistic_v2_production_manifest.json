@@ -4,7 +4,7 @@
   "n_samples": 500,
   "n_train": 400,
   "n_test": 100,
-  "n_features": 20,
+  "n_features": 22,
   "feature_names": [
     "ret_10d",
     "sma_5",
@@ -25,7 +25,9 @@
     "bb_position",
     "vol_ratio_5_60",
     "sma_5_21_diff",
-    "vol_spike"
+    "vol_spike",
+    "feature_20",
+    "feature_22"
   ],
   "n_raw_features": 42,
   "train_accuracy": 0.4275,
