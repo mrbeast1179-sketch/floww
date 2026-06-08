@@ -11,11 +11,9 @@ import { BACKEND_URL, API } from "../config/api";
 
 function SignalBadge({ signal, confidence }) {
   const colorMap = {
-    STRONG_BULLISH: "bg-emerald-500/20 border-emerald-500 text-emerald-400",
-    BULLISH: "bg-emerald-500/10 border-emerald-500/50 text-emerald-300",
+    BULLISH: "bg-emerald-500/20 border-emerald-500 text-emerald-400",
     NEUTRAL: "bg-slate-700/50 border-slate-600 text-slate-400",
-    BEARISH: "bg-rose-500/10 border-rose-500/50 text-rose-300",
-    STRONG_BEARISH: "bg-rose-500/20 border-rose-500 text-rose-400",
+    BEARISH: "bg-rose-500/20 border-rose-500 text-rose-400",
   };
   const color = colorMap[signal] || colorMap.NEUTRAL;
   return (
@@ -108,10 +106,21 @@ export function MlDashboard({ ticker = "SPY", spot }) {
     return () => { clearInterval(id); if (trainTimerRef.current) clearTimeout(trainTimerRef.current); };
   }, [fetchPrediction]);
 
-  const predSignal = prediction?.combined_signal || prediction?.prediction_label?.toUpperCase();
-  const predConf = prediction?.combined_confidence || prediction?.confidence;
+  const predSignal = prediction?.prediction_label?.toUpperCase();
+  const predConf = prediction?.confidence;
   const probs = prediction?.probabilities || {};
   const features = prediction?.feature_values || {};
+
+  // Map 3-class to display signal
+  const signalMap = {
+    BULLISH: "BULLISH",
+    NEUTRAL: "NEUTRAL",
+    BEARISH: "BEARISH",
+  };
+  const displaySignal = signalMap[predSignal] || "NEUTRAL";
+  const upProb = probs.up ?? probs.bullish ?? 0.33;
+  const downProb = probs.down ?? probs.bearish ?? 0.33;
+  const holdProb = probs.hold ?? 0;
 
   return (
     <div className="panel-2 p-2 space-y-2">
@@ -119,7 +128,7 @@ export function MlDashboard({ ticker = "SPY", spot }) {
         <div className="label mb-0">ML</div>
         <div className="flex items-center gap-1.5">
           {loading && <span className="inline-block w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />}
-          {predSignal && <SignalBadge signal={predSignal} confidence={predConf} />}
+          {displaySignal && <SignalBadge signal={displaySignal} confidence={predConf} />}
           <button onClick={fetchPrediction} disabled={loading}
             className="text-[8px] px-1 py-px rounded bg-slate-800 text-slate-500 hover:text-slate-300 border border-slate-700 disabled:opacity-50">
             ↻
@@ -149,12 +158,13 @@ export function MlDashboard({ ticker = "SPY", spot }) {
           {prediction ? (
             <>
               <div className="bg-slate-800/50 rounded p-2 border border-slate-700/50 text-center">
-                <div className={`text-sm font-bold ${predSignal?.includes("BULL") ? "text-emerald-400" : predSignal?.includes("BEAR") ? "text-rose-400" : "text-slate-400"}`}>
-                  {predSignal?.replace("_", " ") ?? "—"}
+                <div className={`text-sm font-bold ${displaySignal === "BULLISH" ? "text-emerald-400" : displaySignal === "BEARISH" ? "text-rose-400" : "text-slate-400"}`}>
+                  {displaySignal}
                 </div>
-                <div className="flex items-center justify-center gap-2 mt-1.5">
-                  <ConfidenceBar value={probs.bearish ?? (1 - (predConf || 0))} label="DOWN" color="rose" />
-                  <ConfidenceBar value={probs.bullish ?? (predConf || 0)} label="UP" color="emerald" />
+                <div className="space-y-1 mt-1.5">
+                  <ConfidenceBar value={downProb} label="DOWN" color="rose" />
+                  <ConfidenceBar value={holdProb} label="HOLD" color="amber" />
+                  <ConfidenceBar value={upProb} label="UP" color="emerald" />
                 </div>
               </div>
               {Object.keys(features).length > 0 && (
@@ -235,7 +245,7 @@ export function MlDashboard({ ticker = "SPY", spot }) {
           {history.length > 0 ? history.map((h, i) => (
             <div key={i} className="flex items-center justify-between py-0.5 border-b border-slate-800/50 text-[9px]">
               <span className="text-slate-500">{h.ticker}</span>
-              <SignalBadge signal={h.combined_signal || h.prediction_label?.toUpperCase()} confidence={h.combined_confidence || h.confidence} />
+              <SignalBadge signal={h.prediction_label?.toUpperCase()} confidence={h.confidence} />
               <span className="text-slate-600">{h.ts ? new Date(h.ts).toLocaleTimeString() : "—"}</span>
             </div>
           )) : (
