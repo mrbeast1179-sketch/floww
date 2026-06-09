@@ -255,37 +255,68 @@ def calc_gex_timeframes(
             buckets["monthly"].append(c)
         buckets["all"].append(c)
 
+    def _bs_gamma(spot: float, strike: float, T: float, iv: float) -> float:
+        """Black-Scholes gamma. Returns 0.0 on invalid inputs."""
+        if spot <= 0 or strike <= 0 or T <= 0 or iv <= 0:
+            return 0.0
+        try:
+            from math import log, sqrt, exp
+            from scipy.stats import norm as _norm
+            d1 = (log(spot / strike) + (_RISK_FREE + 0.5 * iv * iv) * T) / (iv * sqrt(T))
+            return float(_norm.pdf(d1)) / (spot * iv * sqrt(T))
+        except Exception:
+            return 0.0
+
     def _agg(contract_list):
         call_gex = 0.0
         put_gex = 0.0
+        # Track per-strike GEX for top floors/ceilings
+        strike_gex: Dict[float, float] = {}
+        n_valid = 0
         for c in contract_list:
-            gamma = c.get("gamma", 0)
-            oi = c.get("oi", c.get("open_interest", 0))
-            gex = gamma * oi * 100 * spot * 0.01
-            if c.get("type") == "call":
+            gamma = _safe_float(c.get("gamma"), 0.0)
+            if gamma <= 0:
+                # Contract has no pre-computed gamma — compute from B-S
+                gamma = _bs_gamma(
+                    spot,
+                    _safe_float(c.get("strike"), 0.0),
+                    _safe_float(c.get("T"), 0.0),
+                    _safe_float(c.get("iv"), 0.0),
+                )
+            if gamma <= 0:
+                continue
+            oi = _safe_float(c.get("oi", c.get("open_interest", 0)))
+            if oi <= 0:
+                continue
+            n_valid += 1
+            gex = gamma * oi * 100.0 * spot * 0.01
+            strike = _safe_float(c.get("strike"), 0.0)
+            if _is_call(c.get("type")):
                 call_gex += gex
+                strike_gex[strike] = strike_gex.get(strike, 0.0) + gex
             else:
-                put_gex += gex
-        net_gex = call_gex + put_gex  # put_gex is already negative from formula above
-        # Actually put_gex should be negative: sign = -1 for puts
-        # Let me recompute properly
-        call_gex2 = 0.0
-        put_gex2 = 0.0
-        for c in contract_list:
-            gamma = c.get("gamma", 0)
-            oi = c.get("oi", c.get("open_interest", 0))
-            gex = gamma * oi * 100 * spot * 0.01
-            if c.get("type") == "call":
-                call_gex2 += gex
-            else:
-                put_gex2 -= gex  # negative for puts
-        net_gex2 = call_gex2 + put_gex2
+                put_gex -= gex  # negative for puts (dealer convention)
+                strike_gex[strike] = strike_gex.get(strike, 0.0) - gex
+        net_gex = call_gex + put_gex
+        # Top floors = highest positive GEX strikes (above spot, stabilizing)
+        top_floors = sorted(
+            [{"strike": k, "gex": round(v, 2)} for k, v in strike_gex.items() if k > spot and v > 0],
+            key=lambda x: x["gex"], reverse=True
+        )[:3]
+        # Top ceilings = highest negative GEX strikes below spot (destabilizing)
+        top_ceilings = sorted(
+            [{"strike": k, "gex": round(v, 2)} for k, v in strike_gex.items() if k <= spot and v < 0],
+            key=lambda x: x["gex"]
+        )[:3]
         return {
-            "gex_total": round(abs(call_gex2) + abs(put_gex2), 2),
-            "call_gex": round(call_gex2, 2),
-            "put_gex": round(put_gex2, 2),
-            "net_gex": round(net_gex2, 2),
+            "gex_total": round(abs(call_gex) + abs(put_gex), 2),
+            "call_gex": round(call_gex, 2),
+            "put_gex": round(put_gex, 2),
+            "net_gex": round(net_gex, 2),
             "n_contracts": len(contract_list),
+            "contract_count": n_valid,
+            "top_floors": top_floors,
+            "top_ceilings": top_ceilings,
         }
 
     return {"timeframes": {k: _agg(v) for k, v in buckets.items()}}
