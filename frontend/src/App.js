@@ -1011,11 +1011,11 @@ export default function App() {
         {/* Mobile Toggle Bar */}
         {page === "heatseeker" && (
           <div className="mobile-toggle-bar">
-            <button className="toggle-btn" onClick={() => { setShowLeftSidebar(!showLeftSidebar); setShowRightSidebar(false); }}>
-              ◀ Filters
+            <button className={`toggle-btn${showLeftSidebar ? " open" : ""}`} onClick={() => { setShowLeftSidebar(!showLeftSidebar); setShowRightSidebar(false); }}>
+              {showLeftSidebar ? "▶ Hide Filters" : "◀ Filters"}
             </button>
-            <button className="toggle-btn" onClick={() => { setShowRightSidebar(!showRightSidebar); setShowLeftSidebar(false); }}>
-              Analytics ▶
+            <button className={`toggle-btn${showRightSidebar ? " open" : ""}`} onClick={() => { setShowRightSidebar(!showRightSidebar); setShowLeftSidebar(false); }}>
+              {showRightSidebar ? "Analytics ◀" : "Analytics ▶"}
             </button>
           </div>
         )}

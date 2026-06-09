@@ -54,6 +54,7 @@ function getIcon(id) {
 
 export default function Sidebar({ page, onNavigate, userEmail, userTier }) {
   const [collapsed, setCollapsed] = useState(() => localStorage.getItem(SIDEBAR_KEY) === "true");
+  const [legacyExpanded, setLegacyExpanded] = useState(false);
   useEffect(() => {
     localStorage.setItem(SIDEBAR_KEY, String(collapsed));
     document.documentElement.setAttribute("data-sidebar-collapsed", String(collapsed));
@@ -123,60 +124,92 @@ export default function Sidebar({ page, onNavigate, userEmail, userTier }) {
 
       {/* Navigation */}
       <nav className="ap-mobile-scroll flex-1 overflow-y-auto p-2 pt-3">
-        {groups.map((group, gi) => (
-          <div key={gi} className="mb-1">
-            {!collapsed && (
-              <div
-                className="display px-3 pt-3 pb-1.5 text-[10px] font-semibold uppercase tracking-[0.12em]"
-                style={{ color: "var(--text-quaternary)" }}
-              >
-                {group.name}
-              </div>
-            )}
-            {group.items.map(item => {
-              const active = page === item.id;
-              return (
+        {groups.map((group, gi) => {
+          const isLegacy = group.name === "Legacy";
+          const showItems = !isLegacy || legacyExpanded;
+          return (
+            <div key={gi} className="mb-1">
+              {!collapsed && (
                 <button
-                  key={item.id}
-                  onClick={() => onNavigate(item.id)}
-                  className="group relative flex items-center gap-2.5 rounded-lg px-3 py-2 text-[13px] font-medium transition-colors"
+                  type="button"
+                  onClick={isLegacy ? () => setLegacyExpanded(v => !v) : undefined}
+                  className="display flex w-full items-center gap-1.5 px-3 pt-3 pb-1.5 text-[10px] font-semibold uppercase tracking-[0.12em]"
                   style={{
-                    width: "100%",
-                    color: active ? "var(--text-primary)" : "var(--text-secondary)",
-                    background: active ? "rgba(255,255,255,0.06)" : "transparent",
+                    color: "var(--text-quaternary)",
+                    background: "transparent",
                     border: "none",
-                    cursor: "pointer",
+                    cursor: isLegacy ? "pointer" : "default",
                     textAlign: "left",
                   }}
                 >
-                  <span className="nav-icon" style={{ flexShrink: 0, color: active ? "var(--gold)" : "inherit" }}>
-                    {getIcon(item.icon)}
-                  </span>
-                  {!collapsed && <span className="truncate">{item.label}</span>}
-                  {!collapsed && item.badge === "NEW" && (
-                    <span
-                      className="mono ml-auto rounded px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider"
-                      style={{ background: "var(--green-dim)", color: "var(--green)" }}
+                  {isLegacy && (
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      width="10"
+                      height="10"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      style={{
+                        transform: legacyExpanded ? "rotate(0deg)" : "rotate(-90deg)",
+                        transition: "transform 150ms",
+                        flexShrink: 0,
+                      }}
                     >
-                      NEW
-                    </span>
+                      <path d="m6 9 6 6 6-6"/>
+                    </svg>
                   )}
-                  {!collapsed && item.badge === "LIVE" && item.liveDot && (
-                    <span className="nav-live-dot" />
-                  )}
-                  {!collapsed && item.badge === "LIVE" && !item.liveDot && (
-                    <span
-                      className="mono ml-auto rounded px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider"
-                      style={{ background: "var(--green-dim)", color: "var(--green)" }}
-                    >
-                      LIVE
-                    </span>
-                  )}
+                  {group.name}
                 </button>
-              );
-            })}
-          </div>
-        ))}
+              )}
+              {showItems && group.items.map(item => {
+                const active = page === item.id;
+                return (
+                  <button
+                    key={item.id}
+                    onClick={() => onNavigate(item.id)}
+                    className="group relative flex items-center gap-2.5 rounded-lg px-3 py-2 text-[13px] font-medium transition-colors"
+                    style={{
+                      width: "100%",
+                      color: active ? "var(--text-primary)" : "var(--text-secondary)",
+                      background: active ? "rgba(255,255,255,0.06)" : "transparent",
+                      border: "none",
+                      cursor: "pointer",
+                      textAlign: "left",
+                    }}
+                  >
+                    <span className="nav-icon" style={{ flexShrink: 0, color: active ? "var(--gold)" : "inherit" }}>
+                      {getIcon(item.icon)}
+                    </span>
+                    {!collapsed && <span className="truncate">{item.label}</span>}
+                    {!collapsed && item.badge === "NEW" && (
+                      <span
+                        className="mono ml-auto rounded px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider"
+                        style={{ background: "var(--green-dim)", color: "var(--green)" }}
+                      >
+                        NEW
+                      </span>
+                    )}
+                    {!collapsed && item.badge === "LIVE" && item.liveDot && (
+                      <span className="nav-live-dot" />
+                    )}
+                    {!collapsed && item.badge === "LIVE" && !item.liveDot && (
+                      <span
+                        className="mono ml-auto rounded px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider"
+                        style={{ background: "var(--green-dim)", color: "var(--green)" }}
+                      >
+                        LIVE
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+          );
+        })}
       </nav>
 
       {/* User chip at bottom */}
