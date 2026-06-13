@@ -253,11 +253,14 @@ def bs_charm_vec(
     sigma: np.ndarray,
     q: float = 0.0,
     kind: int = 0,
+    r: float = 0.05,
 ) -> np.ndarray:
     """Vectorized Black-Scholes charm (delta decay) for an array of options.
 
     Charm measures the rate of change of delta with respect to time. It is
-    also known as delta decay.
+    also known as delta decay.  Convention: charm = dDelta/dt (calendar time),
+    i.e. charm = -dDelta/dT (time-to-expiry).  Negative for ATM calls with
+    r > 0 (delta decays toward 0.5 as expiry approaches).
 
     Args:
         S: Spot price (scalar).
@@ -266,6 +269,7 @@ def bs_charm_vec(
         sigma: Array of implied volatilities.
         q: Continuous dividend yield (default 0.0).
         kind: 0 for call, 1 for put (default 0).
+        r: Risk-free rate (default 0.05).
 
     Returns:
         Array of charm values (per day). Elements where S<=0, K<=0, T<=0,
@@ -277,15 +281,15 @@ def bs_charm_vec(
         if S <= 0.0 or K[i] <= 0.0 or T[i] <= 0.0 or sigma[i] <= 0.0:
             out[i] = 0.0
             continue
-        d1, d2 = _d1d2(S, K[i], T[i], sigma[i], 0.0, q)
+        d1, d2 = _d1d2(S, K[i], T[i], sigma[i], r, q)
         term1 = q * math.exp(-q * T[i]) * _norm_cdf(d1)
-        term2_val = -math.exp(-q * T[i]) * _norm_pdf(d1) * (
-            2.0 * (0.0 - q) * T[i] - d2 * sigma[i] * math.sqrt(T[i])
+        common_term = math.exp(-q * T[i]) * _norm_pdf(d1) * (
+            2.0 * (r - q) * T[i] - d2 * sigma[i] * math.sqrt(T[i])
         ) / (2.0 * T[i] * sigma[i] * math.sqrt(T[i]))
         if kind == 0:
-            out[i] = (term1 - term2_val) / 365.0
+            out[i] = (term1 - common_term) / 365.0
         else:
-            out[i] = (term1 - math.exp(-q * T[i]) * (1.0 - _norm_cdf(d1)) - term2_val) / 365.0
+            out[i] = (-q * math.exp(-q * T[i]) * (1.0 - _norm_cdf(d1)) - common_term) / 365.0
     return out
 
 
@@ -582,11 +586,11 @@ def compute_all_greeks(
     charm = np.empty_like(K)
     if np.any(call_mask):
         charm[call_mask] = bs_charm_vec(
-            spot, K[call_mask], T[call_mask], IV[call_mask], q, 0
+            spot, K[call_mask], T[call_mask], IV[call_mask], q, 0, r
         )
     if np.any(put_mask):
         charm[put_mask] = bs_charm_vec(
-            spot, K[put_mask], T[put_mask], IV[put_mask], q, 1
+            spot, K[put_mask], T[put_mask], IV[put_mask], q, 1, r
         )
 
     # Vomma (same for calls and puts)

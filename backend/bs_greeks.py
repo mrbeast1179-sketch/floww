@@ -65,9 +65,9 @@ def bs_charm(S, K, T, sigma, q=0.0, kind="call", r=0.05):
         d2 = d1 - sigma * math.sqrt(T)
         pdf_d1 = norm.pdf(d1)
         cdf_d1 = norm.cdf(d1)
-        charm = -math.exp(-q * T) * (q * cdf_d1 - pdf_d1 * (2 * (r - q) * T - d2 * sigma * math.sqrt(T)) / (2 * T * sigma * math.sqrt(T)))
+        charm = math.exp(-q * T) * (q * cdf_d1 - pdf_d1 * (2 * (r - q) * T - d2 * sigma * math.sqrt(T)) / (2 * T * sigma * math.sqrt(T)))
         if kind == "put":
-            charm = -math.exp(-q * T) * (-q * (1 - cdf_d1) - pdf_d1 * (2 * (r - q) * T - d2 * sigma * math.sqrt(T)) / (2 * T * sigma * math.sqrt(T)))
+            charm = math.exp(-q * T) * (-q * (1 - cdf_d1) - pdf_d1 * (2 * (r - q) * T - d2 * sigma * math.sqrt(T)) / (2 * T * sigma * math.sqrt(T)))
         if math.isnan(charm) or math.isinf(charm): return 0.0
         return charm
     except Exception as exc: return _mask_zero(exc)
