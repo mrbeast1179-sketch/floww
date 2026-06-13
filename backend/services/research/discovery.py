@@ -644,8 +644,6 @@ class QuantocracySource(DiscoverySource):
         except ET.ParseError:
             return results
 
-        # RSS 2.0 namespace
-        ns = {"rss": "http://purl.org/rss/1.0/"}
         channel = root.find("channel")
         if channel is None:
             channel = root  # try without channel wrapper
