@@ -121,7 +121,6 @@ class NodeLifecycleTracker:
 
         Returns dict with active nodes, new taps, expired nodes, summary.
         """
-        current_strikes = {strike for strike, _ in king_nodes}
 
         # Create new nodes for newly detected king nodes
         for strike, gex_value in king_nodes:

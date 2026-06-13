@@ -188,8 +188,6 @@ def compute_gex_features(chain: Dict[str, Any]) -> Dict[str, float]:
     contracts = chain.get("contracts", [])
     features = {}
 
-    calls = [c for c in contracts if c["type"] in ("C", "CALL")]
-    puts = [c for c in contracts if c["type"] in ("P", "PUT")]
 
     gex_by_strike: Dict[float, float] = {}
     for c in contracts:

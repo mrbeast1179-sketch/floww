@@ -115,8 +115,7 @@ class CreditMonitor:
     def check_alerts(self) -> List[Dict[str, Any]]:
         """Check all alert conditions. Returns list of new alerts."""
         alerts = []
-        now = time.time()
-
+    
         # Credit burn alerts
         burn_pct = self.state.burn_pct
 
