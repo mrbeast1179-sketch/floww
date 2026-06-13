@@ -26,10 +26,9 @@ import urllib.parse
 import urllib.request
 import xml.etree.ElementTree as ET
 from abc import ABC, abstractmethod
-from dataclasses import dataclass, field, asdict
+from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
 from typing import Any, Callable, Dict, Iterable, List, Optional, Tuple
-
 
 # ────────────────────────────────────────────────────────────────────────────
 # Normalized record

@@ -17,11 +17,10 @@ modeling the idea that repeated tests of a gamma level weaken it.
 from __future__ import annotations
 
 import math
+from collections import deque
+from datetime import datetime, timezone
 from enum import Enum
 from typing import Any, Dict, List, Optional, Tuple
-from datetime import datetime, timezone
-from collections import deque
-
 
 
 class NodeState(Enum):

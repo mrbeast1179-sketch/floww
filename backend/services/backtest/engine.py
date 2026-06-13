@@ -26,9 +26,8 @@ from typing import Any, Callable, Dict, List, Optional, Tuple
 
 import numpy as np
 
-from .signals import Action, Position, Signal
 from .report import BacktestResult, TradeRecord
-
+from .signals import Action, Position, Signal
 
 logger = logging.getLogger(__name__)
 log = logging.getLogger("backtest.engine")

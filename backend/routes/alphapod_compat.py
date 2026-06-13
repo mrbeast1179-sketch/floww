@@ -302,7 +302,11 @@ async def earnings_ticker_detail(ticker: str) -> Dict[str, Any]:
 @router.post("/auth/dev-token")
 async def dev_token(body: Dict[str, Any]) -> Dict[str, Any]:
     """Issue a local dev JWT for the React frontend sign-in page."""
-    import hashlib, time, hmac, base64, json as _json
+    import base64
+    import hashlib
+    import hmac
+    import json as _json
+    import time
 
     email = (body.get("email") or "dev@local").lower().strip()
     tier = (body.get("tier") or "pro").lower().strip()

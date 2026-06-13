@@ -30,7 +30,6 @@ import numpy as np
 import pandas as pd
 from dotenv import load_dotenv
 
-
 logger = logging.getLogger(__name__)
 warnings.filterwarnings("ignore")
 

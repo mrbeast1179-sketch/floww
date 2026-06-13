@@ -12,17 +12,18 @@ Usage:
 import argparse
 import asyncio
 import os
-from pathlib import Path
 from datetime import datetime, timezone
+from pathlib import Path
 
 from dotenv import load_dotenv
+
 load_dotenv(Path(__file__).resolve().parent.parent / ".env")
 
-from motor.motor_asyncio import AsyncIOMotorClient
-import pandas as pd
-import numpy as np
-
 import logging
+
+import numpy as np
+import pandas as pd
+from motor.motor_asyncio import AsyncIOMotorClient
 
 logger = logging.getLogger(__name__)
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent

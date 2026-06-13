@@ -15,8 +15,8 @@ the training feature engineering in scripts/train_spy_ml.py.
 from __future__ import annotations
 
 import logging
-from typing import Any, Dict, Optional
 from datetime import datetime, timedelta
+from typing import Any, Dict, Optional
 
 import numpy as np
 import pandas as pd

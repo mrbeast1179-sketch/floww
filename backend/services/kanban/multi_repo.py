@@ -9,9 +9,9 @@ Cross-repo SWARM_STATUS.md aggregates state from all.
 """
 
 import logging
+from collections import defaultdict
 from datetime import datetime, timezone
 from pathlib import Path
-from collections import defaultdict
 
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent.parent
 KANBAN_DIR = REPO_ROOT / "kanban"

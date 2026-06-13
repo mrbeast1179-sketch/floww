@@ -28,8 +28,9 @@ from typing import Any, Dict, List, Optional
 
 import numpy as np
 
-from .signals import Action, Position, Signal
 from services.retail_flow_score import RetailFlowScore
+
+from .signals import Action, Position, Signal
 
 log = logging.getLogger("backtest.retail_flow_signal")
 

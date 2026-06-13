@@ -348,12 +348,12 @@ def run_quality_gates(
     y_test: Optional[np.ndarray] = None,
 ) -> Dict[str, bool]:
     """Run pre-save quality gates. Raises on failure."""
+    from services.ml import DegenerateModelError
     from services.ml.quality import (
         assert_class_balance,
         assert_feature_variance,
         assert_prediction_distribution,
     )
-    from services.ml import DegenerateModelError
 
     results = {}
     try:
