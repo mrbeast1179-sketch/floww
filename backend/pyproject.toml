@@ -18,4 +18,4 @@ select = ["E", "E722", "F", "W", "I"]
 ignore = ["E501"]
 
 [tool.ruff.lint.per-file-ignores]
-"tests/**/*.py" = ["F401", "F403", "F811"]
+"tests/**/*.py" = ["F401", "F403", "F811", "E402"]
