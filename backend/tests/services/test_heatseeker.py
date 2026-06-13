@@ -793,7 +793,7 @@ class TestStackedNodes:
         Both call and put GEX are significant at the same strike.
         A stacked node exists where both exceed threshold_pct of total.
         """
-        spot = 100.0
+        _spot = 100.0
         contracts = [
             _c(100.0, "C", 0.05, 2000),  # big call GEX at 100
             _c(100.0, "P", 0.05, 2000),  # big put GEX at 100 → stacked
@@ -817,7 +817,7 @@ class TestStackedNodes:
 
     def test_no_stacked_when_only_calls(self):
         """Only calls at a strike → no conflict."""
-        spot = 100.0
+        _spot = 100.0
         contracts = [
             _c(100.0, "C", 0.05, 2000),
             _c(100.0, "C", 0.03, 1000),
@@ -830,7 +830,7 @@ class TestStackedNodes:
         """
         With a very high threshold_pct, even moderate dual GEX is not stacked.
         """
-        spot = 100.0
+        _spot = 100.0
         contracts = [
             _c(100.0, "C", 0.05, 100),
             _c(100.0, "P", 0.05, 100),

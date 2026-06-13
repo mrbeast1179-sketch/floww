@@ -77,7 +77,7 @@ class TestConvictionCalculation:
             ticker="SPY",
             spot_price=450.0,
         )
-        result = translate_signal(inp)
+        _result = translate_signal(inp)
         # conviction = 0.9 * 0.9 * 0 = 0
 
     def test_boundary_conviction(self):

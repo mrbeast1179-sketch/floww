@@ -218,7 +218,7 @@ def test_anomaly_detector_emits_metrics():
     detector = FlowAnomalyDetector(seq_len=5, latent_dim=4, ticker="SPY")
     # Feed enough observations to warm up buffer (5) + fallback errors (10)
     for i in range(20):
-        result = detector.update(vpin=0.5 + i * 0.01, qi=0.1)
+        _result = detector.update(vpin=0.5 + i * 0.01, qi=0.1)
 
     output = get_metrics_bytes().decode()
     assert 'floww_anomaly_score{ticker="SPY"}' in output

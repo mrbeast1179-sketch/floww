@@ -340,7 +340,7 @@ class TestMockFeedRate:
         feed.on_tick(lambda t: collected.append(t))
 
         # Run for 0.5 seconds
-        task = asyncio.create_task(feed.start())
+        _task = asyncio.create_task(feed.start())
         await asyncio.sleep(0.5)
         await feed.stop()
 
@@ -354,7 +354,7 @@ class TestMockFeedRate:
         feed = MockSchwabFeed(rate=100.0, symbols=["SPY"], seed=42)
         feed.on_tick(lambda t: collected.append(t))
 
-        task = asyncio.create_task(feed.start())
+        _task = asyncio.create_task(feed.start())
         await asyncio.sleep(0.3)
         await feed.stop()
 

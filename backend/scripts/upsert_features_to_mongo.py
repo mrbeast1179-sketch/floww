@@ -49,7 +49,6 @@ async def upsert_all(dry_run: bool = True):
     col = db["ml_features"]
 
     total_inserted = 0
-    total_skipped = 0
 
     for ticker, csv_path in CSV_FILES.items():
         if not csv_path.exists():
@@ -86,7 +85,6 @@ async def upsert_all(dry_run: bool = True):
 
     # Final count
     for ticker in CSV_FILES:
-        count = await col.count_documents({"ticker": ticker})
         logger.info(f"  {total_inserted} total upserted" if not dry_run else "")
         break
 

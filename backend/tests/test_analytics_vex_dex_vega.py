@@ -46,7 +46,7 @@ def make_contracts_from_chain(chain_csv_path):
 
             # Estimate IV from mid-price using BS inversion approximation
             # For testing, use a reasonable IV estimate
-            mid = (bid + ask) / 2.0
+            _mid = (bid + ask) / 2.0
             moneyness = strike / spot
             # Rough IV estimate: higher for OTM, lower for ITM
             iv = 0.20 + 0.05 * abs(moneyness - 1.0)

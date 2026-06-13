@@ -49,7 +49,7 @@ class TestHealthEndpoint:
         assert resp.json()["checks"]["duckdb"]["status"] == "healthy"
 
     def test_health_websocket_shows_connections(self):
-        ws = resp = client.get("/api/health").json()["checks"]["websocket"]
+        ws = client.get("/api/health").json()["checks"]["websocket"]
         assert ws["status"] == "healthy"
         assert isinstance(ws["active_connections"], int)
 

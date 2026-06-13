@@ -91,7 +91,7 @@ class TestTradingEnv:
         env.reset()
         # First buy
         env.step(4)  # strong buy
-        pos_after_buy = env.position
+        _pos_after_buy = env.position
         # Then sell
         env.step(0)  # strong sell
         # Position should not go below 0

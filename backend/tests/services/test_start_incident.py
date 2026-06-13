@@ -153,7 +153,7 @@ class TestDirectoryCreation:
     def test_creates_directory_when_missing(self, tmp_path):
         incidents_dir = tmp_path / "INCIDENTS"
         # Template is in the real repo, not in tmp — patch TEMPLATE_PATH to point to a temp template
-        real_template = Path(__file__).resolve().parents[3] / "docs" / "INCIDENTS" / "_template.md"
+        _real_template = Path(__file__).resolve().parents[3] / "docs" / "INCIDENTS" / "_template.md"
         with patch.object(si, "INCIDENTS_DIR", incidents_dir):
             # Don't create the directory — the function should do it
             assert not incidents_dir.exists()

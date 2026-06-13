@@ -271,12 +271,12 @@ class FlowAnomalyDetector:
             mean_err = np.mean(errors)
             std_err = np.std(errors)
             threshold = mean_err + self.threshold_sigma * std_err
-            is_anomaly = error > threshold
-            zscore = (error - mean_err) / std_err if std_err > 1e-12 else 0.0
+            _is_anomaly = error > threshold
+            _zscore = (error - mean_err) / std_err if std_err > 1e-12 else 0.0
         else:
             threshold = float("inf")
-            is_anomaly = False
-            zscore = 0.0
+            _is_anomaly = False
+            _zscore = 0.0
 
         # Regime-aware threshold
         _regime_result = self._regime_threshold.update(error)

@@ -172,7 +172,7 @@ async def test_resubscribe_after_reconnect(streamer, mock_token_manager):
 
     # Mock _subscribe_default to track calls
     subscribe_calls = []
-    original_subscribe = streamer._subscribe_default
+    _original_subscribe = streamer._subscribe_default
 
     async def tracking_subscribe():
         subscribe_calls.append("subscribe_default")

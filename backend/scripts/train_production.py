@@ -147,8 +147,6 @@ def train_production_model(ticker: str, period: str = "2y") -> dict:
 
         # Predict
         preds = model.predict(X_test_s)
-        acc = accuracy_score(y_test, preds)
-
         fold_metrics.append({
             "fold": fold,
             "train_size": len(X_train),

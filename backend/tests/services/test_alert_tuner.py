@@ -25,7 +25,7 @@ def test_tuner_auto_label():
         AlertRecord("test", 1700000300.0, "queue", 9000.0, 1000.0),
     ]
     gt = {1700000000.0: True, 1700000300.0: False}
-    tuner = AlertTuner(alerts, gt)
+    _tuner = AlertTuner(alerts, gt)
     assert alerts[0].was_true_positive is True
     assert alerts[1].was_true_positive is False
 
@@ -115,7 +115,7 @@ def test_synthetic_data_generation():
     assert len(gt) == 100
     # All alerts should be labeled after init
     from services.alert_tuner import AlertTuner
-    tuner = AlertTuner(alerts, gt)
+    _tuner = AlertTuner(alerts, gt)
     labeled = [a for a in alerts if a.was_true_positive is not None]
     assert len(labeled) == 100
 

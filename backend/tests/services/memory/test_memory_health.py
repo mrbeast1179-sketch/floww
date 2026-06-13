@@ -94,7 +94,7 @@ class TestMemoryHealth:
         """Health endpoint should respond quickly."""
         import time
         start = time.time()
-        status = get_health_status()
+        _status = get_health_status()
         elapsed_ms = (time.time() - start) * 1000
         assert elapsed_ms < 50, f"Health check took {elapsed_ms:.1f}ms (should be < 50ms)"
 

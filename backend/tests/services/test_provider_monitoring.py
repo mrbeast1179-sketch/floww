@@ -206,7 +206,7 @@ def test_monitor_alert_callback(monitor):
     monitor.record("finnhub", False)
     monitor.record("finnhub", False)
 
-    alerts = monitor.check_alerts()
+    _alerts = monitor.check_alerts()
     assert callback.call_count >= 1
     # Check it was called with (provider, alert_type, alert_dict)
     args = callback.call_args[0]
@@ -242,7 +242,7 @@ def test_monitor_alerts_dedup(monitor):
     alerts2 = monitor.check_alerts()
 
     # Second call should not produce duplicate alerts
-    types1 = {(a["provider"], a["alert_type"]) for a in alerts1}
+    _types1 = {(a["provider"], a["alert_type"]) for a in alerts1}
     types2 = {(a["provider"], a["alert_type"]) for a in alerts2}
     assert len(types2) == 0  # Already alerted, no new alerts
 
