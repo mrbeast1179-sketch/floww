@@ -1,0 +1,46 @@
+#!/bin/bash
+# Pre-commit hook: prevent F841 (unused variable) regressions.
+# Install: cp backend/hooks/pre-commit .git/hooks/pre-commit && chmod +x .git/hooks/pre-commit
+
+set -e
+
+# Check that ruff is installed
+if ! command -v ruff &>/dev/null; then
+    if [ -f backend/.venv/bin/ruff ]; then
+        RUFF=backend/.venv/bin/ruff
+    else
+        echo "⚠️  ruff not found, skipping F841 check"
+        exit 0
+    fi
+else
+    RUFF=ruff
+fi
+
+# Get list of staged Python files in backend/
+STAGED=$(git diff --cached --name-only --diff-filter=ACM | grep '\.py$' | grep '^backend/' || true)
+
+if [ -z "$STAGED" ]; then
+    exit 0
+fi
+
+# Run F841 check on staged files only (fast, focused)
+FAILED=0
+for f in $STAGED; do
+    # Strip backend/ prefix for ruff (runs from backend/)
+    RELATIVE=${f#backend/}
+    if [ -f "backend/$RELATIVE" ]; then
+        if ! $RUFF check "backend/$RELATIVE" --select F841 --output-format=concise; then
+            FAILED=1
+        fi
+    fi
+done
+
+if [ "$FAILED" -eq 1 ]; then
+    echo ""
+    echo "❌ F841 check failed: unused variables detected."
+    echo "   Fix the warnings above before committing."
+    echo "   To bypass: git commit --no-verify"
+    exit 1
+fi
+
+exit 0
