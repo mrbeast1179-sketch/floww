@@ -395,7 +395,6 @@ class ExecutionEngine:
         kyle_impact_per_share = self.kyle_lambda.estimate_impact(1.0)
 
         slices = []
-        cumulative_cost = 0.0
         for i, shares in enumerate(trajectory):
             if shares < 0.5:
                 continue

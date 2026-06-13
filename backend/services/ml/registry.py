@@ -330,7 +330,6 @@ class ModelRegistry:
 
         artifact_path = model_doc.get("artifact_path", "")
         scaler_path = artifact_path.replace(".joblib", "_scaler.joblib")
-        meta_path = artifact_path.replace(".joblib", "_meta.json")
 
         if not os.path.exists(artifact_path):
             raise DegenerateModelError(
