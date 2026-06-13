@@ -1,167 +1,13 @@
-@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Sora:wght@400;500;600;700&display=swap');
-
-:root {
-  --bg: #07080a;
-  --bg-2: #0c0e12;
-  --panel: rgba(18, 20, 24, 0.72);
-  --border: #1c1f24;
-  --pika: #facc15;
-  --barney: #a855f7;
-}
-
-/* Light theme overrides */
-[data-theme="light"] {
-  --bg: #f8f9fa;
-  --bg-2: #ffffff;
-  --panel: rgba(255, 255, 255, 0.85);
-  --border: #e2e8f0;
-  --pika: #ca8a04;
-  --barney: #7c3aed;
-}
-
-* { box-sizing: border-box; }
-
-html {
-  font-size: 14px;
-  -webkit-text-size-adjust: 100%;
-}
-
-html, body, #root, .App {
-  background: var(--bg);
-  color: #e4e4e7;
-  font-family: 'Sora', system-ui, sans-serif;
-  letter-spacing: 0.01em;
-  min-height: 100vh;
-  margin: 0;
-  padding: 0;
-  overflow-x: hidden;
-}
-
-[data-theme="light"] body,
-[data-theme="light"] .App {
-  color: #1e293b;
-}
-
-body {
-  background:
-    radial-gradient(1100px 700px at 80% -10%, rgba(250, 204, 21, 0.07), transparent 60%),
-    radial-gradient(900px 600px at 0% 100%, rgba(168, 85, 247, 0.07), transparent 60%),
-    var(--bg);
-  background-attachment: fixed;
-}
-
-/* Theme transition */
-body, .panel, .panel-2, .glass, aside, main, header, footer {
-  transition: background-color 0.3s ease, color 0.3s ease, border-color 0.3s ease;
-}
-
-.tick, .font-mono { font-family: 'JetBrains Mono', ui-monospace, monospace; font-feature-settings: 'tnum'; }
-
-.glass {
-  background: var(--panel);
-  border: 1px solid var(--border);
-  backdrop-filter: blur(14px) saturate(140%);
-  -webkit-backdrop-filter: blur(14px) saturate(140%);
-  box-shadow: 0 1px 0 rgba(255,255,255,0.02) inset, 0 18px 60px rgba(0,0,0,0.4);
-}
-
-.grain::before {
-  content: "";
-  position: fixed;
-  inset: 0;
-  pointer-events: none;
-  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0.95  0 0 0 0 0.95  0 0 0 0 0.95  0 0 0 0.05 0'/></filter><rect width='100%25' height='100%25' filter='url(%23n)'/></svg>");
-  opacity: 0.35;
-  z-index: 1;
-  mix-blend-mode: overlay;
-}
-
-.glow-pika { box-shadow: 0 0 18px rgba(250, 204, 21, 0.45); }
-.glow-barney { box-shadow: 0 0 18px rgba(168, 85, 247, 0.45); }
-
-@keyframes fadeUp {
-  from { opacity: 0; transform: translateY(8px); }
-  to   { opacity: 1; transform: translateY(0); }
-}
-.fade-up { animation: fadeUp 0.5s ease-out both; }
-.fade-up-delay-1 { animation-delay: 0.05s; }
-.fade-up-delay-2 { animation-delay: 0.12s; }
-.fade-up-delay-3 { animation-delay: 0.18s; }
-.fade-up-delay-4 { animation-delay: 0.24s; }
-
-::selection { background: rgba(250, 204, 21, 0.35); color: #fff; }
-
-/* Scrollbar */
-::-webkit-scrollbar { width: 10px; height: 10px; }
-::-webkit-scrollbar-track { background: var(--bg); }
-::-webkit-scrollbar-thumb { background: #23272e; border-radius: 6px; }
-::-webkit-scrollbar-thumb:hover { background: #2f343c; }
+/* App.css — supplementary styles beyond index.css */
 
 /* ===== MOBILE-FIRST RESPONSIVE LAYOUT ===== */
 
-/* Base mobile styles (default, no media query needed) */
+/* Base mobile styles */
 .App {
   display: flex;
   flex-direction: column;
   min-height: 100vh;
   overflow-x: hidden;
-}
-
-/* Sticky header for mobile - toxicity gauge area */
-.app-header {
-  position: sticky;
-  top: 0;
-  z-index: 100;
-  background: var(--panel);
-  border-bottom: 1px solid var(--border);
-  padding: 0.5rem 0.75rem;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  flex-wrap: wrap;
-  gap: 0.5rem;
-}
-
-.app-header .nav-tabs {
-  display: flex;
-  gap: 0.25rem;
-  overflow-x: auto;
-  -webkit-overflow-scrolling: touch;
-  scrollbar-width: none;
-  flex: 1;
-  min-width: 0;
-}
-
-.app-header .nav-tabs::-webkit-scrollbar {
-  display: none;
-}
-
-.app-header .header-right {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  flex-shrink: 0;
-}
-
-/* Toxicity gauge in sticky header */
-.toxicity-gauge {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  padding: 0.25rem 0.5rem;
-  background: var(--bg-2);
-  border: 1px solid var(--border);
-  border-radius: 4px;
-  font-size: 10px;
-  white-space: nowrap;
-}
-
-/* Main content area - mobile first (single column) */
-.main-content {
-  display: flex;
-  flex-direction: column;
-  flex: 1;
-  overflow: hidden;
 }
 
 /* Heatseeker layout - mobile first */
@@ -173,7 +19,7 @@ body, .panel, .panel-2, .glass, aside, main, header, footer {
 }
 
 .heatseeker-sidebar-left {
-  display: none; /* Hidden on mobile by default */
+  display: none;
   order: 3;
 }
 
@@ -196,7 +42,7 @@ body, .panel, .panel-2, .glass, aside, main, header, footer {
 }
 
 .heatseeker-sidebar-right {
-  display: none; /* Hidden on mobile by default */
+  display: none;
   order: 2;
 }
 
@@ -219,7 +65,7 @@ body, .panel, .panel-2, .glass, aside, main, header, footer {
 }
 
 .heatmap-scroll-container > * {
-  min-width: 600px; /* Ensure heatmap doesn't squash */
+  min-width: 600px;
 }
 
 /* Flow ticker carousel for mobile */
@@ -282,12 +128,6 @@ body, .panel, .panel-2, .glass, aside, main, header, footer {
 
 /* ===== TABLET (768px+) ===== */
 @media (min-width: 768px) {
-  html { font-size: 14px; }
-
-  .app-header {
-    padding: 0.5rem 1rem;
-  }
-
   /* Heatseeker: left sidebar visible, right sidebar hidden */
   .heatseeker-layout {
     display: grid;
@@ -374,15 +214,9 @@ body, .panel, .panel-2, .glass, aside, main, header, footer {
 
 /* ===== PWA STANDALONE ===== */
 @media (display-mode: standalone) {
-  .app-header {
-    padding-top: env(safe-area-inset-top, 0.5rem);
-  }
-
   .mobile-toggle-bar {
     padding-bottom: env(safe-area-inset-bottom, 0.5rem);
   }
-
-  /* Hide install banner when running as PWA */
   .pwa-install-banner {
     display: none !important;
   }
@@ -390,67 +224,9 @@ body, .panel, .panel-2, .glass, aside, main, header, footer {
 
 /* ===== iOS SAFE AREA ===== */
 @supports (padding: env(safe-area-inset-top)) {
-  .app-header {
-    padding-top: calc(0.5rem + env(safe-area-inset-top, 0px));
-  }
-
   .mobile-toggle-bar {
     padding-bottom: calc(0.5rem + env(safe-area-inset-bottom, 0px));
   }
-}
-
-/* ===== TOUCH DEVICE OPTIMIZATIONS ===== */
-@media (hover: none) and (pointer: coarse) {
-  /* Minimum 44px touch targets (Apple HIG) */
-  .btn, button, a, input, select, textarea {
-    min-height: 44px;
-    min-width: 44px;
-  }
-
-  /* Larger tap targets for nav tabs */
-  .nav-tabs .btn {
-    min-height: 44px;
-    padding: 8px 12px;
-  }
-
-  /* Disable hover tooltips on touch */
-  .tooltip-container .tooltip-text {
-    display: none;
-  }
-
-  /* Prevent text selection on interactive elements */
-  .btn, button, .nav-tabs {
-    -webkit-user-select: none;
-    user-select: none;
-    -webkit-tap-highlight-color: transparent;
-  }
-
-  /* Smooth momentum scrolling */
-  .heatseeker-main,
-  .heatseeker-sidebar-left,
-  .heatseeker-sidebar-right {
-    -webkit-overflow-scrolling: touch;
-  }
-}
-
-/* ===== THEME TOGGLE BUTTON ===== */
-.theme-toggle {
-  background: var(--bg-2);
-  border: 1px solid var(--border);
-  border-radius: 50%;
-  width: 36px;
-  height: 36px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  font-size: 18px;
-  transition: transform 0.3s ease, background 0.3s ease;
-  flex-shrink: 0;
-}
-
-.theme-toggle:hover {
-  transform: rotate(180deg);
 }
 
 /* ===== TOAST NOTIFICATIONS ===== */
@@ -519,26 +295,3 @@ body, .panel, .panel-2, .glass, aside, main, header, footer {
     width: 360px;
   }
 }
-
-/* ===== PWA STANDALONE ENHANCEMENTS ===== */
-@media (display-mode: standalone) {
-  .app-header {
-    padding-top: calc(0.5rem + env(safe-area-inset-top, 0px));
-  }
-
-  .mobile-toggle-bar {
-    padding-bottom: calc(0.5rem + env(safe-area-inset-bottom, 0px));
-  }
-}
-
-/* ===== COLLAPSIBLE SECTIONS ===== */
-details > summary { list-style: none; }
-details > summary::-webkit-details-marker { display: none; }
-
-/* Smooth scrolling for panels */
-aside { scroll-behavior: smooth; }
-
-/* Ensure proper overflow handling */
-.overflow-hidden { overflow: hidden; }
-.overflow-y-auto { overflow-y: auto; }
-.overflow-x-auto { overflow-x: auto; }

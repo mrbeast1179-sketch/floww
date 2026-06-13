@@ -3,6 +3,7 @@ import ReactDOM from "react-dom/client";
 import "@/index.css";
 import App from "@/App";
 import { ThemeProvider } from "@/context/ThemeContext";
+import { AuthProvider } from "@/context/AuthContext";
 
 class ErrorBoundary extends React.Component {
   constructor(props) {
@@ -34,7 +35,9 @@ root.render(
   <React.StrictMode>
     <ErrorBoundary>
       <ThemeProvider>
-        <App />
+        <AuthProvider>
+          <App />
+        </AuthProvider>
       </ThemeProvider>
     </ErrorBoundary>
   </React.StrictMode>

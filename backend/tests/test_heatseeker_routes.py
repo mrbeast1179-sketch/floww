@@ -156,6 +156,16 @@ def test_flip_zones_404_on_empty(client):
     assert r.status_code == 404
 
 
+def test_param_percents_never_422(client, patched_chain):
+    """Panels historically send percents (window_pct=5, min_gap_pct=1) where the
+    backend wants fractions. These must normalize + clamp, NEVER 422 (a 422
+    blanks the panel). Root fix for the recurring Skylit-tab errors.
+    """
+    assert client.get("/api/heatseeker/flip-zones?ticker=SPY&window_pct=5").status_code == 200
+    assert client.get("/api/heatseeker/flip-zones?ticker=SPY&window_pct=500").status_code == 200
+    assert client.get("/api/heatseeker/air-pockets?ticker=SPY&min_gap_pct=1").status_code == 200
+
+
 def test_node_lifecycle_route(client, patched_chain):
     """
     /node-lifecycle reads a 24h history via ``_fetch_history``. Mock it with

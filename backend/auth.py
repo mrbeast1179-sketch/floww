@@ -17,7 +17,7 @@ PROTECTED_METHODS = {"POST", "PUT", "DELETE", "PATCH"}
 # Routes that are always public (no auth needed)
 PUBLIC_PATHS = {
     "/health",
-    "/api/preferences",  # non-sensitive UI prefs (theme/ticker/refresh) — safe to mutate without API key
+    "/api/preferences",
     "/api/spot/",
     "/api/data/",
     "/api/chain/",
@@ -30,6 +30,13 @@ PUBLIC_PATHS = {
     "/api/alerts/check",
     "/api/memory/recall/",
     "/api/memory/summary/",
+    "/api/auth/",
+    "/api/ml/predict/",       # ML predictions — safe GET, no auth needed
+    "/api/ml/briefing/",      # ML briefing — safe GET, no auth needed
+    "/api/ml/models",         # Model listing — safe GET
+    "/api/ml/features/",      # Feature inspection — safe GET
+    "/api/ml/dashboard",       # Dashboard — safe GET
+    "/api/ml/drift/",         # Drift report — safe GET
     "/dashboard/_dash-update-component",
     "/dashboard/_dash-layout",
     "/dashboard/_dash-dependencies",
