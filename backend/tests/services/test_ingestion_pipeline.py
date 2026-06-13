@@ -142,7 +142,7 @@ class TestMockFeedGeneration:
     @pytest.mark.asyncio
     async def test_feed_generates_lob(self, mock_feed, collected_lob):
         """Mock feed should produce LOB snapshots."""
-        mock_feed.on_lob(lambda l: collected_lob.append(l))
+        mock_feed.on_lob(lambda lob: collected_lob.append(lob))
         await mock_feed._generate_lob()
         assert len(collected_lob) > 0
         lob = collected_lob[0]

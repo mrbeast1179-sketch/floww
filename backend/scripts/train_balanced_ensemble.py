@@ -62,7 +62,6 @@ def compute_features(ticker: str, period: str = "2y") -> pd.DataFrame:
     """Compute technical features from yfinance OHLCV + 3-class target."""
     # Import compute_features from train_real_data_ml
     # Reuse the existing feature computation
-    import importlib.util
     from scripts.train_real_data_ml import compute_features as _orig_compute
     return _orig_compute(ticker, period=period)
 

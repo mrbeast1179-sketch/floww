@@ -18,7 +18,6 @@ from typing import Any, Dict, List
 from scipy.stats import norm
 
 from bs_greeks import (
-
     bs_charm,
     bs_delta,
     bs_gamma,
