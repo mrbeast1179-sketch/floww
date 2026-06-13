@@ -111,7 +111,7 @@ Subject line: `<type>(<scope>): <one-line>`. Types: `feat`, `fix`, `docs`, `test
 | Frontend | React 18 · create-react-app · craco · Jest | `frontend/src/` → `npm start` |
 | Embedded UI | Dash | `backend/services/dash_ui.py` (frozen) — embedded in React at `/dashboard/` |
 | Streamer | Schwab WebSocket | `backend/services/schwab_streamer.py` |
-| Lint | ruff (F + E722) | `cd backend && .venv/bin/ruff check .` |
+| Lint | ruff (E, E722, F, W, I; ignore E501) | `cd backend && .venv/bin/ruff check .` |
 | Tests | pytest (asyncio auto mode) | `cd backend && .venv/bin/python3 -m pytest -q` |
 | Frontend tests | jest | `cd frontend && npx jest` |
 | CI | GitHub Actions | `.github/workflows/lint.yml` |
@@ -137,9 +137,10 @@ cd backend && .venv/bin/python3 -m pytest --collect-only -q 2>&1 | tail -3   # c
 cd backend && .venv/bin/python3 -m pytest -q --tb=no 2>&1 | tail -5          # pass count
 cd backend && .venv/bin/python3 -m pytest tests/services/ -k <kw> -v          # targeted
 
-# Lint
+# Lint (rules: E, E722, F, W, I — ignore E501)
 cd backend && .venv/bin/ruff check .
-cd backend && .venv/bin/ruff check --select E722 backend/   # bare excepts only
+cd backend && .venv/bin/ruff check --select E722 .          # bare excepts only
+cd backend && .venv/bin/ruff check --fix .                  # auto-fix safe issues
 
 # Origin verify (anti-skip gate)
 git fetch origin && git log origin/main --oneline -1 | grep '<commit subject>'
@@ -165,6 +166,25 @@ lsof -ti :8000 | xargs kill -9
   - `docs/ROUND10_LEAK_PREVENTION.md` — 3-pattern playbook
 - **Kanban:** `kanban/cards/*.md` (per-agent pulses), `kanban/board.yaml`
 - **Round 9 v2 launch pack:** `round9_followup_v2/` (10-agent prompts + preamble + launcher)
+
+---
+
+## Dual GEX scale convention (DO NOT "FIX" — intentional)
+
+Two GEX scales coexist by design. They share the name `gex_total` but differ by a factor of `spot`. **They are NOT interchangeable.**
+
+| Engine | Scale | Formula | Purpose |
+|---|---|---|---|
+| `services/gex_aggregator.py` | S² (dollar-GEX) | `sign * γ * OI * 100 * spot² * 0.01` | Display (Heatseeker, UI heatmaps) |
+| `services/gex_history.py` | S¹ (feature-GEX) | `sign * γ * OI * 100 * spot * 0.01` | ML features → frozen GBM models |
+
+**Relationship:** `display_net_gex == spot * feature_net_gex` — pinned by golden oracle tests in `tests/services/test_gex_aggregator_oracle.py`.
+
+**Model-locked constants in gex_history.py:** `_RISK_FREE = 0.045`, `_IV_FALLBACK = 0.20`. Changing these shifts every trained model's `gex_total` feature. Requires retrain. Lock tests exist.
+
+**If you need to unify:** that's a retraining migration (re-backfill gex_history collection + retrain all production GBM models). Out of scope for correctness audits.
+
+**Audit docs:** `docs/superpowers/specs/2026-06-13-gex-gamma-correctness-audit-*`
 
 ---
 
