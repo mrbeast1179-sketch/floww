@@ -408,7 +408,6 @@ from bs_greeks import (
 )
 
 
-
 # --- restored: calc_probability_distribution ---
 def calc_probability_distribution(spot: float, contracts: List[Dict[str, Any]],
                                    risk_free_rate: float = 0.05) -> List[Dict[str, Any]]:

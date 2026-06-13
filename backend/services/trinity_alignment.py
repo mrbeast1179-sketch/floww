@@ -121,7 +121,7 @@ class TrinityAlignmentIndex:
                     group.append((inst2, lvl2))
                     used.add(j)
             if len(group) >= 2:
-                levels = [l for _, l in group]
+                levels = [lev for _, lev in group]
                 mean_level = np.mean(levels)
                 spread = max(levels) - min(levels)
                 ref_spot = spot1 if spot1 > 0 else mean_level

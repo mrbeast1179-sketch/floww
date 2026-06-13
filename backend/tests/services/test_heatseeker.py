@@ -501,12 +501,13 @@ class TestVelocityMode:
 class TestTrinityConfluence:
     def test_full_alignment_score_100(self):
         """All three regimes / sides / trends agree → score 100, high_confluence."""
-        snap = lambda spot, gflip, regime, trend: {
-            "gex_regime": regime,
-            "spot": spot,
-            "gamma_flip": gflip,
-            "trend_direction": trend,
-        }
+        def snap(spot, gflip, regime, trend):
+            return {
+                "gex_regime": regime,
+                "spot": spot,
+                "gamma_flip": gflip,
+                "trend_direction": trend,
+            }
         spx = snap(5800.0, 5750.0, "positive", "up")
         spy = snap(580.0, 575.0, "positive", "up")
         qqq = snap(500.0, 490.0, "positive", "up")
@@ -523,12 +524,13 @@ class TestTrinityConfluence:
         SPY below its flip with negative regime + down trend.
         QQQ above its flip with neutral regime + flat trend.
         """
-        snap = lambda spot, gflip, regime, trend: {
-            "gex_regime": regime,
-            "spot": spot,
-            "gamma_flip": gflip,
-            "trend_direction": trend,
-        }
+        def snap(spot, gflip, regime, trend):
+            return {
+                "gex_regime": regime,
+                "spot": spot,
+                "gamma_flip": gflip,
+                "trend_direction": trend,
+            }
         spx = snap(5800.0, 5750.0, "positive", "up")
         spy = snap(560.0, 580.0, "negative", "down")
         qqq = snap(500.0, 490.0, "neutral", "flat")
@@ -545,12 +547,13 @@ class TestTrinityConfluence:
         Regimes all positive (+33). Sides all above flip (+33). Trends mixed
         (no +34). Total = 66 → 'high_confluence' (boundary at 66).
         """
-        snap = lambda spot, gflip, regime, trend: {
-            "gex_regime": regime,
-            "spot": spot,
-            "gamma_flip": gflip,
-            "trend_direction": trend,
-        }
+        def snap(spot, gflip, regime, trend):
+            return {
+                "gex_regime": regime,
+                "spot": spot,
+                "gamma_flip": gflip,
+                "trend_direction": trend,
+            }
         spx = snap(5800.0, 5750.0, "positive", "up")
         spy = snap(580.0, 575.0, "positive", "up")
         qqq = snap(500.0, 490.0, "positive", "down")  # trend differs

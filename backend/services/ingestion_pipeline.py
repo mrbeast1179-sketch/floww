@@ -269,15 +269,15 @@ class IngestionPipeline:
     async def _insert_lob(self, lob_snapshots: list):
         """Bulk INSERT LOB snapshots into DuckDB."""
         rows = []
-        for l in lob_snapshots:
+        for lob in lob_snapshots:
             rows.append((
-                l.get("timestamp", datetime.now(timezone.utc).isoformat()),
-                l.get("symbol", ""),
-                l.get("bid_size", 0),
-                l.get("ask_size", 0),
-                l.get("bid_price", 0.0),
-                l.get("ask_price", 0.0),
-                l.get("level", 0),
+                lob.get("timestamp", datetime.now(timezone.utc).isoformat()),
+                lob.get("symbol", ""),
+                lob.get("bid_size", 0),
+                lob.get("ask_size", 0),
+                lob.get("bid_price", 0.0),
+                lob.get("ask_price", 0.0),
+                lob.get("level", 0),
             ))
         await asyncio.to_thread(
             lambda: self.db.conn.executemany(

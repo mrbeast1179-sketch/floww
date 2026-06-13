@@ -68,23 +68,23 @@ class TestRegimeFilter:
         # Prices rising — current > SMA
         prices = list(np.cumprod([1.0 + 0.003] * 30)) * 100
         rf = RegimeFilter(sma_period=21, enabled=True)
-        assert rf.allow_bullish(prices) == True
+        assert rf.allow_bullish(prices)
 
     def test_block_below_sma(self):
         # Prices falling — current < SMA
         rf = RegimeFilter(sma_period=21, enabled=True)
         prices = [100.0 - i * 0.5 for i in range(30)]
-        assert rf.allow_bullish(prices) == False
+        assert not rf.allow_bullish(prices)
 
     def test_allow_bearish_below_sma(self):
         rf = RegimeFilter(sma_period=21, enabled=True)
         prices = [100.0 - i * 0.5 for i in range(30)]
-        assert rf.allow_bearish(prices) == True
+        assert rf.allow_bearish(prices)
 
     def test_block_bearish_above_sma(self):
         rf = RegimeFilter(sma_period=21, enabled=True)
         prices = list(np.cumprod([1.0 + 0.003] * 30)) * 100
-        assert rf.allow_bearish(prices) == False
+        assert not rf.allow_bearish(prices)
 
     def test_disabled_filter_allows_all(self):
         rf = RegimeFilter(sma_period=21, enabled=False)

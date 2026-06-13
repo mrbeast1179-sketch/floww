@@ -56,7 +56,7 @@ PROJECT_REPOS = {
 def generate_multi_repo_status() -> str:
     """Generate multi-repo status markdown."""
     cards = load_cards()
-    _status = get_cross_repo_status(cards)
+    status = get_cross_repo_status(cards)
 
     lines = [
         "# Multi-Repo Status",

@@ -279,7 +279,7 @@ class FlowAnomalyDetector:
             _zscore = 0.0
 
         # Regime-aware threshold
-        _regime_result = self._regime_threshold.update(error)
+        regime_result = self._regime_threshold.update(error)
         self._current_regime = _regime_result["regime"]
 
         return {
