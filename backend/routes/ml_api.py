@@ -139,7 +139,7 @@ async def batch_predict(
             results.append({
                 "ticker": result.ticker,
                 "prediction": result.prediction,
-                "prediction_label": "bullish" if result.prediction == 1 else "bearish",
+                "prediction_label": {0: "bearish", 1: "neutral", 2: "bullish"}.get(result.prediction, "unknown"),
                 "confidence": round(result.confidence, 4),
                 "data_age_sec": round(result.data_age_sec, 1),
             })
@@ -468,11 +468,13 @@ async def ml_briefing(ticker: str) -> Dict[str, Any]:
     try:
         pred = await inference_engine.predict(ticker)
         result["prediction"] = pred.prediction
-        result["prediction_label"] = "bullish" if pred.prediction == 1 else "bearish"
+        _label_map = {0: "bearish", 1: "neutral", 2: "bullish"}
+        result["prediction_label"] = _label_map.get(pred.prediction, "unknown")
         result["confidence"] = round(pred.confidence, 4)
         result["probabilities"] = {
-            "bearish": round(pred.probabilities[0], 4) if len(pred.probabilities) > 0 else 0.5,
-            "bullish": round(pred.probabilities[1], 4) if len(pred.probabilities) > 1 else 0.5,
+            "down": round(pred.probabilities[0], 4) if len(pred.probabilities) > 0 else 0.33,
+            "hold": round(pred.probabilities[1], 4) if len(pred.probabilities) > 1 else 0.34,
+            "up": round(pred.probabilities[2], 4) if len(pred.probabilities) > 2 else 0.33,
         }
         result["features_used"] = len(pred.features_used)
         result["feature_values"] = {k: round(v, 6) for k, v in pred.feature_values.items()}

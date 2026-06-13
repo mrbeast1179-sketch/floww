@@ -9,7 +9,7 @@ import { useHeatseeker } from "../../hooks/useHeatseeker";
  * Renders each row with a range-bar visualisation positioning the pocket
  * within the global low→high envelope.
  */
-export default function AirPocketsPanel({ ticker = "SPY", minGapPct = 1 }) {
+export default function AirPocketsPanel({ ticker = "SPY", minGapPct = 0.02 }) {
   const { data, loading, error } = useHeatseeker("air-pockets", {
     ticker,
     min_gap_pct: minGapPct,
@@ -52,7 +52,7 @@ export default function AirPocketsPanel({ ticker = "SPY", minGapPct = 1 }) {
                     {fmt(p.low, 0)} – {fmt(p.high, 0)}
                   </span>
                   <span className="text-amber-300">
-                    {(p.span_pct ?? 0).toFixed(2)}%
+                    {((p.span_pct ?? 0) * 100).toFixed(2)}%
                   </span>
                 </div>
                 <div className="relative h-1.5 bg-slate-800/60 rounded mt-1 overflow-hidden">

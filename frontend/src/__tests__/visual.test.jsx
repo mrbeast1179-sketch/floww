@@ -1,21 +1,30 @@
 /**
  * Round 8 Agent J — Visual Smoke Test
- * Tests that App renders without crashing and nav-tabs are present.
+ * Tests that App renders without crashing with the new AppShell rail.
+ *
+ * Updated for Foundation lane: nav-tabs removed (rail owns navigation).
  */
 import { render } from "@testing-library/react";
-import App from "../App";
+import axios from "axios";
 
-// ── Mock axios (must be before App import) ──────────────────────────
-jest.mock("axios", () => ({
-  get: jest.fn(() => Promise.resolve({ data: [] })),
-  post: jest.fn(() => Promise.resolve({ data: {} })),
-  put: jest.fn(() => Promise.resolve({ data: {} })),
-  delete: jest.fn(() => Promise.resolve({ data: {} })),
-  patch: jest.fn(() => Promise.resolve({ data: {} })),
-  create: jest.fn(function () { return jest.mocked(this); }),
-  interceptors: { request: { use: jest.fn() }, response: { use: jest.fn() } },
-  defaults: { headers: { common: {} } },
-}));
+// ── Mock axios (must be configured before any component imports it) ──
+jest.mock("axios", () => {
+  const mockAxios = {
+    get: jest.fn(() => Promise.resolve({ data: [] })),
+    post: jest.fn(() => Promise.resolve({ data: {} })),
+    put: jest.fn(() => Promise.resolve({ data: {} })),
+    delete: jest.fn(() => Promise.resolve({ data: {} })),
+    patch: jest.fn(() => Promise.resolve({ data: {} })),
+    create: jest.fn(() => mockAxios),
+    interceptors: { request: { use: jest.fn() }, response: { use: jest.fn() } },
+    defaults: { headers: { common: {} } },
+  };
+  return { __esModule: true, default: mockAxios };
+});
+
+// ── Mock shell components (new Foundation lane) ─────────────────────
+jest.mock("../shell/AppShell", () => ({ __esModule: true, default: ({ children }) => children }));
+jest.mock("../shell/Sidebar", () => ({ __esModule: true, default: () => null }));
 
 // ── Mock all child components to avoid cascade failures ─────────────
 jest.mock("../components/GridHeatmap", () => ({ __esModule: true, default: () => null }));
@@ -63,27 +72,20 @@ jest.mock("../context/ThemeContext", () => ({
 }));
 jest.mock("../utils/dataDecimator", () => ({ autoDecimate: (data) => data }));
 
+// ── Delayed import — must come after all mocks ──────────────────────
+import App from "../App";
+
 // ── Tests ───────────────────────────────────────────────────────────
 describe("Visual Smoke Test — Tab Render", () => {
   test("renders App default (trinity tab) without crash", () => {
     const { container } = render(<App />);
-    expect(container.querySelector(".nav-tabs")).toBeInTheDocument();
+    expect(container.firstChild).toBeTruthy();
   });
 
-  test("renders nav-tabs with 6 tab buttons", () => {
+  test("App renders with AppShell wrapper (rail owns nav now)", () => {
     const { container } = render(<App />);
-    const tabs = container.querySelectorAll(".nav-tabs .btn");
-    expect(tabs.length).toBeGreaterThanOrEqual(6);
+    expect(container.querySelector(".App")).toBeTruthy();
   });
-
-  test.each(["trinity", "heatseeker", "skylit", "portfolio", "journal", "swarmspx"])(
-    "nav-tabs contains %s button", (tab) => {
-      const { container } = render(<App />);
-      const tabButtons = Array.from(container.querySelectorAll(".nav-tabs .btn"));
-      const found = tabButtons.some((btn) => btn.textContent.toLowerCase() === tab);
-      expect(found).toBe(true);
-    }
-  );
 
   test("App renders root element", () => {
     const { container } = render(<App />);
