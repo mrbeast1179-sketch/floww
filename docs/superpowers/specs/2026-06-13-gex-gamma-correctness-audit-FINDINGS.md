@@ -101,9 +101,9 @@ production GBM models — deferred and documented.
 2. **Three sources of "GEX"** coexist (numba aggregator, inline timeframe agg,
    gflows_greeks DuckDB) with no test proving they agree.
 3. **Flat iv=0.20** in the feature path ignores the vol surface — retrain-coupled.
-4. **`numba_greeks.py::bs_charm_vec`** does not accept `r` for d1/d2 when computing
-   put charm's `-q*e^{-qT}*(1-N(d1))` term — wait, this was fixed (r is now passed).
-   Scratch this.
+4. **`numba_greeks.py::bs_charm_vec`** — the `r` parameter issue was fixed in this
+   audit (commit f1c71ba), but the function still doesn't expose `kind` as a named
+   parameter (it's positional `0`/`1`), making the API fragile for callers.
 
 ## Evidence
 
