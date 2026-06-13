@@ -409,8 +409,6 @@ def run_walk_forward_cv(
         if test_end <= train_end:
             continue
 
-        train_snap = snapshots[:train_end]
-        train_bars = bars[:train_end]
         test_snap = snapshots[train_end:test_end]
         test_bars = bars[train_end:test_end]
 
