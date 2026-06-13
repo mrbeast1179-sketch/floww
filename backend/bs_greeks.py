@@ -11,8 +11,6 @@ from scipy.stats import norm
 
 log = logging.getLogger(__name__)
 
-RISK_FREE_RATE = 0.05
-
 
 def _mask_zero(exc: Exception) -> float:
     """Return 0.0 for an unexpected numerical error, but log it so the silent

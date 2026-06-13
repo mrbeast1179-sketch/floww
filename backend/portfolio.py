@@ -18,7 +18,7 @@ from typing import Any, Dict, List
 from scipy.stats import norm
 
 from bs_greeks import (
-    RISK_FREE_RATE,
+
     bs_charm,
     bs_delta,
     bs_gamma,
@@ -64,7 +64,7 @@ class Position:
         K = self.strike
         T = self.T
         sigma = self.entry_iv
-        r = RISK_FREE_RATE
+        r = 0.05
         q = 0.0  # dividend yield
 
         if T <= 0 or sigma <= 0 or S <= 0 or K <= 0:
@@ -107,7 +107,7 @@ class Position:
         S = spot
         K = self.strike
         sigma = iv
-        r = RISK_FREE_RATE
+        r = 0.05
         q = 0.0
 
         gamma = bs_gamma(S, K, T, sigma, q)

@@ -399,9 +399,6 @@ def compute_gex_grid(spot: float, contracts: List[Dict[str, Any]], ticker: str =
     }
 # Import from shared module to avoid circular imports with portfolio.py
 from bs_greeks import (
-    RISK_FREE_RATE as BS_RISK_FREE_RATE,
-)
-from bs_greeks import (
     bs_charm,
     bs_gamma,
     bs_vanna,
@@ -410,12 +407,11 @@ from bs_greeks import (
     bs_zomma,
 )
 
-RISK_FREE_RATE = BS_RISK_FREE_RATE
 
 
 # --- restored: calc_probability_distribution ---
 def calc_probability_distribution(spot: float, contracts: List[Dict[str, Any]],
-                                   risk_free_rate: float = RISK_FREE_RATE) -> List[Dict[str, Any]]:
+                                   risk_free_rate: float = 0.05) -> List[Dict[str, Any]]:
     """Risk-neutral probability distribution from option prices.
     Returns list of {strike, prob_above, prob_below, delta} per strike."""
     if spot <= 0 or not contracts:
@@ -901,11 +897,7 @@ def compute_gex_by_strike(spot: float, contracts: List[Dict[str, Any]], ticker: 
     return out
 
 
-from bs_greeks import (
-    RISK_FREE_RATE as BS_RISK_FREE_RATE,
-)
 
-RISK_FREE_RATE = BS_RISK_FREE_RATE
 
 
 # ----------------------------- Implied Move & Probability (from EzOptions) ------
