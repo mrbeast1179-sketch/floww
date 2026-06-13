@@ -185,8 +185,7 @@ class DataFallbackHandler:
                 if data is not None:
                     status.record_update(data)
                     status.latency_ms = latency_ms
-                    successful_source = source
-
+                
                     # Transition logic based on which source succeeded
                     if source == DataSource.SCHWAB:
                         if self._state != FallbackState.PRIMARY:
