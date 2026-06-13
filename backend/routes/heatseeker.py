@@ -76,7 +76,7 @@ async def _fetch_chain(ticker: str, expiries: int) -> Dict[str, Any]:
     """
     # Local import so the routes module doesn't trigger heavy server.py
     # initialization at import time.
-    from server import fetch_spot_and_chains_merged, _sanitize  # noqa: F401
+    from server import _sanitize, fetch_spot_and_chains_merged  # noqa: F401
     t = ticker.strip().upper()
     if t == "SPX":
         t = "^SPX"
@@ -96,8 +96,9 @@ async def _fetch_history(ticker: str, lookback_mins: int = 1440) -> List[Dict[st
     signature. Clamped to [1, 10080] (7d max) to prevent caller-driven DoS.
     """
     try:
-        from server import db
         from datetime import datetime, timedelta, timezone
+
+        from server import db
 
         lookback_mins = max(1, min(int(lookback_mins or 1440), 7 * 24 * 60))
         cutoff = datetime.now(timezone.utc) - timedelta(minutes=lookback_mins)
@@ -236,8 +237,9 @@ async def _fetch_king_node_history(ticker: str) -> List[Dict[str, Any]]:
     well-formed payload.
     """
     try:
-        from server import db
         from datetime import datetime, timedelta, timezone
+
+        from server import db
 
         cutoff = datetime.now(timezone.utc) - timedelta(minutes=30)
         cursor = db.snapshots.find(
@@ -314,8 +316,9 @@ async def _trinity_snapshot(ticker: str, expiries: int) -> Dict[str, Any]:
         # trend_direction: compare current spot to spot 30 minutes ago.
         trend: str = "missing"
         try:
-            from server import db
             from datetime import datetime, timedelta, timezone
+
+            from server import db
 
             cutoff = datetime.now(timezone.utc) - timedelta(minutes=30)
             doc = await db.snapshots.find_one(
@@ -475,9 +478,8 @@ async def rolling_floors_ceilings_route(
 ):
     """Rolling floors/ceilings tracker — trend formation signals."""
     try:
-        from server import _sanitize
+        from server import _sanitize, fetch_spot_and_chains_merged
         from services.heatseeker import calc_rolling_floors_ceilings
-        from server import fetch_spot_and_chains_merged
         t = ticker.strip().upper()
         # Fetch daily snapshots for the lookback period
         raw = await fetch_spot_and_chains_merged(t, expiries)

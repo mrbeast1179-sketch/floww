@@ -48,7 +48,7 @@ from bs_greeks import (  # noqa: E402
     bs_gamma,
     bs_vanna,
 )
-from routes.greeks import _query_greeks, TABLE_NAME  # noqa: E402
+from routes.greeks import TABLE_NAME, _query_greeks  # noqa: E402
 
 SPOT = 100.0
 R = 0.05

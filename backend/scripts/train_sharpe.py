@@ -1,15 +1,18 @@
 #!/usr/bin/env python3
 """Train models optimized for directional Sharpe, not accuracy.
 Uses custom Sharpe-based selection and more features."""
-import sys, json, time, numpy as np, pandas as pd, yfinance as yf
+import sys
+import time
 from pathlib import Path
-from sklearn.ensemble import RandomForestClassifier, GradientBoostingClassifier
+
+import numpy as np
+from sklearn.ensemble import GradientBoostingClassifier, RandomForestClassifier
 from sklearn.linear_model import LogisticRegression
-from sklearn.preprocessing import StandardScaler
 from sklearn.metrics import accuracy_score
+from sklearn.preprocessing import StandardScaler
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from scripts.train_real_data_ml import compute_features, FEATURE_NAMES, select_features
+from scripts.train_real_data_ml import FEATURE_NAMES, compute_features, select_features
 
 MODEL_DIR = Path('models')
 UP_THRESHOLD = 0.003

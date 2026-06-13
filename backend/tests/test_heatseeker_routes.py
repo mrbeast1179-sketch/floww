@@ -32,7 +32,6 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from server import app  # noqa: E402
 
-
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------
@@ -349,8 +348,8 @@ def test_velocity_mode_reads_writer_field():
     import inspect
     import re
 
-    import server
     import routes.heatseeker as hr
+    import server
 
     write_src = inspect.getsource(server.save_snapshot)
     read_src = inspect.getsource(hr._fetch_king_node_history)

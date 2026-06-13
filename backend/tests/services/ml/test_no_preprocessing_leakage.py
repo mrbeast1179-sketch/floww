@@ -25,8 +25,9 @@ class TestNoPreprocessingLeakage:
 
     def test_walk_forward_cv_uses_split_data_only(self):
         """walk_forward_cv receives already-split data; verify it doesn't re-merge."""
-        from scripts.train_real_data_ml import walk_forward_cv
         from sklearn.ensemble import RandomForestClassifier
+
+        from scripts.train_real_data_ml import walk_forward_cv
 
         # Create synthetic data
         np.random.seed(42)
@@ -49,8 +50,9 @@ class TestNoPreprocessingLeakage:
 
     def test_gex_walk_forward_cv_no_sharpe(self):
         """GEX walk_forward_cv must not return fake Sharpe."""
-        from scripts.train_gex_models import walk_forward_cv
         from sklearn.ensemble import RandomForestClassifier
+
+        from scripts.train_gex_models import walk_forward_cv
 
         np.random.seed(42)
         X = np.random.randn(100, 5)

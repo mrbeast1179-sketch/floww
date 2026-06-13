@@ -656,14 +656,18 @@ def train_walk_forward(
     and evaluates out-of-sample performance.
     """
     from sklearn.ensemble import GradientBoostingClassifier
-    from sklearn.preprocessing import StandardScaler
     from sklearn.metrics import accuracy_score, precision_score, recall_score
+    from sklearn.preprocessing import StandardScaler
+
     from services.ml.gate import (
-        compute_trading_sharpe, evaluate_ship_verdict,
-        DEFAULT_MAX_SHARPE, DEFAULT_REQUIRED_BASELINES,
+        DEFAULT_MAX_SHARPE,
+        DEFAULT_REQUIRED_BASELINES,
+        compute_trading_sharpe,
+        evaluate_ship_verdict,
     )
     from services.ml.quality import (
-        assert_class_balance, assert_prediction_distribution,
+        assert_class_balance,
+        assert_prediction_distribution,
     )
 
     n = len(X)
