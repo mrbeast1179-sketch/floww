@@ -159,8 +159,6 @@ class DataFallbackHandler:
         # Determine which source to try first based on state
         source_order = self._get_source_order()
 
-        successful_source = None
-
         for source in source_order:
             if source == DataSource.CACHE:
                 # Try cache last

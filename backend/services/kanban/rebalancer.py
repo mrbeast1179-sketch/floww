@@ -232,3 +232,13 @@ def format_rebalance_proposal(recommendations: list[dict], bottleneck: dict) -> 
         f"**Recommendations:** {len(recommendations)}",
         "",
     ]
+
+    for i, rec in enumerate(recommendations, 1):
+        lines.append(
+            f"{i}. **{rec['card_title']}** — {rec['from_agent']} → {rec['to_agent']} "
+            f"(conf: {rec['confidence']})"
+        )
+        lines.append(f"   {rec.get('reasoning', '')}")
+        lines.append("")
+
+    return "\n".join(lines)

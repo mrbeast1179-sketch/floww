@@ -110,7 +110,7 @@ if __name__ == "__main__":
 
 def get_cross_repo_status(cards: list[dict]) -> dict:
     """Get cross-repo status for all cards."""
-    status = {
+    return {
         "timestamp": datetime.now(timezone.utc).isoformat(),
         "repos": {},
         "cross_repo_cards": [],

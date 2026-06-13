@@ -204,8 +204,6 @@ class HawkesProcess:
         if mu <= 0 or alpha < 0 or beta <= 0:
             return 1e15
 
-        T = event_times[-1] - event_times[0] if len(event_times) > 1 else 1.0
-
         # Compute log(lambda(t_i)) for each event
         log_lambdas = np.empty(len(event_times), dtype=np.float64)
         for i, ti in enumerate(event_times):
