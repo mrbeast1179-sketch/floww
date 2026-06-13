@@ -323,8 +323,6 @@ def evaluate_model(
 
     X_scaled = scaler.transform(X_test)
     y_pred = model.predict(X_scaled)
-    y_proba = model.predict_proba(X_scaled)[:, 1] if hasattr(model, "predict_proba") else y_pred.astype(float)
-
     metrics = {
         "accuracy": float(accuracy_score(y_test, y_pred)),
         "f1": float(f1_score(y_test, y_pred, zero_division=0)),
@@ -457,8 +455,6 @@ async def train_one_ticker(
         return {"status": "insufficient_data", "ticker": ticker, "message": msg}
 
     X, y, feature_names = prepare_feature_matrix(df)
-    dates = df["date"].tolist() if "date" in df.columns else [str(i) for i in range(len(df))]
-
     log.info(f"Feature matrix: {X.shape[0]} samples, {X.shape[1]} features")
     log.info(f"Target balance: {np.mean(y):.3f} positive rate")
 
@@ -473,7 +469,6 @@ async def train_one_ticker(
 
     # 3. Train each model type
     all_results: Dict[str, Any] = {}
-    best_model = None
     best_sharpe = -np.inf
     best_model_type = None
 

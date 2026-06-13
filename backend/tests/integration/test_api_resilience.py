@@ -378,7 +378,7 @@ async def test_recovery_when_api_comes_back(handler):
     handler.configure_source(DataSource.SCHWAB, make_failing_fetcher())
     handler.configure_source(DataSource.YFINANCE, make_failing_fetcher())
 
-    data = await handler.get_data("SPY")
+    _data = await handler.get_data("SPY")
     assert handler.is_safe_mode
 
     # Fix Schwab

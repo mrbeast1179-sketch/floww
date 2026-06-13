@@ -93,7 +93,7 @@ class TestATEEstimator:
         from services.causal.ate_estimator import ATEEstimator
         np.random.seed(42)
         n = 1000
-        X = np.random.randn(n, 2)
+        _X = np.random.randn(n, 2)
         treatment = (np.random.random(n) < 0.5).astype(float)
         outcome = 2.0 * treatment + np.random.randn(n) * 0.5
         propensity = np.full(n, 0.5)

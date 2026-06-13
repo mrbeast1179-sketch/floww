@@ -69,11 +69,9 @@ def extract_python_chunks(file_path: Path) -> list[CodeChunk]:
         # Module docstring
         if lines and (lines[0].strip().startswith('"""') or lines[0].strip().startswith("'''")):
             docstring_lines = []
-            in_doc = True
             for line in lines[:20]:  # First 20 lines max
                 docstring_lines.append(line)
                 if line.strip().endswith('"""') or line.strip().endswith("'''"):
-                    in_doc = False
                     break
             if docstring_lines:
                 chunks.append(CodeChunk(
@@ -120,8 +118,6 @@ def extract_js_chunks(file_path: Path) -> list[CodeChunk]:
         # Match function/class declarations
         func_pattern = re.compile(r'^(?:export\s+)?(?:async\s+)?function\s+(\w+)\s*\(')
         class_pattern = re.compile(r'^(?:export\s+)?class\s+(\w+)\s*(?:extends\s+\w+)?\s*\{')
-        method_pattern = re.compile(r'^\s+(?:async\s+)?(\w+)\s*\([^)]*\)\s*\{')
-
         for i, line in enumerate(lines, 1):
             for pattern, chunk_type in [(func_pattern, "function"), (class_pattern, "class")]:
                 m = pattern.match(line)

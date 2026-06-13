@@ -182,8 +182,6 @@ def train_logistic(X_train, y_train, X_test, y_test):
 
     scaler = StandardScaler()
     X_train_s = scaler.fit_transform(X_train)
-    X_test_s = scaler.transform(X_test)
-
     model = LogisticRegression(
         C=1.0,
         max_iter=1000,

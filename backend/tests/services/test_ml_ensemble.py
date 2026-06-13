@@ -90,8 +90,8 @@ class TestToxicityEnsemble:
         for _ in range(15):
             toxic_result = ensemble2.update(0.9, 0.8)
 
-        normal_p = normal_result["ensemble_probabilities"]["p_toxic_15min"]
-        toxic_p = toxic_result["ensemble_probabilities"]["p_toxic_15min"]
+        _normal_p = normal_result["ensemble_probabilities"]["p_toxic_15min"]
+        _toxic_p = toxic_result["ensemble_probabilities"]["p_toxic_15min"]
         # With uncalibrated ensemble, both may be similar, but toxic should not be lower
         # (This is a weak test — real validation needs calibration)
 

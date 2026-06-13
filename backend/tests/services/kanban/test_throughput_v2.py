@@ -136,7 +136,7 @@ Test
 """
         card_file = tmp_path / "test.md"
         card_file.write_text(card_content)
-        card = {"_file": str(card_file)}
+        _card = {"_file": str(card_file)}
         # parse_card is tested indirectly
         from scripts.predict_throughput import parse_card
         parsed = parse_card(card_file)

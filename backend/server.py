@@ -2989,7 +2989,7 @@ async def websocket_endpoint(websocket: WebSocket, topic: str):
     try:
         while True:
             # Keep connection alive, handle client messages
-            data = await websocket.receive_text()
+            _data = await websocket.receive_text()
             # Echo back for now (could handle subscription changes)
     except WebSocketDisconnect:
         ws_manager.disconnect(websocket)

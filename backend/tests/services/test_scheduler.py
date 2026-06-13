@@ -66,7 +66,7 @@ class TestSchedulerExecution:
         """Scheduler completes at least one execution."""
         with patch.object(scheduler, "_run_fetchers", new_callable=AsyncMock) as mock_run:
             # Run scheduler for 1.5 seconds (should get 1 execution at interval=1)
-            task = asyncio.create_task(scheduler.start())
+            _task = asyncio.create_task(scheduler.start())
             await asyncio.sleep(1.3)
             scheduler.stop()
             await asyncio.sleep(0.3)  # Let it clean up
@@ -78,7 +78,7 @@ class TestSchedulerExecution:
     async def test_execution_count_increments(self, scheduler):
         """Execution count increments after each run."""
         with patch.object(scheduler, "_run_fetchers", new_callable=AsyncMock):
-            task = asyncio.create_task(scheduler.start())
+            _task = asyncio.create_task(scheduler.start())
             await asyncio.sleep(2.5)
             scheduler.stop()
             await asyncio.sleep(0.3)
@@ -89,7 +89,7 @@ class TestSchedulerExecution:
     async def test_stop_sets_running_false(self, scheduler):
         """Stop sets is_running to False."""
         with patch.object(scheduler, "_run_fetchers", new_callable=AsyncMock):
-            task = asyncio.create_task(scheduler.start())
+            _task = asyncio.create_task(scheduler.start())
             await asyncio.sleep(0.5)
             scheduler.stop()
             await asyncio.sleep(0.3)
@@ -113,7 +113,7 @@ class TestSchedulerNoOverlap:
             await asyncio.sleep(0.5)
 
         with patch.object(scheduler, "_run_fetchers", slow_fetcher):
-            task = asyncio.create_task(scheduler.start())
+            _task = asyncio.create_task(scheduler.start())
             await asyncio.sleep(1.5)
             scheduler.stop()
             await asyncio.sleep(0.3)
@@ -130,7 +130,7 @@ class TestSchedulerFetchers:
     async def test_options_fetcher_called(self, scheduler):
         """Options fetcher is called during execution."""
         with patch.object(scheduler, "_fetch_options", new_callable=AsyncMock) as mock_opt,              patch.object(scheduler, "_fetch_underlying", new_callable=AsyncMock):
-            task = asyncio.create_task(scheduler.start())
+            _task = asyncio.create_task(scheduler.start())
             await asyncio.sleep(1.3)
             scheduler.stop()
             await asyncio.sleep(0.3)
@@ -141,7 +141,7 @@ class TestSchedulerFetchers:
     async def test_underlying_fetcher_called(self, scheduler):
         """Underlying fetcher is called during execution."""
         with patch.object(scheduler, "_fetch_options", new_callable=AsyncMock),              patch.object(scheduler, "_fetch_underlying", new_callable=AsyncMock) as mock_und:
-            task = asyncio.create_task(scheduler.start())
+            _task = asyncio.create_task(scheduler.start())
             await asyncio.sleep(1.3)
             scheduler.stop()
             await asyncio.sleep(0.3)

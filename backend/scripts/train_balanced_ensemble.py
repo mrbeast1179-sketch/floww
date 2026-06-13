@@ -63,9 +63,6 @@ def compute_features(ticker: str, period: str = "2y") -> pd.DataFrame:
     # Import compute_features from train_real_data_ml
     # Reuse the existing feature computation
     import importlib.util
-    spec = importlib.util.spec_from_file_location("train_real_data_ml", SCRIPT_DIR / "train_real_data_ml.py")
-    mod = importlib.util.load_from_spec = spec
-    # Actually, let's just import it properly
     from scripts.train_real_data_ml import compute_features as _orig_compute
     return _orig_compute(ticker, period=period)
 

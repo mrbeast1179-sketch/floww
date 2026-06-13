@@ -269,8 +269,8 @@ class TestInferenceEngine:
 
         # Temporarily register the test model
         ticker = "TEST"
-        manifest_path = trained_model_dir / f"{ticker}_gbm_production_manifest.json"
-        scaler_path = trained_model_dir / f"{ticker}_gbm_production_scaler.joblib"
+        _manifest_path = trained_model_dir / f"{ticker}_gbm_production_manifest.json"
+        _scaler_path = trained_model_dir / f"{ticker}_gbm_production_scaler.joblib"
     @pytest.mark.asyncio
     async def test_predict_with_trained_model(self, trained_model_dir):
         """Prediction works with a real trained model artifact (dict format)."""
