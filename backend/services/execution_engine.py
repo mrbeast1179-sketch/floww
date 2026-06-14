@@ -79,7 +79,7 @@ class MarketState:
     spread: float = 0.0
     kyle_lambda: float = 0.0
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         if self.spread == 0.0 and self.ask > 0:
             self.spread = self.ask - self.bid
 
@@ -240,10 +240,10 @@ class KyleLambdaEstimator:
 
     def __init__(self, window: int = 50):
         self.window = window
-        self._price_changes: list = []
-        self._signed_volumes: list = []
+        self._price_changes: list[float] = []
+        self._signed_volumes: list[float] = []
 
-    def update(self, price_change: float, signed_volume: float):
+    def update(self, price_change: float, signed_volume: float) -> None:
         """Add an observation."""
         self._price_changes.append(price_change)
         self._signed_volumes.append(signed_volume)
@@ -296,7 +296,7 @@ class HasbrouckInfoShare:
         self.n_venues = n_venues
         self._returns: list[list[float]] = [[] for _ in range(n_venues)]
 
-    def update(self, returns: list[float]):
+    def update(self, returns: list[float]) -> None:
         """Add a vector of returns from each venue."""
         for i, r in enumerate(returns):
             if i < self.n_venues:
