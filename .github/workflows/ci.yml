@@ -72,7 +72,7 @@ jobs:
         working-directory: ./backend
         run: |
           source .venv/bin/activate
-          bandit -r . --severity-level medium -q
+          bandit -r . --severity-level medium -q --exclude ./.venv,./tests
 
       - name: Run tests with coverage
         working-directory: ./backend
