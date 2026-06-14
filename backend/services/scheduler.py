@@ -9,10 +9,10 @@ Ensures no overlapping executions with asyncio lock.
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import logging
 import signal
-from datetime import datetime, timezone
-from typing import Optional
+from datetime import UTC, datetime
 
 from services.yfinance_fetcher import fetch_and_store, get_duckdb_conn
 from services.yoptions_fetcher import fetch_all_chains
@@ -35,7 +35,7 @@ class PollingScheduler:
         self._interval = interval
         self._lock = asyncio.Lock()
         self._running = False
-        self._task: Optional[asyncio.Task] = None
+        self._task: asyncio.Task | None = None
         self._execution_count = 0
         self._conn = get_duckdb_conn()
 
@@ -45,7 +45,7 @@ class PollingScheduler:
         logger.info(f"Scheduler started (interval={self._interval}s)")
         try:
             while self._running:
-                start_time = datetime.now(timezone.utc)
+                start_time = datetime.now(UTC)
                 logger.info(
                     f"Execution #{self._execution_count + 1} started at "
                     f"{start_time.isoformat()}"
@@ -58,7 +58,7 @@ class PollingScheduler:
                     async with self._lock:
                         await self._run_fetchers()
 
-                end_time = datetime.now(timezone.utc)
+                end_time = datetime.now(UTC)
                 duration = (end_time - start_time).total_seconds()
                 self._execution_count += 1
                 logger.info(
@@ -131,11 +131,8 @@ async def run_scheduler(interval: int = DEFAULT_INTERVAL):
 
     loop = asyncio.get_event_loop()
     for sig in (signal.SIGINT, signal.SIGTERM):
-        try:
+        with contextlib.suppress(NotImplementedError):  # Windows doesn't support add_signal_handler
             loop.add_signal_handler(sig, scheduler.stop)
-        except NotImplementedError:
-            # Windows doesn't support add_signal_handler
-            pass
 
     await scheduler.start()
 

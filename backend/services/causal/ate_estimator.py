@@ -15,7 +15,6 @@ Reference: Imbens, Rubin (2015) Causal Inference for Statistics.
 from __future__ import annotations
 
 import logging
-from typing import Optional, Tuple
 
 import numpy as np
 
@@ -26,7 +25,7 @@ class PropensityScoreEstimator:
     """Estimate propensity scores using logistic regression."""
 
     def __init__(self):
-        self._weights: Optional[np.ndarray] = None
+        self._weights: np.ndarray | None = None
         self._bias: float = 0.0
 
     def fit(self, X: np.ndarray, treatment: np.ndarray, max_iter: int = 1000):
@@ -150,7 +149,7 @@ class ATEEstimator:
         propensity: np.ndarray,
         n_bootstrap: int = 1000,
         ci: float = 0.95,
-    ) -> Tuple[float, float, float]:
+    ) -> tuple[float, float, float]:
         """Compute bootstrap confidence interval for ATE.
 
         Returns:

@@ -24,7 +24,7 @@ This addresses the key finding from the 2024 backtest:
 from __future__ import annotations
 
 import logging
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 import numpy as np
 
@@ -102,8 +102,8 @@ class RetailFlowSignal(Signal):
         self,
         entry_threshold: float = 30.0,
         exit_threshold: float = 10.0,
-        regime_filter: Optional[RegimeFilter] = None,
-        scorer: Optional[RetailFlowScore] = None,
+        regime_filter: RegimeFilter | None = None,
+        scorer: RetailFlowScore | None = None,
     ):
         self.entry_threshold = entry_threshold
         self.exit_threshold = exit_threshold
@@ -112,8 +112,8 @@ class RetailFlowSignal(Signal):
 
     def evaluate(
         self,
-        snapshot_history: List[Dict[str, Any]],
-        bar_history: List[Dict[str, Any]],
+        snapshot_history: list[dict[str, Any]],
+        bar_history: list[dict[str, Any]],
         position: Position,
     ) -> Action:
         """Evaluate the retail flow signal at the current bar.

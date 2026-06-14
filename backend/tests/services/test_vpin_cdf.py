@@ -121,7 +121,7 @@ class TestVpinCdfIntegration:
         """CDF updates every time a bucket closes."""
         eng = VpinEngine(bucket_size=100.0, window=10)
         assert eng.vpin_history_length == 0
-        for i in range(25):
+        for _i in range(25):
             eng.update(price_change=0.5, volume=20.0, sigma=0.1)
         assert eng.vpin_history_length > 0
 

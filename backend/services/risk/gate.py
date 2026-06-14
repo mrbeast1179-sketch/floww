@@ -15,8 +15,7 @@ import math
 import os
 import time
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
-from typing import Optional
+from datetime import UTC, datetime
 
 logger = logging.getLogger(__name__)
 
@@ -83,7 +82,7 @@ class PreTradeRiskGate:
         daily_loss_pct: float = DEFAULT_DAILY_LOSS_PCT,
         data_staleness_sec: float = DEFAULT_DATA_STALENESS_SEC,
         idempotency_window_sec: float = DEFAULT_IDEMPOTENCY_WINDOW_SEC,
-        kill_switch_path: Optional[str] = None,
+        kill_switch_path: str | None = None,
     ):
         self.kyle_lambda_threshold = kyle_lambda_threshold
         self.min_conviction = min_conviction
@@ -183,9 +182,7 @@ class PreTradeRiskGate:
         self._idempotency_cache.clear()
 
     def _kill_switch_file_exists(self) -> bool:
-        if self.kill_switch_path and os.path.exists(self.kill_switch_path):
-            return True
-        return False
+        return bool(self.kill_switch_path and os.path.exists(self.kill_switch_path))
 
     def _is_duplicate(self, signal_id: str) -> bool:
         now = time.monotonic()
@@ -267,7 +264,7 @@ class RiskGate:
             execute_trade(intent)
     """
 
-    def __init__(self, config: Optional[RiskConfig] = None):
+    def __init__(self, config: RiskConfig | None = None):
         self.config = config or RiskConfig()
         self._circuit_breaker_tripped = False
         self._circuit_breaker_reason = ""
@@ -283,7 +280,7 @@ class RiskGate:
         self._circuit_breaker_reason = ""
         logger.info("RiskGate: circuit breaker reset")
 
-    def before_trade(self, intent: TradeIntent, account: AccountState) -> "RiskResult":
+    def before_trade(self, intent: TradeIntent, account: AccountState) -> RiskResult:
         """Evaluate a trade intent against all risk rules."""
         if self._circuit_breaker_tripped:
             return RiskResult(
@@ -369,7 +366,7 @@ class RiskGate:
             "side": intent.side,
             "qty": intent.qty,
             "pnl": pnl,
-            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "timestamp": datetime.now(UTC).isoformat(),
         })
         if pnl < 0:
             logger.warning(f"RiskGate: loss trade {intent.ticker} PnL=${pnl:.2f}")

@@ -19,8 +19,8 @@ Based on research from:
 
 import logging
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional
+from datetime import UTC, datetime
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -32,12 +32,12 @@ class Alert:
     priority: str       # HIGH, MEDIUM, LOW
     ticker: str
     message: str
-    data: Dict[str, Any] = field(default_factory=dict)
+    data: dict[str, Any] = field(default_factory=dict)
     timestamp: str = ""
 
     def __post_init__(self):
         if not self.timestamp:
-            self.timestamp = datetime.now(timezone.utc).isoformat()
+            self.timestamp = datetime.now(UTC).isoformat()
 
     def to_dict(self) -> dict:
         return {
@@ -63,17 +63,17 @@ class GEXSnapshot:
     total_gex: float
     net_gex: float
     regime: str  # "POSITIVE" or "NEGATIVE"
-    gex_by_strike: Dict[float, float] = field(default_factory=dict)
+    gex_by_strike: dict[float, float] = field(default_factory=dict)
     # Per-strike contract volume for the current cycle.
     # Should be populated by the caller from the chain's `total_volume` field
     # (calls+puts per strike) so the volume-spike detector can fire on real
     # liquidity changes rather than GEX magnitude proxies.
-    volume_by_strike: Dict[float, int] = field(default_factory=dict)
+    volume_by_strike: dict[float, int] = field(default_factory=dict)
     timestamp: str = ""
 
     def __post_init__(self):
         if not self.timestamp:
-            self.timestamp = datetime.now(timezone.utc).isoformat()
+            self.timestamp = datetime.now(UTC).isoformat()
 
 
 class AlertEngine:
@@ -96,7 +96,7 @@ class AlertEngine:
     MOMENTUM_EXTREME_LOW = 20           # Score < 20 = extreme bearish
 
     def __init__(self):
-        self._snapshots: Dict[str, List[GEXSnapshot]] = {}
+        self._snapshots: dict[str, list[GEXSnapshot]] = {}
 
     def add_snapshot(self, snapshot: GEXSnapshot):
         """Store a new snapshot for comparison."""
@@ -109,17 +109,17 @@ class AlertEngine:
         if len(self._snapshots[ticker]) > 100:
             self._snapshots[ticker] = self._snapshots[ticker][-100:]
 
-    def get_latest(self, ticker: str) -> Optional[GEXSnapshot]:
+    def get_latest(self, ticker: str) -> GEXSnapshot | None:
         """Return the most recent snapshot for a ticker, or None."""
         snaps = self._snapshots.get(ticker)
         return snaps[-1] if snaps else None
 
-    def get_previous(self, ticker: str) -> Optional[GEXSnapshot]:
+    def get_previous(self, ticker: str) -> GEXSnapshot | None:
         """Return the second-most-recent snapshot for a ticker, or None."""
         snaps = self._snapshots.get(ticker)
         return snaps[-2] if snaps and len(snaps) >= 2 else None
 
-    def detect_alerts(self, ticker: str, momentum_score: int = 50) -> List[Alert]:
+    def detect_alerts(self, ticker: str, momentum_score: int = 50) -> list[Alert]:
         """
         Compare current vs previous snapshot and detect trading alerts.
         Returns alerts sorted by priority (HIGH first).
@@ -130,7 +130,7 @@ class AlertEngine:
         if not current:
             return []
 
-        alerts: List[Alert] = []
+        alerts: list[Alert] = []
         spot = current.spot_price
 
         # 1. GAMMA FLIP (HIGH) — regime changed sign
@@ -346,7 +346,7 @@ class AlertEngine:
 
     # -------- New Alert Types (from Claude Code review) --------
 
-    def _detect_charm_pinning(self, current: GEXSnapshot, previous: Optional[GEXSnapshot]) -> Optional[Alert]:
+    def _detect_charm_pinning(self, current: GEXSnapshot, previous: GEXSnapshot | None) -> Alert | None:
         """Charm-driven pinning (0DTE): |cumulative charm| above threshold, spot near max gamma strike."""
         if not current.gex_by_strike:
             return None
@@ -370,7 +370,7 @@ class AlertEngine:
             )
         return None
 
-    def _detect_vanna_regime_change(self, current: GEXSnapshot, previous: Optional[GEXSnapshot]) -> Optional[Alert]:
+    def _detect_vanna_regime_change(self, current: GEXSnapshot, previous: GEXSnapshot | None) -> Alert | None:
         """Vanna regime change: sign flip in net VEX above a floor."""
         if not previous:
             return None
@@ -391,7 +391,7 @@ class AlertEngine:
                 )
         return None
 
-    def _detect_pc_oi_ratio(self, current: GEXSnapshot, previous: Optional[GEXSnapshot]) -> Optional[Alert]:
+    def _detect_pc_oi_ratio(self, current: GEXSnapshot, previous: GEXSnapshot | None) -> Alert | None:
         """Unusual P/C OI ratio: put OI / call OI Z-score vs trailing snapshots."""
         if not current.gex_by_strike:
             return None
@@ -411,7 +411,7 @@ class AlertEngine:
             )
         return None
 
-    def _detect_max_pain_magnet(self, current: GEXSnapshot, previous: Optional[GEXSnapshot]) -> Optional[Alert]:
+    def _detect_max_pain_magnet(self, current: GEXSnapshot, previous: GEXSnapshot | None) -> Alert | None:
         """Max pain magnet: in positive gamma regime, spot within 1% of max pain."""
         if current.regime != "POSITIVE":
             return None
@@ -427,7 +427,7 @@ class AlertEngine:
             )
         return None
 
-    def get_alert_summary(self, ticker: str) -> Dict[str, Any]:
+    def get_alert_summary(self, ticker: str) -> dict[str, Any]:
         """Get a summary of current alerts for a ticker."""
         latest = self.get_latest(ticker)
         if not latest:

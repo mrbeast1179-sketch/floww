@@ -145,7 +145,7 @@ class TestPipelineLobDepth:
         pipeline = IngestionPipeline(db=db, max_queue_size=1000, flush_interval_ms=50)
         await pipeline.start()
 
-        for i in range(10):
+        for _i in range(10):
             pipeline.enqueue_lob_depth({
                 "timestamp": "2026-05-19T20:00:00",
                 "symbol": "SPY",

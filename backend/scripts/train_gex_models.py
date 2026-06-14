@@ -24,7 +24,7 @@ import json
 import logging
 import sys
 import time
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 import joblib
@@ -165,7 +165,7 @@ def walk_forward_cv(model, X, y, n_splits=5, embargo=5):
         "mean_train": float(np.mean(train_scores)),
         "mean_test": float(np.mean(scores)),
         "std_test": float(np.std(scores)),
-        "mean_gap": float(np.mean([t - s for t, s in zip(train_scores, scores)])),
+        "mean_gap": float(np.mean([t - s for t, s in zip(train_scores, scores, strict=False)])),
     }
 
 
@@ -288,7 +288,7 @@ def train_ticker(ticker: str, output_dir: Path = None) -> dict:
 
     # Save artifacts
     output_dir.mkdir(parents=True, exist_ok=True)
-    ts = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
+    ts = datetime.now(UTC).strftime("%Y%m%d_%H%M%S")
     model_path = output_dir / f"{ticker}_{best_name}_gex_{ts}.joblib"
     scaler_path = output_dir / f"{ticker}_{best_name}_gex_{ts}_scaler.joblib"
     manifest_path = output_dir / f"{ticker}_{best_name}_gex_{ts}_manifest.json"
@@ -299,7 +299,7 @@ def train_ticker(ticker: str, output_dir: Path = None) -> dict:
     manifest = {k: v for k, v in result.items() if k != "fold_scores"}
     manifest["model_path"] = str(model_path.name)
     manifest["scaler_path"] = str(scaler_path.name)
-    manifest["created_at"] = datetime.now(timezone.utc).isoformat()
+    manifest["created_at"] = datetime.now(UTC).isoformat()
     manifest["model_id"] = f"{ticker}_{best_name}_gex_v3"
     with open(manifest_path, "w") as f:
         json.dump(manifest, f, indent=2, default=str)
@@ -343,7 +343,7 @@ def main():
 
     # Save report
     REPORTS_DIR.mkdir(parents=True, exist_ok=True)
-    report_path = REPORTS_DIR / f"training_gex_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}.json"
+    report_path = REPORTS_DIR / f"training_gex_{datetime.now(UTC).strftime('%Y%m%d_%H%M%S')}.json"
     with open(report_path, "w") as f:
         json.dump(results, f, indent=2, default=str)
     log.info(f"Report: {report_path}")

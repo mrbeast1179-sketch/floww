@@ -6,7 +6,7 @@ Agent Hub CRUD endpoints for managing trading agent archetypes.
 from __future__ import annotations
 
 import logging
-from typing import Any, Dict
+from typing import Any
 
 from fastapi import APIRouter, HTTPException
 
@@ -15,7 +15,7 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/agent-hub", tags=["agent-hub"])
 
 # In-memory store (persisted to disk by the hub service)
-_archetypes: Dict[str, Dict] = {}
+_archetypes: dict[str, dict] = {}
 _runtime = None
 
 
@@ -34,7 +34,7 @@ async def get_archetype(name: str):
 
 
 @router.post("/archetypes")
-async def create_archetype(archetype: Dict[str, Any]):
+async def create_archetype(archetype: dict[str, Any]):
     """Create a new agent archetype."""
     name = archetype.get("name")
     if not name:
@@ -44,7 +44,7 @@ async def create_archetype(archetype: Dict[str, Any]):
 
 
 @router.put("/archetypes/{name}")
-async def update_archetype(name: str, archetype: Dict[str, Any]):
+async def update_archetype(name: str, archetype: dict[str, Any]):
     """Update an existing archetype."""
     if name not in _archetypes:
         raise HTTPException(404, f"Archetype '{name}' not found")

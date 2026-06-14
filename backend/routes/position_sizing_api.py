@@ -55,7 +55,7 @@ async def position_sizing(
             contract_value=contract_value,
         )
     except ValueError as exc:
-        raise HTTPException(status_code=422, detail=str(exc))
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
 
     return {
         "kelly_fraction": round(result.kelly_fraction, 6),

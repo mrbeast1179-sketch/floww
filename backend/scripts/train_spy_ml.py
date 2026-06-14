@@ -24,14 +24,15 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import contextlib
 import json
 import logging
 import os
 import sys
 import time
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 import numpy as np
 import pandas as pd
@@ -87,7 +88,7 @@ def fetch_options_chain_on_date(
     ticker: str,
     target_date: datetime,
     max_expiries: int = 2,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Fetch the options chain for a specific date.
 
     Since yfinance only gives the *current* chain, we approximate
@@ -109,10 +110,8 @@ def fetch_options_chain_on_date(
 
         # Get available expirations
         all_expirations = []
-        try:
+        with contextlib.suppress(Exception):
             all_expirations = list(t.options) if t.options else []
-        except Exception:
-            pass
 
         if not all_expirations:
             return None
@@ -185,7 +184,7 @@ def fetch_options_chain_on_date(
 # 2. Feature Engineering from Options Chain
 # ===================================================================
 
-def compute_gex_features(chain: Dict[str, Any]) -> Dict[str, float]:
+def compute_gex_features(chain: dict[str, Any]) -> dict[str, float]:
     """Compute GEX (Gamma Exposure) features from an options chain.
 
     GEX = gamma * OI * 100 * spot^2 * 0.01 (per unit)
@@ -199,7 +198,7 @@ def compute_gex_features(chain: Dict[str, Any]) -> Dict[str, float]:
         return _empty_gex_features()
 
     # Per-strike GEX
-    gex_by_strike: Dict[float, float] = {}
+    gex_by_strike: dict[float, float] = {}
     for c in contracts:
         strike = c["strike"]
         gamma = c["gamma"]
@@ -266,7 +265,7 @@ def compute_gex_features(chain: Dict[str, Any]) -> Dict[str, float]:
     return features
 
 
-def _empty_gex_features() -> Dict[str, float]:
+def _empty_gex_features() -> dict[str, float]:
     """Return zero-filled GEX features."""
     return {
         "net_gex": 0.0, "total_abs_gex": 0.0, "net_gex_normalized": 0.0,
@@ -291,7 +290,7 @@ def _kurtosis(values: list) -> float:
     return float(np.mean(((arr - mean) / std) ** 4) - 3.0)
 
 
-def compute_oi_features(chain: Dict[str, Any]) -> Dict[str, float]:
+def compute_oi_features(chain: dict[str, Any]) -> dict[str, float]:
     """Compute Open Interest features from chain."""
     features = {}
     contracts = chain.get("contracts", [])
@@ -339,7 +338,7 @@ def compute_oi_features(chain: Dict[str, Any]) -> Dict[str, float]:
     return features
 
 
-def compute_iv_features(chain: Dict[str, Any]) -> Dict[str, float]:
+def compute_iv_features(chain: dict[str, Any]) -> dict[str, float]:
     """Compute Implied Volatility features from chain."""
     features = {}
     contracts = chain.get("contracts", [])
@@ -385,7 +384,7 @@ def compute_iv_features(chain: Dict[str, Any]) -> Dict[str, float]:
     return features
 
 
-def compute_all_features(chain: Dict[str, Any]) -> Dict[str, float]:
+def compute_all_features(chain: dict[str, Any]) -> dict[str, float]:
     """Compute all features from an options chain."""
     features = {"spot": chain.get("spot", 0)}
     features.update(compute_gex_features(chain))
@@ -398,7 +397,7 @@ def compute_all_features(chain: Dict[str, Any]) -> Dict[str, float]:
 # 3. Price-based features
 # ===================================================================
 
-def compute_price_features(price_df: pd.DataFrame, idx: int) -> Dict[str, float]:
+def compute_price_features(price_df: pd.DataFrame, idx: int) -> dict[str, float]:
     """Compute technical/price features from historical price data at index idx."""
     features = {}
     row = price_df.iloc[idx]
@@ -462,9 +461,9 @@ def compute_price_features(price_df: pd.DataFrame, idx: int) -> Dict[str, float]
 
 def build_dataset(
     price_df: pd.DataFrame,
-    live_chain: Optional[Dict[str, Any]] = None,
+    live_chain: dict[str, Any] | None = None,
     days_back: int = 252,
-) -> Tuple[np.ndarray, np.ndarray, List[str], List[datetime]]:
+) -> tuple[np.ndarray, np.ndarray, list[str], list[datetime]]:
     """Build feature matrix X and label y from price data + options chain.
 
     For the most recent data point, uses the live options chain.
@@ -557,9 +556,9 @@ def build_dataset(
 def _synthesize_gex_features(
     price_df: pd.DataFrame,
     idx: int,
-    live_gex: Optional[Dict[str, float]],
+    live_gex: dict[str, float] | None,
     live_chain_spot: float,
-) -> Dict[str, float]:
+) -> dict[str, float]:
     """Synthesize GEX-like features from price history when chain not available."""
     if live_gex and live_chain_spot > 0:
         spot = float(price_df.iloc[idx]["Close"])
@@ -577,10 +576,7 @@ def _synthesize_gex_features(
 
     # Fallback: price-based regime proxy
     close = float(price_df.iloc[idx]["Close"])
-    if idx >= 20:
-        ma20 = price_df["Close"].iloc[idx - 20:idx].mean()
-    else:
-        ma20 = close
+    ma20 = price_df["Close"].iloc[idx - 20:idx].mean() if idx >= 20 else close
 
     trend = (close - ma20) / (ma20 + 1e-8)
     return {
@@ -610,7 +606,7 @@ def _synthesize_gex_features(
     }
 
 
-def _synthesize_iv_features(price_df: pd.DataFrame, idx: int) -> Dict[str, float]:
+def _synthesize_iv_features(price_df: pd.DataFrame, idx: int) -> dict[str, float]:
     """Synthesize IV-like features from realized volatility."""
     if idx >= 20:
         returns = price_df["Close"].iloc[idx - 20:idx].pct_change().dropna()
@@ -640,11 +636,11 @@ def _synthesize_iv_features(price_df: pd.DataFrame, idx: int) -> Dict[str, float
 def train_walk_forward(
     X: np.ndarray,
     y: np.ndarray,
-    feature_names: List[str],
-    timestamps: List,
+    feature_names: list[str],
+    timestamps: list,
     n_splits: int = 5,
     ticker: str = "SPY",
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Walk-forward training with quality gates.
 
     Splits data into n_splits chronological folds, trains on each,
@@ -805,7 +801,7 @@ def train_walk_forward(
 
     # Feature importance from last trained model
     last_model = model  # from last fold
-    feature_importance = dict(zip(feature_names, last_model.feature_importances_.tolist()))
+    feature_importance = dict(zip(feature_names, last_model.feature_importances_.tolist(), strict=False))
     feature_importance = dict(sorted(feature_importance.items(), key=lambda x: abs(x[1]), reverse=True)[:15])
 
     result = {
@@ -821,7 +817,7 @@ def train_walk_forward(
         "beats_baselines": model_results.get("gbm", {}).get("beats_baselines", False),
         "fold_results": fold_results,
         "top_features": feature_importance,
-        "trained_at": datetime.now(timezone.utc).isoformat(),
+        "trained_at": datetime.now(UTC).isoformat(),
     }
 
     logger.info(f"\n{'='*60}")
@@ -843,11 +839,11 @@ def train_walk_forward(
 def save_model(
     model,
     scaler,
-    feature_names: List[str],
-    metrics: Dict[str, Any],
+    feature_names: list[str],
+    metrics: dict[str, Any],
     output_dir: str,
     ticker: str = "SPY",
-) -> Dict[str, str]:
+) -> dict[str, str]:
     """Save model artifacts to disk."""
     import joblib
 
@@ -865,7 +861,7 @@ def save_model(
         "ticker": ticker,
         "metrics": {k: v for k, v in metrics.items() if k not in ("fold_results", "top_features")},
         "top_features": metrics.get("top_features", {}),
-        "trained_at": datetime.now(timezone.utc).isoformat(),
+        "trained_at": datetime.now(UTC).isoformat(),
     }
     with open(meta_path, "w") as f:
         json.dump(meta, f, indent=2, default=str)

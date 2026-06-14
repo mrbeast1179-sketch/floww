@@ -11,7 +11,7 @@ Endpoints:
 from __future__ import annotations
 
 import logging
-from typing import Any, Dict
+from typing import Any
 
 from fastapi import APIRouter
 
@@ -20,7 +20,7 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/ensemble", tags=["ensemble"])
 
 # Global ensemble registry (ticker -> ToxicityEnsemble)
-_ensembles: Dict[str, Any] = {}
+_ensembles: dict[str, Any] = {}
 
 
 @router.post("/update")

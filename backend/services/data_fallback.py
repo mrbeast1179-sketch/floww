@@ -18,10 +18,11 @@ from __future__ import annotations
 
 import logging
 import time
+from collections.abc import Callable
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from enum import Enum
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -51,7 +52,7 @@ class SourceStatus:
     """Status of a single data source."""
     source: DataSource
     last_update: float = 0.0  # monotonic timestamp
-    last_data: Optional[Dict[str, Any]] = None
+    last_data: dict[str, Any] | None = None
     error_count: int = 0
     is_available: bool = True
     latency_ms: float = 0.0
@@ -66,7 +67,7 @@ class SourceStatus:
     def is_stale(self) -> bool:
         return self.age_s > STALE_DATA_THRESHOLD_S
 
-    def record_update(self, data: Dict[str, Any]):
+    def record_update(self, data: dict[str, Any]):
         self.last_update = time.monotonic()
         self.last_data = data
         self.error_count = 0
@@ -104,14 +105,14 @@ class DataFallbackHandler:
             pause_trading_signals()
     """
 
-    def __init__(self, config: Optional[FallbackConfig] = None):
+    def __init__(self, config: FallbackConfig | None = None):
         self.config = config or FallbackConfig()
         self._state = FallbackState.PRIMARY
-        self._sources: Dict[DataSource, SourceStatus] = {}
-        self._fetchers: Dict[DataSource, Callable] = {}
-        self._safe_mode_since: Optional[float] = None
-        self._transition_log: List[Dict[str, Any]] = []
-        self._warning_log: List[Dict[str, Any]] = []
+        self._sources: dict[DataSource, SourceStatus] = {}
+        self._fetchers: dict[DataSource, Callable] = {}
+        self._safe_mode_since: float | None = None
+        self._transition_log: list[dict[str, Any]] = []
+        self._warning_log: list[dict[str, Any]] = []
 
         # Initialize source statuses
         for source in [DataSource.SCHWAB, DataSource.YFINANCE, DataSource.POLYGON]:
@@ -149,7 +150,7 @@ class DataFallbackHandler:
     # Data fetching with failover
     # ------------------------------------------------------------------
 
-    async def get_data(self, symbol: str) -> Optional[Dict[str, Any]]:
+    async def get_data(self, symbol: str) -> dict[str, Any] | None:
         """
         Fetch data with automatic failover.
 
@@ -208,7 +209,7 @@ class DataFallbackHandler:
 
         return None
 
-    def _get_source_order(self) -> List[DataSource]:
+    def _get_source_order(self) -> list[DataSource]:
         """Get the order of sources to try based on current state."""
         if self._state == FallbackState.PRIMARY:
             return [DataSource.SCHWAB, DataSource.YFINANCE, DataSource.POLYGON, DataSource.CACHE]
@@ -219,7 +220,7 @@ class DataFallbackHandler:
         else:  # SAFE_MODE
             return [DataSource.SCHWAB, DataSource.YFINANCE, DataSource.POLYGON, DataSource.CACHE]
 
-    def _get_cached_data(self, symbol: str) -> Optional[Dict[str, Any]]:
+    def _get_cached_data(self, symbol: str) -> dict[str, Any] | None:
         """Get the most recent cached data for a symbol."""
         best_data = None
         best_age = float("inf")
@@ -239,7 +240,7 @@ class DataFallbackHandler:
         self._state = new_state
 
         entry = {
-            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "timestamp": datetime.now(UTC).isoformat(),
             "from_state": old_state.value,
             "to_state": new_state.value,
             "reason": reason,
@@ -256,7 +257,7 @@ class DataFallbackHandler:
     def _log_warning(self, warning_type: str, detail: str):
         """Log a warning event."""
         entry = {
-            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "timestamp": datetime.now(UTC).isoformat(),
             "type": warning_type,
             "detail": detail,
         }
@@ -267,7 +268,7 @@ class DataFallbackHandler:
     # Health check & auto-recovery
     # ------------------------------------------------------------------
 
-    async def check_health(self) -> Dict[str, Any]:
+    async def check_health(self) -> dict[str, Any]:
         """
         Check health of all data sources.
         Returns status dict for monitoring.
@@ -323,13 +324,13 @@ class DataFallbackHandler:
     # Monitoring
     # ------------------------------------------------------------------
 
-    def get_transition_log(self, limit: int = 50) -> List[Dict[str, Any]]:
+    def get_transition_log(self, limit: int = 50) -> list[dict[str, Any]]:
         return self._transition_log[-limit:]
 
-    def get_warning_log(self, limit: int = 50) -> List[Dict[str, Any]]:
+    def get_warning_log(self, limit: int = 50) -> list[dict[str, Any]]:
         return self._warning_log[-limit:]
 
-    def get_metrics(self) -> Dict[str, Any]:
+    def get_metrics(self) -> dict[str, Any]:
         """Return metrics for observability."""
         return {
             "state": self._state.value,

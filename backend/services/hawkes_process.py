@@ -46,7 +46,7 @@ References:
 from __future__ import annotations
 
 import logging
-from typing import Any, Dict, Optional
+from typing import Any
 
 logger = logging.getLogger(__name__)
 import numpy as np
@@ -117,8 +117,8 @@ class HawkesProcess:
 
         # Fitted state
         self._fitted = False
-        self._last_event_times: Optional[np.ndarray] = None
-        self._last_log_likelihood: Optional[float] = None
+        self._last_event_times: np.ndarray | None = None
+        self._last_log_likelihood: float | None = None
 
     # ------------------------------------------------------------------
     # Intensity computation
@@ -205,6 +205,7 @@ class HawkesProcess:
             return 1e15
 
         # Compute log(lambda(t_i)) for each event
+        t0 = event_times[0]
         log_lambdas = np.empty(len(event_times), dtype=np.float64)
         for i, ti in enumerate(event_times):
             past = event_times[:i]
@@ -251,7 +252,7 @@ class HawkesProcess:
     # Fitting
     # ------------------------------------------------------------------
 
-    def fit(self, event_times: np.ndarray) -> Dict[str, float]:
+    def fit(self, event_times: np.ndarray) -> dict[str, float]:
         """
         Fit Hawkes process parameters via Maximum Likelihood Estimation.
 
@@ -484,7 +485,7 @@ class HawkesProcess:
     # State
     # ------------------------------------------------------------------
 
-    def get_state(self) -> Dict[str, Any]:
+    def get_state(self) -> dict[str, Any]:
         """
         Return the full state of the Hawkes process for API serialization.
 

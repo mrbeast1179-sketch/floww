@@ -13,7 +13,7 @@ Endpoints:
 from __future__ import annotations
 
 import logging
-from typing import Any, Dict
+from typing import Any
 
 from fastapi import APIRouter
 
@@ -22,9 +22,9 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/liquidity", tags=["liquidity"])
 
 # Global registry
-_kyle: Dict[str, Any] = {}
-_amihud: Dict[str, Any] = {}
-_fragility: Dict[str, Any] = {}
+_kyle: dict[str, Any] = {}
+_amihud: dict[str, Any] = {}
+_fragility: dict[str, Any] = {}
 
 
 def _get_kyle(ticker: str, window: int = 20):

@@ -27,7 +27,7 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any, Dict, Optional
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -47,7 +47,7 @@ class SignalState:
     """
     long_death_count: int = 0
     short_death_count: int = 0
-    current_position: Optional[str] = None  # "LONG", "SHORT", or None
+    current_position: str | None = None  # "LONG", "SHORT", or None
     last_signal: Signal = Signal.HOLD
     signal_history: list = field(default_factory=list)
 
@@ -69,7 +69,7 @@ class TradingSignalGenerator:
         Initial state. If None, uses defaults.
     """
 
-    def __init__(self, state: Optional[SignalState] = None) -> None:
+    def __init__(self, state: SignalState | None = None) -> None:
         self.state = state or SignalState()
 
     # ------------------------------------------------------------------
@@ -200,7 +200,7 @@ class TradingSignalGenerator:
     # Accessors
     # ------------------------------------------------------------------
 
-    def get_state(self) -> Dict[str, Any]:
+    def get_state(self) -> dict[str, Any]:
         """Return full state for serialization."""
         return {
             "long_death_count": self.state.long_death_count,

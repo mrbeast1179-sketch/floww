@@ -16,7 +16,7 @@ Reference: Brooks (1975) The Mythical Man-Month — Brooks's Law
 
 import math
 from collections import Counter
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent.parent
@@ -87,7 +87,7 @@ def compute_tfidf_similarity(text_a: str, text_b: str) -> float:
     vec_b = [tf_b.get(w, 0) / len(words_b) for w in vocab]
 
     # Cosine similarity
-    dot = sum(a * b for a, b in zip(vec_a, vec_b))
+    dot = sum(a * b for a, b in zip(vec_a, vec_b, strict=False))
     mag_a = math.sqrt(sum(a * a for a in vec_a))
     mag_b = math.sqrt(sum(b * b for b in vec_b))
 
@@ -224,7 +224,7 @@ if __name__ == "__main__":
 def format_rebalance_proposal(recommendations: list[dict], bottleneck: dict) -> str:
     """Format rebalance proposal for Nav."""
     lines = [
-        f"# Rebalance Proposal — {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC')}",
+        f"# Rebalance Proposal — {datetime.now(UTC).strftime('%Y-%m-%d %H:%M UTC')}",
         "",
         f"**Bottleneck:** {bottleneck['agent']}",
         f"**Reasons:** {', '.join(bottleneck['reasons'])}",

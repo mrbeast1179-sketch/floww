@@ -11,9 +11,10 @@ Manages:
 """
 from __future__ import annotations
 
+import contextlib
 import json
 import logging
-from typing import Any, Dict, List, Optional, Set
+from typing import Any
 
 from fastapi import WebSocket
 
@@ -26,10 +27,10 @@ class ConnectionManager:
     """Manages WebSocket client connections with topic-based subscriptions."""
 
     def __init__(self):
-        self._active: Dict[str, Set[WebSocket]] = {}  # topic -> set of websockets
-        self._all: Set[WebSocket] = set()
+        self._active: dict[str, set[WebSocket]] = {}  # topic -> set of websockets
+        self._all: set[WebSocket] = set()
 
-    async def connect(self, websocket: WebSocket, topics: Optional[List[str]] = None):
+    async def connect(self, websocket: WebSocket, topics: list[str] | None = None):
         await websocket.accept()
         self._all.add(websocket)
         if topics:
@@ -49,7 +50,7 @@ class ConnectionManager:
             if not self._active[topic]:
                 del self._active[topic]
 
-    async def broadcast(self, topic: str, data: Dict[str, Any]):
+    async def broadcast(self, topic: str, data: dict[str, Any]):
         """Broadcast message to all clients subscribed to a topic."""
         if topic not in self._active or not self._active[topic]:
             return
@@ -63,7 +64,7 @@ class ConnectionManager:
         for ws in disconnected:
             self.disconnect(ws)
 
-    async def broadcast_all(self, data: Dict[str, Any]):
+    async def broadcast_all(self, data: dict[str, Any]):
         """Broadcast to all connected clients."""
         if not self._all:
             return
@@ -80,10 +81,8 @@ class ConnectionManager:
     async def close_all(self, code: int = 1001, reason: str = "Server shutting down"):
         """Close all connected WebSocket clients gracefully."""
         for ws in list(self._all):
-            try:
+            with contextlib.suppress(Exception):
                 await ws.close(code=code, reason=reason)
-            except Exception:
-                pass
         self._all.clear()
         self._active.clear()
 

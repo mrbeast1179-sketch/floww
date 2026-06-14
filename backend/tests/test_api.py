@@ -12,7 +12,7 @@ from __future__ import annotations
 import os
 import sys
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any
 from unittest.mock import AsyncMock, patch
 
 import pytest
@@ -33,7 +33,7 @@ def client() -> TestClient:
     return TestClient(app, headers={"X-API-Key": "test-secret-key"})
 
 
-def _fake_chain() -> Dict[str, Any]:
+def _fake_chain() -> dict[str, Any]:
     """
     Static option-chain fixture wide enough to drive every chain-consuming
     endpoint (heatmap, advanced, chain, regime, gamma-flip, gex-timeframes,
@@ -44,7 +44,7 @@ def _fake_chain() -> Dict[str, Any]:
     # Time-to-expiry in years; the production fetcher always populates this
     # field and the downstream BS Greek calls do c["T"] (not .get).
     t_by_expiry = {"2026-05-22": 3 / 365.0, "2026-05-29": 10 / 365.0}
-    contracts: List[Dict[str, Any]] = []
+    contracts: list[dict[str, Any]] = []
     for exp in expiries:
         for k in (485.0, 490.0, 495.0, 500.0, 505.0, 510.0, 515.0):
             for typ in ("call", "put"):

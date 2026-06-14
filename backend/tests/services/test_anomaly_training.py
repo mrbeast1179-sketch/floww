@@ -68,7 +68,7 @@ def trained_model_path(synthetic_sequences, tmp_path):
 
     # Quick training — 10 epochs
     train_x = torch.tensor(train_seq, dtype=torch.float32).permute(0, 2, 1)
-    for epoch in range(10):
+    for _epoch in range(10):
         model.train()
         optimizer.zero_grad()
         recon, _ = model(train_x)
@@ -141,7 +141,7 @@ class TestTraining:
         x = torch.tensor(synthetic_sequences, dtype=torch.float32).permute(0, 2, 1)
 
         losses = []
-        for epoch in range(50):
+        for _epoch in range(50):
             model.train()
             optimizer.zero_grad()
             recon, _ = model(x)
@@ -320,7 +320,7 @@ class TestFlowAnomalyDetector:
         """Detector should report active after buffer is full."""
         detector = FlowAnomalyDetector(seq_len=10, latent_dim=8)
 
-        for i in range(15):
+        for _i in range(15):
             result = detector.update(0.45, 0.1)
 
         assert result["status"] == "active"

@@ -7,7 +7,7 @@ Run from repo root:
 """
 
 import sys
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta, timezone
 from pathlib import Path
 
 import pytest
@@ -256,7 +256,7 @@ class TestBlockerDetection:
 
     def test_old_update_is_blocked(self):
         """Card with last_update > 30min ago should be blocked."""
-        old_ts = (datetime.now(timezone.utc) - timedelta(minutes=31)).strftime("%Y-%m-%dT%H:%M:%SZ")
+        old_ts = (datetime.now(UTC) - timedelta(minutes=31)).strftime("%Y-%m-%dT%H:%M:%SZ")
         card = {"last_update": old_ts}
         assert check_blocker(card)
 
@@ -267,7 +267,7 @@ class TestBlockerDetection:
 
     def test_just_under_threshold_not_blocked(self):
         """Card at 29min should not be blocked."""
-        ts = (datetime.now(timezone.utc) - timedelta(minutes=29)).strftime("%Y-%m-%dT%H:%M:%SZ")
+        ts = (datetime.now(UTC) - timedelta(minutes=29)).strftime("%Y-%m-%dT%H:%M:%SZ")
         card = {"last_update": ts}
         assert not check_blocker(card)
 
@@ -279,7 +279,7 @@ class TestBlockerDetection:
 class TestAutoArchive:
     def test_done_card_older_than_24h_archived(self, tmp_kanban):
         """Done cards with last_update > 24h ago should be archived."""
-        old_ts = (datetime.now(timezone.utc) - timedelta(hours=25)).strftime("%Y-%m-%dT%H:%M:%SZ")
+        old_ts = (datetime.now(UTC) - timedelta(hours=25)).strftime("%Y-%m-%dT%H:%M:%SZ")
         card_path = tmp_kanban / "kanban" / "cards" / "O-OLD-DONE.md"
         card_path.write_text(f"""---
 id: O-OLD-DONE
@@ -305,7 +305,7 @@ Old
 
     def test_done_card_newer_than_24h_stays(self, tmp_kanban):
         """Done cards with last_update < 24h should stay."""
-        recent_ts = (datetime.now(timezone.utc) - timedelta(hours=12)).strftime("%Y-%m-%dT%H:%M:%SZ")
+        recent_ts = (datetime.now(UTC) - timedelta(hours=12)).strftime("%Y-%m-%dT%H:%M:%SZ")
         card_path = tmp_kanban / "kanban" / "cards" / "O-RECENT-DONE.md"
         card_path.write_text(f"""---
 id: O-RECENT-DONE

@@ -10,7 +10,7 @@ of services/ml/gate.py for the bug history.
 
 import sys
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any
 
 import pytest
 
@@ -112,7 +112,7 @@ def test_baselines_empty_when_input_empty():
 # evaluate_ship_verdict
 # ────────────────────────────────────────────────────────────────────────────
 
-def _good_baselines() -> Dict[str, Dict[str, float]]:
+def _good_baselines() -> dict[str, dict[str, float]]:
     """Realistic baseline metrics — a passing model has Sharpe above these."""
     return {
         "majority":    {"accuracy": 0.50, "sharpe": 0.50},
@@ -125,7 +125,7 @@ def test_verdict_rejects_implausible_sharpe():
     """SPY v1.0 had Sharpe 31.5 (in-sample). The sanity cap must reject it
     regardless of whether it beats baselines.
     """
-    results: Dict[str, Dict[str, Any]] = {
+    results: dict[str, dict[str, Any]] = {
         "lightgbm": {"status": "ok", "sharpe": 31.5},
     }
     best = evaluate_ship_verdict(results, _good_baselines())
@@ -207,7 +207,7 @@ def test_verdict_skips_failed_status():
 
 
 def test_verdict_no_candidates_returns_none():
-    results: Dict[str, Dict[str, Any]] = {}
+    results: dict[str, dict[str, Any]] = {}
     assert evaluate_ship_verdict(results, _good_baselines()) is None
 
 

@@ -6,7 +6,7 @@ Tests for the live-trading state machine with circuit breakers.
 """
 
 import os
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta, timezone
 
 import pytest
 
@@ -124,11 +124,11 @@ class TestCircuitBreakers:
         sw._state = TradingState.LIVE_TINY
         sw.trip_circuit_breaker(CircuitBreakerReason.DAILY_PNL_DRAWDOWN, "test")
         assert sw._cooldown_until is not None
-        assert sw._cooldown_until > datetime.now(timezone.utc)
+        assert sw._cooldown_until > datetime.now(UTC)
 
     def test_no_transition_during_cooldown(self, sw):
         sw._state = TradingState.PAPER_ONLY
-        sw._cooldown_until = datetime.now(timezone.utc) + timedelta(hours=24)
+        sw._cooldown_until = datetime.now(UTC) + timedelta(hours=24)
         ok, msg = sw.request_transition(TradingState.LIVE_TINY, "123456", "test")
         assert not ok
         assert "cooldown" in msg.lower()

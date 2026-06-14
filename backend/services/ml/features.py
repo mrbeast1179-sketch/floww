@@ -21,8 +21,8 @@ import json
 import logging
 import math
 import os
-from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional, Tuple
+from datetime import UTC, datetime
+from typing import Any
 
 import numpy as np
 import pandas as pd
@@ -40,7 +40,7 @@ DB_NAME = os.environ.get("DB_NAME", "confluence_decoder")
 COLLECTION_FEATURES = "ml_features"
 
 
-async def load_outcomes(db, ticker: str = "SPY") -> List[Dict]:
+async def load_outcomes(db, ticker: str = "SPY") -> list[dict]:
     """
     Load labeled outcomes for a ticker, sorted by date.
 
@@ -67,7 +67,7 @@ RANGE_EXPANSION_THRESHOLD = 0.015   # >1.5% next-day intraday range
 GAP_MOVE_THRESHOLD = 0.003          # >0.3% overnight gap
 
 
-async def load_underlying_bars(db, ticker: str) -> List[Dict]:
+async def load_underlying_bars(db, ticker: str) -> list[dict]:
     """Load underlying OHLCV bars sorted by date."""
     cursor = db["underlying_bars"].find(
         {"ticker": ticker}
@@ -84,7 +84,7 @@ def fetch_gex_history_from_mongo(
     as_of: pd.Timestamp,
     lookback_days: int = 60,
     mongo_db: Any,
-) -> List[Dict[str, Any]]:
+) -> list[dict[str, Any]]:
     """Pull the last ``lookback_days`` of ``(ts, gex_total)`` for ``ticker``.
 
     Reads from the ``gex_history`` collection populated by
@@ -154,7 +154,7 @@ def _safe_int(val, default=0):
         return default
 
 
-def compute_returns(bars: List[Dict]) -> Dict[str, List[float]]:
+def compute_returns(bars: list[dict]) -> dict[str, list[float]]:
     """Compute return series from OHLCV bars."""
     closes = [_safe_float(b.get("close")) for b in bars]
     n = len(closes)
@@ -187,7 +187,7 @@ def compute_returns(bars: List[Dict]) -> Dict[str, List[float]]:
     return returns
 
 
-def compute_realized_vol(bars: List[Dict], windows: List[int] = None) -> Dict[str, List[float]]:
+def compute_realized_vol(bars: list[dict], windows: list[int] = None) -> dict[str, list[float]]:
     """Compute realized volatility over various windows."""
     if windows is None:
         windows = [5, 10, 21, 60]
@@ -213,7 +213,7 @@ def compute_realized_vol(bars: List[Dict], windows: List[int] = None) -> Dict[st
     return vols
 
 
-def compute_technical_features(bars: List[Dict]) -> Dict[str, List[float]]:
+def compute_technical_features(bars: list[dict]) -> dict[str, list[float]]:
     """Compute technical indicators from OHLCV bars."""
     n = len(bars)
     closes = [_safe_float(b.get("close")) for b in bars]
@@ -273,7 +273,7 @@ def compute_technical_features(bars: List[Dict]) -> Dict[str, List[float]]:
     return features
 
 
-def compute_gex_features(snapshots: List[Dict]) -> Dict[str, List[float]]:
+def compute_gex_features(snapshots: list[dict]) -> dict[str, list[float]]:
     """Compute GEX-derived features from snapshots."""
     n = len(snapshots)
     features = {}
@@ -339,11 +339,11 @@ def compute_gex_features(snapshots: List[Dict]) -> Dict[str, List[float]]:
 
 # Required and optional columns for `add_gex_features`. Documented here so the
 # contract is grep-able from the call site.
-GEX_FEATURE_REQUIRED_COLS: Tuple[str, ...] = ("ticker", "ts", "spot", "gex_total")
-GEX_FEATURE_OPTIONAL_COLS: Tuple[str, ...] = ("gamma_flip", "gex_by_strike")
+GEX_FEATURE_REQUIRED_COLS: tuple[str, ...] = ("ticker", "ts", "spot", "gex_total")
+GEX_FEATURE_OPTIONAL_COLS: tuple[str, ...] = ("gamma_flip", "gex_by_strike")
 
 # Column names this function adds. Used by the idempotency guard.
-GEX_FEATURE_OUTPUT_COLS: Tuple[str, ...] = (
+GEX_FEATURE_OUTPUT_COLS: tuple[str, ...] = (
     "gex_zscore_60d",
     "gex_roc_5d",
     "gex_regime_pos",
@@ -363,7 +363,7 @@ _GEX_WALL_BAND_PCT = 0.01
 _GEX_ROC_LOOKBACK = 5
 
 
-def _extract_history_series(history: Any) -> List[float]:
+def _extract_history_series(history: Any) -> list[float]:
     """Pull the gex_total scalar series out of a history-column value.
 
     Accepts None, NaN, empty list, or a list of ``(ts, gex_total)`` tuples /
@@ -378,7 +378,7 @@ def _extract_history_series(history: Any) -> List[float]:
     if not hasattr(history, "__iter__"):
         return []
 
-    out: List[float] = []
+    out: list[float] = []
     for item in history:
         val: Any = None
         if isinstance(item, dict):
@@ -400,7 +400,7 @@ def _extract_history_series(history: Any) -> List[float]:
     return out
 
 
-def _gex_zscore_60d(gex_total: float, history_vals: List[float]) -> float:
+def _gex_zscore_60d(gex_total: float, history_vals: list[float]) -> float:
     """``(gex_total - mean(history)) / (std(history) + ε)``.
 
     History is the trailing N (≤ 60) snapshots, *not* including the current row.
@@ -418,7 +418,7 @@ def _gex_zscore_60d(gex_total: float, history_vals: List[float]) -> float:
     return (gex_total - mean) / (std + _GEX_EPS)
 
 
-def _gex_roc_5d(gex_total: float, history_vals: List[float]) -> float:
+def _gex_roc_5d(gex_total: float, history_vals: list[float]) -> float:
     """``(gex_total - gex_5d_ago) / |gex_5d_ago + ε|``.
 
     ``gex_5d_ago`` is the entry 5 positions before the most recent in history.
@@ -520,7 +520,7 @@ def _gex_herfindahl(gex_by_strike: Any) -> float:
     """
     if not isinstance(gex_by_strike, dict) or not gex_by_strike:
         return float("nan")
-    abs_vals: List[float] = []
+    abs_vals: list[float] = []
     for gex in gex_by_strike.values():
         try:
             g = abs(float(gex))
@@ -600,12 +600,12 @@ def add_gex_features(
             "gex_distance_to_flip_norm will be filled with 0.0 for all rows."
         )
 
-    zscores: List[float] = []
-    rocs: List[float] = []
-    regimes: List[float] = []
-    dists: List[float] = []
-    walls: List[float] = []
-    hhis: List[float] = []
+    zscores: list[float] = []
+    rocs: list[float] = []
+    regimes: list[float] = []
+    dists: list[float] = []
+    walls: list[float] = []
+    hhis: list[float] = []
 
     spot_arr = out["spot"].tolist()
     gex_arr = out["gex_total"].tolist()
@@ -664,10 +664,10 @@ def add_gex_features(
 
 async def compute_features(
     ticker: str = "SPY",
-    as_of: Optional[str] = None,
-    start: Optional[str] = None,
-    end: Optional[str] = None,
-) -> Dict[str, Any]:
+    as_of: str | None = None,
+    start: str | None = None,
+    end: str | None = None,
+) -> dict[str, Any]:
     """
     Compute all features for a ticker.
 
@@ -742,7 +742,7 @@ async def compute_features(
 
     calendar_features = compute_calendar_features(row_dates)
 
-    all_features: Dict[str, List[float]] = {}
+    all_features: dict[str, list[float]] = {}
     all_features.update(gex_features)
     all_features.update(calendar_features)
 
@@ -775,7 +775,7 @@ async def compute_features(
 
     # Build feature matrix (exclude targets from features)
     target_keys = set(targets.keys())
-    feature_names = sorted([k for k in all_features.keys() if k not in target_keys and k != "date"])
+    feature_names = sorted([k for k in all_features if k not in target_keys and k != "date"])
 
     n_rows = len(snapshot_dates)
     n_features = len(feature_names)
@@ -807,7 +807,7 @@ async def compute_features(
             "target_range_expansion": targets["range_expansion"][i],
             "target_gap_move": targets["gap_move"][i],
             "target_any_materialization": targets["any_materialization"][i],
-            "_computed_at": datetime.now(timezone.utc).isoformat(),
+            "_computed_at": datetime.now(UTC).isoformat(),
         }
         for fn in feature_names:
             doc[fn] = all_features[fn][i]
@@ -827,10 +827,10 @@ async def compute_features(
 
 async def store_features(
     ticker: str = "SPY",
-    as_of: Optional[str] = None,
-    start: Optional[str] = None,
-    end: Optional[str] = None,
-) -> Dict[str, Any]:
+    as_of: str | None = None,
+    start: str | None = None,
+    end: str | None = None,
+) -> dict[str, Any]:
     """Compute and store features in MongoDB."""
     db = get_async_db()
 
@@ -870,7 +870,7 @@ async def store_features(
         "n_rows": stored,
         "n_features": result["n_features"],
         "feature_names": result["feature_names"],
-        "computed_at": datetime.now(timezone.utc).isoformat(),
+        "computed_at": datetime.now(UTC).isoformat(),
     }
     await db["feature_manifests"].update_one(
         {"ticker": ticker, "feature_version": FEATURE_VERSION},
@@ -901,7 +901,7 @@ def get_async_db():
     return client[DB_NAME]
 
 
-async def load_gex_snapshots(db, ticker: str = "SPY") -> List[Dict]:
+async def load_gex_snapshots(db, ticker: str = "SPY") -> list[dict]:
     """
     Load GEX snapshots for a ticker, sorted by date.
 
@@ -920,7 +920,7 @@ async def load_gex_snapshots(db, ticker: str = "SPY") -> List[Dict]:
     return await cursor.to_list(length=10000)
 
 
-def derive_outcomes_from_bars(bars: List[Dict]) -> Dict[str, Dict]:
+def derive_outcomes_from_bars(bars: list[dict]) -> dict[str, dict]:
     """
     Derive next-day outcomes from OHLCV bars using the canonical thresholds.
 
@@ -928,7 +928,7 @@ def derive_outcomes_from_bars(bars: List[Dict]) -> Dict[str, Dict]:
     measured on t1 — matching the convention in `gex_llm_patterns_outcomes`
     where the row date is t0 and fields describe what happened on t1.
     """
-    out: Dict[str, Dict] = {}
+    out: dict[str, dict] = {}
     n = len(bars)
     for i in range(n - 1):
         t0 = bars[i]
@@ -965,7 +965,7 @@ def derive_outcomes_from_bars(bars: List[Dict]) -> Dict[str, Dict]:
     return out
 
 
-def compute_calendar_features(dates: List[str]) -> Dict[str, List[float]]:
+def compute_calendar_features(dates: list[str]) -> dict[str, list[float]]:
     """Compute calendar-based features."""
     n = len(dates)
     features = {}

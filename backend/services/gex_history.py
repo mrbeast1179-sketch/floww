@@ -38,8 +38,8 @@ in so unit tests can inject a fake DB.
 from __future__ import annotations
 
 import logging
-from datetime import date, datetime, timezone
-from typing import Any, Dict, List
+from datetime import UTC, date, datetime
+from typing import Any
 
 import numpy as np
 from scipy.stats import norm
@@ -77,7 +77,7 @@ def _is_call(contract_type: Any) -> bool:
     return s in ("call", "c")
 
 
-def compute_gex_total_for_chain(chain: Dict[str, Any], spot: float) -> float:
+def compute_gex_total_for_chain(chain: dict[str, Any], spot: float) -> float:
     """One day's ``gex_total`` (signed, summed across strikes) for a Databento chain.
 
     ``chain`` is a document from ``databento_eod_chains`` with shape::
@@ -114,10 +114,10 @@ def compute_gex_total_for_chain(chain: Dict[str, Any], spot: float) -> float:
     except (TypeError, ValueError):
         today = date.today()
 
-    strikes: List[float] = []
-    ois: List[float] = []
-    signs: List[float] = []
-    Ts: List[float] = []
+    strikes: list[float] = []
+    ois: list[float] = []
+    signs: list[float] = []
+    Ts: list[float] = []
 
     for sym, c in contracts.items():
         if not isinstance(c, dict):
@@ -164,7 +164,7 @@ def compute_gex_total_for_chain(chain: Dict[str, Any], spot: float) -> float:
 
 def _iso_utc(d: str) -> str:
     """Render a yyyy-mm-dd day string as an ISO-8601 UTC timestamp at midnight."""
-    return datetime.strptime(d, "%Y-%m-%d").replace(tzinfo=timezone.utc).isoformat()
+    return datetime.strptime(d, "%Y-%m-%d").replace(tzinfo=UTC).isoformat()
 
 
 async def build_gex_history(
@@ -173,7 +173,7 @@ async def build_gex_history(
     start_date: date,
     end_date: date,
     mongo_db: Any,
-) -> List[Dict[str, Any]]:
+) -> list[dict[str, Any]]:
     """Return per-day ``gex_total`` rows for ``ticker`` in ``[start_date, end_date]``.
 
     For each trading day that has BOTH a ``databento_eod_chains`` row AND an
@@ -198,7 +198,7 @@ async def build_gex_history(
         {"ticker": ticker, "date": {"$gte": start_str, "$lte": end_str}},
         {"date": 1, "close": 1, "_id": 0},
     )
-    spots: Dict[str, float] = {}
+    spots: dict[str, float] = {}
     async for b in bars_cur:
         d = b.get("date")
         c = _safe_float(b.get("close"), 0.0)
@@ -210,7 +210,7 @@ async def build_gex_history(
         {"day": 1, "contracts": 1, "_id": 0},
     )
 
-    rows: List[Dict[str, Any]] = []
+    rows: list[dict[str, Any]] = []
     async for chain in chains_cur:
         day = chain.get("day")
         if not day:
@@ -234,9 +234,9 @@ async def build_gex_history(
 
 def calc_gex_timeframes(
     spot: float,
-    contracts: List[Dict[str, Any]],
+    contracts: list[dict[str, Any]],
     ticker: str,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Aggregate GEX by timeframe buckets: 0DTE, 1DTE, weekly, monthly, all.
 
     Returns:
@@ -283,7 +283,7 @@ def calc_gex_timeframes(
         call_gex = 0.0
         put_gex = 0.0
         # Track per-strike GEX for top floors/ceilings
-        strike_gex: Dict[float, float] = {}
+        strike_gex: dict[float, float] = {}
         n_valid = 0
         for c in contract_list:
             gamma = _safe_float(c.get("gamma"), 0.0)

@@ -21,8 +21,8 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
-from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional, Tuple
+from datetime import UTC, datetime
+from typing import Any
 
 import numpy as np
 
@@ -37,7 +37,7 @@ class AlertRecord:
     metric_name: str
     threshold_used: float
     observed_value: float
-    was_true_positive: Optional[bool] = None  # None = unlabeled
+    was_true_positive: bool | None = None  # None = unlabeled
 
 
 @dataclass
@@ -78,8 +78,8 @@ class AlertTuner:
 
     def __init__(
         self,
-        historical_alerts: List[AlertRecord],
-        ground_truth: Optional[Dict[float, bool]] = None,
+        historical_alerts: list[AlertRecord],
+        ground_truth: dict[float, bool] | None = None,
     ):
         """
         Args:
@@ -89,7 +89,7 @@ class AlertTuner:
         """
         self._alerts = historical_alerts
         self._ground_truth = ground_truth or {}
-        self._results: List[TuningResult] = []
+        self._results: list[TuningResult] = []
 
         # Auto-label if ground truth provided
         if self._ground_truth:
@@ -100,7 +100,7 @@ class AlertTuner:
                         alert.was_true_positive = is_incident
                         break
 
-    def analyze_precision(self, alert_id: str) -> Dict[str, Any]:
+    def analyze_precision(self, alert_id: str) -> dict[str, Any]:
         """Compute precision metrics for a specific alert type."""
         records = [r for r in self._alerts if r.alert_id == alert_id]
         labeled = [r for r in records if r.was_true_positive is not None]
@@ -137,7 +137,7 @@ class AlertTuner:
             "status": "analyzed",
         }
 
-    def optimize_threshold(self, alert_id: str) -> Optional[TuningResult]:
+    def optimize_threshold(self, alert_id: str) -> TuningResult | None:
         """Find optimal threshold for an alert type using holdout validation.
 
         Grid-searches threshold candidates between the 10th and 90th
@@ -221,7 +221,7 @@ class AlertTuner:
         )
         return result
 
-    def optimize_all(self) -> List[TuningResult]:
+    def optimize_all(self) -> list[TuningResult]:
         """Optimize thresholds for all alert types."""
         alert_ids = set(r.alert_id for r in self._alerts)
         results = []
@@ -231,7 +231,7 @@ class AlertTuner:
                 results.append(result)
         return results
 
-    def get_new_thresholds(self) -> Dict[str, float]:
+    def get_new_thresholds(self) -> dict[str, float]:
         """Return the optimized thresholds as a dict."""
         return {r.alert_id: r.new_threshold for r in self._results}
 
@@ -239,7 +239,7 @@ class AlertTuner:
         """Generate a markdown report of tuning results."""
         lines = [
             "# Alert Precision Tuning Report",
-            f"Generated: {datetime.now(timezone.utc).isoformat()}",
+            f"Generated: {datetime.now(UTC).isoformat()}",
             "",
             "## Summary",
             "| Alert ID | Metric | Old Threshold | New Threshold | Old Precision | New Precision | FP Reduction |",
@@ -277,7 +277,7 @@ class AlertTuner:
         return "\n".join(lines)
 
 
-def generate_synthetic_training_data(n_alerts: int = 200, fp_rate: float = 0.4) -> Tuple[List[AlertRecord], Dict[float, bool]]:
+def generate_synthetic_training_data(n_alerts: int = 200, fp_rate: float = 0.4) -> tuple[list[AlertRecord], dict[float, bool]]:
     """Generate synthetic historical alert data for testing.
 
     Creates alerts with a configurable false positive rate so the tuner

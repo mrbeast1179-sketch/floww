@@ -15,7 +15,7 @@ Endpoints:
 from __future__ import annotations
 
 import logging
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 import numpy as np
 from fastapi import APIRouter, HTTPException
@@ -27,12 +27,12 @@ router = APIRouter(prefix="/api/retail-flow", tags=["retail-flow"])
 
 # ── In-memory stores (replace with DuckDB/MongoDB persistence later) ──
 
-_cpr_calculators: Dict[str, Any] = {}
-_oi_detectors: Dict[str, Any] = {}
-_flow_scorers: Dict[str, Any] = {}
+_cpr_calculators: dict[str, Any] = {}
+_oi_detectors: dict[str, Any] = {}
+_flow_scorers: dict[str, Any] = {}
 
 # Cached snapshots
-_latest_snapshot: Dict[str, Dict[str, Any]] = {}
+_latest_snapshot: dict[str, dict[str, Any]] = {}
 
 
 def _get_cpr_calc(ticker: str):
@@ -58,9 +58,9 @@ def _get_scorer(ticker: str):
 
 # ── Helpers ──
 
-def _serialize_snapshot(snapshot: Dict[str, Any]) -> Dict[str, Any]:
+def _serialize_snapshot(snapshot: dict[str, Any]) -> dict[str, Any]:
     """Make snapshot JSON-safe (convert numpy types, dataclasses, etc.)."""
-    result: Dict[str, Any] = {}
+    result: dict[str, Any] = {}
     for key, val in snapshot.items():
         if isinstance(val, dict):
             result[key] = _serialize_snapshot(val)
@@ -131,12 +131,12 @@ async def get_flow_score(ticker: str):
 @router.post("/{ticker}/compute")
 async def compute_retail_flow(
     ticker: str,
-    call_volumes: Dict[str, float],
-    put_volumes: Dict[str, float],
-    current_oi: Dict[str, float],
-    previous_oi: Dict[str, float],
+    call_volumes: dict[str, float],
+    put_volumes: dict[str, float],
+    current_oi: dict[str, float],
+    previous_oi: dict[str, float],
     iv_skew: float = 0.0,
-    expiries: Optional[List[str]] = None,
+    expiries: list[str] | None = None,
 ):
     """Compute retail flow metrics from raw option chain data.
 
@@ -239,4 +239,4 @@ async def compute_retail_flow(
 
     except Exception as e:
         logger.error(f"Retail flow compute error for {t}: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e

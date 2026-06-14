@@ -13,8 +13,9 @@ import asyncio
 import logging
 import math
 import time
-from datetime import datetime, timezone
-from typing import Any, Callable, Dict, List, Optional
+from collections.abc import Callable
+from datetime import UTC, datetime
+from typing import Any
 
 import numpy as np
 
@@ -55,8 +56,8 @@ class MockSchwabFeed:
     def __init__(
         self,
         rate: float = 100.0,  # messages per second
-        symbols: Optional[List[str]] = None,
-        spots: Optional[Dict[str, Dict[str, float]]] = None,
+        symbols: list[str] | None = None,
+        spots: dict[str, dict[str, float]] | None = None,
         seed: int = 42,
     ):
         self.rate = rate
@@ -65,16 +66,16 @@ class MockSchwabFeed:
         self.rng = np.random.default_rng(seed)
 
         self._running = False
-        self._tick_handlers: List = []
-        self._chain_handlers: List = []
-        self._lob_handlers: List = []
-        self._lob_depth_handlers: List = []
+        self._tick_handlers: list = []
+        self._chain_handlers: list = []
+        self._lob_handlers: list = []
+        self._lob_depth_handlers: list = []
 
         # Current state
-        self._current_prices: Dict[str, float] = {
+        self._current_prices: dict[str, float] = {
             s: self.spots.get(s, {}).get("price", 100.0) for s in self.symbols
         }
-        self._current_volume: Dict[str, int] = {s: 0 for s in self.symbols}
+        self._current_volume: dict[str, int] = {s: 0 for s in self.symbols}
         self._tick_count = 0
         self._start_time = 0.0
 
@@ -82,16 +83,16 @@ class MockSchwabFeed:
     # Handler registration
     # ------------------------------------------------------------------
 
-    def on_tick(self, handler: Callable[[Dict[str, Any]], Any]):
+    def on_tick(self, handler: Callable[[dict[str, Any]], Any]):
         self._tick_handlers.append(handler)
 
-    def on_chain(self, handler: Callable[[Dict[str, Any]], Any]):
+    def on_chain(self, handler: Callable[[dict[str, Any]], Any]):
         self._chain_handlers.append(handler)
 
-    def on_lob(self, handler: Callable[[Dict[str, Any]], Any]):
+    def on_lob(self, handler: Callable[[dict[str, Any]], Any]):
         self._lob_handlers.append(handler)
 
-    def on_lob_depth(self, handler: Callable[[Dict[str, Any]], Any]):
+    def on_lob_depth(self, handler: Callable[[dict[str, Any]], Any]):
         self._lob_depth_handlers.append(handler)
 
     # ------------------------------------------------------------------
@@ -158,7 +159,7 @@ class MockSchwabFeed:
 
         spread = max(0.01, new_price * 0.0001)  # 1 basis point spread
         tick = {
-            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "timestamp": datetime.now(UTC).isoformat(),
             "symbol": symbol,
             "bid": round(new_price - spread / 2, 2),
             "ask": round(new_price + spread / 2, 2),
@@ -177,7 +178,7 @@ class MockSchwabFeed:
 
     async def _generate_chain(self):
         """Generate options chain updates for all symbols."""
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         for symbol in self.symbols:
             spot = self._current_prices[symbol]
             spot_config = self.spots.get(symbol, {"vol": 0.15})
@@ -249,7 +250,7 @@ class MockSchwabFeed:
             spot = self._current_prices[symbol]
             spread = max(0.01, spot * 0.0001)
             lob = {
-                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "timestamp": datetime.now(UTC).isoformat(),
                 "symbol": symbol,
                 "bid_size": int(self.rng.integers(100, 10000)),
                 "ask_size": int(self.rng.integers(100, 10000)),
@@ -272,9 +273,9 @@ class MockSchwabFeed:
             for level in range(5):
                 level_spread = spread * (1 + level * 0.5)
                 depth = {
-                    "timestamp": datetime.now(timezone.utc).isoformat(),
+                    "timestamp": datetime.now(UTC).isoformat(),
                     "symbol": symbol,
-                    "expiry": (datetime.now(timezone.utc) + __import__("datetime").timedelta(days=7)).strftime("%Y-%m-%d"),
+                    "expiry": (datetime.now(UTC) + __import__("datetime").timedelta(days=7)).strftime("%Y-%m-%d"),
                     "strike": 0.0,
                     "option_type": "C",
                     "level": level,
@@ -294,7 +295,7 @@ class MockSchwabFeed:
     # Metrics
     # ------------------------------------------------------------------
 
-    def get_metrics(self) -> Dict[str, Any]:
+    def get_metrics(self) -> dict[str, Any]:
         elapsed = time.monotonic() - self._start_time
         return {
             "tick_count": self._tick_count,

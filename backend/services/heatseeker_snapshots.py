@@ -23,8 +23,8 @@ All functions are NaN-safe (I-8 guards) and handle zero-OI without division erro
 from __future__ import annotations
 
 import logging
-from datetime import datetime, timezone
-from typing import Any, Dict, List, Tuple
+from datetime import UTC, datetime
+from typing import Any
 
 import pyarrow as pa
 
@@ -173,7 +173,7 @@ def _safe_int(val: Any, default: int = 0) -> int:
         return default
 
 
-def contracts_to_recordbatch(chain: Dict[str, Any]) -> pa.RecordBatch:
+def contracts_to_recordbatch(chain: dict[str, Any]) -> pa.RecordBatch:
     """Convert a chain dict to a PyArrow RecordBatch for bulk insert.
 
     Expected chain format:
@@ -199,7 +199,7 @@ def contracts_to_recordbatch(chain: Dict[str, Any]) -> pa.RecordBatch:
     """
     ticker = str(chain.get("ticker", "")).upper()
     contracts = chain.get("contracts") or []
-    ts = datetime.now(timezone.utc)
+    ts = datetime.now(UTC)
 
     arrays = {
         "timestamp": pa.array([ts] * len(contracts), type=pa.timestamp("us")),
@@ -245,7 +245,7 @@ def contracts_to_recordbatch(chain: Dict[str, Any]) -> pa.RecordBatch:
 # OI Delta computation (I-8: NaN guards, zero-OI handling)
 # ---------------------------------------------------------------------------
 
-def _contract_key(c: Dict[str, Any]) -> Tuple[str, float, str]:
+def _contract_key(c: dict[str, Any]) -> tuple[str, float, str]:
     """Unique key for a contract: (expiry, strike, type)."""
     return (
         str(c.get("expiry", "")),
@@ -254,7 +254,7 @@ def _contract_key(c: Dict[str, Any]) -> Tuple[str, float, str]:
     )
 
 
-def _get_oi(c: Dict[str, Any]) -> float:
+def _get_oi(c: dict[str, Any]) -> float:
     """Extract OI from contract dict, trying 'oi' then 'open_interest'."""
     val = c.get("oi")
     if val is None:
@@ -262,15 +262,15 @@ def _get_oi(c: Dict[str, Any]) -> float:
     return _safe_float(val)
 
 
-def _get_volume(c: Dict[str, Any]) -> float:
+def _get_volume(c: dict[str, Any]) -> float:
     """Extract volume from contract dict."""
     return _safe_float(c.get("volume"))
 
 
 def compute_oi_delta(
-    current: Dict[str, Any],
-    previous: Dict[str, Any],
-) -> List[Dict[str, Any]]:
+    current: dict[str, Any],
+    previous: dict[str, Any],
+) -> list[dict[str, Any]]:
     """Compute OI delta between two snapshots.
 
     For each contract in the current snapshot, computes:
@@ -297,12 +297,12 @@ def compute_oi_delta(
     prev_contracts = previous.get("contracts") or []
 
     # Build lookup maps
-    prev_map: Dict[Tuple, Dict[str, Any]] = {}
+    prev_map: dict[tuple, dict[str, Any]] = {}
     for c in prev_contracts:
         key = _contract_key(c)
         prev_map[key] = c
 
-    cur_map: Dict[Tuple, Dict[str, Any]] = {}
+    cur_map: dict[tuple, dict[str, Any]] = {}
     for c in cur_contracts:
         key = _contract_key(c)
         cur_map[key] = c
@@ -310,7 +310,7 @@ def compute_oi_delta(
     # Union of all contract keys
     all_keys = set(cur_map.keys()) | set(prev_map.keys())
 
-    results: List[Dict[str, Any]] = []
+    results: list[dict[str, Any]] = []
     for key in sorted(all_keys):
         expiry, strike, ctype = key
         cur = cur_map.get(key, {})
@@ -359,9 +359,9 @@ def compute_oi_delta(
 # ---------------------------------------------------------------------------
 
 def rank_top_movers(
-    deltas: List[Dict[str, Any]],
+    deltas: list[dict[str, Any]],
     top_n: int = 10,
-) -> List[Dict[str, Any]]:
+) -> list[dict[str, Any]]:
     """Rank contracts by absolute OI change, with volume spike as tiebreaker.
 
     Scoring:
@@ -397,7 +397,7 @@ def rank_top_movers(
 def get_latest_snapshot(
     conn,
     ticker: str,
-) -> List[Dict[str, Any]]:
+) -> list[dict[str, Any]]:
     """Get the most recent snapshot for a ticker.
 
     Returns all contracts from the latest timestamp for the given ticker.
@@ -431,7 +431,7 @@ def get_history(
     strike: float,
     ctype: str,
     limit: int = 100,
-) -> List[Dict[str, Any]]:
+) -> list[dict[str, Any]]:
     """Get time series for a specific contract.
 
     Returns historical snapshots ordered by timestamp ascending.
@@ -457,7 +457,7 @@ def get_top_movers_from_db(
     conn,
     ticker: str,
     top_n: int = 10,
-) -> List[Dict[str, Any]]:
+) -> list[dict[str, Any]]:
     """Compute top movers from the two most recent snapshots in DuckDB.
 
     Fetches the latest and previous snapshots, computes OI deltas,

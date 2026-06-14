@@ -13,6 +13,8 @@ import pytest
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+from datetime import UTC
+
 from advanced_analytics import calc_dex, calc_vega_total, calc_vex
 from bs_greeks import bs_delta, bs_vanna, bs_vega
 
@@ -25,7 +27,7 @@ def make_contracts_from_chain(chain_csv_path):
     import csv
     from datetime import datetime, timezone
     contracts = []
-    today = datetime.now(timezone.utc).date()
+    today = datetime.now(UTC).date()
     with open(chain_csv_path) as f:
         reader = csv.DictReader(f)
         for row in reader:

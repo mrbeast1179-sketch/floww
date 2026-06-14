@@ -17,6 +17,7 @@ Endpoints:
 from __future__ import annotations
 
 import logging
+from datetime import UTC
 
 from fastapi import APIRouter, Query
 
@@ -71,7 +72,7 @@ async def get_top_movers(
         ]
     }
     """
-    from datetime import datetime, timezone
+    from datetime import datetime
 
     from services.heatseeker_snapshots import get_top_movers_from_db
 
@@ -80,7 +81,7 @@ async def get_top_movers(
 
     return {
         "ticker": ticker.upper(),
-        "asof": datetime.now(timezone.utc).isoformat(),
+        "asof": datetime.now(UTC).isoformat(),
         "n_contracts": len(movers),
         "movers": movers,
     }

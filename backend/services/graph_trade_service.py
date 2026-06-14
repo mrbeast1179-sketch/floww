@@ -30,7 +30,7 @@ from __future__ import annotations  # noqa: F821
 import json
 import logging
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any
 
 logger = logging.getLogger("graph_trade_service")
 
@@ -215,7 +215,7 @@ class GraphTradeService:
 
     # ── Trade CRUD ─────────────────────────────────────────────────────
 
-    def upsert_trade(self, trade: Dict[str, Any]) -> None:
+    def upsert_trade(self, trade: dict[str, Any]) -> None:
         """Insert or update a trade node."""
         metadata = {
             k: v for k, v in trade.items()
@@ -248,25 +248,25 @@ class GraphTradeService:
             trade.get("strategy", ""), json.dumps(metadata),
         ])
 
-    def upsert_trades_batch(self, trades: List[Dict[str, Any]]) -> int:
+    def upsert_trades_batch(self, trades: list[dict[str, Any]]) -> int:
         """Batch insert trades. Returns count."""
         for t in trades:
             self.upsert_trade(t)
         return len(trades)
 
-    def get_trades_by_symbol(self, symbol: str, limit: int = 50) -> List[Dict]:
+    def get_trades_by_symbol(self, symbol: str, limit: int = 50) -> list[dict]:
         """Get all trades for a symbol."""
         rows = self.conn.execute("""
             SELECT * FROM trades WHERE symbol = ?
             ORDER BY entry_time DESC LIMIT ?
         """, [symbol, limit]).fetchall()
         cols = [d[0] for d in self.conn.description]
-        return [dict(zip(cols, r)) for r in rows]
+        return [dict(zip(cols, r, strict=False)) for r in rows]
 
     def get_trade_count(self) -> int:
         return self.conn.execute("SELECT COUNT(*) FROM trades").fetchone()[0]
 
-    def upsert_signal(self, signal: Dict[str, Any]) -> None:
+    def upsert_signal(self, signal: dict[str, Any]) -> None:
         """Insert or update a signal node."""
         metadata = {
             k: v for k, v in signal.items()
@@ -290,7 +290,7 @@ class GraphTradeService:
             signal.get("timestamp"), json.dumps(metadata),
         ])
 
-    def upsert_signals_batch(self, signals: List[Dict[str, Any]]) -> int:
+    def upsert_signals_batch(self, signals: list[dict[str, Any]]) -> int:
         for s in signals:
             self.upsert_signal(s)
         return len(signals)
@@ -300,7 +300,7 @@ class GraphTradeService:
 
     # ── Market Condition CRUD ──────────────────────────────────────────
 
-    def upsert_market_condition(self, condition: Dict[str, Any]) -> None:
+    def upsert_market_condition(self, condition: dict[str, Any]) -> None:
         metadata = {
             k: v for k, v in condition.items()
             if k not in ("id", "regime", "volatility", "vpin_cdf",
@@ -331,7 +331,7 @@ class GraphTradeService:
 
     # ── Symbol CRUD ────────────────────────────────────────────────────
 
-    def upsert_symbol(self, symbol: Dict[str, Any]) -> None:
+    def upsert_symbol(self, symbol: dict[str, Any]) -> None:
         metadata = {
             k: v for k, v in symbol.items()
             if k not in ("id", "name", "asset_class")
@@ -350,7 +350,7 @@ class GraphTradeService:
 
     # ── Retail Flow Score CRUD ─────────────────────────────────────────
 
-    def upsert_retail_flow_score(self, flow: Dict[str, Any]) -> None:
+    def upsert_retail_flow_score(self, flow: dict[str, Any]) -> None:
         """Insert or update a retail flow score node."""
         metadata = {
             k: v for k, v in flow.items()
@@ -391,23 +391,23 @@ class GraphTradeService:
             flow.get("retail_flow_score", 0.0), json.dumps(metadata),
         ])
 
-    def upsert_retail_flow_scores_batch(self, flows: List[Dict[str, Any]]) -> int:
+    def upsert_retail_flow_scores_batch(self, flows: list[dict[str, Any]]) -> int:
         for f in flows:
             self.upsert_retail_flow_score(f)
         return len(flows)
 
     def get_retail_flow_scores_by_symbol(self, symbol: str,
-                                          limit: int = 50) -> List[Dict]:
+                                          limit: int = 50) -> list[dict]:
         rows = self.conn.execute("""
             SELECT * FROM retail_flow_scores WHERE symbol = ?
             ORDER BY timestamp DESC LIMIT ?
         """, [symbol, limit]).fetchall()
         cols = [d[0] for d in self.conn.description]
-        return [dict(zip(cols, r)) for r in rows]
+        return [dict(zip(cols, r, strict=False)) for r in rows]
 
     def get_retail_flow_scores_by_score(self, min_score: float = None,
                                          max_score: float = None,
-                                         limit: int = 50) -> List[Dict]:
+                                         limit: int = 50) -> list[dict]:
         query = "SELECT * FROM retail_flow_scores WHERE 1=1"
         params = []
         if min_score is not None:
@@ -420,7 +420,7 @@ class GraphTradeService:
         params.append(limit)
         rows = self.conn.execute(query, params).fetchall()
         cols = [d[0] for d in self.conn.description]
-        return [dict(zip(cols, r)) for r in rows]
+        return [dict(zip(cols, r, strict=False)) for r in rows]
 
     def get_retail_flow_count(self) -> int:
         return self.conn.execute(
@@ -429,7 +429,7 @@ class GraphTradeService:
 
     # ── Price Movement CRUD ────────────────────────────────────────────
 
-    def upsert_price_movement(self, movement: Dict[str, Any]) -> None:
+    def upsert_price_movement(self, movement: dict[str, Any]) -> None:
         """Insert or update a price movement node."""
         metadata = {
             k: v for k, v in movement.items()
@@ -461,14 +461,14 @@ class GraphTradeService:
             movement.get("volume", 0.0), json.dumps(metadata),
         ])
 
-    def upsert_price_movements_batch(self, movements: List[Dict[str, Any]]) -> int:
+    def upsert_price_movements_batch(self, movements: list[dict[str, Any]]) -> int:
         for m in movements:
             self.upsert_price_movement(m)
         return len(movements)
 
     def get_price_movements_by_symbol(self, symbol: str,
                                        direction: str = None,
-                                       limit: int = 50) -> List[Dict]:
+                                       limit: int = 50) -> list[dict]:
         query = "SELECT * FROM price_movements WHERE symbol = ?"
         params = [symbol]
         if direction:
@@ -478,7 +478,7 @@ class GraphTradeService:
         params.append(limit)
         rows = self.conn.execute(query, params).fetchall()
         cols = [d[0] for d in self.conn.description]
-        return [dict(zip(cols, r)) for r in rows]
+        return [dict(zip(cols, r, strict=False)) for r in rows]
 
     def get_price_movement_count(self) -> int:
         return self.conn.execute(
@@ -511,7 +511,7 @@ class GraphTradeService:
 
     # ── Graph queries for retail flow ──────────────────────────────────
 
-    def get_retail_flow_with_movements(self, limit: int = 50) -> List[Dict]:
+    def get_retail_flow_with_movements(self, limit: int = 50) -> list[dict]:
         """MATCH (rfs:RetailFlowScore)-[:INFLUCED]->(pm:PriceMovement)."""
         rows = self.conn.execute("""
             SELECT rfs.id as flow_id, rfs.symbol, rfs.retail_flow_score,
@@ -526,9 +526,9 @@ class GraphTradeService:
             LIMIT ?
         """, [limit]).fetchall()
         cols = [d[0] for d in self.conn.description]
-        return [dict(zip(cols, r)) for r in rows]
+        return [dict(zip(cols, r, strict=False)) for r in rows]
 
-    def get_trades_with_retail_flow(self, limit: int = 50) -> List[Dict]:
+    def get_trades_with_retail_flow(self, limit: int = 50) -> list[dict]:
         """MATCH (t:Trade)-[:INFLUENCED_BY_RETAIL]->(rfs:RetailFlowScore)."""
         rows = self.conn.execute("""
             SELECT t.id as trade_id, t.symbol, t.side, t.pnl, t.pnl_pct,
@@ -543,9 +543,9 @@ class GraphTradeService:
             LIMIT ?
         """, [limit]).fetchall()
         cols = [d[0] for d in self.conn.description]
-        return [dict(zip(cols, r)) for r in rows]
+        return [dict(zip(cols, r, strict=False)) for r in rows]
 
-    def get_full_retail_flow_context(self, flow_id: str) -> Dict:
+    def get_full_retail_flow_context(self, flow_id: str) -> dict:
         """Get retail flow score + connected symbol, movements, trades."""
         flow = self.conn.execute(
             "SELECT * FROM retail_flow_scores WHERE id = ?", [flow_id]
@@ -553,7 +553,7 @@ class GraphTradeService:
         if not flow:
             return {}
         cols = [d[0] for d in self.conn.description]
-        flow_dict = dict(zip(cols, flow))
+        flow_dict = dict(zip(cols, flow, strict=False))
 
         movements = self.conn.execute("""
             SELECT pm.*, rfim.confidence
@@ -562,7 +562,7 @@ class GraphTradeService:
             WHERE rfim.flow_id = ?
         """, [flow_id]).fetchall()
         mov_cols = [d[0] for d in self.conn.description]
-        movements = [dict(zip(mov_cols, r)) for r in movements]
+        movements = [dict(zip(mov_cols, r, strict=False)) for r in movements]
 
         trades = self.conn.execute("""
             SELECT t.*, tib.confidence
@@ -571,7 +571,7 @@ class GraphTradeService:
             WHERE tib.flow_id = ?
         """, [flow_id]).fetchall()
         trade_cols = [d[0] for d in self.conn.description]
-        trades = [dict(zip(trade_cols, r)) for r in trades]
+        trades = [dict(zip(trade_cols, r, strict=False)) for r in trades]
 
         return {
             "retail_flow": flow_dict,
@@ -579,7 +579,7 @@ class GraphTradeService:
             "trades": trades,
         }
 
-    def get_retail_flow_stats(self) -> Dict[str, Any]:
+    def get_retail_flow_stats(self) -> dict[str, Any]:
         """Aggregate retail flow statistics."""
         total = self.conn.execute(
             "SELECT COUNT(*) FROM retail_flow_scores"
@@ -652,7 +652,7 @@ class GraphTradeService:
 
     # ── Graph queries ──────────────────────────────────────────────────
 
-    def get_trade_stats(self) -> Dict[str, Any]:
+    def get_trade_stats(self) -> dict[str, Any]:
         """Aggregate trade statistics."""
         total = self.conn.execute("SELECT COUNT(*) FROM trades").fetchone()[0]
         profitable = self.conn.execute(
@@ -691,7 +691,7 @@ class GraphTradeService:
             "total_pnl": round(total_pnl or 0, 2),
         }
 
-    def get_graph_stats(self) -> Dict[str, int]:
+    def get_graph_stats(self) -> dict[str, int]:
         """Return node/edge counts for the trade subgraph."""
         return {
             "trades": self.get_trade_count(),

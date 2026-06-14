@@ -28,7 +28,7 @@ from __future__ import annotations
 
 import logging
 from collections import defaultdict
-from typing import Any, Dict, List, Optional, Set, Tuple
+from typing import Any
 
 import numpy as np
 import pandas as pd
@@ -49,10 +49,10 @@ class CausalGraph:
     """
 
     def __init__(self):
-        self._adj: Dict[str, Set[str]] = defaultdict(set)  # parent -> children
-        self._parents: Dict[str, Set[str]] = defaultdict(set)
-        self._children: Dict[str, Set[str]] = defaultdict(set)
-        self._nodes: Set[str] = set()
+        self._adj: dict[str, set[str]] = defaultdict(set)  # parent -> children
+        self._parents: dict[str, set[str]] = defaultdict(set)
+        self._children: dict[str, set[str]] = defaultdict(set)
+        self._nodes: set[str] = set()
 
     def add_edge(self, cause: str, effect: str) -> None:
         """Add a directed edge: cause → effect."""
@@ -67,24 +67,24 @@ class CausalGraph:
             self._children[cause].discard(effect)
             raise ValueError(f"Adding edge {cause} → {effect} would create a cycle")
 
-    def add_edges(self, edges: List[Tuple[str, str]]) -> None:
+    def add_edges(self, edges: list[tuple[str, str]]) -> None:
         """Add multiple directed edges."""
         for cause, effect in edges:
             self.add_edge(cause, effect)
 
-    def get_nodes(self) -> Set[str]:
+    def get_nodes(self) -> set[str]:
         """Get all nodes in the graph."""
         return self._nodes.copy()
 
-    def get_parents(self, node: str) -> Set[str]:
+    def get_parents(self, node: str) -> set[str]:
         """Get direct parents (causes) of a node."""
         return self._parents.get(node, set()).copy()
 
-    def get_children(self, node: str) -> Set[str]:
+    def get_children(self, node: str) -> set[str]:
         """Get direct children (effects) of a node."""
         return self._children.get(node, set()).copy()
 
-    def get_ancestors(self, node: str) -> Set[str]:
+    def get_ancestors(self, node: str) -> set[str]:
         """Get all ancestors of a node (recursive parents)."""
         ancestors = set()
         to_visit = list(self._parents.get(node, set()))
@@ -95,7 +95,7 @@ class CausalGraph:
                 to_visit.extend(self._parents.get(parent, set()))
         return ancestors
 
-    def get_descendants(self, node: str) -> Set[str]:
+    def get_descendants(self, node: str) -> set[str]:
         """Get all descendants of a node (recursive children)."""
         descendants = set()
         to_visit = list(self._children.get(node, set()))
@@ -123,13 +123,9 @@ class CausalGraph:
             rec_stack.discard(node)
             return False
 
-        for node in self._nodes:
-            if node not in visited:
-                if dfs(node):
-                    return True
-        return False
+        return any(node not in visited and dfs(node) for node in self._nodes)
 
-    def is_d_separated(self, x: str, y: str, conditioning_set: Set[str]) -> bool:
+    def is_d_separated(self, x: str, y: str, conditioning_set: set[str]) -> bool:
         """Test if X and Y are d-separated given conditioning_set.
 
         Checks all undirected paths between X and Y. A path is blocked if it
@@ -142,14 +138,10 @@ class CausalGraph:
             return True  # No paths = d-separated
 
         # Check if ALL paths are blocked
-        for path in all_paths:
-            if not self._is_path_blocked_by_dsep(path, conditioning_set):
-                return False  # At least one unblocked path
-
-        return True  # All paths blocked
+        return all(self._is_path_blocked_by_dsep(path, conditioning_set) for path in all_paths)  # All paths blocked
 
     def _find_all_undirected_paths(self, source: str, target: str,
-                                     max_length: int = 15) -> List[List[str]]:
+                                     max_length: int = 15) -> list[list[str]]:
         """Find all undirected paths between source and target."""
         paths = []
 
@@ -172,7 +164,7 @@ class CausalGraph:
         dfs(source, [source], {source})
         return paths
 
-    def _is_path_blocked_by_dsep(self, path: List[str], conditioning_set: Set[str]) -> bool:
+    def _is_path_blocked_by_dsep(self, path: list[str], conditioning_set: set[str]) -> bool:
         """Check if an undirected path is blocked by d-separation rules.
 
         A path is blocked if it contains:
@@ -201,7 +193,7 @@ class CausalGraph:
 
         return False  # Not blocked
 
-    def _get_descendants(self, node: str) -> Set[str]:
+    def _get_descendants(self, node: str) -> set[str]:
         """Get all descendants of a node."""
         descendants = set()
         to_visit = list(self._children.get(node, set()))
@@ -212,7 +204,7 @@ class CausalGraph:
                 to_visit.extend(self._children.get(child, set()))
         return descendants
 
-    def find_all_paths(self, source: str, target: str, max_length: int = 10) -> List[List[str]]:
+    def find_all_paths(self, source: str, target: str, max_length: int = 10) -> list[list[str]]:
         """Find all directed paths from source to target."""
         paths = []
 
@@ -248,7 +240,7 @@ class BackdoorCriterion:
     def __init__(self, graph: CausalGraph):
         self.graph = graph
 
-    def is_valid_adjustment_set(self, x: str, y: str, z: Set[str]) -> bool:
+    def is_valid_adjustment_set(self, x: str, y: str, z: set[str]) -> bool:
         """Check if Z satisfies the backdoor criterion for (X, Y)."""
         # Condition 1: No node in Z is a descendant of X
         descendants = self.graph.get_descendants(x)
@@ -258,13 +250,9 @@ class BackdoorCriterion:
         # Condition 2: Z blocks every backdoor path
         # A backdoor path is any path from X to Y that starts with an arrow into X
         backdoor_paths = self._find_backdoor_paths(x, y)
-        for path in backdoor_paths:
-            if not self._is_path_blocked(path, z):
-                return False
+        return all(self._is_path_blocked(path, z) for path in backdoor_paths)
 
-        return True
-
-    def find_adjustment_sets(self, x: str, y: str) -> List[Set[str]]:
+    def find_adjustment_sets(self, x: str, y: str) -> list[set[str]]:
         """Find all valid backdoor adjustment sets for (X, Y)."""
         # Candidates: all nodes that are not X, Y, or descendants of X
         descendants = self.graph.get_descendants(x)
@@ -281,14 +269,14 @@ class BackdoorCriterion:
                     valid_sets.append(z)
         return valid_sets
 
-    def find_minimal_adjustment_set(self, x: str, y: str) -> Optional[Set[str]]:
+    def find_minimal_adjustment_set(self, x: str, y: str) -> set[str] | None:
         """Find the smallest valid backdoor adjustment set."""
         sets = self.find_adjustment_sets(x, y)
         if not sets:
             return None
         return min(sets, key=len)
 
-    def _find_backdoor_paths(self, x: str, y: str) -> List[List[str]]:
+    def _find_backdoor_paths(self, x: str, y: str) -> list[list[str]]:
         """Find all paths from X to Y that start with an arrow into X."""
         paths = []
         # Start from parents of X
@@ -297,8 +285,8 @@ class BackdoorCriterion:
             self._dfs_paths(parent, y, [x, parent], paths, exclude={x})
         return paths
 
-    def _dfs_paths(self, current: str, target: str, path: List[str],
-                   paths: List[List[str]], exclude: Set[str], max_length: int = 10):
+    def _dfs_paths(self, current: str, target: str, path: list[str],
+                   paths: list[list[str]], exclude: set[str], max_length: int = 10):
         """DFS to find paths avoiding excluded nodes."""
         if len(path) > max_length:
             return
@@ -313,7 +301,7 @@ class BackdoorCriterion:
                 self._dfs_paths(neighbor, target, path, paths, exclude, max_length)
                 path.pop()
 
-    def _is_path_blocked(self, path: List[str], z: Set[str]) -> bool:
+    def _is_path_blocked(self, path: list[str], z: set[str]) -> bool:
         """Check if a path is blocked by conditioning set Z.
 
         A path is blocked if it contains:
@@ -366,12 +354,12 @@ class FrontDoorCriterion:
     def __init__(self, graph: CausalGraph):
         self.graph = graph
 
-    def find_frontdoor_set(self, x: str, y: str) -> Optional[List[str]]:
+    def find_frontdoor_set(self, x: str, y: str) -> list[str] | None:
         """Find a valid front-door adjustment set for X -> Y."""
         return None
 
     def estimate(self, df: pd.DataFrame, x_col: str, y_col: str,
-                 mediators: List[str]) -> Dict[str, Any]:
+                 mediators: list[str]) -> dict[str, Any]:
         """Estimate causal effect via front-door formula."""
         return {"causal_effect": None, "method": "frontdoor"}
 
@@ -408,13 +396,10 @@ class InstrumentalVariables:
         y_ancestors = self.graph.get_ancestors(y)
         # If Z and Y share ancestors that are not through X, invalid
         shared = (z_ancestors & y_ancestors) - {x} - self.graph.get_ancestors(x)
-        if shared:
-            return False
-
-        return True
+        return not shared
 
     def estimate_2sls(self, df: pd.DataFrame, x_col: str, y_col: str,
-                      z_col: str) -> Dict[str, Any]:
+                      z_col: str) -> dict[str, Any]:
         """Estimate causal effect using two-stage least squares.
 
         Args:
@@ -494,7 +479,7 @@ class DoCalculus:
     def __init__(self, graph: CausalGraph):
         self.graph = graph
 
-    def intervene(self, interventions: Dict[str, float]) -> CausalGraph:
+    def intervene(self, interventions: dict[str, float]) -> CausalGraph:
         """Create a modified graph with do-operator applied.
 
         Args:
@@ -513,7 +498,7 @@ class DoCalculus:
                 new_graph.add_edge(parent, child)
         return new_graph
 
-    def compute_interventional_mean(self, target: str, interventions: Dict[str, float],
+    def compute_interventional_mean(self, target: str, interventions: dict[str, float],
                                      data: pd.DataFrame) -> float:
         """Compute E[target | do(interventions)] using adjustment.
 
@@ -533,10 +518,7 @@ class DoCalculus:
         # Compute adjusted mean
         result = 0.0
         for z_val in data[list(z)[0]].unique() if len(z) == 1 else [None]:
-            if z_val is not None:
-                subset = data[data[list(z)[0]] == z_val]
-            else:
-                subset = data
+            subset = data[data[list(z)[0]] == z_val] if z_val is not None else data
             if len(subset) > 0:
                 result += subset[target].mean() * len(subset) / len(data)
 
@@ -557,7 +539,7 @@ class CausalEffectEstimator:
     4. Difference-in-differences (if panel data available)
     """
 
-    def __init__(self, graph: Optional[CausalGraph] = None):
+    def __init__(self, graph: CausalGraph | None = None):
         self.graph = graph or CausalGraph()
         self.backdoor = BackdoorCriterion(self.graph)
         self.frontdoor = FrontDoorCriterion(self.graph)
@@ -565,7 +547,7 @@ class CausalEffectEstimator:
         self.do_calculus = DoCalculus(self.graph)
 
     def estimate_effect(self, df: pd.DataFrame, cause: str, effect: str,
-                        method: str = "auto") -> Dict[str, Any]:
+                        method: str = "auto") -> dict[str, Any]:
         """Estimate the causal effect of cause on effect.
 
         Args:

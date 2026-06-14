@@ -11,12 +11,12 @@ for given input.
 from __future__ import annotations
 
 import logging
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
 
-def compute_king_nodes(spot: float, contracts: List[Dict]) -> List[Dict]:
+def compute_king_nodes(spot: float, contracts: list[dict]) -> list[dict]:
     """Compute King Node overlay data: top-3 |GEX| strikes.
 
     Returns list of {strike, magnitude, label} dicts, sorted by |magnitude| desc.
@@ -44,7 +44,7 @@ def compute_king_nodes(spot: float, contracts: List[Dict]) -> List[Dict]:
         return []
 
 
-def compute_zero_gamma(spot: float, contracts: List[Dict]) -> Optional[float]:
+def compute_zero_gamma(spot: float, contracts: list[dict]) -> float | None:
     """Compute the zero-gamma level from GEX aggregation.
 
     Returns the strike where total GEX crosses zero, or None.
@@ -65,7 +65,7 @@ def compute_zero_gamma(spot: float, contracts: List[Dict]) -> Optional[float]:
         return None
 
 
-def compute_air_pockets(spot: float, contracts: List[Dict]) -> List[Dict]:
+def compute_air_pockets(spot: float, contracts: list[dict]) -> list[dict]:
     """Compute Air Pocket regions: zones where |GEX| < 0.2 x median.
 
     Returns list of {lo, hi, label} dicts.
@@ -92,15 +92,15 @@ def compute_air_pockets(spot: float, contracts: List[Dict]) -> List[Dict]:
 
 
 def compute_anomaly_markers(
-    timestamps: List[str],
-    vpin_series: Optional[List[float]] = None,
-    qi_series: Optional[List[float]] = None,
-) -> List[Dict]:
+    timestamps: list[str],
+    vpin_series: list[float] | None = None,
+    qi_series: list[float] | None = None,
+) -> list[dict]:
     """Compute anomaly markers from the anomaly detector.
 
     Returns list of {timestamp, severity, score, label} dicts.
     """
-    markers: List[Dict] = []
+    markers: list[dict] = []
     if not timestamps:
         return markers
     vpin_series = vpin_series or []
@@ -124,12 +124,12 @@ def compute_anomaly_markers(
     return markers
 
 
-def _compute_alignment_score(spy_vals: List[float], qqq_vals: List[float], spx_vals: List[float]) -> float:
+def _compute_alignment_score(spy_vals: list[float], qqq_vals: list[float], spx_vals: list[float]) -> float:
     """Compute a 0-100 alignment score from three ZG series."""
     if not spy_vals or not qqq_vals or not spx_vals:
         return 0.0
     try:
-        def direction(vals: List[float]) -> int:
+        def direction(vals: list[float]) -> int:
             if len(vals) < 2:
                 return 0
             return 1 if vals[-1] > vals[0] else (-1 if vals[-1] < vals[0] else 0)
@@ -145,15 +145,15 @@ def _compute_alignment_score(spy_vals: List[float], qqq_vals: List[float], spx_v
 
 
 def compute_trinity_sparkline(
-    spy_zg: Optional[List[Dict]] = None,
-    qqq_zg: Optional[List[Dict]] = None,
-    spx_zg: Optional[List[Dict]] = None,
-) -> Dict[str, Any]:
+    spy_zg: list[dict] | None = None,
+    qqq_zg: list[dict] | None = None,
+    spx_zg: list[dict] | None = None,
+) -> dict[str, Any]:
     """Compute Trinity alignment sparkline data.
 
     Returns {timestamps, spy_vals, qqq_vals, spx_vals, score}.
     """
-    result: Dict[str, Any] = {"timestamps": [], "spy_vals": [], "qqq_vals": [], "spx_vals": [], "score": 0}
+    result: dict[str, Any] = {"timestamps": [], "spy_vals": [], "qqq_vals": [], "spx_vals": [], "score": 0}
     try:
         series = spy_zg or qqq_zg or spx_zg or []
         if not series:
@@ -175,14 +175,14 @@ def compute_trinity_sparkline(
 
 def build_all_overlays(
     spot: float = 0,
-    contracts: Optional[List[Dict]] = None,
-    timestamps: Optional[List[str]] = None,
-    vpin_series: Optional[List[float]] = None,
-    qi_series: Optional[List[float]] = None,
-    spy_zg: Optional[List[Dict]] = None,
-    qqq_zg: Optional[List[Dict]] = None,
-    spx_zg: Optional[List[Dict]] = None,
-) -> Dict[str, Any]:
+    contracts: list[dict] | None = None,
+    timestamps: list[str] | None = None,
+    vpin_series: list[float] | None = None,
+    qi_series: list[float] | None = None,
+    spy_zg: list[dict] | None = None,
+    qqq_zg: list[dict] | None = None,
+    spx_zg: list[dict] | None = None,
+) -> dict[str, Any]:
     """Build all overlay data in one call.
 
     Returns dict with keys: king_nodes, zero_gamma, air_pockets,

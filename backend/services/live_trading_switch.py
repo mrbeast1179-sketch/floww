@@ -15,9 +15,9 @@ from __future__ import annotations
 import hmac
 import logging
 import os
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from enum import IntEnum
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 logger = logging.getLogger("live_trading_switch")
 
@@ -34,7 +34,7 @@ class TradingState(IntEnum):
         return self.name.replace("_", " ").title()
 
     @property
-    def max_notional_usd(self) -> Optional[float]:
+    def max_notional_usd(self) -> float | None:
         limits = {
             TradingState.OFF: 0,
             TradingState.PAPER_ONLY: 0,
@@ -58,10 +58,10 @@ class LiveTradingSwitch:
 
     def __init__(self):
         self._state = TradingState.OFF
-        self._last_transition: Optional[datetime] = None
-        self._cooldown_until: Optional[datetime] = None
-        self._circuit_breaker_log: List[Dict[str, Any]] = []
-        self._transition_log: List[Dict[str, Any]] = []
+        self._last_transition: datetime | None = None
+        self._cooldown_until: datetime | None = None
+        self._circuit_breaker_log: list[dict[str, Any]] = []
+        self._transition_log: list[dict[str, Any]] = []
 
     @property
     def state(self) -> TradingState:
@@ -75,14 +75,14 @@ class LiveTradingSwitch:
     def is_paper(self) -> bool:
         return self._state == TradingState.PAPER_ONLY
 
-    def get_status(self) -> Dict[str, Any]:
+    def get_status(self) -> dict[str, Any]:
         return {
             "state": self._state.name,
             "state_label": self._state.label,
             "is_live": self.is_live,
             "max_notional_usd": self._state.max_notional_usd,
             "last_transition": self._last_transition.isoformat() if self._last_transition else None,
-            "cooldown_active": self._cooldown_until is not None and datetime.now(timezone.utc) < self._cooldown_until,
+            "cooldown_active": self._cooldown_until is not None and datetime.now(UTC) < self._cooldown_until,
             "cooldown_until": self._cooldown_until.isoformat() if self._cooldown_until else None,
             "circuit_breaker_count": len(self._circuit_breaker_log),
         }
@@ -93,7 +93,7 @@ class LiveTradingSwitch:
         totp_code: str,
         email_code: str,
         actor: str = "nav",
-    ) -> Tuple[bool, str]:
+    ) -> tuple[bool, str]:
         """Request a state transition. Requires 2FA (TOTP + email code)."""
 
         # Validate 2FA
@@ -103,8 +103,8 @@ class LiveTradingSwitch:
             return False, "Invalid email code"
 
         # Check cooldown
-        if self._cooldown_until and datetime.now(timezone.utc) < self._cooldown_until:
-            remaining = (self._cooldown_until - datetime.now(timezone.utc)).total_seconds()
+        if self._cooldown_until and datetime.now(UTC) < self._cooldown_until:
+            remaining = (self._cooldown_until - datetime.now(UTC)).total_seconds()
             return False, f"Cooldown active — {remaining:.0f}s remaining"
 
         # Can only advance one state at a time
@@ -117,7 +117,7 @@ class LiveTradingSwitch:
 
         old_state = self._state
         self._state = target
-        self._last_transition = datetime.now(timezone.utc)
+        self._last_transition = datetime.now(UTC)
 
         entry = {
             "timestamp": self._last_transition.isoformat(),
@@ -141,8 +141,8 @@ class LiveTradingSwitch:
         new_state = TradingState(max(0, int(self._state) - 1))
 
         self._state = new_state
-        self._cooldown_until = datetime.now(timezone.utc) + timedelta(hours=24)
-        self._last_transition = datetime.now(timezone.utc)
+        self._cooldown_until = datetime.now(UTC) + timedelta(hours=24)
+        self._last_transition = datetime.now(UTC)
 
         entry = {
             "timestamp": self._last_transition.isoformat(),

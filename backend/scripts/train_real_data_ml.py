@@ -26,9 +26,9 @@ import json
 import logging
 import sys
 import time
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 import numpy as np
 import pandas as pd
@@ -251,12 +251,12 @@ def compute_features(ticker: str, period: str = "2y") -> pd.DataFrame:
 def select_features(
     X: np.ndarray,
     y: np.ndarray,
-    feature_names: List[str],
+    feature_names: list[str],
     min_variance: float = 0.001,
     max_correlation: float = 0.95,
     max_features: int = 25,
     quick: bool = False,
-) -> Tuple[List[str], List[int]]:
+) -> tuple[list[str], list[int]]:
     """Three-stage feature selection: variance → correlation → importance."""
     n_samples, n_features = X.shape
     selected_mask = np.ones(n_features, dtype=bool)
@@ -271,10 +271,7 @@ def select_features(
                  len(dropped_var), min_variance, dropped_var[:5])
 
     # Stage 2: Correlation pruning
-    if quick:
-        corr_threshold = 0.90
-    else:
-        corr_threshold = max_correlation
+    corr_threshold = 0.9 if quick else max_correlation
     remaining_idx = np.where(selected_mask)[0]
     if len(remaining_idx) > 1:
         corr_matrix = np.corrcoef(X[:, remaining_idx], rowvar=False)
@@ -319,7 +316,7 @@ def walk_forward_cv(
     y: np.ndarray,
     n_splits: int = 5,
     embargo: int = 5,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Walk-forward cross-validation with embargo gap."""
     from sklearn.metrics import accuracy_score
 
@@ -362,7 +359,7 @@ def walk_forward_cv(
         "mean_train_accuracy": float(np.mean(train_scores)),
         "mean_test_accuracy": float(np.mean(scores)),
         "std_test_accuracy": float(np.std(scores)),
-        "mean_gap": float(np.mean([t - s for t, s in zip(train_scores, scores)])),
+        "mean_gap": float(np.mean([t - s for t, s in zip(train_scores, scores, strict=False)])),
         "fold_test_scores": [float(s) for s in scores],
     }
 
@@ -371,8 +368,8 @@ def train_model(
     ticker: str,
     days: int = 504,  # ~2 years
     quick: bool = False,
-    output_dir: Optional[Path] = None,
-) -> Dict[str, Any]:
+    output_dir: Path | None = None,
+) -> dict[str, Any]:
     """Train models for a ticker, pick best by Sharpe, save artifacts."""
     from sklearn.ensemble import GradientBoostingClassifier, RandomForestClassifier
     from sklearn.linear_model import LogisticRegression
@@ -521,7 +518,7 @@ def train_model(
         output_dir.mkdir(parents=True, exist_ok=True)
         t0 = time.time()
 
-        ts = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
+        ts = datetime.now(UTC).strftime("%Y%m%d_%H%M%S")
         model_path = output_dir / f"{ticker}_{best_name}_v2_{ts}.joblib"
         scaler_path = output_dir / f"{ticker}_{best_name}_v2_{ts}_scaler.joblib"
         manifest_path = output_dir / f"{ticker}_{best_name}_v2_{ts}_manifest.json"
@@ -536,7 +533,7 @@ def train_model(
         }
         manifest["model_path"] = str(model_path.name)
         manifest["scaler_path"] = str(scaler_path.name)
-        manifest["created_at"] = datetime.now(timezone.utc).isoformat()
+        manifest["created_at"] = datetime.now(UTC).isoformat()
         manifest["model_id"] = f"{ticker}_{best_name}_v2"
         with open(manifest_path, "w") as f:
             json.dump(manifest, f, indent=2, default=str)
@@ -603,7 +600,7 @@ def main():
                      r["overfit_gap"], r["n_features"])
 
     # Save summary report
-    report_path = SCRIPT_DIR.parent / "reports" / f"training_real_data_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}.json"
+    report_path = SCRIPT_DIR.parent / "reports" / f"training_real_data_{datetime.now(UTC).strftime('%Y%m%d_%H%M%S')}.json"
     report_path.parent.mkdir(exist_ok=True)
     with open(report_path, "w") as f:
         json.dump(results, f, indent=2, default=str)

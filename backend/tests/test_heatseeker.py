@@ -98,7 +98,7 @@ def test_history_spy(client):
             try:
                 return next(self._it)
             except StopIteration:
-                raise StopAsyncIteration
+                raise StopAsyncIteration from None
 
         async def to_list(self, length=None):
             return self._rows[:length] if length else list(self._rows)

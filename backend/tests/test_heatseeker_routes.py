@@ -21,7 +21,7 @@ from __future__ import annotations
 
 import sys
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any
 from unittest.mock import AsyncMock, patch
 
 import pytest
@@ -41,7 +41,7 @@ def client() -> TestClient:
     return TestClient(app)
 
 
-def _chain_fixture() -> Dict[str, Any]:
+def _chain_fixture() -> dict[str, Any]:
     """
     Static option chain with enough strikes + both call/put sides so the
     GEX-per-strike aggregator returns a non-trivial map. Calls dominate
@@ -51,16 +51,14 @@ def _chain_fixture() -> Dict[str, Any]:
     spot = 500.0
     expiries = ["2026-05-22", "2026-05-29"]
     t_by_expiry = {"2026-05-22": 3 / 365.0, "2026-05-29": 10 / 365.0}
-    contracts: List[Dict[str, Any]] = []
+    contracts: list[dict[str, Any]] = []
     for exp in expiries:
         for strike in (485.0, 490.0, 495.0, 500.0, 505.0, 510.0, 515.0):
             for typ in ("call", "put"):
                 # Concentrate OI at 510 (call wall) and 490 (put wall) so the
                 # GEX map yields a clear King Node + opposite-sign neighbours.
                 base_oi = 2000
-                if typ == "call" and strike == 510.0:
-                    base_oi = 8000
-                elif typ == "put" and strike == 490.0:
+                if typ == "call" and strike == 510.0 or typ == "put" and strike == 490.0:
                     base_oi = 8000
                 contracts.append({
                     "strike": strike,

@@ -46,7 +46,8 @@ def bs_delta(S, K, T, sigma, q=0.0, kind="call", r=0.05):
         d1 = (math.log(S / K) + (r - q + 0.5 * sigma**2) * T) / (sigma * math.sqrt(T))
         if kind == "call":
             return math.exp(-q * T) * norm.cdf(d1)
-        else: return math.exp(-q * T) * (norm.cdf(d1) - 1)
+        else:
+            return math.exp(-q * T) * (norm.cdf(d1) - 1)
     except Exception as exc:
         return _mask_zero(exc)
 

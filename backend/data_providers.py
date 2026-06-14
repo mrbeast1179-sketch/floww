@@ -15,7 +15,6 @@ import logging
 import os
 import time
 from datetime import datetime, timedelta
-from typing import List, Optional
 
 import aiohttp
 
@@ -70,7 +69,7 @@ class FreeDataProvider:
         self.rate_limiter = RateLimiter(rate_limit)
         self.enabled = False
 
-    async def _get(self, url: str, params: dict = None, headers: dict = None) -> Optional[dict]:
+    async def _get(self, url: str, params: dict = None, headers: dict = None) -> dict | None:
         await self.rate_limiter.wait()
         try:
             async with aiohttp.ClientSession() as session:
@@ -107,11 +106,11 @@ class FinnhubProvider(FreeDataProvider):
         self.base = "https://finnhub.io/api/v1"
         self._headers = {"X-Finnhub-Token": FINNHUB_API_KEY} if FINNHUB_API_KEY else {}
 
-    async def _finnhub_get(self, path: str, params: dict = None) -> Optional[dict]:
+    async def _finnhub_get(self, path: str, params: dict = None) -> dict | None:
         """Make a Finnhub API call with token in header."""
         return await self._get(f"{self.base}{path}", params=params, headers=self._headers)
 
-    async def get_quote(self, ticker: str) -> Optional[dict]:
+    async def get_quote(self, ticker: str) -> dict | None:
         """Get real-time quote."""
         if not self.enabled:
             return None
@@ -132,7 +131,7 @@ class FinnhubProvider(FreeDataProvider):
             }
         return None
 
-    async def get_news(self, ticker: Optional[str] = None, count: int = 10) -> List[dict]:
+    async def get_news(self, ticker: str | None = None, count: int = 10) -> list[dict]:
         """Get market news or company news."""
         if not self.enabled:
             return []
@@ -157,7 +156,7 @@ class FinnhubProvider(FreeDataProvider):
             } for item in data[:count]]
         return []
 
-    async def get_earnings(self, ticker: str) -> List[dict]:
+    async def get_earnings(self, ticker: str) -> list[dict]:
         """Get earnings calendar."""
         if not self.enabled:
             return []
@@ -171,7 +170,7 @@ class FinnhubProvider(FreeDataProvider):
             } for item in data[:4]]
         return []
 
-    async def get_recommendation(self, ticker: str) -> Optional[dict]:
+    async def get_recommendation(self, ticker: str) -> dict | None:
         """Get analyst recommendations."""
         if not self.enabled:
             return None
@@ -189,7 +188,7 @@ class FinnhubProvider(FreeDataProvider):
             }
         return None
 
-    async def get_options_flow(self, ticker: str) -> Optional[dict]:
+    async def get_options_flow(self, ticker: str) -> dict | None:
         """Get options flow data (if available on free tier)."""
         if not self.enabled:
             return None
@@ -211,7 +210,7 @@ class PolygonProvider(FreeDataProvider):
         self.base = "https://api.polygon.io"
         self._headers = {"Authorization": f"Bearer {POLYGON_API_KEY}"} if POLYGON_API_KEY else {}
 
-    async def get_ticker_details(self, ticker: str) -> Optional[dict]:
+    async def get_ticker_details(self, ticker: str) -> dict | None:
         """Get ticker details."""
         if not self.enabled:
             return None
@@ -227,7 +226,7 @@ class PolygonProvider(FreeDataProvider):
             }
         return None
 
-    async def get_options_contracts(self, ticker: str, limit: int = 20) -> List[dict]:
+    async def get_options_contracts(self, ticker: str, limit: int = 20) -> list[dict]:
         """Get options contracts for a ticker."""
         if not self.enabled:
             return []
@@ -242,7 +241,7 @@ class PolygonProvider(FreeDataProvider):
             } for c in data["results"]]
         return []
 
-    async def get_last_trade(self, ticker: str) -> Optional[dict]:
+    async def get_last_trade(self, ticker: str) -> dict | None:
         """Get last trade."""
         if not self.enabled:
             return None
@@ -269,7 +268,7 @@ class DataAggregator:
         self.polygon = PolygonProvider()
         self.alphavantage = AlphaVantageProvider()
 
-    async def get_spot_price(self, ticker: str) -> Optional[dict]:
+    async def get_spot_price(self, ticker: str) -> dict | None:
         """Get spot price from best available source."""
         # Try Finnhub first (fastest, highest rate limit)
         quote = await self.finnhub.get_quote(ticker)
@@ -377,7 +376,7 @@ class AlphaVantageProvider(FreeDataProvider):
         self.enabled = bool(ALPHA_VANTAGE_KEY)
         self.base = "https://www.alphavantage.co/query"
 
-    async def get_quote(self, ticker: str) -> Optional[dict]:
+    async def get_quote(self, ticker: str) -> dict | None:
         """Get real-time quote. 5 calls/min, 500/day free tier."""
         if not self.enabled:
             return None
@@ -412,7 +411,7 @@ class AlphaVantageProvider(FreeDataProvider):
                 }
         return None
 
-    async def get_technical_indicator(self, ticker: str, indicator: str = "RSI", period: int = 14) -> Optional[dict]:
+    async def get_technical_indicator(self, ticker: str, indicator: str = "RSI", period: int = 14) -> dict | None:
         """Get technical indicator (RSI, MACD, SMA, EMA, etc.)."""
         if not self.enabled:
             return None
@@ -458,7 +457,7 @@ class AlphaVantageProvider(FreeDataProvider):
                 }
         return None
 
-    async def get_forex_rate(self, from_cur: str = "USD", to_cur: str = "EUR") -> Optional[float]:
+    async def get_forex_rate(self, from_cur: str = "USD", to_cur: str = "EUR") -> float | None:
         """Get forex rate."""
         if not self.enabled:
             return None

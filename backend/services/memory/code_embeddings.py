@@ -13,7 +13,6 @@ import json
 import logging
 import re
 from pathlib import Path
-from typing import Optional
 
 import numpy as np
 
@@ -196,9 +195,8 @@ class CodeEmbeddingIndex:
 
     def search(self, query: str, top_k: int = 5) -> list:
         """Search code by semantic similarity."""
-        if self._embeddings is None:
-            if not self.load_index():
-                return []
+        if self._embeddings is None and not self.load_index():
+            return []
         query_embedding = self.model.encode([query])
         similarities = np.dot(self._embeddings, query_embedding.T).flatten()
         top_indices = np.argsort(similarities)[-top_k:][::-1]
@@ -216,7 +214,7 @@ class CodeEmbeddingIndex:
         return results
 
 
-_code_index: Optional[CodeEmbeddingIndex] = None
+_code_index: CodeEmbeddingIndex | None = None
 
 
 def get_code_index() -> CodeEmbeddingIndex:

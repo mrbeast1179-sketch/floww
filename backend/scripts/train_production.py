@@ -18,7 +18,7 @@ import json
 import logging
 import sys
 import time
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 import numpy as np
@@ -217,7 +217,7 @@ def train_production_model(ticker: str, period: str = "2y") -> dict:
     train_time = time.time() - t0
 
     # Save artifacts
-    timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
+    timestamp = datetime.now(UTC).strftime("%Y%m%d_%H%M%S")
     model_path = MODEL_DIR / f"{ticker}_gbm_production.joblib"
     scaler_path = MODEL_DIR / f"{ticker}_gbm_production_scaler.joblib"
     manifest_path = MODEL_DIR / f"{ticker}_gbm_production_manifest.json"
@@ -264,7 +264,7 @@ def train_production_model(ticker: str, period: str = "2y") -> dict:
         "top_features": top_features,
         "gate_results": gates,
         "verdict": verdict,
-        "created_at": datetime.now(timezone.utc).isoformat(),
+        "created_at": datetime.now(UTC).isoformat(),
         "model_path": str(model_path),
         "scaler_path": str(scaler_path),
     }

@@ -19,8 +19,7 @@ from __future__ import annotations
 import asyncio
 import logging
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
-from typing import Dict, List, Optional
+from datetime import UTC, datetime
 
 import numpy as np
 import pandas as pd
@@ -48,9 +47,9 @@ class DailyPrediction:
     proba_hold: float
     proba_up: float
     spot: float
-    next_day_return: Optional[float] = None
-    next_day_direction: Optional[int] = None
-    correct: Optional[bool] = None
+    next_day_return: float | None = None
+    next_day_direction: int | None = None
+    correct: bool | None = None
 
 
 @dataclass
@@ -76,8 +75,8 @@ class BacktestReport:
     strategy_avg_win: float
     strategy_avg_loss: float
     strategy_profit_factor: float
-    by_regime: Dict[str, float] = field(default_factory=dict)
-    daily: List[DailyPrediction] = field(default_factory=list)
+    by_regime: dict[str, float] = field(default_factory=dict)
+    daily: list[DailyPrediction] = field(default_factory=list)
     computed_at: str = ""
     model_path: str = ""
     feature_count: int = 0
@@ -117,7 +116,7 @@ class BacktestReport:
 class ModelBacktester:
     """Walk-forward backtesting for ML models."""
 
-    def __init__(self, engine: Optional[InferenceEngine] = None):
+    def __init__(self, engine: InferenceEngine | None = None):
         self.engine = engine or InferenceEngine()
 
     async def run_backtest(
@@ -151,7 +150,7 @@ class ModelBacktester:
         close = raw["Close"].astype(float)
         close = close.reindex(features_df.index, method="ffill")
 
-        daily_results: List[DailyPrediction] = []
+        daily_results: list[DailyPrediction] = []
         start_idx = min_history_days
         end_idx = len(features_df) - 1
 
@@ -226,11 +225,11 @@ class ModelBacktester:
 
     def _compute_report(
         self,
-        daily: List[DailyPrediction],
+        daily: list[DailyPrediction],
         ticker: str,
         model_type: str,
         period: str,
-        manifest: Dict,
+        manifest: dict,
     ) -> BacktestReport:
         """Compute performance metrics from daily predictions."""
         n = len(daily)
@@ -302,7 +301,7 @@ class ModelBacktester:
             strategy_avg_loss=avg_loss,
             strategy_profit_factor=profit_factor,
             daily=daily,
-            computed_at=datetime.now(timezone.utc).isoformat(),
+            computed_at=datetime.now(UTC).isoformat(),
             model_path=manifest.get("model_path", ""),
             feature_count=manifest.get("n_features", 0),
         )

@@ -12,8 +12,8 @@ Features:
 """
 
 import math
-from datetime import date, datetime, timezone
-from typing import Any, Dict, List
+from datetime import UTC, date, datetime
+from typing import Any
 
 from scipy.stats import norm
 
@@ -43,7 +43,7 @@ class Position:
         self.entry_iv = entry_iv
         self.underlying_price = underlying_price
         self.is_long = is_long
-        self.entry_date = datetime.now(timezone.utc)
+        self.entry_date = datetime.now(UTC)
 
         # Calculate time to expiration
         try:
@@ -97,9 +97,9 @@ class Position:
         else:
             self.price = K * math.exp(-r * T) * norm.cdf(-d2) - S * math.exp(-q * T) * norm.cdf(-d1)
 
-    def current_greeks(self, spot: float, iv: float) -> Dict[str, float]:
+    def current_greeks(self, spot: float, iv: float) -> dict[str, float]:
         """Calculate current Greeks given new spot and IV."""
-        T = max(self.T - (datetime.now(timezone.utc) - self.entry_date).days / 365.0, 0.001)
+        T = max(self.T - (datetime.now(UTC) - self.entry_date).days / 365.0, 0.001)
         if T <= 0.001:
             return {"delta": 0, "gamma": 0, "vega": 0, "theta": 0, "vanna": 0, "charm": 0, "vomma": 0, "zomma": 0, "price": 0}
 
@@ -138,7 +138,7 @@ class Position:
             "price": price,
         }
 
-    def pnl(self, current_price: float) -> Dict[str, float]:
+    def pnl(self, current_price: float) -> dict[str, float]:
         """Calculate P&L for this position."""
         sign = 1 if self.is_long else -1
         per_contract = (current_price - self.entry_price) * sign
@@ -156,7 +156,7 @@ class Portfolio:
 
     def __init__(self, name: str = "Default"):
         self.name = name
-        self.positions: List[Position] = []
+        self.positions: list[Position] = []
         self.cash = 0.0
 
     def add_position(self, position: Position):
@@ -164,7 +164,7 @@ class Portfolio:
         sign = 1 if position.is_long else -1
         self.cash -= position.entry_price * abs(position.quantity) * 100 * sign
 
-    def total_pnl(self, spot: float, iv: float) -> Dict[str, float]:
+    def total_pnl(self, spot: float, iv: float) -> dict[str, float]:
         """Calculate total portfolio P&L."""
         total_pnl = 0
         total_entry = 0
@@ -185,7 +185,7 @@ class Portfolio:
 
 def calc_position_size(account_size: float, risk_per_trade_pct: float,
                         spot: float, gex_level: float,
-                        max_position_pct: float = 0.25) -> Dict[str, Any]:
+                        max_position_pct: float = 0.25) -> dict[str, Any]:
     """
     Calculate position size based on GEX levels and risk parameters.
     Near high-GEX strikes, reduce size (more predictable but crowded).

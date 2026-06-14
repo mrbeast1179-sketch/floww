@@ -22,7 +22,7 @@ from __future__ import annotations
 import hashlib
 import logging
 import time
-from typing import Any, Dict, Optional
+from typing import Any
 
 from pydantic import BaseModel, Field
 
@@ -55,7 +55,7 @@ class SignalInput(BaseModel):
     anomaly_score: float = 0.0
     gex_state: str = "neutral"  # "positive", "negative", "neutral"
     trinity_score: float = 0.0
-    current_positions: Dict[str, int] = {}  # ticker -> qty
+    current_positions: dict[str, int] = {}  # ticker -> qty
     account_equity: float = 0.0
     flashalpha_sentiment_z: float = 0.0
     vpin_cdf: float = 0.0
@@ -64,7 +64,7 @@ class SignalInput(BaseModel):
     spot_price: float = 0.0
 
 
-def translate_signal(input_data: SignalInput) -> Optional[TradeIntent]:
+def translate_signal(input_data: SignalInput) -> TradeIntent | None:
     """Convert analytics signals into a TradeIntent.
 
     Returns None if conviction is too low or any risk gate fails.
@@ -124,7 +124,7 @@ def translate_signal(input_data: SignalInput) -> Optional[TradeIntent]:
     )
 
 
-def _check_gates(input_data: SignalInput, conviction: float) -> Dict[str, Any]:
+def _check_gates(input_data: SignalInput, conviction: float) -> dict[str, Any]:
     """Check all risk gates. Returns {"approved": bool, "reason": str}."""
     # Gate 1: Conviction
     if conviction < MIN_CONVICTION:

@@ -6,9 +6,9 @@ Alert engine with YAML-defined rules and ML-enriched predicates.
 from __future__ import annotations
 
 import logging
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any
 
 import yaml
 
@@ -20,7 +20,7 @@ ALERT_DEFINITIONS_DIR = Path(__file__).resolve().parent.parent / "alerts" / "def
 class AlertDefinition:
     """Parsed alert definition from YAML."""
 
-    def __init__(self, data: Dict[str, Any]):
+    def __init__(self, data: dict[str, Any]):
         self.id = data["id"]
         self.name = data.get("name", self.id)
         self.description = data.get("description", "")
@@ -28,7 +28,7 @@ class AlertDefinition:
         self.priority = data.get("priority", "medium")
         self.cooldown_minutes = data.get("cooldown_minutes", 60)
         self.ml_enriched = data.get("ml_enriched", False)
-        self.ml_model = data.get("ml_model", None)
+        self.ml_model = data.get("ml_model")
         self.ml_threshold = data.get("ml_threshold", 0.65)
         self.actions = data.get("actions", ["log"])
         self.enabled = data.get("enabled", True)
@@ -40,8 +40,8 @@ class AlertEngine:
     def __init__(self, db, ml_predict_fn=None):
         self.db = db
         self.ml_predict_fn = ml_predict_fn
-        self.definitions: List[AlertDefinition] = []
-        self._last_fired: Dict[str, datetime] = {}
+        self.definitions: list[AlertDefinition] = []
+        self._last_fired: dict[str, datetime] = {}
         self._load_definitions()
 
     def _load_definitions(self):
@@ -63,7 +63,7 @@ class AlertEngine:
             except Exception as e:
                 log.error(f"Failed to load alert definition from {yaml_file}: {e}")
 
-    def evaluate(self, ticker: str, context: Dict[str, Any]) -> List[Dict[str, Any]]:
+    def evaluate(self, ticker: str, context: dict[str, Any]) -> list[dict[str, Any]]:
         """Evaluate all alert definitions against current context."""
         fired = []
 
@@ -75,7 +75,7 @@ class AlertEngine:
             last_fired = self._last_fired.get(definition.id)
             if last_fired:
                 cooldown = timedelta(minutes=definition.cooldown_minutes)
-                if datetime.now(timezone.utc) - last_fired < cooldown:
+                if datetime.now(UTC) - last_fired < cooldown:
                     continue
 
             # Evaluate predicate
@@ -91,16 +91,16 @@ class AlertEngine:
                     "name": definition.name,
                     "priority": definition.priority,
                     "ticker": ticker,
-                    "timestamp": datetime.now(timezone.utc).isoformat(),
+                    "timestamp": datetime.now(UTC).isoformat(),
                     "context": {k: v for k, v in context.items() if isinstance(v, (int, float, str, bool))},
                 }
                 fired.append(alert)
-                self._last_fired[definition.id] = datetime.now(timezone.utc)
+                self._last_fired[definition.id] = datetime.now(UTC)
                 self._persist_alert(alert)
 
         return fired
 
-    def _evaluate_predicate(self, definition: AlertDefinition, ticker: str, context: Dict[str, Any]) -> bool:
+    def _evaluate_predicate(self, definition: AlertDefinition, ticker: str, context: dict[str, Any]) -> bool:
         """Evaluate a single alert predicate."""
         predicate = definition.predicate
 
@@ -119,7 +119,7 @@ class AlertEngine:
             log.error(f"Predicate evaluation error: {predicate}: {e}")
             return False
 
-    def _eval_expression(self, expr: str, context: Dict[str, Any]) -> bool:
+    def _eval_expression(self, expr: str, context: dict[str, Any]) -> bool:
         """Evaluate a simple comparison expression."""
         expr = expr.strip()
 
@@ -138,7 +138,7 @@ class AlertEngine:
 
         raise ValueError(f"Cannot parse expression: {expr}")
 
-    def _resolve_value(self, key: str, context: Dict[str, Any]) -> Any:
+    def _resolve_value(self, key: str, context: dict[str, Any]) -> Any:
         """Resolve a value from context or literal."""
         # Check context first
         if key in context:
@@ -163,7 +163,7 @@ class AlertEngine:
 
         return key
 
-    def _persist_alert(self, alert: Dict[str, Any]):
+    def _persist_alert(self, alert: dict[str, Any]):
         """Persist fired alert to MongoDB."""
         try:
             self.db["alerts_history"].insert_one(alert)

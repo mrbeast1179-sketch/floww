@@ -21,7 +21,7 @@ async def test_heatmap_spy_day_grid(aclient):
     first_exp = grid["expiries"][0]
     cells = grid["grid"][first_exp]
     assert isinstance(cells, dict)
-    for key in cells.keys():
+    for key in cells:
         # SPY strikes are integers, should not contain "."
         # (SPY has half-strikes only on weeklies — but we still want pure-int strings for whole numbers)
         if "." not in key:

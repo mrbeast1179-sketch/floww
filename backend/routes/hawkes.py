@@ -13,7 +13,7 @@ Endpoints:
 from __future__ import annotations
 
 import logging
-from typing import Any, Dict, List
+from typing import Any
 
 import numpy as np
 from fastapi import APIRouter, HTTPException
@@ -23,7 +23,7 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/hawkes", tags=["hawkes"])
 
 # Global registry (ticker -> HawkesProcess)
-_hawkes: Dict[str, Any] = {}
+_hawkes: dict[str, Any] = {}
 
 
 def _get_hawkes(ticker: str, mu: float = 1.0, alpha: float = 0.5, beta: float = 1.0):
@@ -34,7 +34,7 @@ def _get_hawkes(ticker: str, mu: float = 1.0, alpha: float = 0.5, beta: float = 
 
 
 @router.post("/{ticker}/fit")
-async def fit_hawkes(ticker: str, event_times: List[float]):
+async def fit_hawkes(ticker: str, event_times: list[float]):
     """Fit Hawkes process parameters to observed event times."""
     t = ticker.upper()
     if len(event_times) < 2:
@@ -46,7 +46,7 @@ async def fit_hawkes(ticker: str, event_times: List[float]):
 
 
 @router.get("/{ticker}/intensity")
-async def get_intensity(ticker: str, event_times: List[float] = None):
+async def get_intensity(ticker: str, event_times: list[float] = None):
     """Compute conditional intensity at the latest event time."""
     t = ticker.upper()
     hp = _get_hawkes(t)

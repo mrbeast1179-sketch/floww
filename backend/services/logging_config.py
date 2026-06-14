@@ -6,7 +6,7 @@ import contextvars
 import json
 import logging
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 correlation_id_var = contextvars.ContextVar('correlation_id', default=None)
 
@@ -14,7 +14,7 @@ correlation_id_var = contextvars.ContextVar('correlation_id', default=None)
 class StructuredFormatter(logging.Formatter):
     def format(self, record):
         log_data = {
-            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "timestamp": datetime.now(UTC).isoformat(),
             "level": record.levelname,
             "message": record.getMessage(),
             "module": record.module,

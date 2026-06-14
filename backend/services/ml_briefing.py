@@ -16,7 +16,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from services.ml import DegenerateModelError
 
@@ -51,7 +51,7 @@ class MlBriefingIntegrator:
                 log.warning(f"Could not load briefing engine: {e}")
         return self._briefing_engine
 
-    async def generate_briefing(self, ticker: str) -> Dict[str, Any]:
+    async def generate_briefing(self, ticker: str) -> dict[str, Any]:
         """Generate a unified ML + deterministic briefing.
 
         Args:
@@ -134,8 +134,8 @@ class MlBriefingIntegrator:
         self,
         regime: str,
         regime_confidence: float,
-        ml_prediction: Optional[int],
-        ml_confidence: Optional[float],
+        ml_prediction: int | None,
+        ml_confidence: float | None,
     ) -> tuple:
         """Combine deterministic regime + ML prediction into unified signal.
 
@@ -165,10 +165,7 @@ class MlBriefingIntegrator:
             weighted_score += ml_score * ml_confidence
             total_weight += ml_confidence
 
-        if total_weight > 0:
-            combined = weighted_score / total_weight
-        else:
-            combined = 0.0
+        combined = weighted_score / total_weight if total_weight > 0 else 0.0
 
         # Map to signal label
         if combined > 0.5:
@@ -185,7 +182,7 @@ class MlBriefingIntegrator:
         confidence = abs(combined)
         return signal, confidence
 
-    async def get_model_status(self, ticker: str) -> Dict[str, Any]:
+    async def get_model_status(self, ticker: str) -> dict[str, Any]:
         """Get ML model status for a ticker."""
         engine = self._get_inference_engine()
         if not engine:
@@ -207,7 +204,7 @@ class MlBriefingIntegrator:
         except Exception as e:
             return {"ticker": ticker, "status": "error", "reason": str(e)}
 
-    async def list_available_models(self) -> List[Dict[str, Any]]:
+    async def list_available_models(self) -> list[dict[str, Any]]:
         """List all available ML models."""
         engine = self._get_inference_engine()
         if not engine:

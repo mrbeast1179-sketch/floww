@@ -3,7 +3,7 @@ tests/services/ml/test_retrain.py
 
 Tests for the auto-retrain orchestrator.
 """
-from datetime import datetime, timezone
+from datetime import UTC, datetime, timezone
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -78,7 +78,7 @@ class TestIsRetrainOnCooldown:
     async def test_recent_retrain_exists(self, orchestrator, mock_col):
         mock_col._find_one_return = {
             "ticker": "SPY",
-            "created_at": datetime.now(timezone.utc).isoformat(),
+            "created_at": datetime.now(UTC).isoformat(),
         }
         result = await orchestrator.is_retrain_on_cooldown("SPY")
         assert result is True

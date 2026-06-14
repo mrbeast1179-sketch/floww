@@ -13,7 +13,7 @@ so routes here should NOT include the /api prefix. I-7 fix.
 from __future__ import annotations
 
 import time
-from typing import Any, Dict, Optional
+from typing import Any
 
 from fastapi import APIRouter, HTTPException, Path
 from fastapi.responses import HTMLResponse, JSONResponse
@@ -21,11 +21,11 @@ from fastapi.responses import HTMLResponse, JSONResponse
 router = APIRouter()
 
 # 15-minute cache: {ticker: (timestamp, result)}
-_briefing_cache: Dict[str, Dict[str, Any]] = {}
+_briefing_cache: dict[str, dict[str, Any]] = {}
 _CACHE_TTL_SECONDS = 900  # 15 minutes
 
 
-def _get_cached(ticker: str) -> Optional[Dict[str, Any]]:
+def _get_cached(ticker: str) -> dict[str, Any] | None:
     """Return cached briefing if fresh, else None."""
     entry = _briefing_cache.get(ticker.upper())
     if entry is None:
@@ -36,14 +36,14 @@ def _get_cached(ticker: str) -> Optional[Dict[str, Any]]:
     return entry
 
 
-def _set_cached(ticker: str, result: Dict[str, Any]) -> None:
+def _set_cached(ticker: str, result: dict[str, Any]) -> None:
     """Cache a briefing result with timestamp."""
     entry = dict(result)
     entry["_cached_at"] = time.monotonic()
     _briefing_cache[ticker.upper()] = entry
 
 
-def _strip_cache_metadata(result: Dict[str, Any]) -> Dict[str, Any]:
+def _strip_cache_metadata(result: dict[str, Any]) -> dict[str, Any]:
     """Remove internal cache fields from response."""
     return {k: v for k, v in result.items() if not k.startswith("_")}
 
@@ -106,7 +106,7 @@ async def get_briefing(
         raise HTTPException(
             status_code=500,
             detail=f"Briefing generation failed for {ticker}: {str(e)}",
-        )
+        ) from e
 
 
 @router.get("/briefing/{ticker}/html", response_class=HTMLResponse)

@@ -14,7 +14,7 @@ Run with:
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime, timezone
 
 import pyarrow as pa
 
@@ -265,7 +265,7 @@ class TestSnapshotTableSchema:
         conn = duckdb.connect(":memory:")
         svc.create_snapshot_table(conn)
 
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         batch = pa.record_batch({
             "timestamp": pa.array([now, now], type=pa.timestamp("us")),
             "ticker": pa.array(["SPY", "SPY"], type=pa.string()),
@@ -294,7 +294,7 @@ class TestSnapshotTableSchema:
         svc.create_snapshot_table(conn)
 
         n = 500
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         batch = pa.record_batch({
             "timestamp": pa.array([now] * n, type=pa.timestamp("us")),
             "ticker": pa.array(["SPY"] * n, type=pa.string()),
@@ -320,7 +320,7 @@ class TestSnapshotTableSchema:
         conn = duckdb.connect(":memory:")
         svc.create_snapshot_table(conn)
 
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         batch = pa.record_batch({
             "timestamp": pa.array([now], type=pa.timestamp("us")),
             "ticker": pa.array(["SPY"], type=pa.string()),
@@ -347,7 +347,7 @@ class TestSnapshotTableSchema:
         conn = duckdb.connect(":memory:")
         svc.create_snapshot_table(conn)
 
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         # Insert 3 snapshots at different times
         for i in range(3):
             batch = pa.record_batch({

@@ -1,7 +1,6 @@
 """API routes for free data providers."""
 
 import logging
-from typing import Optional
 
 from fastapi import APIRouter, Query
 
@@ -51,7 +50,7 @@ async def get_ticker_data(
     expiries: int = Query(4, ge=1, le=12),
     taps: bool = True,
     mode: str = Query("day", pattern="^(day|swing|scalp)$"),
-    dte: Optional[int] = Query(None, ge=0, le=30),
+    dte: int | None = Query(None, ge=0, le=30),
     scalp: bool = Query(False),
 ):
     """Get full heatmap data for a ticker (compatible with frontend data fetch)."""

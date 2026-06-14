@@ -25,7 +25,7 @@ Runs as a cron job to continuously collect data.
 
 import logging
 import os
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from dotenv import load_dotenv
 from motor.motor_asyncio import AsyncIOMotorClient
@@ -55,7 +55,7 @@ async def collect_snapshot(ticker: str = "SPY") -> dict:
 
     snapshot = {
         "ticker": ticker.upper(),
-        "ts": datetime.now(timezone.utc).isoformat(),
+        "ts": datetime.now(UTC).isoformat(),
         "spot": spot,
         "total_gex": round(total_gex, 0),
         "net_gex": round(sum(s["gex"] for s in strikes), 0),

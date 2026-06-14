@@ -21,7 +21,7 @@ import argparse
 import json
 import logging
 import warnings
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 import joblib
@@ -80,18 +80,25 @@ def prepare_features(df):
     return X.values, y, feature_names, dates
 
 def compute_sharpe(preds, actuals):
-    rets = [1.0 if a == 1 else -1.0 for p, a in zip(preds, actuals) if p == 1]
-    if len(rets) < 2: return 0.0
+    rets = [1.0 if a == 1 else -1.0 for p, a in zip(preds, actuals, strict=False) if p == 1]
+    if len(rets) < 2:
+        return 0.0
     std = np.std(rets)
-    if std < 1e-10: return 0.0
+    if std < 1e-10:
+        return 0.0
     return float(np.mean(rets) / std * np.sqrt(252))
 
 def gate(result):
-    if result["test_sharpe"] <= 0.0: return "REJECT"
-    if result["test_accuracy"] <= 0.50: return "REJECT"
-    if result["train_test_gap"] > 0.15: return "REJECT"
-    if not result["beats_majority"]: return "REJECT"
-    if not result["beats_persistence"]: return "REJECT"
+    if result["test_sharpe"] <= 0.0:
+        return "REJECT"
+    if result["test_accuracy"] <= 0.50:
+        return "REJECT"
+    if result["train_test_gap"] > 0.15:
+        return "REJECT"
+    if not result["beats_majority"]:
+        return "REJECT"
+    if not result["beats_persistence"]:
+        return "REJECT"
     return "SHIP"
 
 def train_and_evaluate(X, y, dates, ticker, model_type, n_splits=5, train_size=500, test_size=50, step=50, embargo=5):
@@ -225,14 +232,14 @@ def main():
             if best_model_type != "logistic":
                 final_model.fit(X, y)
 
-            ts = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
+            ts = datetime.now(UTC).strftime("%Y%m%d_%H%M%S")
             model_path = output_dir / f"{ticker}_{best_model_type}_ship_{ts}.joblib"
             artifact = {
                 "model": final_model,
                 "model_name": best_model_type,
                 "feature_names": feature_names,
                 "ticker": ticker,
-                "trained_at": datetime.now(timezone.utc).isoformat(),
+                "trained_at": datetime.now(UTC).isoformat(),
             }
             if best_model_type == "logistic":
                 artifact["scaler"] = final_scaler
@@ -246,7 +253,7 @@ def main():
                 "median_test_sharpe": best_median_sharpe,
                 "model_path": str(model_path),
                 "verdict": "SHIP",
-                "created_at": datetime.now(timezone.utc).isoformat(),
+                "created_at": datetime.now(UTC).isoformat(),
             }
             manifest_path = output_dir / f"{ticker}_{best_model_type}_ship_manifest_{ts}.json"
             with open(manifest_path, "w") as f:

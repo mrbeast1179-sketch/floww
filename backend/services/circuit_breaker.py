@@ -15,10 +15,11 @@ from __future__ import annotations
 
 import logging
 import time
+from collections.abc import Callable
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from enum import Enum
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any
 
 logger = logging.getLogger("circuit_breaker")
 
@@ -35,7 +36,7 @@ class Measurement:
     timestamp: float
     is_error: bool
     latency_ms: float = 0.0
-    metadata: Dict[str, Any] = field(default_factory=dict)
+    metadata: dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass
@@ -99,19 +100,19 @@ class CircuitBreaker:
     def __init__(
         self,
         name: str = "main",
-        thresholds: Optional[BreakerThresholds] = None,
-        on_trip: Optional[Callable[[str, str], None]] = None,
+        thresholds: BreakerThresholds | None = None,
+        on_trip: Callable[[str, str], None] | None = None,
     ):
         self.name = name
         self.thresholds = thresholds or BreakerThresholds()
         self._on_trip = on_trip
 
         self._state = CircuitState.CLOSED
-        self._measurements: List[Measurement] = []
-        self._trip_log: List[TripRecord] = []
-        self._last_trip_time: Optional[float] = None
+        self._measurements: list[Measurement] = []
+        self._trip_log: list[TripRecord] = []
+        self._last_trip_time: float | None = None
         self._half_open_successes: int = 0
-        self._created_at = datetime.now(timezone.utc)
+        self._created_at = datetime.now(UTC)
 
     @property
     def state(self) -> CircuitState:
@@ -133,15 +134,13 @@ class CircuitBreaker:
                 self._transition_to(CircuitState.HALF_OPEN)
                 return True
             return False
-        if self._state == CircuitState.HALF_OPEN:
-            return True  # Allow limited trading in half-open
-        return False
+        return self._state == CircuitState.HALF_OPEN  # Allow limited trading in half-open
 
     def record_request(
         self,
         latency_ms: float = 0.0,
         is_error: bool = False,
-        metadata: Optional[Dict[str, Any]] = None,
+        metadata: dict[str, Any] | None = None,
     ) -> None:
         """Record a request measurement."""
         now = time.time()
@@ -197,7 +196,7 @@ class CircuitBreaker:
         """Manually trip the circuit breaker."""
         self._trip(reason=reason, details=f"Manually tripped by {actor}", actor=actor)
 
-    def get_status(self) -> Dict[str, Any]:
+    def get_status(self) -> dict[str, Any]:
         """Get full circuit breaker status."""
         now = time.time()
         self._cleanup_old_measurements(now)
@@ -224,7 +223,7 @@ class CircuitBreaker:
             "created_at": self._created_at.isoformat(),
         }
 
-    def get_trip_log(self) -> List[Dict[str, Any]]:
+    def get_trip_log(self) -> list[dict[str, Any]]:
         """Get trip history."""
         return [
             {
@@ -294,7 +293,7 @@ class CircuitBreaker:
         error_rate, latency_p99 = self._compute_metrics()
 
         record = TripRecord(
-            timestamp=datetime.now(timezone.utc).isoformat(),
+            timestamp=datetime.now(UTC).isoformat(),
             reason=reason,
             details=details,
             state_before=old_state.value,

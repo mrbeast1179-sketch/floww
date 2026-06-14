@@ -18,8 +18,9 @@ from __future__ import annotations
 
 import math
 import time
+from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any
 
 
 @dataclass
@@ -32,7 +33,7 @@ class VolumeBucket:
     buy_volume: float
     sell_volume: float
     avg_price_change: float    # volume-weighted mean price change
-    price_changes: List[float] = field(default_factory=list)  # raw changes
+    price_changes: list[float] = field(default_factory=list)  # raw changes
     vpin: float = 0.0         # |buy - sell| / total
 
     @property
@@ -43,7 +44,7 @@ class VolumeBucket:
     def imbalance(self) -> float:
         return abs(self.buy_volume - self.sell_volume)
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "bucket_id": self.bucket_id,
             "start_time": self.start_time,
@@ -72,7 +73,7 @@ class VolumeClock:
     def __init__(
         self,
         bucket_size: float = 50_000.0,
-        on_bucket_finalized: Optional[Callable[[VolumeBucket], None]] = None,
+        on_bucket_finalized: Callable[[VolumeBucket], None] | None = None,
     ) -> None:
         if bucket_size <= 0:
             raise ValueError("bucket_size must be positive")
@@ -86,13 +87,13 @@ class VolumeClock:
         self._acc_buy: float = 0.0
         self._acc_sell: float = 0.0
         self._acc_wprice: float = 0.0       # volume-weighted price change sum
-        self._start_time: Optional[float] = None
+        self._start_time: float | None = None
         self._end_time: float = 0.0
-        self._price_changes: List[float] = []
+        self._price_changes: list[float] = []
         self._remainder: float = 0.0         # carry-over from split trade
 
         # History
-        self._finalized: List[VolumeBucket] = []
+        self._finalized: list[VolumeBucket] = []
 
     # ------------------------------------------------------------------
     # Ingestion
@@ -102,8 +103,8 @@ class VolumeClock:
         self,
         price: float,
         size: float,
-        timestamp: Optional[float] = None,
-    ) -> List[VolumeBucket]:
+        timestamp: float | None = None,
+    ) -> list[VolumeBucket]:
         """Feed a single trade.
 
         If the trade *exactly* fills or overflows the current bucket the
@@ -131,7 +132,7 @@ class VolumeClock:
             return []
 
         ts = timestamp if timestamp is not None else time.time()
-        finalized: List[VolumeBucket] = []
+        finalized: list[VolumeBucket] = []
 
         # Classify this trade's volume via a quick BVC estimate using the
         # raw price change; we pass the signed change so that aggressive
@@ -187,14 +188,14 @@ class VolumeClock:
 
     def feed_bulk(
         self,
-        trades: List[Dict[str, Any]],
-    ) -> List[VolumeBucket]:
+        trades: list[dict[str, Any]],
+    ) -> list[VolumeBucket]:
         """Feed a list of trade dicts {"price_change": …, "size": …, "timestamp": …}.
 
         Convenience wrapper that calls :meth:`feed` for each trade and
         collects all finalized buckets.
         """
-        all_finalized: List[VolumeBucket] = []
+        all_finalized: list[VolumeBucket] = []
         for t in trades:
             buckets = self.feed(
                 price=t["price_change"],
@@ -259,14 +260,14 @@ class VolumeClock:
         return self._acc_volume
 
     @property
-    def finalized_buckets(self) -> List[VolumeBucket]:
+    def finalized_buckets(self) -> list[VolumeBucket]:
         return list(self._finalized)
 
     @property
     def num_finalized(self) -> int:
         return len(self._finalized)
 
-    def get_state(self) -> Dict[str, Any]:
+    def get_state(self) -> dict[str, Any]:
         return {
             "bucket_size": self.bucket_size,
             "current": {

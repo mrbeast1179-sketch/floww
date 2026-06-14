@@ -31,9 +31,9 @@ async def llm_analyze_trade(request: dict):
         )
         return result
     except ImportError:
-        raise HTTPException(status_code=503, detail="LLM not configured")
+        raise HTTPException(status_code=503, detail="LLM not configured") from None
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e
 
 
 @router.post("/llm/generate-briefing")
@@ -47,9 +47,9 @@ async def llm_generate_briefing(request: dict):
         result = llm.generate(prompt, system_prompt=system_prompt, max_tokens=request.get("max_tokens", 512))
         return result
     except ImportError:
-        raise HTTPException(status_code=503, detail="LLM not configured")
+        raise HTTPException(status_code=503, detail="LLM not configured") from None
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e
 
 
 @router.get("/llm/providers")
@@ -67,6 +67,6 @@ async def llm_providers():
             ]
         }
     except ImportError:
-        raise HTTPException(status_code=503, detail="LLM not configured")
+        raise HTTPException(status_code=503, detail="LLM not configured") from None
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e

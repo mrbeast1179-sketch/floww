@@ -266,7 +266,7 @@ def load_historical_data() -> list[dict]:
     if HISTORY_FILE.exists():
         try:
             history = json.loads(HISTORY_FILE.read_text())
-        except (json.JSONDecodeError, IOError):
+        except (OSError, json.JSONDecodeError):
             history = []
 
     # Also scan current cards for completed ones

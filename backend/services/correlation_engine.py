@@ -20,7 +20,7 @@ from __future__ import annotations
 
 import math
 from collections import deque
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 import numpy as np
 
@@ -44,8 +44,8 @@ class CorrelationEngine:
     def __init__(
         self,
         window: int = 60,
-        assets: Optional[List[str]] = None,
-        exchanges: Optional[List[str]] = None,
+        assets: list[str] | None = None,
+        exchanges: list[str] | None = None,
     ) -> None:
         if window < 2:
             raise ValueError("window must be >= 2")
@@ -55,11 +55,11 @@ class CorrelationEngine:
         self.exchanges = exchanges or ["NYSE", "NASDAQ", "BATS"]
 
         # Per-asset VPIN CDF history: {symbol: deque[float]}
-        self._asset_history: Dict[str, deque] = {
+        self._asset_history: dict[str, deque] = {
             a: deque(maxlen=window) for a in self.assets
         }
         # Per-exchange VPIN CDF history: {exchange: deque[float]}
-        self._exchange_history: Dict[str, deque] = {
+        self._exchange_history: dict[str, deque] = {
             e: deque(maxlen=window) for e in self.exchanges
         }
 
@@ -99,8 +99,8 @@ class CorrelationEngine:
 
     def update(
         self,
-        asset_vpin_cdfs: Dict[str, float],
-        exchange_vpin_cdfs: Optional[Dict[str, float]] = None,
+        asset_vpin_cdfs: dict[str, float],
+        exchange_vpin_cdfs: dict[str, float] | None = None,
     ) -> None:
         """Batch update all assets and exchanges for one time step.
 
@@ -145,8 +145,8 @@ class CorrelationEngine:
         return 0.5 * math.log((1.0 + r) / (1.0 - r))
 
     def _compute_pairwise_correlations(
-        self, history: Dict[str, deque]
-    ) -> List[float]:
+        self, history: dict[str, deque]
+    ) -> list[float]:
         """Compute all pairwise Pearson correlations from a history dict.
 
         Returns list of correlation values (one per unique pair).
@@ -167,7 +167,7 @@ class CorrelationEngine:
                     correlations.append(r)
         return correlations
 
-    def _correlations_to_zscore(self, correlations: List[float]) -> float:
+    def _correlations_to_zscore(self, correlations: list[float]) -> float:
         """Convert a list of correlation coefficients to a single z-score.
 
         Steps:
@@ -232,7 +232,7 @@ class CorrelationEngine:
         self._exchange_corr_zscore = self._correlations_to_zscore(correlations)
         return self._exchange_corr_zscore
 
-    def compute(self) -> Tuple[float, float]:
+    def compute(self) -> tuple[float, float]:
         """Compute both correlation z-scores.
 
         Returns
@@ -253,7 +253,7 @@ class CorrelationEngine:
     def exchange_corr_zscore(self) -> float:
         return self._exchange_corr_zscore
 
-    def get_state(self) -> Dict[str, Any]:
+    def get_state(self) -> dict[str, Any]:
         """Return full engine state for API serialization."""
         return {
             "config": {

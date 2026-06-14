@@ -10,7 +10,6 @@ the frontend can render an empty state instead of crashing.
 """
 
 import logging
-from typing import Optional
 
 from fastapi import APIRouter, HTTPException, Query
 
@@ -23,7 +22,7 @@ router = APIRouter(prefix="/api/flowseeker", tags=["flowseeker"])
 
 @router.get("/live")
 async def live_flow(
-    ticker: Optional[str] = Query(None, description="Optional ticker; omit for cross-ticker outliers"),
+    ticker: str | None = Query(None, description="Optional ticker; omit for cross-ticker outliers"),
     limit: int = Query(50, ge=1, le=500),
     min_premium: float = Query(0.0, ge=0.0),
 ):

@@ -15,10 +15,11 @@ Schema:
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import logging
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from functools import wraps
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 import duckdb
 import numpy as np
@@ -79,7 +80,7 @@ async def _execute_with_timeout(
     """
     try:
         return await asyncio.wait_for(asyncio.to_thread(fn), timeout=timeout)
-    except asyncio.TimeoutError:
+    except TimeoutError:
         logger.error(f"DuckDB {operation} timeout after {timeout}s")
         raise
     except Exception:
@@ -92,13 +93,13 @@ class DuckDBEngine:
     def __init__(self, db_path: str = ":memory:"):
         self._conn = duckdb.connect(db_path)
         self._lock = asyncio.Lock()
-        self._tick_buffer: List[tuple] = []
-        self._lob_buffer: List[tuple] = []
-        self._flow_buffer: List[tuple] = []
+        self._tick_buffer: list[tuple] = []
+        self._lob_buffer: list[tuple] = []
+        self._flow_buffer: list[tuple] = []
         self._batch_size = 100
         self._flush_interval_ms = 50
         self._running = False
-        self._flush_task: Optional[asyncio.Task] = None
+        self._flush_task: asyncio.Task | None = None
         self._init_schema()  # Ensure tables exist on creation
 
     def _init_schema(self):
@@ -246,10 +247,8 @@ class DuckDBEngine:
         task = getattr(self, '_flush_task', None)
         if task is not None and not task.done():
             task.cancel()
-            try:
+            with contextlib.suppress(asyncio.CancelledError):
                 await task
-            except asyncio.CancelledError:
-                pass
         self._flush_task = None
         await self._flush_all()
 
@@ -258,7 +257,7 @@ class DuckDBEngine:
                           theta: float, vega: float, vanna: float = 0.0,
                           charm: float = 0.0, vomma: float = 0.0,
                           data_source: str = "Yahoo", delay_seconds: int = 0):
-        ts = datetime.now(timezone.utc)
+        ts = datetime.now(UTC)
         self._tick_buffer.append((ts, symbol, bid, ask, last, volume, oi,
                                   delta, gamma, theta, vega, vanna, charm, vomma,
                                   data_source, delay_seconds))
@@ -300,7 +299,7 @@ class DuckDBEngine:
                 ),
                 operation="tick flush",
             )
-        except asyncio.TimeoutError:
+        except TimeoutError:
             logger.error(f"DuckDB tick flush timeout - {len(buf)} rows dropped")
         except Exception as e:
             logger.error(f"DuckDB tick flush error: {e}")
@@ -325,7 +324,7 @@ class DuckDBEngine:
                 ),
                 operation="LOB flush",
             )
-        except asyncio.TimeoutError:
+        except TimeoutError:
             logger.error(f"DuckDB LOB flush timeout - {len(buf)} rows dropped")
         except Exception as e:
             logger.error(f"DuckDB LOB flush error: {e}")
@@ -350,12 +349,12 @@ class DuckDBEngine:
                 ),
                 operation="flow flush",
             )
-        except asyncio.TimeoutError:
+        except TimeoutError:
             logger.error(f"DuckDB flow flush timeout - {len(buf)} rows dropped")
         except Exception as e:
             logger.error(f"DuckDB flow flush error: {e}")
 
-    def query(self, sql: str, params: Optional[List] = None) -> List[Dict[str, Any]]:
+    def query(self, sql: str, params: list | None = None) -> list[dict[str, Any]]:
         """Synchronous query returning list of dicts. Non-blocking wrapper available as query_async."""
         try:
             result = self._conn.execute(sql, params or []).fetchdf()
@@ -367,9 +366,9 @@ class DuckDBEngine:
     async def query_async(
         self,
         sql: str,
-        params: Optional[List] = None,
+        params: list | None = None,
         timeout: float = QUERY_TIMEOUT_S,
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """Async wrapper for query - runs in thread pool with configurable timeout.
 
         Args:
@@ -391,7 +390,7 @@ class DuckDBEngine:
                 self._conn, _do_query, timeout=timeout, operation="query"
             )
             return df.replace({np.nan: None}).to_dict("records")
-        except asyncio.TimeoutError:
+        except TimeoutError:
             logger.error(f"DuckDB query timeout after {timeout}s: {sql[:100]}")
             raise
         except Exception as e:

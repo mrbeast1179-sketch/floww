@@ -23,9 +23,9 @@ import json
 import logging
 import os
 import sys
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 import numpy as np
 import pandas as pd
@@ -112,7 +112,7 @@ def compute_all_baselines(
     X_train: np.ndarray,
     y_train: np.ndarray,
     X_test: np.ndarray,
-) -> Dict[str, np.ndarray]:
+) -> dict[str, np.ndarray]:
     """Compute all required baselines. Returns dict of name -> predictions."""
     n_test = len(X_test)
     return {
@@ -133,7 +133,7 @@ def compute_trading_sharpe(predictions: np.ndarray, actuals: np.ndarray) -> floa
     Flat predictions (pred == 0) are skipped.
     """
     rets = []
-    for pred, actual in zip(predictions, actuals):
+    for pred, actual in zip(predictions, actuals, strict=False):
         if pred == 1:
             rets.append(1.0 if actual == 1 else -1.0)
     if len(rets) < 2:
@@ -151,7 +151,7 @@ def time_ordered_split(
     train_frac: float = 0.60,
     test_frac: float = 0.20,
     embargo: int = EMBARGO_DAYS,
-) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     """Split indices into train/test/holdout with temporal ordering and embargo.
 
     Args:
@@ -185,7 +185,7 @@ def walk_forward_splits(
     n_splits: int = 5,
     min_train_size: int = 100,
     embargo: int = EMBARGO_DAYS,
-) -> List[Tuple[np.ndarray, np.ndarray]]:
+) -> list[tuple[np.ndarray, np.ndarray]]:
     """Generate walk-forward train/test splits.
 
     Each split expands the training window and tests on the next chunk.
@@ -216,9 +216,9 @@ def walk_forward_splits(
 async def load_features_from_db(
     ticker: str,
     feature_version: str = "v1.0",
-    start: Optional[str] = None,
-    end: Optional[str] = None,
-) -> Optional[pd.DataFrame]:
+    start: str | None = None,
+    end: str | None = None,
+) -> pd.DataFrame | None:
     """Load computed features from MongoDB ml_features collection."""
     from motor.motor_asyncio import AsyncIOMotorClient
 
@@ -229,9 +229,9 @@ async def load_features_from_db(
     db = client[db_name]
     col = db["ml_features"]
 
-    query: Dict[str, Any] = {"ticker": ticker, "feature_version": feature_version}
+    query: dict[str, Any] = {"ticker": ticker, "feature_version": feature_version}
     if start or end:
-        date_q: Dict[str, Any] = {}
+        date_q: dict[str, Any] = {}
         if start:
             date_q["$gte"] = start
         if end:
@@ -254,8 +254,8 @@ async def load_features_from_db(
 def prepare_feature_matrix(
     df: pd.DataFrame,
     target_col: str = "target_directional_move",
-    exclude_cols: Optional[List[str]] = None,
-) -> Tuple[np.ndarray, np.ndarray, List[str]]:
+    exclude_cols: list[str] | None = None,
+) -> tuple[np.ndarray, np.ndarray, list[str]]:
     """Extract feature matrix X, target vector y, and feature names from DataFrame."""
     if exclude_cols is None:
         exclude_cols = [
@@ -317,7 +317,7 @@ def evaluate_model(
     scaler: Any,
     X_test: np.ndarray,
     y_test: np.ndarray,
-) -> Dict[str, float]:
+) -> dict[str, float]:
     """Evaluate a trained model. Returns metrics dict."""
     from sklearn.metrics import accuracy_score, f1_score, precision_score, recall_score
 
@@ -343,8 +343,8 @@ def run_quality_gates(
     X_train: np.ndarray,
     y_train: np.ndarray,
     y_pred_proba: np.ndarray,
-    y_test: Optional[np.ndarray] = None,
-) -> Dict[str, bool]:
+    y_test: np.ndarray | None = None,
+) -> dict[str, bool]:
     """Run pre-save quality gates. Raises on failure."""
     from services.ml import DegenerateModelError
     from services.ml.quality import (
@@ -389,7 +389,7 @@ def run_quality_gates(
 # Audit validation
 # ---------------------------------------------------------------------------
 
-def audit_meta_json(meta: Dict[str, Any]) -> List[str]:
+def audit_meta_json(meta: dict[str, Any]) -> list[str]:
     """Validate training meta JSON. Returns list of warnings."""
     warnings = []
 
@@ -430,11 +430,11 @@ def audit_meta_json(meta: Dict[str, Any]) -> List[str]:
 async def train_one_ticker(
     ticker: str,
     feature_version: str = "v1.0",
-    model_types: Optional[List[str]] = None,
+    model_types: list[str] | None = None,
     walk_forward: bool = False,
-    start: Optional[str] = None,
-    end: Optional[str] = None,
-) -> Dict[str, Any]:
+    start: str | None = None,
+    end: str | None = None,
+) -> dict[str, Any]:
     """Full training pipeline for one ticker.
 
     Loads features, splits data, trains models, computes baselines,
@@ -468,7 +468,7 @@ async def train_one_ticker(
         log.info(f"Single split: train={len(train_idx)}, test={len(test_idx)}, holdout={len(holdout_idx)}")
 
     # 3. Train each model type
-    all_results: Dict[str, Any] = {}
+    all_results: dict[str, Any] = {}
     best_sharpe = -np.inf
     best_model_type = None
 
@@ -565,9 +565,8 @@ async def train_one_ticker(
         if not beats_all:
             reasons = []
             for b in REQUIRED_BASELINES:
-                if b in baseline_metrics:
-                    if avg_sharpe <= baseline_metrics[b]["sharpe"]:
-                        reasons.append(f"{b}({baseline_metrics[b]['sharpe']:.2f})")
+                if b in baseline_metrics and avg_sharpe <= baseline_metrics[b]["sharpe"]:
+                    reasons.append(f"{b}({baseline_metrics[b]['sharpe']:.2f})")
             if avg_sharpe > MAX_PLAUSIBLE_DAILY_SHARPE:
                 reasons.append(f"sharpe>{MAX_PLAUSIBLE_DAILY_SHARPE}")
             result["rejection_reason"] = "did not beat: " + ", ".join(reasons)
@@ -625,7 +624,7 @@ async def train_one_ticker(
                 "ticker": ticker,
                 "feature_version": feature_version,
                 "model_type": best_model_type,
-                "trained_at": datetime.now(timezone.utc).isoformat(),
+                "trained_at": datetime.now(UTC).isoformat(),
                 "n_train": len(final_train_idx),
                 "n_features": len(feature_names),
                 "feature_names": feature_names,
@@ -677,7 +676,7 @@ async def train_one_ticker(
         "best_model_type": best_model_type,
         "best_sharpe": round(best_sharpe, 4) if best_model_type else None,
         "saved_model": saved_model,
-        "trained_at": datetime.now(timezone.utc).isoformat(),
+        "trained_at": datetime.now(UTC).isoformat(),
     }
 
     # Save report

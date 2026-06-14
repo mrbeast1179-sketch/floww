@@ -11,7 +11,7 @@ import logging
 import time
 from collections import OrderedDict
 from dataclasses import dataclass, field
-from typing import Any, Dict, Optional
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -21,7 +21,7 @@ class CacheEntry:
     """A single cached entry."""
     ticker: str
     expiries: int
-    data: Dict[str, Any]
+    data: dict[str, Any]
     cached_at: float
     raw_contracts: list = field(default_factory=list)
 
@@ -41,7 +41,7 @@ class CacheRouter:
         while len(self._memory) > self._max:
             self._memory.popitem(last=False)
 
-    def _memory_get(self, key: str) -> Optional[CacheEntry]:
+    def _memory_get(self, key: str) -> CacheEntry | None:
         """Get entry from cache."""
         return self._memory.get(key)
 
@@ -59,7 +59,7 @@ class CacheRouter:
         expiries: int,
         max_age_seconds: int,
         coordinator: Any = None,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Get option chain — cache-first with fallback."""
         key = _make_key(ticker.upper(), expiries)
         entry = self._memory_get(key)
@@ -108,7 +108,7 @@ class CacheRouter:
                 return result
             return degraded_response("fetch_error", str(e))
 
-    def degraded_response(self, error_type: str, detail: str, retry_after: int = 15) -> Dict[str, Any]:
+    def degraded_response(self, error_type: str, detail: str, retry_after: int = 15) -> dict[str, Any]:
         """Return a structured degradation payload."""
         return degraded_response(error_type, detail, retry_after)
 
@@ -118,7 +118,7 @@ def _make_key(ticker: str, expiries: int) -> str:
     return f"{ticker.upper()}:{expiries}"
 
 
-def degraded_response(error_type: str, detail: str, retry_after: int = 15) -> Dict[str, Any]:
+def degraded_response(error_type: str, detail: str, retry_after: int = 15) -> dict[str, Any]:
     """Return a structured degradation payload (standalone function for routes)."""
     return {
         "status": "degraded",

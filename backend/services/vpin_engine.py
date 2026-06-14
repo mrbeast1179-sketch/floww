@@ -35,7 +35,7 @@ from __future__ import annotations
 import math
 import time
 from collections import deque
-from typing import Any, Dict, Optional, Tuple
+from typing import Any
 
 import numpy as np
 
@@ -84,7 +84,7 @@ class VpinEngine:
         self._bucket_buy_volume: float = 0.0
         self._bucket_sell_volume: float = 0.0
         self._bucket_total_volume: float = 0.0
-        self._bucket_start_time: Optional[float] = None
+        self._bucket_start_time: float | None = None
         self._bucket_end_time: float = 0.0
 
         # Rolling finalized buckets (buy, sell, total)
@@ -93,7 +93,7 @@ class VpinEngine:
         self._total_buckets: deque[float] = deque(maxlen=self.window)
 
         # Bucket metadata history
-        self._bucket_meta: deque[Dict[str, Any]] = deque(maxlen=500)
+        self._bucket_meta: deque[dict[str, Any]] = deque(maxlen=500)
 
         # VPIN CDF calculator (with optional Mongo persistence)
         self._cdf_calc = VpinCdfCalculator(
@@ -127,7 +127,7 @@ class VpinEngine:
         price_changes: np.ndarray,
         volumes: np.ndarray,
         dt: float = 1.0,
-    ) -> Tuple[np.ndarray, np.ndarray]:
+    ) -> tuple[np.ndarray, np.ndarray]:
         """Classify a sequence of trades into buy and sell volume using
         the Bulk Volume Classification (BVC) method.
 
@@ -187,8 +187,8 @@ class VpinEngine:
         volume: float,
         sigma: float,
         dt: float = 1.0,
-        timestamp: Optional[float] = None,
-    ) -> Optional[VolumeBucket]:
+        timestamp: float | None = None,
+    ) -> VolumeBucket | None:
         """Add a single trade to the current bucket. When the bucket's
         accumulated volume reaches bucket_size, the bucket is finalized
         and VPIN is recomputed.
@@ -246,7 +246,7 @@ class VpinEngine:
             return self._finalize_bucket(ts)
         return None
 
-    def _finalize_bucket(self, ts: float) -> Optional[VolumeBucket]:
+    def _finalize_bucket(self, ts: float) -> VolumeBucket | None:
         """Finalize the current bucket and push it into the rolling window."""
         if self._bucket_total_volume <= 0:
             return None
@@ -315,7 +315,7 @@ class VpinEngine:
 
         imbalance = sum(
             abs(b - s)
-            for b, s in zip(self._buy_buckets, self._sell_buckets)
+            for b, s in zip(self._buy_buckets, self._sell_buckets, strict=False)
         )
         self._current_vpin = imbalance / total_vol
 
@@ -410,7 +410,7 @@ class VpinEngine:
     # Toxicity signal
     # ------------------------------------------------------------------
 
-    def get_toxicity_signal(self) -> Dict[str, Any]:
+    def get_toxicity_signal(self) -> dict[str, Any]:
         """Return the composite toxicity signal.
 
         A market is considered toxic when:
@@ -443,7 +443,7 @@ class VpinEngine:
     # Full state
     # ------------------------------------------------------------------
 
-    def get_state(self) -> Dict[str, Any]:
+    def get_state(self) -> dict[str, Any]:
         """Return the full engine state for API serialization.
 
         Returns

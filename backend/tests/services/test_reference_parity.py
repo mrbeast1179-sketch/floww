@@ -91,7 +91,7 @@ class TestParityFlashAlphaGex:
         ref = reference_bsm_gamma(spot, K, T, r, sigma)
         hermes = float(bs_gamma_vec(spot, np.array([K]), np.array([T]), np.array([sigma]), r, 0.0)[0])
         rel_err = abs(ref - hermes) / max(abs(ref), 1e-15)
-        assert rel_err < REL_TOL, "ATM gamma rel-err={:.2e}".format(rel_err)
+        assert rel_err < REL_TOL, f"ATM gamma rel-err={rel_err:.2e}"
 
     def test_bsm_gamma_otm(self):
         """OTM gamma: reference vs Hermes."""
@@ -100,7 +100,7 @@ class TestParityFlashAlphaGex:
         ref = reference_bsm_gamma(spot, K, T, r, sigma)
         hermes = float(bs_gamma_vec(spot, np.array([K]), np.array([T]), np.array([sigma]), 0.0, r)[0])
         rel_err = abs(ref - hermes) / max(abs(ref), 1e-15)
-        assert rel_err < REL_TOL, "OTM gamma rel-err={:.2e}".format(rel_err)
+        assert rel_err < REL_TOL, f"OTM gamma rel-err={rel_err:.2e}"
 
     def test_bsm_gamma_short_dte(self):
         """Short DTE gamma."""
@@ -109,7 +109,7 @@ class TestParityFlashAlphaGex:
         ref = reference_bsm_gamma(spot, K, T, r, sigma)
         hermes = float(bs_gamma_vec(spot, np.array([K]), np.array([T]), np.array([sigma]), 0.0, r)[0])
         rel_err = abs(ref - hermes) / max(abs(ref), 1e-15)
-        assert rel_err < REL_TOL, "Short DTE gamma rel-err={:.2e}".format(rel_err)
+        assert rel_err < REL_TOL, f"Short DTE gamma rel-err={rel_err:.2e}"
 
     def test_contract_gex_call(self):
         """Call GEX: reference vs Hermes GexAggregator."""
@@ -131,7 +131,7 @@ class TestParityFlashAlphaGex:
         hermes_gex = result["gex_1d"][0]
 
         rel_err = abs(ref_gex - hermes_gex) / max(abs(ref_gex), 1e-15)
-        assert rel_err < REL_TOL, "Call GEX rel-err={:.2e}".format(rel_err)
+        assert rel_err < REL_TOL, f"Call GEX rel-err={rel_err:.2e}"
 
     def test_contract_gex_put(self):
         """Put GEX: reference vs Hermes (should be negative)."""
@@ -153,7 +153,7 @@ class TestParityFlashAlphaGex:
         hermes_gex = result["gex_1d"][0]
 
         rel_err = abs(ref_gex - hermes_gex) / max(abs(ref_gex), 1e-15)
-        assert rel_err < REL_TOL, "Put GEX rel-err={:.2e}".format(rel_err)
+        assert rel_err < REL_TOL, f"Put GEX rel-err={rel_err:.2e}"
 
     def test_zero_tte_returns_zero_gamma(self):
         """Zero TTE -> gamma = 0 (both implementations)."""
@@ -186,7 +186,7 @@ class TestParityBoyacBlackScholes:
         hermes = float(bs_call_price_vec(
             S, np.array([K]), np.array([T]), np.array([sigma]), r, 0.0)[0])
         rel_err = abs(ref - hermes) / max(abs(ref), 1e-15)
-        assert rel_err < REL_TOL, "Call price rel-err={:.2e}".format(rel_err)
+        assert rel_err < REL_TOL, f"Call price rel-err={rel_err:.2e}"
 
     def test_put_price(self):
         """BSM put price: reference vs Hermes."""
@@ -196,7 +196,7 @@ class TestParityBoyacBlackScholes:
         hermes = float(bs_put_price_vec(
             S, np.array([K]), np.array([T]), np.array([sigma]), r, 0.0)[0])
         rel_err = abs(ref - hermes) / max(abs(ref), 1e-15)
-        assert rel_err < REL_TOL, "Put price rel-err={:.2e}".format(rel_err)
+        assert rel_err < REL_TOL, f"Put price rel-err={rel_err:.2e}"
 
     def test_put_call_parity(self):
         """Put-call parity: C - P = S - K*exp(-rT)."""
@@ -209,7 +209,7 @@ class TestParityBoyacBlackScholes:
         parity_lhs = call - put
         parity_rhs = S - K * math.exp(-r * T)
         rel_err = abs(parity_lhs - parity_rhs) / max(abs(parity_rhs), 1e-15)
-        assert rel_err < REL_TOL, "Put-call parity rel-err={:.2e}".format(rel_err)
+        assert rel_err < REL_TOL, f"Put-call parity rel-err={rel_err:.2e}"
 
     def test_atm_gamma_symmetry(self):
         """BSM gamma is identical for calls and puts at same strike."""
@@ -219,7 +219,7 @@ class TestParityBoyacBlackScholes:
             S, np.array([K]), np.array([T]), np.array([sigma]), 0.0, r)[0])
         ref = reference_bsm_gamma(S, K, T, r, sigma)
         rel_err = abs(ref - g_call) / max(abs(ref), 1e-15)
-        assert rel_err < REL_TOL, "ATM gamma symmetry rel-err={:.2e}".format(rel_err)
+        assert rel_err < REL_TOL, f"ATM gamma symmetry rel-err={rel_err:.2e}"
 
 
 # =============================================================================
@@ -246,7 +246,7 @@ class TestParityCBOEGex:
         assert ref > 0, "Reference call GEX should be positive"
         assert hermes > 0, "Hermes call GEX should be positive"
         rel_err = abs(ref - hermes) / max(abs(ref), 1e-15)
-        assert rel_err < REL_TOL, "CBOE call GEX rel-err={:.2e}".format(rel_err)
+        assert rel_err < REL_TOL, f"CBOE call GEX rel-err={rel_err:.2e}"
 
     def test_put_gex_sign(self):
         """Put GEX is negative in CBOE convention."""
@@ -266,7 +266,7 @@ class TestParityCBOEGex:
         assert ref < 0, "Reference put GEX should be negative"
         assert hermes < 0, "Hermes put GEX should be negative"
         rel_err = abs(ref - hermes) / max(abs(ref), 1e-15)
-        assert rel_err < REL_TOL, "CBOE put GEX rel-err={:.2e}".format(rel_err)
+        assert rel_err < REL_TOL, f"CBOE put GEX rel-err={rel_err:.2e}"
 
     def test_gex_magnitude_consistency(self):
         """GEX magnitude matches CBOE formula: spot * gamma * OI * 100 * spot * 0.01."""
@@ -284,7 +284,7 @@ class TestParityCBOEGex:
         hermes = result["gex_1d"][0]
 
         rel_err = abs(ref - hermes) / max(abs(ref), 1e-15)
-        assert rel_err < REL_TOL, "GEX magnitude rel-err={:.2e}".format(rel_err)
+        assert rel_err < REL_TOL, f"GEX magnitude rel-err={rel_err:.2e}"
 
 
 # =============================================================================
@@ -304,7 +304,7 @@ class TestParityFullStackCraftFloe:
         hermes = float(bs_gamma_vec(
             S, np.array([K]), np.array([T]), np.array([sigma]), 0.0, r)[0])
         rel_err = abs(ref - hermes) / max(abs(ref), 1e-15)
-        assert rel_err < REL_TOL, "FullStackCraft case 1 rel-err={:.2e}".format(rel_err)
+        assert rel_err < REL_TOL, f"FullStackCraft case 1 rel-err={rel_err:.2e}"
 
     def test_case_2_otm_call_price(self):
         """FullStackCraft test case 2: OTM call, spot=100, K=110, T=0.1, vol=0.25, r=0.03."""
@@ -314,7 +314,7 @@ class TestParityFullStackCraftFloe:
         hermes = float(bs_call_price_vec(
             S, np.array([K]), np.array([T]), np.array([sigma]), r, 0.0)[0])
         rel_err = abs(ref - hermes) / max(abs(ref), 1e-15)
-        assert rel_err < REL_TOL, "FullStackCraft case 2 rel-err={:.2e}".format(rel_err)
+        assert rel_err < REL_TOL, f"FullStackCraft case 2 rel-err={rel_err:.2e}"
 
 
 # =============================================================================
@@ -339,7 +339,7 @@ class TestParityIAmGiGGexPatterns:
             gamma = reference_bsm_gamma(float(K), spot, T, r, sigma)
             if gamma > 0:
                 oi = 1000  # uniform OI
-                ctype = "call" if K <= spot else "put"
+                ctype = "call" if spot >= K else "put"
                 contracts.append({
                     "strike": float(K), "gamma": gamma, "oi": float(oi),
                     "type": ctype, "expiry": T
@@ -357,7 +357,7 @@ class TestParityIAmGiGGexPatterns:
         atm_gex = abs(gex_1d[atm_idx])
         max_gex = max(abs(g) for g in gex_1d)
         assert atm_gex >= max_gex * 0.95, \
-            "ATM GEX should be near the peak: atm={:.0f}, max={:.0f}".format(atm_gex, max_gex)
+            f"ATM GEX should be near the peak: atm={atm_gex:.0f}, max={max_gex:.0f}"
 
     def test_zero_gamma_contracts_produce_zero_gex(self):
         """Contracts with zero gamma should produce zero GEX."""

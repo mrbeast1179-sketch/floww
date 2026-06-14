@@ -14,7 +14,7 @@ from __future__ import annotations
 
 import math
 from collections import deque
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 import numpy as np
 
@@ -41,7 +41,7 @@ class KyleLambda:
                 self._signed_volumes.append(sign * volume)
         self._last_price = price
 
-    def update_from_prices(self, prices: List[float], volumes: List[float], signs: List[int]):
+    def update_from_prices(self, prices: list[float], volumes: list[float], signs: list[int]):
         """Batch update from price/volume/sign arrays."""
         for i in range(1, len(prices)):
             if prices[i] > 0 and prices[i - 1] > 0:
@@ -61,7 +61,7 @@ class KyleLambda:
         lambda_val = np.cov(y, x)[0, 1] / var_x
         return float(lambda_val)
 
-    def get_state(self) -> Dict[str, Any]:
+    def get_state(self) -> dict[str, Any]:
         return {
             "lambda": self.compute(),
             "n_obs": len(self._returns),
@@ -79,7 +79,7 @@ class AmihudIlliquidity:
     def __init__(self, window: int = 20):
         self.window = window
         self._illiquidity_values: deque = deque(maxlen=window)
-        self._last_price: Optional[float] = None
+        self._last_price: float | None = None
 
     def update(self, price: float, volume: float, dollar_volume: float):
         """Add an observation."""
@@ -95,7 +95,7 @@ class AmihudIlliquidity:
             return 0.0
         return float(np.mean(list(self._illiquidity_values)) * 1e6)
 
-    def get_state(self) -> Dict[str, Any]:
+    def get_state(self) -> dict[str, Any]:
         return {
             "amihud": self.compute(),
             "n_obs": len(self._illiquidity_values),
@@ -154,7 +154,7 @@ class MarketFragilityIndex:
 
     def compute(self, kyle_lambda: float = 0.0, amihud: float = 0.0,
                 vpin_cdf: float = 0.0, qi_zscore: float = 0.0,
-                spread: float = 0.0) -> Dict[str, Any]:
+                spread: float = 0.0) -> dict[str, Any]:
         """Compute composite fragility score.
 
         Returns dict with:

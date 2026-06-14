@@ -20,7 +20,6 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass, field
-from typing import Dict, List
 
 import numpy as np
 
@@ -42,8 +41,8 @@ class OiStrikeChange:
 @dataclass
 class OiChangeSnapshot:
     """Snapshot of OI changes across all strikes for one expiry."""
-    changes: Dict[float, OiStrikeChange] = field(default_factory=dict)
-    significant: List[float] = field(default_factory=list)
+    changes: dict[float, OiStrikeChange] = field(default_factory=dict)
+    significant: list[float] = field(default_factory=list)
     max_increase: float = 0.0
     max_decrease: float = 0.0
 
@@ -65,8 +64,8 @@ class OiChangeDetector:
 
     def detect(
         self,
-        current_oi: Dict[float, float],
-        previous_oi: Dict[float, float],
+        current_oi: dict[float, float],
+        previous_oi: dict[float, float],
         expiry: str,
     ) -> OiChangeSnapshot:
         """Compare current OI vs previous-day OI for one expiry.
@@ -81,8 +80,8 @@ class OiChangeDetector:
         """
         all_strikes = sorted(set(list(current_oi.keys()) + list(previous_oi.keys())))
 
-        changes: Dict[float, OiStrikeChange] = {}
-        significant: List[float] = []
+        changes: dict[float, OiStrikeChange] = {}
+        significant: list[float] = []
         max_inc = 0.0
         max_dec = 0.0
 

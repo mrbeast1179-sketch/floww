@@ -17,8 +17,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
-from datetime import datetime, timezone
-from typing import Optional
+from datetime import UTC, datetime
 
 logger = logging.getLogger(__name__)
 
@@ -60,7 +59,7 @@ class FridayPinStrategy:
         price_history: Rolling window of prices
     """
 
-    def __init__(self, config: Optional[FridayPinConfig] = None):
+    def __init__(self, config: FridayPinConfig | None = None):
         self.config = config or FridayPinConfig()
         self.price_history: list[float] = []
 
@@ -96,18 +95,18 @@ class FridayPinStrategy:
         # Parse timestamp
         ts = market_data.get("timestamp")
         if ts is None:
-            ts = datetime.now(timezone.utc)
+            ts = datetime.now(UTC)
         elif isinstance(ts, str):
             try:
                 ts = datetime.fromisoformat(ts.replace("Z", "+00:00"))
             except (ValueError, AttributeError):
-                ts = datetime.now(timezone.utc)
+                ts = datetime.now(UTC)
 
         # Convert to ET (UTC-5 or UTC-4 for DST)
         # Simple approximation: ET = UTC - 5h
         from datetime import timedelta
         et_offset = timedelta(hours=5)
-        ts_et = ts.astimezone(timezone.utc) - et_offset
+        ts_et = ts.astimezone(UTC) - et_offset
 
         # Check Friday (weekday 4 = Friday)
         if ts_et.weekday() != 4:
@@ -128,7 +127,7 @@ class FridayPinStrategy:
 
         return range_pct < self.config.pin_range_pct
 
-    def generate_signal(self, market_data: dict) -> Optional[FridayPinSignal]:
+    def generate_signal(self, market_data: dict) -> FridayPinSignal | None:
         """Generate a trade signal if conditions are met.
 
         Args:
@@ -146,11 +145,8 @@ class FridayPinStrategy:
         recent = self.price_history[-self.config.lookback_bars:]
         range_pct = ((max(recent) - min(recent)) / min(recent)) * 100 if min(recent) > 0 else 0
 
-        ts = market_data.get("timestamp", datetime.now(timezone.utc))
-        if isinstance(ts, datetime):
-            ts_str = ts.isoformat()
-        else:
-            ts_str = str(ts)
+        ts = market_data.get("timestamp", datetime.now(UTC))
+        ts_str = ts.isoformat() if isinstance(ts, datetime) else str(ts)
 
         signal = FridayPinSignal(
             action="SHORT_STRADDLE",

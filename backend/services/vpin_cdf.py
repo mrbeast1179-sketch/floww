@@ -12,7 +12,8 @@ from __future__ import annotations
 
 import logging
 from collections import deque
-from typing import Any, Dict, List
+from datetime import UTC
+from typing import Any
 
 import numpy as np
 
@@ -93,7 +94,7 @@ class VpinCdfCalculator:
         """Write the current CDF snapshot to MongoDB."""
         try:
             import asyncio
-            from datetime import datetime, timezone
+            from datetime import datetime
 
             doc = {
                 "ticker": self._ticker,
@@ -101,7 +102,7 @@ class VpinCdfCalculator:
                 "vpin_cdf": self._current_cdf,
                 "window": self.window,
                 "history_length": len(self._history),
-                "ts": datetime.now(timezone.utc),
+                "ts": datetime.now(UTC),
             }
             # Support both sync and async mongo clients
             if hasattr(self._mongo, "insert_one"):
@@ -132,7 +133,7 @@ class VpinCdfCalculator:
         return self._current_vpin
 
     @property
-    def history(self) -> List[float]:
+    def history(self) -> list[float]:
         return list(self._history)
 
     @property
@@ -140,7 +141,7 @@ class VpinCdfCalculator:
         """True when VPIN is above its historical median (CDF > 0.5)."""
         return self._current_cdf > 0.5
 
-    def get_state(self) -> Dict[str, Any]:
+    def get_state(self) -> dict[str, Any]:
         return {
             "vpin": self._current_vpin,
             "vpin_cdf": self._current_cdf,

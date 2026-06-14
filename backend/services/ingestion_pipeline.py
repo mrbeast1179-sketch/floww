@@ -15,10 +15,11 @@ Backpressure: if queue fills, drop oldest messages and log.
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import logging
 import time
-from datetime import datetime, timezone
-from typing import Any, Dict, Optional
+from datetime import UTC, datetime
+from typing import Any
 
 from services.duckdb_engine import DuckDBEngine
 
@@ -52,7 +53,7 @@ class IngestionPipeline:
 
         self._queue: asyncio.Queue = asyncio.Queue(maxsize=max_queue_size)
         self._running = False
-        self._writer_task: Optional[asyncio.Task] = None
+        self._writer_task: asyncio.Task | None = None
 
         # Metrics
         self._last_drop_warning: float = 0.0
@@ -87,10 +88,8 @@ class IngestionPipeline:
         self._running = False
         if self._writer_task:
             self._writer_task.cancel()
-            try:
+            with contextlib.suppress(asyncio.CancelledError):
                 await self._writer_task
-            except asyncio.CancelledError:
-                pass
         # Final drain
         await self._drain_and_flush()
         logger.info(f"Ingestion pipeline stopped. Metrics: {self.get_metrics()}")
@@ -99,19 +98,19 @@ class IngestionPipeline:
     # Enqueue (called by streamer handlers)
     # ------------------------------------------------------------------
 
-    def enqueue_tick(self, tick: Dict[str, Any]):
+    def enqueue_tick(self, tick: dict[str, Any]):
         """Enqueue an equity/underlying tick. Drops oldest if queue full."""
         self._enqueue(("tick", tick))
 
-    def enqueue_chain(self, chain: Dict[str, Any]):
+    def enqueue_chain(self, chain: dict[str, Any]):
         """Enqueue an options chain update. Drops oldest if queue full."""
         self._enqueue(("chain", chain))
 
-    def enqueue_lob(self, lob: Dict[str, Any]):
+    def enqueue_lob(self, lob: dict[str, Any]):
         """Enqueue a LOB snapshot. Drops oldest if queue full."""
         self._enqueue(("lob", lob))
 
-    def enqueue_lob_depth(self, depth: Dict[str, Any]):
+    def enqueue_lob_depth(self, depth: dict[str, Any]):
         """Enqueue a Level-2 LOB depth update. Drops oldest if queue full."""
         self._enqueue(("lob_depth", depth))
 
@@ -212,7 +211,7 @@ class IngestionPipeline:
         rows = []
         for t in ticks:
             rows.append((
-                t.get("timestamp", datetime.now(timezone.utc).isoformat()),
+                t.get("timestamp", datetime.now(UTC).isoformat()),
                 t.get("symbol", ""),
                 t.get("bid", 0.0),
                 t.get("ask", 0.0),
@@ -242,7 +241,7 @@ class IngestionPipeline:
         rows = []
         for c in chains:
             rows.append((
-                c.get("timestamp", datetime.now(timezone.utc).isoformat()),
+                c.get("timestamp", datetime.now(UTC).isoformat()),
                 c.get("symbol", ""),
                 c.get("bid", 0.0),
                 c.get("ask", 0.0),
@@ -271,7 +270,7 @@ class IngestionPipeline:
         rows = []
         for lob in lob_snapshots:
             rows.append((
-                lob.get("timestamp", datetime.now(timezone.utc).isoformat()),
+                lob.get("timestamp", datetime.now(UTC).isoformat()),
                 lob.get("symbol", ""),
                 lob.get("bid_size", 0),
                 lob.get("ask_size", 0),
@@ -291,7 +290,7 @@ class IngestionPipeline:
         rows = []
         for d in depth_rows:
             rows.append((
-                d.get("timestamp", datetime.now(timezone.utc).isoformat()),
+                d.get("timestamp", datetime.now(UTC).isoformat()),
                 d.get("symbol", ""),
                 d.get("expiry", ""),
                 d.get("strike", 0.0),
@@ -313,7 +312,7 @@ class IngestionPipeline:
     # Metrics
     # ------------------------------------------------------------------
 
-    def get_metrics(self) -> Dict[str, Any]:
+    def get_metrics(self) -> dict[str, Any]:
         return {
             **self._metrics,
             "queue_size": self._queue.qsize(),

@@ -11,8 +11,8 @@ Features:
 
 import logging
 import os
-from datetime import datetime, timedelta, timezone
-from typing import Any, Dict, List, Tuple
+from datetime import UTC, datetime, timedelta
+from typing import Any
 
 import joblib
 import numpy as np
@@ -20,7 +20,7 @@ import numpy as np
 logger = logging.getLogger(__name__)
 
 
-def extract_rich_features(snapshots: list, idx: int) -> Dict[str, float]:
+def extract_rich_features(snapshots: list, idx: int) -> dict[str, float]:
     """Extract rich ML features from snapshot at index idx."""
     if idx >= len(snapshots):
         return {}
@@ -103,7 +103,7 @@ def prepare_walkforward_data(
     test_window: int = 10,
     step: int = 5,
     lookahead: int = 1,
-) -> List[Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]]:
+) -> list[tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]]:
     """Prepare walk-forward cross-validation data."""
     if len(snapshots) < train_window + test_window:
         return []
@@ -162,7 +162,7 @@ def prepare_walkforward_data(
 async def train_with_walkforward_cv(
     ticker: str = "SPY",
     min_train_samples: int = 30,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Train model with walk-forward cross-validation."""
     from dotenv import load_dotenv
     from motor.motor_asyncio import AsyncIOMotorClient
@@ -191,7 +191,7 @@ async def train_with_walkforward_cv(
     best_scaler = None
     best_accuracy = 0
 
-    for i, (X_train, y_train, X_test, y_test) in enumerate(splits):
+    for _i, (X_train, y_train, X_test, y_test) in enumerate(splits):
         scaler = StandardScaler()
         X_train_scaled = scaler.fit_transform(X_train)
         X_test_scaled = scaler.transform(X_test)
@@ -240,7 +240,7 @@ async def train_with_walkforward_cv(
 async def backfill_from_databento(
     ticker: str = "SPY",
     days: int = 7,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Backfill historical data from Databento."""
     from data_collector import collect_snapshot
 
@@ -259,7 +259,7 @@ async def backfill_from_databento(
             # (since we have historical Databento data)
             for day_offset in range(days):
                 hist_snapshot = snapshot.copy()
-                hist_ts = datetime.now(timezone.utc) - timedelta(days=day_offset)
+                hist_ts = datetime.now(UTC) - timedelta(days=day_offset)
                 hist_snapshot["ts"] = hist_ts.isoformat()
 
                 await db.snapshots.insert_one(hist_snapshot)

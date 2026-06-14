@@ -20,9 +20,9 @@ from __future__ import annotations
 
 import logging
 import os
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 import numpy as np
 from dotenv import load_dotenv
@@ -99,7 +99,7 @@ class ModelDashboard:
         total_preds = 0
         try:
             preds_col = self._db["ml_predictions"]
-            now = datetime.now(timezone.utc)
+            now = datetime.now(UTC)
 
             # Last 7 days
             cutoff_7d = (now - timedelta(days=7)).isoformat()
@@ -139,10 +139,7 @@ class ModelDashboard:
             )
             if last:
                 raw_ts = last.get("ts", pred_ts)
-                if isinstance(raw_ts, datetime):
-                    pred_ts = raw_ts.isoformat()
-                else:
-                    pred_ts = raw_ts
+                pred_ts = raw_ts.isoformat() if isinstance(raw_ts, datetime) else raw_ts
 
         except Exception as e:
             log.debug(f"Accuracy check failed for {ticker}: {e}")
@@ -184,7 +181,7 @@ class ModelDashboard:
             n_features=n_feat,
         )
 
-    async def get_full_report(self) -> Dict[str, Any]:
+    async def get_full_report(self) -> dict[str, Any]:
         """Get the full dashboard report for all models."""
         models = []
         for ticker in MODEL_REGISTRY:
@@ -212,7 +209,7 @@ class ModelDashboard:
                     n_features=0,
                 ))
 
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         healthy = sum(1 for m in models if m.status == "healthy")
         drift = sum(1 for m in models if m.status == "drift")
         errors = sum(1 for m in models if m.status == "error")
@@ -269,15 +266,15 @@ class ModelHealth:
     model_type: str
     status: str  # "healthy", "stale", "drift", "error"
     loaded: bool
-    prediction: Optional[int]
-    confidence: Optional[float]
-    data_age_sec: Optional[float]
-    rolling_7d_accuracy: Optional[float]
-    rolling_30d_accuracy: Optional[float]
+    prediction: int | None
+    confidence: float | None
+    data_age_sec: float | None
+    rolling_7d_accuracy: float | None
+    rolling_30d_accuracy: float | None
     total_predictions: int
     drift_status: str
-    drift_alerts: List[str]
-    last_prediction_ts: Optional[str]
+    drift_alerts: list[str]
+    last_prediction_ts: str | None
     train_accuracy: float
     n_features: int
 

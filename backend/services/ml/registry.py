@@ -16,9 +16,9 @@ from __future__ import annotations
 import logging
 import math
 import os
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 import joblib
 import numpy as np
@@ -58,11 +58,11 @@ def _get_db() -> Any:
 
 
 def _now_iso() -> str:
-    return datetime.now(timezone.utc).isoformat()
+    return datetime.now(UTC).isoformat()
 
 
 def _now_dt() -> datetime:
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 # ────────────────────────────────────────────────────────────────────────────
@@ -101,7 +101,7 @@ def compute_psi(
 
     # PSI formula: sum((actual - expected) * ln(actual / expected))
     psi = 0.0
-    for a, e in zip(actual_prop, expected_prop):
+    for a, e in zip(actual_prop, expected_prop, strict=False):
         if a < 1e-10 or e < 1e-10:
             continue
         psi += (a - e) * math.log(a / e)
@@ -131,7 +131,7 @@ class ModelRegistry:
         self.predictions_col = db[COLLECTION_PREDICTIONS]
         self.features_col = db[COLLECTION_FEATURES]
         # In-memory cache: ticker -> (model, scaler, meta)
-        self._cache: Dict[str, Tuple[Any, Any, Dict]] = {}
+        self._cache: dict[str, tuple[Any, Any, dict]] = {}
 
     # ── CRUD ──────────────────────────────────────────────────────────────
 
@@ -141,11 +141,11 @@ class ModelRegistry:
         ticker: str,
         feature_version: str,
         training_window: str,
-        metrics_summary: Dict[str, Any],
+        metrics_summary: dict[str, Any],
         artifact_path: str,
-        training_feature_dist: Optional[Dict[str, List[float]]] = None,
+        training_feature_dist: dict[str, list[float]] | None = None,
         status: str = "shadow",
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Register a new model in the registry.
 
         Args:
@@ -181,17 +181,17 @@ class ModelRegistry:
         log.info(f"Registered model {model_id} ({ticker}) status={status}")
         return doc
 
-    async def get_model(self, model_id: str) -> Optional[Dict[str, Any]]:
+    async def get_model(self, model_id: str) -> dict[str, Any] | None:
         """Get a single model document by model_id."""
         return await self.models_col.find_one({"model_id": model_id}, {"_id": 0})
 
     async def list_models(
         self,
-        ticker: Optional[str] = None,
-        status: Optional[str] = None,
-    ) -> List[Dict[str, Any]]:
+        ticker: str | None = None,
+        status: str | None = None,
+    ) -> list[dict[str, Any]]:
         """List models, optionally filtered by ticker and/or status."""
-        query: Dict[str, Any] = {}
+        query: dict[str, Any] = {}
         if ticker:
             query["ticker"] = ticker.upper()
         if status:
@@ -200,7 +200,7 @@ class ModelRegistry:
         cursor = self.models_col.find(query, {"_id": 0}).sort("created_at", -1)
         return await cursor.to_list(length=1000)
 
-    async def get_active_model(self, ticker: str) -> Optional[Dict[str, Any]]:
+    async def get_active_model(self, ticker: str) -> dict[str, Any] | None:
         """Get the currently active model for a ticker."""
         return await self.models_col.find_one(
             {"ticker": ticker.upper(), "status": "active"},
@@ -209,7 +209,7 @@ class ModelRegistry:
 
     # ── Lifecycle / Promotion Gate ────────────────────────────────────────
 
-    async def promote_model(self, model_id: str) -> Dict[str, Any]:
+    async def promote_model(self, model_id: str) -> dict[str, Any]:
         """Promote a shadow model to active.
 
         Promotion gate criteria (all must hold):
@@ -293,7 +293,7 @@ class ModelRegistry:
 
         return {"success": True, "reason": "promoted", "model_id": model_id}
 
-    async def retire_model(self, model_id: str) -> Dict[str, Any]:
+    async def retire_model(self, model_id: str) -> dict[str, Any]:
         """Retire a model (active or shadow)."""
         model = await self.get_model(model_id)
         if not model:
@@ -313,7 +313,7 @@ class ModelRegistry:
 
     async def _load_active_artifact(
         self, ticker: str
-    ) -> Tuple[Any, Any, Dict[str, Any]]:
+    ) -> tuple[Any, Any, dict[str, Any]]:
         """Load the active model + scaler for a ticker (with in-memory cache).
 
         Returns (model, scaler, model_doc).
@@ -346,7 +346,7 @@ class ModelRegistry:
         log.debug(f"Loaded active model for {ticker}: {model_doc['model_id']}")
         return model, scaler, model_doc
 
-    async def predict(self, ticker: str) -> Dict[str, Any]:
+    async def predict(self, ticker: str) -> dict[str, Any]:
         """Run inference using the active model for a ticker.
 
         Loads the active model, computes features from the latest data,
@@ -406,7 +406,7 @@ class ModelRegistry:
 
     async def _compute_latest_features(
         self, ticker: str, feature_version: str
-    ) -> Optional[pd.DataFrame]:
+    ) -> pd.DataFrame | None:
         """Fetch the latest computed features for a ticker from ml_features."""
         cursor = self.features_col.find(
             {"ticker": ticker, "feature_version": feature_version}
@@ -421,7 +421,7 @@ class ModelRegistry:
 
     # ── Drift Monitoring ──────────────────────────────────────────────────
 
-    async def compute_drift(self, ticker: str) -> Dict[str, Any]:
+    async def compute_drift(self, ticker: str) -> dict[str, Any]:
         """Compute PSI drift report for a ticker's active model.
 
         Compares the rolling 24h feature distribution against the
@@ -436,7 +436,7 @@ class ModelRegistry:
                 "features": {},
             }
 
-        training_dist: Dict[str, List[float]] = model_doc.get(
+        training_dist: dict[str, list[float]] = model_doc.get(
             "training_feature_dist", {}
         )
         if not training_dist:
@@ -471,8 +471,8 @@ class ModelRegistry:
             recent_df.drop(columns=["_id"], inplace=True)
 
         # Compute PSI per feature
-        feature_psi: Dict[str, float] = {}
-        drift_alerts: List[str] = []
+        feature_psi: dict[str, float] = {}
+        drift_alerts: list[str] = []
         PSI_THRESHOLD = 0.2  # standard threshold for significant drift
 
         for feat_name, train_vals in training_dist.items():
@@ -515,6 +515,6 @@ class ModelRegistry:
 # Module-level singleton helper
 # ────────────────────────────────────────────────────────────────────────────
 
-_registry_instance: Optional[ModelRegistry] = None
+_registry_instance: ModelRegistry | None = None
 
 

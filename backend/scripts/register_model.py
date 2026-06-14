@@ -15,7 +15,7 @@ import json
 import logging
 import os
 import sys
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 import joblib
@@ -59,7 +59,7 @@ def register_model(model_path: str, ticker: str, promote: bool = False):
         "feature_names": feature_names,
         "n_features": len(feature_names),
         "status": "active" if promote else "shadow",
-        "registered_at": datetime.now(timezone.utc).isoformat(),
+        "registered_at": datetime.now(UTC).isoformat(),
         "trained_at": artifact.get("trained_at", ""),
         "metrics": {
             "avg_test_sharpe": metrics.get("avg_test_sharpe", 0),
@@ -77,7 +77,7 @@ def register_model(model_path: str, ticker: str, promote: bool = False):
     if promote:
         result = db[COLLECTION_MODELS].update_many(
             {"ticker": ticker, "status": "active"},
-            {"$set": {"status": "retired", "retired_at": datetime.now(timezone.utc).isoformat()}},
+            {"$set": {"status": "retired", "retired_at": datetime.now(UTC).isoformat()}},
         )
         log.info(f"Retired {result.modified_count} existing active models for {ticker}")
 

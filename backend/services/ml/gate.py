@@ -24,7 +24,7 @@ This module fixes all four. Each rejection mode has a unit test in
 
 from __future__ import annotations
 
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 import numpy as np
 
@@ -37,11 +37,11 @@ an in-sample artifact, leakage, or a measurement error — automatic reject
 regardless of whether the model "beats baselines."
 """
 
-DEFAULT_REQUIRED_BASELINES: Tuple[str, ...] = ("majority", "persistence", "logistic")
+DEFAULT_REQUIRED_BASELINES: tuple[str, ...] = ("majority", "persistence", "logistic")
 """Every model must beat all three on Sharpe to be eligible for SHIP."""
 
 
-def compute_trading_sharpe(predictions: List[int], actuals: List[int]) -> float:
+def compute_trading_sharpe(predictions: list[int], actuals: list[int]) -> float:
     """Annualized Sharpe of a simple long-only-on-positive-prediction strategy.
 
     Trade only when ``pred == 1``. Win = +1 if actual == 1, else -1.
@@ -50,8 +50,8 @@ def compute_trading_sharpe(predictions: List[int], actuals: List[int]) -> float:
 
     Returns 0.0 if fewer than 2 trades fire (Sharpe is undefined).
     """
-    rets: List[float] = []
-    for pred, actual in zip(predictions, actuals):
+    rets: list[float] = []
+    for pred, actual in zip(predictions, actuals, strict=False):
         if pred == 1:
             rets.append(1.0 if actual == 1 else -1.0)
     if len(rets) < 2:
@@ -60,9 +60,9 @@ def compute_trading_sharpe(predictions: List[int], actuals: List[int]) -> float:
 
 
 def evaluate_baselines(
-    baseline_preds: Dict[str, List[int]],
-    test_actuals: List[int],
-) -> Dict[str, Dict[str, float]]:
+    baseline_preds: dict[str, list[int]],
+    test_actuals: list[int],
+) -> dict[str, dict[str, float]]:
     """Compute per-baseline ``{accuracy, sharpe}`` against test-fold actuals.
 
     ``baseline_preds`` keys are baseline names (e.g. ``"majority"``); values
@@ -73,7 +73,7 @@ def evaluate_baselines(
     detect this by comparing input vs output keys).
     """
     actuals_arr = np.array(test_actuals)
-    metrics: Dict[str, Dict[str, float]] = {}
+    metrics: dict[str, dict[str, float]] = {}
     for name, preds in baseline_preds.items():
         if not preds or len(preds) != len(actuals_arr):
             continue
@@ -85,11 +85,11 @@ def evaluate_baselines(
 
 
 def evaluate_ship_verdict(
-    model_results: Dict[str, Dict[str, Any]],
-    baseline_metrics: Dict[str, Dict[str, float]],
+    model_results: dict[str, dict[str, Any]],
+    baseline_metrics: dict[str, dict[str, float]],
     max_sharpe: float = DEFAULT_MAX_SHARPE,
-    required_baselines: Tuple[str, ...] = DEFAULT_REQUIRED_BASELINES,
-) -> Optional[str]:
+    required_baselines: tuple[str, ...] = DEFAULT_REQUIRED_BASELINES,
+) -> str | None:
     """Decide which (if any) model passes the SHIP gate.
 
     Side effect: mutates each ``model_results[k]`` dict to set
@@ -108,7 +108,7 @@ def evaluate_ship_verdict(
 
     Among models passing all four, the one with highest Sharpe wins.
     """
-    best_model: Optional[str] = None
+    best_model: str | None = None
     best_sharpe = -np.inf
 
     for model_type, result in model_results.items():

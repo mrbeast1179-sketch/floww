@@ -12,7 +12,8 @@ Implements institutional-grade analytics from the floe library:
 
 import math
 from collections import defaultdict
-from typing import Any, Dict, List
+from datetime import UTC
+from typing import Any
 
 import numpy as np
 
@@ -22,8 +23,8 @@ from bs_greeks import bs_call_price, bs_charm, bs_gamma, bs_vanna
 # Implied PDF (Breeden-Litzenberger)
 # ============================================================================
 
-def calc_implied_pdf(spot: float, contracts: List[Dict[str, Any]],
-                     risk_free_rate: float = 0.045) -> Dict[str, Any]:
+def calc_implied_pdf(spot: float, contracts: list[dict[str, Any]],
+                     risk_free_rate: float = 0.045) -> dict[str, Any]:
     """
     Compute implied probability density function using Breeden-Litzenberger.
     Uses numerical second derivative of call prices w.r.t. strike.
@@ -172,7 +173,7 @@ def calc_implied_pdf(spot: float, contracts: List[Dict[str, Any]],
 # Market Regime Detection (from IV surface)
 # ============================================================================
 
-def calc_market_regime(spot: float, contracts: List[Dict[str, Any]]) -> Dict[str, Any]:
+def calc_market_regime(spot: float, contracts: list[dict[str, Any]]) -> dict[str, Any]:
     """
     Derive market regime from IV surface characteristics.
     Uses ATM IV, skew, and curvature to classify regime.
@@ -240,10 +241,10 @@ def calc_market_regime(spot: float, contracts: List[Dict[str, Any]]) -> Dict[str
 # Hedge Impulse Curve (gamma + vanna combined response)
 # ============================================================================
 
-def calc_hedge_impulse_curve(spot: float, contracts: List[Dict[str, Any]],
+def calc_hedge_impulse_curve(spot: float, contracts: list[dict[str, Any]],
                               ticker: str = "",
                               range_pct: float = 3.0,
-                              step_pct: float = 0.5) -> Dict[str, Any]:
+                              step_pct: float = 0.5) -> dict[str, Any]:
     """
     Compute the hedge impulse curve H(S) = Gamma(S) - (k/S) * Vanna(S)
     across a price grid. Shows where dealers amplify vs dampen price moves.
@@ -363,7 +364,7 @@ def calc_hedge_impulse_curve(spot: float, contracts: List[Dict[str, Any]],
     }
 
 
-def _kernel_smooth(strikes: List[float], values: List[float],
+def _kernel_smooth(strikes: list[float], values: list[float],
                    eval_price: float, lambda_width: float) -> float:
     """Gaussian kernel smoothing."""
     weighted_sum = 0.0
@@ -379,7 +380,7 @@ def _kernel_smooth(strikes: List[float], values: List[float],
     return result
 
 
-def _interp_impulse(curve: List[Dict], price: float) -> float:
+def _interp_impulse(curve: list[dict], price: float) -> float:
     """Interpolate impulse at a given price."""
     if not curve:
         return 0.0
@@ -394,7 +395,7 @@ def _interp_impulse(curve: List[Dict], price: float) -> float:
     return 0.0
 
 
-def _classify_impulse_regime(impulse_at_spot: float, curve: List[Dict], spot: float) -> str:
+def _classify_impulse_regime(impulse_at_spot: float, curve: list[dict], spot: float) -> str:
     """Classify the impulse curve regime."""
     if not curve:
         return "neutral"
@@ -414,8 +415,8 @@ def _classify_impulse_regime(impulse_at_spot: float, curve: List[Dict], spot: fl
 # Pressure Cloud (stability/acceleration zones from impulse curve)
 # ============================================================================
 
-def calc_pressure_cloud(spot: float, contracts: List[Dict[str, Any]],
-                        ticker: str = "") -> Dict[str, Any]:
+def calc_pressure_cloud(spot: float, contracts: list[dict[str, Any]],
+                        ticker: str = "") -> dict[str, Any]:
     """
     Compute pressure cloud: stability zones, acceleration zones, and regime edges.
     Translates the impulse curve into actionable trading zones.
@@ -516,8 +517,8 @@ def calc_pressure_cloud(spot: float, contracts: List[Dict[str, Any]],
 # Charm Integral (time-decay pressure)
 # ============================================================================
 
-def calc_charm_integral(spot: float, contracts: List[Dict[str, Any]],
-                        ticker: str = "") -> Dict[str, Any]:
+def calc_charm_integral(spot: float, contracts: list[dict[str, Any]],
+                        ticker: str = "") -> dict[str, Any]:
     """
     Compute charm integral: cumulative expected delta change from time decay.
     Shows the unconditional pressure from options expiring.
@@ -535,8 +536,8 @@ def calc_charm_integral(spot: float, contracts: List[Dict[str, Any]],
 
     q = {"SPY": 0.013, "QQQ": 0.006, "^SPX": 0.013, "IWM": 0.012}.get(ticker, 0.0)
 
-    from datetime import datetime, timezone
-    today = datetime.now(timezone.utc).date()
+    from datetime import datetime
+    today = datetime.now(UTC).date()
 
     # Find nearest expiry
     expiries = sorted(set(c["expiry"] for c in contracts))
@@ -609,8 +610,8 @@ def calc_charm_integral(spot: float, contracts: List[Dict[str, Any]],
 # Gamma Flip & Key Levels (from FlashAlpha gex-explained research)
 # ============================================================================
 
-def calc_gamma_flip_levels(spot: float, contracts: List[Dict[str, Any]],
-                            ticker: str = "") -> Dict[str, Any]:
+def calc_gamma_flip_levels(spot: float, contracts: list[dict[str, Any]],
+                            ticker: str = "") -> dict[str, Any]:
     """
     Compute gamma flip, call wall, put wall, max pain, 0DTE magnet, hedging flows.
 
@@ -622,13 +623,13 @@ def calc_gamma_flip_levels(spot: float, contracts: List[Dict[str, Any]],
                 "max_pain": None, "zero_dte_magnet": None, "total_gex": 0,
                 "regime": "unknown", "hedging_flow": {}}
 
-    from datetime import datetime, timezone
+    from datetime import datetime
     q = {"SPY": 0.013, "QQQ": 0.006, "^SPX": 0.013, "IWM": 0.012}.get(ticker, 0.0)
-    today = datetime.now(timezone.utc).date()
+    today = datetime.now(UTC).date()
 
-    gex_by_strike: Dict[float, float] = {}
-    oi_by_strike: Dict[float, int] = {}
-    zero_dte_oi: Dict[float, int] = {}
+    gex_by_strike: dict[float, float] = {}
+    oi_by_strike: dict[float, int] = {}
+    zero_dte_oi: dict[float, int] = {}
 
     for c in contracts:
         strike = c["strike"]
@@ -748,8 +749,8 @@ def calc_gamma_flip_levels(spot: float, contracts: List[Dict[str, Any]],
 # VEX (Vanna-Exposure)
 # ============================================================================
 
-def calc_vex(spot: float, contracts: List[Dict[str, Any]],
-             risk_free_rate: float = 0.045) -> Dict[str, Any]:
+def calc_vex(spot: float, contracts: list[dict[str, Any]],
+             risk_free_rate: float = 0.045) -> dict[str, Any]:
     """
     Compute Vanna-Exposure (VEX) across all strikes.
 
@@ -776,7 +777,7 @@ def calc_vex(spot: float, contracts: List[Dict[str, Any]],
 
     from bs_greeks import bs_vanna
 
-    vex_by_strike: Dict[float, float] = {}
+    vex_by_strike: dict[float, float] = {}
     call_vex = 0.0
     put_vex = 0.0
 
@@ -814,9 +815,9 @@ def calc_vex(spot: float, contracts: List[Dict[str, Any]],
 # DEX (Delta-Exposure)
 # ============================================================================
 
-def calc_dex(spot: float, contracts: List[Dict[str, Any]],
+def calc_dex(spot: float, contracts: list[dict[str, Any]],
              multiplier: float = 100.0,
-             risk_free_rate: float = 0.045) -> Dict[str, Any]:
+             risk_free_rate: float = 0.045) -> dict[str, Any]:
     """
     Compute Delta-Exposure (DEX) across all strikes.
 
@@ -844,7 +845,7 @@ def calc_dex(spot: float, contracts: List[Dict[str, Any]],
 
     from bs_greeks import bs_delta
 
-    dex_by_strike: Dict[float, float] = {}
+    dex_by_strike: dict[float, float] = {}
     call_dex = 0.0
     put_dex = 0.0
 
@@ -884,8 +885,8 @@ def calc_dex(spot: float, contracts: List[Dict[str, Any]],
 # Vega-Total (Total Vega Exposure)
 # ============================================================================
 
-def calc_vega_total(spot: float, contracts: List[Dict[str, Any]],
-                    risk_free_rate: float = 0.045) -> Dict[str, Any]:
+def calc_vega_total(spot: float, contracts: list[dict[str, Any]],
+                    risk_free_rate: float = 0.045) -> dict[str, Any]:
     """
     Compute total vega across all open interest.
 
@@ -909,7 +910,7 @@ def calc_vega_total(spot: float, contracts: List[Dict[str, Any]],
 
     from bs_greeks import bs_vega
 
-    vega_by_strike: Dict[float, float] = {}
+    vega_by_strike: dict[float, float] = {}
     call_vega = 0.0
     put_vega = 0.0
     total_contracts = 0

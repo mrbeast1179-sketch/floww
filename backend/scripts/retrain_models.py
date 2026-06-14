@@ -28,7 +28,7 @@ import os
 import shutil
 import sys
 import time
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 import joblib
@@ -163,7 +163,8 @@ def retrain_ticker(ticker: str, dry_run: bool = True) -> dict:
     prod_sharpe = 0.0
     prod_model_type = "none"
     if prod_manifests:
-        m = json.load(open(sorted(prod_manifests)[-1]))
+        with open(sorted(prod_manifests)[-1]) as _f:
+            m = json.load(_f)
         prod_sharpe = m.get("walk_forward_sharpe", 0)
         prod_model_type = m.get("model_type", "?")
         log.info(f"  Production model ({prod_model_type}) WF Sharpe: {prod_sharpe:.4f}")
@@ -193,7 +194,7 @@ def retrain_ticker(ticker: str, dry_run: bool = True) -> dict:
         new_model.fit(X_scaled, y)
 
         # Save with timestamp
-        ts = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
+        ts = datetime.now(UTC).strftime("%Y%m%d_%H%M%S")
         model_path = MODELS_DIR / f"{ticker}_rf_retrain_{ts}.joblib"
         scaler_path = MODELS_DIR / f"{ticker}_rf_retrain_{ts}_scaler.joblib"
 
@@ -247,7 +248,7 @@ def main():
 
     # Save report
     REPORTS_DIR.mkdir(parents=True, exist_ok=True)
-    report_path = REPORTS_DIR / f"retrain_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}.json"
+    report_path = REPORTS_DIR / f"retrain_{datetime.now(UTC).strftime('%Y%m%d_%H%M%S')}.json"
     with open(report_path, "w") as f:
         json.dump(results, f, indent=2)
     log.info(f"Report: {report_path}")
@@ -267,7 +268,7 @@ def main():
             client = AsyncIOMotorClient(uri)
             db = client[db_name]
             await db["ml_retraining_log"].insert_one({
-                "run_at": datetime.now(timezone.utc),
+                "run_at": datetime.now(UTC),
                 "dry_run": dry_run,
                 "results": results,
             })

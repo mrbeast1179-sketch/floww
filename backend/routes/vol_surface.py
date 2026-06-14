@@ -12,7 +12,6 @@ Endpoints:
 from __future__ import annotations
 
 import logging
-from typing import List
 
 import numpy as np
 from fastapi import APIRouter, HTTPException, Query
@@ -63,8 +62,8 @@ async def get_vol_surface(ticker: str, expiries: int = Query(6, ge=1, le=12)):
 @router.post("/{ticker}/sabr")
 async def fit_sabr(
     ticker: str,
-    strikes: List[float],
-    market_vols: List[float],
+    strikes: list[float],
+    market_vols: list[float],
     F: float,
     T: float,
 ):
@@ -87,8 +86,8 @@ async def fit_sabr(
 @router.post("/{ticker}/svi")
 async def fit_svi(
     ticker: str,
-    log_moneyness: List[float],
-    market_vols: List[float],
+    log_moneyness: list[float],
+    market_vols: list[float],
     T: float,
 ):
     """Fit SVI model to market data."""

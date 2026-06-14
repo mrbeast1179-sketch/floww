@@ -5,6 +5,8 @@ Portfolio management routes.
 """
 from __future__ import annotations
 
+from datetime import UTC
+
 from fastapi import APIRouter, HTTPException, Path, Query
 
 router = APIRouter()
@@ -24,10 +26,10 @@ async def get_portfolio(name: str, spot: float = Query(0), iv: float = Query(0.1
 
 @router.post("/portfolio/{name}/position")
 async def add_position(name: str, position: dict):
-    from datetime import datetime, timezone
+    from datetime import datetime
 
     from server import db
-    position["added_at"] = datetime.now(timezone.utc).isoformat()
+    position["added_at"] = datetime.now(UTC).isoformat()
     result = await db.portfolios.update_one(
         {"name": name},
         {"$push": {"positions": position}},

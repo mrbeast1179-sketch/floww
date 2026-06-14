@@ -15,9 +15,9 @@ from __future__ import annotations
 import json
 import logging
 import os
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 import httpx
 
@@ -42,9 +42,9 @@ class SchwabTokenManager:
 
     def __init__(self, token_path: Path = SCHWAB_TOKEN_PATH):
         self.token_path = token_path
-        self._token: Optional[Dict[str, Any]] = None
+        self._token: dict[str, Any] | None = None
 
-    def load(self) -> Optional[Dict[str, Any]]:
+    def load(self) -> dict[str, Any] | None:
         """Load token from disk."""
         if self._token:
             return self._token
@@ -56,7 +56,7 @@ class SchwabTokenManager:
                 pass
         return None
 
-    def save(self, token: Dict[str, Any]):
+    def save(self, token: dict[str, Any]):
         """Save token to disk."""
         self._token = token
         self.token_path.parent.mkdir(parents=True, exist_ok=True)
@@ -69,9 +69,9 @@ class SchwabTokenManager:
         if not token:
             return True
         expires_at = token.get("expires_at", 0)
-        return datetime.now(timezone.utc).timestamp() > expires_at - 300  # 5 min buffer
+        return datetime.now(UTC).timestamp() > expires_at - 300  # 5 min buffer
 
-    def get_access_token(self) -> Optional[str]:
+    def get_access_token(self) -> str | None:
         """Get a valid access token, refreshing if needed."""
         token = self.load()
         if not token:
@@ -91,7 +91,7 @@ class SchwabTokenManager:
         import urllib.parse
         return f"{SCHWAB_AUTH_URL}?{urllib.parse.urlencode(params)}"
 
-    async def exchange_code(self, code: str) -> Dict[str, Any]:
+    async def exchange_code(self, code: str) -> dict[str, Any]:
         """Exchange an authorization code for tokens."""
         import base64
         credentials = base64.b64encode(
@@ -110,12 +110,12 @@ class SchwabTokenManager:
             resp.raise_for_status()
             token = resp.json()
             token["expires_at"] = (
-                datetime.now(timezone.utc).timestamp() + token.get("expires_in", 1800)
+                datetime.now(UTC).timestamp() + token.get("expires_in", 1800)
             )
             self.save(token)
             return token
 
-    async def refresh_token(self) -> Optional[str]:
+    async def refresh_token(self) -> str | None:
         """Refresh the access token using the refresh token."""
         token = self.load()
         if not token or not token.get("refresh_token"):
@@ -137,7 +137,7 @@ class SchwabTokenManager:
                 resp.raise_for_status()
                 new_token = resp.json()
                 new_token["expires_at"] = (
-                    datetime.now(timezone.utc).timestamp() + new_token.get("expires_in", 1800)
+                    datetime.now(UTC).timestamp() + new_token.get("expires_in", 1800)
                 )
                 # Preserve refresh_token if not returned
                 if "refresh_token" not in new_token:
@@ -154,10 +154,10 @@ class SchwabTokenManager:
 class SchwabClient:
     """Schwab API client for account data."""
 
-    def __init__(self, token_manager: Optional[SchwabTokenManager] = None):
+    def __init__(self, token_manager: SchwabTokenManager | None = None):
         self.tokens = token_manager or SchwabTokenManager()
 
-    async def _get_headers(self) -> Dict[str, str]:
+    async def _get_headers(self) -> dict[str, str]:
         """Get auth headers."""
         token = self.tokens.get_access_token()
         if not token or self.tokens.is_expired():
@@ -166,7 +166,7 @@ class SchwabClient:
             raise Exception("No valid Schwab token. Run OAuth flow first.")
         return {"Authorization": f"Bearer {token}", "Accept": "application/json"}
 
-    async def get_accounts(self) -> List[Dict[str, Any]]:
+    async def get_accounts(self) -> list[dict[str, Any]]:
         """Get all account numbers and hashes."""
         headers = await self._get_headers()
         async with httpx.AsyncClient() as client:
@@ -177,7 +177,7 @@ class SchwabClient:
             resp.raise_for_status()
             return resp.json()
 
-    async def get_positions(self, account_hash: str) -> Dict[str, Any]:
+    async def get_positions(self, account_hash: str) -> dict[str, Any]:
         """Get all positions for an account (options + equity)."""
         headers = await self._get_headers()
         async with httpx.AsyncClient() as client:
@@ -191,16 +191,16 @@ class SchwabClient:
 
     async def get_transactions(
         self, account_hash: str,
-        start_date: Optional[str] = None,
-        end_date: Optional[str] = None,
+        start_date: str | None = None,
+        end_date: str | None = None,
         types: str = "TRADE",
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """Get transaction history for sweep detection."""
         headers = await self._get_headers()
         if not start_date:
-            start_date = (datetime.now(timezone.utc) - timedelta(days=30)).isoformat()
+            start_date = (datetime.now(UTC) - timedelta(days=30)).isoformat()
         if not end_date:
-            end_date = datetime.now(timezone.utc).isoformat()
+            end_date = datetime.now(UTC).isoformat()
 
         async with httpx.AsyncClient() as client:
             resp = await client.get(
@@ -218,7 +218,7 @@ class SchwabClient:
 
 # ============ Position Import ============
 
-def parse_schwab_option_symbol(symbol: str) -> Optional[Dict[str, Any]]:
+def parse_schwab_option_symbol(symbol: str) -> dict[str, Any] | None:
     """
     Parse Schwab option symbol format.
     Example: 'SPY 240516C00500000' -> {symbol: 'SPY', expiry: '2024-05-16', type: 'call', strike: 500.0}
@@ -236,7 +236,7 @@ def parse_schwab_option_symbol(symbol: str) -> Optional[Dict[str, Any]]:
     }
 
 
-async def import_schwab_positions(account_hash: str) -> List[Dict[str, Any]]:
+async def import_schwab_positions(account_hash: str) -> list[dict[str, Any]]:
     """
     Import positions from Schwab and normalize to our Position format.
     Returns list of position dicts compatible with our Portfolio.add_position().
@@ -287,7 +287,7 @@ async def import_schwab_positions(account_hash: str) -> List[Dict[str, Any]]:
 
 # ============ Sweep Detection ============
 
-async def detect_sweeps(account_hash: str, lookback_days: int = 7) -> List[Dict[str, Any]]:
+async def detect_sweeps(account_hash: str, lookback_days: int = 7) -> list[dict[str, Any]]:
     """
     Detect options sweeps from Schwab transaction history.
     Sweeps = large multi-leg trades executed across multiple exchanges simultaneously.
@@ -295,7 +295,7 @@ async def detect_sweeps(account_hash: str, lookback_days: int = 7) -> List[Dict[
     client = SchwabClient()
     transactions = await client.get_transactions(
         account_hash,
-        start_date=(datetime.now(timezone.utc) - timedelta(days=lookback_days)).isoformat(),
+        start_date=(datetime.now(UTC) - timedelta(days=lookback_days)).isoformat(),
     )
 
     sweeps = []
@@ -320,7 +320,7 @@ async def detect_sweeps(account_hash: str, lookback_days: int = 7) -> List[Dict[
                 })
 
     # Flag trades with size >= 100 contracts as potential sweeps
-    for symbol, trades in by_symbol.items():
+    for _symbol, trades in by_symbol.items():
         for trade in trades:
             if trade["quantity"] >= 100:
                 sweeps.append({

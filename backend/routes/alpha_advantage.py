@@ -16,7 +16,7 @@ from __future__ import annotations
 
 import logging
 import os
-from typing import Any, Dict, Optional
+from typing import Any
 
 import aiohttp
 from fastapi import APIRouter, HTTPException, Query
@@ -36,7 +36,7 @@ ALPHA_VANTAGE_BASE = "https://www.alphavantage.co/query"
 ALPHA_VANTAGE_KEY = os.environ.get("ALPHA_VANTAGE_KEY", "")
 
 
-def _safe_params(params: Dict[str, str]) -> Dict[str, str]:
+def _safe_params(params: dict[str, str]) -> dict[str, str]:
     """Return a copy of params with apikey redacted for safe logging."""
     redacted = dict(params)
     if "apikey" in redacted:
@@ -44,7 +44,7 @@ def _safe_params(params: Dict[str, str]) -> Dict[str, str]:
     return redacted
 
 
-async def _av_request(params: Dict[str, str]) -> Dict[str, Any]:
+async def _av_request(params: dict[str, str]) -> dict[str, Any]:
     """Make an Alpha Vantage API request with rate limiting awareness.
 
     NOTE: Alpha Vantage's free tier requires ?apikey=... in the query string.
@@ -73,10 +73,10 @@ async def _av_request(params: Dict[str, str]) -> Dict[str, Any]:
                 return data
     except aiohttp.ClientError as e:
         logger.error("Alpha Vantage request failed for params %s: %s", _safe_params(params), e)
-        raise HTTPException(status_code=502, detail=str(e))
+        raise HTTPException(status_code=502, detail=str(e)) from None
 
 
-async def _av_request_circuit(params: Dict[str, Any]) -> Dict[str, Any]:
+async def _av_request_circuit(params: dict[str, Any]) -> dict[str, Any]:
     """Alpha Vantage request wrapper with circuit breaker protection.
 
     Wraps _av_request_circuit() with the circuit breaker. If the circuit is OPEN,
@@ -89,7 +89,7 @@ async def _av_request_circuit(params: Dict[str, Any]) -> Dict[str, Any]:
         raise HTTPException(
             status_code=503,
             detail=f"Alpha Vantage circuit breaker is open. Service temporarily unavailable. {e}",
-        )
+        ) from e
 
 
 @router.get("/quote/{ticker}")
@@ -115,7 +115,7 @@ async def get_quote(ticker: str):
 @router.get("/options/{ticker}")
 async def get_options_chain(
     ticker: str,
-    date: Optional[str] = Query(None, description="Expiration date YYYY-MM-DD"),
+    date: str | None = Query(None, description="Expiration date YYYY-MM-DD"),
 ):
     """Get options chain for a ticker."""
     params = {
@@ -218,8 +218,8 @@ async def get_earnings(ticker: str):
 
 @router.get("/news")
 async def get_news(
-    tickers: Optional[str] = Query(None, description="Comma-separated tickers"),
-    topics: Optional[str] = Query(None, description="Comma-separated topics"),
+    tickers: str | None = Query(None, description="Comma-separated tickers"),
+    topics: str | None = Query(None, description="Comma-separated topics"),
     limit: int = Query(20, ge=1, le=100),
 ):
     """Get market news and sentiment."""

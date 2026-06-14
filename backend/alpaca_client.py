@@ -12,7 +12,7 @@ Setup:
 
 import logging
 import os
-from typing import Any, Optional
+from typing import Any
 
 import aiohttp
 
@@ -48,7 +48,7 @@ class AlpacaClient:
             "APCA-API-SECRET-KEY": self._secret_key,
         }
 
-    async def _get(self, url: str, params: dict = None) -> Optional[Any]:
+    async def _get(self, url: str, params: dict = None) -> Any | None:
         if not self.enabled:
             return None
         try:
@@ -65,7 +65,7 @@ class AlpacaClient:
             logger.warning(f"Alpaca API error: {e}")
             return None
 
-    async def _post(self, url: str, data: dict = None) -> Optional[Any]:
+    async def _post(self, url: str, data: dict = None) -> Any | None:
         if not self.enabled:
             return None
         try:
@@ -87,25 +87,24 @@ class AlpacaClient:
             logger.warning(f"Alpaca API error: {e}")
             return None
 
-    async def _delete(self, url: str) -> Optional[Any]:
+    async def _delete(self, url: str) -> Any | None:
         if not self.enabled:
             return None
         try:
-            async with aiohttp.ClientSession() as session:
-                async with session.delete(url, headers=self.headers,
-                                          timeout=aiohttp.ClientTimeout(total=10)) as resp:
-                    if resp.status in (200, 204):
-                        return True
-                    else:
-                        text = await resp.text()
-                        logger.warning(f"Alpaca API error {resp.status}: {text[:200]}")
-                        return None
+            async with aiohttp.ClientSession() as session, session.delete(url, headers=self.headers,
+                                      timeout=aiohttp.ClientTimeout(total=10)) as resp:
+                if resp.status in (200, 204):
+                    return True
+                else:
+                    text = await resp.text()
+                    logger.warning(f"Alpaca API error {resp.status}: {text[:200]}")
+                    return None
         except Exception as e:
             logger.warning(f"Alpaca API error: {e}")
             return None
 
     async def place_stock_order(self, symbol: str, qty: int, side: str = "buy",
-                                 order_type: str = "market", limit_price: float = 0) -> Optional[dict]:
+                                 order_type: str = "market", limit_price: float = 0) -> dict | None:
         """Place a stock order."""
         order_data = {
             "symbol": symbol.upper(),
@@ -131,7 +130,7 @@ class AlpacaClient:
             }
         return None
 
-    async def close_position(self, symbol: str) -> Optional[dict]:
+    async def close_position(self, symbol: str) -> dict | None:
         """Close a position."""
         data = await self._delete(f"{ALPACA_BASE_URL}/v2/positions/{symbol.upper()}")
         if data:

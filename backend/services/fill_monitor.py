@@ -16,7 +16,7 @@ import logging
 import time
 from collections import deque
 from dataclasses import dataclass
-from typing import Any, Dict
+from typing import Any
 
 import numpy as np
 
@@ -49,7 +49,7 @@ class FillMonitor:
 
     def __init__(self, window_seconds: int = SLIPPAGE_WINDOW):
         self._window = window_seconds
-        self._fills: Dict[str, deque] = {}  # ticker -> deque of FillRecord
+        self._fills: dict[str, deque] = {}  # ticker -> deque of FillRecord
 
     def record_fill(
         self,
@@ -63,10 +63,7 @@ class FillMonitor:
         Returns:
             slippage_bps: positive means adverse (paid more than limit).
         """
-        if limit_price <= 0:
-            slippage_bps = 0.0
-        else:
-            slippage_bps = (fill_price - limit_price) / limit_price * 10000.0
+        slippage_bps = 0.0 if limit_price <= 0 else (fill_price - limit_price) / limit_price * 10000.0
 
         record = FillRecord(
             ticker=ticker,
@@ -103,7 +100,7 @@ class FillMonitor:
             while dq and dq[0].timestamp < cutoff:
                 dq.popleft()
 
-    def get_slippage_stats(self, ticker: str) -> Dict[str, float]:
+    def get_slippage_stats(self, ticker: str) -> dict[str, float]:
         """Get slippage statistics for a ticker.
 
         Returns dict with p50, p95, p99, mean, count.
@@ -123,7 +120,7 @@ class FillMonitor:
             "count": len(slippages),
         }
 
-    def get_all_stats(self) -> Dict[str, Dict[str, float]]:
+    def get_all_stats(self) -> dict[str, dict[str, float]]:
         """Get slippage stats for all tickers."""
         return {ticker: self.get_slippage_stats(ticker) for ticker in self._fills}
 
@@ -132,7 +129,7 @@ class FillMonitor:
         stats = self.get_slippage_stats(ticker)
         return stats["p95"] > P95_SLIPPAGE_ALERT_BPS and stats["count"] >= 10
 
-    def get_state(self) -> Dict[str, Any]:
+    def get_state(self) -> dict[str, Any]:
         return {
             "tickers_tracked": list(self._fills.keys()),
             "total_fills": sum(len(dq) for dq in self._fills.values()),

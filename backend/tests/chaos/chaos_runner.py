@@ -22,7 +22,7 @@ import tempfile
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Optional
 
 import yaml
 
@@ -39,8 +39,8 @@ class ChaosResult:
     start_time: str
     end_time: str
     duration_seconds: float
-    steps: List[Dict[str, Any]] = field(default_factory=list)
-    error: Optional[str] = None
+    steps: list[dict[str, Any]] = field(default_factory=list)
+    error: str | None = None
 
 
 class ChaosRunner:
@@ -48,15 +48,15 @@ class ChaosRunner:
 
     def __init__(self, scenarios_dir: Path = CHAOS_SCENARIOS_DIR):
         self._scenarios_dir = scenarios_dir
-        self._results: List[ChaosResult] = []
+        self._results: list[ChaosResult] = []
 
-    def list_scenarios(self) -> List[str]:
+    def list_scenarios(self) -> list[str]:
         """List available chaos scenario names."""
         if not self._scenarios_dir.exists():
             return []
         return [f.stem for f in self._scenarios_dir.glob("*.yaml")]
 
-    def load_scenario(self, name: str) -> Optional[Dict[str, Any]]:
+    def load_scenario(self, name: str) -> dict[str, Any] | None:
         """Load a chaos scenario from YAML."""
         path = self._scenarios_dir / f"{name}.yaml"
         if not path.exists():
@@ -190,7 +190,7 @@ class ChaosRunner:
                 return False
         return True
 
-    def get_results(self) -> List[Dict[str, Any]]:
+    def get_results(self) -> list[dict[str, Any]]:
         """Return all chaos results."""
         return [
             {

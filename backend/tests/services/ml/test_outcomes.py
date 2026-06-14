@@ -3,7 +3,7 @@ tests/services/ml/test_outcomes.py
 
 Tests for the realized outcome attachment service.
 """
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta, timezone
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -124,7 +124,7 @@ class TestAttachRealizedOutcomes:
         db = MagicMock()
         db.__getitem__ = lambda self, key: col
 
-        recent_ts = datetime.now(timezone.utc) - timedelta(hours=2)
+        recent_ts = datetime.now(UTC) - timedelta(hours=2)
         cursor.return_value = [
             {"_id": "p1", "ticker": "SPY", "ts": recent_ts.isoformat(), "prediction": 1}
         ]
@@ -137,7 +137,7 @@ class TestAttachRealizedOutcomes:
         db = MagicMock()
         db.__getitem__ = lambda self, key: col
 
-        old_ts = (datetime.now(timezone.utc) - timedelta(days=3)).isoformat()
+        old_ts = (datetime.now(UTC) - timedelta(days=3)).isoformat()
         cursor.return_value = [
             {"_id": "p1", "ticker": "", "ts": old_ts, "prediction": 1},
             {"_id": "p2", "ticker": "SPY", "ts": "", "prediction": 1},

@@ -12,7 +12,7 @@ Usage:
 import argparse
 import asyncio
 import os
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 from dotenv import load_dotenv
@@ -70,7 +70,7 @@ async def upsert_all(dry_run: bool = True):
         inserted = 0
         for _, row in df.iterrows():
             doc = sanitize_doc(row.to_dict())
-            doc["_computed_at"] = datetime.now(timezone.utc).isoformat()
+            doc["_computed_at"] = datetime.now(UTC).isoformat()
 
             # Upsert on ticker + date (unique key)
             await col.update_one(
@@ -84,7 +84,7 @@ async def upsert_all(dry_run: bool = True):
         total_inserted += inserted
 
     # Final count
-    for ticker in CSV_FILES:
+    for _ticker in CSV_FILES:
         logger.info(f"  {total_inserted} total upserted" if not dry_run else "")
         break
 

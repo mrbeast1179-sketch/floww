@@ -23,10 +23,11 @@ from __future__ import annotations
 import logging
 import time
 from collections import defaultdict
+from collections.abc import Callable
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any
 
 import numpy as np
 
@@ -63,7 +64,7 @@ class MetaAnomalyDetector:
         self._scaler: Any = None
         self._last_score: float = 0.0
         self._last_anomaly: bool = False
-        self._training_data: List[List[float]] = []
+        self._training_data: list[list[float]] = []
         self._training_max = 10080  # 7 days of 1-min samples
         self._load_model()
 
@@ -101,7 +102,7 @@ class MetaAnomalyDetector:
     # Feature extraction
     # ------------------------------------------------------------------
 
-    def _extract_features(self, metrics_snapshot: Dict[str, float]) -> List[float]:
+    def _extract_features(self, metrics_snapshot: dict[str, float]) -> list[float]:
         """Extract feature vector from a Prometheus metrics snapshot.
 
         metrics_snapshot keys:
@@ -109,7 +110,7 @@ class MetaAnomalyDetector:
             vpin_spy, vpin_qqq, p99_latency, ws_connections,
             cache_hit_ratio, 429_count
         """
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         hour = now.hour + now.minute / 60.0
         dow = now.weekday()
 
@@ -137,7 +138,7 @@ class MetaAnomalyDetector:
     # Training
     # ------------------------------------------------------------------
 
-    def add_training_sample(self, metrics_snapshot: Dict[str, float]):
+    def add_training_sample(self, metrics_snapshot: dict[str, float]):
         """Add a sample to the training buffer. Triggers training when buffer is full."""
         features = self._extract_features(metrics_snapshot)
         self._training_data.append(features)
@@ -180,7 +181,7 @@ class MetaAnomalyDetector:
     # Inference
     # ------------------------------------------------------------------
 
-    def score(self, metrics_snapshot: Dict[str, float]) -> Dict[str, Any]:
+    def score(self, metrics_snapshot: dict[str, float]) -> dict[str, Any]:
         """Score a metrics snapshot for anomaly detection.
 
         Returns:
@@ -233,7 +234,7 @@ class MetaAnomalyDetector:
                 "training_samples": len(self._training_data),
             }
 
-    def get_state(self) -> Dict[str, Any]:
+    def get_state(self) -> dict[str, Any]:
         """Return current detector state."""
         return {
             "model_loaded": self._model is not None,
@@ -325,15 +326,15 @@ class DataProviderMonitor:
         provider_down_seconds: float = 120.0,
         max_consecutive_failures: int = 5,
         window_seconds: float = 300.0,
-        on_alert: Optional[Callable[[str, str, Dict[str, Any]], None]] = None,
+        on_alert: Callable[[str, str, dict[str, Any]], None] | None = None,
     ):
         self.min_success_rate = min_success_rate
         self.provider_down_seconds = provider_down_seconds
         self.max_consecutive_failures = max_consecutive_failures
         self.window_seconds = window_seconds
         self.on_alert = on_alert
-        self._providers: Dict[str, ProviderStats] = {}
-        self._alerted: Dict[str, set] = defaultdict(set)  # provider -> set of active alert_types
+        self._providers: dict[str, ProviderStats] = {}
+        self._alerted: dict[str, set] = defaultdict(set)  # provider -> set of active alert_types
 
     def _get_stats(self, provider: str) -> ProviderStats:
         if provider not in self._providers:
@@ -348,7 +349,7 @@ class DataProviderMonitor:
         stats = self._get_stats(provider)
         stats.record(success)
 
-    def check_alerts(self) -> List[Dict[str, Any]]:
+    def check_alerts(self) -> list[dict[str, Any]]:
         """
         Check all providers for alert conditions.
         Returns list of alert dicts and fires callbacks.
@@ -409,7 +410,7 @@ class DataProviderMonitor:
 
         return alerts
 
-    def get_health(self) -> Dict[str, Any]:
+    def get_health(self) -> dict[str, Any]:
         """Return health summary for all providers."""
         providers = {}
         for name, stats in self._providers.items():

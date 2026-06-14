@@ -14,7 +14,7 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any
 
 from fastapi import APIRouter, HTTPException, Query
 
@@ -23,10 +23,10 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/anomaly", tags=["anomaly"])
 
 # Global anomaly detector registry (ticker -> FlowAnomalyDetector)
-_detectors: Dict[str, Any] = {}
+_detectors: dict[str, Any] = {}
 
 # Global ensemble registry (ticker -> ToxicityEnsemble)
-_ensembles: Dict[str, Any] = {}
+_ensembles: dict[str, Any] = {}
 
 # Path to trained model checkpoints
 MODEL_BASE_PATH = Path(__file__).resolve().parents[2] / "project_oracle" / "models"
@@ -150,4 +150,4 @@ async def load_trained_model(
         detector.load_checkpoint(checkpoint)
         return {"status": "loaded", "ticker": t, "path": str(ckpt_path)}
     except Exception as e:
-        raise HTTPException(500, f"Failed to load checkpoint: {e}")
+        raise HTTPException(500, f"Failed to load checkpoint: {e}") from e

@@ -15,7 +15,6 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
-from typing import Optional
 
 logger = logging.getLogger(__name__)
 
@@ -53,7 +52,7 @@ class KellySizer:
             execute_with_size(size)
     """
 
-    def __init__(self, config: Optional[SizerConfig] = None):
+    def __init__(self, config: SizerConfig | None = None):
         self.config = config or SizerConfig()
         self._trade_history: list[TradeRecord] = []
 
@@ -63,7 +62,7 @@ class KellySizer:
         current_price: float,
         account_equity: float,
         daily_pnl_pct: float = 0.0,
-        trade_history: Optional[list[TradeRecord]] = None,
+        trade_history: list[TradeRecord] | None = None,
     ) -> int:
         """
         Compute optimal position size in shares.

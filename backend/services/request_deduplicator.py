@@ -1,6 +1,6 @@
 import asyncio
 import logging
-from typing import Dict, TypeVar
+from typing import TypeVar
 
 logger = logging.getLogger(__name__)
 
@@ -17,7 +17,7 @@ class RequestDeduplicator:
     """
 
     def __init__(self) -> None:
-        self._inflight: Dict[str, asyncio.Future] = {}
+        self._inflight: dict[str, asyncio.Future] = {}
 
     async def execute(self, key: str, func) -> T:
         """Execute *func* once for *key*, deduping concurrent callers.

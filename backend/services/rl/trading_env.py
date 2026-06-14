@@ -24,7 +24,7 @@ from __future__ import annotations
 
 import logging
 import math
-from typing import Any, Dict, Tuple
+from typing import Any
 
 import numpy as np
 
@@ -87,7 +87,7 @@ class TradingEnv:
 
         return self._get_observation()
 
-    def step(self, action: int) -> Tuple[np.ndarray, float, bool, Dict[str, Any]]:
+    def step(self, action: int) -> tuple[np.ndarray, float, bool, dict[str, Any]]:
         """Take a step in the environment.
 
         Args:
@@ -248,7 +248,7 @@ class TradingEnv:
     def action_dim(self) -> int:
         return ACTION_SPACE
 
-    def get_state(self) -> Dict[str, Any]:
+    def get_state(self) -> dict[str, Any]:
         return {
             "step": self.step_count,
             "position": self.position,

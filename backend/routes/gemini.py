@@ -1,7 +1,7 @@
 """API routes for Gemini AI analysis."""
 
 import logging
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from fastapi import APIRouter
 
@@ -11,7 +11,7 @@ router = APIRouter(prefix="/api/ai", tags=["ai"])
 
 
 @router.post("/analyze-trade")
-async def analyze_trade(trade: Dict[str, Any], market_context: Optional[Dict[str, Any]] = None):
+async def analyze_trade(trade: dict[str, Any], market_context: dict[str, Any] | None = None):
     """AI analysis of a trade from the journal."""
     try:
         from gemini_analyzer import GeminiAnalyzer
@@ -25,7 +25,7 @@ async def analyze_trade(trade: Dict[str, Any], market_context: Optional[Dict[str
 
 
 @router.post("/analyze-regime")
-async def analyze_regime(regime_data: Dict[str, Any]):
+async def analyze_regime(regime_data: dict[str, Any]):
     """AI analysis of current market regime."""
     try:
         from gemini_analyzer import GeminiAnalyzer
@@ -40,7 +40,7 @@ async def analyze_regime(regime_data: Dict[str, Any]):
 
 @router.post("/summarize-day")
 async def summarize_day(
-    trades: List[Dict[str, Any]],
+    trades: list[dict[str, Any]],
     pnl: float = 0,
     regime: str = "unknown",
 ):
@@ -57,7 +57,7 @@ async def summarize_day(
 
 
 @router.post("/explain-signal")
-async def explain_signal(signal: Dict[str, Any]):
+async def explain_signal(signal: dict[str, Any]):
     """AI explanation of an options flow signal."""
     try:
         from gemini_analyzer import GeminiAnalyzer

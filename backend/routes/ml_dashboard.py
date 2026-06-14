@@ -17,7 +17,7 @@ Note: /predict/{ticker}, /models, /model-info/{ticker}, /features/{ticker},
 from __future__ import annotations
 
 import logging
-from typing import Any, Dict
+from typing import Any
 
 from fastapi import APIRouter, HTTPException
 
@@ -45,7 +45,7 @@ async def _get_briefing_integrator():
 # ── GET /api/ml/dashboard/{ticker} ─────────────────────────────────────
 
 @router.get("/dashboard/{ticker}")
-async def ml_dashboard(ticker: str) -> Dict[str, Any]:
+async def ml_dashboard(ticker: str) -> dict[str, Any]:
     """Full ML dashboard data for a ticker.
 
     Returns regime, ML prediction, combined signal, and supporting data.
@@ -56,13 +56,13 @@ async def ml_dashboard(ticker: str) -> Dict[str, Any]:
         return result
     except Exception as e:
         log.error(f"Dashboard failed for {ticker}: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"Dashboard error: {e}")
+        raise HTTPException(status_code=500, detail=f"Dashboard error: {e}") from e
 
 
 # ── POST /api/ml/reload/{ticker} ───────────────────────────────────────
 
 @router.post("/reload/{ticker}")
-async def ml_reload_model(ticker: str) -> Dict[str, Any]:
+async def ml_reload_model(ticker: str) -> dict[str, Any]:
     """Reload model from disk (useful after retraining)."""
     engine = await _get_inference_engine()
     ticker = ticker.upper()
@@ -76,6 +76,6 @@ async def ml_reload_model(ticker: str) -> Dict[str, Any]:
         info = engine.get_model_info(ticker)
         return {"status": "reloaded", "ticker": ticker, "model_id": info.model_id}
     except DegenerateModelError as e:
-        raise HTTPException(status_code=404, detail=str(e))
+        raise HTTPException(status_code=404, detail=str(e)) from e
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e

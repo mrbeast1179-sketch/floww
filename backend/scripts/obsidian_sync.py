@@ -19,6 +19,7 @@ Environment:
 """
 
 import argparse
+import contextlib
 import difflib
 import hashlib
 import json
@@ -238,10 +239,8 @@ class ObsidianSync:
         """Persist the change log for this run (skipped on dry-run / no changes)."""
         if self.dry_run or not self.changes:
             return
-        try:
+        with contextlib.suppress(Exception):
             self.log_file.write_text("\n".join(self.changes) + "\n")
-        except Exception:
-            pass
 
     def sync_file(self, src: Path, dst: Path, key: str):
         """Sync one Claude->Obsidian file with mtime-based conflict detection."""

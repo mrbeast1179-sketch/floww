@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import math
 import sys
+from collections.abc import Iterable
 from datetime import date
 
 # Make ``services`` and ``services.ml`` importable when pytest is launched
@@ -24,7 +25,7 @@ from datetime import date
 # ``services.gex_history`` resolves; from this file that is parent.parent.parent
 # (services -> tests -> backend).
 from pathlib import Path  # noqa: E402
-from typing import Any, Dict, Iterable, List
+from typing import Any
 
 import pandas as pd
 import pytest
@@ -59,7 +60,7 @@ def _bs_gamma(spot: float, strike: float, T: float, iv: float = _IV_FALLBACK,
     return float(norm.pdf(d1) / (spot * iv * math.sqrt(T)))
 
 
-def _expected_gex(spot: float, contracts: List[Dict[str, Any]],
+def _expected_gex(spot: float, contracts: list[dict[str, Any]],
                   day_iso: str) -> float:
     """Reference per-day gex_total mirroring the module's math, computed via
     a different control path (Python list + math, not numpy vectors)."""
@@ -88,7 +89,7 @@ class _FakeCursor:
     (returns documents; projections are ignored — we just yield what we have).
     Supports both sync and async iteration for Motor cursor compatibility."""
 
-    def __init__(self, docs: Iterable[Dict[str, Any]]):
+    def __init__(self, docs: Iterable[dict[str, Any]]):
         self._docs = list(docs)
 
     def __iter__(self):
@@ -107,16 +108,16 @@ class _FakeCursor:
 
 
 class _FakeCollection:
-    def __init__(self, docs: List[Dict[str, Any]]):
+    def __init__(self, docs: list[dict[str, Any]]):
         self.docs = docs
 
-    def find(self, query: Dict[str, Any] = None, projection=None):
+    def find(self, query: dict[str, Any] = None, projection=None):
         # Tiny filter engine — supports our two query shapes:
         #   {"ticker": "SPY", "date": {"$gte": s, "$lte": e}}
         #   {"ticker": "SPY", "ts":   {"$gte": s, "$lte": e}}
         if not query:
             return _FakeCursor(self.docs)
-        out: List[Dict[str, Any]] = []
+        out: list[dict[str, Any]] = []
         for d in self.docs:
             ok = True
             for key, val in query.items():
@@ -145,15 +146,15 @@ class _FakeCollection:
 class _FakeDB:
     """Dict-of-collections shim that satisfies ``db[name].find(...)``."""
 
-    def __init__(self, collections: Dict[str, List[Dict[str, Any]]]):
+    def __init__(self, collections: dict[str, list[dict[str, Any]]]):
         self._colls = {k: _FakeCollection(v) for k, v in collections.items()}
 
     def __getitem__(self, name: str) -> _FakeCollection:
         return self._colls.setdefault(name, _FakeCollection([]))
 
 
-def _make_chain(day: str, contracts_list: List[Dict[str, Any]],
-                ticker: str = "SPY") -> Dict[str, Any]:
+def _make_chain(day: str, contracts_list: list[dict[str, Any]],
+                ticker: str = "SPY") -> dict[str, Any]:
     """Wrap a list of contracts into a databento_eod_chains-shaped doc."""
     contracts_dict = {
         f"sym_{i}": c for i, c in enumerate(contracts_list)
@@ -161,7 +162,7 @@ def _make_chain(day: str, contracts_list: List[Dict[str, Any]],
     return {"ticker": ticker, "day": day, "contracts": contracts_dict}
 
 
-def _make_bar(day: str, close: float, ticker: str = "SPY") -> Dict[str, Any]:
+def _make_bar(day: str, close: float, ticker: str = "SPY") -> dict[str, Any]:
     return {"ticker": ticker, "date": day, "close": float(close)}
 
 

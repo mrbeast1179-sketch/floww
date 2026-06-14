@@ -4,6 +4,7 @@ All tests are fully mocked — no live Schwab connection required.
 Tests the production reconnect logic in services/schwab_streamer.py.
 """
 import asyncio
+import contextlib
 import json
 from datetime import datetime, timezone
 from unittest.mock import AsyncMock, MagicMock, PropertyMock, patch
@@ -141,10 +142,8 @@ async def test_token_refresh_when_expired(streamer, mock_token_manager):
 
     with patch("services.schwab_streamer.websockets.connect", side_effect=side_effect):
         streamer._running = True
-        try:
+        with contextlib.suppress(ConnectionError):
             await streamer._connect_and_stream()
-        except ConnectionError:
-            pass
 
     # Verify refresh was called
     mock_token_manager.refresh_token.assert_called_once()
@@ -185,10 +184,8 @@ async def test_resubscribe_after_reconnect(streamer, mock_token_manager):
 
     with patch("services.schwab_streamer.websockets.connect", side_effect=side_effect):
         streamer._running = True
-        try:
+        with contextlib.suppress(Exception):
             await streamer._connect_and_stream()
-        except Exception:
-            pass
 
     # Verify _subscribe_default was called (re-subscribe happens)
     assert len(subscribe_calls) == 1, "Should re-subscribe after reconnect"
@@ -245,10 +242,8 @@ async def test_concurrent_connect_guard(streamer, mock_token_manager):
     task1 = asyncio.create_task(streamer.start())
     await asyncio.sleep(0.01)  # let task1 start
     streamer._running = False  # stop after first
-    try:
+    with contextlib.suppress(TimeoutError, Exception):
         await asyncio.wait_for(task1, timeout=2.0)
-    except (asyncio.TimeoutError, Exception):
-        pass
 
     # Should only have attempted one connection (not two)
     assert connect_count <= 1, f"Expected ≤1 connect, got {connect_count}"
@@ -314,10 +309,8 @@ async def test_health_tracking(streamer, mock_token_manager):
 
     with patch("services.schwab_streamer.websockets.connect", side_effect=side_effect):
         streamer._running = True
-        try:
+        with contextlib.suppress(Exception):
             await streamer._connect_and_stream()
-        except Exception:
-            pass
 
     # After processing messages, health should reflect activity
     health = streamer.get_health()
@@ -344,10 +337,8 @@ async def test_error_handler_dispatch(streamer, mock_token_manager):
 
     with patch("services.schwab_streamer.websockets.connect", side_effect=side_effect):
         streamer._running = True
-        try:
+        with contextlib.suppress(Exception):
             await streamer._connect_and_stream()
-        except Exception:
-            pass
 
     # Error handler should have been called
     assert error_handler.called, "Error handler was not called"

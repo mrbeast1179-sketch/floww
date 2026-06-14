@@ -6,22 +6,23 @@ Heavy Mongo caching: 1 fetch per ticker per US trading date.
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import logging
 import os
 import re
+from datetime import UTC, datetime, timedelta
 from datetime import date as date_cls
-from datetime import datetime, timedelta, timezone
-from typing import Any, Dict, Optional
+from typing import Any
 
 import databento as db
 
 log = logging.getLogger("databento")
 
 DBN_KEY = os.environ.get("DATABENTO_API_KEY", "")
-_hist_client: Optional[db.Historical] = None
+_hist_client: db.Historical | None = None
 
 
-def _get_client() -> Optional[db.Historical]:
+def _get_client() -> db.Historical | None:
     global _hist_client, DBN_KEY
     # Re-read env in case .env loaded after module import or key rotated
     key = os.environ.get("DATABENTO_API_KEY", "")
@@ -58,7 +59,7 @@ PARENT_MAP = {
 OSI_RE = re.compile(r'^([A-Z]+)\s*(\d{2})(\d{2})(\d{2})([CP])(\d{8})$')
 
 
-def parse_osi(raw: str) -> Optional[Dict[str, Any]]:
+def parse_osi(raw: str) -> dict[str, Any] | None:
     """Parse OPRA OSI symbol like 'SPY   260612C00500000'"""
     m = OSI_RE.match(raw.strip())
     if not m:
@@ -72,12 +73,12 @@ def parse_osi(raw: str) -> Optional[Dict[str, Any]]:
     }
 
 
-def _last_trading_day_utc(now: Optional[datetime] = None) -> date_cls:
+def _last_trading_day_utc(now: datetime | None = None) -> date_cls:
     """Approx US equities last trading day in UTC. Saturday/Sunday roll back.
     Uses America/New_York timezone for correct DST handling."""
     from zoneinfo import ZoneInfo
     ny_tz = ZoneInfo("America/New_York")
-    n = (now or datetime.now(timezone.utc)).astimezone(ny_tz)
+    n = (now or datetime.now(UTC)).astimezone(ny_tz)
     # After US market close (4pm ET)
     if n.hour >= 16:
         n = n.replace(hour=16, minute=0, second=0, microsecond=0)
@@ -88,7 +89,7 @@ def _last_trading_day_utc(now: Optional[datetime] = None) -> date_cls:
     return n.date()
 
 
-def _fetch_oi_sync(parent: str, day: date_cls) -> Dict[str, Any]:
+def _fetch_oi_sync(parent: str, day: date_cls) -> dict[str, Any]:
     """Blocking Databento fetch. Returns {raw_symbol: {strike, expiry, type, oi}}."""
     client = _get_client()
     if not client:
@@ -120,8 +121,8 @@ def _fetch_oi_sync(parent: str, day: date_cls) -> Dict[str, Any]:
     # latest per symbol — sort by timestamp first to ensure .last() picks the newest
     df = df.sort_values("ts_event").groupby("symbol").last().reset_index()
 
-    out: Dict[str, Dict[str, Any]] = {}
-    for sym, qty in zip(df["symbol"], df["quantity"]):
+    out: dict[str, dict[str, Any]] = {}
+    for sym, qty in zip(df["symbol"], df["quantity"], strict=False):
         p = parse_osi(sym)
         if not p:
             continue
@@ -140,15 +141,13 @@ class DatabentoCache:
 
     def __init__(self, mongo_db):
         self.col = mongo_db.databento_oi
-        self._mem: Dict[str, Dict[str, Any]] = {}
+        self._mem: dict[str, dict[str, Any]] = {}
 
     async def ensure_index(self):
-        try:
+        with contextlib.suppress(Exception):
             await self.col.create_index([("parent", 1), ("day", 1)], unique=True)
-        except Exception:
-            pass
 
-    async def get(self, parent: str, day: date_cls) -> Dict[str, Any]:
+    async def get(self, parent: str, day: date_cls) -> dict[str, Any]:
         key = f"{parent}:{day.isoformat()}"
         if key in self._mem:
             return self._mem[key]
@@ -164,7 +163,7 @@ class DatabentoCache:
         await self.col.update_one(
             {"parent": parent, "day": day.isoformat()},
             {"$set": {"parent": parent, "day": day.isoformat(),
-                      "contracts": contracts, "fetched_at": datetime.now(timezone.utc).isoformat(),
+                      "contracts": contracts, "fetched_at": datetime.now(UTC).isoformat(),
                       "count": len(contracts)}},
             upsert=True,
         )
@@ -172,7 +171,7 @@ class DatabentoCache:
         return contracts
 
 
-_cache: Optional[DatabentoCache] = None
+_cache: DatabentoCache | None = None
 
 
 def init_cache(mongo_db) -> DatabentoCache:
@@ -181,16 +180,16 @@ def init_cache(mongo_db) -> DatabentoCache:
     return _cache
 
 
-def get_cache() -> Optional[DatabentoCache]:
+def get_cache() -> DatabentoCache | None:
     return _cache
 
 
-async def fetch_oi_for_ticker(ticker: str, day: Optional[date_cls] = None) -> Dict[str, Any]:
+async def fetch_oi_for_ticker(ticker: str, day: date_cls | None = None) -> dict[str, Any]:
     """Public API: get OI keyed by raw OSI symbol for a ticker."""
     key = os.environ.get("DATABENTO_API_KEY", DBN_KEY)
     if not key or not _cache:
         return {}
-    parent = PARENT_MAP.get(ticker.upper().replace("^", ""), None)
+    parent = PARENT_MAP.get(ticker.upper().replace("^", ""))
     if not parent:
         parent = f"{ticker.upper().replace('^','')}.OPT"
     use_day = day or _last_trading_day_utc()
@@ -216,10 +215,8 @@ async def stream_live_trades(parent: str, queue: asyncio.Queue, stop_event: asyn
     key = os.environ.get("DATABENTO_API_KEY", DBN_KEY)
     if not key:
         loop = asyncio.get_event_loop()
-        try:
+        with contextlib.suppress(Exception):
             asyncio.run_coroutine_threadsafe(queue.put({"_error": "Databento key missing"}), loop)
-        except Exception:
-            pass
         return
     loop = asyncio.get_event_loop()
 
@@ -237,10 +234,8 @@ async def stream_live_trades(parent: str, queue: asyncio.Queue, stop_event: asyn
             def cb(rec):
                 try:
                     if stop_event.is_set():
-                        try:
+                        with contextlib.suppress(Exception):
                             live.stop()
-                        except Exception:
-                            pass
                         return
                     sym = getattr(rec, "raw_symbol", None) or getattr(rec, "symbol", None)
                     if not sym:
@@ -268,10 +263,8 @@ async def stream_live_trades(parent: str, queue: asyncio.Queue, stop_event: asyn
                         "sweep": sz >= 250,
                         "block": sz >= 500,
                     }
-                    try:
+                    with contextlib.suppress(Exception):
                         asyncio.run_coroutine_threadsafe(queue.put(payload), loop)
-                    except Exception:
-                        pass
                 except Exception as e:
                     log.warning(f"flow cb err: {e}")
 
@@ -287,10 +280,8 @@ async def stream_live_trades(parent: str, queue: asyncio.Queue, stop_event: asyn
                 _t.sleep(1)
         except Exception as e:
             log.warning(f"flow stream err: {e}")
-            try:
+            with contextlib.suppress(Exception):
                 asyncio.run_coroutine_threadsafe(queue.put({"_error": str(e)}), loop)
-            except Exception:
-                pass
         finally:
             try:
                 if live is not None:

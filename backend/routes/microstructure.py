@@ -11,7 +11,7 @@ so the frontend never crashes.
 from __future__ import annotations
 
 import logging
-from typing import Any, Dict
+from typing import Any
 
 from fastapi import APIRouter, Query
 
@@ -20,14 +20,14 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/microstructure", tags=["microstructure"])
 
 # Module-level service instances (lazy initialization)
-_vpin_engines: Dict[str, Any] = {}
+_vpin_engines: dict[str, Any] = {}
 _gex_aggregator = None
-_hawkes_processes: Dict[str, Any] = {}
+_hawkes_processes: dict[str, Any] = {}
 _vol_constructor = None
-_liquidity_metrics: Dict[str, Any] = {}
-_anomaly_detectors: Dict[str, Any] = {}
+_liquidity_metrics: dict[str, Any] = {}
+_anomaly_detectors: dict[str, Any] = {}
 _trinity_index = None
-_node_trackers: Dict[str, Any] = {}
+_node_trackers: dict[str, Any] = {}
 _fragility_index = None
 
 
@@ -101,7 +101,7 @@ def _get_fragility_index():
     return _fragility_index
 
 
-async def _fetch_chain(ticker: str, expiries: int = 5) -> Dict[str, Any]:
+async def _fetch_chain(ticker: str, expiries: int = 5) -> dict[str, Any]:
     """Fetch option chain, same pattern as existing routes."""
     try:
         from server import fetch_spot_and_chains_merged

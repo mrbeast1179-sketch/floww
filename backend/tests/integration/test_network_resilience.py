@@ -23,13 +23,15 @@ import asyncio
 import os
 import sys
 import time
-from datetime import datetime, timezone
+from datetime import UTC, datetime, timezone
 
 import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".."))
 
 os.environ.setdefault("TESTING", "1")
+
+import contextlib
 
 from services.data_fallback import DataFallbackHandler, DataSource, FallbackConfig
 from services.duckdb_engine import DuckDBEngine
@@ -80,10 +82,8 @@ async def test_offline_mode_activates_on_connection_loss(engine, feed):
     # Simulate connection loss
     await feed.stop()
     feed_task.cancel()
-    try:
+    with contextlib.suppress(asyncio.CancelledError):
         await feed_task
-    except asyncio.CancelledError:
-        pass
 
     # Verify streamer health reflects disconnection
     streamer = SchwabStreamer()
@@ -116,10 +116,8 @@ async def test_offline_mode_serves_cached_data(engine, feed):
     await asyncio.sleep(0.2)
     await feed.stop()
     feed_task.cancel()
-    try:
+    with contextlib.suppress(asyncio.CancelledError):
         await feed_task
-    except asyncio.CancelledError:
-        pass
 
     # Verify data still accessible during partition
     rows = engine.query("SELECT COUNT(*) as cnt FROM ticks")
@@ -155,10 +153,8 @@ async def test_data_integrity_during_partition(engine, feed):
     await asyncio.sleep(0.2)
     await feed.stop()
     feed_task.cancel()
-    try:
+    with contextlib.suppress(asyncio.CancelledError):
         await feed_task
-    except asyncio.CancelledError:
-        pass
 
     # Recover
     feed2 = MockSchwabFeed(rate=50, symbols=["SPY"], seed=99)
@@ -177,10 +173,8 @@ async def test_data_integrity_during_partition(engine, feed):
     # Cleanup
     await feed2.stop()
     feed_task2.cancel()
-    try:
+    with contextlib.suppress(asyncio.CancelledError):
         await feed_task2
-    except asyncio.CancelledError:
-        pass
 
     await engine._flush_all()
 
@@ -202,7 +196,7 @@ async def test_no_data_loss_during_outage(engine, feed):
     await engine.start()
 
     # Pre-load data
-    for i in range(20):
+    for _i in range(20):
         await engine.insert_tick(
             symbol="SPY", bid=500.0, ask=501.0, last=500.5,
             volume=1000, oi=5000, delta=0.5, gamma=0.01,
@@ -218,10 +212,8 @@ async def test_no_data_loss_during_outage(engine, feed):
     await asyncio.sleep(0.2)
     await feed.stop()
     feed_task.cancel()
-    try:
+    with contextlib.suppress(asyncio.CancelledError):
         await feed_task
-    except asyncio.CancelledError:
-        pass
 
     # Verify no data loss
     await engine._flush_all()
@@ -248,10 +240,8 @@ async def test_graceful_degradation_during_partition(engine, feed):
     # Simulate partition
     await feed.stop()
     feed_task.cancel()
-    try:
+    with contextlib.suppress(asyncio.CancelledError):
         await feed_task
-    except asyncio.CancelledError:
-        pass
 
     # System should still be queryable
     post_ticks = engine.query("SELECT COUNT(*) as cnt FROM ticks")[0]["cnt"]
@@ -306,7 +296,7 @@ async def test_streamer_health_reflects_partition():
 
     # Simulate connection
     streamer._health["connected"] = True
-    streamer._health["last_message_at"] = datetime.now(timezone.utc).isoformat()
+    streamer._health["last_message_at"] = datetime.now(UTC).isoformat()
 
     # Internal health dict should reflect connection
     assert streamer._health["connected"] is True
@@ -363,10 +353,8 @@ async def test_multi_symbol_partition_resilience():
     # Simulate partition
     await feed.stop()
     feed_task.cancel()
-    try:
+    with contextlib.suppress(asyncio.CancelledError):
         await feed_task
-    except asyncio.CancelledError:
-        pass
 
     # Recover with new feed
     feed2 = MockSchwabFeed(rate=50, symbols=["SPY", "QQQ", "DIA"], seed=99)
@@ -380,10 +368,8 @@ async def test_multi_symbol_partition_resilience():
 
     await feed2.stop()
     feed_task2.cancel()
-    try:
+    with contextlib.suppress(asyncio.CancelledError):
         await feed_task2
-    except asyncio.CancelledError:
-        pass
 
     await engine.stop()
 
@@ -442,10 +428,8 @@ async def test_recovery_within_30_seconds(engine, feed):
     # Simulate partition
     await feed.stop()
     feed_task.cancel()
-    try:
+    with contextlib.suppress(asyncio.CancelledError):
         await feed_task
-    except asyncio.CancelledError:
-        pass
 
     # Wait 2 seconds (simulated outage)
     await asyncio.sleep(2)
@@ -469,10 +453,8 @@ async def test_recovery_within_30_seconds(engine, feed):
     # Cleanup
     await feed2.stop()
     feed_task2.cancel()
-    try:
+    with contextlib.suppress(asyncio.CancelledError):
         await feed_task2
-    except asyncio.CancelledError:
-        pass
 
     assert len(ticks_after) > 0, "No ticks received after reconnection"
     assert reconnect_duration < 30.0, f"Recovery took {reconnect_duration:.1f}s, exceeds 30s limit"

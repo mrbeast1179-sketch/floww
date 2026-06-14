@@ -20,7 +20,7 @@ Sign up: https://flashalpha.com
 import logging
 import os
 from datetime import datetime
-from typing import Any, Dict, Optional
+from typing import Any
 
 import aiohttp
 
@@ -45,7 +45,7 @@ class FlashAlphaClient:
         key = os.environ.get("FLASHALPHA_API_KEY", "")
         return {"X-Api-Key": key, "Content-Type": "application/json"} if key else {}
 
-    async def _get(self, path: str, params: dict = None) -> Optional[dict]:
+    async def _get(self, path: str, params: dict = None) -> dict | None:
         if not self.enabled:
             return None
         url = f"{self.base_url}{path}"
@@ -74,43 +74,43 @@ class FlashAlphaClient:
 
     # ── Exposure ─────────────────────────────────────────────────
 
-    async def get_exposure_summary(self, symbol: str) -> Optional[dict]:
+    async def get_exposure_summary(self, symbol: str) -> dict | None:
         """Get exposure summary (GEX + DEX + VEX + CHEX combined)."""
         return await self._get(f"/v1/exposure/summary/{symbol}")
 
-    async def get_exposure_narrative(self, symbol: str) -> Optional[dict]:
+    async def get_exposure_narrative(self, symbol: str) -> dict | None:
         """Get AI-generated narrative summary of exposure."""
         return await self._get(f"/v1/exposure/narrative/{symbol}")
 
-    async def get_flow_live(self, symbol: str) -> Optional[dict]:
+    async def get_flow_live(self, symbol: str) -> dict | None:
         """Get live options flow."""
         return await self._get(f"/v1/flow/live/{symbol}")
 
-    async def get_flow_summary(self, symbol: str) -> Optional[dict]:
+    async def get_flow_summary(self, symbol: str) -> dict | None:
         """Get flow summary."""
         return await self._get(f"/v1/flow/summary/{symbol}")
 
-    async def get_options_flow_recent(self, symbol: str) -> Optional[dict]:
+    async def get_options_flow_recent(self, symbol: str) -> dict | None:
         """Get recent options flow."""
         return await self._get(f"/v1/flow/options/{symbol}/recent")
 
-    async def get_options_flow_summary(self, symbol: str) -> Optional[dict]:
+    async def get_options_flow_summary(self, symbol: str) -> dict | None:
         """Get options flow summary."""
         return await self._get(f"/v1/flow/options/{symbol}/summary")
 
-    async def get_options_flow_blocks(self, symbol: str) -> Optional[dict]:
+    async def get_options_flow_blocks(self, symbol: str) -> dict | None:
         """Get options flow blocks (large trades)."""
         return await self._get(f"/v1/flow/options/{symbol}/blocks")
 
-    async def get_options_flow_history(self, symbol: str) -> Optional[dict]:
+    async def get_options_flow_history(self, symbol: str) -> dict | None:
         """Get historical options flow."""
         return await self._get(f"/v1/flow/options/{symbol}/history")
 
-    async def get_options_flow_outliers(self) -> Optional[dict]:
+    async def get_options_flow_outliers(self) -> dict | None:
         """Get options flow outliers across all tickers."""
         return await self._get("/v1/flow/options/outliers")
 
-    async def get_full_dashboard(self, symbol: str) -> Dict[str, Any]:
+    async def get_full_dashboard(self, symbol: str) -> dict[str, Any]:
         """
         Get a full dashboard of data for a ticker.
         Combines multiple endpoints into one response.

@@ -9,15 +9,15 @@ Predicts next-day price direction (up/down) based on:
 
 import logging
 import os
-from datetime import datetime, timezone
-from typing import Any, Dict
+from datetime import UTC, datetime
+from typing import Any
 
 import numpy as np
 
 logger = logging.getLogger(__name__)
 
 
-def extract_features(snapshots: list, idx: int) -> Dict[str, float]:
+def extract_features(snapshots: list, idx: int) -> dict[str, float]:
     """Extract features from a snapshot at index idx."""
     if idx >= len(snapshots):
         return {}
@@ -75,7 +75,7 @@ def extract_features(snapshots: list, idx: int) -> Dict[str, float]:
 async def train_price_direction_model(
     ticker: str = "SPY",
     min_samples: int = 20,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Train a price direction prediction model."""
     import joblib
     from dotenv import load_dotenv
@@ -135,7 +135,7 @@ async def train_price_direction_model(
 
     # Check class balance
     unique, counts = np.unique(y, return_counts=True)
-    class_dist = dict(zip(unique.tolist(), counts.tolist()))
+    class_dist = dict(zip(unique.tolist(), counts.tolist(), strict=False))
 
     if len(unique) < 2:
         return {
@@ -194,7 +194,7 @@ async def train_price_direction_model(
         "class_distribution": class_dist,
         "top_features": dict(list(importance.items())[:5]),
         "model_path": model_path,
-        "trained_at": datetime.now(timezone.utc).isoformat(),
+        "trained_at": datetime.now(UTC).isoformat(),
     }
 
     logger.info(f"Price model trained for {ticker}: accuracy={accuracy:.4f}")
@@ -203,7 +203,7 @@ async def train_price_direction_model(
 
 async def predict_price_direction(
     ticker: str = "SPY",
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Predict price direction using trained model."""
     import joblib
 

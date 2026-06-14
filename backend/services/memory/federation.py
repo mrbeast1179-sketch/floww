@@ -10,6 +10,7 @@ For production with multiple machines, replace the file-based queue
 with Upstash Redis pub-sub (channel: "mem0_writes").
 """
 
+import contextlib
 import hashlib
 import json
 import logging
@@ -173,13 +174,11 @@ class FederatedMemorySync:
                 # Tombstone: mark as deleted (keep for 30d then GC)
                 logger.info(f"Federation: tombstone {event.entry_id[:8]} from {event.node_id}")
                 # In mem0, we can't truly delete via API, but we can tag
-                try:
+                with contextlib.suppress(Exception):  # Entry may not exist locally
                     self.client.update(
                         memory_id=event.entry_id,
                         metadata={"tombstone": True, "federation_deleted": True}
                     )
-                except Exception:
-                    pass  # Entry may not exist locally
                 return True
 
             elif event.op == "write":

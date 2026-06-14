@@ -16,7 +16,7 @@ from __future__ import annotations
 
 import logging
 from datetime import datetime, timedelta
-from typing import Any, Dict, Optional
+from typing import Any
 
 import numpy as np
 import pandas as pd
@@ -29,7 +29,7 @@ logger = logging.getLogger("ml.realtime_features")
 # Live data fetching
 # ===================================================================
 
-def fetch_live_chain(ticker: str, max_expiries: int = 2) -> Optional[Dict[str, Any]]:
+def fetch_live_chain(ticker: str, max_expiries: int = 2) -> dict[str, Any] | None:
     """Fetch current options chain from yfinance.
 
     Returns normalized chain dict or None on failure.
@@ -106,7 +106,7 @@ def fetch_live_chain(ticker: str, max_expiries: int = 2) -> Optional[Dict[str, A
         return None
 
 
-def fetch_price_history(ticker: str, days: int = 60) -> Optional[pd.DataFrame]:
+def fetch_price_history(ticker: str, days: int = 60) -> pd.DataFrame | None:
     """Fetch recent price history for technical features."""
     try:
         end = datetime.now()
@@ -128,7 +128,7 @@ def fetch_price_history(ticker: str, days: int = 60) -> Optional[pd.DataFrame]:
 # Feature computation (mirrors train_spy_ml.py)
 # ===================================================================
 
-def compute_price_features_realtime(price_df: pd.DataFrame) -> Dict[str, float]:
+def compute_price_features_realtime(price_df: pd.DataFrame) -> dict[str, float]:
     """Compute technical features from the most recent price data."""
     features = {}
     idx = len(price_df) - 1
@@ -182,14 +182,14 @@ def compute_price_features_realtime(price_df: pd.DataFrame) -> Dict[str, float]:
     return features
 
 
-def compute_gex_features(chain: Dict[str, Any]) -> Dict[str, float]:
+def compute_gex_features(chain: dict[str, Any]) -> dict[str, float]:
     """Compute GEX features from live chain."""
     spot = chain.get("spot", 0)
     contracts = chain.get("contracts", [])
     features = {}
 
 
-    gex_by_strike: Dict[float, float] = {}
+    gex_by_strike: dict[float, float] = {}
     for c in contracts:
         strike, gamma, oi = c["strike"], c["gamma"], c["oi"]
         if gamma <= 0 or oi <= 0 or strike <= 0:
@@ -245,7 +245,7 @@ def compute_gex_features(chain: Dict[str, Any]) -> Dict[str, float]:
     return features
 
 
-def compute_oi_features(chain: Dict[str, Any]) -> Dict[str, float]:
+def compute_oi_features(chain: dict[str, Any]) -> dict[str, float]:
     """Compute OI features from live chain."""
     features = {}
     contracts = chain.get("contracts", [])
@@ -285,7 +285,7 @@ def compute_oi_features(chain: Dict[str, Any]) -> Dict[str, float]:
     return features
 
 
-def compute_iv_features(chain: Dict[str, Any]) -> Dict[str, float]:
+def compute_iv_features(chain: dict[str, Any]) -> dict[str, float]:
     """Compute IV features from live chain."""
     features = {}
     contracts = chain.get("contracts", [])
@@ -325,7 +325,7 @@ def compute_iv_features(chain: Dict[str, Any]) -> Dict[str, float]:
     return features
 
 
-def _empty_gex() -> Dict[str, float]:
+def _empty_gex() -> dict[str, float]:
     return {
         "net_gex": 0.0, "total_abs_gex": 0.0, "net_gex_normalized": 0.0,
         "king_strike": 0.0, "king_gex": 0.0, "king_distance_pct": 0.0,
@@ -355,7 +355,7 @@ def _kurtosis(values: list) -> float:
 def compute_features_for_inference(
     ticker: str,
     price_days: int = 60,
-) -> Optional[Dict[str, Any]]:
+) -> dict[str, Any] | None:
     """Compute the full feature vector for ML inference.
 
     Returns:
@@ -414,7 +414,7 @@ def compute_features_for_inference(
     }
 
 
-async def compute_features_async(ticker: str, price_days: int = 60) -> Optional[Dict[str, Any]]:
+async def compute_features_async(ticker: str, price_days: int = 60) -> dict[str, Any] | None:
     """Async wrapper that runs yfinance calls in thread pool."""
     import asyncio
     loop = asyncio.get_event_loop()
