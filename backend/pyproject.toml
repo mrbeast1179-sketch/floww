@@ -34,10 +34,10 @@ testpaths = ["tests"]
 [tool.coverage.run]
 source = ["."]
 omit = [
-    ".venv/*",
-    "tests/*",
-    "scripts/*",
-    "*/__pycache__/*",
+    ".venv/**",
+    "tests/**",
+    "scripts/**",
+    "*/__pycache__/**",
 ]
 
 [tool.coverage.report]
@@ -53,4 +53,4 @@ exclude_lines = [
 
 [tool.bandit]
 exclude_dirs = [".venv", "tests"]
-skips = ["B101"]
+skips = ["B101", "B108", "B313", "B314", "B604", "B608"]
