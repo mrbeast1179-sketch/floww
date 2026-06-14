@@ -12,7 +12,7 @@ import asyncio
 import logging
 import time
 from datetime import datetime
-from typing import Any, Dict, List
+from typing import Any
 
 from services.duckdb_engine import DuckDBEngine
 
@@ -44,9 +44,9 @@ class ReplayEngine:
         self.mongo_client = mongo_client
 
         self._running = False
-        self._tick_handlers: List = []
-        self._chain_handlers: List = []
-        self._lob_handlers: List = []
+        self._tick_handlers: list = []
+        self._chain_handlers: list = []
+        self._lob_handlers: list = []
 
         self._metrics = {
             "ticks_replayed": 0,
@@ -177,7 +177,7 @@ class ReplayEngine:
                     logger.error(f"Replay chain handler error: {e}")
             self._metrics["chains_replayed"] += 1
 
-    async def _fetch_ticks_from_mongo(self) -> List[Dict]:
+    async def _fetch_ticks_from_mongo(self) -> list[dict]:
         """Fetch ticks from Mongo if DuckDB has no data."""
         if not self.mongo_client:
             return []
@@ -205,7 +205,7 @@ class ReplayEngine:
             logger.warning(f"Mongo fetch failed: {e}")
             return []
 
-    def get_status(self) -> Dict[str, Any]:
+    def get_status(self) -> dict[str, Any]:
         return {
             "running": self._running,
             "start": self.start_dt.isoformat(),

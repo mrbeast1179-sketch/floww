@@ -74,7 +74,7 @@ def test_training_sufficient_data(detector, sample_metrics):
     """Training with >= 100 samples should produce a model."""
     # Add 200 slightly varied samples
     np.random.seed(42)
-    for i in range(200):
+    for _i in range(200):
         m = dict(sample_metrics)
         m["ingestion_rate_spy"] += np.random.normal(0, 5)
         m["queue_depth"] += np.random.normal(0, 2)
@@ -97,7 +97,7 @@ def test_scoring_with_model(detector, sample_metrics):
     """Scoring with a trained model should return a score."""
     # Train first
     np.random.seed(42)
-    for i in range(200):
+    for _i in range(200):
         m = dict(sample_metrics)
         m["ingestion_rate_spy"] += np.random.normal(0, 5)
         detector.add_training_sample(m)
@@ -113,7 +113,7 @@ def test_synthetic_deviation_detected(detector, sample_metrics):
     """Inject a synthetic deviation → detector should flag it."""
     np.random.seed(42)
     # Train on normal data
-    for i in range(300):
+    for _i in range(300):
         m = dict(sample_metrics)
         m["ingestion_rate_spy"] += np.random.normal(0, 5)
         m["queue_depth"] += np.random.normal(0, 2)

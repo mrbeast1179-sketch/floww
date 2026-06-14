@@ -24,8 +24,8 @@ the AlphaPod keys (`alerts`, `page`, `page_size`, `total`) alongside the legacy
 
 from __future__ import annotations
 
-from datetime import date, datetime, timedelta, timezone
-from typing import Any, Dict, List, Optional
+from datetime import UTC, date, datetime, timedelta
+from typing import Any
 
 from fastapi import APIRouter, Query
 
@@ -37,10 +37,10 @@ def _today_iso() -> str:
 
 
 def _now_iso() -> str:
-    return datetime.now(timezone.utc).isoformat()
+    return datetime.now(UTC).isoformat()
 
 
-def _shape_alert(rule_or_trigger: Dict[str, Any], idx: int = 0) -> Dict[str, Any]:
+def _shape_alert(rule_or_trigger: dict[str, Any], idx: int = 0) -> dict[str, Any]:
     """Reshape a floww alert rule/trigger into the AlphaPod flow-alert schema."""
     t = rule_or_trigger
     ticker = (t.get("ticker") or "SPY").upper()
@@ -77,13 +77,13 @@ def _shape_alert(rule_or_trigger: Dict[str, Any], idx: int = 0) -> Dict[str, Any
 async def flow_alerts(
     page: int = Query(1, ge=1),
     page_size: int = Query(50, ge=1, le=500),
-    ticker: Optional[str] = None,
-) -> Dict[str, Any]:
+    ticker: str | None = None,
+) -> dict[str, Any]:
     """AlphaPod-shape flow alerts. Backed by floww alert history."""
     # Lazy import to avoid module-level cycle with server.py.
     from server import _alert_history, _alert_rules
 
-    source: List[Dict[str, Any]] = list(_alert_history) or list(_alert_rules)
+    source: list[dict[str, Any]] = list(_alert_history) or list(_alert_rules)
     if ticker:
         tu = ticker.upper()
         source = [s for s in source if (s.get("ticker") or "").upper() == tu]
@@ -115,12 +115,12 @@ _TOP10_FALLBACK = [
 
 
 @router.get("/alpha-flow")
-async def alpha_flow(date_str: Optional[str] = Query(None, alias="date")) -> Dict[str, Any]:
+async def alpha_flow(date_str: str | None = Query(None, alias="date")) -> dict[str, Any]:
     """Daily top-flow summary. Maps floww flowseeker output to AlphaPod schema."""
     session_date = date_str or _today_iso()
     spy_close = 0.0
     vix_close = 0.0
-    top_10: List[Dict[str, Any]] = []
+    top_10: list[dict[str, Any]] = []
 
     # Pull live flowseeker if available — fall back to deterministic stub.
     try:
@@ -151,10 +151,10 @@ async def alpha_flow(date_str: Optional[str] = Query(None, alias="date")) -> Dic
 
 
 @router.get("/alpha-flow/dates")
-async def alpha_flow_dates() -> Dict[str, Any]:
+async def alpha_flow_dates() -> dict[str, Any]:
     """List of historical session dates available. Stub: trailing 30 weekdays."""
     today = date.today()
-    days: List[str] = []
+    days: list[str] = []
     d = today
     while len(days) < 30:
         if d.weekday() < 5:  # Mon-Fri
@@ -167,7 +167,7 @@ async def alpha_flow_dates() -> Dict[str, Any]:
 
 
 @router.get("/flow-digest")
-async def flow_digest(date_str: Optional[str] = Query(None, alias="date")) -> Dict[str, Any]:
+async def flow_digest(date_str: str | None = Query(None, alias="date")) -> dict[str, Any]:
     """Daily digest. Wraps briefing if available."""
     session_date = date_str or _today_iso()
     body_md = ""
@@ -198,11 +198,11 @@ async def flow_digest(date_str: Optional[str] = Query(None, alias="date")) -> Di
 
 
 @router.get("/deep-dive/{ticker}")
-async def deep_dive(ticker: str) -> Dict[str, Any]:
+async def deep_dive(ticker: str) -> dict[str, Any]:
     """Per-ticker deep dive. Combines chain + advanced analytics."""
     t = ticker.strip().upper()
-    chain_data: Dict[str, Any] = {}
-    advanced_data: Dict[str, Any] = {}
+    chain_data: dict[str, Any] = {}
+    advanced_data: dict[str, Any] = {}
 
     try:
         # Reach into server.py for the merged chain fetcher.
@@ -244,7 +244,7 @@ async def deep_dive(ticker: str) -> Dict[str, Any]:
 
 
 @router.get("/gex/spx")
-async def gex_spx() -> Dict[str, Any]:
+async def gex_spx() -> dict[str, Any]:
     """SPX GEX snapshot in AlphaPod shape."""
     try:
         from server import compute_gex_by_strike, fetch_spot_and_chains_merged
@@ -274,19 +274,19 @@ async def gex_spx() -> Dict[str, Any]:
 
 
 @router.get("/earnings")
-async def earnings() -> Dict[str, Any]:
+async def earnings() -> dict[str, Any]:
     """Earnings calendar. Stub — floww has no native earnings data source."""
     return {"calendar": [], "asof": _now_iso(), "source": "stub"}
 
 
 @router.get("/earnings/week")
-async def earnings_week() -> Dict[str, Any]:
+async def earnings_week() -> dict[str, Any]:
     """Weekly earnings. Stub."""
     return {"week_of": _today_iso(), "events": [], "source": "stub"}
 
 
 @router.get("/earnings/ticker/{ticker}/detail")
-async def earnings_ticker_detail(ticker: str) -> Dict[str, Any]:
+async def earnings_ticker_detail(ticker: str) -> dict[str, Any]:
     """Per-ticker earnings detail. Stub."""
     return {
         "ticker": ticker.upper(),
@@ -300,7 +300,7 @@ async def earnings_ticker_detail(ticker: str) -> Dict[str, Any]:
 
 
 @router.post("/auth/dev-token")
-async def dev_token(body: Dict[str, Any]) -> Dict[str, Any]:
+async def dev_token(body: dict[str, Any]) -> dict[str, Any]:
     """Issue a local dev JWT for the React frontend sign-in page."""
     import base64
     import hashlib

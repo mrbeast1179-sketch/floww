@@ -9,7 +9,6 @@ Stores in DuckDB ticks table.
 from __future__ import annotations
 
 import logging
-from typing import Optional
 
 import duckdb
 import pandas as pd
@@ -96,7 +95,7 @@ def fetch_underlying_ohlcv(
         return pd.DataFrame()
 
 
-def store_ticks(df: pd.DataFrame, conn: Optional[duckdb.DuckDBPyConnection] = None) -> int:
+def store_ticks(df: pd.DataFrame, conn: duckdb.DuckDBPyConnection | None = None) -> int:
     """Store OHLCV data in DuckDB ticks table.
 
     Args:
@@ -128,8 +127,8 @@ def store_ticks(df: pd.DataFrame, conn: Optional[duckdb.DuckDBPyConnection] = No
 
 
 def fetch_and_store(
-    tickers: Optional[list] = None,
-    conn: Optional[duckdb.DuckDBPyConnection] = None,
+    tickers: list | None = None,
+    conn: duckdb.DuckDBPyConnection | None = None,
 ) -> dict:
     """Fetch and store OHLCV data for all tickers.
 
@@ -161,7 +160,7 @@ def fetch_and_store(
 def get_latest_ticks(
     symbol: str,
     n: int = 10,
-    conn: Optional[duckdb.DuckDBPyConnection] = None,
+    conn: duckdb.DuckDBPyConnection | None = None,
 ) -> pd.DataFrame:
     """Get the latest n ticks for a symbol.
 

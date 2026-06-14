@@ -19,6 +19,7 @@ Run:
 
 from __future__ import annotations
 
+import contextlib
 import os
 import signal
 import subprocess
@@ -161,7 +162,7 @@ def fastapi_server():
     import urllib.request
     max_wait = 30
     ready = False
-    for i in range(max_wait):
+    for _i in range(max_wait):
         time.sleep(1)
         try:
             req = urllib.request.Request(f"{SERVER_URL}/api/health", method="GET")
@@ -190,10 +191,8 @@ def fastapi_server():
             proc.terminate()
         proc.wait(timeout=5)
     except (ProcessLookupError, subprocess.TimeoutExpired):
-        try:
+        with contextlib.suppress(ProcessLookupError):
             proc.kill()
-        except ProcessLookupError:
-            pass
 
 
 @pytest.fixture(scope="session")

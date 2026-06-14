@@ -14,8 +14,15 @@ extend-exclude = [
 ]
 
 [tool.ruff.lint]
-select = ["E", "E722", "F", "W", "I"]
-ignore = ["E501"]
+select = ["E", "F", "W", "I", "B", "UP", "SIM"]
+ignore = ["E501", "SIM102", "SIM108", "SIM117"]
 
 [tool.ruff.lint.per-file-ignores]
 "tests/**/*.py" = ["F401", "F403", "F811", "E402"]
+"server.py" = ["E402"]
+"data_collector.py" = ["E402"]
+"cron_runner.py" = ["E402"]
+"scripts/*.py" = ["E402"]
+"services/kanban/*.py" = ["E402"]
+"services/hawkes_process.py" = ["E402"]
+"services/agentfield_hub.py" = ["E402"]

@@ -14,8 +14,9 @@ from __future__ import annotations
 
 import logging
 import time
+from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any
 
 import duckdb
 
@@ -40,7 +41,7 @@ class StalenessAlert:
     timestamp: float
     message: str
     table: str = ""
-    details: Optional[Dict[str, Any]] = field(default_factory=dict)
+    details: dict[str, Any] | None = field(default_factory=dict)
 
 
 @dataclass
@@ -59,16 +60,16 @@ class StalenessAlertManager:
         stale_medium_seconds: float = STALE_MEDIUM_SECONDS,
         stale_critical_seconds: float = STALE_CRITICAL_SECONDS,
         cooldown_seconds: float = COOLDOWN_SECONDS,
-        on_alert: Optional[Callable[[StalenessAlert], None]] = None,
+        on_alert: Callable[[StalenessAlert], None] | None = None,
     ):
         self.db_path = db_path
         self.stale_medium_seconds = stale_medium_seconds
         self.stale_critical_seconds = stale_critical_seconds
         self.cooldown_seconds = cooldown_seconds
         self.on_alert = on_alert
-        self._last_fired: Dict[str, float] = {}  # alert_id → timestamp
+        self._last_fired: dict[str, float] = {}  # alert_id → timestamp
 
-    def _get_max_delay(self, table: str) -> Optional[float]:
+    def _get_max_delay(self, table: str) -> float | None:
         """Get the maximum delay_seconds from a table."""
         try:
             conn = duckdb.connect(self.db_path, read_only=True)
@@ -83,7 +84,7 @@ class StalenessAlertManager:
             log.debug(f"Could not query {table}: {e}")
             return None
 
-    def _get_table_freshness(self, table: str) -> Optional[Dict[str, Any]]:
+    def _get_table_freshness(self, table: str) -> dict[str, Any] | None:
         """Get freshness stats from a table."""
         try:
             conn = duckdb.connect(self.db_path, read_only=True)
@@ -122,8 +123,8 @@ class StalenessAlertManager:
 
     def check_staleness(
         self,
-        tables: Optional[List[str]] = None,
-    ) -> List[StalenessAlert]:
+        tables: list[str] | None = None,
+    ) -> list[StalenessAlert]:
         """
         Check staleness across tables.
         Returns list of new alerts (respecting cooldown).
@@ -188,8 +189,8 @@ class StalenessAlertManager:
 
     def get_freshness_summary(
         self,
-        tables: Optional[List[str]] = None,
-    ) -> Dict[str, Any]:
+        tables: list[str] | None = None,
+    ) -> dict[str, Any]:
         """Get freshness summary for all monitored tables."""
         if tables is None:
             tables = ["ticks", "chains"]

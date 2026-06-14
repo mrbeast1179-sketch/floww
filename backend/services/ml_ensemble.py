@@ -15,7 +15,7 @@ from __future__ import annotations
 import importlib.util
 import logging
 from collections import deque
-from typing import Any, Dict
+from typing import Any
 
 import numpy as np
 
@@ -84,8 +84,8 @@ class ToxicityEnsemble:
         self._forecaster_path = None
 
         # Calibration
-        self._calibrators: Dict[int, PlattScaler] = {h: PlattScaler() for h in self.HORIZON_MINUTES}
-        self._calibration_data: Dict[int, list] = {h: [] for h in self.HORIZON_MINUTES}
+        self._calibrators: dict[int, PlattScaler] = {h: PlattScaler() for h in self.HORIZON_MINUTES}
+        self._calibration_data: dict[int, list] = {h: [] for h in self.HORIZON_MINUTES}
 
         # History for multi-horizon
         self._score_history: deque = deque(maxlen=1000)
@@ -112,7 +112,7 @@ class ToxicityEnsemble:
         except Exception as e:
             logger.warning(f"Failed to load forecaster: {e}")
 
-    def update(self, vpin: float, qi: float) -> Dict[str, Any]:
+    def update(self, vpin: float, qi: float) -> dict[str, Any]:
         """Update all detectors and compute ensemble score."""
         # CNN AE score
         cnn_result = self.cnn_detector.update(vpin, qi)
@@ -183,7 +183,7 @@ class ToxicityEnsemble:
         if horizon in self._calibrators:
             self._calibrators[horizon].fit(scores, labels)
 
-    def get_state(self) -> Dict[str, Any]:
+    def get_state(self) -> dict[str, Any]:
         return {
             "type": "toxicity_ensemble",
             "seq_len": self.seq_len,

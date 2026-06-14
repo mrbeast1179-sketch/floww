@@ -11,9 +11,8 @@ from __future__ import annotations
 
 import json
 import logging
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Optional
 
 import pandas as pd
 
@@ -54,7 +53,7 @@ RAW_CHAINS_DIR = Path(__file__).resolve().parent.parent / "data" / "raw_chains"
 def _save_raw_json(ticker: str, data: dict, expiry: str, option_type: str) -> None:
     """Save raw JSON response for debugging."""
     RAW_CHAINS_DIR.mkdir(parents=True, exist_ok=True)
-    ts = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S_%f")
+    ts = datetime.now(UTC).strftime("%Y%m%d_%H%M%S_%f")
     filename = RAW_CHAINS_DIR / f"{ticker}_{expiry}_{option_type}_{ts}.json"
     try:
         with open(filename, "w") as f:
@@ -80,7 +79,7 @@ def _fetch_chain_with_retry(
     ticker: str,
     dividend_yield: float,
     option_type: str,
-    expiry: Optional[str] = None,
+    expiry: str | None = None,
 ) -> pd.DataFrame:
     """Fetch a single option chain with tenacity retry logic.
 
@@ -120,7 +119,7 @@ def _fetch_chain_with_retry(
 def fetch_options_chain(
     ticker: str,
     option_type: str = "both",
-    expiry: Optional[str] = None,
+    expiry: str | None = None,
 ) -> pd.DataFrame:
     """Fetch options chain for a single ticker.
 
@@ -194,7 +193,7 @@ def fetch_options_chain(
 
 
 def fetch_all_chains(
-    tickers: Optional[list] = None,
+    tickers: list | None = None,
     option_type: str = "both",
 ) -> pd.DataFrame:
     """Fetch options chains for all configured tickers.

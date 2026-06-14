@@ -17,7 +17,7 @@ References:
 from __future__ import annotations
 
 import logging
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -37,9 +37,9 @@ class ExecutionDoctrine:
 
     def apply(
         self,
-        intent: Dict[str, Any],
-        market_state: Dict[str, Any],
-    ) -> Tuple[bool, str]:
+        intent: dict[str, Any],
+        market_state: dict[str, Any],
+    ) -> tuple[bool, str]:
         """Apply all doctrine rules.
 
         Args:
@@ -72,9 +72,8 @@ class ExecutionDoctrine:
             if node_state == NODE_STATE_FRESH:
                 if rr < MIN_RR_FRESH:
                     return False, f"R:R {rr:.2f} < {MIN_RR_FRESH} (fresh node)"
-            elif node_state == NODE_STATE_TESTED:
-                if rr < MIN_RR_TESTED:
-                    return False, f"R:R {rr:.2f} < {MIN_RR_TESTED} (tested node)"
+            elif node_state == NODE_STATE_TESTED and rr < MIN_RR_TESTED:
+                return False, f"R:R {rr:.2f} < {MIN_RR_TESTED} (tested node)"
 
         # Rule 2: Deflection zones only
         if nearest_node:
@@ -88,7 +87,7 @@ class ExecutionDoctrine:
 
         return True, "approved"
 
-    def _find_nearest_node(self, entry: float, nodes: List[Dict]) -> Optional[Dict]:
+    def _find_nearest_node(self, entry: float, nodes: list[dict]) -> dict | None:
         """Find the nearest node to the entry price."""
         if not nodes:
             return None
@@ -121,7 +120,7 @@ class ExecutionDoctrine:
             return 0.0
         return reward / risk
 
-    def _is_midpoint(self, entry: float, nodes: List[Dict], spot: float) -> bool:
+    def _is_midpoint(self, entry: float, nodes: list[dict], spot: float) -> bool:
         """Check if entry is in a midpoint zone between two nodes."""
         if len(nodes) < 2:
             return False

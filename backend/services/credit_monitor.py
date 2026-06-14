@@ -17,8 +17,9 @@ from __future__ import annotations
 import logging
 import os
 import time
+from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any
 
 
 @dataclass
@@ -46,8 +47,8 @@ class CreditState:
     budget: int = 0
     consumed: int = 0
     # Per-provider call tracking
-    provider_calls: Dict[str, int] = field(default_factory=dict)
-    provider_429s: Dict[str, List[float]] = field(default_factory=dict)  # provider → list of timestamps
+    provider_calls: dict[str, int] = field(default_factory=dict)
+    provider_429s: dict[str, list[float]] = field(default_factory=dict)  # provider → list of timestamps
     last_updated: float = 0.0
 
     @property
@@ -89,7 +90,7 @@ class CreditMonitor:
         budget: int = 0,
         warning_pct: float = 0.80,
         critical_pct: float = 0.95,
-        on_alert: Optional[Callable[[str, str, Dict[str, Any]], None]] = None,
+        on_alert: Callable[[str, str, dict[str, Any]], None] | None = None,
     ):
         self.config = CreditConfig(
             budget=budget,
@@ -98,7 +99,7 @@ class CreditMonitor:
         )
         self.state = CreditState(budget=budget)
         self.on_alert = on_alert
-        self._alerted: Dict[str, set] = {}  # provider → set of active alert types
+        self._alerted: dict[str, set] = {}  # provider → set of active alert types
 
     def record_credits(self, provider: str, credits_used: int):
         """Record credit consumption for a provider."""
@@ -112,7 +113,7 @@ class CreditMonitor:
             log.warning(f"[CREDIT_MONITOR] 429 from {provider} (window count: "
                         f"{self.state.rate_limit_count(provider, self.config.rate_limit_window_seconds)})")
 
-    def check_alerts(self) -> List[Dict[str, Any]]:
+    def check_alerts(self) -> list[dict[str, Any]]:
         """Check all alert conditions. Returns list of new alerts."""
         alerts = []
 
@@ -202,7 +203,7 @@ class CreditMonitor:
 
         return alerts
 
-    def get_status(self) -> Dict[str, Any]:
+    def get_status(self) -> dict[str, Any]:
         """Return full credit status."""
         provider_status = {}
         for provider in set(list(self.state.provider_calls.keys()) + list(self.state.provider_429s.keys())):

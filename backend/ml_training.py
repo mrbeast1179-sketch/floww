@@ -11,15 +11,15 @@ Uses scikit-learn and optionally PyTorch (via unsloth for fine-tuning).
 
 import logging
 import os
-from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional, Tuple
+from datetime import UTC, datetime
+from typing import Any
 
 import numpy as np
 
 logger = logging.getLogger(__name__)
 
 
-def extract_features_from_snapshot(snapshot: Dict[str, Any]) -> Dict[str, float]:
+def extract_features_from_snapshot(snapshot: dict[str, Any]) -> dict[str, float]:
     """Extract ML features from a GEX snapshot."""
     features = {}
 
@@ -64,11 +64,11 @@ def extract_features_from_snapshot(snapshot: Dict[str, Any]) -> Dict[str, float]
 
 
 def prepare_training_data(
-    snapshots: List[Dict[str, Any]],
+    snapshots: list[dict[str, Any]],
     lookahead: int = 1,
-) -> Tuple[np.ndarray, np.ndarray]:
+) -> tuple[np.ndarray, np.ndarray]:
     """Prepare training data from snapshots.
-    
+
     Features: current GEX state
     Labels: regime change (1 if regime flipped, 0 otherwise)
     """
@@ -102,7 +102,7 @@ def prepare_training_data(
 async def train_regime_prediction_model(
     ticker: str = "SPY",
     min_samples: int = 10,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Train a regime prediction model on historical GEX data."""
     from dotenv import load_dotenv
     from motor.motor_asyncio import AsyncIOMotorClient
@@ -156,7 +156,7 @@ async def train_regime_prediction_model(
 
     # Feature importance
     feature_names = list(extract_features_from_snapshot(snapshots[0]).keys())
-    importance = dict(zip(feature_names, model.feature_importances_.tolist()))
+    importance = dict(zip(feature_names, model.feature_importances_.tolist(), strict=False))
     importance = dict(sorted(importance.items(), key=lambda x: abs(x[1]), reverse=True))
 
     # Save model
@@ -182,7 +182,7 @@ async def train_regime_prediction_model(
         "feature_importance": importance,
         "model_path": model_path,
         "scaler_path": scaler_path,
-        "trained_at": datetime.now(timezone.utc).isoformat(),
+        "trained_at": datetime.now(UTC).isoformat(),
     }
 
     logger.info(f"Model trained: accuracy={accuracy:.4f}, samples={len(snapshots)}")
@@ -191,8 +191,8 @@ async def train_regime_prediction_model(
 
 async def predict_regime(
     ticker: str = "SPY",
-    current_features: Optional[Dict[str, float]] = None,
-) -> Dict[str, Any]:
+    current_features: dict[str, float] | None = None,
+) -> dict[str, Any]:
     """Predict regime using trained model."""
     import joblib
 

@@ -12,9 +12,9 @@ import math
 import os
 import time
 from collections import deque
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Set
+from typing import Any
 
 import httpx
 import numpy as np
@@ -64,7 +64,7 @@ log = logging.getLogger("heatseeker")
 
 # -- Graceful shutdown infrastructure --
 _shutdown_event = asyncio.Event()
-_background_tasks: Set[asyncio.Task] = set()
+_background_tasks: set[asyncio.Task] = set()
 
 
 async def _logged_task(coro, name: str):
@@ -232,7 +232,7 @@ async def performance_middleware(request: Request, call_next):
 
 
 # Cache for spot/chains so we don't slam yfinance
-_cache: Dict[str, Dict[str, Any]] = {}
+_cache: dict[str, dict[str, Any]] = {}
 CACHE_TTL_SEC = 25
 
 # Dividend yields for Black-Scholes
@@ -251,7 +251,7 @@ def _pos_to_dict(p):
         "price": p.price,
     }
 
-def _pos_from_dict(d: Dict[str, Any]) -> Position:
+def _pos_from_dict(d: dict[str, Any]) -> Position:
     """Reconstruct a Position from a Mongo dict."""
     p = Position.__new__(Position)
     p.symbol = d["symbol"]
@@ -274,7 +274,7 @@ def _pos_from_dict(d: Dict[str, Any]) -> Position:
     p.vomma = d.get("vomma", 0)
     p.zomma = d.get("zomma", 0)
     p.price = d.get("price", 0)
-    p.entry_date = datetime.now(timezone.utc)
+    p.entry_date = datetime.now(UTC)
     return p
 
 async def _save_portfolio_to_mongo(name: str, portfolio: Portfolio):
@@ -283,11 +283,11 @@ async def _save_portfolio_to_mongo(name: str, portfolio: Portfolio):
     await db.portfolios.update_one(
         {"_id": name},
         {"$set": {"positions": positions, "cash": portfolio.cash,
-                   "updated_at": datetime.now(timezone.utc).isoformat()}},
+                   "updated_at": datetime.now(UTC).isoformat()}},
         upsert=True,
     )
 
-async def _load_portfolio_from_mongo(name: str) -> Optional[Portfolio]:
+async def _load_portfolio_from_mongo(name: str) -> Portfolio | None:
     """Load portfolio from Mongo. Returns None if not found."""
     doc = await db.portfolios.find_one({"_id": name})
     if not doc:
@@ -312,7 +312,7 @@ PAID_TICKERS: set = (
 )
 
 # Session tracking for cost meter
-_session_state: Dict[str, Any] = {
+_session_state: dict[str, Any] = {
     "live_tape_active": False,
     "live_tape_ticker": None,
     "live_tape_started_at": None,
@@ -336,7 +336,7 @@ def _in_window_now_et() -> bool:
         import time
         is_dst = time.localtime().tm_isdst > 0
         offset = 4 if is_dst else 5
-        et = datetime.now(timezone.utc) - timedelta(hours=offset)
+        et = datetime.now(UTC) - timedelta(hours=offset)
     hhmm = et.strftime("%H:%M")
     return LIVE_WINDOW["start_hhmm"] <= hhmm <= LIVE_WINDOW["stop_hhmm"]
 
@@ -360,14 +360,14 @@ def cache_set(key: str, data: Any):
 
 
 # --- restored: compute_gex_grid ---
-def compute_gex_grid(spot: float, contracts: List[Dict[str, Any]], ticker: str = "") -> Dict[str, Any]:
+def compute_gex_grid(spot: float, contracts: list[dict[str, Any]], ticker: str = "") -> dict[str, Any]:
     """2D grid: GEX per (strike, expiry). Skylit-style heatmap layout."""
     if spot <= 0 or not contracts:
         return {"expiries": [], "strikes": [], "grid": {}, "charm_grid": {}}
     q = DIV_YIELD.get(ticker, 0.0)
-    grid: Dict[str, Dict[float, float]] = {}
-    charm_grid: Dict[str, Dict[float, float]] = {}
-    strike_totals: Dict[float, float] = {}
+    grid: dict[str, dict[float, float]] = {}
+    charm_grid: dict[str, dict[float, float]] = {}
+    strike_totals: dict[float, float] = {}
     for c in contracts:
         gamma = bs_gamma(spot, c["strike"], c["T"], c["iv"], q=q)
         charm = bs_charm(spot, c["strike"], c["T"], c["iv"], q=q, kind=c["type"])
@@ -409,8 +409,8 @@ from bs_greeks import (
 
 
 # --- restored: calc_probability_distribution ---
-def calc_probability_distribution(spot: float, contracts: List[Dict[str, Any]],
-                                   risk_free_rate: float = 0.05) -> List[Dict[str, Any]]:
+def calc_probability_distribution(spot: float, contracts: list[dict[str, Any]],
+                                   risk_free_rate: float = 0.05) -> list[dict[str, Any]]:
     """Risk-neutral probability distribution from option prices.
     Returns list of {strike, prob_above, prob_below, delta} per strike."""
     if spot <= 0 or not contracts:
@@ -452,8 +452,8 @@ def calc_probability_distribution(spot: float, contracts: List[Dict[str, Any]],
 
 
 # --- restored: detect_opportunities ---
-def detect_opportunities(strikes: List[Dict[str, Any]], nodes: Dict[str, Any],
-                          spot: float, contracts: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+def detect_opportunities(strikes: list[dict[str, Any]], nodes: dict[str, Any],
+                          spot: float, contracts: list[dict[str, Any]]) -> list[dict[str, Any]]:
     """Detect trading opportunities from GEX analysis.
     Categories: gamma_squeeze, wall_support, wall_resistance, vol_expansion, vol_compression, pin_risk, gamma_ladder"""
     opportunities = []
@@ -577,7 +577,7 @@ def detect_opportunities(strikes: List[Dict[str, Any]], nodes: Dict[str, Any],
             nearest_exp = expiries[0]
             try:
                 exp_date = datetime.strptime(nearest_exp, "%Y-%m-%d").date()
-                dte = (exp_date - datetime.now(timezone.utc).date()).days
+                dte = (exp_date - datetime.now(UTC).date()).days
             except Exception:
                 dte = 999
             if dte <= 5:
@@ -637,11 +637,11 @@ def detect_opportunities(strikes: List[Dict[str, Any]], nodes: Dict[str, Any],
 
 
 # --- restored: save_snapshot + velocity_and_rolling ---
-async def save_snapshot(ticker: str, payload: Dict[str, Any]):
+async def save_snapshot(ticker: str, payload: dict[str, Any]):
     try:
         doc = {
             "ticker": ticker,
-            "ts": datetime.now(timezone.utc).isoformat(),
+            "ts": datetime.now(UTC).isoformat(),
             "spot": payload["spot"],
             "king_strike": payload["nodes"]["king"]["strike"] if payload["nodes"].get("king") else None,
             "king_gex": payload["nodes"]["king"]["gex"] if payload["nodes"].get("king") else None,
@@ -660,7 +660,7 @@ async def save_snapshot(ticker: str, payload: Dict[str, Any]):
         log.warning(f"snapshot save fail: {e}")
 
 
-async def velocity_and_rolling(ticker: str, current_nodes: Dict[str, Any]) -> Dict[str, Any]:
+async def velocity_and_rolling(ticker: str, current_nodes: dict[str, Any]) -> dict[str, Any]:
     """Compute rate of change vs prior snapshot + rolling floor/ceiling sequence."""
     cur = db.snapshots.find({"ticker": ticker}, {"_id": 0}).sort("ts", -1).limit(10)
     history = [d async for d in cur]
@@ -712,7 +712,7 @@ async def velocity_and_rolling(ticker: str, current_nodes: Dict[str, Any]) -> Di
 # ===== END RESTORED =====
 
 
-def fetch_spot_and_chains(ticker: str, max_expiries: int = 4) -> Dict[str, Any]:
+def fetch_spot_and_chains(ticker: str, max_expiries: int = 4) -> dict[str, Any]:
     """Returns spot + flattened option contracts (limited expiries near term)."""
     key = f"chain:{ticker}:{max_expiries}"
     hit = cache_get(key)
@@ -732,8 +732,8 @@ def fetch_spot_and_chains(ticker: str, max_expiries: int = 4) -> Dict[str, Any]:
             spot = 0.0
 
     expiries = list(t.options or [])[:max_expiries]
-    contracts: List[Dict[str, Any]] = []
-    today = datetime.now(timezone.utc).date()
+    contracts: list[dict[str, Any]] = []
+    today = datetime.now(UTC).date()
 
     for exp in expiries:
         try:
@@ -763,7 +763,7 @@ def fetch_spot_and_chains(ticker: str, max_expiries: int = 4) -> Dict[str, Any]:
     return data
 
 
-async def fetch_spot_and_chains_merged(ticker: str, max_expiries: int = 4) -> Dict[str, Any]:
+async def fetch_spot_and_chains_merged(ticker: str, max_expiries: int = 4) -> dict[str, Any]:
     """yfinance for spot+IV + Databento for OI (only if ticker is in PAID_TICKERS).
     Falls back to pure yfinance for free-tier tickers."""
     yf_data = await asyncio.to_thread(fetch_spot_and_chains, ticker, max_expiries)
@@ -788,8 +788,8 @@ async def fetch_spot_and_chains_merged(ticker: str, max_expiries: int = 4) -> Di
         return {**yf_data, "data_source": "yfinance"}
 
     # Build (strike, expiry, type) -> OI map from Databento
-    dbn_map: Dict[tuple, int] = {}
-    for sym, c in dbn_oi.items():
+    dbn_map: dict[tuple, int] = {}
+    for _sym, c in dbn_oi.items():
         dbn_map[(c["strike"], c["expiry"], c["type"])] = c["oi"]
 
     # Overlay Databento OI onto yfinance IV/strike contracts
@@ -805,11 +805,11 @@ async def fetch_spot_and_chains_merged(ticker: str, max_expiries: int = 4) -> Di
         yf_keys.add(key)
 
     # Add DBN-only contracts
-    today = datetime.now(timezone.utc).date()
-    iv_lists: Dict[str, list] = {}
+    today = datetime.now(UTC).date()
+    iv_lists: dict[str, list] = {}
     for c in yf_data["contracts"]:
         iv_lists.setdefault(c["expiry"], []).append(c["iv"])
-    iv_avg_by_expiry: Dict[str, float] = {e: (sum(vs) / len(vs)) for e, vs in iv_lists.items() if vs}
+    iv_avg_by_expiry: dict[str, float] = {e: (sum(vs) / len(vs)) for e, vs in iv_lists.items() if vs}
 
     for (strike, expiry, typ), oi in dbn_map.items():
         if (strike, expiry, typ) in yf_keys:
@@ -834,12 +834,12 @@ async def fetch_spot_and_chains_merged(ticker: str, max_expiries: int = 4) -> Di
 
 # ----------------------------- GEX Aggregation --------------------------------
 
-def compute_gex_by_strike(spot: float, contracts: List[Dict[str, Any]], ticker: str = "") -> List[Dict[str, Any]]:
+def compute_gex_by_strike(spot: float, contracts: list[dict[str, Any]], ticker: str = "") -> list[dict[str, Any]]:
     """Per-strike net GEX, VEX, and Vega. Convention: dealer-positive convention."""
     if spot <= 0 or not contracts:
         return []
     q = DIV_YIELD.get(ticker, 0.0)
-    agg: Dict[float, Dict[str, float]] = {}
+    agg: dict[float, dict[str, float]] = {}
     for c in contracts:
         oi = c.get("oi", 0) or 0
         if oi <= 0 or (isinstance(oi, float) and math.isnan(oi)):
@@ -901,7 +901,7 @@ def compute_gex_by_strike(spot: float, contracts: List[Dict[str, Any]], ticker: 
 
 # ----------------------------- Implied Move & Probability (from EzOptions) ------
 
-def calc_implied_move(spot: float, contracts: List[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
+def calc_implied_move(spot: float, contracts: list[dict[str, Any]]) -> dict[str, Any] | None:
     """Calculate implied move from ATM straddle price. Returns expected move in $ and %."""
     if spot <= 0 or not contracts:
         return None
@@ -936,8 +936,8 @@ def calc_implied_move(spot: float, contracts: List[Dict[str, Any]]) -> Optional[
     }
 
 
-def calc_aggregate_gex_curve(spot: float, contracts: List[Dict[str, Any]],
-                              ticker: str = "") -> List[Dict[str, float]]:
+def calc_aggregate_gex_curve(spot: float, contracts: list[dict[str, Any]],
+                              ticker: str = "") -> list[dict[str, float]]:
     """Aggregate GEX curve: total GEX if spot moved to each price point.
     Shows how dealer gamma changes as price moves."""
     if spot <= 0 or not contracts:
@@ -973,7 +973,7 @@ def calc_aggregate_gex_curve(spot: float, contracts: List[Dict[str, Any]],
 
 # ----------------------------- Opportunity Detection (from GEX-Dashboard) ------
 
-def classify_nodes(strikes: List[Dict[str, Any]], spot: float) -> Dict[str, Any]:
+def classify_nodes(strikes: list[dict[str, Any]], spot: float) -> dict[str, Any]:
     if not strikes or spot <= 0:
         return {"king": None, "floors": [], "ceilings": [], "gatekeepers": [], "air_pockets": [],
                 "polarity_level": None, "regime": "unknown", "total_gex": 0, "near_gex": 0,
@@ -1007,7 +1007,7 @@ def classify_nodes(strikes: List[Dict[str, Any]], spot: float) -> Dict[str, Any]
     ap_threshold = 0.08 * max_abs
     air_pockets = []
     run_start = None
-    run_strikes: List[float] = []
+    run_strikes: list[float] = []
     for s in strikes:
         weak = abs(s["gex"]) < ap_threshold
         if weak:
@@ -1039,10 +1039,7 @@ def classify_nodes(strikes: List[Dict[str, Any]], spot: float) -> Dict[str, Any]
     # This gives the "center of gravity" for gamma exposure
     # A more useful flip point than cumulative zero-crossing
     total_abs_gex = sum(abs(s["gex"]) for s in strikes)
-    if total_abs_gex > 0:
-        polarity = sum(s["strike"] * abs(s["gex"]) for s in strikes) / total_abs_gex
-    else:
-        polarity = spot
+    polarity = sum(s["strike"] * abs(s["gex"]) for s in strikes) / total_abs_gex if total_abs_gex > 0 else spot
 
     # VEX flip point: same weighted average approach for vanna
     total_abs_vex = sum(abs(s.get("vex", 0.0) or 0) for s in strikes)
@@ -1188,8 +1185,8 @@ def classify_nodes(strikes: List[Dict[str, Any]], spot: float) -> Dict[str, Any]
 
 # ----------------------------- Pattern Detection ------------------------------
 
-def detect_patterns(strikes: List[Dict[str, Any]], nodes: Dict[str, Any], spot: float) -> List[Dict[str, Any]]:
-    patterns: List[Dict[str, Any]] = []
+def detect_patterns(strikes: list[dict[str, Any]], nodes: dict[str, Any], spot: float) -> list[dict[str, Any]]:
+    patterns: list[dict[str, Any]] = []
     if not strikes or spot <= 0:
         return patterns
 
@@ -1233,7 +1230,8 @@ def detect_patterns(strikes: List[Dict[str, Any]], nodes: Dict[str, Any], spot: 
             else:
                 break
         if len(cluster) >= 3:
-            lo = cluster[0]["strike"]; hi = cluster[-1]["strike"]
+            lo = cluster[0]["strike"]
+            hi = cluster[-1]["strike"]
             mid = (lo + hi) / 2
             patterns.append({
                 "name": "Pika Cloud",
@@ -1285,11 +1283,11 @@ def detect_patterns(strikes: List[Dict[str, Any]], nodes: Dict[str, Any], spot: 
 
 # ----------------------------- Tap Probability -------------------------------
 
-async def tap_counts(ticker: str, strikes: List[float], days: int = 5) -> Dict[float, int]:
+async def tap_counts(ticker: str, strikes: list[float], days: int = 5) -> dict[float, int]:
     """Count how many days price crossed each strike in last N trading days using Polygon aggs."""
     if not POLYGON_API_KEY or not strikes:
         return {s: 0 for s in strikes}
-    end = datetime.now(timezone.utc).date()
+    end = datetime.now(UTC).date()
     start = end - timedelta(days=days * 2)
     pg_ticker = ticker.replace("^SPX", "I:SPX") if ticker.startswith("^") else ticker
     url = f"https://api.polygon.io/v2/aggs/ticker/{pg_ticker}/range/1/day/{start.isoformat()}/{end.isoformat()}"
@@ -1302,7 +1300,8 @@ async def tap_counts(ticker: str, strikes: List[float], days: int = 5) -> Dict[f
             return out
         results = data["results"][-days:]
         for bar in results:
-            lo = bar.get("l", 0); hi = bar.get("h", 0)
+            lo = bar.get("l", 0)
+            hi = bar.get("h", 0)
             for s in strikes:
                 if lo <= s <= hi:
                     out[s] += 1
@@ -1366,10 +1365,10 @@ PATTERN_GLOSSARY = {
 }
 
 
-_movers_cache: Dict[str, Any] = {"ts": 0, "data": []}
+_movers_cache: dict[str, Any] = {"ts": 0, "data": []}
 
 
-def _fetch_movers_sync() -> List[Dict[str, Any]]:
+def _fetch_movers_sync() -> list[dict[str, Any]]:
     """Use yfinance bulk download for prev-day movers (fast, no rate limit)."""
     try:
         df = yf.download(POPULAR_UNIVERSE, period="2d", interval="1d",
@@ -1377,7 +1376,7 @@ def _fetch_movers_sync() -> List[Dict[str, Any]]:
     except Exception as e:
         log.warning(f"yfinance movers fail: {e}")
         return []
-    out: List[Dict[str, Any]] = []
+    out: list[dict[str, Any]] = []
     for sym in POPULAR_UNIVERSE:
         try:
             sub = df[sym].dropna()
@@ -1386,7 +1385,8 @@ def _fetch_movers_sync() -> List[Dict[str, Any]]:
             prev_close = float(sub["Close"].iloc[-2])
             last_close = float(sub["Close"].iloc[-1])
             day_open = float(sub["Open"].iloc[-1])
-            hi = float(sub["High"].iloc[-1]); lo = float(sub["Low"].iloc[-1])
+            hi = float(sub["High"].iloc[-1])
+            lo = float(sub["Low"].iloc[-1])
             vol = float(sub["Volume"].iloc[-1])
             pct = ((last_close - prev_close) / prev_close * 100) if prev_close else 0
             out.append({"ticker": sym, "open": day_open, "close": last_close, "pct": round(pct, 2),
@@ -1396,13 +1396,13 @@ def _fetch_movers_sync() -> List[Dict[str, Any]]:
     return out
 
 
-def compute_gex_by_strike_volume(spot: float, contracts: List[Dict[str, Any]], ticker: str) -> List[Dict[str, Any]]:
+def compute_gex_by_strike_volume(spot: float, contracts: list[dict[str, Any]], ticker: str) -> list[dict[str, Any]]:
     """Volume-weighted GEX — shows where the action is RIGHT NOW.
     Uses volume instead of OI for weighting. Same BS gamma formula."""
     if spot <= 0 or not contracts:
         return []
     q = DIV_YIELD.get(ticker, 0.0)
-    agg: Dict[float, Dict[str, float]] = {}
+    agg: dict[float, dict[str, float]] = {}
     for c in contracts:
         gamma = bs_gamma(spot, c["strike"], c["T"], c["iv"], q=q)
         if gamma <= 0:
@@ -1436,10 +1436,10 @@ def compute_gex_by_strike_volume(spot: float, contracts: List[Dict[str, Any]], t
 
 # ----------------------------- Heatmap Core -----------------------------------
 
-_BUILD_HEATMAP_CACHE: Dict[str, Any] = {}
+_BUILD_HEATMAP_CACHE: dict[str, Any] = {}
 _BUILD_HEATMAP_CACHE_TTL = 60
 
-async def build_heatmap(ticker: str, max_expiries: int = 4, with_taps: bool = True, mode: str = "day", dte: Optional[int] = None, scalp: bool = False) -> Dict[str, Any]:
+async def build_heatmap(ticker: str, max_expiries: int = 4, with_taps: bool = True, mode: str = "day", dte: int | None = None, scalp: bool = False) -> dict[str, Any]:
     # Check cache first
     cache_key = f"{ticker}:{max_expiries}:{mode}:{dte}:{scalp}:{with_taps}"
     cached = _BUILD_HEATMAP_CACHE.get(cache_key)
@@ -1453,7 +1453,7 @@ async def build_heatmap(ticker: str, max_expiries: int = 4, with_taps: bool = Tr
     if not spot or spot != spot or not raw["contracts"]:  # spot != spot catches NaN
         raise HTTPException(404, f"No options data for {ticker}")
 
-    today = datetime.now(timezone.utc).date()
+    today = datetime.now(UTC).date()
 
     # Scalp mode: force 0DTE only, tight band, volume-weighted
     if scalp:
@@ -1495,7 +1495,7 @@ async def build_heatmap(ticker: str, max_expiries: int = 4, with_taps: bool = Tr
         grid["strike_totals"] = [s for s in grid["strike_totals"] if abs(s["strike"] - spot) / spot <= band]
 
     # Tag fresh/tested via tap counts
-    tap_map: Dict[float, int] = {}
+    tap_map: dict[float, int] = {}
     if with_taps and not scalp:
         tap_map = await tap_counts(ticker, [s["strike"] for s in strikes], days=5)
     for s in strikes:
@@ -1557,7 +1557,7 @@ async def build_heatmap(ticker: str, max_expiries: int = 4, with_taps: bool = Tr
         "tap_counts": {str(k): v for k, v in tap_map.items()},
         "data_source": raw.get("data_source", "yfinance"),
         "mode": mode,
-        "asof": datetime.now(timezone.utc).isoformat(),
+        "asof": datetime.now(UTC).isoformat(),
         # New analytics
         "implied_move": implied_move,
         "prob_distribution": prob_distribution,
@@ -1622,7 +1622,7 @@ except ImportError:
 
 @app.get("/api/")
 async def root():
-    return {"app": "confluence-decoder", "version": "2.0", "ts": datetime.now(timezone.utc).isoformat()}
+    return {"app": "confluence-decoder", "version": "2.0", "ts": datetime.now(UTC).isoformat()}
 
 
 @app.get("/api/tickers")
@@ -1634,7 +1634,7 @@ async def list_tickers():
     }
 
 
-def _get_strategy_recommendation(gf: Dict, regime: Dict, skew: Dict) -> Dict[str, Any]:
+def _get_strategy_recommendation(gf: dict, regime: dict, skew: dict) -> dict[str, Any]:
     """Generate strategy recommendations based on GEX regime and market conditions."""
     gex_regime = gf.get("regime", "unknown")
     dist_to_flip = gf.get("dist_to_flip")
@@ -1693,7 +1693,7 @@ def _get_strategy_recommendation(gf: Dict, regime: Dict, skew: Dict) -> Dict[str
     }
 
 
-def _get_risk_levels(gf: Dict, spot: float) -> Dict[str, Any]:
+def _get_risk_levels(gf: dict, spot: float) -> dict[str, Any]:
     """Calculate key risk levels for stop-loss and target placement."""
     call_wall = gf.get("call_wall")
     put_wall = gf.get("put_wall")
@@ -1707,10 +1707,7 @@ def _get_risk_levels(gf: Dict, spot: float) -> Dict[str, Any]:
     support_2 = put_wall - (spot - put_wall) * 0.5 if put_wall else None
 
     # Stop loss suggestions
-    if put_wall and spot > put_wall:
-        stop_below_put_wall = put_wall - (spot - put_wall) * 0.3
-    else:
-        stop_below_put_wall = None
+    stop_below_put_wall = put_wall - (spot - put_wall) * 0.3 if put_wall and spot > put_wall else None
 
     return {
         "resistance": {"R1": resistance_1, "R2": resistance_2},
@@ -1724,7 +1721,7 @@ def _get_risk_levels(gf: Dict, spot: float) -> Dict[str, Any]:
     }
 
 
-def _get_position_sizing_note(gf: Dict, spot: float) -> str:
+def _get_position_sizing_note(gf: dict, spot: float) -> str:
     """Generate position sizing guidance based on GEX regime."""
     regime = gf.get("regime", "unknown")
     dist_to_flip = gf.get("dist_to_flip")
@@ -1744,16 +1741,16 @@ def _get_position_sizing_note(gf: Dict, spot: float) -> str:
 
 async def remember_trade(trade_data: dict) -> str:
     """Store a trade observation in the memory collection."""
-    from datetime import datetime, timezone
-    trade_data["ts"] = datetime.now(timezone.utc).isoformat()
+    from datetime import datetime
+    trade_data["ts"] = datetime.now(UTC).isoformat()
     result = await db.memory.insert_one(trade_data)
     return str(result.inserted_id)
 
 
 async def remember_gex_observation(obs_data: dict) -> str:
     """Store a GEX observation in the memory collection."""
-    from datetime import datetime, timezone
-    obs_data["ts"] = datetime.now(timezone.utc).isoformat()
+    from datetime import datetime
+    obs_data["ts"] = datetime.now(UTC).isoformat()
     result = await db.memory.insert_one(obs_data)
     return str(result.inserted_id)
 
@@ -2106,7 +2103,7 @@ async def schwab_import_to_portfolio(name: str, account_hash: str) -> dict:
 
 # ---------- Scheduled pre-fetch (APScheduler) ----------
 _scheduler_started = False
-_scheduler_task: Optional[asyncio.Task] = None
+_scheduler_task: asyncio.Task | None = None
 
 
 async def _prefetch_paid_oi():
@@ -2141,7 +2138,7 @@ async def _scheduler_loop():
                 _token = _tm.load()
                 if _token:
                     _expires_at = _token.get("expires_at", 0)
-                    _now = datetime.now(timezone.utc).timestamp()
+                    _now = datetime.now(UTC).timestamp()
                     _ttl = max(0, _expires_at - _now)
                     obs_metrics.schwab_token_expires_in_seconds.set(_ttl)
                 else:
@@ -2156,7 +2153,7 @@ async def _scheduler_loop():
                 import time
                 is_dst = time.localtime().tm_isdst > 0
                 offset = 4 if is_dst else 5
-                et = datetime.now(timezone.utc) - timedelta(hours=offset)
+                et = datetime.now(UTC) - timedelta(hours=offset)
             hhmm = et.strftime("%H:%M")
             today_et = et.date().isoformat()
             if hhmm >= PREFETCH_HHMM and fired_for_date != today_et and et.weekday() < 5:
@@ -2169,8 +2166,8 @@ async def _scheduler_loop():
         await asyncio.sleep(60)
 
 
-_alert_rules: List[Dict[str, Any]] = []
-_alert_history: List[Dict[str, Any]] = []
+_alert_rules: list[dict[str, Any]] = []
+_alert_history: list[dict[str, Any]] = []
 
 
 class AlertRule(BaseModel):
@@ -2178,9 +2175,9 @@ class AlertRule(BaseModel):
     alert_type: str  # "gex_cross", "gex_spike", "oi_spike", "iv_spike"
     threshold: float
     direction: str = "above"  # "above" or "below"
-    expiry: Optional[str] = None
-    strike: Optional[float] = None
-    label: Optional[str] = None
+    expiry: str | None = None
+    strike: float | None = None
+    label: str | None = None
 
 
 @app.post("/api/alerts")
@@ -2188,7 +2185,7 @@ async def create_alert(rule: AlertRule):
     """Create a new GEX alert rule."""
     rule_dict = rule.dict()
     rule_dict["id"] = str(len(_alert_rules) + 1)
-    rule_dict["created_at"] = datetime.now(timezone.utc).isoformat()
+    rule_dict["created_at"] = datetime.now(UTC).isoformat()
     rule_dict["active"] = True
     rule_dict["trigger_count"] = 0
     _alert_rules.append(rule_dict)
@@ -2196,7 +2193,7 @@ async def create_alert(rule: AlertRule):
 
 
 @app.get("/api/alerts")
-async def list_alerts(ticker: Optional[str] = None, active_only: bool = True):
+async def list_alerts(ticker: str | None = None, active_only: bool = True):
     """List alert rules + AlphaPod-shape flow alerts.
 
     Returns BOTH the legacy `rules`/`count` payload (consumed by tests and the
@@ -2304,9 +2301,7 @@ async def check_alerts(ticker: str):
             value = max(ivs) if ivs else 0
 
         crossed = False
-        if rule["direction"] == "above" and value > rule["threshold"]:
-            crossed = True
-        elif rule["direction"] == "below" and value < rule["threshold"]:
+        if rule["direction"] == "above" and value > rule["threshold"] or rule["direction"] == "below" and value < rule["threshold"]:
             crossed = True
 
         if crossed:
@@ -2318,13 +2313,13 @@ async def check_alerts(ticker: str):
                 "threshold": rule["threshold"],
                 "direction": rule["direction"],
                 "label": rule.get("label", ""),
-                "triggered_at": datetime.now(timezone.utc).isoformat(),
+                "triggered_at": datetime.now(UTC).isoformat(),
             }
             triggered.append(trigger)
             rule["trigger_count"] = rule.get("trigger_count", 0) + 1
             _alert_history.append(trigger)
 
-    return {"triggered": triggered, "spot": spot, "asof": datetime.now(timezone.utc).isoformat()}
+    return {"triggered": triggered, "spot": spot, "asof": datetime.now(UTC).isoformat()}
 
 
 @app.get("/api/flow/{ticker}")
@@ -2353,7 +2348,7 @@ async def flow_sse(
             import time as _time
             is_dst = _time.localtime().tm_isdst > 0
             offset = 4 if is_dst else 5
-            et = datetime.now(timezone.utc) - timedelta(hours=offset)
+            et = datetime.now(UTC) - timedelta(hours=offset)
         hhmm = et.strftime("%H:%M")
         lw = LIVE_WINDOW
         start = lw.get("start_hhmm", "09:30")
@@ -2371,13 +2366,13 @@ async def flow_sse(
         import json as _json
 
         from services.flowseeker import fetch_live_flow
-        deadline = datetime.now(timezone.utc).timestamp() + max_seconds
+        deadline = datetime.now(UTC).timestamp() + max_seconds
         sent = False
-        while datetime.now(timezone.utc).timestamp() < deadline:
+        while datetime.now(UTC).timestamp() < deadline:
             try:
                 prints = await fetch_live_flow(ticker=t, limit=20, min_premium=0)
                 if prints:
-                    msg = _json.dumps({"ticker": t, "prints": prints, "ts": datetime.now(timezone.utc).isoformat()})
+                    msg = _json.dumps({"ticker": t, "prints": prints, "ts": datetime.now(UTC).isoformat()})
                     yield f"event: flow\ndata: {msg}\n\n"
                     sent = True
             except Exception as e:
@@ -2386,7 +2381,7 @@ async def flow_sse(
                 break
             # Send heartbeat to keep connection alive and give test client data
             if not sent:
-                msg = _json.dumps({"ticker": t, "heartbeat": True, "ts": datetime.now(timezone.utc).isoformat()})
+                msg = _json.dumps({"ticker": t, "heartbeat": True, "ts": datetime.now(UTC).isoformat()})
                 yield f"event: heartbeat\ndata: {msg}\n\n"
             await _asyncio.sleep(1)
 
@@ -2435,7 +2430,7 @@ async def websocket_gex(websocket: WebSocket, ticker: str):
                         "floors": [{"strike": s["strike"], "gex": round(s["gex"], 0)} for s in positive[:5]],
                         "ceilings": [{"strike": s["strike"], "gex": round(s["gex"], 0)} for s in negative[:5]],
                         "regime": nodes.get("regime"),
-                        "asof": datetime.now(timezone.utc).isoformat(),
+                        "asof": datetime.now(UTC).isoformat(),
                     }
                     await websocket.send_json(_sanitize(payload))
 
@@ -2889,13 +2884,15 @@ async def shutdown_duckdb():
         pass
 
 # ============ Ingestion Pipeline (Mock Feed for now) ============
+import contextlib
+
 from services.ingestion_pipeline import IngestionPipeline
 from services.mock_schwab_feed import MockSchwabFeed
 
-_ingestion_pipeline: Optional[IngestionPipeline] = None
-_mock_feed: Optional[MockSchwabFeed] = None
-_mock_feed_task: Optional[asyncio.Task] = None
-_mock_feed_task: Optional[asyncio.Task] = None
+_ingestion_pipeline: IngestionPipeline | None = None
+_mock_feed: MockSchwabFeed | None = None
+_mock_feed_task: asyncio.Task | None = None
+_mock_feed_task: asyncio.Task | None = None
 
 @app.on_event("startup")
 async def startup_ingestion():
@@ -2931,10 +2928,8 @@ async def shutdown_ingestion():
     try:
         if _mock_feed_task and not _mock_feed_task.done():
             _mock_feed_task.cancel()
-            try:
+            with contextlib.suppress(asyncio.CancelledError):
                 await _mock_feed_task
-            except asyncio.CancelledError:
-                pass
         if _mock_feed:
             await _mock_feed.stop()
         if _ingestion_pipeline:
@@ -2947,7 +2942,7 @@ async def shutdown_ingestion():
 from routes.paper_trading import set_paper_engine as _set_paper_engine
 from services.paper_trading import PaperTradingEngine
 
-_paper_engine: Optional[PaperTradingEngine] = None
+_paper_engine: PaperTradingEngine | None = None
 
 @app.on_event("startup")
 async def startup_paper_trading():

@@ -18,7 +18,8 @@ from __future__ import annotations
 
 import logging
 import os
-from typing import Any, Dict, List, Optional
+from datetime import UTC
+from typing import Any
 
 from fastapi import APIRouter, HTTPException, Query
 
@@ -44,9 +45,9 @@ async def _get_registry() -> ModelRegistry:
 
 @router.get("/models")
 async def list_models(
-    ticker: Optional[str] = None,
-    status: Optional[str] = None,
-) -> Dict[str, Any]:
+    ticker: str | None = None,
+    status: str | None = None,
+) -> dict[str, Any]:
     """List all models, optionally filtered by ticker and/or status."""
     registry = await _get_registry()
     models = await registry.list_models(ticker=ticker, status=status)
@@ -57,7 +58,7 @@ async def list_models(
 
 
 @router.get("/models/{ticker}")
-async def get_model_info(ticker: str) -> Dict[str, Any]:
+async def get_model_info(ticker: str) -> dict[str, Any]:
     """Get detailed model info for a ticker."""
     try:
         info = inference_engine.get_model_info(ticker)
@@ -72,14 +73,14 @@ async def get_model_info(ticker: str) -> Dict[str, Any]:
             "loaded": info.loaded,
         }
     except DegenerateModelError as e:
-        raise HTTPException(status_code=404, detail=str(e))
+        raise HTTPException(status_code=404, detail=str(e)) from e
 
 
 # ── POST /api/ml/predict/{ticker} ─────────────────────────────────────────
 
 
 @router.post("/predict/{ticker}")
-async def predict(ticker: str) -> Dict[str, Any]:
+async def predict(ticker: str) -> dict[str, Any]:
     """Get a live prediction for a ticker.
 
     Downloads recent market data, computes features in real-time,
@@ -110,10 +111,10 @@ async def predict(ticker: str) -> Dict[str, Any]:
             "timestamp": result.timestamp,
         }
     except DegenerateModelError as e:
-        raise HTTPException(status_code=404, detail=str(e))
+        raise HTTPException(status_code=404, detail=str(e)) from e
     except Exception as e:
         logger.error(f"Prediction failed for {ticker}: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"Prediction failed: {e}")
+        raise HTTPException(status_code=500, detail=f"Prediction failed: {e}") from e
 
 
 # ── POST /api/ml/batch-predict ────────────────────────────────────────────
@@ -121,8 +122,8 @@ async def predict(ticker: str) -> Dict[str, Any]:
 
 @router.post("/batch-predict")
 async def batch_predict(
-    tickers: Optional[List[str]] = Query(None),
-) -> Dict[str, Any]:
+    tickers: list[str] | None = Query(None),  # noqa: B008
+) -> dict[str, Any]:
     """Get predictions for multiple tickers at once.
 
     If no tickers specified, predicts all registered models.
@@ -158,7 +159,7 @@ async def batch_predict(
 
 
 @router.post("/promote/{model_id}")
-async def promote_model(model_id: str) -> Dict[str, Any]:
+async def promote_model(model_id: str) -> dict[str, Any]:
     """Promote a shadow model to active."""
     registry = await _get_registry()
     result = await registry.promote_model(model_id)
@@ -175,7 +176,7 @@ async def promote_model(model_id: str) -> Dict[str, Any]:
 
 
 @router.get("/drift/{ticker}")
-async def drift_report(ticker: str) -> Dict[str, Any]:
+async def drift_report(ticker: str) -> dict[str, Any]:
     """Get the PSI drift report for a ticker's active model."""
     registry = await _get_registry()
     report = await registry.compute_drift(ticker)
@@ -186,7 +187,7 @@ async def drift_report(ticker: str) -> Dict[str, Any]:
 
 
 @router.post("/register")
-async def register_model(body: Dict[str, Any]) -> Dict[str, Any]:
+async def register_model(body: dict[str, Any]) -> dict[str, Any]:
     """Register a new model from training artifact paths.
 
     Expected body:
@@ -229,7 +230,7 @@ async def register_model(body: Dict[str, Any]) -> Dict[str, Any]:
 
 
 @router.get("/regime/{ticker}")
-async def get_regime(ticker: str) -> Dict[str, Any]:
+async def get_regime(ticker: str) -> dict[str, Any]:
     """Get the current volatility regime and anomaly threshold for a ticker.
 
     Uses 30-day realized vol percentile:
@@ -245,7 +246,7 @@ async def get_regime(ticker: str) -> Dict[str, Any]:
     try:
         model, scaler, model_doc = await registry._load_active_artifact(ticker)
     except Exception as e:
-        raise HTTPException(status_code=404, detail=str(e))
+        raise HTTPException(status_code=404, detail=str(e)) from e
 
     # Fetch latest features
     features_df = await registry._compute_latest_features(ticker, model_doc["feature_version"])
@@ -321,12 +322,12 @@ async def get_regime(ticker: str) -> Dict[str, Any]:
 
 
 def _now_iso() -> str:
-    from datetime import datetime, timezone
-    return datetime.now(timezone.utc).isoformat()
+    from datetime import datetime
+    return datetime.now(UTC).isoformat()
 
 
 @router.get("/ensemble/{ticker}")
-async def get_ensemble(ticker: str, horizon_minutes: int = 15) -> Dict[str, Any]:
+async def get_ensemble(ticker: str, horizon_minutes: int = 15) -> dict[str, Any]:
     """Get ensemble toxicity score combining multiple detectors.
 
     Combines:
@@ -345,7 +346,7 @@ async def get_ensemble(ticker: str, horizon_minutes: int = 15) -> Dict[str, Any]
         model, scaler, model_doc = await registry._load_active_artifact(ticker)
     except Exception as e:
         # Fall back to statistical only
-        raise HTTPException(status_code=404, detail=f"No active model for {ticker}: {e}")
+        raise HTTPException(status_code=404, detail=f"No active model for {ticker}: {e}") from e
 
     features_df = await registry._compute_latest_features(ticker, model_doc["feature_version"])
     if features_df is None or features_df.empty:
@@ -403,7 +404,7 @@ async def get_ensemble(ticker: str, horizon_minutes: int = 15) -> Dict[str, Any]
 
 
 @router.get("/dashboard")
-async def ml_dashboard() -> Dict[str, Any]:
+async def ml_dashboard() -> dict[str, Any]:
     """Get the full ML model health dashboard.
 
     Returns predictions, rolling accuracy, drift status, and freshness
@@ -419,14 +420,14 @@ async def ml_dashboard() -> Dict[str, Any]:
             await dashboard.close()
     except Exception as e:
         logger.error(f"Dashboard generation failed: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"Dashboard failed: {e}")
+        raise HTTPException(status_code=500, detail=f"Dashboard failed: {e}") from e
 
 
 # ── GET /api/ml/features/{ticker} ─────────────────────────────────────────
 
 
 @router.get("/features/{ticker}")
-async def get_features(ticker: str) -> Dict[str, Any]:
+async def get_features(ticker: str) -> dict[str, Any]:
     """Get latest computed features for a ticker."""
     try:
         import asyncio
@@ -447,24 +448,24 @@ async def get_features(ticker: str) -> Dict[str, Any]:
             },
         }
     except DegenerateModelError as e:
-        raise HTTPException(status_code=404, detail=str(e))
+        raise HTTPException(status_code=404, detail=str(e)) from e
     except Exception as e:
         logger.error(f"Feature computation failed for {ticker}: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"Feature computation failed: {e}")
+        raise HTTPException(status_code=500, detail=f"Feature computation failed: {e}") from e
 
 
 # ── GET /api/ml/briefing/{ticker} ─────────────────────────────────────────
 
 
 @router.get("/briefing/{ticker}")
-async def ml_briefing(ticker: str) -> Dict[str, Any]:
+async def ml_briefing(ticker: str) -> dict[str, Any]:
     """Unified ML briefing — combines prediction, model info, regime,
     rolling accuracy, and feature importance into one response for the
     MlDashboard frontend component.
     """
     from server import db
     ticker = ticker.upper()
-    result: Dict[str, Any] = {"ticker": ticker, "ts": __import__("datetime").datetime.now(__import__("datetime").timezone.utc).isoformat()}
+    result: dict[str, Any] = {"ticker": ticker, "ts": __import__("datetime").datetime.now(__import__("datetime").timezone.utc).isoformat()}
 
     # 1. Live prediction
     try:
@@ -535,7 +536,7 @@ async def ml_briefing(ticker: str) -> Dict[str, Any]:
 
 
 @router.post("/retrain/{ticker}")
-async def trigger_retrain(ticker: str) -> Dict[str, Any]:
+async def trigger_retrain(ticker: str) -> dict[str, Any]:
     """Trigger an automated retraining job for a ticker.
 
     Checks drift first. Only triggers retraining if:
@@ -550,14 +551,14 @@ async def trigger_retrain(ticker: str) -> Dict[str, Any]:
         return result
     except Exception as e:
         logger.error(f"Retrain trigger failed for {ticker}: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"Retrain failed: {e}")
+        raise HTTPException(status_code=500, detail=f"Retrain failed: {e}") from e
 
 
 # ── POST /api/ml/attach-outcomes ────────────────────────────────────────
 
 
 @router.post("/attach-outcomes")
-async def attach_outcomes(batch_size: int = 100) -> Dict[str, Any]:
+async def attach_outcomes(batch_size: int = 100) -> dict[str, Any]:
     """Attach realized outcomes to predictions that don't have them yet.
 
     Processes up to batch_size predictions per call.
@@ -569,7 +570,7 @@ async def attach_outcomes(batch_size: int = 100) -> Dict[str, Any]:
         return {"status": "ok", "n_attached": n}
     except Exception as e:
         logger.error(f"Outcome attachment failed: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"Outcome attachment failed: {e}")
+        raise HTTPException(status_code=500, detail=f"Outcome attachment failed: {e}") from e
 
 
 # ── GET /api/ml/rolling-accuracy/{ticker} ───────────────────────────────
@@ -579,7 +580,7 @@ async def attach_outcomes(batch_size: int = 100) -> Dict[str, Any]:
 async def rolling_accuracy(
     ticker: str,
     window_days: int = 30,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Get rolling prediction accuracy for a ticker over the given window.
 
     Returns accuracy, n_predictions, n_with_outcomes, avg_return_pct.
@@ -592,14 +593,14 @@ async def rolling_accuracy(
         return result
     except Exception as e:
         logger.error(f"Rolling accuracy failed for {ticker}: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"Rolling accuracy failed: {e}")
+        raise HTTPException(status_code=500, detail=f"Rolling accuracy failed: {e}") from e
 
 
 # ── GET /api/ml/retrain-status/{ticker} ─────────────────────────────────
 
 
 @router.get("/retrain-status/{ticker}")
-async def retrain_status(ticker: str) -> Dict[str, Any]:
+async def retrain_status(ticker: str) -> dict[str, Any]:
     """Get the retrain history for a ticker."""
     from server import db
     try:
@@ -611,7 +612,7 @@ async def retrain_status(ticker: str) -> Dict[str, Any]:
         return {"ticker": ticker.upper(), "history": history, "count": len(history)}
     except Exception as e:
         logger.error(f"Retrain status failed for {ticker}: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e
 
 
 
@@ -693,7 +694,7 @@ async def get_calibration(ticker: str, window: int = Query(default=30, ge=7, le=
         n = len(data["predicted"])
         if n == 0:
             continue
-        correct = sum(1 for p, a in zip(data["predicted"], data["actual"]) if p == a)
+        correct = sum(1 for p, a in zip(data["predicted"], data["actual"], strict=False) if p == a)
         avg_conf = sum(data["predicted"]) / n if n > 0 else 0
         calibration.append({
             "bin": bin_key,
@@ -724,7 +725,7 @@ async def get_calibration(ticker: str, window: int = Query(default=30, ge=7, le=
 
 
 @router.get("/health/{ticker}")
-async def ml_health_check(ticker: str) -> Dict[str, Any]:
+async def ml_health_check(ticker: str) -> dict[str, Any]:
     """Get ML model health assessment for a ticker."""
     try:
         from server import db
@@ -733,7 +734,7 @@ async def ml_health_check(ticker: str) -> Dict[str, Any]:
         return result
     except Exception as e:
         logger.error(f"Health check failed for {ticker}: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"Health check failed: {e}")
+        raise HTTPException(status_code=500, detail=f"Health check failed: {e}") from e
 
 
 # ── GET /api/ml/compare ─────────────────────────────────────────────────
@@ -741,8 +742,8 @@ async def ml_health_check(ticker: str) -> Dict[str, Any]:
 
 @router.get("/compare")
 async def ml_compare(
-    tickers: Optional[str] = Query(default=None, description="Comma-separated tickers (default: SPY,QQQ,DIA,IWM,TLT)"),
-) -> Dict[str, Any]:
+    tickers: str | None = Query(default=None, description="Comma-separated tickers (default: SPY,QQQ,DIA,IWM,TLT)"),
+) -> dict[str, Any]:
     """Compare ML model predictions across all 5 tickers.
 
     Returns a dict keyed by ticker with:
@@ -757,7 +758,7 @@ async def ml_compare(
     Query params:
         tickers: Comma-separated list (default: SPY,QQQ,DIA,IWM,TLT)
     """
-    from datetime import datetime, timedelta, timezone
+    from datetime import datetime, timedelta
 
     import numpy as np
 
@@ -765,16 +766,13 @@ async def ml_compare(
 
     DEFAULT_TICKERS = ["SPY", "QQQ", "DIA", "IWM", "TLT"]
 
-    if tickers:
-        target_tickers = [t.strip().upper() for t in tickers.split(",") if t.strip()]
-    else:
-        target_tickers = DEFAULT_TICKERS
+    target_tickers = [t.strip().upper() for t in tickers.split(",") if t.strip()] if tickers else DEFAULT_TICKERS
 
-    result: Dict[str, Any] = {}
+    result: dict[str, Any] = {}
 
     for ticker in target_tickers:
         try:
-            ticker_data: Dict[str, Any] = {}
+            ticker_data: dict[str, Any] = {}
 
             # 1. Latest prediction from ml_predictions
             preds_col = db["ml_predictions"]
@@ -824,7 +822,7 @@ async def ml_compare(
                 ticker_data["last_retrain_date"] = None
 
             # 3. Sharpe ratio over 90 days from realized outcomes
-            cutoff_90d = (datetime.now(timezone.utc) - timedelta(days=90)).isoformat()
+            cutoff_90d = (datetime.now(UTC) - timedelta(days=90)).isoformat()
             pipeline = [
                 {"$match": {
                     "ticker": ticker,
@@ -878,7 +876,7 @@ async def ml_compare(
 
 
 @router.get("/health")
-async def ml_health_all() -> Dict[str, Any]:
+async def ml_health_all() -> dict[str, Any]:
     """Get health assessment for all active ML models."""
     try:
         from server import db
@@ -887,4 +885,4 @@ async def ml_health_all() -> Dict[str, Any]:
         return result
     except Exception as e:
         logger.error(f"Health check all failed: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"Health check failed: {e}")
+        raise HTTPException(status_code=500, detail=f"Health check failed: {e}") from e

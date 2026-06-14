@@ -9,7 +9,7 @@ Provides:
 """
 
 import logging
-from typing import Any, Dict, List
+from typing import Any
 
 import numpy as np
 
@@ -22,8 +22,8 @@ class GexSurfaceComputer:
     @staticmethod
     def compute_surface(
         spot: float,
-        contracts: List[Dict[str, Any]],
-    ) -> Dict[str, Any]:
+        contracts: list[dict[str, Any]],
+    ) -> dict[str, Any]:
         """Compute GEX surface from option chain."""
         strikes = sorted(set(c["strike"] for c in contracts))
         expiries = sorted(set(c["expiry"] for c in contracts))
@@ -57,7 +57,7 @@ class HistoricalGexAnalyzer:
     """Analyzes historical GEX data."""
 
     @staticmethod
-    def compute_regime_statistics(snapshots: List[Dict[str, Any]]) -> Dict[str, Any]:
+    def compute_regime_statistics(snapshots: list[dict[str, Any]]) -> dict[str, Any]:
         """Compute regime statistics from historical snapshots."""
         if not snapshots:
             return {"status": "no_data"}
@@ -101,8 +101,8 @@ class HistoricalGexAnalyzer:
 
     @staticmethod
     def compute_gex_correlation(
-        ticker1_snapshots: List[Dict[str, Any]],
-        ticker2_snapshots: List[Dict[str, Any]],
+        ticker1_snapshots: list[dict[str, Any]],
+        ticker2_snapshots: list[dict[str, Any]],
     ) -> float:
         """Compute GEX correlation between two tickers."""
         if not ticker1_snapshots or not ticker2_snapshots:
@@ -132,8 +132,8 @@ class MultiTickerComparator:
 
     @staticmethod
     def compare_regimes(
-        snapshots_by_ticker: Dict[str, List[Dict[str, Any]]],
-    ) -> Dict[str, Any]:
+        snapshots_by_ticker: dict[str, list[dict[str, Any]]],
+    ) -> dict[str, Any]:
         """Compare current regimes across tickers."""
         result = {}
 

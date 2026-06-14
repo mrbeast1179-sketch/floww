@@ -247,7 +247,7 @@ class TestBackpressure:
         await pipe.start()
 
         # Flood with ticks faster than flush
-        for i in range(200):
+        for _i in range(200):
             pipe.enqueue_tick({
                 "timestamp": "2026-05-19T20:00:00",
                 "symbol": "SPY",
@@ -270,7 +270,7 @@ class TestBackpressure:
         pipe = IngestionPipeline(db=db, max_queue_size=10, flush_interval_ms=5000)
         await pipe.start()
 
-        for i in range(100):
+        for _i in range(100):
             pipe.enqueue_tick({"symbol": "SPY", "bid": 500.0, "ask": 500.1, "last": 500.05, "volume": 1000})
 
         metrics = pipe.get_metrics()
@@ -306,7 +306,7 @@ class TestPipelineMetrics:
     @pytest.mark.asyncio
     async def test_queue_fill_percentage(self, pipeline):
         """Queue fill percentage should be accurate."""
-        for i in range(500):
+        for _i in range(500):
             pipeline.enqueue_tick({"symbol": "SPY", "bid": 500.0, "ask": 500.1, "last": 500.05, "volume": 1000})
 
         metrics = pipeline.get_metrics()
@@ -380,7 +380,7 @@ class TestMultipleSymbols:
 
         symbols = ["SPY", "QQQ", "DIA", "IWM"]
         for sym in symbols:
-            for i in range(25):
+            for _i in range(25):
                 pipeline.enqueue_tick({
                     "timestamp": "2026-05-19T20:00:00",
                     "symbol": sym,

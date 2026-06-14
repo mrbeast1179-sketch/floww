@@ -9,7 +9,7 @@ import json
 import os
 import sys
 import tempfile
-from datetime import datetime, timezone
+from datetime import UTC, datetime, timezone
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -30,7 +30,7 @@ class TestSchwabTokenManager:
             json.dump({
                 "access_token": "test_access",
                 "refresh_token": "test_refresh",
-                "expires_at": datetime.now(timezone.utc).timestamp() + 3600,
+                "expires_at": datetime.now(UTC).timestamp() + 3600,
             }, f)
             f.flush()
             yield Path(f.name)
@@ -43,7 +43,7 @@ class TestSchwabTokenManager:
             json.dump({
                 "access_token": "test_access",
                 "refresh_token": "test_refresh",
-                "expires_at": datetime.now(timezone.utc).timestamp() - 100,
+                "expires_at": datetime.now(UTC).timestamp() - 100,
             }, f)
             f.flush()
             yield Path(f.name)
@@ -83,7 +83,7 @@ class TestSchwabTokenManager:
         new_token = {
             "access_token": "new_access",
             "refresh_token": "new_refresh",
-            "expires_at": datetime.now(timezone.utc).timestamp() + 7200,
+            "expires_at": datetime.now(UTC).timestamp() + 7200,
         }
         tm.save(new_token)
         loaded = tm.load()

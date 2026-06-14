@@ -18,6 +18,8 @@ import duckdb
 REPO_ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(REPO_ROOT / "backend"))
 
+import contextlib
+
 from services.semantic_search import (
     SemanticSearchEngine,
     TfidfEmbedder,
@@ -108,10 +110,8 @@ class TestSemanticSearchEngine(unittest.TestCase):
 
     def tearDown(self):
         self.engine.close()
-        try:
+        with contextlib.suppress(OSError):
             os.remove(self.db_path)
-        except OSError:
-            pass
 
     def _create_test_db(self):
         """Create test database with trade data."""

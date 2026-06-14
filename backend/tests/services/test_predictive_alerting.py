@@ -92,7 +92,7 @@ def test_engine_no_false_alerts():
     from services.predictive_alerting import PredictiveAlertingEngine
     engine = PredictiveAlertingEngine()
     # Feed stable low values
-    for i in range(20):
+    for _i in range(20):
         engine.record_metric("duckdb_queue_depth", 100.0)
     alerts = engine.get_predictive_alerts()
     assert len(alerts) == 0

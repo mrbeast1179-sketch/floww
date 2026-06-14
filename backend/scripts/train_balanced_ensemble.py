@@ -21,9 +21,8 @@ import json
 import logging
 import sys
 import time
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Dict
 
 import joblib
 import numpy as np
@@ -103,13 +102,13 @@ def walk_forward_cv(model, X, y, n_splits=5, embargo=5):
         "mean_train": float(np.mean(train_scores)) if train_scores else 0,
         "mean_test": float(np.mean(scores)) if scores else 0,
         "std_test": float(np.std(scores)) if scores else 0,
-        "mean_gap": float(np.mean([t-s for t,s in zip(train_scores, scores)])) if scores else 0,
+        "mean_gap": float(np.mean([t-s for t,s in zip(train_scores, scores, strict=False)])) if scores else 0,
         "mean_sharpe": float(np.mean(sharpe_scores)) if sharpe_scores else 0,
         "fold_scores": [float(s) for s in scores],
     }
 
 
-def train_ticker(ticker: str, output_dir: Path, quick: bool = False) -> Dict:
+def train_ticker(ticker: str, output_dir: Path, quick: bool = False) -> dict:
     """Train balanced models for a ticker. Returns results dict."""
     from sklearn.ensemble import GradientBoostingClassifier, RandomForestClassifier
     from sklearn.linear_model import LogisticRegression
@@ -221,7 +220,7 @@ def train_ticker(ticker: str, output_dir: Path, quick: bool = False) -> Dict:
 
     # Ensemble prediction: average probabilities
     probas = []
-    for name, m in ensemble_models.items():
+    for _name, m in ensemble_models.items():
         if hasattr(m, 'predict_proba'):
             probas.append(m.predict_proba(X_test))
     ensemble_proba = np.mean(probas, axis=0)
@@ -230,7 +229,7 @@ def train_ticker(ticker: str, output_dir: Path, quick: bool = False) -> Dict:
     log.info("Ensemble: test_acc=%.4f", ensemble_acc)
 
     # Save artifacts
-    ts = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
+    ts = datetime.now(UTC).strftime("%Y%m%d_%H%M%S")
 
     # Save best model
     model_path = output_dir / f"{ticker}_balanced_{ts}.joblib"
@@ -259,7 +258,7 @@ def train_ticker(ticker: str, output_dir: Path, quick: bool = False) -> Dict:
         "ensemble_test_accuracy": ensemble_acc,
         "model_path": str(model_path.name),
         "scaler_path": str(scaler_path.name),
-        "created_at": datetime.now(timezone.utc).isoformat(),
+        "created_at": datetime.now(UTC).isoformat(),
         "model_id": f"{ticker}_balanced_v3",
         "class_weight": "balanced",
     }
@@ -279,7 +278,7 @@ def train_ticker(ticker: str, output_dir: Path, quick: bool = False) -> Dict:
         "feature_names": selected_names,
         "model_id": f"{ticker}_ensemble_v3",
         "test_accuracy": ensemble_acc,
-        "created_at": datetime.now(timezone.utc).isoformat(),
+        "created_at": datetime.now(UTC).isoformat(),
     }
     joblib.dump(ensemble_artifacts, ensemble_path)
 
@@ -338,7 +337,7 @@ def main():
                      r.get("class_accuracy", {}))
 
     # Save report
-    report_path = SCRIPT_DIR.parent / "reports" / f"training_balanced_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}.json"
+    report_path = SCRIPT_DIR.parent / "reports" / f"training_balanced_{datetime.now(UTC).strftime('%Y%m%d_%H%M%S')}.json"
     report_path.parent.mkdir(exist_ok=True)
     with open(report_path, "w") as f:
         json.dump(results, f, indent=2, default=str)

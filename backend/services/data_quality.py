@@ -8,8 +8,8 @@ compare, log warnings if rel-err > 5%, escalate if > 20%.
 from __future__ import annotations
 
 import logging
-from datetime import datetime, timezone
-from typing import Any, Dict, List
+from datetime import UTC, datetime
+from typing import Any
 
 import numpy as np
 
@@ -23,14 +23,14 @@ class DataQualityChecker:
         self.warning_threshold = warning_threshold
         self.critical_threshold = critical_threshold
         self._running = False
-        self._history: List[Dict[str, Any]] = []
+        self._history: list[dict[str, Any]] = []
 
     async def check_gex_consistency(
         self,
-        schwab_chain: List[Dict[str, Any]],
-        yfinance_chain: List[Dict[str, Any]],
+        schwab_chain: list[dict[str, Any]],
+        yfinance_chain: list[dict[str, Any]],
         ticker: str = "SPY",
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Compare GEX computed from Schwab vs yfinance chains.
 
         Returns dict with:
@@ -72,12 +72,12 @@ class DataQualityChecker:
             "yfinance_gex": round(yfinance_gex, 2),
             "rel_err": round(rel_err, 6),
             "status": status,
-            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "timestamp": datetime.now(UTC).isoformat(),
         }
         self._history.append(result)
         return result
 
-    def _compute_net_gex(self, chain: List[Dict[str, Any]]) -> float:
+    def _compute_net_gex(self, chain: list[dict[str, Any]]) -> float:
         """Compute net GEX from a chain (list of contract dicts)."""
         net_gex = 0.0
         for c in chain:
@@ -90,10 +90,10 @@ class DataQualityChecker:
             net_gex += gex
         return net_gex
 
-    def get_history(self, limit: int = 100) -> List[Dict[str, Any]]:
+    def get_history(self, limit: int = 100) -> list[dict[str, Any]]:
         return self._history[-limit:]
 
-    def get_metrics(self) -> Dict[str, Any]:
+    def get_metrics(self) -> dict[str, Any]:
         if not self._history:
             return {"checks": 0}
         recent = self._history[-100:]

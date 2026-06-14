@@ -6,8 +6,9 @@ Agent Hub — YAML-defined trading agent archetypes with trigger-based runtime.
 from __future__ import annotations
 
 import logging
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 import yaml
 
@@ -19,17 +20,17 @@ ARCHETYPES_DIR = Path(__file__).parent / "archetypes"
 class AgentArchetype:
     """A single agent archetype loaded from YAML."""
 
-    def __init__(self, config: Dict[str, Any]):
+    def __init__(self, config: dict[str, Any]):
         self.name = config.get("name", "unnamed")
         self.description = config.get("description", "")
         self.triggers = config.get("triggers", [])
         self.logic = config.get("logic", "all")  # "all" | "any"
         self.action = config.get("action", {})
         self.enabled = config.get("enabled", False)
-        self.last_fired: Optional[str] = None
+        self.last_fired: str | None = None
         self.fire_count: int = 0
 
-    def evaluate(self, metrics: Dict[str, float]) -> bool:
+    def evaluate(self, metrics: dict[str, float]) -> bool:
         """Evaluate triggers against current metrics. Returns True if fired."""
         if not self.enabled or not self.triggers:
             return False
@@ -56,7 +57,7 @@ class AgentArchetype:
             return all(results) if results else False
         return any(results)  # "any"
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "name": self.name,
             "description": self.description,
@@ -73,7 +74,7 @@ class AgentHubRuntime:
     """Runtime that evaluates all enabled archetypes on each snapshot."""
 
     def __init__(self):
-        self.archetypes: Dict[str, AgentArchetype] = {}
+        self.archetypes: dict[str, AgentArchetype] = {}
         self._load_defaults()
 
     def _load_defaults(self):
@@ -90,7 +91,7 @@ class AgentHubRuntime:
                 except Exception as e:
                     logger.warning(f"Failed to load {yaml_file}: {e}")
 
-    def register(self, config: Dict[str, Any]):
+    def register(self, config: dict[str, Any]):
         """Register a new archetype."""
         archetype = AgentArchetype(config)
         self.archetypes[archetype.name] = archetype
@@ -99,13 +100,12 @@ class AgentHubRuntime:
         """Remove an archetype."""
         self.archetypes.pop(name, None)
 
-    def evaluate_all(self, metrics: Dict[str, float]) -> List[Dict[str, Any]]:
+    def evaluate_all(self, metrics: dict[str, float]) -> list[dict[str, Any]]:
         """Evaluate all enabled archetypes. Returns list of fired actions."""
-        from datetime import datetime, timezone
         fired = []
         for name, archetype in self.archetypes.items():
             if archetype.evaluate(metrics):
-                archetype.last_fired = datetime.now(timezone.utc).isoformat()
+                archetype.last_fired = datetime.now(UTC).isoformat()
                 archetype.fire_count += 1
                 fired.append({
                     "archetype": name,
@@ -114,7 +114,7 @@ class AgentHubRuntime:
                 })
         return fired
 
-    def get_status(self) -> Dict[str, Any]:
+    def get_status(self) -> dict[str, Any]:
         return {
             "total": len(self.archetypes),
             "enabled": sum(1 for a in self.archetypes.values() if a.enabled),

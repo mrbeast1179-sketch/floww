@@ -18,7 +18,7 @@ Reference: Pearl (2009) Causality, 2nd ed.
 from __future__ import annotations
 
 import logging
-from typing import Any, Dict, List, Optional, Set, Tuple
+from typing import Any
 
 log = logging.getLogger(__name__)
 
@@ -60,25 +60,25 @@ class CausalDAG:
     for modeling purposes but flag it during acyclicity checks.
     """
 
-    def __init__(self, nodes: Optional[List[str]] = None, edges: Optional[List[Tuple[str, str]]] = None):
+    def __init__(self, nodes: list[str] | None = None, edges: list[tuple[str, str]] | None = None):
         self.nodes = nodes if nodes is not None else list(NODES)
         self.edges = edges if edges is not None else list(EDGES)
-        self._adj: Dict[str, List[str]] = {n: [] for n in self.nodes}
-        self._parents: Dict[str, List[str]] = {n: [] for n in self.nodes}
+        self._adj: dict[str, list[str]] = {n: [] for n in self.nodes}
+        self._parents: dict[str, list[str]] = {n: [] for n in self.nodes}
         for src, dst in self.edges:
             if src in self._adj and dst in self._adj:
                 self._adj[src].append(dst)
                 self._parents[dst].append(src)
 
-    def get_parents(self, node: str) -> List[str]:
+    def get_parents(self, node: str) -> list[str]:
         """Return parent nodes (direct causes)."""
         return list(self._parents.get(node, []))
 
-    def get_children(self, node: str) -> List[str]:
+    def get_children(self, node: str) -> list[str]:
         """Return child nodes (direct effects)."""
         return list(self._adj.get(node, []))
 
-    def get_ancestors(self, node: str) -> Set[str]:
+    def get_ancestors(self, node: str) -> set[str]:
         """Return all ancestors of a node."""
         visited = set()
         stack = [node]
@@ -90,7 +90,7 @@ class CausalDAG:
                     stack.append(parent)
         return visited
 
-    def get_descendants(self, node: str) -> Set[str]:
+    def get_descendants(self, node: str) -> set[str]:
         """Return all descendants of a node."""
         visited = set()
         stack = [node]
@@ -102,7 +102,7 @@ class CausalDAG:
                     stack.append(child)
         return visited
 
-    def is_d_separated(self, x: str, y: str, conditioning: Set[str]) -> bool:
+    def is_d_separated(self, x: str, y: str, conditioning: set[str]) -> bool:
         """Check if X is d-separated from Y given conditioning set.
 
         Uses the Bayes ball algorithm for d-separation.
@@ -111,12 +111,9 @@ class CausalDAG:
         # A path is blocked if it contains a collider not in conditioning
         # or a non-collider in conditioning
         paths = self._find_all_paths(x, y)
-        for path in paths:
-            if not self._is_path_blocked(path, conditioning):
-                return False
-        return True
+        return all(self._is_path_blocked(path, conditioning) for path in paths)
 
-    def _find_all_paths(self, start: str, end: str, max_depth: int = 10) -> List[List[str]]:
+    def _find_all_paths(self, start: str, end: str, max_depth: int = 10) -> list[list[str]]:
         """Find all simple paths between two nodes."""
         paths = []
         self._dfs_paths(start, end, [start], set([start]), paths, max_depth)
@@ -138,7 +135,7 @@ class CausalDAG:
                 path.pop()
                 visited.remove(neighbor)
 
-    def _is_path_blocked(self, path: List[str], conditioning: Set[str]) -> bool:
+    def _is_path_blocked(self, path: list[str], conditioning: set[str]) -> bool:
         """Check if a path is blocked by the conditioning set."""
         for i in range(1, len(path) - 1):
             prev_node = path[i - 1]
@@ -164,7 +161,7 @@ class CausalDAG:
                     return True
         return False
 
-    def check_acyclic(self) -> Tuple[bool, Optional[str]]:
+    def check_acyclic(self) -> tuple[bool, str | None]:
         """Check if the DAG is acyclic (ignoring feedback/mutual edges)."""
         # Remove feedback edges for acyclicity check
         feedback_edges = {
@@ -194,12 +191,11 @@ class CausalDAG:
             return False
 
         for node in self.nodes:
-            if color[node] == WHITE:
-                if dfs(node):
-                    return False, f"Cycle detected involving {node}"
+            if color[node] == WHITE and dfs(node):
+                return False, f"Cycle detected involving {node}"
         return True, None
 
-    def get_backdoor_paths(self, treatment: str, outcome: str) -> List[List[str]]:
+    def get_backdoor_paths(self, treatment: str, outcome: str) -> list[list[str]]:
         """Find all backdoor paths from treatment to outcome.
 
         Backdoor paths are paths from treatment to outcome that start with
@@ -226,7 +222,7 @@ class CausalDAG:
                 path.pop()
                 visited.remove(neighbor)
 
-    def get_adjustment_set(self, treatment: str, outcome: str) -> Set[str]:
+    def get_adjustment_set(self, treatment: str, outcome: str) -> set[str]:
         """Get the minimal adjustment set for causal identification.
 
         Uses the backdoor criterion: find a set Z that blocks all backdoor
@@ -253,7 +249,7 @@ class CausalDAG:
             lines.append(f"    {src} --> {dst}")
         return "\n".join(lines)
 
-    def get_state(self) -> Dict[str, Any]:
+    def get_state(self) -> dict[str, Any]:
         return {
             "nodes": self.nodes,
             "edges": self.edges,

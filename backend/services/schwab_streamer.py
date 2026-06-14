@@ -19,11 +19,13 @@ Output: parsed dicts matching the DuckDB schema in services/duckdb_engine.py
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import json
 import logging
 import random
-from datetime import datetime, timezone
-from typing import Any, Callable, Dict, List, Optional, Set
+from collections.abc import Callable
+from datetime import UTC, datetime
+from typing import Any
 
 import websockets
 
@@ -46,7 +48,7 @@ class SchwabStreamer:
 
     def __init__(
         self,
-        token_manager: Optional[SchwabTokenManager] = None,
+        token_manager: SchwabTokenManager | None = None,
         max_reconnect_delay: float = 60.0,
         initial_reconnect_delay: float = 1.0,
     ):
@@ -54,14 +56,14 @@ class SchwabStreamer:
         self.max_reconnect_delay = max_reconnect_delay
         self.initial_reconnect_delay = initial_reconnect_delay
 
-        self._ws: Optional[Any] = None
+        self._ws: Any | None = None
         self._running = False
         self._reconnect_delay = initial_reconnect_delay
-        self._tick_handlers: List[Callable] = []
-        self._chain_handlers: List[Callable] = []
-        self._lob_depth_handlers: List[Callable] = []
-        self._error_handlers: List[Callable] = []
-        self._subscribed_symbols: Set[str] = set()
+        self._tick_handlers: list[Callable] = []
+        self._chain_handlers: list[Callable] = []
+        self._lob_depth_handlers: list[Callable] = []
+        self._error_handlers: list[Callable] = []
+        self._subscribed_symbols: set[str] = set()
         self._metrics = {
             "messages_received": 0,
             "messages_parsed": 0,
@@ -83,14 +85,14 @@ class SchwabStreamer:
     # Handler registration
     # ------------------------------------------------------------------
 
-    def on_tick(self, handler: Callable[[Dict[str, Any]], Any]):
+    def on_tick(self, handler: Callable[[dict[str, Any]], Any]):
         """Register a handler for equity/underlying tick data.
 
         Handler receives: {timestamp, symbol, bid, ask, last, volume, ...}
         """
         self._tick_handlers.append(handler)
 
-    def on_chain(self, handler: Callable[[Dict[str, Any]], Any]):
+    def on_chain(self, handler: Callable[[dict[str, Any]], Any]):
         """Register a handler for options chain data.
 
         Handler receives: {timestamp, symbol, expiry, strike, type, bid, ask,
@@ -98,7 +100,7 @@ class SchwabStreamer:
         """
         self._chain_handlers.append(handler)
 
-    def on_lob_depth(self, handler: Callable[[Dict[str, Any]], Any]):
+    def on_lob_depth(self, handler: Callable[[dict[str, Any]], Any]):
         """Register a handler for Level-2 LOB depth data.
 
         Handler receives: {timestamp, symbol, expiry, strike, option_type,
@@ -135,10 +137,8 @@ class SchwabStreamer:
         """Gracefully stop the streamer."""
         self._running = False
         if self._ws:
-            try:
+            with contextlib.suppress(Exception):
                 await self._ws.close()
-            except Exception:
-                pass
         logger.info("Schwab streamer stopped")
 
     # ------------------------------------------------------------------
@@ -166,9 +166,9 @@ class SchwabStreamer:
             self._reconnect_delay = self.initial_reconnect_delay
             self._health["connected"] = True
             self._health["reconnect_count_24h"] = self._metrics["reconnects"]
-            self._reconnect_timestamps.append(datetime.now(timezone.utc).timestamp())
+            self._reconnect_timestamps.append(datetime.now(UTC).timestamp())
             # Prune reconnects older than 24h
-            cutoff_24h = datetime.now(timezone.utc).timestamp() - 86400
+            cutoff_24h = datetime.now(UTC).timestamp() - 86400
             self._reconnect_timestamps = [t for t in self._reconnect_timestamps if t > cutoff_24h]
             self._health["reconnect_count_24h"] = len(self._reconnect_timestamps)
             self._message_timestamps = []  # Reset on successful reconnect
@@ -182,7 +182,7 @@ class SchwabStreamer:
                 if not self._running:
                     break
                 self._metrics["messages_received"] += 1
-                now = datetime.now(timezone.utc)
+                now = datetime.now(UTC)
                 self._health["last_message_at"] = now.isoformat()
                 self._message_timestamps.append(now.timestamp())
                 # Prune timestamps older than 5 min
@@ -195,7 +195,7 @@ class SchwabStreamer:
 
         self._health["connected"] = False
 
-    async def _get_valid_token(self) -> Optional[str]:
+    async def _get_valid_token(self) -> str | None:
         """Get a valid access token, refreshing if needed."""
         token = self.tokens.get_access_token()
         if token and not self.tokens.is_expired():
@@ -220,7 +220,7 @@ class SchwabStreamer:
         await self._subscribe_lob_depth("SPY")
         await self._subscribe_lob_depth("QQQ")
 
-    async def _subscribe_equities(self, symbols: List[str]):
+    async def _subscribe_equities(self, symbols: list[str]):
         """Subscribe to Level 1 equities."""
         request = {
             "service": "LEVELONE_EQUITIES",
@@ -280,7 +280,7 @@ class SchwabStreamer:
         self._subscribed_symbols.add(f"LOB_DEPTH_{underlying}")
         logger.info(f"Subscribed to LOB depth: {underlying} ({num_levels} levels)")
 
-    async def _send(self, data: Dict[str, Any]):
+    async def _send(self, data: dict[str, Any]):
         """Send a JSON message over the WebSocket."""
         if self._ws:
             await self._ws.send(json.dumps(data))
@@ -315,18 +315,16 @@ class SchwabStreamer:
             self._metrics["errors"] += 1
             logger.error(f"Schwab streamer error: {error_msg}")
             for h in self._error_handlers:
-                try:
+                with contextlib.suppress(Exception):
                     await h(error_msg) if asyncio.iscoroutinefunction(h) else h(error_msg)
-                except Exception:
-                    pass
 
-    async def _parse_equity(self, msg: Dict[str, Any]):
+    async def _parse_equity(self, msg: dict[str, Any]):
         """Parse a Level 1 equity message into a tick dict."""
         content = msg.get("content", [])
         for item in content:
             try:
                 tick = {
-                    "timestamp": datetime.now(timezone.utc).isoformat(),
+                    "timestamp": datetime.now(UTC).isoformat(),
                     "symbol": item.get("key", ""),
                     "bid": float(item.get("1", 0)),
                     "ask": float(item.get("2", 0)),
@@ -345,7 +343,7 @@ class SchwabStreamer:
             except (ValueError, TypeError) as e:
                 logger.debug(f"Equity parse error: {e}")
 
-    async def _parse_option(self, msg: Dict[str, Any]):
+    async def _parse_option(self, msg: dict[str, Any]):
         """Parse a Level 1 option message into a chain dict."""
         content = msg.get("content", [])
         for item in content:
@@ -355,7 +353,7 @@ class SchwabStreamer:
                 parts = symbol.split()
                 underlying = parts[0] if parts else ""
                 chain = {
-                    "timestamp": datetime.now(timezone.utc).isoformat(),
+                    "timestamp": datetime.now(UTC).isoformat(),
                     "symbol": underlying,
                     "option_symbol": symbol,
                     "expiry": item.get("12", ""),  # expiration date
@@ -381,13 +379,13 @@ class SchwabStreamer:
             except (ValueError, TypeError, IndexError) as e:
                 logger.debug(f"Option parse error: {e}")
 
-    async def _parse_lob_depth(self, msg: Dict[str, Any]):
+    async def _parse_lob_depth(self, msg: dict[str, Any]):
         """Parse a Level 2 options depth message."""
         content = msg.get("content", [])
         for item in content:
             try:
                 depth = {
-                    "timestamp": datetime.now(timezone.utc).isoformat(),
+                    "timestamp": datetime.now(UTC).isoformat(),
                     "symbol": item.get("key", ""),
                     "expiry": item.get("11", ""),
                     "strike": float(item.get("10", 0)),
@@ -413,7 +411,7 @@ class SchwabStreamer:
     # Health
     # ------------------------------------------------------------------
 
-    def get_health(self) -> Dict[str, Any]:
+    def get_health(self) -> dict[str, Any]:
         """Return health status for monitoring."""
         return {
             **self._health,
@@ -424,7 +422,7 @@ class SchwabStreamer:
     # Metrics
     # ------------------------------------------------------------------
 
-    def get_metrics(self) -> Dict[str, Any]:
+    def get_metrics(self) -> dict[str, Any]:
         return {
             **self._metrics,
             "subscribed_symbols": list(self._subscribed_symbols),

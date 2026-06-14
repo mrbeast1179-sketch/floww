@@ -19,6 +19,8 @@ import pytest
 # Add backend to path so we can import services
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".."))
 
+import contextlib
+
 from services.alpha_vantage_client import (
     CircuitBreaker,
     CircuitBreakerOpenError,
@@ -54,10 +56,8 @@ async def test_success_in_closed_resets_failure_count():
     cb = CircuitBreaker(failure_threshold=5, recovery_timeout=0.1)
 
     for _ in range(3):
-        try:
+        with contextlib.suppress(RuntimeError):
             await cb.call(always_fails)
-        except RuntimeError:
-            pass
 
     assert cb.failure_count == 3
 
@@ -72,11 +72,9 @@ async def test_closed_to_open_after_n_failures():
     """Circuit opens after failure_threshold consecutive failures."""
     cb = CircuitBreaker(failure_threshold=5, recovery_timeout=0.1)
 
-    for i in range(5):
-        try:
+    for _i in range(5):
+        with contextlib.suppress(RuntimeError):
             await cb.call(always_fails)
-        except RuntimeError:
-            pass
 
     assert cb.state == CircuitState.OPEN
     assert cb.failure_count == 5
@@ -88,10 +86,8 @@ async def test_open_circuit_raises_immediately():
     cb = CircuitBreaker(failure_threshold=2, recovery_timeout=10.0)
 
     for _ in range(2):
-        try:
+        with contextlib.suppress(RuntimeError):
             await cb.call(always_fails)
-        except RuntimeError:
-            pass
 
     assert cb.state == CircuitState.OPEN
 
@@ -105,10 +101,8 @@ async def test_open_to_half_open_after_timeout():
     cb = CircuitBreaker(failure_threshold=2, recovery_timeout=0.1)
 
     for _ in range(2):
-        try:
+        with contextlib.suppress(RuntimeError):
             await cb.call(always_fails)
-        except RuntimeError:
-            pass
 
     assert cb.state == CircuitState.OPEN
 
@@ -125,10 +119,8 @@ async def test_half_open_to_closed_on_success():
     cb = CircuitBreaker(failure_threshold=2, recovery_timeout=0.1)
 
     for _ in range(2):
-        try:
+        with contextlib.suppress(RuntimeError):
             await cb.call(always_fails)
-        except RuntimeError:
-            pass
 
     assert cb.state == CircuitState.OPEN
 
@@ -146,10 +138,8 @@ async def test_half_open_to_open_on_failure():
     cb = CircuitBreaker(failure_threshold=2, recovery_timeout=0.1)
 
     for _ in range(2):
-        try:
+        with contextlib.suppress(RuntimeError):
             await cb.call(always_fails)
-        except RuntimeError:
-            pass
 
     assert cb.state == CircuitState.OPEN
 
@@ -168,10 +158,8 @@ async def test_circuit_breaker_recovers_after_temporary_failure():
 
     # Phase 1: Cause 3 failures -> OPEN
     for _ in range(3):
-        try:
+        with contextlib.suppress(RuntimeError):
             await cb.call(always_fails)
-        except RuntimeError:
-            pass
 
     assert cb.state == CircuitState.OPEN
 
@@ -191,10 +179,8 @@ async def test_custom_threshold_and_timeout():
 
     # 2 failures should NOT open (threshold is 3)
     for _ in range(2):
-        try:
+        with contextlib.suppress(RuntimeError):
             await cb.call(always_fails)
-        except RuntimeError:
-            pass
 
     assert cb.state == CircuitState.CLOSED
 

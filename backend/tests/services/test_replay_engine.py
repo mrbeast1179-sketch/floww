@@ -7,12 +7,14 @@ from __future__ import annotations
 
 import asyncio
 import sys
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta, timezone
 from pathlib import Path
 
 import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+
+import contextlib
 
 from services.duckdb_engine import DuckDBEngine
 from services.replay_engine import ReplayEngine
@@ -26,7 +28,7 @@ class TestReplayEngine:
         """Replay should read ticks from DuckDB and push to handlers."""
         db = DuckDBEngine(":memory:")
         # Insert test data
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         for i in range(10):
             ts = (now + timedelta(seconds=i)).isoformat()
             db.conn.execute(
@@ -52,7 +54,7 @@ class TestReplayEngine:
     async def test_replay_respects_speed(self):
         """Replay at 1x speed should take roughly the right amount of time."""
         db = DuckDBEngine(":memory:")
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         for i in range(5):
             ts = (now + timedelta(seconds=i)).isoformat()
             db.conn.execute(
@@ -85,7 +87,7 @@ class TestReplayEngine:
     async def test_replay_no_data(self):
         """Replay with no data should complete without error."""
         db = DuckDBEngine(":memory:")
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         collected = []
         engine = ReplayEngine(
             db=db,
@@ -101,7 +103,7 @@ class TestReplayEngine:
     async def test_replay_stop(self):
         """Replay should be stoppable."""
         db = DuckDBEngine(":memory:")
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         for i in range(100):
             ts = (now + timedelta(seconds=i)).isoformat()
             db.conn.execute(
@@ -124,10 +126,8 @@ class TestReplayEngine:
         task = asyncio.create_task(engine.start())
         await asyncio.sleep(0.1)
         await engine.stop()
-        try:
+        with contextlib.suppress(TimeoutError):
             await asyncio.wait_for(task, timeout=2.0)
-        except asyncio.TimeoutError:
-            pass
 
         # Should have collected some but not all
         assert 0 < len(collected) < 100
@@ -135,7 +135,7 @@ class TestReplayEngine:
     def test_replay_status(self):
         """Status should reflect engine state."""
         db = DuckDBEngine(":memory:")
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         engine = ReplayEngine(db=db, start=now, end=now + timedelta(hours=1), speed=10.0)
         status = engine.get_status()
         assert status["running"] is False
@@ -145,7 +145,7 @@ class TestReplayEngine:
     async def test_replay_chains(self):
         """Replay should also replay chain data."""
         db = DuckDBEngine(":memory:")
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         for i in range(5):
             ts = (now + timedelta(minutes=i)).isoformat()
             db.conn.execute(

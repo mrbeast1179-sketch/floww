@@ -20,8 +20,8 @@ import hashlib
 import json
 import logging
 import os
-from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional, Tuple, Union
+from datetime import UTC, datetime
+from typing import Any
 
 from dotenv import load_dotenv
 from pydantic import BaseModel
@@ -98,12 +98,12 @@ class SingleLeg(BaseModel):
     side: str  # "buy" or "sell"
     qty: int = 1
 
-Strategy = Union[IronCondor, Straddle, Strangle, VerticalSpread, CalendarSpread, SingleLeg]
+Strategy = IronCondor | Straddle | Strangle | VerticalSpread | CalendarSpread | SingleLeg
 
-Strategy = Union[IronCondor, Straddle, Strangle, VerticalSpread, CalendarSpread, SingleLeg]
+Strategy = IronCondor | Straddle | Strangle | VerticalSpread | CalendarSpread | SingleLeg
 
 
-def generate_client_order_id(intent: Dict[str, Any], session_salt: str = "") -> str:
+def generate_client_order_id(intent: dict[str, Any], session_salt: str = "") -> str:
     """Generate deterministic client order ID. Same intent + salt = same ID."""
     import json
     content = json.dumps(intent, sort_keys=True) + session_salt
@@ -136,10 +136,10 @@ def calculate_position_size(
 
 
 def build_order_from_signal(
-    signal: Dict[str, Any],
+    signal: dict[str, Any],
     ticker: str,
     spot_price: float,
-) -> Optional[Dict[str, Any]]:
+) -> dict[str, Any] | None:
     """Build an Alpaca order from a trading signal."""
     signal_type = signal.get("type", "")
 
@@ -193,9 +193,9 @@ def build_order_from_signal(
 
 
 async def execute_paper_trade(
-    order: Dict[str, Any],
+    order: dict[str, Any],
     qty: int = 1,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Execute a paper trade via Alpaca."""
     client = get_alpaca_client()
     if not client:
@@ -227,7 +227,7 @@ async def execute_paper_trade(
             "ticker": ticker,
             "qty": qty,
             "result": result,
-            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "timestamp": datetime.now(UTC).isoformat(),
         }
 
     except Exception as e:
@@ -237,9 +237,9 @@ async def execute_paper_trade(
 
 async def process_signals_for_ticker(
     ticker: str,
-    signals: List[Dict[str, Any]],
+    signals: list[dict[str, Any]],
     auto_trade: bool = False,
-) -> List[Dict[str, Any]]:
+) -> list[dict[str, Any]]:
     """Process trading signals and optionally execute trades."""
     results = []
 
@@ -282,14 +282,14 @@ class TradeIntent(BaseModel):
     qty: int = 1
     strategy: Strategy
     max_premium: float = 100.0
-    notes: Optional[str] = None
+    notes: str | None = None
 
 
 def check_risk(
     intent: TradeIntent,
-    portfolio: Optional[Dict[str, Any]] = None,
-    account: Optional[Dict[str, Any]] = None,
-) -> Tuple[bool, str]:
+    portfolio: dict[str, Any] | None = None,
+    account: dict[str, Any] | None = None,
+) -> tuple[bool, str]:
     """Minimum-viable risk gate. Returns (ok, reason)."""
     if intent.qty <= 0:
         return False, "qty must be > 0"
@@ -306,7 +306,7 @@ def check_risk(
     return True, "ok"
 
 
-def _model_paths(model_id: str = ACTIVE_MODEL_ID) -> Tuple[str, str, str]:
+def _model_paths(model_id: str = ACTIVE_MODEL_ID) -> tuple[str, str, str]:
     """Resolve paths for the active model + scaler + meta. Refuses quarantined dirs."""
     models_dir = os.path.join(os.path.dirname(__file__), "..", "models")
     version = model_id.split("_")[-1] if "_" in model_id else ACTIVE_MODEL_VERSION
@@ -331,10 +331,10 @@ def _load_active_model(model_id: str = ACTIVE_MODEL_ID):
     model = joblib.load(model_path)
     scaler = joblib.load(scaler_path)
 
-    feature_names: List[str] = []
+    feature_names: list[str] = []
     if os.path.exists(meta_path):
         try:
-            with open(meta_path, "r") as fh:
+            with open(meta_path) as fh:
                 meta = json.load(fh)
             feature_names = list(meta.get("feature_names") or [])
         except Exception as exc:  # noqa: BLE001 — best-effort metadata
@@ -342,7 +342,7 @@ def _load_active_model(model_id: str = ACTIVE_MODEL_ID):
     return model, scaler, feature_names
 
 
-async def _latest_feature_row(ticker: str, feature_names: List[str]) -> Optional[Dict[str, Any]]:
+async def _latest_feature_row(ticker: str, feature_names: list[str]) -> dict[str, Any] | None:
     """Fetch the most recent precomputed feature row for ``ticker`` from Mongo.
 
     Falls back to computing a fresh row via services.ml.features.compute_features
@@ -376,7 +376,7 @@ async def _latest_feature_row(ticker: str, feature_names: List[str]) -> Optional
         return None
 
 
-def _build_feature_vector(row: Dict[str, Any], feature_names: List[str]):
+def _build_feature_vector(row: dict[str, Any], feature_names: list[str]):
     """Project a Mongo feature doc into the model's expected feature order."""
     import numpy as np
 
@@ -391,9 +391,9 @@ def _build_feature_vector(row: Dict[str, Any], feature_names: List[str]):
     return np.array([values], dtype=float), feature_names
 
 
-def _nearest_weekly_expiry(today: Optional[datetime] = None) -> str:
+def _nearest_weekly_expiry(today: datetime | None = None) -> str:
     """Return ISO date of the next Friday (or today if Friday). Weekly options proxy."""
-    now = today or datetime.now(timezone.utc)
+    now = today or datetime.now(UTC)
     days_to_friday = (4 - now.weekday()) % 7  # Mon=0 ... Fri=4
     target = now.date() if days_to_friday == 0 else now.date()
     if days_to_friday > 0:
@@ -410,7 +410,7 @@ def _atm_strike(spot: float) -> float:
         return 0.0
 
 
-async def daily_paper_trade_dry_run(ticker: str = "SPY") -> Dict[str, Any]:
+async def daily_paper_trade_dry_run(ticker: str = "SPY") -> dict[str, Any]:
     """Predict, build a TradeIntent, run the risk gate, and log the intent.
 
     DRY-RUN ONLY. No Alpaca order submission. The hard guard
@@ -418,8 +418,8 @@ async def daily_paper_trade_dry_run(ticker: str = "SPY") -> Dict[str, Any]:
     does not call any submit/place endpoint — that wiring is intentionally
     deferred to a future PR (post SPY v1.0 audit).
     """
-    timestamp = datetime.now(timezone.utc)
-    result: Dict[str, Any] = {
+    timestamp = datetime.now(UTC)
+    result: dict[str, Any] = {
         "ticker": ticker,
         "model_id": ACTIVE_MODEL_ID,
         "mode": "dry_run",

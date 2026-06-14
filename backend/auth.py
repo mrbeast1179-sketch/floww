@@ -61,10 +61,7 @@ def get_ws_token() -> str:
 
 def is_public_path(path: str) -> bool:
     """Check if a path is public (no auth required)."""
-    for public_path in PUBLIC_PATHS:
-        if path.startswith(public_path):
-            return True
-    return False
+    return any(path.startswith(public_path) for public_path in PUBLIC_PATHS)
 
 
 async def verify_api_key(request: Request):

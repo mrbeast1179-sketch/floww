@@ -6,7 +6,7 @@ Compute GEX features from a live options chain for ML inference.
 from __future__ import annotations
 
 import logging
-from typing import Any, Dict, Optional
+from typing import Any
 
 import numpy as np
 
@@ -22,7 +22,7 @@ GEX_REQUIRED_FEATURES = frozenset({
 })
 
 
-def fetch_options_chain(ticker: str, max_expiries: int = 2) -> Optional[Dict[str, Any]]:
+def fetch_options_chain(ticker: str, max_expiries: int = 2) -> dict[str, Any] | None:
     """Fetch the current options chain via yfinance."""
     try:
         import yfinance as yf
@@ -89,11 +89,11 @@ def fetch_options_chain(ticker: str, max_expiries: int = 2) -> Optional[Dict[str
         return None
 
 
-def compute_gex_features(chain: Dict[str, Any]) -> Dict[str, float]:
+def compute_gex_features(chain: dict[str, Any]) -> dict[str, float]:
     """Compute GEX features from an options chain snapshot."""
     spot = chain.get("spot", 0)
     contracts = chain.get("contracts", [])
-    features: Dict[str, float] = {}
+    features: dict[str, float] = {}
 
     if not contracts or spot <= 0:
         return _empty_gex_features(features)
@@ -101,7 +101,7 @@ def compute_gex_features(chain: Dict[str, Any]) -> Dict[str, float]:
     calls = [c for c in contracts if c["type"] in ("C", "CALL")]
     puts = [c for c in contracts if c["type"] in ("P", "PUT")]
 
-    gex_by_strike: Dict[float, float] = {}
+    gex_by_strike: dict[float, float] = {}
     total_call_gex = 0.0
     total_put_gex = 0.0
     total_dex_val = 0.0
@@ -172,7 +172,7 @@ def compute_gex_features(chain: Dict[str, Any]) -> Dict[str, float]:
     return features
 
 
-def _empty_gex_features(features: Dict[str, float]) -> Dict[str, float]:
+def _empty_gex_features(features: dict[str, float]) -> dict[str, float]:
     defaults = {
         "call_gex": 0.0, "put_gex": 0.0,
         "net_call_gex": 0.0, "net_put_gex": 0.0, "net_gex": 0.0,

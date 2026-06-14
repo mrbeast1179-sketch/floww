@@ -11,8 +11,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
-from datetime import date, datetime, timezone
-from typing import Optional
+from datetime import UTC, date, datetime
 
 logger = logging.getLogger(__name__)
 
@@ -37,11 +36,11 @@ class KillSwitch:
             block_new_trades()
     """
 
-    def __init__(self, config: Optional[KillSwitchConfig] = None):
+    def __init__(self, config: KillSwitchConfig | None = None):
         self.config = config or KillSwitchConfig()
         self._tripped = False
         self._trip_reason = ""
-        self._trip_time: Optional[datetime] = None
+        self._trip_time: datetime | None = None
         self._daily_starting_equity: float = 0.0
         self._peak_equity: float = 0.0
         self._current_equity: float = 0.0
@@ -58,7 +57,7 @@ class KillSwitch:
         return self._trip_reason
 
     @property
-    def trip_time(self) -> Optional[datetime]:
+    def trip_time(self) -> datetime | None:
         return self._trip_time
 
     def reset(self):
@@ -141,5 +140,5 @@ class KillSwitch:
     def _trip(self, reason: str):
         self._tripped = True
         self._trip_reason = reason
-        self._trip_time = datetime.now(timezone.utc)
+        self._trip_time = datetime.now(UTC)
         logger.critical(f"KillSwitch: TRIPPED — {reason}")

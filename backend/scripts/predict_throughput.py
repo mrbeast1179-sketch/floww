@@ -26,7 +26,7 @@ import math
 import pickle
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 PRIORITY_MAP = {"low": 0, "medium": 1, "high": 2, "critical": 3}
 
@@ -44,7 +44,7 @@ logger = logging.getLogger(__name__)
 
 # ── Card Parser ──────────────────────────────────────────────────────────────
 
-def parse_card(card_file: Path) -> Optional[Dict[str, Any]]:
+def parse_card(card_file: Path) -> dict[str, Any] | None:
     """Parse a kanban card markdown file with YAML frontmatter."""
     try:
         content = Path(card_file).read_text()
@@ -68,9 +68,7 @@ def parse_card(card_file: Path) -> Optional[Dict[str, Any]]:
             value = value.strip()
 
             # Strip quotes
-            if value.startswith('"') and value.endswith('"'):
-                value = value[1:-1]
-            elif value.startswith("'") and value.endswith("'"):
+            if value.startswith('"') and value.endswith('"') or value.startswith("'") and value.endswith("'"):
                 value = value[1:-1]
 
             # Parse lists
@@ -91,7 +89,7 @@ def parse_card(card_file: Path) -> Optional[Dict[str, Any]]:
 
 # ── Feature Extraction ───────────────────────────────────────────────────────
 
-def extract_features(parsed: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+def extract_features(parsed: dict[str, Any]) -> dict[str, Any] | None:
     """Extract ML features from a parsed kanban card. Only for done cards."""
     if parsed.get("status") != "done":
         return None
@@ -151,7 +149,7 @@ def extract_features(parsed: Dict[str, Any]) -> Optional[Dict[str, Any]]:
 
 # ── History Loading ──────────────────────────────────────────────────────────
 
-def load_history(history_dir: Optional[Path] = None) -> List[Dict[str, Any]]:
+def load_history(history_dir: Path | None = None) -> list[dict[str, Any]]:
     """Load historical card completion data."""
     if history_dir is None:
         history_dir = Path(__file__).resolve().parent.parent / "data" / "kanban_history"
@@ -179,8 +177,8 @@ class EnsembleRegressor:
     def __init__(self):
         self.trained = False
         self.global_mean: float = 4.0
-        self.agent_means: Dict[str, float] = {}
-        self.feature_weights: Dict[str, float] = {
+        self.agent_means: dict[str, float] = {}
+        self.feature_weights: dict[str, float] = {
             "agent_mean": 0.8,
             "estimate": 0.5,
             "priority": -0.2,
@@ -193,7 +191,7 @@ class EnsembleRegressor:
         self.train_mape: float = 0.0
         self.train_accuracy_20pct: float = 0.0
 
-    def train(self, data: List[Dict[str, Any]], epochs: int = 20) -> None:
+    def train(self, data: list[dict[str, Any]], epochs: int = 20) -> None:
         """Train the ensemble on historical completion data."""
         if not data:
             self.global_mean = 4.0
@@ -209,7 +207,7 @@ class EnsembleRegressor:
         self.global_mean = sum(completions) / len(completions)
 
         # Compute per-agent means
-        agent_data: Dict[str, List[float]] = {}
+        agent_data: dict[str, list[float]] = {}
         for d in data:
             agent = d.get("agent", "unknown")
             hours = d.get("completion_hours", 0)
@@ -268,7 +266,7 @@ class EnsembleRegressor:
         self.train_accuracy_20pct = correct_20pct / len(data) if data else 0.0
         self.trained = True
 
-    def _linear_predict(self, features: Dict[str, float]) -> float:
+    def _linear_predict(self, features: dict[str, float]) -> float:
         """Linear regression prediction."""
         pred = self.bias
         for key, weight in self.feature_weights.items():
@@ -288,7 +286,7 @@ class EnsembleRegressor:
         mean = self.agent_means.get(agent, self.global_mean)
         return max(0.1, mean)
 
-    def predict(self, features: Dict[str, Any]) -> Dict[str, Any]:
+    def predict(self, features: dict[str, Any]) -> dict[str, Any]:
         """Predict completion time with confidence intervals."""
         agent = features.get("agent", "unknown")
 
@@ -341,10 +339,10 @@ class EnsembleRegressor:
             "sub_model_predictions": {k: round(v, 2) for k, v in sub_models.items()},
         }
 
-    def get_agent_stats(self, history_dir: Optional[Path] = None) -> Dict[str, Dict[str, Any]]:
+    def get_agent_stats(self, history_dir: Path | None = None) -> dict[str, dict[str, Any]]:
         """Get per-agent completion statistics."""
         data = load_history(history_dir)
-        stats: Dict[str, Dict[str, Any]] = {}
+        stats: dict[str, dict[str, Any]] = {}
 
         for d in data:
             agent = d.get("agent", "unknown")
@@ -364,7 +362,7 @@ class EnsembleRegressor:
 # ── Drift Detection ──────────────────────────────────────────────────────────
 
 def check_drift(model: EnsembleRegressor, threshold_mape: float = 0.20,
-                history_dir: Optional[Path] = None) -> Dict[str, Any]:
+                history_dir: Path | None = None) -> dict[str, Any]:
     """Check if the new data has drifted from the trained model's distribution.
 
     Uses *expected outcome shift* (per-agent mean vs new actual mean) as the

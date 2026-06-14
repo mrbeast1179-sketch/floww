@@ -17,7 +17,6 @@ from __future__ import annotations
 import logging
 import math
 from dataclasses import dataclass, field
-from typing import Dict, List
 
 import numpy as np
 
@@ -52,12 +51,12 @@ class BacktestResult:
     commission_per_contract: float = 0.0
 
     # Time series
-    equity_curve: List[float] = field(default_factory=list)
-    drawdown_curve: List[float] = field(default_factory=list)
-    bar_returns: List[float] = field(default_factory=list)
+    equity_curve: list[float] = field(default_factory=list)
+    drawdown_curve: list[float] = field(default_factory=list)
+    bar_returns: list[float] = field(default_factory=list)
 
     # Trades
-    trades: List[TradeRecord] = field(default_factory=list)
+    trades: list[TradeRecord] = field(default_factory=list)
 
     # Counters
     total_bars: int = 0
@@ -67,11 +66,11 @@ class BacktestResult:
     total_sell_puts: int = 0
 
     # Computed metrics (populated by compute_metrics)
-    metrics: Dict[str, float] = field(default_factory=dict)
+    metrics: dict[str, float] = field(default_factory=dict)
 
-    def compute_metrics(self) -> Dict[str, float]:
+    def compute_metrics(self) -> dict[str, float]:
         """Compute all summary metrics from the result data."""
-        m: Dict[str, float] = {}
+        m: dict[str, float] = {}
 
         n_trades = len(self.trades)
         m["n_trades"] = float(n_trades)

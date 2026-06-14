@@ -24,8 +24,8 @@ from __future__ import annotations
 import logging
 import uuid
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional
+from datetime import UTC, datetime
+from typing import Any
 
 from services.trading_signals import Signal
 
@@ -62,7 +62,7 @@ class PaperPosition:
     def close(self, exit_price: float) -> float:
         """Close position and compute realized P&L."""
         self.exit_price = exit_price
-        self.exit_time = datetime.now(timezone.utc).isoformat()
+        self.exit_time = datetime.now(UTC).isoformat()
         if self.side == "LONG":
             self.realized_pnl = (exit_price - self.entry_price) * self.quantity
         else:
@@ -70,7 +70,7 @@ class PaperPosition:
         self.status = "closed"
         return self.realized_pnl
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "symbol": self.symbol,
             "side": self.side,
@@ -98,9 +98,9 @@ class PaperTradeRecord:
     entry_time: str
     exit_time: str
     realized_pnl: float
-    signal_data: Dict[str, Any] = field(default_factory=dict)
+    signal_data: dict[str, Any] = field(default_factory=dict)
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "trade_id": self.trade_id,
             "symbol": self.symbol,
@@ -152,9 +152,9 @@ class PaperTrader:
         self.mongo = mongo_collection
 
         # State
-        self.positions: Dict[str, PaperPosition] = {}  # symbol -> position
-        self.trade_history: List[PaperTradeRecord] = []
-        self.order_log: List[Dict[str, Any]] = []
+        self.positions: dict[str, PaperPosition] = {}  # symbol -> position
+        self.trade_history: list[PaperTradeRecord] = []
+        self.order_log: list[dict[str, Any]] = []
         self._order_counter = 0
 
         # Rate limit backoff
@@ -165,7 +165,7 @@ class PaperTrader:
     # Helpers
     # ------------------------------------------------------------------
 
-    def _find_open_position(self, symbol: str, side: str) -> Optional[str]:
+    def _find_open_position(self, symbol: str, side: str) -> str | None:
         """Find an open position key for a given symbol and side.
 
         Returns the position key if found, None otherwise.
@@ -191,8 +191,8 @@ class PaperTrader:
         signal: Signal,
         symbol: str,
         current_price: float,
-        signal_data: Optional[Dict[str, Any]] = None,
-    ) -> Dict[str, Any]:
+        signal_data: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
         """Execute a trading signal.
 
         Parameters
@@ -225,8 +225,8 @@ class PaperTrader:
         self,
         symbol: str,
         price: float,
-        signal_data: Optional[Dict[str, Any]] = None,
-    ) -> Dict[str, Any]:
+        signal_data: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
         """Execute BUY: cover shorts if any, then add long position."""
         result = {"action": "BUY", "symbol": symbol}
 
@@ -238,11 +238,10 @@ class PaperTrader:
 
         # Check position limits
         open_count = sum(1 for p in self.positions.values() if p.status == "open")
-        if open_count >= self.max_positions:
-            if not self._has_open_position(symbol):
-                result["status"] = "rejected"
-                result["reason"] = f"Max positions ({self.max_positions}) reached"
-                return result
+        if open_count >= self.max_positions and not self._has_open_position(symbol):
+            result["status"] = "rejected"
+            result["reason"] = f"Max positions ({self.max_positions}) reached"
+            return result
 
         # Calculate position size
         position_value = self.cash * self.position_size_pct
@@ -266,7 +265,7 @@ class PaperTrader:
             side="LONG",
             quantity=quantity,
             entry_price=price,
-            entry_time=datetime.now(timezone.utc).isoformat(),
+            entry_time=datetime.now(UTC).isoformat(),
             order_id=order_id,
         )
         self.positions[f"{symbol}_LONG_{order_id}"] = position
@@ -297,8 +296,8 @@ class PaperTrader:
         self,
         symbol: str,
         price: float,
-        signal_data: Optional[Dict[str, Any]] = None,
-    ) -> Dict[str, Any]:
+        signal_data: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
         """Execute SELL: cover longs if any, then add short position."""
         result = {"action": "SELL", "symbol": symbol}
 
@@ -310,11 +309,10 @@ class PaperTrader:
 
         # Check position limits
         open_count = sum(1 for p in self.positions.values() if p.status == "open")
-        if open_count >= self.max_positions:
-            if not self._has_open_position(symbol):
-                result["status"] = "rejected"
-                result["reason"] = f"Max positions ({self.max_positions}) reached"
-                return result
+        if open_count >= self.max_positions and not self._has_open_position(symbol):
+            result["status"] = "rejected"
+            result["reason"] = f"Max positions ({self.max_positions}) reached"
+            return result
 
         # Calculate position size
         position_value = self.cash * self.position_size_pct
@@ -334,7 +332,7 @@ class PaperTrader:
             side="SHORT",
             quantity=quantity,
             entry_price=price,
-            entry_time=datetime.now(timezone.utc).isoformat(),
+            entry_time=datetime.now(UTC).isoformat(),
             order_id=order_id,
         )
         self.positions[f"{symbol}_SHORT_{order_id}"] = position
@@ -361,7 +359,7 @@ class PaperTrader:
         logger.info(f"SELL {quantity} {symbol} @ {price} (order {order_id})")
         return result
 
-    def _close_position(self, symbol: str, exit_price: float) -> Dict[str, Any]:
+    def _close_position(self, symbol: str, exit_price: float) -> dict[str, Any]:
         """Close an open position for the given symbol."""
         # Find the open position for this symbol
         close_key = None
@@ -414,7 +412,7 @@ class PaperTrader:
     # MongoDB persistence
     # ------------------------------------------------------------------
 
-    def _persist_order(self, order: Dict[str, Any]) -> None:
+    def _persist_order(self, order: dict[str, Any]) -> None:
         """Persist order to MongoDB if collection is available."""
         if self.mongo is None:
             return
@@ -436,7 +434,7 @@ class PaperTrader:
             import asyncio
             loop = asyncio.get_event_loop()
             doc = trade.to_dict()
-            doc["logged_at"] = datetime.now(timezone.utc).isoformat()
+            doc["logged_at"] = datetime.now(UTC).isoformat()
             if loop.is_running():
                 asyncio.create_task(_log_failed_insert(self.mongo.insert_one(doc), "trade"))
             else:
@@ -448,7 +446,7 @@ class PaperTrader:
     # Portfolio summary
     # ------------------------------------------------------------------
 
-    def get_portfolio_summary(self, current_prices: Optional[Dict[str, float]] = None) -> Dict[str, Any]:
+    def get_portfolio_summary(self, current_prices: dict[str, float] | None = None) -> dict[str, Any]:
         """Get current portfolio summary.
 
         Parameters
@@ -460,7 +458,7 @@ class PaperTrader:
         open_positions = []
         total_unrealized = 0.0
 
-        for key, pos in self.positions.items():
+        for _key, pos in self.positions.items():
             if pos.status != "open":
                 continue
             current_price = current_prices.get(pos.symbol, pos.entry_price)
@@ -496,7 +494,7 @@ class PaperTrader:
             "total_orders": len(self.order_log),
         }
 
-    def get_state(self) -> Dict[str, Any]:
+    def get_state(self) -> dict[str, Any]:
         """Return full state for serialization."""
         return {
             "cash": round(self.cash, 2),

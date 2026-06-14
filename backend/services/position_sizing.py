@@ -123,10 +123,7 @@ def size_position(
     dollar_allocation = account_size * final_pct
 
     # Max whole contracts we can afford
-    if contract_value > 0:
-        max_contracts = int(dollar_allocation // contract_value)
-    else:
-        max_contracts = 0
+    max_contracts = int(dollar_allocation // contract_value) if contract_value > 0 else 0
 
     return KellyResult(
         kelly_fraction=raw_kelly / kelly_fraction if kelly_fraction != 0 else 0.0,

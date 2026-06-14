@@ -22,8 +22,8 @@ from __future__ import annotations
 
 import logging
 import os
-from datetime import datetime, timedelta, timezone
-from typing import Any, Dict, List, Optional
+from datetime import UTC, datetime, timedelta
+from typing import Any
 
 import numpy as np
 
@@ -57,7 +57,7 @@ class RetrainOrchestrator:
         self.models_col = db[COLLECTION_MODELS]
         self.predictions_col = db[COLLECTION_PREDICTIONS]
 
-    async def get_active_tickers(self) -> List[str]:
+    async def get_active_tickers(self) -> list[str]:
         """Get list of tickers with active models."""
         cursor = self.models_col.find({"status": "active"}, {"ticker": 1, "_id": 0})
         docs = await cursor.to_list(length=100)
@@ -73,14 +73,14 @@ class RetrainOrchestrator:
 
     async def is_retrain_on_cooldown(self, ticker: str) -> bool:
         """Check if enough time has passed since the last retrain."""
-        cutoff = datetime.now(timezone.utc) - timedelta(hours=RETRAIN_COOLDOWN_HOURS)
+        cutoff = datetime.now(UTC) - timedelta(hours=RETRAIN_COOLDOWN_HOURS)
         recent = await self.retrain_col.find_one({
             "ticker": ticker,
             "created_at": {"$gte": cutoff.isoformat()},
         })
         return recent is not None
 
-    async def detect_drift(self, ticker: str) -> Dict[str, Any]:
+    async def detect_drift(self, ticker: str) -> dict[str, Any]:
         """Check if drift has been detected for a ticker's recent predictions.
 
         Returns drift report with:
@@ -112,7 +112,7 @@ class RetrainOrchestrator:
             "drift_report": drift_report,
         }
 
-    async def _build_features_for_ticker(self, ticker: str) -> Optional[Any]:
+    async def _build_features_for_ticker(self, ticker: str) -> Any | None:
         """Build feature matrix from recent snapshots + outcomes for retraining."""
         import pandas as pd
 
@@ -153,7 +153,7 @@ class RetrainOrchestrator:
         df = df.dropna(subset=["label"])
         return df
 
-    def _extract_snapshot_features(self, snapshot: Dict) -> Optional[Dict]:
+    def _extract_snapshot_features(self, snapshot: dict) -> dict | None:
         """Extract numeric features from a snapshot document."""
         spot = snapshot.get("spot", 0)
         if not spot or spot <= 0:
@@ -199,18 +199,18 @@ class RetrainOrchestrator:
 
         return features
 
-    async def _update_retrain(self, retrain_id: str, status: str, result: Dict) -> None:
+    async def _update_retrain(self, retrain_id: str, status: str, result: dict) -> None:
         """Update retrain document with status and result."""
         await self.retrain_col.update_one(
             {"retrain_id": retrain_id},
             {"$set": {
                 "status": status,
-                "completed_at": datetime.now(timezone.utc).isoformat(),
+                "completed_at": datetime.now(UTC).isoformat(),
                 "result": result,
             }},
         )
 
-    async def check_and_retrain(self, ticker: str) -> Dict[str, Any]:
+    async def check_and_retrain(self, ticker: str) -> dict[str, Any]:
         """Check drift for a ticker and trigger retraining if needed.
 
         Returns a status dict:

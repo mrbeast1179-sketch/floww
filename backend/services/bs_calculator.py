@@ -25,7 +25,6 @@ from __future__ import annotations
 
 import logging
 import time
-from typing import Dict
 
 import numpy as np
 
@@ -60,7 +59,7 @@ class BSCalculator:
         expiries: np.ndarray,
         ivs: np.ndarray,
         kinds: np.ndarray,
-    ) -> Dict[str, np.ndarray]:
+    ) -> dict[str, np.ndarray]:
         """Compute the full Greek surface for an option chain.
 
         Args:
@@ -90,12 +89,12 @@ class BSCalculator:
 
     def fill_nan_greeks(
         self,
-        upstream: Dict[str, np.ndarray],
+        upstream: dict[str, np.ndarray],
         strikes: np.ndarray,
         expiries: np.ndarray,
         ivs: np.ndarray,
         kinds: np.ndarray,
-    ) -> Dict[str, np.ndarray]:
+    ) -> dict[str, np.ndarray]:
         """Replace NaN entries in an upstream Greek dict with BS values.
 
         This is the primary integration point for the fallback pattern::
@@ -114,7 +113,7 @@ class BSCalculator:
             Same dict with NaN elements replaced by Black-Scholes values.
         """
         computed = self.compute_chain(strikes, expiries, ivs, kinds)
-        cleaned: Dict[str, np.ndarray] = {}
+        cleaned: dict[str, np.ndarray] = {}
         for key in computed:
             if key in upstream:
                 arr = np.array(upstream[key], dtype=np.float64).copy()

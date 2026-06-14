@@ -19,8 +19,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from datetime import datetime, timedelta, timezone
-from typing import List, Optional
+from datetime import UTC, datetime, timedelta
 
 from fastapi import APIRouter, HTTPException, Query
 
@@ -40,7 +39,7 @@ async def _get_db():
 @router.post("/record")
 async def record_prediction(
     ticker: str = Query(..., description="Ticker symbol"),
-    model_id: Optional[str] = Query(None, description="Model ID"),
+    model_id: str | None = Query(None, description="Model ID"),
 ):
     """Record a live prediction for outcome tracking.
 
@@ -54,10 +53,10 @@ async def record_prediction(
     try:
         result = await inference_engine.predict(ticker)
     except Exception as e:
-        raise HTTPException(status_code=503, detail=f"Prediction failed: {e}")
+        raise HTTPException(status_code=503, detail=f"Prediction failed: {e}") from e
 
     db = await _get_db()
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
 
     # Outcome date = next trading day (simply tomorrow for now)
     outcome_date = now + timedelta(days=1)
@@ -99,7 +98,7 @@ async def record_prediction(
 
 
 @router.post("/batch-record")
-async def batch_record(tickers: Optional[List[str]] = Query(None)):
+async def batch_record(tickers: list[str] | None = Query(None)):  # noqa: B008
     """Record predictions for multiple tickers (or all registered models)."""
     from services.ml.inference import MODEL_REGISTRY
 
@@ -133,7 +132,7 @@ async def compute_outcomes():
     from services.ml.inference import compute_live_features
 
     db = await _get_db()
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
 
     # Find predictions needing outcome computation
     cursor = db["ml_predictions"].find({
@@ -157,10 +156,7 @@ async def compute_outcomes():
                 actual_return = features_df["ret_1d"].iloc[-1] if "ret_1d" in features_df.columns else 0
             else:
                 # Approximate: use mean of recent daily returns
-                if "ret_1d" in features_df.columns:
-                    actual_return = features_df["ret_1d"].mean()
-                else:
-                    actual_return = 0.0
+                actual_return = features_df["ret_1d"].mean() if "ret_1d" in features_df.columns else 0.0
 
             # 3-class outcome
             if actual_return > 0.003:
@@ -193,16 +189,16 @@ async def compute_outcomes():
 
 @router.get("/accuracy")
 async def get_accuracy(
-    ticker: Optional[str] = Query(None),
+    ticker: str | None = Query(None),
     days: int = Query(30, ge=1, le=365),
-    model_id: Optional[str] = Query(None),
+    model_id: str | None = Query(None),
 ):
     """Get prediction accuracy statistics.
 
     Overall, per-class, per-ticker, and calibration.
     """
     db = await _get_db()
-    since = datetime.now(timezone.utc) - timedelta(days=days)
+    since = datetime.now(UTC) - timedelta(days=days)
 
     match = {
         "predicted_at": {"$gte": since},
@@ -315,7 +311,7 @@ async def get_accuracy(
 
 @router.get("/recent")
 async def get_recent(
-    ticker: Optional[str] = Query(None),
+    ticker: str | None = Query(None),
     limit: int = Query(20, ge=1, le=100),
     with_outcomes_only: bool = Query(False),
 ):

@@ -16,7 +16,7 @@ import json
 import logging
 import time
 from dataclasses import asdict, dataclass, field
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -47,7 +47,7 @@ class TwitterCollector:
             "gamma squeeze",
         ]
 
-    def _run_xurl(self, args: List[str]) -> Optional[str]:
+    def _run_xurl(self, args: list[str]) -> str | None:
         """Run xurl command and return output."""
         import subprocess
         try:
@@ -69,11 +69,9 @@ class TwitterCollector:
     def is_authenticated(self) -> bool:
         """Check if xurl is authenticated."""
         output = self._run_xurl(["auth", "status"])
-        if output and "oauth2" in output.lower():
-            return True
-        return False
+        return bool(output and "oauth2" in output.lower())
 
-    def search_tweets(self, query: str, count: int = 20) -> List[Dict]:
+    def search_tweets(self, query: str, count: int = 20) -> list[dict]:
         """Search for tweets using xurl."""
         output = self._run_xurl(["search", query, "-n", str(count)])
         if not output:
@@ -97,7 +95,7 @@ class TwitterCollector:
             logger.warning(f"Failed to parse xurl search output: {output[:200]}")
             return []
 
-    def get_user_timeline(self, username: str, count: int = 20) -> List[Dict]:
+    def get_user_timeline(self, username: str, count: int = 20) -> list[dict]:
         """Get user timeline using xurl."""
         output = self._run_xurl(["timeline", "--of", username, "-n", str(count)])
         if not output:
@@ -120,7 +118,7 @@ class TwitterCollector:
         except json.JSONDecodeError:
             return []
 
-    def collect_options_sentiment(self, ticker: str = "SPY") -> List[Dict]:
+    def collect_options_sentiment(self, ticker: str = "SPY") -> list[dict]:
         """Collect options-related tweets for a ticker."""
         all_tweets = []
 
@@ -157,7 +155,7 @@ class TickerSentiment:
     total_retweets: int = 0
     sentiment_label: str = "neutral"  # bullish, bearish, neutral
     confidence: float = 0.0
-    top_tweets: List[Dict] = field(default_factory=list)
+    top_tweets: list[dict] = field(default_factory=list)
     updated_at: str = ""
 
 @dataclass
@@ -186,13 +184,13 @@ class SocialFlowReport:
     """Combined social + flow report for a ticker."""
     ticker: str
     generated_at: str = ""
-    sentiment: Optional[TickerSentiment] = None
-    flow_signals: List[OptionsFlowSignal] = field(default_factory=list)
-    gex_summary: Dict[str, Any] = field(default_factory=dict)
+    sentiment: TickerSentiment | None = None
+    flow_signals: list[OptionsFlowSignal] = field(default_factory=list)
+    gex_summary: dict[str, Any] = field(default_factory=dict)
     social_score: float = 0.0  # -1 to 1
     flow_score: float = 0.0    # -1 to 1
     combined_score: float = 0.0  # -1 to 1
-    signals: List[str] = field(default_factory=list)
+    signals: list[str] = field(default_factory=list)
 
 
 def save_report(report: SocialFlowReport, path: str):
@@ -209,7 +207,7 @@ def save_report(report: SocialFlowReport, path: str):
     logger.info(f"Report saved to {path}")
 
 
-def load_report(path: str) -> Optional[Dict]:
+def load_report(path: str) -> dict | None:
     """Load a report from JSON."""
     try:
         with open(path) as f:

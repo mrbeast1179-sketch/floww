@@ -21,7 +21,7 @@ import asyncio
 import json
 import os
 import sys
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 import numpy as np
@@ -113,7 +113,7 @@ def walk_forward_backtest(df, feature_cols, target_col, model, scaler, n_splits=
 
         # Trading Sharpe: go long when pred=1, short when pred=0
         rets = []
-        for pred, actual in zip(preds, y_test):
+        for pred, actual in zip(preds, y_test, strict=False):
             if pred == 1:
                 rets.append(1.0 if actual == 1 else -1.0)
             else:
@@ -232,7 +232,7 @@ async def run_backtest(tickers=None):
 
         # Trading Sharpe on all predictions
         rets = []
-        for pred, actual in zip(bt['all_preds'], bt['all_actuals']):
+        for pred, actual in zip(bt['all_preds'], bt['all_actuals'], strict=False):
             if pred == 1:
                 rets.append(1.0 if actual == 1 else -1.0)
             else:
@@ -275,7 +275,7 @@ async def run_backtest(tickers=None):
     # Generate report
     report_lines = [
         "# ML Backtest Report — Real Data",
-        f"**Date:** {datetime.now(timezone.utc).isoformat()}",
+        f"**Date:** {datetime.now(UTC).isoformat()}",
         f"**Samples:** {sum(r['n_samples'] for r in results.values())} total",
         "",
         "## Results Summary",

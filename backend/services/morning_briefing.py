@@ -23,7 +23,8 @@ from __future__ import annotations
 import logging
 import math
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional
+from datetime import UTC
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -244,7 +245,7 @@ def _oi_description(call_oi: int, put_oi: int) -> str:
         return f"OI balanced ({call_pct:.0f}% calls)"
 
 
-def _movers_description(top_movers: List[Dict[str, Any]]) -> str:
+def _movers_description(top_movers: list[dict[str, Any]]) -> str:
     """Format top movers into a brief string."""
     if not top_movers:
         return ""
@@ -270,7 +271,7 @@ def generate_narrative(
     flip_level: float,
     net_gex: float,
     iv_skew: float,
-    top_movers: List[Dict[str, Any]],
+    top_movers: list[dict[str, Any]],
     call_oi: int = 0,
     put_oi: int = 0,
 ) -> str:
@@ -356,7 +357,7 @@ class BriefingResult:
     regime: str
     narrative: str
     timestamp: str
-    metrics: Dict[str, Any] = field(default_factory=dict)
+    metrics: dict[str, Any] = field(default_factory=dict)
 
 
 # ────────────────────────────────────────────────────────────────────────
@@ -366,10 +367,10 @@ class BriefingResult:
 async def build_briefing(
     ticker: str,
     duckdb_conn: Any = None,
-    top_movers: Optional[List[Dict[str, Any]]] = None,
+    top_movers: list[dict[str, Any]] | None = None,
     spot: float = 0.0,
-    chain_contracts: Optional[List[Dict[str, Any]]] = None,
-    iv_skew_override: Optional[float] = None,
+    chain_contracts: list[dict[str, Any]] | None = None,
+    iv_skew_override: float | None = None,
 ) -> BriefingResult:
     """
     Build a complete briefing for a ticker.
@@ -385,9 +386,9 @@ async def build_briefing(
 
     Returns BriefingResult with regime, narrative, metrics, timestamp.
     """
-    from datetime import datetime, timezone
+    from datetime import datetime
 
-    now = datetime.now(timezone.utc).isoformat()
+    now = datetime.now(UTC).isoformat()
 
     # Default: produce UNKNOWN with no data
     if duckdb_conn is None and not chain_contracts and spot == 0.0:

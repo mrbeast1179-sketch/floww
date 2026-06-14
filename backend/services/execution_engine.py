@@ -28,8 +28,8 @@ from __future__ import annotations
 import logging
 import math
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional, Tuple
+from datetime import UTC, datetime
+from typing import Any
 
 import numpy as np
 
@@ -49,12 +49,12 @@ class Order:
     order_type: str = "market"  # "market", "limit", "twap", "vwap", "almgren_chriss"
     limit_price: float = 0.0
     urgency: float = 0.5  # 0=passive, 1=aggressive
-    created_at: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
+    created_at: str = field(default_factory=lambda: datetime.now(UTC).isoformat())
     filled_quantity: int = 0
     avg_fill_price: float = 0.0
     status: str = "pending"  # pending, partial, filled, cancelled, error
-    slices: List[Dict[str, Any]] = field(default_factory=list)
-    metadata: Dict[str, Any] = field(default_factory=dict)
+    slices: list[dict[str, Any]] = field(default_factory=list)
+    metadata: dict[str, Any] = field(default_factory=dict)
 
     @property
     def remaining(self) -> int:
@@ -100,7 +100,7 @@ class ExecutionResult:
     slippage_bps: float
     slices_executed: int
     duration_ms: float
-    timestamp: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
+    timestamp: str = field(default_factory=lambda: datetime.now(UTC).isoformat())
 
 
 # ---------------------------------------------------------------------------
@@ -133,7 +133,7 @@ class AlmgrenChrissExecutor:
     def compute_kappa(
         self,
         volatility: float,
-        risk_aversion: Optional[float] = None,
+        risk_aversion: float | None = None,
     ) -> float:
         """Compute κ = sqrt(λσ²/η).
 
@@ -155,8 +155,8 @@ class AlmgrenChrissExecutor:
         time_horizon: float,  # in seconds
         n_slices: int,
         volatility: float,
-        risk_aversion: Optional[float] = None,
-    ) -> List[float]:
+        risk_aversion: float | None = None,
+    ) -> list[float]:
         """Compute the optimal trading trajectory.
 
         Returns list of shares to trade at each time step.
@@ -193,8 +193,8 @@ class AlmgrenChrissExecutor:
         time_horizon: float,
         volatility: float,
         spread: float,
-        risk_aversion: Optional[float] = None,
-    ) -> Tuple[float, float, float]:
+        risk_aversion: float | None = None,
+    ) -> tuple[float, float, float]:
         """Compute expected execution cost decomposition.
 
         Returns: (expected_cost, permanent_impact_cost, timing_risk_cost)
@@ -269,7 +269,7 @@ class KyleLambdaEstimator:
         lam = self.estimate_lambda()
         return lam * order_size
 
-    def get_state(self) -> Dict[str, Any]:
+    def get_state(self) -> dict[str, Any]:
         return {
             "lambda": self.estimate_lambda(),
             "n_obs": len(self._price_changes),
@@ -294,9 +294,9 @@ class HasbrouckInfoShare:
 
     def __init__(self, n_venues: int = 2):
         self.n_venues = n_venues
-        self._returns: List[List[float]] = [[] for _ in range(n_venues)]
+        self._returns: list[list[float]] = [[] for _ in range(n_venues)]
 
-    def update(self, returns: List[float]):
+    def update(self, returns: list[float]):
         """Add a vector of returns from each venue."""
         for i, r in enumerate(returns):
             if i < self.n_venues:
@@ -304,7 +304,7 @@ class HasbrouckInfoShare:
                 if len(self._returns[i]) > 200:
                     self._returns[i] = self._returns[i][-200:]
 
-    def information_shares(self) -> List[float]:
+    def information_shares(self) -> list[float]:
         """Compute information shares for each venue."""
         min_len = min(len(r) for r in self._returns)
         if min_len < 10:
@@ -351,7 +351,7 @@ class ExecutionEngine:
         side: str,
         quantity: int,
         order_type: str = "almgren_chriss",
-        urgency: Optional[float] = None,
+        urgency: float | None = None,
         limit_price: float = 0.0,
     ) -> Order:
         """Create a new order."""
@@ -371,7 +371,7 @@ class ExecutionEngine:
         order: Order,
         market: MarketState,
         time_horizon_seconds: float = 300.0,
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """Plan the execution slices for an order.
 
         Uses Almgren-Chriss to determine optimal trajectory,
@@ -409,10 +409,7 @@ class ExecutionEngine:
 
             # Price impact from Kyle Lambda
             impact = kyle_impact_per_share * qty
-            if order.side == "buy":
-                expected_price = market.ask + impact
-            else:
-                expected_price = market.bid - impact
+            expected_price = market.ask + impact if order.side == "buy" else market.bid - impact
 
             slice_info = {
                 "slice_index": i,
@@ -431,7 +428,7 @@ class ExecutionEngine:
         order: Order,
         market: MarketState,
         time_horizon_seconds: float = 300.0,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Estimate the total execution cost before trading.
 
         Returns dict with cost breakdown.
@@ -462,7 +459,7 @@ class ExecutionEngine:
             "cost_bps": round((expected + implementation_shortfall) / (arrival_price * order.quantity) * 10000, 2) if arrival_price > 0 else 0,
         }
 
-    def get_state(self) -> Dict[str, Any]:
+    def get_state(self) -> dict[str, Any]:
         return {
             "kyle_lambda": self.kyle_lambda.get_state(),
             "hasbrouck_shares": self.hasbrouck.information_shares(),

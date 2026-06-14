@@ -101,7 +101,7 @@ class TestKyleLambda:
         kyle = KyleLambdaEstimator(window=200)
         true_lambda = 0.001
         np.random.seed(42)
-        for i in range(200):
+        for _i in range(200):
             signed_vol = np.random.normal(0, 1000)
             price_change = true_lambda * signed_vol + np.random.normal(0, 0.01)
             kyle.update(price_change, signed_vol)

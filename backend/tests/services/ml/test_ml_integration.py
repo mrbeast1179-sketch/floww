@@ -102,10 +102,7 @@ def test_registry_tickers_have_models_on_disk():
     from services.ml.inference import MODEL_REGISTRY
     models_dir = _models_dir()
     for ticker, entry in MODEL_REGISTRY.items():
-        if isinstance(entry, tuple):
-            model_file = Path(entry[0])
-        else:
-            model_file = Path(entry)
+        model_file = Path(entry[0]) if isinstance(entry, tuple) else Path(entry)
         if not model_file.is_absolute():
             model_file = models_dir / model_file.name
         if not model_file.exists():

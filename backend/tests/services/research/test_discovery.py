@@ -8,7 +8,6 @@ from __future__ import annotations
 
 import sys
 from pathlib import Path
-from typing import Dict, List
 
 # Add backend/ to sys.path so `services.research.discovery` is importable.
 sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
@@ -142,9 +141,9 @@ def test_arxiv_normalizes_whitespace_in_title_and_abstract():
 
 def test_arxiv_query_is_url_encoded_correctly():
     """Default: phrase-quoted query AND category filter (quantitative finance)."""
-    captured: Dict[str, str] = {}
+    captured: dict[str, str] = {}
 
-    def fake_get(url: str, hdr: Dict[str, str]) -> str:
+    def fake_get(url: str, hdr: dict[str, str]) -> str:
         captured["url"] = url
         captured["ua"] = hdr.get("User-Agent", "")
         return _arxiv_xml_empty()
@@ -168,9 +167,9 @@ def test_arxiv_query_is_url_encoded_correctly():
 def test_arxiv_query_without_categories():
     """`categories=None` disables the category filter — useful for cross-category
     searches (e.g. ML conferences on stock prediction)."""
-    captured: Dict[str, str] = {}
+    captured: dict[str, str] = {}
 
-    def fake_get(url: str, hdr: Dict[str, str]) -> str:
+    def fake_get(url: str, hdr: dict[str, str]) -> str:
         captured["url"] = url
         return _arxiv_xml_empty()
 
@@ -183,9 +182,9 @@ def test_arxiv_query_without_categories():
 
 
 def test_arxiv_custom_categories_override_default():
-    captured: Dict[str, str] = {}
+    captured: dict[str, str] = {}
 
-    def fake_get(url: str, hdr: Dict[str, str]) -> str:
+    def fake_get(url: str, hdr: dict[str, str]) -> str:
         captured["url"] = url
         return _arxiv_xml_empty()
 
@@ -293,7 +292,7 @@ def test_discover_all_skips_sources_with_no_queries():
 
 
 def test_search_many_sleeps_between_calls(monkeypatch):
-    sleeps: List[float] = []
+    sleeps: list[float] = []
     monkeypatch.setattr(
         "services.research.discovery.time.sleep",
         lambda s: sleeps.append(s),

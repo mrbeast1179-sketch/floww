@@ -43,7 +43,7 @@ from scripts.train_with_baselines import compute_trading_sharpe
 def _sharpe(predictions, actuals):
     """Compute annualized trading Sharpe."""
     rets = []
-    for p, a in zip(predictions, actuals):
+    for p, a in zip(predictions, actuals, strict=False):
         if p == 1:
             rets.append(1.0 if a == 1 else -1.0)
     if len(rets) < 2:
@@ -156,7 +156,7 @@ def backtest_regime_filtered(
     filtered_count = 0
     total_signals = 0
 
-    for fold_idx, (train_X, train_y, test_X, test_y, test_ts) in enumerate(splits):
+    for _fold_idx, (train_X, train_y, test_X, test_y, test_ts) in enumerate(splits):
         if len(train_X) < 50 or len(test_X) < 10:
             continue
 

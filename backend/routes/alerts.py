@@ -1,7 +1,8 @@
 """API routes for the alert system."""
 
 import logging
-from typing import Any, Dict, List
+from datetime import UTC
+from typing import Any
 
 from fastapi import APIRouter, Query, WebSocket, WebSocketDisconnect
 
@@ -22,7 +23,7 @@ def get_alert_engine():
 
 
 # Connected WebSocket clients for signal streaming
-_signal_clients: List[WebSocket] = []
+_signal_clients: list[WebSocket] = []
 
 
 @router.websocket("/ws/signals")
@@ -57,7 +58,7 @@ async def get_alerts_summary():
         JSON with total, critical, warning, info counts and last_24h breakdown.
     """
     import math
-    from datetime import datetime, timedelta, timezone
+    from datetime import datetime, timedelta
 
     try:
         engine = get_alert_engine()
@@ -68,7 +69,7 @@ async def get_alerts_summary():
         warning = 0
         info = 0
         last_24h = 0
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         cutoff = now - timedelta(hours=24)
 
         for ticker in tickers:
@@ -145,7 +146,7 @@ async def get_alerts(ticker: str, momentum_score: int = Query(50, ge=0, le=100))
 
 
 @router.post("/snapshot")
-async def add_snapshot(snapshot: Dict[str, Any]):
+async def add_snapshot(snapshot: dict[str, Any]):
     """Add a GEX snapshot for alert detection."""
     try:
         from alert_engine import GEXSnapshot

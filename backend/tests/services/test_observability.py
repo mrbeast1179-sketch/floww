@@ -184,7 +184,7 @@ def test_vpin_engine_emits_metrics():
 
     engine = VpinEngine(bucket_size=100.0, window=10, ticker="SPY")
     # Feed enough volume to trigger bucket finalize
-    for i in range(20):
+    for _i in range(20):
         engine.update(price_change=0.01, volume=10.0, sigma=0.2, dt=1.0)
 
     output = get_metrics_bytes().decode()
@@ -201,7 +201,7 @@ def test_vpin_engine_no_ticker_no_metrics():
     from services.vpin_engine import VpinEngine
 
     engine = VpinEngine(bucket_size=100.0, window=10)  # no ticker
-    for i in range(20):
+    for _i in range(20):
         engine.update(price_change=0.01, volume=10.0, sigma=0.2, dt=1.0)
 
     # Engine should still work fine

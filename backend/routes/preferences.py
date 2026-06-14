@@ -13,8 +13,8 @@ Endpoints:
 from __future__ import annotations
 
 import logging
-from datetime import datetime, timezone
-from typing import Any, Dict
+from datetime import UTC, datetime
+from typing import Any
 
 from fastapi import APIRouter, HTTPException
 
@@ -24,7 +24,7 @@ router = APIRouter(prefix="/api/preferences", tags=["preferences"])
 
 # In-memory store for preferences (session-scoped)
 # In production, this would use user authentication
-_preferences: Dict[str, Any] = {
+_preferences: dict[str, Any] = {
     "theme": "dark",
     "default_ticker": "SPY",
     "refresh_ms": 25000,
@@ -38,7 +38,7 @@ async def get_preferences():
 
 
 @router.post("/theme")
-async def set_theme(pref: Dict[str, str]):
+async def set_theme(pref: dict[str, str]):
     """Set theme preference."""
     theme = pref.get("theme", "dark")
     if theme not in ("dark", "light"):
@@ -50,7 +50,7 @@ async def set_theme(pref: Dict[str, str]):
         from server import db
         await db.preferences.update_one(
             {"_id": "default"},
-            {"$set": {"theme": theme, "updated_at": datetime.now(timezone.utc).isoformat()}},
+            {"$set": {"theme": theme, "updated_at": datetime.now(UTC).isoformat()}},
             upsert=True,
         )
     except Exception as e:
@@ -60,7 +60,7 @@ async def set_theme(pref: Dict[str, str]):
 
 
 @router.post("/")
-async def set_preferences(prefs: Dict[str, Any]):
+async def set_preferences(prefs: dict[str, Any]):
     """Set arbitrary preferences."""
     for key, value in prefs.items():
         if key == "theme" and value not in ("dark", "light"):
@@ -74,7 +74,7 @@ async def set_preferences(prefs: Dict[str, Any]):
         from server import db
         await db.preferences.update_one(
             {"_id": "default"},
-            {"$set": {**_preferences, "updated_at": datetime.now(timezone.utc).isoformat()}},
+            {"$set": {**_preferences, "updated_at": datetime.now(UTC).isoformat()}},
             upsert=True,
         )
     except Exception as e:

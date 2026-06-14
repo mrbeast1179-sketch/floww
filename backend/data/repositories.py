@@ -9,8 +9,8 @@ Provides repository pattern for MongoDB access with:
 """
 
 import logging
-from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional
+from datetime import UTC, datetime
+from typing import Any
 
 from motor.motor_asyncio import AsyncIOMotorDatabase
 from pydantic import BaseModel
@@ -32,7 +32,7 @@ class GexSnapshot(BaseModel):
     top_floor: float = 0
     top_ceiling: float = 0
     regime: str = "unknown"  # POSITIVE, NEGATIVE, unknown
-    strikes_compact: List[Dict[str, float]] = []
+    strikes_compact: list[dict[str, float]] = []
 
     class Config:
         json_schema_extra = {
@@ -59,11 +59,11 @@ class AlertHistory(BaseModel):
     alert_type: str
     priority: str  # HIGH, MEDIUM, LOW
     message: str
-    snapshot_id: Optional[str] = None
-    predicate_value: Optional[float] = None
-    ml_prediction: Optional[Dict[str, Any]] = None
-    realized_outcome: Optional[Dict[str, Any]] = None  # Filled later
-    quality_score: Optional[float] = None  # From backtest
+    snapshot_id: str | None = None
+    predicate_value: float | None = None
+    ml_prediction: dict[str, Any] | None = None
+    realized_outcome: dict[str, Any] | None = None  # Filled later
+    quality_score: float | None = None  # From backtest
 
     class Config:
         json_schema_extra = {
@@ -85,9 +85,9 @@ class OrderRecord(BaseModel):
     side: str  # buy, sell
     quantity: float
     order_type: str  # market, limit, stop
-    limit_price: Optional[float] = None
-    alpaca_order_id: Optional[str] = None
-    filled_price: Optional[float] = None
+    limit_price: float | None = None
+    alpaca_order_id: str | None = None
+    filled_price: float | None = None
     created_at: str = ""
     updated_at: str = ""
 
@@ -99,9 +99,9 @@ class PositionRecord(BaseModel):
     quantity: float
     entry_price: float
     entry_ts: str = ""
-    exit_price: Optional[float] = None
-    exit_ts: Optional[str] = None
-    events: List[Dict[str, Any]] = []
+    exit_price: float | None = None
+    exit_ts: str | None = None
+    events: list[dict[str, Any]] = []
 
 
 class GexSnapshotRepository:
@@ -122,7 +122,7 @@ class GexSnapshotRepository:
         result = await self.collection.insert_one(doc)
         return str(result.inserted_id)
 
-    async def find_latest(self, ticker: str) -> Optional[GexSnapshot]:
+    async def find_latest(self, ticker: str) -> GexSnapshot | None:
         """Find the latest snapshot for a ticker."""
         doc = await self.collection.find_one(
             {"ticker": ticker},
@@ -130,7 +130,7 @@ class GexSnapshotRepository:
         )
         return GexSnapshot(**doc) if doc else None
 
-    async def find_previous(self, ticker: str, before_ts: str) -> Optional[GexSnapshot]:
+    async def find_previous(self, ticker: str, before_ts: str) -> GexSnapshot | None:
         """Find the snapshot before a given timestamp."""
         doc = await self.collection.find_one(
             {"ticker": ticker, "ts": {"$lt": before_ts}},
@@ -144,7 +144,7 @@ class GexSnapshotRepository:
         start_ts: str,
         end_ts: str,
         limit: int = 1000,
-    ) -> List[GexSnapshot]:
+    ) -> list[GexSnapshot]:
         """Find snapshots in a time range."""
         cursor = self.collection.find(
             {"ticker": ticker, "ts": {"$gte": start_ts, "$lte": end_ts}},
@@ -180,7 +180,7 @@ class AlertHistoryRepository:
         self,
         ticker: str,
         limit: int = 100,
-    ) -> List[AlertHistory]:
+    ) -> list[AlertHistory]:
         """Find alerts for a ticker."""
         cursor = self.collection.find(
             {"ticker": ticker},
@@ -192,7 +192,7 @@ class AlertHistoryRepository:
     async def update_outcome(
         self,
         alert_id: str,
-        outcome: Dict[str, Any],
+        outcome: dict[str, Any],
     ):
         """Update the realized outcome of an alert."""
         await self.collection.update_one(
@@ -219,7 +219,7 @@ class OrderRepository:
         result = await self.collection.insert_one(doc)
         return str(result.inserted_id)
 
-    async def find_by_client_id(self, client_order_id: str) -> Optional[OrderRecord]:
+    async def find_by_client_id(self, client_order_id: str) -> OrderRecord | None:
         """Find order by client order ID."""
         doc = await self.collection.find_one({"client_order_id": client_order_id})
         return OrderRecord(**doc) if doc else None
@@ -228,13 +228,13 @@ class OrderRepository:
         self,
         client_order_id: str,
         status: str,
-        alpaca_order_id: Optional[str] = None,
-        filled_price: Optional[float] = None,
+        alpaca_order_id: str | None = None,
+        filled_price: float | None = None,
     ):
         """Update order status."""
         update = {
             "status": status,
-            "updated_at": datetime.now(timezone.utc).isoformat(),
+            "updated_at": datetime.now(UTC).isoformat(),
         }
         if alpaca_order_id:
             update["alpaca_order_id"] = alpaca_order_id
@@ -246,7 +246,7 @@ class OrderRepository:
             {"$set": update},
         )
 
-    async def find_open_orders(self, ticker: Optional[str] = None) -> List[OrderRecord]:
+    async def find_open_orders(self, ticker: str | None = None) -> list[OrderRecord]:
         """Find open orders."""
         query = {"status": {"$in": ["pending", "partial"]}}
         if ticker:
@@ -273,7 +273,7 @@ class PositionRepository:
         result = await self.collection.insert_one(doc)
         return str(result.inserted_id)
 
-    async def find_open_positions(self, ticker: Optional[str] = None) -> List[PositionRecord]:
+    async def find_open_positions(self, ticker: str | None = None) -> list[PositionRecord]:
         """Find open positions."""
         query = {"status": "open"}
         if ticker:
@@ -282,7 +282,7 @@ class PositionRepository:
         cursor = self.collection.find(query, sort=[("entry_ts", -1)])
         return [PositionRecord(**doc) async for doc in cursor]
 
-    async def add_event(self, position_id: str, event: Dict[str, Any]):
+    async def add_event(self, position_id: str, event: dict[str, Any]):
         """Add an event to a position's event log."""
         await self.collection.update_one(
             {"_id": position_id},
@@ -301,7 +301,7 @@ class PositionRepository:
             {"$set": {
                 "status": "closed",
                 "exit_price": exit_price,
-                "exit_ts": datetime.now(timezone.utc).isoformat(),
+                "exit_ts": datetime.now(UTC).isoformat(),
                 "pnl": pnl,
             }},
         )
@@ -313,7 +313,7 @@ class DataQualityChecker:
     """Validates data quality for incoming snapshots."""
 
     @staticmethod
-    def validate_snapshot(snapshot: GexSnapshot) -> List[str]:
+    def validate_snapshot(snapshot: GexSnapshot) -> list[str]:
         """Validate a snapshot. Returns list of issues (empty = valid)."""
         issues = []
 
@@ -335,7 +335,7 @@ class DataQualityChecker:
         return issues
 
     @staticmethod
-    def validate_alert(alert: AlertHistory) -> List[str]:
+    def validate_alert(alert: AlertHistory) -> list[str]:
         """Validate an alert record."""
         issues = []
 

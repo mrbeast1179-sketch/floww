@@ -27,7 +27,7 @@ import logging
 import os
 import sys
 import time
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 import joblib
@@ -72,7 +72,8 @@ def load_production_model(ticker: str):
     if not manifest_files:
         raise ValueError(f"No production manifest for {ticker}")
 
-    manifest = json.load(open(sorted(manifest_files)[-1]))
+    with open(sorted(manifest_files)[-1]) as _f:
+        manifest = json.load(_f)
     model_path = manifest.get("model_path", "")
     scaler_path = manifest.get("scaler_path", "")
 
@@ -250,10 +251,7 @@ def walk_forward_backtest(
         # Per-class accuracy
         for cls in [0, 1, 2]:
             mask = y_test == cls
-            if mask.sum() > 0:
-                _cls_acc = accuracy_score(y_test[mask], test_pred[mask])
-            else:
-                _cls_acc = 0.0
+            _cls_acc = accuracy_score(y_test[mask], test_pred[mask]) if mask.sum() > 0 else 0.0
 
         fold_metrics.append({
             "fold": i + 1,
@@ -401,7 +399,7 @@ def main():
             print(f"{ticker:<8} {r['model_type']:<10} {r['overall_accuracy']:>8.4f} {r.get('directional_accuracy', 0):>8.4f} {r['majority_baseline']:>8.4f} {pnl.get('sharpe', 0):>8.2f} {pnl.get('total_return', 0):>9.1%} {pnl.get('buy_hold_return', 0):>9.1%} {pnl.get('win_rate', 0):>7.1%}")
 
     # Save report
-    report_path = REPORTS_DIR / f"backtest_production_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}.json"
+    report_path = REPORTS_DIR / f"backtest_production_{datetime.now(UTC).strftime('%Y%m%d_%H%M%S')}.json"
     with open(report_path, "w") as f:
         json.dump(all_results, f, indent=2, default=str)
     log.info(f"\nReport saved: {report_path}")

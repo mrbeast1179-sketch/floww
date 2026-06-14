@@ -18,7 +18,7 @@ import asyncio
 import os
 import sys
 import time
-from typing import Dict, Optional
+from typing import Optional
 
 import pytest
 
@@ -37,7 +37,7 @@ from services.data_fallback import (
 # ── Helpers ──────────────────────────────────────────────────────────────
 
 
-def make_failing_fetcher(error: Exception = ConnectionError("HTTP 500")):
+def make_failing_fetcher(error: Exception = ConnectionError("HTTP 500")):  # noqa: B008
     """Create a fetcher that always fails."""
     async def fetcher(symbol):
         raise error
@@ -52,7 +52,7 @@ def make_slow_fetcher(delay_s: float = 10.0):
     return fetcher
 
 
-def make_working_fetcher(data: Optional[Dict] = None):
+def make_working_fetcher(data: dict | None = None):
     """Create a fetcher that returns valid data."""
     async def fetcher(symbol):
         if data:

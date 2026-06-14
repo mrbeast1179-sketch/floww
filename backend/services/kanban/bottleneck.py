@@ -13,7 +13,7 @@ Surface to ARCHITECT_BRIEF.md.
 """
 
 from collections import defaultdict
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
@@ -34,7 +34,7 @@ def compute_agent_metrics(cards: list[dict]) -> dict:
         "last_update_hours_ago": 0,
     })
 
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
 
     for card in cards:
         assignee = card.get("assignee", "unknown")
@@ -66,7 +66,7 @@ def compute_agent_metrics(cards: list[dict]) -> dict:
                 pass
 
     # Compute derived metrics
-    for agent, metrics in agents.items():
+    for _agent, metrics in agents.items():
         total = metrics["total_cards"]
         if total > 0:
             metrics["blocker_rate"] = metrics["blocker_count"] / total
@@ -131,7 +131,7 @@ def run_bottleneck_check() -> dict:
         "bottlenecks": bottlenecks,
         "agent_metrics": agent_metrics,
         "report": report,
-        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "timestamp": datetime.now(UTC).isoformat(),
     }
 
 
@@ -161,7 +161,7 @@ def load_cards() -> list[dict]:
 def format_bottleneck_report(bottlenecks: list[dict], agent_metrics: dict) -> str:
     """Format bottleneck report for ARCHITECT_BRIEF.md."""
     lines = [
-        f"## Bottleneck Report — {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC')}",
+        f"## Bottleneck Report — {datetime.now(UTC).strftime('%Y-%m-%d %H:%M UTC')}",
         "",
     ]
 

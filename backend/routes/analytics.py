@@ -13,8 +13,7 @@ All /api/analytics/* endpoints now:
 from __future__ import annotations
 
 import logging
-from datetime import datetime, timezone
-from typing import Optional
+from datetime import UTC, datetime
 
 from fastapi import APIRouter, HTTPException, Query
 
@@ -197,7 +196,7 @@ async def vanna_exposure_endpoint(
             "spot": spot,
             "strikes": sorted_strikes,
             "vanna": [strike_vanna[k] for k in sorted_strikes],
-            "asof": datetime.now(timezone.utc).isoformat(),
+            "asof": datetime.now(UTC).isoformat(),
         })
     except HTTPException:
         raise
@@ -235,7 +234,7 @@ async def advanced_analytics(
             "hedge_impulse": calc_hedge_impulse_curve(spot, contracts, t),
             "pressure_cloud": calc_pressure_cloud(spot, contracts, t),
             "charm_integral": calc_charm_integral(spot, contracts, t),
-            "asof": datetime.now(timezone.utc).isoformat(),
+            "asof": datetime.now(UTC).isoformat(),
         })
     except HTTPException:
         raise
@@ -288,7 +287,7 @@ async def daily_checklist(
         return _sanitize({
             "ticker": ticker.strip().upper(),
             "spot": spot,
-            "asof": datetime.now(timezone.utc).isoformat(),
+            "asof": datetime.now(UTC).isoformat(),
             "regime": {
                 "gex_regime": gf["regime"],
                 "market_regime": regime_data.get("regime", "unknown"),
@@ -310,10 +309,10 @@ async def movers(
     try:
         from server import _fetch_movers_sync
         data = _fetch_movers_sync()
-        return {"results": data[:limit], "asof": datetime.now(timezone.utc).isoformat()}
+        return {"results": data[:limit], "asof": datetime.now(UTC).isoformat()}
     except Exception as e:
         logger.warning(f"movers error: {e}")
-        return {"results": [], "status": "degraded", "reason": str(e), "asof": datetime.now(timezone.utc).isoformat()}
+        return {"results": [], "status": "degraded", "reason": str(e), "asof": datetime.now(UTC).isoformat()}
 
 
 @router.get("/history/{ticker}")
@@ -325,7 +324,7 @@ async def history(
         from datetime import timedelta
 
         from server import db as mongo_db
-        cutoff = datetime.now(timezone.utc) - timedelta(days=days)
+        cutoff = datetime.now(UTC) - timedelta(days=days)
         cursor = mongo_db.snapshots.find(
             {"ticker": ticker.upper(), "ts": {"$gte": cutoff}},
             {"_id": 0},
@@ -346,7 +345,7 @@ async def patterns_glossary():
 @router.get("/contract/{ticker}")
 async def contract(
     ticker: str,
-    expiry: Optional[str] = None,
+    expiry: str | None = None,
     expiries: int = Query(default=12, ge=1, le=12),
     max_age_seconds: int = Query(default=300, ge=0, le=3600),
 ):
@@ -399,7 +398,7 @@ async def flow(
         from datetime import timedelta
 
         from server import db as mongo_db
-        cutoff = datetime.now(timezone.utc) - timedelta(days=days)
+        cutoff = datetime.now(UTC) - timedelta(days=days)
         cursor = mongo_db.flow.find(
             {"ticker": ticker.upper(), "ts": {"$gte": cutoff}},
             {"_id": 0},
@@ -437,7 +436,7 @@ async def regime_stats(
         from datetime import timedelta
 
         from server import db as mongo_db
-        cutoff = datetime.now(timezone.utc) - timedelta(days=days)
+        cutoff = datetime.now(UTC) - timedelta(days=days)
         cursor = mongo_db.snapshots.find(
             {"ticker": ticker.upper(), "ts": {"$gte": cutoff}},
             {"regime": 1, "ts": 1, "_id": 0},
@@ -480,7 +479,7 @@ async def correlation(
 
         from server import db as mongo_db
         syms = [t.strip().upper() for t in tickers.split(",") if t.strip()]
-        cutoff = datetime.now(timezone.utc) - timedelta(days=days)
+        cutoff = datetime.now(UTC) - timedelta(days=days)
 
         data = {}
         for sym in syms:

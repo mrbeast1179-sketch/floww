@@ -24,7 +24,7 @@ import math
 import re
 from collections import Counter
 from pathlib import Path
-from typing import Any, Dict, List, Tuple
+from typing import Any
 
 logger = logging.getLogger("semantic_search")
 
@@ -33,15 +33,15 @@ class TfidfEmbedder:
     """Simple TF-IDF embedder as fallback when Sentence-BERT is unavailable."""
 
     def __init__(self):
-        self.vocab: Dict[str, int] = {}
-        self.idf: Dict[str, float] = {}
+        self.vocab: dict[str, int] = {}
+        self.idf: dict[str, float] = {}
         self.doc_count = 0
 
-    def _tokenize(self, text: str) -> List[str]:
+    def _tokenize(self, text: str) -> list[str]:
         """Simple tokenizer: lowercase, split on non-alpha, filter short."""
         return [w for w in re.split(r'[^a-z0-9]+', text.lower()) if len(w) > 1]
 
-    def fit(self, documents: List[str]) -> None:
+    def fit(self, documents: list[str]) -> None:
         """Build vocabulary and IDF from documents."""
         self.doc_count = len(documents)
         df: Counter = Counter()
@@ -54,7 +54,7 @@ class TfidfEmbedder:
         for token, count in df.items():
             self.idf[token] = math.log((self.doc_count + 1) / (count + 1)) + 1
 
-    def embed(self, text: str) -> List[float]:
+    def embed(self, text: str) -> list[float]:
         """Convert text to TF-IDF vector."""
         tokens = self._tokenize(text)
         tf = Counter(tokens)
@@ -70,15 +70,15 @@ class TfidfEmbedder:
             vec = [v / norm for v in vec]
         return vec
 
-    def embed_batch(self, documents: List[str]) -> List[List[float]]:
+    def embed_batch(self, documents: list[str]) -> list[list[float]]:
         return [self.embed(d) for d in documents]
 
 
-def cosine_similarity(a: List[float], b: List[float]) -> float:
+def cosine_similarity(a: list[float], b: list[float]) -> float:
     """Compute cosine similarity between two vectors."""
     if not a or not b or len(a) != len(b):
         return 0.0
-    dot = sum(x * y for x, y in zip(a, b))
+    dot = sum(x * y for x, y in zip(a, b, strict=False))
     return max(0.0, min(1.0, dot))
 
 
@@ -97,10 +97,10 @@ class SemanticSearchEngine:
         self.conn = duckdb.connect(db_path)
         self._duckdb = duckdb
         self._embedder = None
-        self._doc_embeddings: List[List[float]] = []
-        self._doc_texts: List[str] = []
-        self._doc_ids: List[str] = []
-        self._doc_types: List[str] = []
+        self._doc_embeddings: list[list[float]] = []
+        self._doc_texts: list[str] = []
+        self._doc_ids: list[str] = []
+        self._doc_types: list[str] = []
 
     def close(self) -> None:
         self.conn.close()
@@ -110,7 +110,7 @@ class SemanticSearchEngine:
             self._embedder = TfidfEmbedder()
         return self._embedder
 
-    def _trade_to_text(self, trade: Dict) -> str:
+    def _trade_to_text(self, trade: dict) -> str:
         """Convert a trade record to searchable text."""
         parts = [
             f"{trade.get('side', '')} trade",
@@ -125,7 +125,7 @@ class SemanticSearchEngine:
             parts.append("losing loss")
         return " ".join(parts)
 
-    def _signal_to_text(self, signal: Dict) -> str:
+    def _signal_to_text(self, signal: dict) -> str:
         parts = [
             f"signal {signal.get('signal_type', '')}",
             f"direction {signal.get('direction', '')}",
@@ -133,7 +133,7 @@ class SemanticSearchEngine:
         ]
         return " ".join(parts)
 
-    def _condition_to_text(self, cond: Dict) -> str:
+    def _condition_to_text(self, cond: dict) -> str:
         parts = [
             f"regime {cond.get('regime', '')}",
             f"volatility {cond.get('volatility', 0)}",
@@ -158,7 +158,7 @@ class SemanticSearchEngine:
             return 0
 
         cols = [d[0] for d in self.conn.description]
-        trades = [dict(zip(cols, r)) for r in trades]
+        trades = [dict(zip(cols, r, strict=False)) for r in trades]
 
         self._doc_texts = []
         self._doc_ids = []
@@ -187,7 +187,7 @@ class SemanticSearchEngine:
         logger.info(f"Indexed {len(self._doc_texts)} trades for semantic search")
         return len(self._doc_texts)
 
-    def _retail_flow_to_text(self, flow: Dict) -> str:
+    def _retail_flow_to_text(self, flow: dict) -> str:
         """Convert a retail flow record to searchable text."""
         parts = [
             "retail flow",
@@ -225,7 +225,7 @@ class SemanticSearchEngine:
 
         return " ".join(parts)
 
-    def _price_movement_to_text(self, pm: Dict) -> str:
+    def _price_movement_to_text(self, pm: dict) -> str:
         parts = [
             "price movement",
             f"symbol {pm.get('symbol', '')}",
@@ -257,7 +257,7 @@ class SemanticSearchEngine:
             return 0
 
         cols = [d[0] for d in self.conn.description]
-        flows = [dict(zip(cols, r)) for r in flows]
+        flows = [dict(zip(cols, r, strict=False)) for r in flows]
 
         new_texts = []
         new_ids = []
@@ -292,8 +292,8 @@ class SemanticSearchEngine:
         return trade_count + flow_count
 
     def search(self, query: str, top_k: int = 10,
-               filters: Dict[str, Any] = None,
-               doc_type: str = None) -> List[Dict]:
+               filters: dict[str, Any] = None,
+               doc_type: str = None) -> list[dict]:
         """
         Search trades by natural language query.
 
@@ -312,7 +312,7 @@ class SemanticSearchEngine:
         query_vec = embedder.embed(query)
 
         # Score all documents
-        scores: List[Tuple[int, float]] = []
+        scores: list[tuple[int, float]] = []
         for i, doc_vec in enumerate(self._doc_embeddings):
             score = cosine_similarity(query_vec, doc_vec)
             scores.append((i, score))
@@ -339,7 +339,7 @@ class SemanticSearchEngine:
                 if not row:
                     continue
                 cols = [d[0] for d in self.conn.description]
-                item_dict = dict(zip(cols, row))
+                item_dict = dict(zip(cols, row, strict=False))
             elif current_type == 'retail_flow':
                 row = self.conn.execute(
                     "SELECT * FROM retail_flow_scores WHERE id = ?", [doc_id]
@@ -347,7 +347,7 @@ class SemanticSearchEngine:
                 if not row:
                     continue
                 cols = [d[0] for d in self.conn.description]
-                item_dict = dict(zip(cols, row))
+                item_dict = dict(zip(cols, row, strict=False))
             else:
                 continue
 
@@ -420,7 +420,7 @@ class SemanticSearchEngine:
         return results
 
     def search_profitable_buys(self, min_vpin_cdf: float = 0.0,
-                                top_k: int = 10) -> List[Dict]:
+                                top_k: int = 10) -> list[dict]:
         """Find profitable buy trades, optionally filtered by VPIN CDF."""
         return self.search(
             "profitable buy trade high VPIN winner",
@@ -429,7 +429,7 @@ class SemanticSearchEngine:
         )
 
     def search_losing_trades(self, regime: str = None,
-                              top_k: int = 10) -> List[Dict]:
+                              top_k: int = 10) -> list[dict]:
         """Find losing trades, optionally filtered by regime."""
         filters = {"max_pnl": -0.01}
         if regime:
@@ -441,7 +441,7 @@ class SemanticSearchEngine:
         )
 
     def search_by_signal(self, signal_type: str, direction: str = None,
-                          top_k: int = 10) -> List[Dict]:
+                          top_k: int = 10) -> list[dict]:
         """Find trades triggered by a specific signal type."""
         query = f"trade triggered by {signal_type} signal"
         if direction:
@@ -449,7 +449,7 @@ class SemanticSearchEngine:
         return self.search(query, top_k=top_k)
 
     def search_retail_flow_bullish(self, symbol: str = None,
-                                    top_k: int = 10) -> List[Dict]:
+                                    top_k: int = 10) -> list[dict]:
         """Find bullish retail flow events."""
         filters = {"min_score": 0.3}
         if symbol:
@@ -462,7 +462,7 @@ class SemanticSearchEngine:
         )
 
     def search_retail_flow_bearish(self, symbol: str = None,
-                                    top_k: int = 10) -> List[Dict]:
+                                    top_k: int = 10) -> list[dict]:
         """Find bearish retail flow events."""
         filters = {"max_score": -0.3}
         if symbol:
@@ -475,7 +475,7 @@ class SemanticSearchEngine:
         )
 
     def search_sweep_heavy_flow(self, symbol: str = None,
-                                 top_k: int = 10) -> List[Dict]:
+                                 top_k: int = 10) -> list[dict]:
         """Find institutional sweep-heavy flow events."""
         if symbol:
             return self.search(
@@ -491,7 +491,7 @@ class SemanticSearchEngine:
         )
 
     def search_small_lot_dominated(self, symbol: str = None,
-                                    top_k: int = 10) -> List[Dict]:
+                                    top_k: int = 10) -> list[dict]:
         """Find retail-dominated small-lot flow events."""
         return self.search(
             "retail dominated small lots flow",
@@ -502,7 +502,7 @@ class SemanticSearchEngine:
 
     def search_flow_with_price_movement(self, direction: str = "UP",
                                          symbol: str = None,
-                                         top_k: int = 10) -> List[Dict]:
+                                         top_k: int = 10) -> list[dict]:
         """Find retail flow events followed by a specific price direction."""
         query = f"retail flow followed by {direction} price movement"
         filters = {}

@@ -14,8 +14,8 @@ from __future__ import annotations
 import hashlib
 import logging
 import time
-from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional
+from datetime import UTC, datetime
+from typing import Any
 
 import httpx
 
@@ -32,7 +32,7 @@ class PositionTracker:
     """In-memory position tracker with Mongo persistence."""
 
     def __init__(self):
-        self._positions: Dict[str, int] = {}  # ticker -> qty
+        self._positions: dict[str, int] = {}  # ticker -> qty
         self._last_persist = 0.0
 
     def update(self, ticker: str, qty: int):
@@ -41,7 +41,7 @@ class PositionTracker:
     def get(self, ticker: str) -> int:
         return self._positions.get(ticker, 0)
 
-    def snapshot(self) -> Dict[str, int]:
+    def snapshot(self) -> dict[str, int]:
         return dict(self._positions)
 
     async def persist(self, db):
@@ -54,7 +54,7 @@ class PositionTracker:
             for ticker, qty in self._positions.items():
                 await db.positions.update_one(
                     {"ticker": ticker},
-                    {"$set": {"ticker": ticker, "qty": qty, "updated_at": datetime.now(timezone.utc)}},
+                    {"$set": {"ticker": ticker, "qty": qty, "updated_at": datetime.now(UTC)}},
                     upsert=True,
                 )
         except Exception as e:
@@ -74,12 +74,12 @@ class PositionTracker:
 class OrderRouter:
     """Routes orders to Schwab Trader API with idempotency and tracking."""
 
-    def __init__(self, account_id: str, token_manager: Optional[SchwabTokenManager] = None):
+    def __init__(self, account_id: str, token_manager: SchwabTokenManager | None = None):
         self.account_id = account_id
         self.tokens = token_manager or SchwabTokenManager()
         self.position_tracker = PositionTracker()
-        self._fill_handlers: List = []
-        self._order_cache: Dict[str, Any] = {}  # client_order_id -> order response
+        self._fill_handlers: list = []
+        self._order_cache: dict[str, Any] = {}  # client_order_id -> order response
 
     def on_fill(self, handler):
         """Register a fill handler."""
@@ -89,7 +89,7 @@ class OrderRouter:
         """Generate idempotent client order ID."""
         return hashlib.sha256(f"{signal_id}:{timestamp_us}".encode()).hexdigest()[:16]
 
-    def _build_order_payload(self, intent: Dict[str, Any]) -> Dict[str, Any]:
+    def _build_order_payload(self, intent: dict[str, Any]) -> dict[str, Any]:
         """Build Schwab API order payload from TradeIntent."""
         order_type = intent.get("order_type", "limit").upper()
 
@@ -127,7 +127,7 @@ class OrderRouter:
 
         return payload
 
-    async def submit_order(self, intent: Dict[str, Any], db=None) -> Dict[str, Any]:
+    async def submit_order(self, intent: dict[str, Any], db=None) -> dict[str, Any]:
         """Submit an order to Schwab with idempotency check."""
         signal_id = intent.get("signal_id", "")
         timestamp_us = intent.get("timestamp_us", int(time.time() * 1e6))
@@ -188,7 +188,7 @@ class OrderRouter:
             logger.error(f"Order submission failed: {e}")
             return {"status": "error", "reason": str(e)}
 
-    async def get_positions_from_schwab(self) -> Dict[str, int]:
+    async def get_positions_from_schwab(self) -> dict[str, int]:
         """Fetch positions from Schwab API."""
         try:
             access_token = self.tokens.get_access_token()
@@ -217,7 +217,7 @@ class OrderRouter:
             logger.error(f"Failed to fetch Schwab positions: {e}")
             return {}
 
-    def get_state(self) -> Dict[str, Any]:
+    def get_state(self) -> dict[str, Any]:
         return {
             "account_id": self.account_id,
             "positions": self.position_tracker.snapshot(),

@@ -26,9 +26,10 @@ import urllib.parse
 import urllib.request
 import xml.etree.ElementTree as ET
 from abc import ABC, abstractmethod
+from collections.abc import Callable, Iterable
 from dataclasses import asdict, dataclass, field
-from datetime import datetime, timezone
-from typing import Any, Callable, Dict, Iterable, List, Optional, Tuple
+from datetime import UTC, datetime
+from typing import Any
 
 # ────────────────────────────────────────────────────────────────────────────
 # Normalized record
@@ -48,15 +49,15 @@ class Discovery:
     url: str
     source: str
     discovered_at: str
-    authors: List[str] = field(default_factory=list)
-    published: Optional[str] = None
-    abstract: Optional[str] = None
-    tags: List[str] = field(default_factory=list)
-    license: Optional[str] = None
-    relevance_score: Optional[float] = None
-    raw: Optional[Dict[str, Any]] = None  # provenance, not serialized by default
+    authors: list[str] = field(default_factory=list)
+    published: str | None = None
+    abstract: str | None = None
+    tags: list[str] = field(default_factory=list)
+    license: str | None = None
+    relevance_score: float | None = None
+    raw: dict[str, Any] | None = None  # provenance, not serialized by default
 
-    def to_dict(self, include_raw: bool = False) -> Dict[str, Any]:
+    def to_dict(self, include_raw: bool = False) -> dict[str, Any]:
         d = asdict(self)
         if not include_raw:
             d.pop("raw", None)
@@ -74,7 +75,7 @@ class DiscoverySource(ABC):
     name: str = "abstract"
     rate_limit_seconds: float = 3.0
 
-    def __init__(self, http_get: Optional[Callable[[str, Dict[str, str]], str]] = None,
+    def __init__(self, http_get: Callable[[str, dict[str, str]], str] | None = None,
                  max_retries: int = 3, backoff_factor: float = 2.0):
         """`http_get` is injected for testability — defaults to urllib.
         `max_retries` and `backoff_factor` control retry on 429/timeout."""
@@ -87,15 +88,15 @@ class DiscoverySource(ABC):
         """Return the raw vendor response (may be parsed XML/JSON or plain text)."""
 
     @abstractmethod
-    def _parse(self, raw: Any) -> List[Discovery]:
+    def _parse(self, raw: Any) -> list[Discovery]:
         """Convert vendor-specific response into normalized Discoveries."""
 
-    def search(self, query: str) -> List[Discovery]:
+    def search(self, query: str) -> list[Discovery]:
         raw = self._fetch(query)
         return self._parse(raw)
 
-    def search_many(self, queries: Iterable[str]) -> List[Discovery]:
-        out: List[Discovery] = []
+    def search_many(self, queries: Iterable[str]) -> list[Discovery]:
+        out: list[Discovery] = []
         first = True
         for q in queries:
             if not first:
@@ -105,7 +106,7 @@ class DiscoverySource(ABC):
         return out
 
     @staticmethod
-    def _default_http_get(url: str, headers: Dict[str, str]) -> str:
+    def _default_http_get(url: str, headers: dict[str, str]) -> str:
         req = urllib.request.Request(url, headers=headers)
         with urllib.request.urlopen(req, timeout=30) as resp:
             return resp.read().decode("utf-8", errors="replace")
@@ -164,10 +165,7 @@ class ArxivSource(DiscoverySource):
     def _fetch(self, query: str) -> str:
         # Build a precise query
         tokens = [t for t in query.split() if t]
-        if tokens:
-            term_clause = " AND ".join(f"all:{t}" for t in tokens)
-        else:
-            term_clause = ""
+        term_clause = " AND ".join(f"all:{t}" for t in tokens) if tokens else ""
         if self.categories:
             cat_clause = " OR ".join(f"cat:{c}" for c in self.categories)
             search_query = (
@@ -186,7 +184,7 @@ class ArxivSource(DiscoverySource):
 
         # Retry logic for 429 / timeout
         import urllib.error as _ue
-        last_exc: Optional[Exception] = None
+        last_exc: Exception | None = None
         for attempt in range(self._max_retries):
             try:
                 return self._http_get(url, {"User-Agent": "confluence-decoder-research/0.1"})
@@ -199,8 +197,8 @@ class ArxivSource(DiscoverySource):
                 _t.sleep(wait)
         raise last_exc  # type: ignore[misc]
 
-    def _parse(self, raw: str) -> List[Discovery]:
-        results: List[Discovery] = []
+    def _parse(self, raw: str) -> list[Discovery]:
+        results: list[Discovery] = []
         try:
             root = ET.fromstring(raw)
         except ET.ParseError:
@@ -225,7 +223,7 @@ class ArxivSource(DiscoverySource):
                     title=self._normalize_whitespace(self._text(entry, "a:title")),
                     url=f"https://arxiv.org/abs/{arxiv_id}",
                     source=self.name,
-                    discovered_at=datetime.now(timezone.utc).isoformat(),
+                    discovered_at=datetime.now(UTC).isoformat(),
                     authors=authors,
                     published=self._text(entry, "a:published") or None,
                     abstract=self._normalize_whitespace(self._text(entry, "a:summary")),
@@ -239,7 +237,7 @@ class ArxivSource(DiscoverySource):
         return results
 
     @staticmethod
-    def _text(node: Optional[ET.Element], path: str) -> str:
+    def _text(node: ET.Element | None, path: str) -> str:
         if node is None:
             return ""
         found = node.find(path, _ARXIV_NS)
@@ -280,7 +278,7 @@ class HuggingFaceSource(DiscoverySource):
 
     def _fetch(self, query: str) -> str:
         import urllib.error as _ue
-        last_exc: Optional[Exception] = None
+        last_exc: Exception | None = None
         for attempt in range(self._max_retries):
             try:
                 # Search both models and datasets
@@ -300,9 +298,9 @@ class HuggingFaceSource(DiscoverySource):
                 time.sleep(wait)
         raise last_exc  # type: ignore[misc]
 
-    def _parse(self, raw: str) -> List[Discovery]:
+    def _parse(self, raw: str) -> list[Discovery]:
         import json as _json
-        results: List[Discovery] = []
+        results: list[Discovery] = []
         try:
             items = _json.loads(raw)
             if not isinstance(items, list):
@@ -320,7 +318,7 @@ class HuggingFaceSource(DiscoverySource):
                 title=model_id,
                 url=f"https://huggingface.co/{model_id}",
                 source=self.name,
-                discovered_at=datetime.now(timezone.utc).isoformat(),
+                discovered_at=datetime.now(UTC).isoformat(),
                 authors=[item.get("author", "")] if item.get("author") else [],
                 published=item.get("lastModified", "") or item.get("createdAt", ""),
                 abstract=item.get("description", "") or item.get("cardData", {}).get("description", "") if isinstance(item.get("cardData"), dict) else "",
@@ -351,7 +349,7 @@ class GitHubTopicSource(DiscoverySource):
 
     def _fetch(self, query: str) -> str:
         import urllib.error as _ue
-        last_exc: Optional[Exception] = None
+        last_exc: Exception | None = None
         for attempt in range(self._max_retries):
             try:
                 params = urllib.parse.urlencode({
@@ -373,9 +371,9 @@ class GitHubTopicSource(DiscoverySource):
                 time.sleep(wait)
         raise last_exc  # type: ignore[misc]
 
-    def _parse(self, raw: str) -> List[Discovery]:
+    def _parse(self, raw: str) -> list[Discovery]:
         import json as _json
-        results: List[Discovery] = []
+        results: list[Discovery] = []
         try:
             data = _json.loads(raw)
             items = data.get("items", [])
@@ -391,7 +389,7 @@ class GitHubTopicSource(DiscoverySource):
                 title=item.get("description", "") or full_name,
                 url=item.get("html_url", f"https://github.com/{full_name}"),
                 source=self.name,
-                discovered_at=datetime.now(timezone.utc).isoformat(),
+                discovered_at=datetime.now(UTC).isoformat(),
                 authors=[item.get("owner", {}).get("login", "")] if item.get("owner") else [],
                 published=item.get("updated_at", "") or item.get("created_at", ""),
                 abstract=item.get("description", ""),
@@ -424,7 +422,7 @@ class SSRNSource(DiscoverySource):
 
     def _fetch(self, query: str) -> str:
         import urllib.error as _ue
-        last_exc: Optional[Exception] = None
+        last_exc: Exception | None = None
         for attempt in range(self._max_retries):
             try:
                 params = urllib.parse.urlencode({
@@ -444,9 +442,9 @@ class SSRNSource(DiscoverySource):
                 time.sleep(wait)
         raise last_exc  # type: ignore[misc]
 
-    def _parse(self, raw: str) -> List[Discovery]:
+    def _parse(self, raw: str) -> list[Discovery]:
         """Parse SSRN search results HTML. Extract paper titles, IDs, abstracts."""
-        results: List[Discovery] = []
+        results: list[Discovery] = []
         try:
 
             # Simple regex-based extraction (SSRN HTML is fairly stable)
@@ -492,7 +490,7 @@ class SSRNSource(DiscoverySource):
                     title=title,
                     url=f"https://papers.ssrn.com/sol3/papers.cfm?abstract_id={paper_id}",
                     source=self.name,
-                    discovered_at=datetime.now(timezone.utc).isoformat(),
+                    discovered_at=datetime.now(UTC).isoformat(),
                     authors=authors,
                     abstract=abstract[:500] if abstract else None,
                     tags=["ssrn", "preprint"],
@@ -524,7 +522,7 @@ class NBERSource(DiscoverySource):
 
     def _fetch(self, query: str) -> str:
         import urllib.error as _ue
-        last_exc: Optional[Exception] = None
+        last_exc: Exception | None = None
         for attempt in range(self._max_retries):
             try:
                 params = urllib.parse.urlencode({
@@ -543,9 +541,9 @@ class NBERSource(DiscoverySource):
                 time.sleep(wait)
         raise last_exc  # type: ignore[misc]
 
-    def _parse(self, raw: str) -> List[Discovery]:
+    def _parse(self, raw: str) -> list[Discovery]:
         """Parse NBER working paper listings from HTML."""
-        results: List[Discovery] = []
+        results: list[Discovery] = []
         try:
             # NBER paper links: /papers/w12345
             paper_pattern = re.compile(
@@ -592,7 +590,7 @@ class NBERSource(DiscoverySource):
                     title=title,
                     url=f"https://www.nber.org{paper_path}",
                     source=self.name,
-                    discovered_at=datetime.now(timezone.utc).isoformat(),
+                    discovered_at=datetime.now(UTC).isoformat(),
                     abstract=abstract[:500] if abstract else None,
                     tags=["nber", "working-paper"],
                     license=None,
@@ -623,7 +621,7 @@ class QuantocracySource(DiscoverySource):
 
     def _fetch(self, query: str) -> str:
         import urllib.error as _ue
-        last_exc: Optional[Exception] = None
+        last_exc: Exception | None = None
         for attempt in range(self._max_retries):
             try:
                 return self._http_get(self.rss_url, {
@@ -636,9 +634,9 @@ class QuantocracySource(DiscoverySource):
                 time.sleep(wait)
         raise last_exc  # type: ignore[misc]
 
-    def _parse(self, raw: str) -> List[Discovery]:
+    def _parse(self, raw: str) -> list[Discovery]:
         """Parse RSS XML feed."""
-        results: List[Discovery] = []
+        results: list[Discovery] = []
         try:
             root = ET.fromstring(raw)
         except ET.ParseError:
@@ -674,7 +672,7 @@ class QuantocracySource(DiscoverySource):
                 title=title,
                 url=url,
                 source=self.name,
-                discovered_at=datetime.now(timezone.utc).isoformat(),
+                discovered_at=datetime.now(UTC).isoformat(),
                 published=published,
                 abstract=abstract,
                 tags=["quantocracy", "blog", "aggregator"],
@@ -704,7 +702,7 @@ class AQRSource(DiscoverySource):
 
     def _fetch(self, query: str) -> str:
         import urllib.error as _ue
-        last_exc: Optional[Exception] = None
+        last_exc: Exception | None = None
         for attempt in range(self._max_retries):
             try:
                 return self._http_get(self.rss_url, {
@@ -717,9 +715,9 @@ class AQRSource(DiscoverySource):
                 time.sleep(wait)
         raise last_exc  # type: ignore[misc]
 
-    def _parse(self, raw: str) -> List[Discovery]:
+    def _parse(self, raw: str) -> list[Discovery]:
         """Parse RSS XML feed."""
-        results: List[Discovery] = []
+        results: list[Discovery] = []
         try:
             root = ET.fromstring(raw)
         except ET.ParseError:
@@ -754,7 +752,7 @@ class AQRSource(DiscoverySource):
                 title=title,
                 url=url,
                 source=self.name,
-                discovered_at=datetime.now(timezone.utc).isoformat(),
+                discovered_at=datetime.now(UTC).isoformat(),
                 published=published,
                 abstract=abstract,
                 tags=["aqr", "commentary", "cliff-asness"],
@@ -784,7 +782,7 @@ class RobotWealthSource(DiscoverySource):
 
     def _fetch(self, query: str) -> str:
         import urllib.error as _ue
-        last_exc: Optional[Exception] = None
+        last_exc: Exception | None = None
         for attempt in range(self._max_retries):
             try:
                 return self._http_get(self.rss_url, {
@@ -797,9 +795,9 @@ class RobotWealthSource(DiscoverySource):
                 time.sleep(wait)
         raise last_exc  # type: ignore[misc]
 
-    def _parse(self, raw: str) -> List[Discovery]:
+    def _parse(self, raw: str) -> list[Discovery]:
         """Parse RSS XML feed."""
-        results: List[Discovery] = []
+        results: list[Discovery] = []
         try:
             root = ET.fromstring(raw)
         except ET.ParseError:
@@ -834,7 +832,7 @@ class RobotWealthSource(DiscoverySource):
                 title=title,
                 url=url,
                 source=self.name,
-                discovered_at=datetime.now(timezone.utc).isoformat(),
+                discovered_at=datetime.now(UTC).isoformat(),
                 published=published,
                 abstract=abstract,
                 tags=["robot-wealth", "blog", "quant"],
@@ -863,7 +861,7 @@ class ResearchGateSource(DiscoverySource):
             "Consider using their API or a headless browser."
         )
 
-    def _parse(self, raw: str) -> List[Discovery]:
+    def _parse(self, raw: str) -> list[Discovery]:
         raise NotImplementedError("ResearchGateSource not implemented yet")
 
 
@@ -873,16 +871,16 @@ class ResearchGateSource(DiscoverySource):
 
 
 def discover_all(
-    sources: List[DiscoverySource],
-    queries_per_source: Dict[str, List[str]],
-) -> Tuple[List[Discovery], Dict[str, str]]:
+    sources: list[DiscoverySource],
+    queries_per_source: dict[str, list[str]],
+) -> tuple[list[Discovery], dict[str, str]]:
     """Run each source over its assigned queries.
 
     Returns:
         (all_discoveries, errors_by_source_name)
     """
-    out: List[Discovery] = []
-    errors: Dict[str, str] = {}
+    out: list[Discovery] = []
+    errors: dict[str, str] = {}
     for source in sources:
         qs = queries_per_source.get(source.name) or []
         if not qs:

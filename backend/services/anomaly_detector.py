@@ -18,7 +18,7 @@ from __future__ import annotations
 
 import logging
 from collections import deque
-from typing import Any, Dict
+from typing import Any
 
 import numpy as np
 
@@ -97,7 +97,7 @@ class StatisticalAnomalyDetector:
         self.threshold_sigma = threshold_sigma
         self._errors: deque = deque(maxlen=window)
 
-    def update(self, features: np.ndarray) -> Dict[str, Any]:
+    def update(self, features: np.ndarray) -> dict[str, Any]:
         """Compute anomaly score from features (VPIN, QI)."""
         # Use mean absolute deviation as proxy for reconstruction error
         score = float(np.mean(np.abs(features - np.mean(features))))
@@ -136,7 +136,7 @@ class RegimeAwareThreshold:
         self._errors: deque = deque(maxlen=window)
         self._vol_history: deque = deque(maxlen=window * 2)
 
-    def update(self, error: float, realized_vol: float = 0.0) -> Dict[str, Any]:
+    def update(self, error: float, realized_vol: float = 0.0) -> dict[str, Any]:
         """Update with new error and vol, return regime + threshold."""
         self._errors.append(error)
         if realized_vol > 0:
@@ -173,7 +173,7 @@ class RegimeAwareThreshold:
             "zscore": round((error - np.mean(errors)) / (np.std(errors) + 1e-12), 4),
         }
 
-    def get_state(self) -> Dict[str, Any]:
+    def get_state(self) -> dict[str, Any]:
         return {
             "regime": "active",  # simplified
             "n_errors": len(self._errors),
@@ -220,7 +220,7 @@ class FlowAnomalyDetector:
             self._trained = False
             self._update_count = 0
 
-    def update(self, vpin: float, qi: float) -> Dict[str, Any]:
+    def update(self, vpin: float, qi: float) -> dict[str, Any]:
         """Add a new (VPIN, QI) observation and compute anomaly score."""
         self._buffer.append([vpin, qi])
         self._update_count += 1
@@ -247,7 +247,7 @@ class FlowAnomalyDetector:
 
         return result
 
-    def _torch_update(self) -> Dict[str, Any]:
+    def _torch_update(self) -> dict[str, Any]:
         """PyTorch-based anomaly detection."""
         import torch
 
@@ -280,7 +280,7 @@ class FlowAnomalyDetector:
 
         # Regime-aware threshold
         regime_result = self._regime_threshold.update(error)
-        self._current_regime = _regime_result["regime"]
+        self._current_regime = regime_result["regime"]
 
         return {
             "anomaly_score": round(error, 8),
@@ -294,7 +294,7 @@ class FlowAnomalyDetector:
             "regime_threshold_used": regime_result["percentile_used"],
         }
 
-    def _train_step(self, x: "torch.Tensor"):
+    def _train_step(self, x: torch.Tensor):
         """Single training step on current buffer."""
         import torch.nn.functional as F
 
@@ -307,7 +307,7 @@ class FlowAnomalyDetector:
         self.model.eval()
         self._trained = True
 
-    def get_state(self) -> Dict[str, Any]:
+    def get_state(self) -> dict[str, Any]:
         return {
             "model_type": "cnn_autoencoder" if HAS_TORCH else "statistical_fallback",
             "seq_len": self.seq_len,

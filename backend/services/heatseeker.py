@@ -24,19 +24,19 @@ from __future__ import annotations
 import math
 from datetime import datetime
 from statistics import median
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 # ---------------------------------------------------------------------------
 # Shared helpers
 # ---------------------------------------------------------------------------
 
-def _is_call(c: Dict[str, Any]) -> bool:
+def _is_call(c: dict[str, Any]) -> bool:
     """True if contract is a call. Accepts 'C', 'CALL', 'call' (any case)."""
     t = str(c.get("type", "")).upper()
     return t in ("C", "CALL")
 
 
-def _oi(c: Dict[str, Any]) -> float:
+def _oi(c: dict[str, Any]) -> float:
     """Open interest, tolerant to 'open_interest' or 'oi' field names."""
     val = c.get("open_interest")
     if val is None:
@@ -47,14 +47,14 @@ def _oi(c: Dict[str, Any]) -> float:
         return 0.0
 
 
-def _strike(c: Dict[str, Any]) -> float:
+def _strike(c: dict[str, Any]) -> float:
     try:
         return float(c.get("strike", 0) or 0)
     except (TypeError, ValueError):
         return 0.0
 
 
-def _gamma(c: Dict[str, Any]) -> float:
+def _gamma(c: dict[str, Any]) -> float:
     try:
         val = float(c.get("gamma", 0) or 0)
         if math.isnan(val) or math.isinf(val):
@@ -64,7 +64,7 @@ def _gamma(c: Dict[str, Any]) -> float:
         return 0.0
 
 
-def _gex_per_strike(spot: float, contracts: List[Dict[str, Any]]) -> Dict[float, float]:
+def _gex_per_strike(spot: float, contracts: list[dict[str, Any]]) -> dict[float, float]:
     """
     Aggregate signed GEX per strike using the same convention as
     `calc_gamma_flip_levels` in advanced_analytics.py:
@@ -72,7 +72,7 @@ def _gex_per_strike(spot: float, contracts: List[Dict[str, Any]]) -> Dict[float,
         gex_unit  = gamma * oi * 100 * spot * spot * 0.01
         signed    = +gex_unit for calls, -gex_unit for puts
     """
-    out: Dict[float, float] = {}
+    out: dict[float, float] = {}
     if not contracts or not spot or spot <= 0:
         return out
     for c in contracts:
@@ -97,10 +97,10 @@ def _gex_per_strike(spot: float, contracts: List[Dict[str, Any]]) -> Dict[float,
 
 def calc_flip_zones(
     spot: float,
-    contracts: List[Dict[str, Any]],
+    contracts: list[dict[str, Any]],
     *,
     window_pct: float = 0.05,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """
     All price levels where cumulative GEX changes sign, within
     ``spot * (1 ± window_pct)``.
@@ -131,13 +131,13 @@ def calc_flip_zones(
         }
 
     strikes = sorted(gex.keys())
-    cumulative: List[float] = []
+    cumulative: list[float] = []
     running = 0.0
     for k in strikes:
         running += gex[k]
         cumulative.append(running)
 
-    zones: List[Dict[str, Any]] = []
+    zones: list[dict[str, Any]] = []
     for i in range(1, len(strikes)):
         prev_c, curr_c = cumulative[i - 1], cumulative[i]
         # Only count true sign changes (excludes prev==0 to avoid duplicate
@@ -150,10 +150,7 @@ def calc_flip_zones(
         k1, k2 = strikes[i - 1], strikes[i]
         # Linear interpolation: f(k1)=prev_c, f(k2)=curr_c, find where f=0.
         denom = curr_c - prev_c
-        if denom == 0:
-            flip_price = (k1 + k2) / 2.0
-        else:
-            flip_price = k1 + (k2 - k1) * (-prev_c / denom)
+        flip_price = (k1 + k2) / 2.0 if denom == 0 else k1 + (k2 - k1) * (-prev_c / denom)
 
         if not (window_low <= flip_price <= window_high):
             continue
@@ -179,9 +176,9 @@ def calc_flip_zones(
 
 def calc_node_lifecycle(
     spot: float,
-    contracts: List[Dict[str, Any]],
-    history: List[Dict[str, Any]],
-) -> Dict[str, Any]:
+    contracts: list[dict[str, Any]],
+    history: list[dict[str, Any]],
+) -> dict[str, Any]:
     """
     Classify the top 10 strikes by |GEX| as Fresh / Tested / Delivered /
     Decaying based on how many times spot has come within 0.1% of them in the
@@ -207,14 +204,14 @@ def calc_node_lifecycle(
     ranked = sorted(gex.items(), key=lambda kv: abs(kv[1]), reverse=True)[:10]
 
     history = history or []
-    history_spots: List[float] = []
+    history_spots: list[float] = []
     for h in history:
         try:
             history_spots.append(float(h.get("spot")))
         except (TypeError, ValueError):
             continue
 
-    nodes: List[Dict[str, Any]] = []
+    nodes: list[dict[str, Any]] = []
     for strike, net_gex in ranked:
         if strike <= 0:
             continue
@@ -247,10 +244,10 @@ def calc_node_lifecycle(
 
 def calc_air_pockets(
     spot: float,
-    contracts: List[Dict[str, Any]],
+    contracts: list[dict[str, Any]],
     *,
     min_gap_pct: float = 0.005,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """
     Contiguous ranges of strikes where ``|GEX|`` is below 20% of the local
     median (median of ``|GEX|`` for strikes within ±5% of spot) AND the range
@@ -271,7 +268,7 @@ def calc_air_pockets(
         return {"air_pockets": []}
 
     strikes = sorted(gex.keys())
-    abs_gex: Dict[float, float] = {k: abs(gex[k]) for k in strikes}
+    abs_gex: dict[float, float] = {k: abs(gex[k]) for k in strikes}
 
     # Local median of |GEX| using strikes within ±5% of spot.
     near_window_low = spot * 0.95
@@ -289,8 +286,8 @@ def calc_air_pockets(
     threshold = 0.2 * local_median
     min_span = spot * min_gap_pct
 
-    pockets: List[Dict[str, Any]] = []
-    run_start_idx: Optional[int] = None
+    pockets: list[dict[str, Any]] = []
+    run_start_idx: int | None = None
     run_max: float = 0.0
 
     def _flush(run_start_idx: int, run_end_idx: int, run_max_val: float) -> None:
@@ -329,7 +326,7 @@ def calc_air_pockets(
 # Wave 2 — Function 4: Beach ball
 # ---------------------------------------------------------------------------
 
-def _king_node_strike(gex: Dict[float, float]) -> Optional[float]:
+def _king_node_strike(gex: dict[float, float]) -> float | None:
     """Strike with max |net_gex|. None if dict is empty."""
     if not gex:
         return None
@@ -338,10 +335,10 @@ def _king_node_strike(gex: Dict[float, float]) -> Optional[float]:
 
 def detect_beach_ball(
     spot: float,
-    contracts: List[Dict[str, Any]],
+    contracts: list[dict[str, Any]],
     *,
-    king_node: Optional[float] = None,
-) -> Dict[str, Any]:
+    king_node: float | None = None,
+) -> dict[str, Any]:
     """
     Beach Ball: spot is stretched past the King Node (largest |GEX| strike).
     Overshoot/reversion setup.
@@ -349,7 +346,7 @@ def detect_beach_ball(
     Active when ``abs(spot - king_node) / king_node > 0.005`` (50bps).
     Confidence = ``min(1.0, distance_pct / 0.02)`` — capped at 2% stretch.
     """
-    inactive: Dict[str, Any] = {
+    inactive: dict[str, Any] = {
         "pattern": "beach_ball",
         "active": False,
         "king_node": None,
@@ -395,10 +392,10 @@ def detect_beach_ball(
 
 def detect_reverse_rug(
     spot: float,
-    contracts: List[Dict[str, Any]],
+    contracts: list[dict[str, Any]],
     *,
     min_strength: float = 0.0,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """
     Reverse Rug: positive floor below spot, negative ceiling above.
     Support holds, bounce runs.
@@ -409,7 +406,7 @@ def detect_reverse_rug(
     Pattern active when both exist AND ``abs(floor_gex) > min_strength``
     AND ``abs(ceiling_gex) > min_strength``.
     """
-    inactive: Dict[str, Any] = {
+    inactive: dict[str, Any] = {
         "pattern": "reverse_rug",
         "active": False,
         "floor_strike": None,
@@ -425,9 +422,9 @@ def detect_reverse_rug(
     if not gex:
         return inactive
 
-    floor_strike: Optional[float] = None
+    floor_strike: float | None = None
     floor_gex: float = 0.0
-    ceiling_strike: Optional[float] = None
+    ceiling_strike: float | None = None
     ceiling_gex: float = 0.0
 
     for strike, signed in gex.items():
@@ -461,11 +458,11 @@ def detect_reverse_rug(
 
 def detect_rainbow_road(
     spot: float,
-    contracts: List[Dict[str, Any]],
+    contracts: list[dict[str, Any]],
     *,
     max_dominant_share: float = 0.15,
     window_pct: float = 0.05,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """
     Rainbow Road: no dominant structure within ±window_pct of spot. Chaos.
 
@@ -476,7 +473,7 @@ def detect_rainbow_road(
     ``n_strikes_significant`` is the count of strikes with
     ``|gex| > 0.5 * mean(|gex|)`` in the same window.
     """
-    inactive: Dict[str, Any] = {
+    inactive: dict[str, Any] = {
         "pattern": "rainbow_road",
         "active": False,
         "top_strike_share": 0.0,
@@ -518,7 +515,7 @@ def detect_rainbow_road(
 # Wave 2 — Function 7: Velocity mode
 # ---------------------------------------------------------------------------
 
-def _parse_ts(value: Any) -> Optional[datetime]:
+def _parse_ts(value: Any) -> datetime | None:
     """Parse an iso8601 (or datetime) value. Returns None on failure."""
     if value is None:
         return None
@@ -534,7 +531,7 @@ def _parse_ts(value: Any) -> Optional[datetime]:
         return None
 
 
-def calc_velocity_mode(history: List[Dict[str, Any]]) -> Dict[str, Any]:
+def calc_velocity_mode(history: list[dict[str, Any]]) -> dict[str, Any]:
     """
     Dealer urgency: rate at which the King Node is moving across the recent
     snapshots in ``history``. Caller passes the last ~30 minutes of data.
@@ -606,7 +603,7 @@ def calc_velocity_mode(history: List[Dict[str, Any]]) -> Dict[str, Any]:
 # Wave 2 — Function 8: Trinity confluence
 # ---------------------------------------------------------------------------
 
-def _side_of_flip(spot: Any, gamma_flip: Any) -> Optional[str]:
+def _side_of_flip(spot: Any, gamma_flip: Any) -> str | None:
     """Return 'above', 'below', or None if either input is missing/invalid."""
     try:
         s = float(spot)
@@ -622,7 +619,7 @@ def _side_of_flip(spot: Any, gamma_flip: Any) -> Optional[str]:
     return "at"
 
 
-def _all_equal_and_present(values: List[Any]) -> bool:
+def _all_equal_and_present(values: list[Any]) -> bool:
     """True when every value is non-None and they all compare equal."""
     if not values or any(v is None for v in values):
         return False
@@ -631,10 +628,10 @@ def _all_equal_and_present(values: List[Any]) -> bool:
 
 
 def calc_trinity_confluence(
-    spx_snapshot: Dict[str, Any],
-    spy_snapshot: Dict[str, Any],
-    qqq_snapshot: Dict[str, Any],
-) -> Dict[str, Any]:
+    spx_snapshot: dict[str, Any],
+    spy_snapshot: dict[str, Any],
+    qqq_snapshot: dict[str, Any],
+) -> dict[str, Any]:
     """
     Cross-index alignment quantified.
 
@@ -683,8 +680,8 @@ def calc_trinity_confluence(
     )
 
     score = 0
-    aligned: List[str] = []
-    divergences: List[str] = []
+    aligned: list[str] = []
+    divergences: list[str] = []
 
     if regime_aligned:
         score += 33
@@ -723,7 +720,7 @@ def calc_trinity_confluence(
 # Wave 3 — Function 9: Rolling floors/ceilings tracker
 # ---------------------------------------------------------------------------
 
-def _trend_direction(values: List[float]) -> str:
+def _trend_direction(values: list[float]) -> str:
     """
     Classify a series as 'rising', 'falling', or 'flat'.
     Uses simple linear regression slope sign with a dead-zone of ±0.01
@@ -745,11 +742,11 @@ def _trend_direction(values: List[float]) -> str:
 
 def calc_rolling_floors_ceilings(
     spot: float,
-    snapshots: List[Dict[str, Any]],
+    snapshots: list[dict[str, Any]],
     ticker: str,
     *,
     lookback_days: int = 20,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """
     Track how gamma flip points (floors/ceilings) move over time.
 
@@ -782,8 +779,8 @@ def calc_rolling_floors_ceilings(
     # is responsible for supplying daily snapshots.
     usable = snapshots[-lookback_days:] if len(snapshots) > lookback_days else snapshots
 
-    floor_series: List[float] = []
-    ceiling_series: List[float] = []
+    floor_series: list[float] = []
+    ceiling_series: list[float] = []
 
     for snap in usable:
         snap_spot = snap.get("spot", spot)
@@ -795,7 +792,7 @@ def calc_rolling_floors_ceilings(
             continue
 
         # Floor: largest positive-GEX strike below snap_spot
-        floor_strike: Optional[float] = None
+        floor_strike: float | None = None
         floor_gex_val: float = 0.0
         for strike, signed in gex.items():
             if strike < snap_spot and signed > 0 and signed > floor_gex_val:
@@ -803,7 +800,7 @@ def calc_rolling_floors_ceilings(
                 floor_gex_val = signed
 
         # Ceiling: most negative-GEX strike above snap_spot
-        ceiling_strike: Optional[float] = None
+        ceiling_strike: float | None = None
         ceiling_gex_val: float = 0.0
         for strike, signed in gex.items():
             if strike > snap_spot and signed < 0 and signed < ceiling_gex_val:
@@ -841,8 +838,8 @@ def calc_rolling_floors_ceilings(
 # ---------------------------------------------------------------------------
 
 def classify_nodes(
-    nodes: List[Dict[str, Any]],
-) -> Dict[str, Any]:
+    nodes: list[dict[str, Any]],
+) -> dict[str, Any]:
     """
     Distinguish between "real" dealer positioning nodes (growing gamma
     exposure) and "hedge" nodes (fading protection).
@@ -862,7 +859,7 @@ def classify_nodes(
     ``real_count``, ``hedge_count``.
     """
     nodes = nodes or []
-    classified: List[Dict[str, Any]] = []
+    classified: list[dict[str, Any]] = []
     real_count = 0
     hedge_count = 0
 
@@ -893,10 +890,10 @@ def classify_nodes(
 # ---------------------------------------------------------------------------
 
 def detect_stacked_nodes(
-    contracts: List[Dict[str, Any]],
+    contracts: list[dict[str, Any]],
     *,
     threshold_pct: float = 0.3,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """
     Detect strikes where both call and put GEX are significant — a
     "conflict zone" where dealers are active on both sides.
@@ -915,8 +912,8 @@ def detect_stacked_nodes(
         return {"stacked_nodes": [], "count": 0}
 
     # Aggregate per-strike GEX, split by call/put
-    call_gex: Dict[float, float] = {}
-    put_gex: Dict[float, float] = {}
+    call_gex: dict[float, float] = {}
+    put_gex: dict[float, float] = {}
     for c in contracts:
         oi = _oi(c)
         if oi <= 0:
@@ -945,7 +942,7 @@ def detect_stacked_nodes(
     if total_abs <= 0:
         return {"stacked_nodes": [], "count": 0}
 
-    stacked: List[Dict[str, Any]] = []
+    stacked: list[dict[str, Any]] = []
     for strike in sorted(all_strikes):
         cg = abs(call_gex.get(strike, 0.0))
         pg = abs(put_gex.get(strike, 0.0))
@@ -965,11 +962,11 @@ def detect_stacked_nodes(
 # ---------------------------------------------------------------------------
 
 def calc_tug_of_war_zones(
-    contracts: List[Dict[str, Any]],
+    contracts: list[dict[str, Any]],
     spot: float,
     *,
     band_pct: float = 0.01,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """
     Detect zones where positive and negative GEX are in conflict —
     within ``band_pct`` of spot (default 1%).
@@ -1012,8 +1009,8 @@ def calc_tug_of_war_zones(
     low = spot * (1.0 - band_pct)
     high = spot * (1.0 + band_pct)
 
-    pos_strikes: List[float] = []
-    neg_strikes: List[float] = []
+    pos_strikes: list[float] = []
+    neg_strikes: list[float] = []
     pos_gex_total: float = 0.0
     neg_gex_total: float = 0.0
 
@@ -1033,10 +1030,7 @@ def calc_tug_of_war_zones(
 
     # balance: +1 = all positive, -1 = all negative, 0 = perfectly balanced
     total_mag = pos_gex_total + abs(neg_gex_total)
-    if total_mag > 0:
-        gex_balance = (pos_gex_total - abs(neg_gex_total)) / total_mag
-    else:
-        gex_balance = 0.0
+    gex_balance = (pos_gex_total - abs(neg_gex_total)) / total_mag if total_mag > 0 else 0.0
 
     return {
         "in_tug_of_war": in_tug,

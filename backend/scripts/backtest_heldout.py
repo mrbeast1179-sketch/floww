@@ -13,7 +13,7 @@ import json
 import logging
 import os
 import sys
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 import joblib
@@ -153,7 +153,7 @@ def main():
             )
 
     # Save report
-    report_path = Path(__file__).resolve().parents[1].parent / "reports" / f"backtest_heldout_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}.json"
+    report_path = Path(__file__).resolve().parents[1].parent / "reports" / f"backtest_heldout_{datetime.now(UTC).strftime('%Y%m%d_%H%M%S')}.json"
     with open(report_path, "w") as f:
         json.dump(results, f, indent=2, default=str)
     log.info(f"\nReport saved: {report_path}")

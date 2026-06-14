@@ -10,7 +10,7 @@ Cross-repo SWARM_STATUS.md aggregates state from all.
 
 import logging
 from collections import defaultdict
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent.parent
@@ -111,7 +111,7 @@ if __name__ == "__main__":
 def get_cross_repo_status(cards: list[dict]) -> dict:
     """Get cross-repo status for all cards."""
     return {
-        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "timestamp": datetime.now(UTC).isoformat(),
         "repos": {},
         "cross_repo_cards": [],
     }

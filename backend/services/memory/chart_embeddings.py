@@ -10,7 +10,6 @@ Stores in local numpy index for fast similarity search.
 import json
 import logging
 from pathlib import Path
-from typing import Optional
 
 import numpy as np
 from PIL import Image
@@ -118,9 +117,8 @@ class ChartEmbeddingIndex:
 
     def search(self, text_query: str, top_k: int = 5) -> list[dict]:
         """Search screenshots by text query."""
-        if self._embeddings is None:
-            if not self.load_index():
-                return []
+        if self._embeddings is None and not self.load_index():
+            return []
 
         query_emb = self.embed_text(text_query)
         # Cosine similarity
@@ -141,7 +139,7 @@ class ChartEmbeddingIndex:
 
 
 
-_chart_index: Optional[ChartEmbeddingIndex] = None
+_chart_index: ChartEmbeddingIndex | None = None
 
 
 def get_chart_index() -> ChartEmbeddingIndex:

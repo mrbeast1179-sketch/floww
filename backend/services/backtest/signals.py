@@ -17,7 +17,7 @@ import logging
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from enum import Enum
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 import numpy as np
 
@@ -36,8 +36,8 @@ class Action(Enum):
 @dataclass
 class Position:
     """Tracks a single open option position."""
-    side: Optional[str] = None          # "CALL" or "PUT"
-    direction: Optional[str] = None     # "LONG" or "SHORT"
+    side: str | None = None          # "CALL" or "PUT"
+    direction: str | None = None     # "LONG" or "SHORT"
     entry_price: float = 0.0
     quantity: int = 0
     entry_bar_idx: int = 0
@@ -84,8 +84,8 @@ class Signal(ABC):
     @abstractmethod
     def evaluate(
         self,
-        snapshot_history: List[Dict[str, Any]],
-        bar_history: List[Dict[str, Any]],
+        snapshot_history: list[dict[str, Any]],
+        bar_history: list[dict[str, Any]],
         position: Position,
     ) -> Action:
         """Return the action to take at the current bar.
@@ -133,8 +133,8 @@ class RuleBasedSignal(Signal):
 
     def evaluate(
         self,
-        snapshot_history: List[Dict[str, Any]],
-        bar_history: List[Dict[str, Any]],
+        snapshot_history: list[dict[str, Any]],
+        bar_history: list[dict[str, Any]],
         position: Position,
     ) -> Action:
         if not snapshot_history or not bar_history:
@@ -194,7 +194,7 @@ class MLEnrichedSignal(Signal):
         self,
         model: Any,
         scaler: Any,
-        feature_names: List[str],
+        feature_names: list[str],
         proba_threshold: float = 0.55,
         scaler_required: bool = True,
     ):
@@ -206,8 +206,8 @@ class MLEnrichedSignal(Signal):
 
     def evaluate(
         self,
-        snapshot_history: List[Dict[str, Any]],
-        bar_history: List[Dict[str, Any]],
+        snapshot_history: list[dict[str, Any]],
+        bar_history: list[dict[str, Any]],
         position: Position,
     ) -> Action:
         if not snapshot_history or not bar_history:
@@ -217,7 +217,7 @@ class MLEnrichedSignal(Signal):
         bar = bar_history[-1]
 
         # Build feature vector from current snapshot + bar
-        features: List[float] = []
+        features: list[float] = []
         for name in self.feature_names:
             val = snap.get(name)
             if val is None:
@@ -239,13 +239,11 @@ class MLEnrichedSignal(Signal):
             return Action.HOLD
 
         # Exit existing positions on opposite signal
-        if position.is_open and position.side == "CALL" and position.direction == "LONG":
-            if pred == 0:
-                return Action.SELL_CALL
+        if position.is_open and position.side == "CALL" and position.direction == "LONG" and pred == 0:
+            return Action.SELL_CALL
 
-        if position.is_open and position.side == "PUT" and position.direction == "LONG":
-            if pred == 1:
-                return Action.SELL_PUT
+        if position.is_open and position.side == "PUT" and position.direction == "LONG" and pred == 1:
+            return Action.SELL_PUT
 
         # Entry logic
         if not position.is_open:

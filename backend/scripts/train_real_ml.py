@@ -25,9 +25,9 @@ import json
 import logging
 import sys
 import time
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any
 
 import numpy as np
 import pandas as pd
@@ -236,8 +236,8 @@ def train_model(
     ticker: str,
     days: int = 252,
     quick: bool = False,
-    output_dir: Optional[Path] = None,
-) -> Dict[str, Any]:
+    output_dir: Path | None = None,
+) -> dict[str, Any]:
     """Train a GradientBoosting model for a ticker.
 
     Args:
@@ -391,7 +391,7 @@ def train_model(
             "train_time_sec": train_time,
             "model_path": str(model_path),
             "scaler_path": str(scaler_path),
-            "created_at": datetime.now(timezone.utc).isoformat(),
+            "created_at": datetime.now(UTC).isoformat(),
         }
 
         with open(manifest_path, "w") as f:

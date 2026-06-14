@@ -12,7 +12,8 @@ input on failure — the pure functions tolerate that.
 """
 
 import logging
-from typing import Any, Dict, List, Optional
+from datetime import UTC
+from typing import Any
 
 from fastapi import APIRouter, HTTPException, Query
 
@@ -33,7 +34,7 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/heatseeker", tags=["heatseeker"])
 
 
-def _ensure_gamma(raw: Dict[str, Any]) -> Dict[str, Any]:
+def _ensure_gamma(raw: dict[str, Any]) -> dict[str, Any]:
     """Populate Black-Scholes ``gamma`` on each contract when the upstream
     chain omits it.
 
@@ -68,7 +69,7 @@ def _ensure_gamma(raw: Dict[str, Any]) -> Dict[str, Any]:
     return raw
 
 
-async def _fetch_chain(ticker: str, expiries: int) -> Dict[str, Any]:
+async def _fetch_chain(ticker: str, expiries: int) -> dict[str, Any]:
     """
     Resolve the option chain for ``ticker`` using the same fetcher the rest
     of server.py uses. Imported lazily so the routes module remains import-
@@ -76,7 +77,7 @@ async def _fetch_chain(ticker: str, expiries: int) -> Dict[str, Any]:
     """
     # Local import so the routes module doesn't trigger heavy server.py
     # initialization at import time.
-    from server import _sanitize, fetch_spot_and_chains_merged  # noqa: F401
+    from server import fetch_spot_and_chains_merged  # noqa: F401
     t = ticker.strip().upper()
     if t == "SPX":
         t = "^SPX"
@@ -84,7 +85,7 @@ async def _fetch_chain(ticker: str, expiries: int) -> Dict[str, Any]:
     return _ensure_gamma(raw)
 
 
-async def _fetch_history(ticker: str, lookback_mins: int = 1440) -> List[Dict[str, Any]]:
+async def _fetch_history(ticker: str, lookback_mins: int = 1440) -> list[dict[str, Any]]:
     """
     Fetch spot snapshots for ``ticker`` over the last ``lookback_mins`` minutes
     from the snapshots collection. Default 1440 minutes = 24h.
@@ -96,17 +97,17 @@ async def _fetch_history(ticker: str, lookback_mins: int = 1440) -> List[Dict[st
     signature. Clamped to [1, 10080] (7d max) to prevent caller-driven DoS.
     """
     try:
-        from datetime import datetime, timedelta, timezone
+        from datetime import datetime, timedelta
 
         from server import db
 
         lookback_mins = max(1, min(int(lookback_mins or 1440), 7 * 24 * 60))
-        cutoff = datetime.now(timezone.utc) - timedelta(minutes=lookback_mins)
+        cutoff = datetime.now(UTC) - timedelta(minutes=lookback_mins)
         cursor = db.snapshots.find(
             {"ticker": ticker.upper(), "ts": {"$gte": cutoff}},
             {"spot": 1, "ts": 1, "_id": 0},
         ).sort("ts", 1)
-        history: List[Dict[str, Any]] = []
+        history: list[dict[str, Any]] = []
         async for doc in cursor:
             spot = doc.get("spot")
             if spot is None:
@@ -223,7 +224,7 @@ async def air_pockets_route(
 # Wave 2 helpers
 # ---------------------------------------------------------------------------
 
-async def _fetch_king_node_history(ticker: str) -> List[Dict[str, Any]]:
+async def _fetch_king_node_history(ticker: str) -> list[dict[str, Any]]:
     """
     Build a king-node history for ``ticker``. Each entry is
     ``{"timestamp": iso8601, "king_strike": float, "spot": float}``.
@@ -237,16 +238,16 @@ async def _fetch_king_node_history(ticker: str) -> List[Dict[str, Any]]:
     well-formed payload.
     """
     try:
-        from datetime import datetime, timedelta, timezone
+        from datetime import datetime, timedelta
 
         from server import db
 
-        cutoff = datetime.now(timezone.utc) - timedelta(minutes=30)
+        cutoff = datetime.now(UTC) - timedelta(minutes=30)
         cursor = db.snapshots.find(
             {"ticker": ticker.upper(), "ts": {"$gte": cutoff}},
             {"spot": 1, "ts": 1, "king_strike": 1, "_id": 0},
         ).sort("ts", 1)
-        history: List[Dict[str, Any]] = []
+        history: list[dict[str, Any]] = []
         async for doc in cursor:
             kn = doc.get("king_strike")
             if kn is None:
@@ -268,7 +269,7 @@ async def _fetch_king_node_history(ticker: str) -> List[Dict[str, Any]]:
         return []
 
 
-async def _trinity_snapshot(ticker: str, expiries: int) -> Dict[str, Any]:
+async def _trinity_snapshot(ticker: str, expiries: int) -> dict[str, Any]:
     """
     Resolve a single trinity-confluence snapshot for ``ticker``.
 
@@ -302,7 +303,7 @@ async def _trinity_snapshot(ticker: str, expiries: int) -> Dict[str, Any]:
             regime = "neutral"
 
         # gamma_flip: re-use advanced_analytics' calc_gamma_flip_levels.
-        gamma_flip: Optional[float] = None
+        gamma_flip: float | None = None
         try:
             from advanced_analytics import calc_gamma_flip_levels
             flips = calc_gamma_flip_levels(spot, contracts)
@@ -316,11 +317,11 @@ async def _trinity_snapshot(ticker: str, expiries: int) -> Dict[str, Any]:
         # trend_direction: compare current spot to spot 30 minutes ago.
         trend: str = "missing"
         try:
-            from datetime import datetime, timedelta, timezone
+            from datetime import datetime, timedelta
 
             from server import db
 
-            cutoff = datetime.now(timezone.utc) - timedelta(minutes=30)
+            cutoff = datetime.now(UTC) - timedelta(minutes=30)
             doc = await db.snapshots.find_one(
                 {"ticker": ticker.upper(), "ts": {"$gte": cutoff}},
                 sort=[("ts", 1)],

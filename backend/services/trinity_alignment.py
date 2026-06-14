@@ -14,7 +14,7 @@ References:
 """
 from __future__ import annotations
 
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 import numpy as np
 
@@ -30,12 +30,12 @@ class TrinityAlignmentIndex:
         self.tolerance_pct = tolerance_pct
 
     def compute(self,
-                spy_flip_levels: List[float],
-                qqq_flip_levels: List[float],
-                spx_flip_levels: List[float],
+                spy_flip_levels: list[float],
+                qqq_flip_levels: list[float],
+                spx_flip_levels: list[float],
                 spy_spot: float = 0.0,
                 qqq_spot: float = 0.0,
-                spx_spot: float = 0.0) -> Dict[str, Any]:
+                spx_spot: float = 0.0) -> dict[str, Any]:
         """Compute Trinity Alignment Index.
 
         Returns dict with:
@@ -91,7 +91,7 @@ class TrinityAlignmentIndex:
         }
 
     def _find_alignments(self, spy_levels, qqq_levels, spx_levels,
-                         spy_spot, qqq_spot, spx_spot) -> List[Dict]:
+                         spy_spot, qqq_spot, spx_spot) -> list[dict]:
         """Find flip levels that align across instruments."""
         aligned = []
 
@@ -113,7 +113,7 @@ class TrinityAlignmentIndex:
                 continue
             group = [(inst1, lvl1)]
             used.add(i)
-            for j, (inst2, lvl2, spot2) in enumerate(all_candidates):
+            for j, (inst2, lvl2, _spot2) in enumerate(all_candidates):
                 if j in used or i == j:
                     continue
                 ref = spot1 if spot1 > 0 else lvl1
@@ -136,7 +136,7 @@ class TrinityAlignmentIndex:
 
         return sorted(aligned, key=lambda x: x["spread_pct"])
 
-    def _compute_score(self, aligned: List[Dict]) -> float:
+    def _compute_score(self, aligned: list[dict]) -> float:
         """Score based on number and tightness of alignments."""
         if not aligned:
             return 0.0
@@ -151,7 +151,7 @@ class TrinityAlignmentIndex:
 
         return min(score, 100.0)
 
-    def _find_nearest(self, aligned, spy_spot, qqq_spot, spx_spot) -> Optional[Dict]:
+    def _find_nearest(self, aligned, spy_spot, qqq_spot, spx_spot) -> dict | None:
         """Find the alignment nearest to current price."""
         if not aligned:
             return None

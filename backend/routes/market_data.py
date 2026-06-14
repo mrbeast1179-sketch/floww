@@ -12,8 +12,8 @@ Fallback strategy:
 from __future__ import annotations
 
 import asyncio
-from datetime import datetime, timezone
-from typing import Any, Dict, Optional
+from datetime import UTC, datetime
+from typing import Any
 
 from fastapi import APIRouter, HTTPException, Query
 
@@ -22,7 +22,7 @@ router = APIRouter()
 
 # ── DuckDB fallback helper ───────────────────────────────────────────
 
-async def _duckdb_fallback(ticker: str) -> Optional[Dict[str, Any]]:
+async def _duckdb_fallback(ticker: str) -> dict[str, Any] | None:
     """
     Serve last known data from DuckDB when live fetch fails.
     Returns a minimal response dict or None if nothing cached.
@@ -43,7 +43,7 @@ async def _duckdb_fallback(ticker: str) -> Optional[Dict[str, Any]]:
         ts = row.get("timestamp")
         if isinstance(ts, str):
             ts = datetime.fromisoformat(ts.replace("Z", "+00:00"))
-        age_s = (datetime.now(timezone.utc) - ts).total_seconds() if ts else None
+        age_s = (datetime.now(UTC) - ts).total_seconds() if ts else None
         return {
             "ticker": row.get("symbol", ticker),
             "spot": row.get("last") or row.get("bid") or 0,
@@ -96,7 +96,7 @@ async def heatmap(
     expiries: int = Query(4, ge=1, le=12),
     taps: bool = True,
     mode: str = Query("day", pattern="^(day|swing|scalp)$"),
-    dte: Optional[int] = Query(None, ge=0, le=30),
+    dte: int | None = Query(None, ge=0, le=30),
     scalp: bool = Query(False),
 ):
     from server import build_heatmap
@@ -110,18 +110,18 @@ async def heatmap(
 async def trinity(
     tickers: str = Query(None),
     mode: str = Query("day", pattern="^(day|swing)$"),
-    dte: Optional[int] = Query(None, ge=0, le=30),
+    dte: int | None = Query(None, ge=0, le=30),
 ):
     from server import TRINITY, build_heatmap
     if tickers is None:
         tickers = ",".join(TRINITY)
     syms = [t.strip() for t in tickers.split(",") if t.strip()]
-    out: Dict[str, Any] = {}
+    out: dict[str, Any] = {}
     results = await asyncio.gather(
         *[build_heatmap(s, 3, True, mode, dte) for s in syms],
         return_exceptions=True,
     )
-    for sym, res in zip(syms, results):
+    for sym, res in zip(syms, results, strict=False):
         if isinstance(res, Exception):
             out[sym] = {"error": str(res)}
         else:
@@ -152,13 +152,13 @@ async def trinity(
                 "divergence"
             ),
         },
-        "asof": datetime.now(timezone.utc).isoformat(),
+        "asof": datetime.now(UTC).isoformat(),
     }
 
 
 @router.get("/spot/{ticker}")
 async def spot(ticker: str):
-    from datetime import datetime, timezone
+    from datetime import datetime
 
     from server import fetch_spot_and_chains_merged
     t = ticker.strip().upper()
@@ -171,8 +171,8 @@ async def spot(ticker: str):
         fallback = await _duckdb_fallback(t)
         if fallback:
             return fallback
-        raise HTTPException(503, f"Live data unavailable for {ticker} and no cache")
-    return {"ticker": t, "spot": raw.get("spot", 0), "ts": datetime.now(timezone.utc).isoformat(), "data_source": "live"}
+        raise HTTPException(503, f"Live data unavailable for {ticker} and no cache") from None
+    return {"ticker": t, "spot": raw.get("spot", 0), "ts": datetime.now(UTC).isoformat(), "data_source": "live"}
 
 
 @router.get("/chain/{ticker}")
@@ -180,8 +180,8 @@ async def chain(
     ticker: str,
     expiries: int = Query(4, ge=1, le=12),
     min_oi: int = Query(0, ge=0),
-    expiry: Optional[str] = None,
-    dte_max: Optional[int] = Query(None, ge=0, le=365),
+    expiry: str | None = None,
+    dte_max: int | None = Query(None, ge=0, le=365),
 ):
     from bs_greeks import bs_charm, bs_vanna
     from server import DIV_YIELD, _sanitize, fetch_spot_and_chains_merged

@@ -46,7 +46,7 @@ Signed identically to GEX. VEX measures sensitivity of gamma to changes in
 implied volatility — important for vol-of-vol and skew dynamics.
 """
 
-from typing import Any, Dict, List, Tuple
+from typing import Any
 
 import numba
 import numpy as np
@@ -63,7 +63,7 @@ def compute_gex_surface(
     vommas: np.ndarray,
     unique_strikes: np.ndarray,
     unique_expiries: np.ndarray,
-) -> Tuple[np.ndarray, np.ndarray]:
+) -> tuple[np.ndarray, np.ndarray]:
     """
     Compute the 2D GEX and VEX surfaces (strikes x expiries).
 
@@ -198,7 +198,7 @@ class GexAggregator:
     _VOMMA_KEYS = ("vomma", "vomma_val", "v")
 
     @staticmethod
-    def _resolve(contract: Dict, key_aliases: tuple, default: Any = None) -> Any:
+    def _resolve(contract: dict, key_aliases: tuple, default: Any = None) -> Any:
         """Resolve a value from a dict using multiple possible key names."""
         for key in key_aliases:
             if key in contract:
@@ -224,7 +224,7 @@ class GexAggregator:
             return 1
         raise ValueError(f"Unrecognised option type: {val!r}")
 
-    def compute(self, spot: float, contracts: List[Dict]) -> Dict[str, Any]:
+    def compute(self, spot: float, contracts: list[dict]) -> dict[str, Any]:
         """
         Compute GEX/VEX surfaces and summary metrics from a list of contract dicts.
 
@@ -336,7 +336,7 @@ class GexAggregator:
 
     def find_zero_crossings(
         self, strikes: np.ndarray, gex_1d: np.ndarray
-    ) -> List[float]:
+    ) -> list[float]:
         """
         Find strikes where net GEX crosses zero using linear interpolation.
 
@@ -352,7 +352,7 @@ class GexAggregator:
         list of float
             Interpolated strike prices where GEX crosses zero.
         """
-        crossings: List[float] = []
+        crossings: list[float] = []
         n = len(strikes)
         if n < 2:
             return crossings

@@ -15,8 +15,7 @@ from __future__ import annotations
 
 import os
 import sys
-from datetime import datetime, timezone
-from typing import Dict
+from datetime import UTC, datetime, timezone
 from unittest.mock import AsyncMock, MagicMock
 
 import numpy as np
@@ -41,7 +40,7 @@ def _make_mock_db() -> MagicMock:
     mock_db = MagicMock()
 
     # Storage for each collection
-    storage: Dict[str, Dict[str, Dict]] = {
+    storage: dict[str, dict[str, dict]] = {
         "ml_models": {},
         "ml_predictions": {},
         "ml_features": {},
@@ -534,7 +533,7 @@ class TestDriftMonitoring:
         np.random.seed(42)
         recent_data = [
             {"ticker": "SPY", "feature_version": "v1.0",
-             "date": datetime.now(timezone.utc).isoformat(),
+             "date": datetime.now(UTC).isoformat(),
              "feat1": float(v)}
             for v in np.random.randn(50)
         ]
@@ -569,7 +568,7 @@ class TestDriftMonitoring:
         # Shifted recent data
         recent_data = [
             {"ticker": "SPY", "feature_version": "v1.0",
-             "date": datetime.now(timezone.utc).isoformat(),
+             "date": datetime.now(UTC).isoformat(),
              "feat1": float(v)}
             for v in np.random.randn(200) + 5.0  # big shift
         ]
@@ -638,7 +637,7 @@ class TestPredict:
 class TestUpdateRealizedOutcome:
     @pytest.mark.asyncio
     async def test_update(self, registry):
-        ts = datetime.now(timezone.utc)
+        ts = datetime.now(UTC)
         await registry.predictions_col.insert_one({
             "ticker": "SPY",
             "ts": ts,

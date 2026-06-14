@@ -45,7 +45,7 @@ References:
 from __future__ import annotations
 
 import logging
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 import numpy as np
 from scipy.interpolate import RectBivariateSpline
@@ -195,7 +195,7 @@ class SABRModel:
         market_vols: np.ndarray,
         F: float,
         T: float,
-    ) -> Dict[str, float]:
+    ) -> dict[str, float]:
         """
         Fit SABR parameters to market volatility smile using least squares.
 
@@ -293,7 +293,7 @@ class SABRModel:
             "rmse": rmse,
         }
 
-    def get_state(self) -> Dict[str, Any]:
+    def get_state(self) -> dict[str, Any]:
         """Return current model parameters as a dictionary."""
         return {
             "alpha": self.alpha,
@@ -379,7 +379,7 @@ class SVIProfile:
         log_moneyness: np.ndarray,
         market_vols: np.ndarray,
         T: float,
-    ) -> Dict[str, float]:
+    ) -> dict[str, float]:
         """
         Fit SVI parameters to market data via least squares.
 
@@ -479,7 +479,7 @@ class SVIProfile:
             "rmse": rmse,
         }
 
-    def get_state(self) -> Dict[str, Any]:
+    def get_state(self) -> dict[str, Any]:
         """Return current SVI parameters as a dictionary."""
         return {
             "a": self.a,
@@ -506,14 +506,14 @@ class VolSurfaceConstructor:
     def __init__(self):
         """Initialize the VolSurfaceConstructor."""
         self.sabr_model = SABRModel()
-        self.svi_profiles: Dict[float, SVIProfile] = {}
-        self._last_surface: Optional[Dict[str, Any]] = None
+        self.svi_profiles: dict[float, SVIProfile] = {}
+        self._last_surface: dict[str, Any] | None = None
 
     def build_surface(
         self,
         spot: float,
-        contracts: List[Dict[str, Any]],
-    ) -> Dict[str, Any]:
+        contracts: list[dict[str, Any]],
+    ) -> dict[str, Any]:
         """
         Build a full IV surface from option chain contracts.
 
@@ -559,7 +559,7 @@ class VolSurfaceConstructor:
             return self._empty_surface()
 
         # Group by expiry
-        expiries_map: Dict[float, List[Dict]] = {}
+        expiries_map: dict[float, list[dict]] = {}
         for c in valid_contracts:
             T = c["expiry"]
             if T not in expiries_map:
@@ -665,10 +665,10 @@ class VolSurfaceConstructor:
     def _build_iv_grid(
         self,
         spot: float,
-        expiries: List[float],
-        expiries_map: Dict[float, List[Dict]],
-        svi_params_by_expiry: Dict[float, Dict],
-    ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+        expiries: list[float],
+        expiries_map: dict[float, list[dict]],
+        svi_params_by_expiry: dict[float, dict],
+    ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
         """
         Build a 2D IV grid from per-expiry SVI fits.
 
@@ -733,7 +733,7 @@ class VolSurfaceConstructor:
     def interpolate_iv(
         self,
         spot: float,
-        contracts: List[Dict[str, Any]],
+        contracts: list[dict[str, Any]],
         target_strikes: np.ndarray,
         target_expiries: np.ndarray,
     ) -> np.ndarray:
@@ -807,7 +807,7 @@ class VolSurfaceConstructor:
                     result[i, j] = iv_grid[ki, ti]
             return result
 
-    def _empty_surface(self) -> Dict[str, Any]:
+    def _empty_surface(self) -> dict[str, Any]:
         """Return an empty surface dict for error cases."""
         return {
             "grid_strikes": np.array([]),

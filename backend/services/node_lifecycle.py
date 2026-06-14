@@ -18,9 +18,9 @@ from __future__ import annotations
 
 import math
 from collections import deque
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from enum import Enum
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 
 class NodeState(Enum):
@@ -44,9 +44,9 @@ class Node:
 
         self.state = NodeState.FORMED
         self.tap_count = 0
-        self.formation_time = datetime.now(timezone.utc)
-        self.last_tap_time: Optional[datetime] = None
-        self.tap_times: List[datetime] = []
+        self.formation_time = datetime.now(UTC)
+        self.last_tap_time: datetime | None = None
+        self.tap_times: list[datetime] = []
         self.structural_weight = 1.0  # 1.0 = full strength, decays with taps
         self.opacity = 1.0  # visual opacity, decays with taps
 
@@ -57,7 +57,7 @@ class Node:
 
     def tap(self):
         """Record a tap on this node."""
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         self.tap_count += 1
         self.last_tap_time = now
         self.tap_times.append(now)
@@ -88,7 +88,7 @@ class Node:
             if abs(spot - self.strike) <= extended_threshold:
                 self.state = NodeState.ACTIVE
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "strike": self.strike,
             "gex_value": round(self.gex_value, 2),
@@ -109,10 +109,10 @@ class NodeLifecycleTracker:
         self.tap_threshold_pct = tap_threshold_pct
         self.max_taps = max_taps
         self.max_nodes = max_nodes
-        self._nodes: Dict[float, Node] = {}  # strike -> Node
+        self._nodes: dict[float, Node] = {}  # strike -> Node
         self._history: deque = deque(maxlen=1000)
 
-    def update(self, spot: float, king_nodes: List[Tuple[float, float]]) -> Dict[str, Any]:
+    def update(self, spot: float, king_nodes: list[tuple[float, float]]) -> dict[str, Any]:
         """Update all nodes with current spot and detected king nodes.
 
         Args:
@@ -157,7 +157,7 @@ class NodeLifecycleTracker:
 
         # Record history
         snapshot = {
-            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "timestamp": datetime.now(UTC).isoformat(),
             "spot": spot,
             "n_nodes": len(self._nodes),
             "n_taps": len(new_taps),
@@ -175,7 +175,7 @@ class NodeLifecycleTracker:
             "total_nodes": len(self._nodes),
         }
 
-    def get_state(self) -> Dict[str, Any]:
+    def get_state(self) -> dict[str, Any]:
         return {
             "nodes": [n.to_dict() for n in self._nodes.values()],
             "total_nodes": len(self._nodes),

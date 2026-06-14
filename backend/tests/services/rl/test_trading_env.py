@@ -162,7 +162,7 @@ class TestTradingEnv:
         from services.rl.trading_env import TradingEnv
         env = TradingEnv()
         total_rewards = []
-        for ep in range(100):
+        for _ep in range(100):
             obs = env.reset()
             episode_reward = 0.0
             done = False

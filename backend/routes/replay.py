@@ -9,9 +9,9 @@ GET /api/replay/status — current replay status
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import logging
 from datetime import datetime
-from typing import Optional
 
 from fastapi import APIRouter, HTTPException, Query
 
@@ -30,7 +30,7 @@ router = APIRouter(prefix="/api/replay", tags=["replay"])
 
 # Global replay engine instance (set by server.py on startup)
 _replay_engine = None
-_engine_task: Optional[asyncio.Task] = None
+_engine_task: asyncio.Task | None = None
 
 
 @router.post("/start")
@@ -48,7 +48,7 @@ async def start_replay(
         start_dt = datetime.fromisoformat(start)
         end_dt = datetime.fromisoformat(end)
     except ValueError:
-        raise HTTPException(400, "Invalid datetime format (use ISO 8601)")
+        raise HTTPException(400, "Invalid datetime format (use ISO 8601)") from None
 
     from services.duckdb_engine import db as duckdb_engine
     from services.replay_engine import ReplayEngine
@@ -79,10 +79,8 @@ async def stop_replay():
         raise HTTPException(404, "No replay running")
     if _engine_task is not None and not _engine_task.done():
         _engine_task.cancel()
-        try:
+        with contextlib.suppress(asyncio.CancelledError):
             await _engine_task
-        except asyncio.CancelledError:
-            pass
     await _replay_engine.stop()
     _engine_task = None
     return {"status": "stopped"}

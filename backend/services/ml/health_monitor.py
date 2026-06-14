@@ -20,8 +20,8 @@ Alert thresholds:
 from __future__ import annotations
 
 import logging
-from datetime import datetime, timedelta, timezone
-from typing import Any, Dict
+from datetime import UTC, datetime, timedelta
+from typing import Any
 
 import numpy as np
 
@@ -68,7 +68,7 @@ def compute_psi(expected: np.ndarray, actual: np.ndarray, bins: int = 10) -> flo
     return float(psi)
 
 
-async def assess_model_health(db, ticker: str) -> Dict[str, Any]:
+async def assess_model_health(db, ticker: str) -> dict[str, Any]:
     """Comprehensive health assessment for a single ticker's model.
 
     Returns dict with:
@@ -79,10 +79,10 @@ async def assess_model_health(db, ticker: str) -> Dict[str, Any]:
       - recommendation: string
     """
     ticker = ticker.upper()
-    result: Dict[str, Any] = {
+    result: dict[str, Any] = {
         "ticker": ticker,
         "status": ModelHealthStatus.UNKNOWN,
-        "checked_at": datetime.now(timezone.utc).isoformat(),
+        "checked_at": datetime.now(UTC).isoformat(),
     }
 
     registry = _get_registry_from_db(db)
@@ -101,7 +101,7 @@ async def assess_model_health(db, ticker: str) -> Dict[str, Any]:
         return result
 
     # 2. Rolling accuracy from outcomes
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     for window_days, key in [(7, "rolling_7d"), (30, "rolling_30d")]:
         try:
             since = (now - timedelta(days=window_days)).isoformat()
@@ -182,7 +182,7 @@ async def assess_model_health(db, ticker: str) -> Dict[str, Any]:
     return result
 
 
-async def get_all_models_health(db) -> Dict[str, Any]:
+async def get_all_models_health(db) -> dict[str, Any]:
     """Health assessment for all active models."""
     registry = _get_registry_from_db(db)
     try:
@@ -210,7 +210,7 @@ async def get_all_models_health(db) -> Dict[str, Any]:
             "critical": critical,
             "overall_status": "CRITICAL" if critical > 0 else "DEGRADED" if degraded > 0 else "HEALTHY",
         },
-        "checked_at": datetime.now(timezone.utc).isoformat(),
+        "checked_at": datetime.now(UTC).isoformat(),
     }
 
 
@@ -229,7 +229,7 @@ async def _get_active_model_doc(registry, ticker):
         return None
 
 
-async def _compute_feature_drift(db, ticker: str, model_doc: Dict) -> Dict[str, float]:
+async def _compute_feature_drift(db, ticker: str, model_doc: dict) -> dict[str, float]:
     """Compute PSI for each feature between training and recent distributions."""
     try:
         # Get recent predictions with feature snapshots

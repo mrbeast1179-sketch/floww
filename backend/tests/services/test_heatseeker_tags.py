@@ -13,7 +13,7 @@ Uses hand-built fixtures so expected answers are verifiable by inspection.
 import math
 import sys
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any
 
 import pytest
 
@@ -39,11 +39,11 @@ from services.heatseeker import (
 # Fixture helpers
 # ---------------------------------------------------------------------------
 
-def _c(strike: float, ctype: str, gamma: float, oi: float) -> Dict[str, Any]:
+def _c(strike: float, ctype: str, gamma: float, oi: float) -> dict[str, Any]:
     return {"strike": strike, "type": ctype, "gamma": gamma, "open_interest": oi}
 
 
-def _spot(val: float) -> Dict[str, Any]:
+def _spot(val: float) -> dict[str, Any]:
     return {"timestamp": "2026-05-18T00:00:00Z", "spot": val}
 
 
@@ -54,7 +54,7 @@ def _spot(val: float) -> Dict[str, Any]:
 class TestKingNodeTags:
     """Tests for King Node detection, ranking, and coordinate rendering."""
 
-    def _make_king_candidates(self, spot: float) -> List[Dict]:
+    def _make_king_candidates(self, spot: float) -> list[dict]:
         """
         Build contracts where strike=100 has the largest |GEX|, then 105, then 95.
         All calls (positive GEX) so |GEX| ranks purely by OI magnitude.
@@ -175,7 +175,7 @@ class TestKingNodeTags:
 class TestAirPocketTags:
     """Tests for Air Pocket detection, span thresholding, and coordinate output."""
 
-    def _make_pocket_chain(self, spot: float) -> List[Dict]:
+    def _make_pocket_chain(self, spot: float) -> list[dict]:
         """
         Build a chain with a clear air pocket between strikes 101-103.
         Anchors at 95-100 and 104-108 have large OI; 101-103 have tiny OI.
@@ -318,7 +318,7 @@ class TestAirPocketTags:
 class TestFlipZoneTags:
     """Tests for Flip Zone detection, interpolation, and coordinate output."""
 
-    def _make_flip_chain(self, spot: float) -> List[Dict]:
+    def _make_flip_chain(self, spot: float) -> list[dict]:
         """
         Build a chain where cumulative GEX crosses zero between strikes 102 and 105.
         GEX per strike: 95=-100k, 98=-120k, 102=+180k, 105=+140k
@@ -444,7 +444,7 @@ class TestTagRenderingPipeline:
     contracts → GEX aggregation → tag detection → coordinate output.
     """
 
-    def _make_realistic_chain(self, spot: float) -> List[Dict]:
+    def _make_realistic_chain(self, spot: float) -> list[dict]:
         """Build a realistic options chain with known structure."""
         contracts = []
         # Dense strikes from spot-15 to spot+15

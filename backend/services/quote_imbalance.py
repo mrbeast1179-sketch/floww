@@ -15,7 +15,7 @@ from __future__ import annotations
 
 import math
 from collections import deque
-from typing import Any, Dict
+from typing import Any
 
 import numpy as np
 
@@ -59,10 +59,7 @@ class QuoteImbalanceTracker:
             QI in [-1, 1].
         """
         total = bid_size + ask_size
-        if total <= 0:
-            qi = 0.0
-        else:
-            qi = (bid_size - ask_size) / total
+        qi = 0.0 if total <= 0 else (bid_size - ask_size) / total
 
         self._current_qi = qi
         self._history.append(qi)
@@ -105,7 +102,7 @@ class QuoteImbalanceTracker:
     # State
     # ------------------------------------------------------------------
 
-    def get_state(self) -> Dict[str, Any]:
+    def get_state(self) -> dict[str, Any]:
         return {
             "qi": self._current_qi,
             "zscore": self._current_zscore,

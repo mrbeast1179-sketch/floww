@@ -10,15 +10,15 @@ Functions:
 """
 
 from collections import defaultdict
-from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional
+from datetime import UTC, datetime
+from typing import Any
 
 import numpy as np
 import yfinance as yf
 from scipy.interpolate import griddata as scipy_griddata
 
 
-def calc_iv_surface_data(spot: float, contracts: List[Dict[str, Any]]) -> Dict[str, Any]:
+def calc_iv_surface_data(spot: float, contracts: list[dict[str, Any]]) -> dict[str, Any]:
     """Calculate IV surface data: IV across moneyness and time.
     Returns grid data suitable for 3D surface or heatmap visualization.
     Institutional standard: moneyness (K/S) x TTE -> IV."""
@@ -81,7 +81,7 @@ def calc_iv_surface_data(spot: float, contracts: List[Dict[str, Any]]) -> Dict[s
         atm_data = min(exp_data, key=lambda x: abs(x["moneyness"] - 1.0))
         try:
             exp_date = datetime.strptime(exp, "%Y-%m-%d").date()
-            dte = (exp_date - datetime.now(timezone.utc).date()).days
+            dte = (exp_date - datetime.now(UTC).date()).days
         except Exception:
             dte = 0
         term_structure.append({
@@ -98,7 +98,7 @@ def calc_iv_surface_data(spot: float, contracts: List[Dict[str, Any]]) -> Dict[s
     }
 
 
-def calc_skew_metrics(spot: float, contracts: List[Dict[str, Any]]) -> Dict[str, Any]:
+def calc_skew_metrics(spot: float, contracts: list[dict[str, Any]]) -> dict[str, Any]:
     """Calculate volatility skew metrics.
     - 25d risk reversal: IV(25d call) - IV(25d put). Positive = call skew (bullish).
     - 25d butterfly: (IV(25d call) + IV(25d put))/2 - IV(ATM). Measures smile convexity.
@@ -183,7 +183,7 @@ def calc_skew_metrics(spot: float, contracts: List[Dict[str, Any]]) -> Dict[str,
     }
 
 
-def calc_realized_volatility(ticker: str, days: int = 20) -> Optional[Dict[str, Any]]:
+def calc_realized_volatility(ticker: str, days: int = 20) -> dict[str, Any] | None:
     """Calculate realized volatility from historical prices.
     Uses Parkinson (high-low) and Garman-Klass estimators for efficiency.
     Institutional standard: annualized, with comparison to implied.
@@ -221,7 +221,7 @@ def calc_realized_volatility(ticker: str, days: int = 20) -> Optional[Dict[str, 
     }
 
 
-def calc_iv_rank_percentile(ticker: str, current_iv: float, lookback_days: int = 252) -> Dict[str, Any]:
+def calc_iv_rank_percentile(ticker: str, current_iv: float, lookback_days: int = 252) -> dict[str, Any]:
     """Calculate IV rank and IV percentile.
     IV Rank = (current IV - 52w low IV) / (52w high IV - 52w low IV)
     IV Percentile = % of days in past year with IV below current.

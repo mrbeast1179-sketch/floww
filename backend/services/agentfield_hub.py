@@ -19,7 +19,7 @@ from __future__ import annotations
 
 import logging
 import os
-from typing import Any, Dict, Optional
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -27,17 +27,17 @@ logger = logging.getLogger(__name__)
 from agentfield import Agent, AgentRouter, AIConfig, CostTracker  # type: ignore
 
 # ── Singleton ──────────────────────────────────────────────────────────────
-_hub: Optional["AgentFieldHub"] = None
+_hub: AgentFieldHub | None = None
 
 
-def get_hub() -> "AgentFieldHub":
+def get_hub() -> AgentFieldHub:
     global _hub
     if _hub is None:
         _hub = AgentFieldHub()
     return _hub
 
 
-async def init_hub() -> "AgentFieldHub":
+async def init_hub() -> AgentFieldHub:
     hub = get_hub()
     await hub.init()
     return hub
@@ -53,7 +53,7 @@ class AgentFieldHub:
     """
 
     def __init__(self) -> None:
-        self.agent: Optional[Agent] = None
+        self.agent: Agent | None = None
         self.cost_tracker = CostTracker()
         self.router = AgentRouter(prefix="/agentfield/v1", tags=["trading"])
         self._initialized = False
@@ -87,7 +87,7 @@ class AgentFieldHub:
     # ──────────────────────────────────────────────────────────────────────
     def _register_signal_reasoners(self) -> None:
         @self.router.reasoner(path="/signals/gex-regime", tags=["signal", "gex"])
-        async def gex_regime(ticker: str = "SPY") -> Dict[str, Any]:
+        async def gex_regime(ticker: str = "SPY") -> dict[str, Any]:
             """Compute GEX regime for a ticker. Returns regime, flip level, walls."""
             from services.heatseeker import compute_gex_profile  # type: ignore
 
@@ -99,7 +99,7 @@ class AgentFieldHub:
                 return {"ticker": ticker.upper(), "status": "error", "error": str(e)}
 
         @self.router.reasoner(path="/signals/alerts", tags=["signal", "alerts"])
-        async def scan_alerts(ticker: str = "SPY") -> Dict[str, Any]:
+        async def scan_alerts(ticker: str = "SPY") -> dict[str, Any]:
             """Run full alert engine scan on a ticker."""
             from alert_engine import AlertEngine  # type: ignore
 
@@ -112,7 +112,7 @@ class AgentFieldHub:
                 return {"ticker": ticker.upper(), "status": "error", "error": str(e)}
 
         @self.router.reasoner(path="/signals/vpin", tags=["signal", "vpin"])
-        async def vpin_signal(ticker: str = "SPY") -> Dict[str, Any]:
+        async def vpin_signal(ticker: str = "SPY") -> dict[str, Any]:
             """Return latest VPIN value from the ring buffer (no param needed)."""
             from services.vpin_engine import VpinEngine  # type: ignore
 
@@ -124,7 +124,7 @@ class AgentFieldHub:
                 return {"ticker": ticker.upper(), "status": "error", "error": str(e)}
 
         @self.router.reasoner(path="/signals/hawkes", tags=["signal", "hawkes"])
-        async def hawkes_intensity(ticker: str = "SPY") -> Dict[str, Any]:
+        async def hawkes_intensity(ticker: str = "SPY") -> dict[str, Any]:
             """Hawkes process state (mu, alpha, beta, cluster probability)."""
             from services.hawkes_process import HawkesProcess  # type: ignore
 
@@ -140,7 +140,7 @@ class AgentFieldHub:
     # ──────────────────────────────────────────────────────────────────────
     def _register_risk_reasoners(self) -> None:
         @self.router.reasoner(path="/risk/portfolio-greeks", tags=["risk", "greeks"])
-        async def portfolio_greeks(name: str = "main", spot: float = 0.0, iv: float = 0.15) -> Dict[str, Any]:
+        async def portfolio_greeks(name: str = "main", spot: float = 0.0, iv: float = 0.15) -> dict[str, Any]:
             """Aggregate Greeks across a named portfolio."""
             from server import calc_portfolio_summary, db  # type: ignore
 
@@ -158,7 +158,7 @@ class AgentFieldHub:
             spot_shock: float = 0.0,
             vol_shock: float = 0.0,
             time_decay_days: int = 1,
-        ) -> Dict[str, Any]:
+        ) -> dict[str, Any]:
             """What-if scenario analysis for a portfolio."""
             from server import calc_portfolio_scenario, db  # type: ignore
 
@@ -178,7 +178,7 @@ class AgentFieldHub:
             risk_per_trade_pct: float = 0.02,
             spot: float = 0.0,
             gex_level: float = 0.0,
-        ) -> Dict[str, Any]:
+        ) -> dict[str, Any]:
             """Kelly-corrected position sizing based on account risk and GEX."""
             from portfolio import calc_position_size  # type: ignore
 
@@ -198,7 +198,7 @@ class AgentFieldHub:
     # ──────────────────────────────────────────────────────────────────────
     def _register_briefing_reasoners(self) -> None:
         @self.router.reasoner(path="/briefing/build", tags=["briefing"])
-        async def build_briefing(ticker: str = "SPY") -> Dict[str, Any]:
+        async def build_briefing(ticker: str = "SPY") -> dict[str, Any]:
             """Build a structured morning briefing."""
             from services.morning_briefing import build_briefing as _build  # type: ignore
 
@@ -217,7 +217,7 @@ class AgentFieldHub:
             iv_skew: float = 0.0,
             flip_level: float = 0.0,
             spot: float = 0.0,
-        ) -> Dict[str, Any]:
+        ) -> dict[str, Any]:
             """Deterministic regime classification (BULLISH/BEARISH/NEUTRAL)."""
             from services.morning_briefing import classify_regime as _classify  # type: ignore
 
@@ -236,7 +236,7 @@ class AgentFieldHub:
     # ──────────────────────────────────────────────────────────────────────
     def _register_data_reasoners(self) -> None:
         @self.router.reasoner(path="/data/option-chain", tags=["data", "options"])
-        async def option_chain(ticker: str = "SPY") -> Dict[str, Any]:
+        async def option_chain(ticker: str = "SPY") -> dict[str, Any]:
             """Fetch current option chain with Greeks."""
             from services.yfinance_fetcher import fetch_option_chain  # type: ignore
 
@@ -247,7 +247,7 @@ class AgentFieldHub:
                 return {"ticker": ticker.upper(), "status": "error", "error": str(e)}
 
         @self.router.reasoner(path="/data/vol-surface", tags=["data", "vol"])
-        async def vol_surface(ticker: str = "SPY") -> Dict[str, Any]:
+        async def vol_surface(ticker: str = "SPY") -> dict[str, Any]:
             """Compute full IV surface (SABR/SVI interpolated)."""
             from services.stochastic_vol import VolSurfaceConstructor  # type: ignore
 
@@ -263,7 +263,7 @@ class AgentFieldHub:
     # ──────────────────────────────────────────────────────────────────────
     def _register_execution_reasoners(self) -> None:
         @self.router.reasoner(path="/execute/order", tags=["execution"])
-        async def submit_order(order: Dict[str, Any]) -> Dict[str, Any]:
+        async def submit_order(order: dict[str, Any]) -> dict[str, Any]:
             """Submit a paper order via PaperBroker.execute_signal."""
             from services.paper_trader import PaperBroker, Signal  # type: ignore
 
@@ -282,7 +282,7 @@ class AgentFieldHub:
                 return {"status": "error", "error": str(e)}
 
         @self.router.reasoner(path="/execute/health", tags=["execution", "health"])
-        async def execution_health() -> Dict[str, Any]:
+        async def execution_health() -> dict[str, Any]:
             """Check execution engine health + cost tracker totals."""
             return {
                 "status": "ok",

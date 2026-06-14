@@ -9,7 +9,8 @@ model.predict. No model that fails any gate is allowed to be saved.
 from __future__ import annotations
 
 import logging
-from typing import Any, Dict, List, Optional, Sequence
+from collections.abc import Sequence
+from typing import Any
 
 import numpy as np
 
@@ -49,13 +50,13 @@ def assert_class_balance(y: Sequence, min_ratio: float = 0.20, label: str = "tar
         raise DegenerateModelError(
             f"{label}: class {min_class} has {min_count}/{total} samples "
             f"({ratio:.4f} < {min_ratio} min_ratio). "
-            f"Class distribution: {dict(zip(unique.tolist(), counts.tolist()))}"
+            f"Class distribution: {dict(zip(unique.tolist(), counts.tolist(), strict=False))}"
         )
 
     log.info(f"assert_class_balance: OK — {len(unique)} classes, min ratio={ratio:.4f}")
 
 
-def assert_feature_variance(X: Any, min_var: float = 1e-6, feature_names: Optional[List[str]] = None) -> None:
+def assert_feature_variance(X: Any, min_var: float = 1e-6, feature_names: list[str] | None = None) -> None:
     """Assert that every feature has variance > min_var.
 
     Catches constant columns (all same value) which provide no signal.
@@ -237,15 +238,15 @@ def run_all_gates(
     X: Any,
     y: Any,
     y_pred_proba: Any,
-    feature_dates: Optional[Sequence] = None,
-    target_dates: Optional[Sequence] = None,
-    train_dates: Optional[Sequence] = None,
-    test_dates: Optional[Sequence] = None,
-    train_indices: Optional[np.ndarray] = None,
-    val_indices: Optional[np.ndarray] = None,
-    holdout_indices: Optional[np.ndarray] = None,
-    feature_names: Optional[List[str]] = None,
-) -> Dict[str, bool]:
+    feature_dates: Sequence | None = None,
+    target_dates: Sequence | None = None,
+    train_dates: Sequence | None = None,
+    test_dates: Sequence | None = None,
+    train_indices: np.ndarray | None = None,
+    val_indices: np.ndarray | None = None,
+    holdout_indices: np.ndarray | None = None,
+    feature_names: list[str] | None = None,
+) -> dict[str, bool]:
     """Run all quality gates. Returns dict of gate_name -> passed.
 
     Raises DegenerateModelError on first failure.

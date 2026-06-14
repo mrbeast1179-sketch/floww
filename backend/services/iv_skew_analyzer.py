@@ -27,7 +27,6 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Tuple
 
 import numpy as np
 
@@ -59,9 +58,9 @@ class IvSkewResult:
     skew_weighted: float = 0.0
     term_structure_ratio: float = 1.0
     skew_percentile: float = 50.0
-    call_ivs_by_strike: Dict[str, float] = field(default_factory=dict)
-    put_ivs_by_strike: Dict[str, float] = field(default_factory=dict)
-    flags: List[str] = field(default_factory=list)
+    call_ivs_by_strike: dict[str, float] = field(default_factory=dict)
+    put_ivs_by_strike: dict[str, float] = field(default_factory=dict)
+    flags: list[str] = field(default_factory=list)
 
 
 class IvSkewAnalyzer:
@@ -82,7 +81,7 @@ class IvSkewAnalyzer:
         self.fear_threshold = fear_threshold
         self.extreme_fear_threshold = extreme_fear_threshold
         self.history_window = history_window
-        self._skew_history: List[float] = []
+        self._skew_history: list[float] = []
 
     # ------------------------------------------------------------------
     # Public API
@@ -90,11 +89,11 @@ class IvSkewAnalyzer:
 
     def analyze(
         self,
-        call_ivs: Dict[str, float],
-        put_ivs: Dict[str, float],
+        call_ivs: dict[str, float],
+        put_ivs: dict[str, float],
         spot: float,
-        call_oi: Optional[Dict[str, float]] = None,
-        put_oi: Optional[Dict[str, float]] = None,
+        call_oi: dict[str, float] | None = None,
+        put_oi: dict[str, float] | None = None,
     ) -> IvSkewResult:
         """Run full IV skew analysis.
 
@@ -147,10 +146,10 @@ class IvSkewAnalyzer:
 
     def analyze_term_structure(
         self,
-        short_call_ivs: Dict[str, float],
-        short_put_ivs: Dict[str, float],
-        long_call_ivs: Dict[str, float],
-        long_put_ivs: Dict[str, float],
+        short_call_ivs: dict[str, float],
+        short_put_ivs: dict[str, float],
+        long_call_ivs: dict[str, float],
+        long_put_ivs: dict[str, float],
         spot: float,
     ) -> IvSkewResult:
         """Analyze short-dated vs long-dated skew (term structure).
@@ -168,10 +167,10 @@ class IvSkewAnalyzer:
 
     def compute_skew_surface(
         self,
-        call_ivs_by_expiry: Dict[str, Dict[str, float]],
-        put_ivs_by_expiry: Dict[str, Dict[str, float]],
+        call_ivs_by_expiry: dict[str, dict[str, float]],
+        put_ivs_by_expiry: dict[str, dict[str, float]],
         spot: float,
-    ) -> Dict[str, float]:
+    ) -> dict[str, float]:
         """Compute ATM skew for each expiry (skew surface).
 
         Args:
@@ -182,7 +181,7 @@ class IvSkewAnalyzer:
         Returns:
             Dict mapping expiry -> ATM skew.
         """
-        surface: Dict[str, float] = {}
+        surface: dict[str, float] = {}
         for expiry in call_ivs_by_expiry:
             if expiry in put_ivs_by_expiry:
                 call_atm = self._interpolate_atm(call_ivs_by_expiry[expiry], spot)
@@ -195,7 +194,7 @@ class IvSkewAnalyzer:
     # ------------------------------------------------------------------
 
     @staticmethod
-    def _interpolate_atm(ivs: Dict[str, float], spot: float) -> float:
+    def _interpolate_atm(ivs: dict[str, float], spot: float) -> float:
         """Linearly interpolate IV at the ATM strike.
 
         Finds the two strikes bracketing `spot` and linearly interpolates.
@@ -204,7 +203,7 @@ class IvSkewAnalyzer:
         if not ivs:
             return 0.0
 
-        strikes_ivs: List[Tuple[float, float]] = []
+        strikes_ivs: list[tuple[float, float]] = []
         for k_str, iv in ivs.items():
             try:
                 k = float(k_str)
@@ -248,7 +247,7 @@ class IvSkewAnalyzer:
 
     @staticmethod
     def _weighted_avg(
-        ivs: Dict[str, float], ois: Dict[str, float]
+        ivs: dict[str, float], ois: dict[str, float]
     ) -> float:
         """Compute open-interest-weighted average IV."""
         total_oi = 0.0
@@ -290,9 +289,9 @@ class IvSkewAnalyzer:
         rank = below + 0.5 * equal
         return float(rank / (n - 1) * 100.0)
 
-    def _generate_flags(self, skew: float) -> List[str]:
+    def _generate_flags(self, skew: float) -> list[str]:
         """Generate human-readable flags based on skew level."""
-        flags: List[str] = []
+        flags: list[str] = []
         if skew >= self.extreme_fear_threshold:
             flags.append("EXTREME_FEAR")
         elif skew >= self.fear_threshold:

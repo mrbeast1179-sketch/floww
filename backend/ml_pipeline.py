@@ -17,7 +17,7 @@ import json
 import logging
 import os
 import sys
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 import numpy as np
 
@@ -50,15 +50,15 @@ def _save_with_gates(
     scaler_path: str,
     X_train: Any,
     y_train: Any,
-    y_test: Optional[Any] = None,
+    y_test: Any | None = None,
     y_pred_proba: Any,
-    feature_names: Optional[List[str]] = None,
-    feature_dates: Optional[List[Any]] = None,
-    target_dates: Optional[List[Any]] = None,
-    train_dates: Optional[List[Any]] = None,
-    test_dates: Optional[List[Any]] = None,
+    feature_names: list[str] | None = None,
+    feature_dates: list[Any] | None = None,
+    target_dates: list[Any] | None = None,
+    train_dates: list[Any] | None = None,
+    test_dates: list[Any] | None = None,
     ticker: str = "?",
-) -> Dict[str, bool]:
+) -> dict[str, bool]:
     """Run all applicable quality gates, then save model + scaler with joblib.
 
     Every joblib.dump in this file goes through this helper. On any gate
@@ -97,7 +97,7 @@ def _save_with_gates(
         assert_train_test_temporal_split,
     )
 
-    gate_results: Dict[str, bool] = {}
+    gate_results: dict[str, bool] = {}
 
     try:
         # Gate 1: class balance on training labels (catches 99/1 splits)
@@ -176,9 +176,9 @@ async def _build_dataset_from_snapshots(ticker: str, min_samples: int):
             None, None, None, None,
         )
 
-    X: List[List[float]] = []
-    y: List[float] = []
-    timestamps: List[Any] = []
+    X: list[list[float]] = []
+    y: list[float] = []
+    timestamps: list[Any] = []
     for i in range(len(snapshots) - 1):
         features = extract_features(snapshots, i)
         if not features:

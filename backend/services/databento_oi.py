@@ -16,7 +16,7 @@ from __future__ import annotations
 import logging
 import os
 from datetime import date as date_cls
-from typing import Any, Dict, Optional
+from typing import Any
 
 import yfinance as yf
 
@@ -87,12 +87,12 @@ def _clamp_oi(value: Any) -> int:
         return 0
 
 
-def _yfinance_full_chain(ticker: str) -> Dict[str, Dict[str, Any]]:
+def _yfinance_full_chain(ticker: str) -> dict[str, dict[str, Any]]:
     """Fetch full options chain from yfinance with OI for all contracts.
 
     Returns dict keyed by '{strike}_{expiry}_{type}' with contract data.
     """
-    result: Dict[str, Dict[str, Any]] = {}
+    result: dict[str, dict[str, Any]] = {}
     try:
         yf_ticker = yf.Ticker(ticker)
         expiries = yf_ticker.options
@@ -136,7 +136,7 @@ def get_oi(
     strike: float,
     expiry: str,
     opt_type: str = "call",
-    timestamp: Optional[Any] = None,
+    timestamp: Any | None = None,
 ) -> int:
     """Resilient OI lookup for a single contract.
 
@@ -170,7 +170,7 @@ def get_oi(
                         break
             if contracts:
                 # Find matching contract — data already has strike/expiry/type from _fetch_oi_sync
-                for sym, data in contracts.items():
+                for _sym, data in contracts.items():
                     try:
                         if (
                             abs(data.get("strike", 0) - strike) < 0.01
@@ -190,8 +190,8 @@ def get_oi(
 
 def get_oi_chain(
     ticker: str,
-    day: Optional[date_cls] = None,
-) -> Dict[str, Dict[str, Any]]:
+    day: date_cls | None = None,
+) -> dict[str, dict[str, Any]]:
     """Resilient full-chain OI lookup.
 
     Returns dict with contract data including non-negative 'oi' field.

@@ -8,7 +8,7 @@ can be verified by inspection; no random data.
 
 import sys
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any
 
 import pytest
 
@@ -35,7 +35,7 @@ from services.heatseeker import (  # noqa: E402
 # Fixture helpers
 # ---------------------------------------------------------------------------
 
-def _c(strike: float, ctype: str, gamma: float, oi: float) -> Dict[str, Any]:
+def _c(strike: float, ctype: str, gamma: float, oi: float) -> dict[str, Any]:
     """Build a minimal contract dict matching advanced_analytics.py conventions."""
     return {
         "strike": strike,

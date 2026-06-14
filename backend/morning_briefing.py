@@ -13,18 +13,18 @@ Uses SendGrid (free tier: 100 emails/day) or SMTP.
 
 import logging
 import os
-from datetime import datetime, timezone
-from typing import Any, Dict
+from datetime import UTC, datetime
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
 
-def generate_briefing_data(ticker: str) -> Dict[str, Any]:
+def generate_briefing_data(ticker: str) -> dict[str, Any]:
     """Generate morning briefing data for a ticker."""
     return {"ticker": ticker, "regime": "unknown", "spot": 0.0}
 
 
-def format_briefing_email(data: Dict[str, Any]) -> str:
+def format_briefing_email(data: dict[str, Any]) -> str:
     """Format briefing data as HTML email."""
     return f"<h1>{data.get('ticker', 'SPY')} Briefing</h1>"
 
@@ -32,7 +32,7 @@ def format_briefing_email(data: Dict[str, Any]) -> str:
 async def send_briefing_email(
     to_email: str,
     ticker: str = "SPY",
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Send the morning briefing email."""
     data = generate_briefing_data(ticker)
     html_content = format_briefing_email(data)
@@ -55,7 +55,7 @@ async def _send_via_sendgrid(
     ticker: str,
     html_content: str,
     api_key: str,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Send email via SendGrid API."""
     import httpx
 
@@ -67,7 +67,7 @@ async def _send_via_sendgrid(
                 json={
                     "personalizations": [{"to": [{"email": to_email}]}],
                     "from": {"email": "briefing@confluence-decoder.app", "name": "Confluence Decoder"},
-                    "subject": f"📊 Morning Briefing: {ticker} - {datetime.now(timezone.utc).strftime('%Y-%m-%d')}",
+                    "subject": f"📊 Morning Briefing: {ticker} - {datetime.now(UTC).strftime('%Y-%m-%d')}",
                     "content": [{"type": "text/html", "value": html_content}],
                 },
                 timeout=30,
@@ -89,7 +89,7 @@ async def _send_via_smtp(
     to_email: str,
     ticker: str,
     html_content: str,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Send email via SMTP."""
     import smtplib
     from email.mime.multipart import MIMEMultipart
@@ -102,7 +102,7 @@ async def _send_via_smtp(
         smtp_pass = os.environ.get("SMTP_PASS", "")
 
         msg = MIMEMultipart("alternative")
-        msg["Subject"] = f"📊 Morning Briefing: {ticker} - {datetime.now(timezone.utc).strftime('%Y-%m-%d')}"
+        msg["Subject"] = f"📊 Morning Briefing: {ticker} - {datetime.now(UTC).strftime('%Y-%m-%d')}"
         msg["From"] = smtp_user
         msg["To"] = to_email
         msg.attach(MIMEText(html_content, "html"))

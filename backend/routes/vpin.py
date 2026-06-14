@@ -12,7 +12,7 @@ Endpoints:
 from __future__ import annotations
 
 import logging
-from typing import Any, Dict
+from typing import Any
 
 from fastapi import APIRouter, Query
 
@@ -21,7 +21,7 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/vpin", tags=["vpin"])
 
 # Global VPIN engine registry (ticker -> VpinEngine)
-_vpin_engines: Dict[str, Any] = {}
+_vpin_engines: dict[str, Any] = {}
 
 
 def _get_engine(ticker: str, bucket_size: float = 50000.0, window: int = 50):

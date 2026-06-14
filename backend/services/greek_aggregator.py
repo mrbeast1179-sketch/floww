@@ -32,7 +32,6 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass, field
-from typing import Dict, List
 
 import numpy as np
 
@@ -79,15 +78,15 @@ class GreekSnapshot:
     charm: np.ndarray = field(default_factory=lambda: np.array([]))
     vomma: np.ndarray = field(default_factory=lambda: np.array([]))
     zomma: np.ndarray = field(default_factory=lambda: np.array([]))
-    gex_1d: List[float] = field(default_factory=list)
-    vex_1d: List[float] = field(default_factory=list)
+    gex_1d: list[float] = field(default_factory=list)
+    vex_1d: list[float] = field(default_factory=list)
     vanna_exposure: np.ndarray = field(default_factory=lambda: np.array([]))
     charm_exposure: np.ndarray = field(default_factory=lambda: np.array([]))
     total_gex: float = 0.0
     net_gex: float = 0.0
     max_gex_strike: float = 0.0
     min_gex_strike: float = 0.0
-    zero_gamma_levels: List[float] = field(default_factory=list)
+    zero_gamma_levels: list[float] = field(default_factory=list)
     n_filled: int = 0
     strikes: np.ndarray = field(default_factory=lambda: np.array([]))
     expiries: np.ndarray = field(default_factory=lambda: np.array([]))
@@ -116,7 +115,7 @@ class GreekAggregator:
 
     def aggregate(
         self,
-        upstream_greeks: Dict[str, np.ndarray],
+        upstream_greeks: dict[str, np.ndarray],
         strikes: np.ndarray,
         expiries: np.ndarray,
         ivs: np.ndarray,
@@ -174,7 +173,7 @@ class GreekAggregator:
             vomma=cleaned.get("vomma", np.zeros_like(K)),
             zomma=cleaned.get("zomma", np.zeros_like(K)),
             gex_1d=gex_result["gex_1d"],
-            vex_1d=gex_result["vex_1d"] if "vex_1d" in gex_result else [],
+            vex_1d=gex_result.get("vex_1d", []),
             vanna_exposure=vanna_exp,
             charm_exposure=charm_exp,
             total_gex=gex_result["total_gex"],
@@ -220,7 +219,7 @@ class GreekAggregator:
 
     def _fill_greeks(
         self,
-        upstream: Dict[str, np.ndarray],
+        upstream: dict[str, np.ndarray],
         K: np.ndarray,
         T: np.ndarray,
         IV: np.ndarray,
@@ -232,7 +231,7 @@ class GreekAggregator:
             (cleaned_dict, n_filled_count)
         """
         computed = self._bs.compute_chain(K, T, IV, kind)
-        cleaned: Dict[str, np.ndarray] = {}
+        cleaned: dict[str, np.ndarray] = {}
         n_filled = 0
 
         for key in ["delta", "gamma", "theta", "vega", "vanna", "charm", "vomma", "zomma"]:
@@ -257,12 +256,12 @@ class GreekAggregator:
     def _build_contracts(
         K: np.ndarray,
         T: np.ndarray,
-        greeks: Dict[str, np.ndarray],
+        greeks: dict[str, np.ndarray],
         OI: np.ndarray,
         kind: np.ndarray,
-    ) -> List[Dict]:
+    ) -> list[dict]:
         """Build contract dicts for GexAggregator."""
-        contracts: List[Dict] = []
+        contracts: list[dict] = []
         for i in range(len(K)):
             contracts.append({
                 "strike": float(K[i]),

@@ -15,7 +15,7 @@ Used for:
 
 import logging
 import os
-from typing import Any, Dict
+from typing import Any
 
 from dotenv import load_dotenv
 
@@ -52,11 +52,11 @@ async def analyze_trade_with_llm(
     net_gex: float,
     prediction: str,
     confidence: float,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Analyze a trade opportunity using LLM."""
     llm = get_llm_service()
 
-    system_prompt = """You are an expert options trading analyst. 
+    system_prompt = """You are an expert options trading analyst.
 Analyze the trading setup and provide a concise, actionable assessment.
 Focus on: regime context, GEX implications, risk/reward, and suggested strategy.
 Keep responses under 200 words."""

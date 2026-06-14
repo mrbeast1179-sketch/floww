@@ -21,8 +21,9 @@ from __future__ import annotations
 import logging
 import math
 import random
+from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Any, Callable, Dict, List, Optional, Tuple
+from typing import Any
 
 import numpy as np
 
@@ -61,14 +62,14 @@ class BacktestEngine:
         config: Engine configuration.
     """
 
-    def __init__(self, signal: Signal, config: Optional[EngineConfig] = None):
+    def __init__(self, signal: Signal, config: EngineConfig | None = None):
         self.signal = signal
         self.config = config or EngineConfig()
 
     def run(
         self,
-        snapshots: List[Dict[str, Any]],
-        bars: List[Dict[str, Any]],
+        snapshots: list[dict[str, Any]],
+        bars: list[dict[str, Any]],
         ticker: str = "",
     ) -> BacktestResult:
         """Run the backtest over aligned snapshot and bar data.
@@ -323,12 +324,12 @@ class BacktestEngine:
 
 def run_is_oos_split(
     signal_factory: Callable[[], Signal],
-    snapshots: List[Dict[str, Any]],
-    bars: List[Dict[str, Any]],
+    snapshots: list[dict[str, Any]],
+    bars: list[dict[str, Any]],
     ticker: str = "",
     train_ratio: float = 0.7,
-    config: Optional[EngineConfig] = None,
-) -> Tuple[BacktestResult, BacktestResult]:
+    config: EngineConfig | None = None,
+) -> tuple[BacktestResult, BacktestResult]:
     """70/30 in-sample / out-of-sample temporal split.
 
     Args:
@@ -366,13 +367,13 @@ def run_is_oos_split(
 
 def run_walk_forward_cv(
     signal_factory: Callable[[], Signal],
-    snapshots: List[Dict[str, Any]],
-    bars: List[Dict[str, Any]],
+    snapshots: list[dict[str, Any]],
+    bars: list[dict[str, Any]],
     ticker: str = "",
     n_splits: int = 5,
     min_train_size: int = 50,
-    config: Optional[EngineConfig] = None,
-) -> List[BacktestResult]:
+    config: EngineConfig | None = None,
+) -> list[BacktestResult]:
     """Walk-forward cross-validation.
 
     For each fold k (0..n_splits-1):
@@ -400,7 +401,7 @@ def run_walk_forward_cv(
         )
 
     step = usable // n_splits
-    results: List[BacktestResult] = []
+    results: list[BacktestResult] = []
 
     for k in range(n_splits):
         train_end = min_train_size + k * step
@@ -409,6 +410,7 @@ def run_walk_forward_cv(
         if test_end <= train_end:
             continue
 
+        train_bars = bars[:train_end]
         test_snap = snapshots[train_end:test_end]
         test_bars = bars[train_end:test_end]
 
@@ -431,14 +433,14 @@ def run_walk_forward_cv(
 
 def run_monte_carlo_bootstrap(
     signal: Signal,
-    snapshots: List[Dict[str, Any]],
-    bars: List[Dict[str, Any]],
+    snapshots: list[dict[str, Any]],
+    bars: list[dict[str, Any]],
     ticker: str = "",
     n_iterations: int = 1000,
     block_size: int = 21,
-    config: Optional[EngineConfig] = None,
+    config: EngineConfig | None = None,
     seed: int = 42,
-) -> List[BacktestResult]:
+) -> list[BacktestResult]:
     """Monte Carlo bootstrap evaluation.
 
     Resamples bar returns in blocks (to preserve autocorrelation) and
@@ -468,7 +470,7 @@ def run_monte_carlo_bootstrap(
     returns = np.diff(closes) / closes[:-1]  # length n-1
     n_ret = len(returns)
 
-    results: List[BacktestResult] = []
+    results: list[BacktestResult] = []
 
     for iteration in range(n_iterations):
         # Stationary block bootstrap on returns

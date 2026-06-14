@@ -12,7 +12,7 @@ Free tier: Gemini 1.5 Flash via GitHub Student Pack
 
 import logging
 import os
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -37,7 +37,7 @@ class GeminiAnalyzer:
                 self.enabled = False
         return self._client
 
-    async def analyze_trade(self, trade: Dict[str, Any], market_context: Optional[Dict[str, Any]] = None) -> Optional[str]:
+    async def analyze_trade(self, trade: dict[str, Any], market_context: dict[str, Any] | None = None) -> str | None:
         """
         Analyze a trade from the journal.
         Explains why it worked or failed based on GEX regime, flow data, etc.
@@ -90,7 +90,7 @@ Provide a concise analysis (2-3 sentences):
             logger.warning(f"Gemini API error: {e}")
             return None
 
-    async def analyze_regime(self, regime_data: Dict[str, Any]) -> Optional[str]:
+    async def analyze_regime(self, regime_data: dict[str, Any]) -> str | None:
         """
         Generate a natural language summary of the current market regime.
         """
@@ -125,7 +125,7 @@ Provide a concise 2-3 sentence market summary and 1-2 trade ideas appropriate fo
             logger.warning(f"Gemini API error: {e}")
             return None
 
-    async def summarize_day(self, trades: List[Dict], pnl: float, regime: str) -> Optional[str]:
+    async def summarize_day(self, trades: list[dict], pnl: float, regime: str) -> str | None:
         """
         Generate an end-of-day trading summary.
         """
@@ -171,7 +171,7 @@ Provide a brief 2-3 sentence coaching summary:
             logger.warning(f"Gemini API error: {e}")
             return None
 
-    async def explain_flow_signal(self, signal: Dict[str, Any]) -> Optional[str]:
+    async def explain_flow_signal(self, signal: dict[str, Any]) -> str | None:
         """
         Explain an options flow signal in plain English.
         """

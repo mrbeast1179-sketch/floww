@@ -21,7 +21,6 @@ from __future__ import annotations
 
 from collections import deque
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional
 
 import numpy as np
 
@@ -44,9 +43,9 @@ class CprResult:
 @dataclass
 class CprSnapshot:
     """CPR snapshot across expiries with rolling averages and anomalies."""
-    current: Dict[str, CprResult] = field(default_factory=dict)
-    rolling_avg: Dict[str, float] = field(default_factory=dict)
-    anomalies: List[str] = field(default_factory=list)
+    current: dict[str, CprResult] = field(default_factory=dict)
+    rolling_avg: dict[str, float] = field(default_factory=dict)
+    anomalies: list[str] = field(default_factory=list)
 
 
 def _float_or_zero(v) -> float:
@@ -80,9 +79,9 @@ class CprCalculator:
 
     def compute(
         self,
-        call_volumes: Dict[str, float],
-        put_volumes: Dict[str, float],
-        expiries: Optional[List[str]] = None,
+        call_volumes: dict[str, float],
+        put_volumes: dict[str, float],
+        expiries: list[str] | None = None,
     ) -> CprSnapshot:
         """Compute CPR for each expiry and update rolling history.
 
@@ -99,7 +98,7 @@ class CprCalculator:
         if expiries is None:
             expiries = sorted(set(list(call_volumes.keys()) + list(put_volumes.keys())))
 
-        today_cpr: Dict[str, CprResult] = {}
+        today_cpr: dict[str, CprResult] = {}
         for exp in expiries:
             cv = _float_or_zero(call_volumes.get(exp, 0.0))
             pv = _float_or_zero(put_volumes.get(exp, 0.0))
@@ -130,7 +129,7 @@ class CprCalculator:
         self._history.append({exp: today_cpr[exp].cpr for exp in today_cpr})
 
         # Rolling average
-        rolling_avg: Dict[str, float] = {}
+        rolling_avg: dict[str, float] = {}
         for exp in today_cpr:
             vals = [h[exp] for h in self._history if exp in h]
             if vals:
@@ -138,7 +137,7 @@ class CprCalculator:
                 rolling_avg[exp] = float(np.mean(filtered)) if filtered else float("inf")
 
         # Anomalies
-        anomalies: List[str] = []
+        anomalies: list[str] = []
         for exp, res in today_cpr.items():
             if res.label == "Bullish":
                 anomalies.append(f"{exp}: CPR={res.cpr:.2f} (Bullish)")
@@ -155,7 +154,7 @@ class CprCalculator:
         self,
         call_vols: np.ndarray,
         put_vols: np.ndarray,
-        expiries: List[str],
+        expiries: list[str],
     ) -> CprSnapshot:
         """NumPy-array convenience wrapper around :meth:`compute`.
 

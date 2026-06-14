@@ -24,7 +24,7 @@ import asyncio
 import json
 import logging
 import os
-from typing import Dict, List, Optional
+from datetime import UTC
 
 from fastapi import APIRouter, HTTPException, Query
 
@@ -34,11 +34,11 @@ router = APIRouter(prefix="/api/ml", tags=["ml-predict"])
 
 
 # ── Prediction cache ─────────────────────────────────────────────────────
-_pred_cache: Dict[str, Dict] = {}
+_pred_cache: dict[str, dict] = {}
 _pred_cache_ttl_sec = 60  # Cache predictions for 60 seconds
 
 
-def _get_cached_prediction(ticker: str) -> Optional[Dict]:
+def _get_cached_prediction(ticker: str) -> dict | None:
     """Get cached prediction if fresh enough."""
     import time
     entry = _pred_cache.get(ticker.upper())
@@ -47,7 +47,7 @@ def _get_cached_prediction(ticker: str) -> Optional[Dict]:
     return None
 
 
-def _set_cached_prediction(ticker: str, data: Dict):
+def _set_cached_prediction(ticker: str, data: dict):
     """Cache a prediction result."""
     import time
     _pred_cache[ticker.upper()] = {"ts": time.time(), "data": data}
@@ -153,11 +153,11 @@ async def predict_direction(
     return result
 
 
-def _get_top_features(model, feature_names: List[str], top_n: int = 10) -> Dict[str, float]:
+def _get_top_features(model, feature_names: list[str], top_n: int = 10) -> dict[str, float]:
     """Get top N feature importances from the model."""
     if hasattr(model, "feature_importances_"):
         importances = model.feature_importances_
-        pairs = list(zip(feature_names, importances))
+        pairs = list(zip(feature_names, importances, strict=False))
         pairs.sort(key=lambda x: abs(x[1]), reverse=True)
         return {name: round(float(imp), 6) for name, imp in pairs[:top_n]}
     return {}
@@ -237,7 +237,7 @@ async def ensemble_prediction(
         ensemble_signal = "MIXED"
         ensemble_confidence = 0.5
 
-    from datetime import datetime, timezone
+    from datetime import datetime
     return {
         "ensemble_signal": ensemble_signal,
         "ensemble_confidence": round(ensemble_confidence, 4),
@@ -246,7 +246,7 @@ async def ensemble_prediction(
         "n_bearish": n_bearish,
         "tickers": results,
         "errors": errors if errors else None,
-        "computed_at": datetime.now(timezone.utc).isoformat(),
+        "computed_at": datetime.now(UTC).isoformat(),
     }
 
 

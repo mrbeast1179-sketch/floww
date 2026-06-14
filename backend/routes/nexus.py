@@ -6,7 +6,7 @@ Social trading scaffold — leaderboard, comments, waitlist.
 from __future__ import annotations
 
 import logging
-from typing import Any, Dict, List
+from typing import Any
 
 from fastapi import APIRouter
 
@@ -15,9 +15,9 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/nexus", tags=["nexus"])
 
 # Scaffold data — empty until backend is implemented
-_leaderboard: List[Dict] = []
-_comments: List[Dict] = []
-_waitlist: List[Dict] = []
+_leaderboard: list[dict] = []
+_comments: list[dict] = []
+_waitlist: list[dict] = []
 
 
 @router.get("/leaderboard")
@@ -36,7 +36,7 @@ async def get_comments(ticker: str = None):
 
 
 @router.post("/comments")
-async def post_comment(comment: Dict[str, Any]):
+async def post_comment(comment: dict[str, Any]):
     """Post a new comment (scaffold — no auth yet)."""
     comment["id"] = len(_comments) + 1
     _comments.append(comment)
@@ -44,7 +44,7 @@ async def post_comment(comment: Dict[str, Any]):
 
 
 @router.post("/waitlist")
-async def join_waitlist(entry: Dict[str, Any]):
+async def join_waitlist(entry: dict[str, Any]):
     """Join the Nexus private beta waitlist."""
     entry["id"] = len(_waitlist) + 1
     _waitlist.append(entry)

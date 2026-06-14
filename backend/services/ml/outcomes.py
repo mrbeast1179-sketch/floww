@@ -16,8 +16,8 @@ from __future__ import annotations
 
 import logging
 import os
-from datetime import datetime, timedelta, timezone
-from typing import Any, Dict, Optional
+from datetime import UTC, datetime, timedelta
+from typing import Any
 
 import pandas as pd
 import yfinance as yf
@@ -29,7 +29,7 @@ DB_NAME = os.environ.get("DB_NAME", "confluence_decoder")
 COLLECTION_PREDICTIONS = "ml_predictions"
 
 
-async def fetch_next_day_outcome(ticker: str, prediction_date: str) -> Optional[Dict[str, Any]]:
+async def fetch_next_day_outcome(ticker: str, prediction_date: str) -> dict[str, Any] | None:
     """Fetch the realized next-day outcome for a prediction via yfinance.
 
     Returns dict with:
@@ -128,13 +128,10 @@ async def attach_realized_outcomes(db: Any, batch_size: int = 100) -> int:
 
         # Skip predictions from the last 25h (outcome not yet known)
         try:
-            if isinstance(ts, str):
-                pred_dt = pd.Timestamp(ts)
-            else:
-                pred_dt = ts
+            pred_dt = pd.Timestamp(ts) if isinstance(ts, str) else ts
             if hasattr(pred_dt, 'tzinfo') and pred_dt.tzinfo is None:
                 pred_dt = pred_dt.tz_localize("UTC")
-            cutoff = datetime.now(timezone.utc) - timedelta(hours=25)
+            cutoff = datetime.now(UTC) - timedelta(hours=25)
             if pred_dt > cutoff:
                 continue
         except Exception:
@@ -154,7 +151,7 @@ async def attach_realized_outcomes(db: Any, batch_size: int = 100) -> int:
                     "realized_outcome": outcome["realized_label"],
                     "realized_return_pct": outcome["realized_return_pct"],
                     "realized_details": outcome,
-                    "outcome_computed_at": datetime.now(timezone.utc).isoformat(),
+                    "outcome_computed_at": datetime.now(UTC).isoformat(),
                 }},
             )
             updated += 1
@@ -164,7 +161,7 @@ async def attach_realized_outcomes(db: Any, batch_size: int = 100) -> int:
     return updated
 
 
-async def _try_underlying_bars(db: Any, ticker: str, prediction_ts: Any) -> Optional[Dict[str, Any]]:
+async def _try_underlying_bars(db: Any, ticker: str, prediction_ts: Any) -> dict[str, Any] | None:
     """Fallback: compute outcome from underlying_bars collection."""
     try:
         bars_col = db["underlying_bars"]
@@ -209,7 +206,7 @@ async def _try_underlying_bars(db: Any, ticker: str, prediction_ts: Any) -> Opti
         return None
 
 
-async def compute_rolling_accuracy(db: Any, ticker: str, window_days: int = 30) -> Dict[str, Any]:
+async def compute_rolling_accuracy(db: Any, ticker: str, window_days: int = 30) -> dict[str, Any]:
     """Compute rolling accuracy for a ticker over the given window.
 
     Returns dict with:
@@ -218,7 +215,7 @@ async def compute_rolling_accuracy(db: Any, ticker: str, window_days: int = 30) 
       - accuracy (fraction correct), avg_return_pct
     """
     predictions_col = db[COLLECTION_PREDICTIONS]
-    cutoff_dt = datetime.now(timezone.utc) - timedelta(days=window_days)
+    cutoff_dt = datetime.now(UTC) - timedelta(days=window_days)
     cutoff = cutoff_dt.isoformat()
 
     pipeline = [

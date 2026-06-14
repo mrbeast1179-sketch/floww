@@ -22,7 +22,7 @@ import logging
 import os
 import sys
 import warnings
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 import joblib
@@ -137,7 +137,7 @@ def compute_sharpe(predictions, actuals):
     Caps Sharpe at 10.0 to avoid numerical artifacts.
     """
     rets = []
-    for pred, actual in zip(predictions, actuals):
+    for pred, actual in zip(predictions, actuals, strict=False):
         if pred == 1:
             rets.append(1.0 if actual == 1 else -1.0)
     if len(rets) < 5:
@@ -313,7 +313,7 @@ def gate_evaluate(result: dict) -> dict:
 
 def save_model(name, model, feature_names, result: dict, ticker: str):
     """Save model artifact and metadata."""
-    timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
+    timestamp = datetime.now(UTC).strftime("%Y%m%d_%H%M%S")
     model_filename = f"{ticker}_{name}_{timestamp}.joblib"
     model_path = MODEL_DIR / model_filename
 
@@ -322,7 +322,7 @@ def save_model(name, model, feature_names, result: dict, ticker: str):
         "feature_names": feature_names,
         "model_name": name,
         "ticker": ticker,
-        "trained_at": datetime.now(timezone.utc).isoformat(),
+        "trained_at": datetime.now(UTC).isoformat(),
         "metrics": result,
     }
     joblib.dump(artifact, model_path)
@@ -379,10 +379,7 @@ async def main():
         "rf": train_rf,
     }
 
-    if args.model_type == "all":
-        types_to_train = list(model_trainers.keys())
-    else:
-        types_to_train = [args.model_type]
+    types_to_train = list(model_trainers.keys()) if args.model_type == "all" else [args.model_type]
 
     all_results = []
 
@@ -456,7 +453,7 @@ async def main():
         "n_features": X.shape[1],
         "feature_names": feature_names,
         "models": all_results,
-        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "timestamp": datetime.now(UTC).isoformat(),
     }
     logger.info(json.dumps(output, indent=2, default=str))
 

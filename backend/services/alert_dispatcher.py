@@ -23,8 +23,8 @@ import asyncio
 import logging
 import os
 import time
-from datetime import datetime, timedelta, timezone
-from typing import Any, Dict
+from datetime import UTC, datetime, timedelta
+from typing import Any
 
 log = logging.getLogger(__name__)
 
@@ -62,7 +62,7 @@ class AlertDispatcher:
         self._auth_token = os.environ.get("TWILIO_AUTH_TOKEN", "")
         self._from_number = os.environ.get("TWILIO_FROM_NUMBER", "")
         self._to_number = os.environ.get("NAV_PHONE_NUMBER", "")
-        self._dedup_cache: Dict[str, float] = {}  # alert_id -> last_sent_timestamp
+        self._dedup_cache: dict[str, float] = {}  # alert_id -> last_sent_timestamp
         self._twilio_available = False
 
         if self._account_sid and self._auth_token:
@@ -88,9 +88,9 @@ class AlertDispatcher:
         title: str,
         message: str,
         category: str = "",
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Dispatch an alert based on severity and timing rules."""
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
 
         if severity == SEVERITY_LOW:
             log.info(f"[ALERT LOW] {alert_id}: {title} — {message}")
@@ -186,10 +186,7 @@ class AlertDispatcher:
             if market_open <= et < market_close:
                 return False
 
-        if hour >= QUIET_START_HOUR or hour < QUIET_END_HOUR:
-            return True
-
-        return False
+        return bool(hour >= QUIET_START_HOUR or hour < QUIET_END_HOUR)
 
     def _is_deduped(self, alert_id: str) -> bool:
         """Check if alert_id is within the deduplication cooldown window."""

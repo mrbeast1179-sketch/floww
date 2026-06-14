@@ -15,7 +15,7 @@ from __future__ import annotations
 import logging
 import os
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any
 
 import duckdb
 import numpy as np
@@ -40,7 +40,7 @@ def _get_db_path() -> Path:
     return Path(__file__).resolve().parent.parent / "data" / "gflows.duckdb"
 
 
-def _query_greeks(db_path: Path, ticker: str) -> List[Dict[str, Any]]:
+def _query_greeks(db_path: Path, ticker: str) -> list[dict[str, Any]]:
     """Query aggregated Greeks by strike for a given ticker.
 
     Joins gflows_greeks data, aggregates by strike across expiries.
@@ -109,7 +109,7 @@ def _query_greeks(db_path: Path, ticker: str) -> List[Dict[str, Any]]:
         conn.close()
 
 
-def _get_expiries(db_path: Path, ticker: str) -> List[str]:
+def _get_expiries(db_path: Path, ticker: str) -> list[str]:
     """Get distinct expiry dates for a ticker."""
     if not db_path.exists():
         return []

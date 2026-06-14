@@ -19,8 +19,8 @@ from __future__ import annotations
 
 import logging
 import time
-from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional
+from datetime import UTC, datetime
+from typing import Any
 
 from services.execution_engine import ExecutionEngine, ExecutionResult, MarketState, Order
 
@@ -50,9 +50,9 @@ class PaperTradingEngine:
         self.execution_engine = ExecutionEngine()
         self.kyle_lambda = self.execution_engine.kyle_lambda
 
-        self.positions: Dict[str, Dict[str, Any]] = {}  # symbol -> position
-        self.orders: Dict[str, Order] = {}
-        self.trade_history: List[Dict[str, Any]] = []
+        self.positions: dict[str, dict[str, Any]] = {}  # symbol -> position
+        self.orders: dict[str, Order] = {}
+        self.trade_history: list[dict[str, Any]] = []
         self._order_counter = 0
 
     def submit_order(
@@ -63,8 +63,8 @@ class PaperTradingEngine:
         order_type: str = "almgren_chriss",
         urgency: float = 0.5,
         limit_price: float = 0.0,
-        market: Optional[MarketState] = None,
-    ) -> Dict[str, Any]:
+        market: MarketState | None = None,
+    ) -> dict[str, Any]:
         """Submit a paper trade order.
 
         Returns dict with order details and execution plan.
@@ -113,7 +113,7 @@ class PaperTradingEngine:
             "order_type": order_type,
             "execution_plan": execution_plan,
             "cost_estimate": cost_estimate,
-            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "timestamp": datetime.now(UTC).isoformat(),
         }
 
     def execute_order(
@@ -130,10 +130,7 @@ class PaperTradingEngine:
 
         # Simulate execution with Kyle Lambda impact
         kyle_impact = self.kyle_lambda.estimate_impact(order.quantity)
-        if order.side == "buy":
-            fill_price = market.ask + kyle_impact
-        else:
-            fill_price = market.bid - kyle_impact
+        fill_price = market.ask + kyle_impact if order.side == "buy" else market.bid - kyle_impact
 
         # Add some random slippage (normal distribution, 1 bps std)
         slippage = fill_price * 0.0001 * (hash(order_id) % 100 - 50) / 50
@@ -163,7 +160,7 @@ class PaperTradingEngine:
             "total_cost": round(total_cost, 2),
             "kyle_impact": round(kyle_impact, 6),
             "slippage_bps": round(abs(slippage / fill_price) * 10000, 2),
-            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "timestamp": datetime.now(UTC).isoformat(),
         }
         self.trade_history.append(trade)
 
@@ -217,8 +214,8 @@ class PaperTradingEngine:
         symbol: str,
         side: str,
         quantity: int,
-        market: Optional[MarketState],
-    ) -> Dict[str, Any]:
+        market: MarketState | None,
+    ) -> dict[str, Any]:
         """Pre-trade risk checks."""
         # Position limit
         key = f"{symbol}_{side}"
@@ -242,11 +239,11 @@ class PaperTradingEngine:
 
         return {"approved": True, "reason": ""}
 
-    def get_portfolio_summary(self) -> Dict[str, Any]:
+    def get_portfolio_summary(self) -> dict[str, Any]:
         """Get current portfolio summary."""
         total_value = self.cash
         positions_summary = []
-        for key, pos in self.positions.items():
+        for _key, pos in self.positions.items():
             if pos["quantity"] > 0:
                 positions_summary.append({
                     "symbol": pos["symbol"],
@@ -267,10 +264,10 @@ class PaperTradingEngine:
             "total_trades": len(self.trade_history),
         }
 
-    def get_trade_history(self, limit: int = 50) -> List[Dict[str, Any]]:
+    def get_trade_history(self, limit: int = 50) -> list[dict[str, Any]]:
         return self.trade_history[-limit:]
 
-    def get_state(self) -> Dict[str, Any]:
+    def get_state(self) -> dict[str, Any]:
         return {
             "cash": round(self.cash, 2),
             "initial_capital": self.initial_capital,

@@ -9,7 +9,7 @@ Exposes GET /api/admin/memory/health with:
 """
 
 import logging
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 logger = logging.getLogger(__name__)
 
@@ -51,7 +51,7 @@ def record_federation_sync(lag_seconds: float, events_synced: int):
 
 
 def record_consolidation(merged: int):
-    _metrics["memory_consolidation_last_at"] = datetime.now(timezone.utc).isoformat()
+    _metrics["memory_consolidation_last_at"] = datetime.now(UTC).isoformat()
     _metrics["memory_consolidation_merged_24h"] += merged
 
 
@@ -61,7 +61,7 @@ def record_pruning(pruned: int):
 
 def get_health_status(mem0_client=None, user_id: str = "user_c778280e23af") -> dict:
     """Get current memory health status."""
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
 
     # Calculate query latency percentiles
     latencies = _metrics["memory_query_latency_ms"]

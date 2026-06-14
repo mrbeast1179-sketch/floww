@@ -12,7 +12,6 @@ from __future__ import annotations
 
 import sys
 from pathlib import Path
-from typing import List
 
 import numpy as np
 
@@ -26,7 +25,7 @@ from services.backtest.retail_flow_signal import (
 from services.backtest.signals import Action, Position
 
 
-def _make_snapshots_cpr(cprs: List[float], oi_changes=None, iv_skews=None):
+def _make_snapshots_cpr(cprs: list[float], oi_changes=None, iv_skews=None):
     """Helper: create snapshot history from CPR values."""
     n = len(cprs)
     if oi_changes is None:
@@ -39,7 +38,7 @@ def _make_snapshots_cpr(cprs: List[float], oi_changes=None, iv_skews=None):
     ]
 
 
-def _make_bars(closes: List[float]):
+def _make_bars(closes: list[float]):
     """Helper: create bar history from close prices."""
     return [{"close": c, "volume": 1_000_000} for c in closes]
 
@@ -56,7 +55,7 @@ def _downtrend_bars(n: int = 30, start: float = 400.0):
     """Generate downtrending close prices (below SMA)."""
     rng = np.random.default_rng(42)
     prices = [start]
-    for i in range(1, n):
+    for _i in range(1, n):
         prices.append(prices[-1] * (1 - rng.uniform(0.001, 0.005)))
     return prices
 

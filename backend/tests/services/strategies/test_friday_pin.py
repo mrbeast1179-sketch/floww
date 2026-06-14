@@ -5,7 +5,7 @@ backend/tests/services/strategies/test_friday_pin.py — Tests for Friday Pin st
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta, timezone
 
 from services.strategies.friday_pin import FridayPinConfig, FridayPinStrategy
 
@@ -13,7 +13,7 @@ from services.strategies.friday_pin import FridayPinConfig, FridayPinStrategy
 def make_friday_1535_et() -> datetime:
     """Create a Friday at 15:35 ET (20:35 UTC)."""
     # Find a Friday
-    dt = datetime(2026, 5, 22, 20, 35, tzinfo=timezone.utc)  # Friday
+    dt = datetime(2026, 5, 22, 20, 35, tzinfo=UTC)  # Friday
     return dt
 
 
@@ -67,8 +67,8 @@ class TestEntryCondition:
         """Signal should not fire on non-Friday."""
         strat = FridayPinStrategy()
         # Thursday
-        dt = datetime(2026, 5, 21, 20, 35, tzinfo=timezone.utc)
-        for i in range(30):
+        dt = datetime(2026, 5, 21, 20, 35, tzinfo=UTC)
+        for _i in range(30):
             strat.update_price(100.0)
         result = strat.check_entry_condition(make_market_data(100.0, dt))
         assert result is False
@@ -77,8 +77,8 @@ class TestEntryCondition:
         """Signal should not fire outside 15:30-15:40 ET."""
         strat = FridayPinStrategy()
         # Friday at 14:00 ET (19:00 UTC)
-        dt = datetime(2026, 5, 22, 19, 0, tzinfo=timezone.utc)
-        for i in range(30):
+        dt = datetime(2026, 5, 22, 19, 0, tzinfo=UTC)
+        for _i in range(30):
             strat.update_price(100.0)
         result = strat.check_entry_condition(make_market_data(100.0, dt))
         assert result is False
@@ -87,7 +87,7 @@ class TestEntryCondition:
         """Signal should not fire with < 30 bars."""
         strat = FridayPinStrategy()
         dt = make_friday_1535_et()
-        for i in range(20):
+        for _i in range(20):
             strat.update_price(100.0)
         result = strat.check_entry_condition(make_market_data(100.0, dt))
         assert result is False
@@ -160,7 +160,7 @@ class TestBacktest:
         strat = FridayPinStrategy()
         data = []
         for i in range(100):
-            dt = datetime(2026, 5, 21, 14, 0, tzinfo=timezone.utc)  # Thursday
+            dt = datetime(2026, 5, 21, 14, 0, tzinfo=UTC)  # Thursday
             data.append({"price": 100.0 + i * 0.1, "timestamp": dt.isoformat()})
         result = strat.backtest(data)
         assert result["total_trades"] == 0
@@ -169,7 +169,7 @@ class TestBacktest:
         """Backtest with data that triggers signals."""
         strat = FridayPinStrategy()
         data = []
-        base_dt = datetime(2026, 5, 22, 20, 35, tzinfo=timezone.utc)  # Friday 15:35 ET
+        base_dt = datetime(2026, 5, 22, 20, 35, tzinfo=UTC)  # Friday 15:35 ET
         for i in range(100):
             dt = base_dt + timedelta(minutes=i)
             # Keep prices very tight (pinned)

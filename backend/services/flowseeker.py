@@ -34,7 +34,7 @@ empty list to a 200 with `[]` body so the frontend never crashes.
 from __future__ import annotations
 
 import logging
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -74,7 +74,7 @@ def _i(val: Any, default: int = 0) -> int:
         return default
 
 
-def _first(d: Dict[str, Any], *keys: str, default: Any = None) -> Any:
+def _first(d: dict[str, Any], *keys: str, default: Any = None) -> Any:
     """Return the first present, non-None value among ``keys`` in ``d``."""
     for k in keys:
         if k in d and d[k] is not None:
@@ -82,7 +82,7 @@ def _first(d: Dict[str, Any], *keys: str, default: Any = None) -> Any:
     return default
 
 
-def _exchanges(row: Dict[str, Any]) -> List[str]:
+def _exchanges(row: dict[str, Any]) -> list[str]:
     """
     Pull exchange list from a print row. FlashAlpha sometimes returns a single
     `exchange` string and sometimes a `exchanges` list. Returns at least an
@@ -101,7 +101,7 @@ def _exchanges(row: Dict[str, Any]) -> List[str]:
 # Classification
 # ---------------------------------------------------------------------------
 
-def classify_print(row: Dict[str, Any]) -> str:
+def classify_print(row: dict[str, Any]) -> str:
     """
     Classify a single options print into sweep / block / unusual / regular.
 
@@ -143,10 +143,7 @@ def classify_print(row: Dict[str, Any]) -> str:
     volume = _f(_first(row, "volume"))
     oi = _f(_first(row, "oi", "open_interest"))
     pre_ratio = row.get("vol_oi_ratio")
-    if pre_ratio is not None:
-        vol_oi_ratio = _f(pre_ratio)
-    else:
-        vol_oi_ratio = (volume / oi) if oi > 0 else 0.0
+    vol_oi_ratio = _f(pre_ratio) if pre_ratio is not None else volume / oi if oi > 0 else 0.0
     if vol_oi_ratio > UNUSUAL_VOL_OI_RATIO or premium > UNUSUAL_PREMIUM_USD:
         return "unusual"
 
@@ -157,7 +154,7 @@ def classify_print(row: Dict[str, Any]) -> str:
 # Normalization: upstream row -> 20-column Flowseeker shape
 # ---------------------------------------------------------------------------
 
-def _normalize_print(raw: Dict[str, Any], ticker_hint: Optional[str] = None) -> Dict[str, Any]:
+def _normalize_print(raw: dict[str, Any], ticker_hint: str | None = None) -> dict[str, Any]:
     """
     Map a single upstream row to the canonical 20-column Flowseeker shape.
 
@@ -219,7 +216,7 @@ def _get_client():
     return FlashAlphaClient()
 
 
-def _extract_prints(payload: Optional[Dict[str, Any]]) -> List[Dict[str, Any]]:
+def _extract_prints(payload: dict[str, Any] | None) -> list[dict[str, Any]]:
     """
     Tease the print list out of a FlashAlpha response. The API wraps results
     differently per endpoint — sometimes ``{"data": [...]}``, sometimes
@@ -244,11 +241,11 @@ def _extract_prints(payload: Optional[Dict[str, Any]]) -> List[Dict[str, Any]]:
 # ---------------------------------------------------------------------------
 
 async def fetch_live_flow(
-    ticker: Optional[str] = None,
+    ticker: str | None = None,
     *,
     limit: int = 50,
     min_premium: float = 0.0,
-) -> List[Dict[str, Any]]:
+) -> list[dict[str, Any]]:
     """
     Fetch live institutional options flow.
 
@@ -279,7 +276,7 @@ async def fetch_live_flow(
         return []
 
     raw_prints = _extract_prints(payload)
-    out: List[Dict[str, Any]] = []
+    out: list[dict[str, Any]] = []
     for raw in raw_prints:
         row = _normalize_print(raw, ticker_hint=ticker)
         if not row:
@@ -294,7 +291,7 @@ async def fetch_live_flow(
     return out
 
 
-async def contract_drilldown(symbol: str) -> Dict[str, Any]:
+async def contract_drilldown(symbol: str) -> dict[str, Any]:
     """
     Contract-level drilldown: volume, OI, chain ratio, recent prints, vol/OI
     history.
@@ -314,7 +311,7 @@ async def contract_drilldown(symbol: str) -> Dict[str, Any]:
         Always returns a well-formed dict; empty fields on provider failure.
     """
     sym = (symbol or "").strip().upper()
-    empty: Dict[str, Any] = {
+    empty: dict[str, Any] = {
         "symbol": sym,
         "volume": 0.0,
         "oi": 0.0,
@@ -361,8 +358,8 @@ async def contract_drilldown(symbol: str) -> Dict[str, Any]:
         chain_ratio = _f(_first(summary_payload, "chain_ratio", "call_put_ratio"))
 
     # Vol/OI history extraction — accept a list of floats or list of dicts.
-    vol_oi_history: List[float] = []
-    hist_rows: List[Any] = []
+    vol_oi_history: list[float] = []
+    hist_rows: list[Any] = []
     if isinstance(history_payload, dict):
         for k in ("history", "data", "vol_oi_history", "results"):
             v = history_payload.get(k)

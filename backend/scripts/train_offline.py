@@ -22,7 +22,7 @@ import argparse
 import json
 import logging
 import warnings
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 import joblib
@@ -127,7 +127,7 @@ def walk_forward_cv(X, y, dates, n_splits=5, train_size=500, test_size=50, step=
 def compute_trading_sharpe(predictions, actuals):
     """Annualized Sharpe of long-only-on-positive-prediction strategy."""
     rets = []
-    for pred, actual in zip(predictions, actuals):
+    for pred, actual in zip(predictions, actuals, strict=False):
         if pred == 1:
             rets.append(1.0 if actual == 1 else -1.0)
     if len(rets) < 2:
@@ -362,7 +362,7 @@ def save_model(ticker: str, model_type: str, result: dict, feature_names: list,
         return None
 
     output_dir.mkdir(parents=True, exist_ok=True)
-    ts = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
+    ts = datetime.now(UTC).strftime("%Y%m%d_%H%M%S")
 
     model_filename = f"{ticker}_{model_type}_offline_{ts}.joblib"
     model_path = output_dir / model_filename
@@ -371,7 +371,7 @@ def save_model(ticker: str, model_type: str, result: dict, feature_names: list,
         "feature_names": feature_names,
         "model_type": model_type,
         "ticker": ticker,
-        "trained_at": datetime.now(timezone.utc).isoformat(),
+        "trained_at": datetime.now(UTC).isoformat(),
     }, model_path)
     log.info(f"  Saved model to {model_path}")
 
@@ -400,7 +400,7 @@ def save_model(ticker: str, model_type: str, result: dict, feature_names: list,
         },
         "model_path": str(model_path),
         "verdict": "SHIP" if result["folds_ship"] > 0 else "REJECT",
-        "created_at": datetime.now(timezone.utc).isoformat(),
+        "created_at": datetime.now(UTC).isoformat(),
     }
 
     manifest_path = output_dir / f"{ticker}_{model_type}_offline_manifest_{ts}.json"
@@ -431,15 +431,9 @@ def main():
 
     output_dir = Path(args.output_dir)
 
-    if args.ticker == "all":
-        tickers = ["DIA", "IWM", "QQQ", "TLT"]
-    else:
-        tickers = [args.ticker.upper()]
+    tickers = ["DIA", "IWM", "QQQ", "TLT"] if args.ticker == "all" else [args.ticker.upper()]
 
-    if args.model_type == "all":
-        model_types = list(MODEL_TRAINERS.keys())
-    else:
-        model_types = [args.model_type]
+    model_types = list(MODEL_TRAINERS.keys()) if args.model_type == "all" else [args.model_type]
 
     log.info(f"Tickers: {tickers}")
     log.info(f"Model types: {model_types}")
@@ -492,7 +486,7 @@ def main():
 
     # Summary JSON
     summary = {
-        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "timestamp": datetime.now(UTC).isoformat(),
         "config": {
             "tickers": tickers,
             "model_types": model_types,

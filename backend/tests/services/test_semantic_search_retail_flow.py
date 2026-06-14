@@ -73,7 +73,7 @@ def _populate_test_data(service):
         (-0.78, 0.4, 0.25, 0.18, 0.4, "bearish"),
         (0.15, 0.22, 0.1, 0.45, 1.0, "neutral"),
     ]
-    for i, (score, sr, br, slr, cpr, sentiment) in enumerate(flow_data):
+    for i, (score, sr, br, slr, cpr, _sentiment) in enumerate(flow_data):
         flow_id = f"rfs_{i}"
         service.upsert_retail_flow_score({
             "id": flow_id,
@@ -182,9 +182,9 @@ class TestSemanticSearchIndexing:
         """Index retail flows returns correct count."""
         for i in range(3):
             service.upsert_retail_flow_score({
-                "id": "rfs_idx_{}".format(i),
+                "id": f"rfs_idx_{i}",
                 "symbol": "SPY",
-                "timestamp": "2026-05-22T10:0{}:00".format(i),
+                "timestamp": f"2026-05-22T10:0{i}:00",
                 "sweep_ratio": 0.1,
                 "block_ratio": 0.05,
                 "small_lot_ratio": 0.6,
@@ -203,7 +203,7 @@ class TestSemanticSearchIndexing:
         """Index all returns combined count."""
         for i in range(2):
             service.upsert_trade({
-                "id": "trade_all_{}".format(i),
+                "id": f"trade_all_{i}",
                 "symbol": "SPY",
                 "side": "BUY",
                 "quantity": 100,
@@ -212,16 +212,16 @@ class TestSemanticSearchIndexing:
                 "pnl": 200.0,
                 "pnl_pct": 0.44,
                 "trade_type": "paper",
-                "entry_time": "2026-05-22T10:0{}:00".format(i),
-                "exit_time": "2026-05-22T10:0{}:00".format(i),
+                "entry_time": f"2026-05-22T10:0{i}:00",
+                "exit_time": f"2026-05-22T10:0{i}:00",
                 "holding_period_bars": 5,
                 "strategy": "VPIN_HFT",
             })
         for i in range(3):
             service.upsert_retail_flow_score({
-                "id": "rfs_all_{}".format(i),
+                "id": f"rfs_all_{i}",
                 "symbol": "SPY",
-                "timestamp": "2026-05-22T10:0{}:00".format(i),
+                "timestamp": f"2026-05-22T10:0{i}:00",
                 "sweep_ratio": 0.1,
                 "block_ratio": 0.05,
                 "small_lot_ratio": 0.6,

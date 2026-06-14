@@ -24,7 +24,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 import numpy as np
 
@@ -49,7 +49,7 @@ class MetricForecast:
     confidence: float  # 0-1, based on recent prediction accuracy
     will_breach: bool
     breach_threshold: float
-    breach_eta_seconds: Optional[float]  # estimated seconds until breach
+    breach_eta_seconds: float | None  # estimated seconds until breach
 
 
 @dataclass
@@ -57,8 +57,8 @@ class ChaosScenario:
     """A simulated failure scenario."""
     name: str
     description: str
-    injected_metrics: Dict[str, float]  # metric_name -> simulated value
-    cascade_predictions: List[str]  # human-readable cascade effects
+    injected_metrics: dict[str, float]  # metric_name -> simulated value
+    cascade_predictions: list[str]  # human-readable cascade effects
     max_severity: str  # CRITICAL, MEDIUM, LOW
     recommended_action: str
 
@@ -69,10 +69,10 @@ class ExponentialSmoother:
     def __init__(self, alpha: float = 0.3, beta: float = 0.1):
         self.alpha = alpha
         self.beta = beta
-        self.level: Optional[float] = None
-        self.trend: Optional[float] = None
-        self._history: List[float] = []
-        self._errors: List[float] = []
+        self.level: float | None = None
+        self.trend: float | None = None
+        self._history: list[float] = []
+        self._errors: list[float] = []
 
     def update(self, value: float):
         """Add a new observation."""
@@ -107,14 +107,14 @@ class PredictiveAlertingEngine:
     """Forecasts metrics and generates predictive alerts."""
 
     def __init__(self):
-        self._forecasters: Dict[str, ExponentialSmoother] = {}
-        self._thresholds: Dict[str, float] = {
+        self._forecasters: dict[str, ExponentialSmoother] = {}
+        self._thresholds: dict[str, float] = {
             "duckdb_queue_depth": 9000,
             "ingestion_rate_spy": 0.1,  # near-zero = stalled
             "p99_latency": 0.2,  # 200ms
             "vpin_spy": 0.8,  # high VPIN
         }
-        self._last_predictions: Dict[str, float] = {}
+        self._last_predictions: dict[str, float] = {}
 
     def record_metric(self, name: str, value: float):
         """Record a metric observation for forecasting."""
@@ -122,7 +122,7 @@ class PredictiveAlertingEngine:
             self._forecasters[name] = ExponentialSmoother()
         self._forecasters[name].update(value)
 
-    def forecast_metric(self, name: str, horizon_seconds: int = FORECAST_HORIZON_SHORT) -> Optional[MetricForecast]:
+    def forecast_metric(self, name: str, horizon_seconds: int = FORECAST_HORIZON_SHORT) -> MetricForecast | None:
         """Forecast a single metric."""
         if name not in self._forecasters:
             return None
@@ -153,7 +153,7 @@ class PredictiveAlertingEngine:
             breach_eta_seconds=round(breach_eta, 0) if breach_eta else None,
         )
 
-    def forecast_all(self) -> List[MetricForecast]:
+    def forecast_all(self) -> list[MetricForecast]:
         """Forecast all tracked metrics."""
         results = []
         for name in self._forecasters:
@@ -162,7 +162,7 @@ class PredictiveAlertingEngine:
                 results.append(forecast)
         return results
 
-    def get_predictive_alerts(self) -> List[Dict[str, Any]]:
+    def get_predictive_alerts(self) -> list[dict[str, Any]]:
         """Get alerts for metrics predicted to breach thresholds."""
         alerts = []
         for forecast in self.forecast_all():
@@ -246,12 +246,12 @@ class ChaosForecaster:
     ]
 
     @classmethod
-    def get_scenarios(cls) -> List[ChaosScenario]:
+    def get_scenarios(cls) -> list[ChaosScenario]:
         """Return all chaos scenarios."""
         return cls.SCENARIOS
 
     @classmethod
-    def run_scenario(cls, scenario_name: str, current_metrics: Dict[str, float]) -> Optional[Dict[str, Any]]:
+    def run_scenario(cls, scenario_name: str, current_metrics: dict[str, float]) -> dict[str, Any] | None:
         """Run a chaos scenario against current metrics and return predictions."""
         scenario = next((s for s in cls.SCENARIOS if s.name == scenario_name), None)
         if not scenario:

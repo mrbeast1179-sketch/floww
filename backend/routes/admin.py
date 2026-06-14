@@ -5,7 +5,7 @@ Admin/utility routes: errors, performance, databento usage.
 """
 from __future__ import annotations
 
-from typing import Optional
+from datetime import UTC
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 
@@ -49,10 +49,10 @@ async def performance_stats(_: bool = Depends(_require_admin_auth)):
 
 @router.post("/errors/clear")
 async def errors_clear():
-    from datetime import datetime, timedelta, timezone
+    from datetime import datetime, timedelta
 
     from server import db
-    cutoff = datetime.now(timezone.utc) - timedelta(days=7)
+    cutoff = datetime.now(UTC) - timedelta(days=7)
     # Motor's delete_many is async — must await before reading result.deleted_count.
     # Without await this returned a coroutine and .deleted_count raised AttributeError.
     result = await db.errors.delete_many({"ts": {"$lt": cutoff}})
@@ -61,10 +61,10 @@ async def errors_clear():
 
 @router.get("/databento/usage")
 async def databento_usage(_: bool = Depends(_require_admin_auth)):
-    from datetime import datetime, timedelta, timezone
+    from datetime import datetime, timedelta
 
     from server import LIVE_WINDOW, PAID_TICKERS, _live_tape_session, db
-    cutoff = datetime.now(timezone.utc) - timedelta(days=30)
+    cutoff = datetime.now(UTC) - timedelta(days=30)
     usage = db.databento_usage.find({"ts": {"$gte": cutoff}}, {"_id": 0}).sort("ts", -1).limit(100)
     usage_list = await usage.to_list(length=100)
 
@@ -75,7 +75,7 @@ async def databento_usage(_: bool = Depends(_require_admin_auth)):
     budget_pct = (est_cost / BUDGET_USD * 100) if BUDGET_USD > 0 else 0
 
     # Window check
-    now_et = datetime.now(timezone.utc) - timedelta(hours=5)  # rough ET
+    now_et = datetime.now(UTC) - timedelta(hours=5)  # rough ET
     current_hhmm = now_et.strftime("%H:%M")
     ws = LIVE_WINDOW.get("start_hhmm", "09:00")
     we = LIVE_WINDOW.get("stop_hhmm", "16:00")
@@ -95,7 +95,7 @@ async def databento_usage(_: bool = Depends(_require_admin_auth)):
         {"parent": p, "day": d, "count": c}
         for (p, d), c in sorted(day_counts.items(), key=lambda kv: kv[0][1], reverse=True)
     ]
-    cached_days = len({d for _, d in day_counts.keys()})
+    cached_days = len({d for _, d in day_counts})
 
     return {
         "usage": usage_list,
@@ -208,7 +208,7 @@ async def trading_transition(request: dict, _: bool = Depends(_require_admin_aut
 
 
 @router.post("/admin/trading/circuit-breaker/reset")
-async def circuit_breaker_reset(request: Optional[dict] = None, _: bool = Depends(_require_admin_auth)):
+async def circuit_breaker_reset(request: dict | None = None, _: bool = Depends(_require_admin_auth)):
     """Manually reset the circuit breaker (requires admin auth)."""
     from services.circuit_breaker import main_breaker
 
@@ -218,7 +218,7 @@ async def circuit_breaker_reset(request: Optional[dict] = None, _: bool = Depend
 
 
 @router.post("/admin/trading/circuit-breaker/trip")
-async def circuit_breaker_trip(request: Optional[dict] = None, _: bool = Depends(_require_admin_auth)):
+async def circuit_breaker_trip(request: dict | None = None, _: bool = Depends(_require_admin_auth)):
     """Manually trip the circuit breaker (emergency stop)."""
     from services.circuit_breaker import main_breaker
 

@@ -29,7 +29,7 @@ Usage:
     kg.upsert_paper({"id": "arxiv:1234", "title": "...", ...})
     kg.upsert_repo({"id": "owner/repo", "stars": 42, ...})
     kg.add_edge("paper_cites_repo", "arxiv:1234", "owner/repo")
-    
+
     # Query
     papers = kg.find_papers_by_concept("gamma exposure")
     repos = kg.find_repos_by_category("GEX calculation")
@@ -41,7 +41,7 @@ from __future__ import annotations
 import json
 import logging
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any
 
 logger = logging.getLogger("knowledge_graph")
 
@@ -202,7 +202,7 @@ class KnowledgeGraph:
 
     # ── Paper operations ────────────────────────────────────────────────
 
-    def upsert_paper(self, paper: Dict[str, Any]) -> None:
+    def upsert_paper(self, paper: dict[str, Any]) -> None:
         """Insert or update a paper node."""
         metadata = {k: v for k, v in paper.items()
                     if k not in ("id", "title", "abstract", "url", "source", "published", "discovered_at")}
@@ -219,7 +219,7 @@ class KnowledgeGraph:
             paper.get("discovered_at"), json.dumps(metadata),
         ])
 
-    def find_papers_by_concept(self, concept_name: str, limit: int = 20) -> List[Dict]:
+    def find_papers_by_concept(self, concept_name: str, limit: int = 20) -> list[dict]:
         """Find papers that mention a given concept."""
         rows = self.conn.execute("""
             SELECT p.id, p.title, p.url, p.source, p.published, pmc.relevance
@@ -235,7 +235,7 @@ class KnowledgeGraph:
             for r in rows
         ]
 
-    def upsert_repo(self, repo: Dict[str, Any]) -> None:
+    def upsert_repo(self, repo: dict[str, Any]) -> None:
         """Insert or update a repo node."""
         parts = repo["id"].split("/")
         owner = parts[0] if len(parts) > 0 else ""
@@ -255,7 +255,7 @@ class KnowledgeGraph:
             repo.get("loc", 0), repo.get("cloned_at"), json.dumps(metadata),
         ])
 
-    def find_repos_by_category(self, category: str, min_stars: int = 0, limit: int = 20) -> List[Dict]:
+    def find_repos_by_category(self, category: str, min_stars: int = 0, limit: int = 20) -> list[dict]:
         """Find repos that implement functions in a given category."""
         rows = self.conn.execute("""
             SELECT DISTINCT r.id, r.owner, r.repo, r.stars, r.license, r.cloned_path
@@ -271,7 +271,7 @@ class KnowledgeGraph:
             for r in rows
         ]
 
-    def upsert_function(self, func: Dict[str, Any]) -> None:
+    def upsert_function(self, func: dict[str, Any]) -> None:
         """Insert or update a code function node."""
         metadata = {k: v for k, v in func.items()
                     if k not in ("id", "name", "file_path", "repo_id", "category", "loc", "has_benchmark", "numba_compatible")}
@@ -294,7 +294,7 @@ class KnowledgeGraph:
             VALUES (?, ?)
         """, [repo_id, function_id])
 
-    def find_port_candidates(self, limit: int = 20) -> List[Dict]:
+    def find_port_candidates(self, limit: int = 20) -> list[dict]:
         """Find functions that are good candidates for porting to Hermes services."""
         rows = self.conn.execute("""
             SELECT cf.id, cf.name, cf.file_path, cf.repo_id, cf.category, cf.loc,
@@ -342,7 +342,7 @@ class KnowledgeGraph:
             VALUES (?, ?)
         """, [function_id, concept_id])
 
-    def find_related_papers(self, paper_id: str, limit: int = 10) -> List[Dict]:
+    def find_related_papers(self, paper_id: str, limit: int = 10) -> list[dict]:
         """Find papers related by shared concepts."""
         rows = self.conn.execute("""
             SELECT p2.id, p2.title, p2.url, prtp.shared_concepts, prtp.similarity
@@ -414,7 +414,7 @@ class KnowledgeGraph:
         logger.info(f"Computed {count} paper-paper relationships")
         return count
 
-    def get_stats(self) -> Dict[str, int]:
+    def get_stats(self) -> dict[str, int]:
         """Return node/edge counts."""
         return {
             "papers": self.get_paper_count(),
@@ -427,7 +427,7 @@ class KnowledgeGraph:
             "port_candidates": len(self.find_port_candidates(limit=1000)),
         }
 
-    def get_concept_summary(self, limit: int = 20) -> List[Dict]:
+    def get_concept_summary(self, limit: int = 20) -> list[dict]:
         """Get top concepts by paper count."""
         rows = self.conn.execute("""
             SELECT c.id, c.name, c.category, COUNT(pmc.paper_id) as paper_count

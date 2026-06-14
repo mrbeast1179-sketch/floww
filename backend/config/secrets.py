@@ -18,7 +18,6 @@ import logging
 import os
 import sys
 from functools import lru_cache
-from typing import Optional
 
 logger = logging.getLogger("config.secrets")
 
@@ -52,7 +51,7 @@ if _ENVIRONMENT in {"production", "staging"} and not is_azure():
 class AzureKeyVaultClient:
     """Retrieve secrets from Azure Key Vault using Managed Identity."""
 
-    def __init__(self, vault_url: Optional[str] = None):
+    def __init__(self, vault_url: str | None = None):
         self._vault_url = vault_url or os.environ.get("AZURE_KEY_VAULT_URI", "")
         self._client = None
 
@@ -82,7 +81,7 @@ class AzureKeyVaultClient:
             logger.error(f"Key Vault client init failed: {e}")
             return None
 
-    def get_secret(self, name: str) -> Optional[str]:
+    def get_secret(self, name: str) -> str | None:
         """Get a secret from Key Vault. Returns None if not found."""
         client = self._get_client()
         if not client:
@@ -106,7 +105,7 @@ class LocalEnvClient:
     secret is not in Key Vault.
     """
 
-    def get_secret(self, name: str) -> Optional[str]:
+    def get_secret(self, name: str) -> str | None:
         return os.environ.get(name)
 
 
@@ -127,7 +126,7 @@ class SecretResolver:
         self._kv = AzureKeyVaultClient() if is_azure() else None
         self._local = LocalEnvClient()
 
-    def get(self, name: str, default: Optional[str] = None) -> Optional[str]:
+    def get(self, name: str, default: str | None = None) -> str | None:
         """Get a secret value. Returns default if not found anywhere."""
         # 1. Try Key Vault in Azure (production)
         if self._kv:
@@ -165,7 +164,7 @@ class SecretResolver:
 _resolver = SecretResolver()
 
 
-def get_secret(name: str, default: Optional[str] = None) -> Optional[str]:
+def get_secret(name: str, default: str | None = None) -> str | None:
     """Get a secret by name. Returns default if not found."""
     return _resolver.get(name, default)
 

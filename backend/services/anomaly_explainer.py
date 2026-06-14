@@ -20,7 +20,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 import numpy as np
 
@@ -71,14 +71,14 @@ class AnomalyExplanation:
     """A natural language explanation for an anomaly."""
     title: str
     summary: str
-    details: List[str]
-    contributing_factors: List[str]
+    details: list[str]
+    contributing_factors: list[str]
     regime: str
     confidence: float
     recommended_action: str
-    raw_data: Dict[str, Any] = field(default_factory=dict)
+    raw_data: dict[str, Any] = field(default_factory=dict)
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "title": self.title,
             "summary": self.summary,
@@ -114,8 +114,8 @@ class AnomalyExplainer:
     """
 
     def __init__(self, history_window: int = 100):
-        self._vpin_history: List[float] = []
-        self._qi_history: List[float] = []
+        self._vpin_history: list[float] = []
+        self._qi_history: list[float] = []
         self._history_window = history_window
 
     def update(self, vpin: float, qi: float):
@@ -129,8 +129,8 @@ class AnomalyExplainer:
 
     def explain(
         self,
-        anomaly_result: Dict[str, Any],
-        context: Optional[Dict[str, Any]] = None,
+        anomaly_result: dict[str, Any],
+        context: dict[str, Any] | None = None,
     ) -> AnomalyExplanation:
         """Generate a natural language explanation for an anomaly.
 

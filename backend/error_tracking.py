@@ -13,14 +13,14 @@ import logging
 import os
 import uuid
 from contextvars import ContextVar
-from datetime import datetime, timezone
-from typing import Any, Dict, Optional
+from datetime import UTC, datetime
+from typing import Any
 
 # Context variable for request tracking
 request_id_var: ContextVar[str] = ContextVar("request_id", default="")
 
 # Error aggregation
-_error_counts: Dict[str, int] = {}
+_error_counts: dict[str, int] = {}
 _error_log: list = []
 MAX_ERROR_LOG = 1000
 
@@ -55,7 +55,7 @@ def setup_logging(level: str = "INFO") -> None:
     logging.getLogger("yfinance").setLevel(logging.WARNING)
 
 
-def set_request_id(request_id: Optional[str] = None) -> str:
+def set_request_id(request_id: str | None = None) -> str:
     """Set the current request ID for logging context."""
     rid = request_id or str(uuid.uuid4())[:8]
     request_id_var.set(rid)
@@ -67,7 +67,7 @@ def get_request_id() -> str:
     return request_id_var.get()
 
 
-def log_error(error_type: str, message: str, data: Optional[Dict[str, Any]] = None) -> None:
+def log_error(error_type: str, message: str, data: dict[str, Any] | None = None) -> None:
     """Log an error and track it in the aggregation."""
     global _error_counts, _error_log
 
@@ -77,7 +77,7 @@ def log_error(error_type: str, message: str, data: Optional[Dict[str, Any]] = No
         "type": error_type,
         "message": message,
         "data": data,
-        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "timestamp": datetime.now(UTC).isoformat(),
         "request_id": get_request_id(),
         "count": _error_counts[error_type],
     }
@@ -93,13 +93,13 @@ def log_error(error_type: str, message: str, data: Optional[Dict[str, Any]] = No
     logger.error(f"[{error_type}] {message}", extra={"extra_data": data})
 
 
-def get_error_summary() -> Dict[str, Any]:
+def get_error_summary() -> dict[str, Any]:
     """Get a summary of all tracked errors."""
     return {
         "total_errors": sum(_error_counts.values()),
         "by_type": dict(_error_counts),
         "recent": _error_log[-20:],
-        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "timestamp": datetime.now(UTC).isoformat(),
     }
 
 

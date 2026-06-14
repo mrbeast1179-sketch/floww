@@ -30,8 +30,8 @@ import logging
 import os
 import time
 from dataclasses import dataclass
-from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional
+from datetime import UTC, datetime
+from typing import Any
 
 logger = logging.getLogger(__name__)
 log = logging.getLogger(__name__)
@@ -50,8 +50,8 @@ class RunbookStep:
     """A single step in a runbook."""
     name: str
     action: str  # Description of what this step does
-    command: Optional[str] = None  # Shell command to execute (optional)
-    check_fn: Optional[str] = None  # Name of a check function (optional)
+    command: str | None = None  # Shell command to execute (optional)
+    check_fn: str | None = None  # Name of a check function (optional)
     timeout: int = STEP_TIMEOUT
     critical: bool = False  # If True, failure stops the runbook
 
@@ -62,13 +62,13 @@ class RunbookResult:
     runbook_name: str
     alert_id: str
     success: bool
-    steps_executed: List[Dict[str, Any]]
+    steps_executed: list[dict[str, Any]]
     start_time: str
     end_time: str
     duration_seconds: float
-    error: Optional[str] = None
+    error: str | None = None
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "runbook_name": self.runbook_name,
             "alert_id": self.alert_id,
@@ -86,20 +86,20 @@ class RunbookRegistry:
     """Registry of all available runbooks."""
 
     def __init__(self):
-        self._runbooks: Dict[str, List[RunbookStep]] = {}
-        self._failure_counts: Dict[str, int] = {}
+        self._runbooks: dict[str, list[RunbookStep]] = {}
+        self._failure_counts: dict[str, int] = {}
         self._register_defaults()
 
-    def register(self, name: str, steps: List[RunbookStep]):
+    def register(self, name: str, steps: list[RunbookStep]):
         """Register a runbook."""
         self._runbooks[name] = steps
         self._failure_counts[name] = 0
 
-    def get(self, name: str) -> Optional[List[RunbookStep]]:
+    def get(self, name: str) -> list[RunbookStep] | None:
         """Get a runbook by name."""
         return self._runbooks.get(name)
 
-    def list_runbooks(self) -> List[str]:
+    def list_runbooks(self) -> list[str]:
         """List all registered runbook names."""
         return list(self._runbooks.keys())
 
@@ -227,9 +227,9 @@ class RunbookExecutor:
     - Audit logging: Every step result is logged.
     """
 
-    def __init__(self, registry: Optional[RunbookRegistry] = None):
+    def __init__(self, registry: RunbookRegistry | None = None):
         self._registry = registry or RunbookRegistry()
-        self._execution_log: List[RunbookResult] = []
+        self._execution_log: list[RunbookResult] = []
 
     @property
     def registry(self) -> RunbookRegistry:
@@ -255,7 +255,7 @@ class RunbookExecutor:
         Returns:
             RunbookResult with execution details.
         """
-        start_ts = datetime.now(timezone.utc).isoformat()
+        start_ts = datetime.now(UTC).isoformat()
         start_time = time.time()
         steps_executed = []
 
@@ -268,7 +268,7 @@ class RunbookExecutor:
                 success=False,
                 steps_executed=steps_executed,
                 start_time=start_ts,
-                end_time=datetime.now(timezone.utc).isoformat(),
+                end_time=datetime.now(UTC).isoformat(),
                 duration_seconds=0.0,
                 error="Kill switch active",
             )
@@ -282,7 +282,7 @@ class RunbookExecutor:
                 success=False,
                 steps_executed=steps_executed,
                 start_time=start_ts,
-                end_time=datetime.now(timezone.utc).isoformat(),
+                end_time=datetime.now(UTC).isoformat(),
                 duration_seconds=0.0,
                 error=f"Circuit breaker open ({MAX_FAILURES} consecutive failures)",
             )
@@ -296,7 +296,7 @@ class RunbookExecutor:
                 success=False,
                 steps_executed=steps_executed,
                 start_time=start_ts,
-                end_time=datetime.now(timezone.utc).isoformat(),
+                end_time=datetime.now(UTC).isoformat(),
                 duration_seconds=0.0,
                 error=f"Runbook '{runbook_name}' not found",
             )
@@ -331,7 +331,7 @@ class RunbookExecutor:
                         output = stdout.decode().strip() or stderr.decode().strip() or "(no output)"
                         step_result["output"] = output[:500]  # Truncate long output
                         step_result["success"] = proc.returncode == 0
-                    except asyncio.TimeoutError:
+                    except TimeoutError:
                         proc.kill()
                         await proc.wait()
                         step_result["success"] = False
@@ -369,7 +369,7 @@ class RunbookExecutor:
             success=success,
             steps_executed=steps_executed,
             start_time=start_ts,
-            end_time=datetime.now(timezone.utc).isoformat(),
+            end_time=datetime.now(UTC).isoformat(),
             duration_seconds=duration,
             error=error_msg,
         )
@@ -381,7 +381,7 @@ class RunbookExecutor:
         )
         return result
 
-    def get_execution_history(self, limit: int = 50) -> List[Dict[str, Any]]:
+    def get_execution_history(self, limit: int = 50) -> list[dict[str, Any]]:
         """Return recent execution history."""
         return [r.to_dict() for r in self._execution_log[-limit:]]
 

@@ -11,8 +11,7 @@ from __future__ import annotations
 import logging
 import uuid
 from dataclasses import dataclass
-from datetime import datetime, timezone
-from typing import Optional
+from datetime import UTC, datetime
 
 import numpy as np
 
@@ -50,7 +49,7 @@ class PaperBrokerConfig:
     slippage_per_contract: float = 0.01
     market_impact_pct: float = 0.001  # 0.1% per contract
     random_slippage: bool = False
-    random_seed: Optional[int] = None
+    random_seed: int | None = None
 
 
 class PaperBroker:
@@ -60,7 +59,7 @@ class PaperBroker:
     position tracking, and PnL calculation.
     """
 
-    def __init__(self, config: Optional[PaperBrokerConfig] = None):
+    def __init__(self, config: PaperBrokerConfig | None = None):
         self.config = config or PaperBrokerConfig()
         self.cash = self.config.initial_capital
         self.positions: dict[str, Position] = {}
@@ -83,7 +82,7 @@ class PaperBroker:
             "order_type": order_type,
             "limit_price": limit_price,
             "status": "submitted",
-            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "timestamp": datetime.now(UTC).isoformat(),
         }
         logger.info(f"Order submitted: {order_id} {side} {quantity} {symbol}")
         return order_id
@@ -119,7 +118,7 @@ class PaperBroker:
 
         return fill_price, slippage, market_impact
 
-    def execute_fill(self, order_id: str, market_price: float) -> Optional[Fill]:
+    def execute_fill(self, order_id: str, market_price: float) -> Fill | None:
         """Execute a fill for a submitted order."""
         if order_id not in self.orders:
             logger.error(f"Order not found: {order_id}")
@@ -143,7 +142,7 @@ class PaperBroker:
             fill_price=fill_price,
             slippage=slippage,
             market_impact=market_impact,
-            timestamp=datetime.now(timezone.utc).isoformat(),
+            timestamp=datetime.now(UTC).isoformat(),
         )
 
         # Update cash
@@ -207,7 +206,7 @@ class PaperBroker:
                 if pos.quantity == 0:
                     pos.avg_cost = 0.0
 
-    def get_position(self, symbol: str) -> Optional[Position]:
+    def get_position(self, symbol: str) -> Position | None:
         """Get current position for a ticker."""
         return self.positions.get(symbol)
 
@@ -232,7 +231,7 @@ class PaperBroker:
             "equity": round(self.cash + unrealized, 2),
         }
 
-    def close_position(self, symbol: str, market_price: float) -> Optional[Fill]:
+    def close_position(self, symbol: str, market_price: float) -> Fill | None:
         """Close an entire position."""
         pos = self.positions.get(symbol)
         if not pos or pos.quantity == 0:

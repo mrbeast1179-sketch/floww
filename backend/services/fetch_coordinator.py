@@ -18,7 +18,8 @@ from __future__ import annotations
 import asyncio
 import logging
 import time
-from typing import Any, Callable, Dict
+from collections.abc import Callable
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -37,16 +38,16 @@ class FetchCoordinator:
     """
 
     def __init__(self) -> None:
-        self._locks: Dict[str, asyncio.Lock] = {}
-        self._inflight: Dict[str, asyncio.Task] = {}
-        self._coalesced_count: Dict[str, int] = {}
+        self._locks: dict[str, asyncio.Lock] = {}
+        self._inflight: dict[str, asyncio.Task] = {}
+        self._coalesced_count: dict[str, int] = {}
 
     async def fetch(
         self,
         ticker: str,
         expiries: int,
         fetcher: Callable,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Fetch with deduplication.
 
         Args:
@@ -66,7 +67,7 @@ class FetchCoordinator:
             self._coalesced_count[key] = self._coalesced_count.get(key, 0) + 1
             try:
                 return await asyncio.wait_for(asyncio.shield(existing), timeout=LOCK_TIMEOUT_SECONDS)
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 logger.warning("Inflight fetch timed out for %s, returning degraded", key)
                 return _error_response("fetch_timeout", "External API call timed out")
 
@@ -83,7 +84,7 @@ class FetchCoordinator:
                         existing = self._inflight.get(key)
                         if existing and existing.done():
                             return existing.result()
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 logger.warning("Lock wait timed out for %s", key)
                 return _error_response("lock_timeout", "Timed out waiting for fetch")
 
@@ -105,7 +106,7 @@ class FetchCoordinator:
 
     async def _do_fetch(
         self, key: str, ticker: str, expiries: int, fetcher: Callable,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Execute the actual fetch and track metrics."""
         t0 = time.monotonic()
         try:
@@ -128,7 +129,7 @@ class FetchCoordinator:
         return self._coalesced_count.get(key, 0)
 
 
-def _error_response(reason: str, detail: str) -> Dict[str, Any]:
+def _error_response(reason: str, detail: str) -> dict[str, Any]:
     """Return a minimal error response that won't crash the UI."""
     return {
         "spot": None,
@@ -139,7 +140,7 @@ def _error_response(reason: str, detail: str) -> Dict[str, Any]:
     }
 
 
-def degraded_response(error_type: str, detail: str, retry_after: int = 15) -> Dict[str, Any]:
+def degraded_response(error_type: str, detail: str, retry_after: int = 15) -> dict[str, Any]:
     """Return a structured degradation payload (standalone function for routes).
 
     Returns a superset that satisfies both the canonical test contract
@@ -164,15 +165,15 @@ class CacheRouter:
     """Cache-first router for market data. Reads from DuckDB cache first, falls back to external API."""
 
     def __init__(self):
-        self._cache: Dict[str, Dict[str, Any]] = {}
+        self._cache: dict[str, dict[str, Any]] = {}
 
     async def get_chain(
         self,
         ticker: str,
         expiries: int,
         max_age_seconds: int,
-        coordinator: "FetchCoordinator",
-    ) -> Dict[str, Any]:
+        coordinator: FetchCoordinator,
+    ) -> dict[str, Any]:
         """Get option chain — cache-first with fallback."""
         from server import fetch_spot_and_chains_merged
         cache_key = f"chain:{ticker}:{expiries}"
@@ -191,6 +192,6 @@ class CacheRouter:
                 return cached["data"]
             raise
 
-    def degraded_response(self, error_type: str, detail: str) -> Dict[str, Any]:
+    def degraded_response(self, error_type: str, detail: str) -> dict[str, Any]:
         """Return a structured degradation payload."""
         return degraded_response(error_type, detail)
