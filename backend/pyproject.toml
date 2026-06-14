@@ -29,7 +29,7 @@ ignore = ["E501", "SIM102", "SIM108", "SIM117"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-addopts = ""
+
 
 [tool.coverage.run]
 source = ["."]
