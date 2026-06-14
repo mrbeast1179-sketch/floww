@@ -51,6 +51,3 @@ exclude_lines = [
     "pass",
 ]
 
-[tool.bandit]
-exclude_dirs = [".venv", "tests"]
-skips = ["B101", "B108", "B313", "B314", "B604", "B608"]
