@@ -52,7 +52,7 @@ jobs:
           source .venv/bin/activate
           pip install --upgrade pip
           pip install -r requirements.txt
-          pip install pytest pytest-asyncio httpx
+          pip install pytest pytest-asyncio httpx pytest-cov bandit
 
       - name: Lint with ruff
         working-directory: ./backend
@@ -68,7 +68,13 @@ jobs:
           pip install mypy
           mypy --ignore-missing-imports server.py || true
 
-      - name: Run tests
+      - name: Security scan with bandit
+        working-directory: ./backend
+        run: |
+          source .venv/bin/activate
+          bandit -r . --severity-level medium -q
+
+      - name: Run tests with coverage
         working-directory: ./backend
         env:
           MONGO_URL: mongodb://localhost:27017
@@ -85,12 +91,7 @@ jobs:
           API_SECRET_KEY: ""
         run: |
           source .venv/bin/activate
-          # NOTE: previously this command piped pytest through `head -100`.
-          # That pipeline swallowed pytest's exit code (the shell's exit was
-          # head's exit = always 0), so test failures did NOT fail CI.
-          # Letting pytest's exit code propagate fixes that. GitHub Actions
-          # handles long output natively — no need to truncate.
-          python -m pytest tests/ -v --tb=short
+          python -m pytest tests/ -v --tb=short --cov=.
 
   frontend-build:
     runs-on: ubuntu-latest
