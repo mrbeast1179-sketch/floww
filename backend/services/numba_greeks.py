@@ -22,7 +22,7 @@ Usage:
 import logging
 import math
 
-import numba
+import numba  # type: ignore[import-untyped]
 import numpy as np
 
 logger = logging.getLogger(__name__)
@@ -31,7 +31,7 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 
 
-@numba.njit
+@numba.njit  # type: ignore[untyped-decorator]
 def _norm_pdf(x: float) -> float:
     """Standard normal probability density function.
 
@@ -44,7 +44,7 @@ def _norm_pdf(x: float) -> float:
     return math.exp(-0.5 * x * x) / math.sqrt(2.0 * math.pi)
 
 
-@numba.njit
+@numba.njit  # type: ignore[untyped-decorator]
 def _norm_cdf(x: float) -> float:
     """Standard normal cumulative distribution function.
 
@@ -64,8 +64,8 @@ def _norm_cdf(x: float) -> float:
 # ---------------------------------------------------------------------------
 
 
-@numba.njit
-def _d1d2(S: float, K: float, T: float, sigma: float, r: float, q: float):
+@numba.njit  # type: ignore[untyped-decorator]
+def _d1d2(S: float, K: float, T: float, sigma: float, r: float, q: float) -> tuple[float, float]:
     """Compute the Black-Scholes d1 and d2 parameters.
 
     Args:
@@ -90,7 +90,7 @@ def _d1d2(S: float, K: float, T: float, sigma: float, r: float, q: float):
 # ---------------------------------------------------------------------------
 
 
-@numba.njit
+@numba.njit  # type: ignore[untyped-decorator]
 def bs_gamma_vec(
     S: float,
     K: np.ndarray,
@@ -127,7 +127,7 @@ def bs_gamma_vec(
     return out
 
 
-@numba.njit
+@numba.njit  # type: ignore[untyped-decorator]
 def bs_delta_vec(
     S: float,
     K: np.ndarray,
@@ -168,7 +168,7 @@ def bs_delta_vec(
     return out
 
 
-@numba.njit
+@numba.njit  # type: ignore[untyped-decorator]
 def bs_vega_vec(
     S: float,
     K: np.ndarray,
@@ -206,7 +206,7 @@ def bs_vega_vec(
     return out
 
 
-@numba.njit
+@numba.njit  # type: ignore[untyped-decorator]
 def bs_vanna_vec(
     S: float,
     K: np.ndarray,
@@ -244,7 +244,7 @@ def bs_vanna_vec(
     return out
 
 
-@numba.njit
+@numba.njit  # type: ignore[untyped-decorator]
 def bs_charm_vec(
     S: float,
     K: np.ndarray,
@@ -292,7 +292,7 @@ def bs_charm_vec(
     return out
 
 
-@numba.njit
+@numba.njit  # type: ignore[untyped-decorator]
 def bs_vomma_vec(
     S: float,
     K: np.ndarray,
@@ -331,7 +331,7 @@ def bs_vomma_vec(
     return out
 
 
-@numba.njit
+@numba.njit  # type: ignore[untyped-decorator]
 def bs_zomma_vec(
     S: float,
     K: np.ndarray,
@@ -371,7 +371,7 @@ def bs_zomma_vec(
     return out
 
 
-@numba.njit
+@numba.njit  # type: ignore[untyped-decorator]
 def bs_call_price_vec(
     S: float,
     K: np.ndarray,
@@ -408,7 +408,7 @@ def bs_call_price_vec(
     return out
 
 
-@numba.njit
+@numba.njit  # type: ignore[untyped-decorator]
 def bs_put_price_vec(
     S: float,
     K: np.ndarray,
@@ -450,7 +450,7 @@ def bs_put_price_vec(
 # ---------------------------------------------------------------------------
 
 
-@numba.njit
+@numba.njit  # type: ignore[untyped-decorator]
 def _bs_theta_vec(
     S: float,
     K: np.ndarray,
@@ -520,7 +520,7 @@ def compute_all_greeks(
     types: np.ndarray,
     r: float = 0.045,
     q: float = 0.0,
-) -> dict:
+) -> dict[str, np.ndarray]:
     """Compute the full Black-Scholes Greek surface for an option chain.
 
     This is a convenience wrapper that calls all individual @numba.njit Greek
