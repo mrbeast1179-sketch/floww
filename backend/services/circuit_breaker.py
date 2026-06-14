@@ -244,7 +244,7 @@ class CircuitBreaker:
         cutoff = now - self.thresholds.window_seconds
         self._measurements = [m for m in self._measurements if m.timestamp >= cutoff]
 
-    def _compute_metrics(self) -> tuple:
+    def _compute_metrics(self) -> tuple[float, float]:
         """Returns (error_rate_pct, latency_p99_ms)."""
         if not self._measurements:
             return 0.0, 0.0
