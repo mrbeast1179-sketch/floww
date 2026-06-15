@@ -100,7 +100,7 @@ def get_recently_cloned(since_days: int = 1) -> List[Dict[str, str]]:
     provenance = json.loads(PROVENANCE_PATH.read_text())
     cutoff = datetime.now(timezone.utc).timestamp() - (since_days * 86400)
     recent: List[Dict[str, str]] = []
-    seen: set = set()
+    seen: set[str] = set()
 
     for entry in provenance:
         cloned_at = entry.get("cloned_at", "")
