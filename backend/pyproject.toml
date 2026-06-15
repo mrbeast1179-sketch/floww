@@ -51,3 +51,13 @@ exclude_lines = [
     "pass",
 ]
 
+[tool.mypy]
+python_version = "3.12"
+
+[[tool.mypy.overrides]]
+module = "flashalpha_client"
+strict = true
+
+[[tool.mypy.overrides]]
+module = "services.flowseeker"
+strict = true
