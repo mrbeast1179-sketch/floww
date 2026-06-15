@@ -18,10 +18,11 @@ import os
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import Any
 
-import joblib
+import joblib  # type: ignore[import-untyped]
 import numpy as np
-import pandas as pd
+import pandas as pd  # type: ignore[import-untyped]
 from dotenv import load_dotenv
 from pymongo import MongoClient
 
@@ -40,7 +41,7 @@ SCALER_PATH = MODELS_DIR / f"SPY_scaler_{VERSION}.joblib"
 META_PATH = MODELS_DIR / f"SPY_meta_{VERSION}.json"
 
 
-def main():
+def main() -> None:
     print(f"\n{'='*60}")
     print(f"SPY Regime v2 Backtest — {VERSION}")
     print(f"{'='*60}\n")
@@ -56,7 +57,7 @@ def main():
     print(f"Model type: {meta['model_type']}, Features: {meta['n_features']}")
 
     # Load features from MongoDB
-    c = MongoClient(MONGO_URL)
+    c: Any = MongoClient(MONGO_URL)
     db = c[DB_NAME]
     docs = list(db["ml_features"].find({"ticker": "SPY"}).sort("date", 1))
     c.close()
@@ -86,7 +87,7 @@ def main():
     proba = model.predict_proba(X_s)[:, 1] if hasattr(model, "predict_proba") else preds.astype(float)
 
     # Overall metrics
-    from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score
+    from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score  # type: ignore[import-untyped]
     acc = accuracy_score(y, preds)
     prec = precision_score(y, preds, zero_division=0)
     rec = recall_score(y, preds, zero_division=0)
@@ -135,7 +136,7 @@ def main():
     df_v["pnl"] = [p if p > 0 else p for p in pnl] + [0] * (len(df_v) - len(pnl))
 
     # Simple quarter assignment from date
-    def get_quarter(d):
+    def get_quarter(d: str) -> str:
         m = int(d.split("-")[1])
         return f"Q{(m-1)//3 + 1}"
 
