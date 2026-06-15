@@ -3,7 +3,6 @@ import axios from "axios";
 import "@/App.css";
 import { useAuth } from "./context/AuthContext";
 import { ALPHAPOD_API } from "./config/api";
-import SignInPage from "./components/SignInPage";
 
 import { fmt, fmtAbs, pctClass, tagFor, TRINITY, DEFAULT_TICKERS } from "./lib/helpers";
 import GridHeatmap from "./components/GridHeatmap";
@@ -52,14 +51,6 @@ import ToxicityGauge from "./components/ToxicityGauge";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { RetryButton, ErrorState } from "./components/RetryButton";
 
-// AlphaPod pages
-import SpxGexPage from "./pages/SpxGexPage";
-import AlphaFlowPage from "./pages/AlphaFlowPage";
-import DailyReportPage from "./pages/DailyReportPage";
-import TickerAnalysisPage from "./pages/TickerAnalysisPage";
-import EarningsPage from "./pages/EarningsPage";
-import HeatmapsPage from "./pages/HeatmapsPage";
-import { SignalsPage, TradeLogPage, PerformancePage, KeyLevelsPage, SpxAlertsPage } from "./pages/PlaceholderPages";
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
@@ -730,52 +721,7 @@ export default function App() {
           userTier={userTier}
         />
 
-        {/* ===== NEW ALPHA PAGES ===== */}
-
-        {/* Dashboard */}
-        {page === "dashboard" && (
-          <DashboardPage ticker={ticker} data={data} livespot={livespot} />
-        )}
-
-        {/* Alpha Flow */}
-        {page === "alpha-flow" && <AlphaFlowPage />}
-
-        {/* Daily Report */}
-        {page === "daily-report" && <DailyReportPage />}
-
-        {/* Flow Alerts */}
-        {page === "flow-alerts" && (
-          <FlowAlertsPage ticker={ticker} token={token} />
-        )}
-
-        {/* Heatmaps */}
-        {page === "heatmaps" && <HeatmapsPage />}
-
-        {/* Ticker Analysis */}
-        {page === "ticker-analysis" && <TickerAnalysisPage ticker={ticker} />}
-
-        {/* Earnings */}
-        {page === "earnings" && <EarningsPage />}
-
-        {/* Active Signals */}
-        {page === "signals" && <SignalsPage />}
-
-        {/* Trade Log */}
-        {page === "trade-log" && <TradeLogPage />}
-
-        {/* Performance */}
-        {page === "performance" && <PerformancePage />}
-
-        {/* SPX GEX */}
-        {page === "spx-gex" && <SpxGexPage />}
-
-        {/* Key Levels */}
-        {page === "key-levels" && <KeyLevelsPage />}
-
-        {/* SPX Alerts */}
-        {page === "spx-alerts" && <SpxAlertsPage />}
-
-        {/* ===== LEGACY PAGES (preserved as-is) ===== */}
+        {/* ===== DECODER PAGES ===== */}
 
         {/* Trinity View */}
         {page === "trinity" && (
