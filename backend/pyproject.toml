@@ -51,3 +51,9 @@ exclude_lines = [
     "pass",
 ]
 
+[tool.mypy]
+python_version = "3.12"
+
+[[tool.mypy.overrides]]
+module = "databento_provider"
+strict = true
