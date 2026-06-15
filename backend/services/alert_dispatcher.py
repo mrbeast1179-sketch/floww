@@ -57,7 +57,7 @@ EMERGENCY_CATEGORIES = {
 class AlertDispatcher:
     """Dispatches alerts via Twilio SMS + voice calls based on severity and timing."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self._account_sid = os.environ.get("TWILIO_ACCOUNT_SID", "")
         self._auth_token = os.environ.get("TWILIO_AUTH_TOKEN", "")
         self._from_number = os.environ.get("TWILIO_FROM_NUMBER", "")
@@ -67,7 +67,7 @@ class AlertDispatcher:
 
         if self._account_sid and self._auth_token:
             try:
-                from twilio.rest import Client
+                from twilio.rest import Client  # type: ignore[import-not-found]
                 self._client = Client(self._account_sid, self._auth_token)
                 self._twilio_available = True
                 log.info("Twilio client initialized")
@@ -137,7 +137,7 @@ class AlertDispatcher:
 
         return {"sent": False, "channel": "none", "reason": "All channels failed"}
 
-    async def _send_sms(self, title: str, message: str):
+    async def _send_sms(self, title: str, message: str) -> None:
         """Send SMS via Twilio."""
         if not self._twilio_available or not self._client:
             log.info(f"[SMS MOCK] {title}: {message[:100]}")
@@ -150,7 +150,7 @@ class AlertDispatcher:
             to=self._to_number,
         )
 
-    async def _send_voice(self, title: str, message: str):
+    async def _send_voice(self, title: str, message: str) -> None:
         """Send voice call via Twilio (TwiML say)."""
         if not self._twilio_available or not self._client:
             log.info(f"[VOICE MOCK] {title}: {message[:100]}")
