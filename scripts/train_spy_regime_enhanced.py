@@ -22,11 +22,11 @@ import sys
 import warnings
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List
 
-import joblib
+import joblib  # type: ignore[import-untyped]
 import numpy as np
-import pandas as pd
+import pandas as pd  # type: ignore[import-untyped]
 from dotenv import load_dotenv
 from pymongo import MongoClient
 
@@ -60,7 +60,7 @@ EXCLUDE_COLS = {
 # ────────────────────────────────────────────────────────────────────────
 
 def load_existing_features() -> pd.DataFrame:
-    c = MongoClient(MONGO_URL)
+    c: Any = MongoClient(MONGO_URL)
     db = c[DB_NAME]
     docs = list(db["ml_features"].find({"ticker": "SPY"}).sort("date", 1))
     c.close()
@@ -71,8 +71,8 @@ def load_existing_features() -> pd.DataFrame:
     return df
 
 
-def load_snapshots_raw() -> List[Dict]:
-    c = MongoClient(MONGO_URL)
+def load_snapshots_raw() -> List[Dict[str, Any]]:
+    c: Any = MongoClient(MONGO_URL)
     db = c[DB_NAME]
     snaps = list(db["gex_enhanced_snapshots"].find({
         "$or": [{"ticker": "SPY"}, {"_source": "issue_141_enhanced_dataset"}]
@@ -85,7 +85,7 @@ def load_snapshots_raw() -> List[Dict]:
 # Regime feature computation
 # ────────────────────────────────────────────────────────────────────────
 
-def _safe(v, default=0.0):
+def _safe(v: Any, default: float = 0.0) -> float:
     if v is None: return default
     try:
         f = float(v)
@@ -94,7 +94,7 @@ def _safe(v, default=0.0):
         return default
 
 
-def _compute_scores_simple(net_gex, call_oi, put_oi, pcr):
+def _compute_scores_simple(net_gex: float, call_oi: float, put_oi: float, pcr: float) -> tuple[int, int]:
     """Simple scoring for feature extraction from pre-aggregated data."""
     b, bear = 0, 0
     # GEX magnitude
@@ -113,7 +113,7 @@ def _compute_scores_simple(net_gex, call_oi, put_oi, pcr):
 
 def compute_regime_features(df: pd.DataFrame) -> pd.DataFrame:
     """Compute regime features from pre-aggregated GEX snapshots."""
-    from services.morning_briefing import classify_regime
+    from services.morning_briefing import classify_regime  # type: ignore[import-not-found]
 
     snap_list = load_snapshots_raw()
     log.info(f"Loaded {len(snap_list)} GEX snapshots")
@@ -179,7 +179,7 @@ def get_feature_cols(df: pd.DataFrame) -> List[str]:
     return [c for c in df.columns if c not in EXCLUDE_COLS and df[c].dtype in (np.float64, np.int64, np.float32, np.int32)]
 
 
-def _trading_sharpe(preds, actuals):
+def _trading_sharpe(preds: Any, actuals: Any) -> float:
     """Annualized trading Sharpe. pred=1 means go long, pred=0 means flat."""
     trades = []
     for p, a in zip(preds, actuals):
@@ -190,24 +190,24 @@ def _trading_sharpe(preds, actuals):
     return float(np.mean(trades) / np.std(trades) * np.sqrt(252))
 
 
-def _create_model(name: str):
+def _create_model(name: str) -> Any:
     if name == "GBM":
-        from sklearn.ensemble import GradientBoostingClassifier
+        from sklearn.ensemble import GradientBoostingClassifier  # type: ignore[import-untyped]
         return GradientBoostingClassifier(n_estimators=100, max_depth=3, learning_rate=0.1, random_state=42)
     elif name == "GBM_deep":
         from sklearn.ensemble import GradientBoostingClassifier
         return GradientBoostingClassifier(n_estimators=200, max_depth=5, learning_rate=0.05, random_state=42)
     elif name == "LGBM":
-        import lightgbm as lgb
+        import lightgbm as lgb  # type: ignore[import-not-found]
         return lgb.LGBMClassifier(n_estimators=100, max_depth=4, learning_rate=0.1, random_state=42, verbose=-1)
     else:
-        from sklearn.linear_model import LogisticRegression
+        from sklearn.linear_model import LogisticRegression  # type: ignore[import-untyped]
         return LogisticRegression(max_iter=1000, random_state=42)
 
 
-def walk_forward_cv(X, y, dates, n_splits=8):
-    from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score
-    from sklearn.preprocessing import StandardScaler
+def walk_forward_cv(X: Any, y: Any, dates: Any, n_splits: int = 8) -> list[dict[str, Any]]:
+    from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score  # type: ignore[import-untyped]
+    from sklearn.preprocessing import StandardScaler  # type: ignore[import-untyped]
 
     n = len(y)
     fold_size = n // (n_splits + 1)
@@ -257,13 +257,13 @@ def walk_forward_cv(X, y, dates, n_splits=8):
 # Aggregate, select winner, train final, ship
 # ────────────────────────────────────────────────────────────────────────
 
-def aggregate_cv_results(results):
+def aggregate_cv_results(results: list[dict[str, Any]]) -> pd.DataFrame:
     rows = [{"model": r["model"], "accuracy": r["accuracy"], "precision": r["precision"],
              "recall": r["recall"], "f1": r["f1"], "sharpe": r["sharpe"], "n_test": r["n_test"]} for r in results]
     return pd.DataFrame(rows).groupby("model").mean().sort_values("sharpe", ascending=False)
 
 
-def compute_baseline_sharpe(y):
+def compute_baseline_sharpe(y: Any) -> dict[str, float]:
     """Majority and persistence baseline Sharpe."""
     y = np.array(y)
     majority = pd.Series(y).mode()[0]
@@ -274,7 +274,7 @@ def compute_baseline_sharpe(y):
     return {"majority_sharpe": maj_sharpe, "persistence_sharpe": persist_sharpe}
 
 
-def train_and_ship(X, y, dates, feature_names, winner_name):
+def train_and_ship(X: Any, y: Any, dates: Any, feature_names: Any, winner_name: str) -> Any:
     from sklearn.preprocessing import StandardScaler
     from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score
 
@@ -323,9 +323,9 @@ def train_and_ship(X, y, dates, feature_names, winner_name):
     return meta
 
 
-def register_model_in_mongo(meta, model_path, scaler_path):
+def register_model_in_mongo(meta: dict[str, Any], model_path: Any, scaler_path: Any) -> None:
     import gridfs
-    c = MongoClient(MONGO_URL)
+    c: Any = MongoClient(MONGO_URL)
     db = c[DB_NAME]
     fs = gridfs.GridFS(db, collection="ml_model_artifacts")
 
@@ -363,7 +363,7 @@ def register_model_in_mongo(meta, model_path, scaler_path):
 # Main
 # ────────────────────────────────────────────────────────────────────────
 
-def main():
+def main() -> Any:
     log.info("=" * 60 + "\nSPY Regime-Enhanced ML Training Pipeline\n" + "=" * 60)
 
     # Step 1: Load features

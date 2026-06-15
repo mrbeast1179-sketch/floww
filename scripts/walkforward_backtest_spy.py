@@ -16,8 +16,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-import numpy as np  # type: ignore[import-untyped]
-import pandas as pd
+import numpy as np
+import pandas as pd  # type: ignore[import-untyped]
 from dotenv import load_dotenv
 from sklearn.preprocessing import StandardScaler  # type: ignore[import-untyped]
 from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score  # type: ignore[import-untyped]
@@ -83,7 +83,7 @@ def main() -> None:
         prec = precision_score(y_te, preds, zero_division=0)
         rec = recall_score(y_te, preds, zero_division=0)
         f1 = f1_score(y_te, preds, zero_division=0)
-        sharpe = _trading_sharpe(preds, y_te)  # type: ignore[no-untyped-call]
+        sharpe = _trading_sharpe(preds, y_te)
 
         fold_results.append({
             "fold": fold_idx, "train_end": dates[train_end-1],
@@ -105,7 +105,7 @@ def main() -> None:
     oos_prec = precision_score(oos_actuals_arr, oos_preds_arr, zero_division=0)
     oos_rec = recall_score(oos_actuals_arr, oos_preds_arr, zero_division=0)
     oos_f1 = f1_score(oos_actuals_arr, oos_preds_arr, zero_division=0)
-    oos_sharpe = _trading_sharpe(oos_preds_arr, oos_actuals_arr)  # type: ignore[no-untyped-call]
+    oos_sharpe = _trading_sharpe(oos_preds_arr, oos_actuals_arr)
 
     # Trading P&L
     pnl: list[float] = []
@@ -123,9 +123,9 @@ def main() -> None:
 
     # Baselines
     majority = pd.Series(all_oos_actuals).mode()[0]
-    maj_sharpe = _trading_sharpe(np.full_like(all_oos_actuals, majority), all_oos_actuals)  # type: ignore[no-untyped-call]
+    maj_sharpe = _trading_sharpe(np.full_like(all_oos_actuals, majority), all_oos_actuals)
     persist = np.roll(all_oos_actuals, 1); persist[0] = all_oos_actuals[0]
-    persist_sharpe = _trading_sharpe(persist, all_oos_actuals)  # type: ignore[no-untyped-call]
+    persist_sharpe = _trading_sharpe(persist, all_oos_actuals)
 
     print(f"\n{'='*60}")
     print(f"AGGREGATE OOS RESULTS ({n_splits}-fold walk-forward)")
