@@ -30,6 +30,7 @@ import sys
 import time
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
+from typing import Any
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 CLAUDE_MEMORY_DIR = Path.home() / ".claude" / "projects" / "-Users-nav-Documents-GitHub-floww" / "memory"
@@ -69,9 +70,9 @@ TRADING_KEYWORDS = {
 
 # ─── Memory Stats ────────────────────────────────────────────────
 
-def get_memory_stats():
+def get_memory_stats() -> dict[str, Any]:
     """Get statistics about current memory state."""
-    stats = {
+    stats: dict[str, Any] = {
         "claude_memory": {"total": 0, "by_type": {}, "archivable": 0},
         "obsidian": {"total": 0, "by_type": {}, "archivable": 0},
         "mem0": {"total": 0, "by_type": {}, "archivable": 0},
@@ -116,8 +117,8 @@ def get_memory_stats():
             cfg = json.load(open(cfg_path))
             api_key = cfg.get("platform", {}).get("api_key")
             if api_key:
-                from mem0 import MemoryClient
-                client = MemoryClient(api_key=api_key)
+                from mem0 import MemoryClient  # type: ignore[attr-defined]
+                client: Any = MemoryClient(api_key=api_key)
                 result = client.get_all(
                     filters={"user_id": "user_c778280e23af"},
                     limit=200,
@@ -160,7 +161,7 @@ def get_memory_stats():
     return stats
 
 
-def print_stats(stats):
+def print_stats(stats: dict[str, Any]) -> None:
     """Print memory statistics."""
     print("# Memory Statistics\n")
     for system, data in stats.items():
@@ -176,7 +177,7 @@ def print_stats(stats):
 
 # ─── Archiving Functions ─────────────────────────────────────────
 
-def archive_claude_memory(dry_run=True):
+def archive_claude_memory(dry_run: bool = True) -> int:
     """Archive old Claude Code memory files."""
     if not CLAUDE_MEMORY_DIR.exists():
         logger.info("Claude memory dir not found")
@@ -220,7 +221,7 @@ def archive_claude_memory(dry_run=True):
     return archived
 
 
-def archive_obsidian(dry_run=True):
+def archive_obsidian(dry_run: bool = True) -> int:
     """Archive old Obsidian notes that aren't trading-relevant."""
     if not OBSIDIAN_DIR.exists():
         logger.info("Obsidian dir not found")
@@ -256,7 +257,7 @@ def archive_obsidian(dry_run=True):
     return archived
 
 
-def archive_mem0(dry_run=True):
+def archive_mem0(dry_run: bool = True) -> int:
     """Archive (soft-delete) irrelevant mem0 entries."""
     try:
         cfg_path = Path.home() / ".mem0" / "config.json"
@@ -268,8 +269,8 @@ def archive_mem0(dry_run=True):
         if not api_key:
             return 0
 
-        from mem0 import MemoryClient
-        client = MemoryClient(api_key=api_key)
+        from mem0 import MemoryClient  # type: ignore[attr-defined]
+        client: Any = MemoryClient(api_key=api_key)
 
         result = client.get_all(
             filters={"user_id": "user_c778280e23af"},
@@ -336,7 +337,7 @@ def archive_mem0(dry_run=True):
         return 0
 
 
-def write_archive_report(stats, claude_archived, obsidian_archived, mem0_archived):
+def write_archive_report(stats: dict[str, Any], claude_archived: int, obsidian_archived: int, mem0_archived: int) -> None:
     """Write archiving report."""
     REPORTS_DIR.mkdir(parents=True, exist_ok=True)
     report_path = REPORTS_DIR / f"archive_report_{datetime.now().strftime('%Y%m%d_%H%M')}.md"
@@ -377,7 +378,7 @@ def write_archive_report(stats, claude_archived, obsidian_archived, mem0_archive
 
 # ─── Main ────────────────────────────────────────────────────────
 
-def main():
+def main() -> None:
     parser = argparse.ArgumentParser(description="Prune and archive trading memory")
     parser.add_argument("--dry-run", action="store_true", help="Show what would be archived")
     parser.add_argument("--report", action="store_true", help="Show memory stats only")
