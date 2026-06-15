@@ -34,7 +34,10 @@ empty list to a 200 with `[]` body so the frontend never crashes.
 from __future__ import annotations
 
 import logging
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from flashalpha_client import FlashAlphaClient
 
 logger = logging.getLogger(__name__)
 
@@ -207,7 +210,7 @@ def _normalize_print(raw: dict[str, Any], ticker_hint: str | None = None) -> dic
 # Provider lookup
 # ---------------------------------------------------------------------------
 
-def _get_client():
+def _get_client() -> FlashAlphaClient:
     """
     Lazy-import the FlashAlphaClient so this module stays importable in
     environments without aiohttp (e.g. unit tests). Tests patch this symbol.
