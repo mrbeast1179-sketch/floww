@@ -92,14 +92,14 @@ export default function Sidebar({ page, onNavigate, userEmail, userTier }) {
           className="flex h-7 w-7 items-center justify-center rounded-md"
           style={{ background: "var(--gold-dim)", border: "1px solid var(--gold-border)" }}
         >
-          <span className="display font-bold text-sm" style={{ color: "var(--gold)" }}>α</span>
+          <span className="display font-bold text-sm" style={{ color: "var(--gold)" }}>Δ</span>
         </div>
         {!collapsed && (
           <span
             className="display font-bold tracking-[0.12em]"
             style={{ fontSize: 13, color: "var(--text-primary)" }}
           >
-            ALPHA POD
+            CONFLUENCE
           </span>
         )}
         <button

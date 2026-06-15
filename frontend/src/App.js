@@ -496,7 +496,7 @@ const regimeColor = (regime) => regime === "positive" ? "text-emerald-400" : reg
 // ============ Main App ============
 export default function App() {
   const { token, user, isAuthenticated, logout } = useAuth();
-  const [page, setPage] = useState("dashboard");
+  const [page, setPage] = useState("heatseeker");
   const [ticker, setTicker] = useState(() => {
     try { return localStorage.getItem("floww_settings") ? JSON.parse(localStorage.getItem("floww_settings")).defaultTicker || "SPY" : "SPY"; } catch { return "SPY"; }
   });
@@ -708,11 +708,6 @@ export default function App() {
       strikes: autoDecimate(data.strikes, 5000),
     };
   }, [data]);
-
-  // If not authenticated, show sign-in page
-  if (!isAuthenticated) {
-    return <SignInPage onSignIn={() => {}} />;
-  }
 
   return (
     <AppShell page={page} onNavigate={setPage} userEmail={userEmail} userTier={userTier}>
