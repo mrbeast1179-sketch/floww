@@ -14,13 +14,13 @@ import os
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import Any
 
-import numpy as np
+import numpy as np  # type: ignore[import-untyped]
 import pandas as pd
 from dotenv import load_dotenv
-from pymongo import MongoClient
-from sklearn.preprocessing import StandardScaler
-from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score
+from sklearn.preprocessing import StandardScaler  # type: ignore[import-untyped]
+from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score  # type: ignore[import-untyped]
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO_ROOT / "backend"))
@@ -30,7 +30,7 @@ MONGO_URL = os.environ.get("MONGO_URL", "mongodb://localhost:27017")
 DB_NAME = os.environ.get("DB_NAME", "confluence_decoder")
 
 
-def main():
+def main() -> None:
     print(f"\n{'='*60}\nSPY Walk-Forward Backtest (Proper OOS)\n{'='*60}\n")
 
     # Load features
@@ -57,10 +57,10 @@ def main():
     n_splits = 8
     fold_size = n // (n_splits + 1)
 
-    all_oos_preds = []
-    all_oos_actuals = []
-    all_oos_dates = []
-    fold_results = []
+    all_oos_preds: list[Any] = []
+    all_oos_actuals: list[Any] = []
+    all_oos_dates: list[str] = []
+    fold_results: list[dict[str, Any]] = []
 
     for fold_idx in range(n_splits):
         train_end = fold_size * (fold_idx + 1)
@@ -83,7 +83,7 @@ def main():
         prec = precision_score(y_te, preds, zero_division=0)
         rec = recall_score(y_te, preds, zero_division=0)
         f1 = f1_score(y_te, preds, zero_division=0)
-        sharpe = _trading_sharpe(preds, y_te)
+        sharpe = _trading_sharpe(preds, y_te)  # type: ignore[no-untyped-call]
 
         fold_results.append({
             "fold": fold_idx, "train_end": dates[train_end-1],
@@ -98,18 +98,18 @@ def main():
               f"acc={acc:.3f} prec={prec:.3f} sharpe={sharpe:.3f} n_test={len(y_te)}")
 
     # Aggregate OOS results
-    all_oos_preds = np.array(all_oos_preds)
-    all_oos_actuals = np.array(all_oos_actuals)
+    oos_preds_arr = np.array(all_oos_preds)
+    oos_actuals_arr = np.array(all_oos_actuals)
 
-    oos_acc = accuracy_score(all_oos_actuals, all_oos_preds)
-    oos_prec = precision_score(all_oos_actuals, all_oos_preds, zero_division=0)
-    oos_rec = recall_score(all_oos_actuals, all_oos_preds, zero_division=0)
-    oos_f1 = f1_score(all_oos_actuals, all_oos_preds, zero_division=0)
-    oos_sharpe = _trading_sharpe(all_oos_preds, all_oos_actuals)
+    oos_acc = accuracy_score(oos_actuals_arr, oos_preds_arr)
+    oos_prec = precision_score(oos_actuals_arr, oos_preds_arr, zero_division=0)
+    oos_rec = recall_score(oos_actuals_arr, oos_preds_arr, zero_division=0)
+    oos_f1 = f1_score(oos_actuals_arr, oos_preds_arr, zero_division=0)
+    oos_sharpe = _trading_sharpe(oos_preds_arr, oos_actuals_arr)  # type: ignore[no-untyped-call]
 
     # Trading P&L
-    pnl = []
-    for p, a in zip(all_oos_preds, all_oos_actuals):
+    pnl: list[float] = []
+    for p, a in zip(oos_preds_arr, oos_actuals_arr):
         if p == 1:
             pnl.append(1.0 if a == 1 else -1.0)
 
@@ -123,9 +123,9 @@ def main():
 
     # Baselines
     majority = pd.Series(all_oos_actuals).mode()[0]
-    maj_sharpe = _trading_sharpe(np.full_like(all_oos_actuals, majority), all_oos_actuals)
+    maj_sharpe = _trading_sharpe(np.full_like(all_oos_actuals, majority), all_oos_actuals)  # type: ignore[no-untyped-call]
     persist = np.roll(all_oos_actuals, 1); persist[0] = all_oos_actuals[0]
-    persist_sharpe = _trading_sharpe(persist, all_oos_actuals)
+    persist_sharpe = _trading_sharpe(persist, all_oos_actuals)  # type: ignore[no-untyped-call]
 
     print(f"\n{'='*60}")
     print(f"AGGREGATE OOS RESULTS ({n_splits}-fold walk-forward)")
