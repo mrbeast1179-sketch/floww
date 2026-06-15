@@ -90,8 +90,8 @@ class TrinityAlignmentIndex:
             "regime": regime,
         }
 
-    def _find_alignments(self, spy_levels, qqq_levels, spx_levels,
-                         spy_spot, qqq_spot, spx_spot) -> list[dict]:
+    def _find_alignments(self, spy_levels: list[float], qqq_levels: list[float], spx_levels: list[float],
+                         spy_spot: float, qqq_spot: float, spx_spot: float) -> list[dict[str, Any]]:
         """Find flip levels that align across instruments."""
         aligned = []
 
@@ -136,7 +136,7 @@ class TrinityAlignmentIndex:
 
         return sorted(aligned, key=lambda x: x["spread_pct"])
 
-    def _compute_score(self, aligned: list[dict]) -> float:
+    def _compute_score(self, aligned: list[dict[str, Any]]) -> float:
         """Score based on number and tightness of alignments."""
         if not aligned:
             return 0.0
@@ -151,7 +151,7 @@ class TrinityAlignmentIndex:
 
         return min(score, 100.0)
 
-    def _find_nearest(self, aligned, spy_spot, qqq_spot, spx_spot) -> dict | None:
+    def _find_nearest(self, aligned: list[dict[str, Any]], spy_spot: float, qqq_spot: float, spx_spot: float) -> dict[str, Any] | None:
         """Find the alignment nearest to current price."""
         if not aligned:
             return None
