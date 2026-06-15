@@ -10,7 +10,7 @@ BASE = "http://localhost:8000/api"
 TICKERS = ["SPY", "QQQ", "^SPX", "IWM", "AAPL", "NVDA", "TSLA", "META", "AMZN", "MSFT", "GOOGL", "AMD"]
 HEAVY_TICKERS = ["SPY", "QQQ", "^SPX", "IWM"]  # These get the full treatment
 
-async def warm():
+async def warm() -> None:
     async with httpx.AsyncClient(timeout=60) as client:
         # Hit root to verify backend is up
         r = await client.get(f"{BASE}/")

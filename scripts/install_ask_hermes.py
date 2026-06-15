@@ -16,7 +16,7 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 SCRIPT_PATH = REPO_ROOT / "scripts" / "ask_hermes.py"
 BIN_PATH = Path("/usr/local/bin/ask-hermes")
 
-def main():
+def main() -> None:
     # Make script executable
     SCRIPT_PATH.chmod(0o755)
 
