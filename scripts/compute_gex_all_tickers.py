@@ -6,13 +6,14 @@ from dotenv import load_dotenv
 load_dotenv(Path('backend/.env'))
 from pymongo import MongoClient
 import numpy as np
-from scipy.stats import norm
+from scipy.stats import norm  # type: ignore[import-untyped]
 from datetime import date as dt_date
+from typing import Any
 
-db = MongoClient(os.environ['MONGO_URL'])[os.environ['DB_NAME']]
+db: Any = MongoClient(os.environ['MONGO_URL'])[os.environ['DB_NAME']]
 
 # Load underlying bars for all tickers
-bars = {}
+bars: dict[str, dict[str, float]] = {}
 for doc in db['underlying_bars'].find():
     t = doc['ticker']
     if t not in bars:

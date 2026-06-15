@@ -6,11 +6,12 @@ from dotenv import load_dotenv
 load_dotenv('backend/.env')
 from pymongo import MongoClient
 import numpy as np
-from scipy.stats import norm
+from scipy.stats import norm  # type: ignore[import-untyped]
 from datetime import date as dt_date
 import time
+from typing import Any
 
-db = MongoClient(os.environ['MONGO_URL'])[os.environ['DB_NAME']]
+db: Any = MongoClient(os.environ['MONGO_URL'])[os.environ['DB_NAME']]
 bars = {b['date']: float(b['close']) for b in db['underlying_bars'].find({'ticker': 'SPY'})}
 iv = 0.20
 computed = 0

@@ -96,7 +96,7 @@ def get_recently_cloned(since_days: int = 1) -> List[Dict[str, str]]:
     provenance = json.loads(PROVENANCE_PATH.read_text())
     cutoff = datetime.now(timezone.utc).timestamp() - (since_days * 86400)
     recent: List[Dict[str, str]] = []
-    seen: set = set()
+    seen: set[str] = set()
 
     for entry in provenance:
         cloned_at = entry.get("cloned_at", "")
@@ -166,12 +166,12 @@ def find_kernel_files(repo_path: Path) -> List[Dict[str, Any]]:
                 re.search(rf"\b{imp}\b", content_lower) or
                 re.search(rf"import {imp}", content_lower) or
                 re.search(rf"from {imp}", content_lower)
-                for imp in config["import_patterns"]
+                for imp in config["import_patterns"]  # type: ignore[attr-defined]
             )
 
             # Check function patterns
             matched_fns = []
-            for pattern in config["function_patterns"]:
+            for pattern in config["function_patterns"]:  # type: ignore[attr-defined]
                 if pattern in content_lower:
                     # Find actual function definitions
                     fn_matches = re.findall(
