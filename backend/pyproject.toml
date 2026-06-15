@@ -51,3 +51,61 @@ exclude_lines = [
     "pass",
 ]
 
+[tool.mypy]
+python_version = "3.12"
+
+[[tool.mypy.overrides]]
+module = "services.vpin_engine"
+strict = true
+
+[[tool.mypy.overrides]]
+module = "services.hawkes_process"
+strict = true
+
+[[tool.mypy.overrides]]
+module = "services.stochastic_vol"
+strict = true
+
+[[tool.mypy.overrides]]
+module = "services.liquidity_metrics"
+strict = true
+
+[[tool.mypy.overrides]]
+module = "services.numba_greeks"
+strict = true
+
+[[tool.mypy.overrides]]
+module = "services.execution_engine"
+strict = true
+
+[[tool.mypy.overrides]]
+module = "services.trinity_alignment"
+strict = true
+
+[[tool.mypy.overrides]]
+module = "services.slo_tracker"
+strict = true
+
+[[tool.mypy.overrides]]
+module = "services.node_lifecycle"
+strict = true
+
+[[tool.mypy.overrides]]
+module = "services.circuit_breaker"
+strict = true
+
+[[tool.mypy.overrides]]
+module = "services.alert_dispatcher"
+strict = true
+
+[[tool.mypy.overrides]]
+module = "services.flowseeker"
+strict = true
+
+[[tool.mypy.overrides]]
+module = "flashalpha_client"
+strict = true
+
+[[tool.mypy.overrides]]
+module = "databento_provider"
+strict = true
