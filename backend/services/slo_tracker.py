@@ -66,12 +66,12 @@ class SLOTracker:
     """Track SLOs with sliding window error budget."""
 
     def __init__(self, window_seconds: int = 86400):
-        self._windows: dict[str, deque] = {}
+        self._windows: dict[str, deque[SLIMeasurement]] = {}
         self._window_seconds = window_seconds
         for slo in SLO_DEFINITIONS:
             self._windows[slo.name] = deque()
 
-    def record(self, slo_name: str, is_success: bool, latency_ms: float = 0.0):
+    def record(self, slo_name: str, is_success: bool, latency_ms: float = 0.0) -> None:
         """Record a measurement for an SLO."""
         if slo_name not in self._windows:
             self._windows[slo_name] = deque()
@@ -82,7 +82,7 @@ class SLOTracker:
         ))
         self._cleanup(slo_name)
 
-    def _cleanup(self, slo_name: str):
+    def _cleanup(self, slo_name: str) -> None:
         """Remove measurements outside the window."""
         cutoff = time.time() - self._window_seconds
         dq = self._windows[slo_name]
