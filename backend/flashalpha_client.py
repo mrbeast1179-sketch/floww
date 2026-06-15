@@ -33,19 +33,19 @@ FLASHALPHA_BASE_URL = "https://lab.flashalpha.com"
 class FlashAlphaClient:
     """Client for the FlashAlpha options analytics API."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.base_url = FLASHALPHA_BASE_URL
 
     @property
-    def enabled(self):
+    def enabled(self) -> bool:
         return bool(os.environ.get("FLASHALPHA_API_KEY", ""))
 
     @property
-    def _headers(self):
+    def _headers(self) -> dict[str, str]:
         key = os.environ.get("FLASHALPHA_API_KEY", "")
         return {"X-Api-Key": key, "Content-Type": "application/json"} if key else {}
 
-    async def _get(self, path: str, params: dict = None) -> dict | None:
+    async def _get(self, path: str, params: dict[str, Any] | None = None) -> dict[str, Any] | None:
         if not self.enabled:
             return None
         url = f"{self.base_url}{path}"
@@ -54,7 +54,8 @@ class FlashAlphaClient:
                 async with session.get(url, headers=self._headers, params=params or {},
                                        timeout=aiohttp.ClientTimeout(total=15)) as resp:
                     if resp.status == 200:
-                        return await resp.json()
+                        data: dict[str, Any] = await resp.json()
+                        return data
                     elif resp.status == 401:
                         logger.warning("FlashAlpha: Unauthorized. Check API key.")
                         return None
@@ -74,48 +75,62 @@ class FlashAlphaClient:
 
     # ── Exposure ─────────────────────────────────────────────────
 
-    async def get_exposure_summary(self, symbol: str) -> dict | None:
+    async def get_exposure_summary(self, symbol: str) -> dict[str, Any] | None:
         """Get exposure summary (GEX + DEX + VEX + CHEX combined)."""
         return await self._get(f"/v1/exposure/summary/{symbol}")
 
-    async def get_exposure_narrative(self, symbol: str) -> dict | None:
+    async def get_exposure_narrative(self, symbol: str) -> dict[str, Any] | None:
         """Get AI-generated narrative summary of exposure."""
         return await self._get(f"/v1/exposure/narrative/{symbol}")
 
-    async def get_flow_live(self, symbol: str) -> dict | None:
+    async def get_flow_live(self, symbol: str) -> dict[str, Any] | None:
         """Get live options flow."""
         return await self._get(f"/v1/flow/live/{symbol}")
 
-    async def get_flow_summary(self, symbol: str) -> dict | None:
+    async def get_flow_summary(self, symbol: str) -> dict[str, Any] | None:
         """Get flow summary."""
         return await self._get(f"/v1/flow/summary/{symbol}")
 
-    async def get_options_flow_recent(self, symbol: str) -> dict | None:
+    async def get_options_flow_recent(self, symbol: str) -> dict[str, Any] | None:
         """Get recent options flow."""
         return await self._get(f"/v1/flow/options/{symbol}/recent")
 
-    async def get_options_flow_summary(self, symbol: str) -> dict | None:
+    async def get_options_flow_summary(self, symbol: str) -> dict[str, Any] | None:
         """Get options flow summary."""
         return await self._get(f"/v1/flow/options/{symbol}/summary")
 
-    async def get_options_flow_blocks(self, symbol: str) -> dict | None:
+    async def get_options_flow_blocks(self, symbol: str) -> dict[str, Any] | None:
         """Get options flow blocks (large trades)."""
         return await self._get(f"/v1/flow/options/{symbol}/blocks")
 
-    async def get_options_flow_history(self, symbol: str) -> dict | None:
+    async def get_options_flow_history(self, symbol: str) -> dict[str, Any] | None:
         """Get historical options flow."""
         return await self._get(f"/v1/flow/options/{symbol}/history")
 
-    async def get_options_flow_outliers(self) -> dict | None:
+    async def get_options_flow_outliers(self) -> dict[str, Any] | None:
         """Get options flow outliers across all tickers."""
         return await self._get("/v1/flow/options/outliers")
+
+    # ── Earnings / Max Pain / Volatility ─────────────────────────
+
+    async def get_earnings_vrp(self, symbol: str) -> dict[str, Any] | None:
+        """Get earnings volatility risk premium."""
+        return await self._get(f"/v1/earnings/vrp/{symbol}")
+
+    async def get_max_pain(self, symbol: str) -> dict[str, Any] | None:
+        """Get max pain levels."""
+        return await self._get(f"/v1/exposure/max-pain/{symbol}")
+
+    async def get_volatility(self, symbol: str) -> dict[str, Any] | None:
+        """Get volatility metrics."""
+        return await self._get(f"/v1/volatility/{symbol}")
 
     async def get_full_dashboard(self, symbol: str) -> dict[str, Any]:
         """
         Get a full dashboard of data for a ticker.
         Combines multiple endpoints into one response.
         """
-        result = {
+        result: dict[str, Any] = {
             "symbol": symbol.upper(),
             "timestamp": datetime.utcnow().isoformat(),
             "exposure": None,
