@@ -240,25 +240,51 @@ class PaperTradingEngine:
         return {"approved": True, "reason": ""}
 
     def get_portfolio_summary(self) -> dict[str, Any]:
-        """Get current portfolio summary."""
+        """Get current portfolio summary.
+
+        Positions are stored per ``symbol_side``; here we NET the buy and sell
+        legs per symbol so a closed round-trip shows flat (0 open positions, ~0
+        P&L) instead of double-counting both legs as open longs.
+        """
+        # Aggregate buy/sell legs into a net position per symbol.
+        by_symbol: dict[str, dict[str, float]] = {}
+        for pos in self.positions.values():
+            agg = by_symbol.setdefault(
+                pos["symbol"],
+                {"buy_qty": 0.0, "buy_cost": 0.0, "sell_qty": 0.0, "sell_cost": 0.0},
+            )
+            if pos["side"] == "buy":
+                agg["buy_qty"] += pos["quantity"]
+                agg["buy_cost"] += pos["avg_cost"] * pos["quantity"]
+            else:
+                agg["sell_qty"] += pos["quantity"]
+                agg["sell_cost"] += pos["avg_cost"] * pos["quantity"]
+
         total_value = self.cash
         positions_summary = []
-        for _key, pos in self.positions.items():
-            if pos["quantity"] > 0:
-                positions_summary.append({
-                    "symbol": pos["symbol"],
-                    "side": pos["side"],
-                    "quantity": pos["quantity"],
-                    "avg_cost": round(pos["avg_cost"], 4),
-                })
-                # Simplified: assume current price = avg_cost for paper
-                total_value += pos["avg_cost"] * pos["quantity"]
+        for symbol, agg in by_symbol.items():
+            net_qty = agg["buy_qty"] - agg["sell_qty"]
+            if abs(net_qty) < 1e-9:
+                continue  # round-trip closed -> flat, no open position
+            # Value the net position at the average cost of its dominant side.
+            if net_qty > 0:
+                avg_cost = agg["buy_cost"] / agg["buy_qty"] if agg["buy_qty"] else 0.0
+            else:
+                avg_cost = agg["sell_cost"] / agg["sell_qty"] if agg["sell_qty"] else 0.0
+            positions_summary.append({
+                "symbol": symbol,
+                "side": "long" if net_qty > 0 else "short",
+                "quantity": net_qty,
+                "avg_cost": round(avg_cost, 4),
+            })
+            # Simplified: mark-to-cost for paper (assume current price = avg_cost).
+            total_value += avg_cost * net_qty
 
         return {
             "cash": round(self.cash, 2),
             "total_value": round(total_value, 2),
             "total_pnl": round(total_value - self.initial_capital, 2),
-            "total_pnl_pct": round((total_value - self.initial_capital) / self.initial_capital * 100, 2),
+            "total_pnl_pct": round((total_value - self.initial_capital) / self.initial_capital * 100, 2) if self.initial_capital else 0.0,
             "open_positions": len(positions_summary),
             "positions": positions_summary,
             "total_trades": len(self.trade_history),
