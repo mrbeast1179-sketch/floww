@@ -6,12 +6,13 @@ import asyncio
 import time
 import statistics
 import httpx
+from typing import Any
 
 BASE = "http://localhost:8000/api"
 CONCURRENT_USERS = 10
 REQUESTS_PER_USER = 20
 
-async def user_session(client: httpx.AsyncClient, user_id: int):
+async def user_session(client: httpx.AsyncClient, user_id: int) -> list[dict[str, Any]]:
     """Simulate a user making a series of requests."""
     results = []
     endpoints = [
@@ -49,12 +50,12 @@ async def user_session(client: httpx.AsyncClient, user_id: int):
     return results
 
 
-async def run_load_test():
+async def run_load_test() -> None:
     print(f"Load test: {CONCURRENT_USERS} concurrent users, {REQUESTS_PER_USER} requests each")
     print(f"Target: {BASE}")
     print("-" * 60)
 
-    all_results = []
+    all_results: list[Any] = []
     start_time = time.time()
 
     async with httpx.AsyncClient(limits=httpx.Limits(max_connections=50)) as client:

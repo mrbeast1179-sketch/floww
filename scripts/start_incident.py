@@ -69,7 +69,7 @@ def fetch_prometheus_metric(query: str, default: str = "N/A") -> str:
             data = json.loads(resp.read())
             results = data.get("data", {}).get("result", [])
             if results:
-                return results[0].get("value", [None, default])[1]
+                return results[0].get("value", [None, default])[1]  # type: ignore[no-any-return]
     except Exception:
         pass
     return default
@@ -255,7 +255,7 @@ def create_from_alert(
     return output_path
 
 
-def main():
+def main() -> str:
     parser = argparse.ArgumentParser(description="Create incident post-mortem skeleton")
     parser.add_argument("--title", required=True, help="Incident title")
     parser.add_argument("--severity", default="CRITICAL", help="Severity level")

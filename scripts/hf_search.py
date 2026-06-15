@@ -25,7 +25,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 try:
-    from huggingface_hub import HfApi, model_info, dataset_info
+    from huggingface_hub import HfApi, model_info, dataset_info  # type: ignore[import-not-found]
     HAS_HF = True
 except ImportError:
     HAS_HF = False
@@ -57,7 +57,7 @@ KNOWN_LABS = [
 ]
 
 
-def _load_manifest() -> Dict[str, Any]:
+def _load_manifest() -> Any:
     if MANIFEST_PATH.exists():
         return json.loads(MANIFEST_PATH.read_text())
     return {"hf_assets": [], "last_updated": None}
@@ -87,7 +87,7 @@ def _is_notable(info: Any) -> bool:
 def search_hf(
     queries: List[str],
     top_n: int = 10,
-) -> List[Dict[str, Any]]:
+) -> Any:
     """Search HF Hub for models and datasets matching the queries."""
     if not HAS_HF:
         log.error("huggingface_hub not installed. Run: pip install huggingface_hub")
@@ -95,7 +95,7 @@ def search_hf(
 
     api: HfApi = HfApi()
     results: List[Dict[str, Any]] = []
-    seen_ids: set = set()
+    seen_ids: set[str] = set()
 
     for query in queries:
         log.info(f"Searching HF Hub: '{query}'")
