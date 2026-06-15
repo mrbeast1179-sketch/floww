@@ -18,14 +18,15 @@ import sys
 import warnings
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import Any
 
-import joblib
+import joblib  # type: ignore[import-untyped]
 import numpy as np
-import pandas as pd
-from sklearn.ensemble import GradientBoostingClassifier, RandomForestClassifier
-from sklearn.linear_model import LogisticRegression
-from sklearn.preprocessing import StandardScaler
-from sklearn.metrics import accuracy_score, f1_score, precision_score, recall_score
+import pandas as pd  # type: ignore[import-untyped]
+from sklearn.ensemble import GradientBoostingClassifier, RandomForestClassifier  # type: ignore[import-untyped]
+from sklearn.linear_model import LogisticRegression  # type: ignore[import-untyped]
+from sklearn.preprocessing import StandardScaler  # type: ignore[import-untyped]
+from sklearn.metrics import accuracy_score, f1_score, precision_score, recall_score  # type: ignore[import-untyped]
 
 warnings.filterwarnings("ignore", category=FutureWarning)
 
@@ -59,7 +60,7 @@ CANDIDATES = {
     "logistic": lambda: LogisticRegression(C=1.0, max_iter=1000, random_state=42),
 }
 
-def load_data(ticker):
+def load_data(ticker: str) -> tuple[Any, list[str]]:
     path = TICKER_FILES[ticker]
     if not path.exists():
         raise FileNotFoundError(f"No data for {ticker}: {path}")
@@ -74,7 +75,7 @@ def load_data(ticker):
         feats = [f for f in feats if f not in low]
     return df, feats
 
-def add_features(df, feats):
+def add_features(df: Any, feats: list[str]) -> tuple[Any, list[str]]:
     f = list(feats)
     for a, b, name in [("realized_vol_5d","realized_vol_21d","vol_ratio_5_21"),
                         ("realized_vol_5d","realized_vol_60d","vol_ratio_5_60"),
@@ -102,13 +103,13 @@ def add_features(df, feats):
             f.remove(col)
     return df, f
 
-def _sharpe(preds, actuals):
+def _sharpe(preds: Any, actuals: Any) -> float:
     trades = [1.0 if p==1 and a==1 else -1.0 if p==1 else 0.0 for p,a in zip(preds,actuals)]
     t = [r for r in trades if r!=0.0]
     if len(t)<5: return 0.0
     return float(np.mean(t)/(np.std(t)+1e-8)*np.sqrt(252))
 
-def train_fold(X_tr, y_tr, X_te, y_te, cname):
+def train_fold(X_tr: Any, y_tr: Any, X_te: Any, y_te: Any, cname: str) -> Any:
     v = np.var(X_tr, axis=0) > 1e-8
     if not all(v):
         X_tr, X_te = X_tr[:,v], X_te[:,v]
@@ -121,7 +122,7 @@ def train_fold(X_tr, y_tr, X_te, y_te, cname):
     m.fit(X_ts, y_tr)
     yp = m.predict(X_es)
     ypr = m.predict_proba(X_es)[:,1] if hasattr(m,"predict_proba") else None
-    r = {"test_acc": float(accuracy_score(y_te,yp)),
+    r: dict[str, Any] = {"test_acc": float(accuracy_score(y_te,yp)),
          "test_f1": float(f1_score(y_te,yp,zero_division=0)),
          "sharpe": _sharpe(yp.tolist(),y_te.tolist()),
          "pos_rate": float(yp.mean()),
@@ -130,7 +131,7 @@ def train_fold(X_tr, y_tr, X_te, y_te, cname):
     r["gates_ok"] = True
     if ypr is not None:
         try:
-            from services.ml.quality import run_all_gates, DegenerateModelError
+            from services.ml.quality import run_all_gates, DegenerateModelError  # type: ignore[import-not-found]
             run_all_gates(X=X_ts, y=y_tr, y_pred_proba=ypr)
         except DegenerateModelError as e:
             r["gates_ok"] = False
@@ -144,12 +145,12 @@ def train_fold(X_tr, y_tr, X_te, y_te, cname):
     r["bl_per_sharpe"] = _sharpe([last]*len(y_te), y_te.tolist())
     return r
 
-def walk_forward(ticker, df, feats, n_splits=5, min_train=100, step=63):
+def walk_forward(ticker: str, df: Any, feats: list[str], n_splits: int = 5, min_train: int = 100, step: int = 63) -> Any:
     X = df[feats].values.astype(np.float64)
     y = df[TARGET].values.astype(np.float64)
     n = len(X)
     log.info(f"[{ticker}] WF: {n} samples, {len(feats)} feats")
-    results = {c: [] for c in CANDIDATES}
+    results: dict[str, list[Any]] = {c: [] for c in CANDIDATES}
     fc = 0
     for fi in range(n_splits):
         te = min_train + fi*step
@@ -165,7 +166,7 @@ def walk_forward(ticker, df, feats, n_splits=5, min_train=100, step=63):
                 log.warning(f"  Fold {fi}/{cn}: {e}")
         fc += 1
     if fc==0: return {"status":"no_folds","ticker":ticker}
-    summaries = {}
+    summaries: dict[str, Any] = {}
     for cn in CANDIDATES:
         folds = results[cn]
         if not folds: summaries[cn]={"status":"no_folds"}; continue
@@ -190,7 +191,7 @@ def walk_forward(ticker, df, feats, n_splits=5, min_train=100, step=63):
     return {"status":"ok","ticker":ticker,"n_folds":fc,"n_features":len(feats),
             "feature_names":feats,"summary":summaries,"best":best[0]}
 
-def train_final(ticker, df, feats, cname):
+def train_final(ticker: str, df: Any, feats: list[str], cname: str) -> Any:
     X = df[feats].values.astype(np.float64)
     y = df[TARGET].values.astype(np.float64)
     sc = StandardScaler()
@@ -222,7 +223,7 @@ def train_final(ticker, df, feats, cname):
     log.info(f"[{ticker}] Saved {cname}: acc={accuracy_score(y,yp):.4f} gates={gate_ok}")
     return man
 
-def main():
+def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--ticker", type=str, default=None)
     args = parser.parse_args()
