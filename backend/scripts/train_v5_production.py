@@ -281,10 +281,12 @@ def train_ticker(ticker, period="5y"):
     X_full = X_full[:, sel_idx]
     s70 = int(len(X_full)*0.7); s85 = int(len(X_full)*0.85)
     X_tr, y_tr = X_full[:s70], y[:s70]
-    X_val, y_val = X_full[s70:s85], y[s70:s85]
+    _X_val, _y_val = X_full[s70:s85], y[s70:s85]  # validation set (unused in current pipeline)
     X_te, y_te = X_full[s85:], y[s85:]
     scaler = StandardScaler()
-    X_tr_s = scaler.fit_transform(X_tr); X_val_s = scaler.transform(X_val); X_te_s = scaler.transform(X_te)
+    X_tr_s = scaler.fit_transform(X_tr)
+    _X_val_s = scaler.transform(_X_val)
+    X_te_s = scaler.transform(X_te)
     gbm = GradientBoostingClassifier(n_estimators=200, max_depth=3, learning_rate=0.05, subsample=0.7, min_samples_leaf=20, random_state=42)
     rf = RandomForestClassifier(n_estimators=200, max_depth=4, min_samples_leaf=15, max_features="sqrt", random_state=42, n_jobs=-1)
     lr = LogisticRegression(C=0.1, max_iter=1000, solver="lbfgs", random_state=42)
