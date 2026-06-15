@@ -139,11 +139,11 @@ def _fetch_oi_sync(parent: str, day: date_cls) -> dict[str, Any]:
 class DatabentoCache:
     """Mongo-backed OI cache: doc per (parent, day) holds full snapshot."""
 
-    def __init__(self, mongo_db):
+    def __init__(self, mongo_db: Any) -> None:
         self.col = mongo_db.databento_oi
         self._mem: dict[str, dict[str, Any]] = {}
 
-    async def ensure_index(self):
+    async def ensure_index(self) -> None:
         with contextlib.suppress(Exception):
             await self.col.create_index([("parent", 1), ("day", 1)], unique=True)
 
@@ -153,8 +153,9 @@ class DatabentoCache:
             return self._mem[key]
         doc = await self.col.find_one({"parent": parent, "day": day.isoformat()}, {"_id": 0})
         if doc and doc.get("contracts"):
-            self._mem[key] = doc["contracts"]
-            return doc["contracts"]
+            contracts: dict[str, Any] = doc["contracts"]
+            self._mem[key] = contracts
+            return contracts
 
         log.info(f"databento: fetching OI {parent} {day} (cache miss)")
         contracts = await asyncio.to_thread(_fetch_oi_sync, parent, day)
@@ -174,7 +175,7 @@ class DatabentoCache:
 _cache: DatabentoCache | None = None
 
 
-def init_cache(mongo_db) -> DatabentoCache:
+def init_cache(mongo_db: Any) -> DatabentoCache:
     global _cache
     _cache = DatabentoCache(mongo_db)
     return _cache
@@ -206,7 +207,7 @@ async def fetch_oi_for_ticker(ticker: str, day: date_cls | None = None) -> dict[
 
 # ----------------------------- Live trades / Flowseeker -----------------------
 
-async def stream_live_trades(parent: str, queue: asyncio.Queue, stop_event: asyncio.Event, dry_run: bool = False):
+async def stream_live_trades(parent: str, queue: asyncio.Queue[dict[str, Any]], stop_event: asyncio.Event, dry_run: bool = False) -> None:
     """Stream live OPRA trades for a parent symbol into a queue.
     EXPENSIVE — only run when client subscribes via /api/flow SSE.
     Hard-stops within ~2s of stop_event being set, even if no trades are flowing."""
@@ -220,7 +221,7 @@ async def stream_live_trades(parent: str, queue: asyncio.Queue, stop_event: asyn
         return
     loop = asyncio.get_event_loop()
 
-    def _run():
+    def _run() -> None:
         live = None
         try:
             live = db.Live(key=key)
@@ -231,7 +232,7 @@ async def stream_live_trades(parent: str, queue: asyncio.Queue, stop_event: asyn
                 symbols=parent,
             )
 
-            def cb(rec):
+            def cb(rec: Any) -> None:
                 try:
                     if stop_event.is_set():
                         with contextlib.suppress(Exception):
