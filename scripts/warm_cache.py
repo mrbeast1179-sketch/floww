@@ -2,7 +2,7 @@
 Pre-warm yfinance cache for all supported tickers.
 Fetches option chains with multiple expiries so the app is responsive during use.
 """
-import yfinance as yf
+import yfinance as yf  # type: ignore[import-untyped]
 import time
 import sys
 

@@ -3,7 +3,7 @@
 import subprocess
 from pathlib import Path
 
-defs = []
+defs: list[tuple[str, str, str, int]] = []
 with open("/tmp/a9_all_defs.tsv") as f:
     for line in f:
         line = line.strip()
@@ -13,8 +13,8 @@ with open("/tmp/a9_all_defs.tsv") as f:
         if len(parts) != 3:
             continue
         kind, name, fileln = parts
-        file, lineno = fileln.rsplit(":", 1)
-        defs.append((kind, name, file, int(lineno)))
+        fname, lnum = fileln.rsplit(":", 1)
+        defs.append((kind, name, fname, int(lnum)))
 
 print(f"# Counting callers for {len(defs)} definitions...")
 
@@ -35,5 +35,5 @@ for kind, name, file, lineno in defs:
     # Exclude the definition itself
     def_line_marker = f"{file}:{lineno}:"
     callers = [ln for ln in lines if not ln.startswith(def_line_marker) and ln]
-    n_callers = len(callers)
-    print(f"{n_callers}\t{kind}\t{name}\t{file}:{lineno}")
+    n_calls: int = len(callers)
+    print(f"{n_calls}\t{kind}\t{name}\t{file}:{lineno}")

@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 """Quick data audit script."""
 import pymongo, os
+from typing import Any
 from dotenv import load_dotenv
 load_dotenv('backend/.env')
-client = pymongo.MongoClient(os.environ['MONGO_URL'])
+client: Any = pymongo.MongoClient(os.environ['MONGO_URL'])
 db = client['confluence_decoder']
 
 # ml_features - check schema
