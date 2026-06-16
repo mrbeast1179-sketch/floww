@@ -8,18 +8,19 @@ Uses v1.0 features (2799 samples) with walk-forward CV.
 import os, sys, json, time
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import Any
 import numpy as np
-import pandas as pd
+import pandas as pd  # type: ignore[import-untyped]
 from pymongo import MongoClient
 from dotenv import load_dotenv
-from sklearn.preprocessing import StandardScaler
-from sklearn.linear_model import LogisticRegression
-from sklearn.ensemble import GradientBoostingClassifier, RandomForestClassifier
+from sklearn.preprocessing import StandardScaler  # type: ignore[import-untyped]
+from sklearn.linear_model import LogisticRegression  # type: ignore[import-untyped]
+from sklearn.ensemble import GradientBoostingClassifier, RandomForestClassifier  # type: ignore[import-untyped]
 
 load_dotenv(Path(__file__).resolve().parent.parent / "backend" / ".env")
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "backend"))
 
-from services.ml.quality import (
+from services.ml.quality import (  # type: ignore[import-not-found]
     assert_class_balance, assert_feature_variance,
     assert_prediction_distribution, DegenerateModelError,
 )
@@ -34,9 +35,9 @@ TARGET_COLS = {
     'target_range_expansion', 'target_any_materialization',
 }
 
-def load_features(ticker, version='v1.0'):
+def load_features(ticker: str, version: str = 'v1.0') -> Any:
     """Load features in batches to avoid timeout."""
-    client = MongoClient(MONGO_URL, serverSelectionTimeoutMS=30000)
+    client: Any = MongoClient(MONGO_URL, serverSelectionTimeoutMS=30000)
     db = client[DB_NAME]
     
     # Get count first
@@ -49,7 +50,7 @@ def load_features(ticker, version='v1.0'):
     last_id = None
     
     while True:
-        query = {'ticker': ticker, 'feature_version': version}
+        query: dict[str, Any] = {'ticker': ticker, 'feature_version': version}
         if last_id:
             query['_id'] = {'$gt': last_id}
         
@@ -69,7 +70,7 @@ def load_features(ticker, version='v1.0'):
     print(f"Loaded {len(all_docs)} docs")
     return pd.DataFrame(all_docs)
 
-def prepare_data(df, target='target_directional_move'):
+def prepare_data(df: Any, target: str = 'target_directional_move') -> tuple[Any, Any, list[str]]:
     df = df.dropna(subset=[target]).reset_index(drop=True)
     feature_cols = [c for c in df.columns if c not in META_COLS and c not in TARGET_COLS]
     X = df[feature_cols].values.astype(float)
@@ -77,7 +78,7 @@ def prepare_data(df, target='target_directional_move'):
     y = df[target].values.astype(int)
     return X, y, feature_cols
 
-def walk_forward_splits(n, n_splits=8, train_size=500, test_size=100, embargo=5):
+def walk_forward_splits(n: int, n_splits: int = 8, train_size: int = 500, test_size: int = 100, embargo: int = 5) -> list[tuple[Any, Any]]:
     splits = []
     for i in range(n_splits):
         test_start = n - (n_splits - i) * test_size
@@ -89,13 +90,13 @@ def walk_forward_splits(n, n_splits=8, train_size=500, test_size=100, embargo=5)
         splits.append((np.arange(train_start, train_end), np.arange(test_start, test_end)))
     return splits
 
-def compute_sharpe(preds, actuals):
+def compute_sharpe(preds: list[Any], actuals: Any) -> float:
     rets = [1.0 if p == 1 and a == 1 else -1.0 if p == 1 and a == 0 else 0.0 for p, a in zip(preds, actuals)]
     if len(rets) < 2:
         return 0.0
     return float(np.mean(rets) / (np.std(rets) + 1e-8) * np.sqrt(252))
 
-def train_model(X, y, splits, model_name):
+def train_model(X: Any, y: Any, splits: list[tuple[Any, Any]], model_name: str) -> dict[str, Any] | None:
     all_preds, all_probas, all_actuals = [], [], []
     
     for fold_i, (train_idx, test_idx) in enumerate(splits):
@@ -149,7 +150,7 @@ def train_model(X, y, splits, model_name):
     acc = np.mean(np.array(all_preds) == np.array(all_actuals))
     return {"sharpe": sharpe, "accuracy": acc, "n_predictions": len(all_preds)}
 
-def main():
+def main() -> None:
     ticker = "QQQ"
     print(f"Model bake-off for {ticker}")
     
@@ -162,7 +163,7 @@ def main():
     print(f"Splits: {len(splits)}")
     
     # Baselines
-    baseline_preds = {"majority": [], "persistence": []}
+    baseline_preds: dict[str, list[int]] = {"majority": [], "persistence": []}
     for train_idx, test_idx in splits:
         y_train = y[train_idx]
         majority = int(np.bincount(y_train).argmax())
