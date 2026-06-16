@@ -24,6 +24,7 @@ Usage:
 """
 
 from __future__ import annotations
+from typing import Any
 
 import sys
 import warnings
@@ -31,7 +32,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 import numpy as np
-import pandas as pd
+import pandas as pd  # type: ignore[import-untyped]
 
 warnings.filterwarnings("ignore")
 
@@ -128,7 +129,7 @@ def run_backtest(
     combined_signal: np.ndarray,
     hold_days: int = 3,
     initial_capital: float = 5000.0,
-) -> dict:
+) -> dict[str, Any]:
     """Run walk-forward backtest.
 
     Args:
@@ -252,7 +253,7 @@ def run_backtest(
 # ---------------------------------------------------------------------------
 
 def generate_report(
-    results: dict,
+    results: dict[str, Any],
     df: pd.DataFrame,
     cpr_z: np.ndarray,
     oi_z: np.ndarray,
@@ -352,7 +353,7 @@ def generate_report(
 # Main
 # ---------------------------------------------------------------------------
 
-def main():
+def main() -> int:
     print("=" * 60)
     print("Retail Flow Strategy Backtest: CPR + OI Skew")
     print("=" * 60)

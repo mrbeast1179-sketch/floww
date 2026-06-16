@@ -2,7 +2,7 @@
 Pre-cache all ticker data for Monday trading.
 Run this before market open to warm up all caches.
 """
-import yfinance as yf
+import yfinance as yf  # type: ignore[import-untyped]
 import time
 import json
 import os
@@ -12,7 +12,7 @@ MAX_EXPIRIES = 8
 CACHE_DIR = os.path.join(os.path.dirname(__file__), "..", "cache")
 os.makedirs(CACHE_DIR, exist_ok=True)
 
-def warm_ticker(ticker_str):
+def warm_ticker(ticker_str: str) -> bool:
     """Warm cache for a single ticker."""
     try:
         print(f"Warming {ticker_str}...", flush=True)
@@ -57,7 +57,7 @@ def warm_ticker(ticker_str):
         print(f"  ✗ {ticker_str} failed: {e}", flush=True)
         return False
 
-def main():
+def main() -> None:
     print(f"Warming cache for {len(TICKERS)} tickers...", flush=True)
     print("=" * 60)
     
