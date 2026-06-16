@@ -7,6 +7,7 @@ Groups routes by domain based on URL patterns.
 """
 import re
 from pathlib import Path
+from typing import Any, Dict, List
 
 SERVER_PY = Path('backend/server.py')
 ROUTES_DIR = Path('backend/routes')
@@ -28,7 +29,7 @@ DOMAIN_MAP = {
     'admin': ['/api/errors/', '/api/performance/', '/databento/usage'],
 }
 
-def get_domain(url_path):
+def get_domain(url_path: str) -> str:
     """Determine which domain a route belongs to."""
     for domain, patterns in DOMAIN_MAP.items():
         for pattern in patterns:
@@ -36,7 +37,7 @@ def get_domain(url_path):
                 return domain
     return 'root'  # Keep in server.py
 
-def extract_routes():
+def extract_routes() -> Dict[str, List[Dict[str, Any]]]:
     """Extract routes from server.py into separate modules."""
     content = SERVER_PY.read_text()
     
@@ -53,7 +54,7 @@ def extract_routes():
     # Simpler approach: find all @api.get/post lines
     decorator_pattern = re.compile(r'@(?:api|app)\.(get|post|put|delete|patch)\((?:"([^"]+)"|\'([^\']+)\')')
     
-    routes_by_domain = {}
+    routes_by_domain: Dict[str, List[Dict[str, Any]]] = {}
     for match in decorator_pattern.finditer(content):
         method = match.group(1)
         path = match.group(2) or match.group(3)

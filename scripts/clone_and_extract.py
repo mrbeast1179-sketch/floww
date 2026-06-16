@@ -81,7 +81,7 @@ def load_cloned_manifest(path: Path = CLONED_MANIFEST) -> Dict[str, Any]:
     """Read the cloned manifest. Returns empty schema if absent."""
     if not path.exists():
         return {"cloned": [], "count": 0}
-    return json.loads(path.read_text())
+    return json.loads(path.read_text())  # type: ignore[no-any-return]
 
 
 def already_cloned(
@@ -139,8 +139,8 @@ DENIED_LICENSES = {"GPL-2.0", "GPL-3.0", "GPL-2.0-only", "GPL-3.0-only",
                    "LGPL-2.1-only", "LGPL-3.0-only", "EPL-2.0"}
 
 
-def check_license(owner: str, repo: str, allowed: set = ALLOWED_LICENSES,
-                  denied: set = DENIED_LICENSES) -> Tuple[bool, str]:
+def check_license(owner: str, repo: str, allowed: set[str] = ALLOWED_LICENSES,
+                  denied: set[str] = DENIED_LICENSES) -> Tuple[bool, str]:
     """Check if a repo's license is in the allowed set.
 
     Uses the GitHub API to fetch license info. Returns (ok, reason).
@@ -174,7 +174,7 @@ def get_repo_size_mb(owner: str, repo: str) -> Optional[float]:
         with urllib.request.urlopen(req, timeout=10) as resp:
             data = json.loads(resp.read().decode())
         # size is in KB
-        return data.get("size", 0) / 1024.0
+        return data.get("size", 0) / 1024.0  # type: ignore[no-any-return]
     except Exception:
         return None
 
@@ -182,7 +182,7 @@ def get_repo_size_mb(owner: str, repo: str) -> Optional[float]:
 def plan_clones(
     candidates: List[Dict[str, Any]],
     manifest: Dict[str, Any],
-    allowed_licenses: set = ALLOWED_LICENSES,
+    allowed_licenses: set[str] = ALLOWED_LICENSES,
     max_size_mb: float = 1000.0,
     log: logging.Logger = logging.getLogger("clone_and_extract"),
 ) -> Dict[str, List[Dict[str, Any]]]:
