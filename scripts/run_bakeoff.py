@@ -10,16 +10,17 @@ import sys
 import time
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import Any
 
 import numpy as np
-import pandas as pd
-from sklearn.ensemble import GradientBoostingClassifier, RandomForestClassifier
-from sklearn.linear_model import LogisticRegression
-from sklearn.preprocessing import StandardScaler
+import pandas as pd  # type: ignore[import-untyped]
+from sklearn.ensemble import GradientBoostingClassifier, RandomForestClassifier  # type: ignore[import-untyped]
+from sklearn.linear_model import LogisticRegression  # type: ignore[import-untyped]
+from sklearn.preprocessing import StandardScaler  # type: ignore[import-untyped]
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "backend"))
 
-from services.ml.quality import (
+from services.ml.quality import (  # type: ignore[import-not-found]
     assert_class_balance,
     assert_feature_variance,
     assert_prediction_distribution,
@@ -37,7 +38,7 @@ TARGET_COLS = {
 }
 
 
-def load_data(ticker, version='v1.0'):
+def load_data(ticker: str, version: str = 'v1.0') -> tuple[Any, Any, list[str]]:
     csv_path = CACHE_DIR / f"{ticker}_{version}.csv"
     if not csv_path.exists():
         raise FileNotFoundError(f"No cached data: {csv_path}")
@@ -49,7 +50,7 @@ def load_data(ticker, version='v1.0'):
     return X, y, feature_cols
 
 
-def walk_forward_splits(n, n_splits=8, train_size=500, test_size=100, embargo=5):
+def walk_forward_splits(n: int, n_splits: int = 8, train_size: int = 500, test_size: int = 100, embargo: int = 5) -> list[tuple[Any, Any]]:
     splits = []
     for i in range(n_splits):
         test_start = n - (n_splits - i) * test_size
@@ -62,7 +63,7 @@ def walk_forward_splits(n, n_splits=8, train_size=500, test_size=100, embargo=5)
     return splits
 
 
-def sharpe(preds, actuals):
+def sharpe(preds: list[Any], actuals: Any) -> float:
     rets = [1.0 if p == 1 and a == 1 else -1.0 if p == 1 and a == 0 else 0.0
             for p, a in zip(preds, actuals)]
     if len(rets) < 2:
@@ -70,7 +71,7 @@ def sharpe(preds, actuals):
     return float(np.mean(rets) / (np.std(rets) + 1e-8) * np.sqrt(252))
 
 
-def train_model(X, y, splits, model_name):
+def train_model(X: Any, y: Any, splits: list[tuple[Any, Any]], model_name: str) -> dict[str, Any] | None:
     all_preds, all_actuals = [], []
     models = {
         "logistic": LogisticRegression(max_iter=1000, C=1.0, random_state=42),
@@ -121,7 +122,7 @@ def train_model(X, y, splits, model_name):
     }
 
 
-def compute_baselines(y, splits):
+def compute_baselines(y: Any, splits: list[tuple[Any, Any]]) -> dict[str, dict[str, Any]]:
     y_test_all = np.concatenate([y[test_idx] for _, test_idx in splits])
     majority_preds, persistence_preds = [], []
     for train_idx, test_idx in splits:
@@ -134,7 +135,7 @@ def compute_baselines(y, splits):
     }
 
 
-def run_bakeoff(ticker, version='v1.0'):
+def run_bakeoff(ticker: str, version: str = 'v1.0') -> dict[str, Any]:
     print(f"\n{'='*60}")
     print(f"Model bake-off: {ticker} {version}")
     print(f"{'='*60}")
