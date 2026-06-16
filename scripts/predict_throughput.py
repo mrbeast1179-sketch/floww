@@ -26,7 +26,7 @@ import time
 from datetime import datetime, timezone, timedelta
 from collections import defaultdict
 from pathlib import Path
-from typing import Optional
+from typing import Any, Optional
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 KANBAN_DIR = REPO_ROOT / "kanban"
@@ -38,9 +38,9 @@ DRIFT_LOG = KANBAN_DIR / "drift_log.json"
 
 # ── Feature extraction ──────────────────────────────────────────────
 
-def parse_card(path: Path) -> Optional[dict]:
+def parse_card(path: Path) -> dict[str, Any] | None:
     """Parse a card .md file, returning frontmatter dict."""
-    import yaml
+    import yaml  # type: ignore[import-untyped]
     try:
         text = path.read_text(encoding="utf-8")
     except IOError:
@@ -59,7 +59,7 @@ def parse_card(path: Path) -> Optional[dict]:
     return fm
 
 
-def extract_features(card: dict) -> Optional[dict]:
+def extract_features(card: dict[str, Any]) -> dict[str, Any] | None:
     """Extract numeric features from a completed card."""
     status = card.get("status", "")
     if status != "done":
@@ -112,7 +112,7 @@ def extract_features(card: dict) -> Optional[dict]:
     }
 
 
-def load_history() -> list[dict]:
+def load_history() -> list[dict[str, Any]]:
     """Load historical card features from all done cards + history file."""
     samples = []
 
@@ -157,7 +157,7 @@ def load_history() -> list[dict]:
     return deduped
 
 
-def save_history(samples: list[dict]):
+def save_history(samples: list[dict[str, Any]]) -> None:
     """Persist training data to JSON."""
     HISTORY_FILE.parent.mkdir(parents=True, exist_ok=True)
     HISTORY_FILE.write_text(json.dumps(samples, indent=2))
@@ -175,18 +175,18 @@ class EnsembleRegressor:
     Weights are optimized via gradient descent on training MAPE.
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.agent_means: dict[str, float] = {}
         self.global_mean: float = 4.0
         self.weights: dict[str, float] = {}
         self.bias: float = 0.0
-        self.ensemble_weights = {"poisson": 0.33, "exponential": 0.33, "gamma": 0.34}
+        self.ensemble_weights: dict[str, float] = {"poisson": 0.33, "exponential": 0.33, "gamma": 0.34}
         self.feature_weights: dict[str, float] = {}
         self.trained = False
         self.train_mape: float = 0.0
         self.train_accuracy_20pct: float = 0.0
 
-    def _encode(self, feat: dict) -> dict[str, float]:
+    def _encode(self, feat: dict[str, Any]) -> dict[str, float]:
         priority_map = {"high": 1.0, "medium": 0.5, "low": 0.0}
         return {
             "agent_mean": self.agent_means.get(feat["agent"], self.global_mean),
@@ -247,7 +247,7 @@ class EnsembleRegressor:
             p_gamma = 1.0 - math.exp(-x) * (1.0 + x)
             return (p_pois + p_exp + p_gamma) / 3.0
 
-    def train(self, data: list[dict], epochs: int = 200, lr: float = 0.01):
+    def train(self, data: list[dict[str, Any]], epochs: int = 200, lr: float = 0.01) -> None:
         """Train with gradient-free optimization (coordinate descent on MAPE)."""
         if not data:
             return
@@ -320,7 +320,7 @@ class EnsembleRegressor:
                 correct += 1
         self.train_accuracy_20pct = correct / len(data) if data else 0.0
 
-    def _compute_mape(self, data: list[dict]) -> float:
+    def _compute_mape(self, data: list[dict[str, Any]]) -> float:
         """Mean Absolute Percentage Error."""
         if not data:
             return float("inf")
@@ -334,7 +334,7 @@ class EnsembleRegressor:
                 errors.append(abs(pred - actual) / actual)
         return sum(errors) / len(errors) if errors else float("inf")
 
-    def predict(self, features: dict) -> dict:
+    def predict(self, features: dict[str, Any]) -> dict[str, Any]:
         """Predict completion time for a new task."""
         if not self.trained:
             return {"predicted_hours": self.global_mean, "confidence_low": 0, "confidence_high": 0}
@@ -368,7 +368,7 @@ class EnsembleRegressor:
             "sub_model_predictions": {k: round(v, 2) for k, v in sub.items()},
         }
 
-    def get_agent_stats(self) -> dict:
+    def get_agent_stats(self) -> dict[str, Any]:
         """Per-agent throughput statistics."""
         data = load_history()
         stats = {}
@@ -393,23 +393,23 @@ class EnsembleRegressor:
 
 # ── Model persistence ───────────────────────────────────────────────
 
-def save_model(model: EnsembleRegressor):
+def save_model(model: EnsembleRegressor) -> None:
     MODEL_FILE.parent.mkdir(parents=True, exist_ok=True)
     with open(MODEL_FILE, "wb") as f:
         pickle.dump(model, f)
     print(f"[throughput] Model saved to {MODEL_FILE}")
 
 
-def load_model() -> Optional[EnsembleRegressor]:
+def load_model() -> EnsembleRegressor | None:
     if not MODEL_FILE.exists():
         return None
     with open(MODEL_FILE, "rb") as f:
-        return pickle.load(f)
+        return pickle.load(f)  # type: ignore[no-any-return]
 
 
 # ── Drift detection ─────────────────────────────────────────────────
 
-def check_drift(model: EnsembleRegressor, threshold_mape: float = 0.20) -> dict:
+def check_drift(model: EnsembleRegressor, threshold_mape: float = 0.20) -> dict[str, Any]:
     """Check if model has drifted beyond acceptable MAPE."""
     data = load_history()
     if not data:
@@ -444,7 +444,7 @@ def check_drift(model: EnsembleRegressor, threshold_mape: float = 0.20) -> dict:
 
 # ── CLI ──────────────────────────────────────────────────────────────
 
-def main():
+def main() -> None:
     parser = argparse.ArgumentParser(description="Agent throughput prediction v2")
     parser.add_argument("--train", action="store_true", help="Train model on historical data")
     parser.add_argument("--predict", action="store_true", help="Predict completion time")
@@ -470,7 +470,7 @@ def main():
         return
 
     if args.predict:
-        model = load_model()
+        model = load_model()  # type: ignore[assignment]
         if model is None:
             print("[throughput] No trained model found. Run --train first.", file=sys.stderr)
             sys.exit(1)
@@ -489,7 +489,7 @@ def main():
         return
 
     if args.stats:
-        model = load_model()
+        model = load_model()  # type: ignore[assignment]
         if model is None:
             # Train on the fly
             data = load_history()
@@ -501,7 +501,7 @@ def main():
         return
 
     if args.check_drift:
-        model = load_model()
+        model = load_model()  # type: ignore[assignment]
         if model is None:
             print("[throughput] No model to check. Run --train first.", file=sys.stderr)
             sys.exit(1)
