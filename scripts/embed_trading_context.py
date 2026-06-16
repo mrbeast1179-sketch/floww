@@ -27,6 +27,7 @@ import sys
 import time
 from pathlib import Path
 from datetime import datetime, timezone
+from typing import Any
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO_ROOT))
@@ -40,7 +41,7 @@ logger = logging.getLogger(__name__)
 
 # ─── Mem0 Client ─────────────────────────────────────────────────
 
-def get_mem0_client():
+def get_mem0_client() -> Any:
     """Initialize mem0 Platform client from config."""
     cfg_path = Path.home() / ".mem0" / "config.json"
     if not cfg_path.exists():
@@ -52,7 +53,7 @@ def get_mem0_client():
         logger.error("No API key in mem0 config")
         return None
     try:
-        from mem0 import MemoryClient
+        from mem0 import MemoryClient  # type: ignore[attr-defined]
         return MemoryClient(api_key=api_key)
     except ImportError:
         logger.error("mem0ai not installed. Run: pip install mem0ai")
@@ -61,7 +62,7 @@ def get_mem0_client():
 
 # ─── Extractor Functions ─────────────────────────────────────────
 
-def extract_market_regimes():
+def extract_market_regimes() -> list[dict[str, Any]]:
     """Extract market regime definitions from the codebase."""
     regimes = []
 
@@ -103,7 +104,7 @@ def extract_market_regimes():
     return regimes
 
 
-def extract_trade_signals():
+def extract_trade_signals() -> list[dict[str, Any]]:
     """Extract trade signal definitions from the codebase."""
     signals = []
 
@@ -221,7 +222,7 @@ def extract_trade_signals():
     return signals
 
 
-def extract_code_patterns():
+def extract_code_patterns() -> list[dict[str, Any]]:
     """Extract code patterns from the codebase with semantic annotations."""
     patterns = []
 
@@ -327,7 +328,7 @@ def extract_code_patterns():
     return patterns
 
 
-def extract_strategy_configs():
+def extract_strategy_configs() -> list[dict[str, Any]]:
     """Extract strategy configurations from the codebase."""
     configs = []
 
@@ -381,7 +382,7 @@ def extract_strategy_configs():
     return configs
 
 
-def extract_research_insights():
+def extract_research_insights() -> list[dict[str, Any]]:
     """Extract research insights from the codebase comments and academic refs."""
     insights = []
 
@@ -494,7 +495,7 @@ def extract_research_insights():
 
 # ─── Trade Outcome Templates ─────────────────────────────────────
 
-def extract_trade_outcomes():
+def extract_trade_outcomes() -> list[dict[str, Any]]:
     """Extract trade outcome templates based on paper trading logic."""
     outcomes = []
 
@@ -533,7 +534,7 @@ ALL_EXTRACTORS = {
 }
 
 
-def embed_all(client, dry_run=False, type_filter=None):
+def embed_all(client: Any, dry_run: bool = False, type_filter: str | None = None) -> tuple[int, int]:
     """Run all extractors and push to mem0."""
     total_embedded = 0
     total_skipped = 0
@@ -574,7 +575,7 @@ def embed_all(client, dry_run=False, type_filter=None):
     return total_embedded, total_skipped
 
 
-def verify_embeddings(client):
+def verify_embeddings(client: Any) -> bool:
     """Run verification queries to confirm embeddings work."""
     test_queries = [
         ("best VPIN setup", "VPIN"),
@@ -615,7 +616,7 @@ def verify_embeddings(client):
     return all_passed
 
 
-def main():
+def main() -> None:
     parser = argparse.ArgumentParser(description="Embed trading context into mem0")
     parser.add_argument("--dry-run", action="store_true", help="Show what would be embedded")
     parser.add_argument("--type", dest="type_filter", help="Embed specific type only")
