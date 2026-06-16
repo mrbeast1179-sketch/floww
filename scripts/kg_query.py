@@ -26,12 +26,12 @@ from typing import Any, Dict, List, Optional
 REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO_ROOT / "backend"))
 
-from services.research.knowledge_graph import KnowledgeGraph
+from services.research.knowledge_graph import KnowledgeGraph  # type: ignore[import-not-found]
 
 KG_DB_PATH = REPO_ROOT / "data" / "research_kg.duckdb"
 
 
-def format_paper_list(papers: List[Dict]) -> str:
+def format_paper_list(papers: List[Dict[str, Any]]) -> str:
     lines = []
     for p in papers[:10]:
         lines.append(f"  [{p['id']}] {p['title'][:80]}")
@@ -40,7 +40,7 @@ def format_paper_list(papers: List[Dict]) -> str:
     return "\n".join(lines)
 
 
-def format_repo_list(repos: List[Dict]) -> str:
+def format_repo_list(repos: List[Dict[str, Any]]) -> str:
     lines = []
     for r in repos[:10]:
         stars = r.get("stars", 0)
@@ -50,7 +50,7 @@ def format_repo_list(repos: List[Dict]) -> str:
     return "\n".join(lines)
 
 
-def format_port_candidates(candidates: List[Dict]) -> str:
+def format_port_candidates(candidates: List[Dict[str, Any]]) -> str:
     lines = []
     for c in candidates[:10]:
         bench = "✓ benchmark" if c["has_benchmark"] else "✗ no benchmark"

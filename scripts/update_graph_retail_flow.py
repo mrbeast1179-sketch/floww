@@ -29,7 +29,7 @@ from typing import Any, Dict, List, Optional
 REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO_ROOT / "backend"))
 
-from services.graph_trade_service import GraphTradeService
+from services.graph_trade_service import GraphTradeService  # type: ignore[import-not-found]
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 log = logging.getLogger("update_graph_retail_flow")
@@ -37,7 +37,7 @@ log = logging.getLogger("update_graph_retail_flow")
 KG_DB_PATH = REPO_ROOT / "data" / "research_kg.duckdb"
 
 
-def generate_demo_retail_flow_data() -> tuple:
+def generate_demo_retail_flow_data() -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
     """
     Generate realistic demo retail flow data.
 
@@ -192,7 +192,7 @@ def populate_retail_flow_graph(service: GraphTradeService, reset: bool = False,
     return {"graph_stats": graph_stats, "retail_flow_stats": retail_stats}
 
 
-def main():
+def main() -> None:
     parser = argparse.ArgumentParser(
         description="Update knowledge graph with retail flow scores"
     )

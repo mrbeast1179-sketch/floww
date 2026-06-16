@@ -8,12 +8,13 @@ This replaces the academic GEX dataset with real chain-computed GEX.
 
 from __future__ import annotations
 
+from typing import Any
 import os, sys
 from datetime import datetime, timezone
 from pathlib import Path
 
 import numpy as np
-import pandas as pd
+import pandas as pd  # type: ignore[import-untyped]
 from pymongo import MongoClient
 from dotenv import load_dotenv
 
@@ -23,8 +24,8 @@ DB_NAME = os.environ.get("DB_NAME", "confluence_decoder")
 FEATURE_VERSION = "v2.0_gex"
 
 
-def main():
-    client = MongoClient(MONGO_URL)
+def main() -> None:
+    client: Any = MongoClient(MONGO_URL)
     db = client[DB_NAME]
 
     # Load GEX features
