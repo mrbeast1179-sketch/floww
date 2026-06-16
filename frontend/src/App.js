@@ -37,7 +37,6 @@ import { TradeJournal } from "./components/TradeJournal";
 import { DashboardSummary } from "./components/DashboardSummary";
 import { TradeAnalytics } from "./components/TradeAnalytics";
 import { SocialFlowPanel } from "./components/SocialFlowPanel";
-import HeatseekerDashboard from "./components/heatseeker/HeatseekerDashboard";
 import SwarmFrame from "./components/SwarmFrame";
 import FlowseekerTab from "./components/flowseeker/FlowseekerTab";
 import AlertOverlay from "./components/AlertOverlay";
@@ -510,7 +509,7 @@ export default function App() {
   const [advanced, setAdvanced] = useState(null);
   const [advancedLoading, setAdvancedLoading] = useState(true);
   const [advancedError, setAdvancedError] = useState(false);
-  const wsGex = useWebSocketGex(page === "heatseeker" ? ticker : null);
+  const wsGex = useWebSocketGex((page === "heatseeker" || page === "skylit") ? ticker : null);
   const { theme, toggleTheme } = useTheme();
   const [ensembleData, setEnsembleData] = useState(null);
   // Use auth context for user info
@@ -602,7 +601,7 @@ export default function App() {
 
   // Ensemble toxicity polling
   useEffect(() => {
-    if (page !== "heatseeker") return;
+    if (page !== "heatseeker" && page !== "skylit") return;
     let cancelled = false;
     const fetchEnsemble = async () => {
       try {
@@ -881,10 +880,60 @@ export default function App() {
               </div>
             </main>
 
+          </div>
+        )}
+
+        {/* Mobile Toggle Bar */}
+        {(page === "heatseeker" || page === "skylit") && (
+          <div className="mobile-toggle-bar">
+            {page === "heatseeker" && (
+              <button className={`toggle-btn${showLeftSidebar ? " open" : ""}`} onClick={() => { setShowLeftSidebar(!showLeftSidebar); setShowRightSidebar(false); }}>
+                {showLeftSidebar ? "▶ Hide Filters" : "◀ Filters"}
+              </button>
+            )}
+            <button className={`toggle-btn${showRightSidebar ? " open" : ""}`} onClick={() => { setShowRightSidebar(!showRightSidebar); setShowLeftSidebar(false); }}>
+              {showRightSidebar ? "Analytics ◀" : "Analytics ▶"}
+            </button>
+          </div>
+        )}
+
+        {/* Skylit — GEX Grid + Analytics Column */}
+        {page === "skylit" && (
+          <div className="legacy-theme heatseeker-layout skylit-layout">
+            {/* Main Content - GEX Grid */}
+            <main className="heatseeker-main">
+              <div className="panel m-2 p-3 flex-1 flex flex-col overflow-hidden">
+                <div className="flex justify-between items-center mb-2 flex-shrink-0">
+                  <div>
+                    <div className="label">Skylit · GEX Grid (Strike × Expiry)</div>
+                    <div className="text-[10px] text-slate-500">
+                      Viridis: purple (neg) → teal → yellow (pos) · Magenta = King
+                    </div>
+                  </div>
+                  <div className="flex gap-2 text-[10px]">
+                    <span className="tag king">KING</span>
+                    <span className="tag floor">FLOOR</span>
+                    <span className="tag ceiling">CEIL</span>
+                    <span className="tag gate">GATE</span>
+                    <span className="tag air">AIR</span>
+                  </div>
+                </div>
+                <div className="flex-1 overflow-hidden heatmap-scroll-container">
+                  <ErrorBoundary>
+                    {displayData ? (
+                      <GridHeatmap data={displayData} filters={filters} onCellClick={(s, e) => setDrilldown({ ticker, expiry: e, strike: s })} viewMode={viewMode} skylitTheme={true} />
+                    ) : (
+                      <div className="text-slate-500 text-xs p-6 text-center">Loading…</div>
+                    )}
+                  </ErrorBoundary>
+                </div>
+              </div>
+            </main>
+
             {/* Right Sidebar - Analytics Panels */}
             <aside className={`heatseeker-sidebar-right ${showRightSidebar ? 'open' : ''}`}>
               <div className="p-2 space-y-2">
-                {page === "heatseeker" && <MorningBriefing ticker={ticker} spot={livespot?.spot ?? data?.spot} />}
+                {page === "skylit" && <MorningBriefing ticker={ticker} spot={livespot?.spot ?? data?.spot} />}
                 <DashboardSummary ticker={ticker} spot={livespot?.spot ?? data?.spot} />
                 <FlipZonesPanel data={data} loading={loading} error={err} />
                 <StackedNodesPanel data={data} loading={loading} error={err} />
@@ -904,11 +953,11 @@ export default function App() {
                 <AlertsPanel ticker={ticker} />
                 <TradeAnalytics ticker={ticker} />
                 <UOAPanel ticker={ticker} />
-                {page === "heatseeker" && <FlowTicker ticker={ticker} />}
+                {page === "skylit" && <FlowTicker ticker={ticker} />}
                 <UsagePanel />
                 <LivePolicyPanel />
-                {page === "heatseeker" && <PositionSizing ticker={ticker} spot={livespot?.spot ?? data?.spot} />}
-                {page === "heatseeker" && <TradeEntry ticker={ticker} spot={livespot?.spot ?? data?.spot} />}
+                {page === "skylit" && <PositionSizing ticker={ticker} spot={livespot?.spot ?? data?.spot} />}
+                {page === "skylit" && <TradeEntry ticker={ticker} spot={livespot?.spot ?? data?.spot} />}
 
                 <div className="panel p-3" data-testid="patterns-panel">
                   <div className="label mb-2">Patterns Detected</div>
@@ -946,33 +995,6 @@ export default function App() {
                 <GreekReferencePanel />
               </div>
             </aside>
-          </div>
-        )}
-
-        {/* Mobile Toggle Bar */}
-        {page === "heatseeker" && (
-          <div className="mobile-toggle-bar">
-            <button className={`toggle-btn${showLeftSidebar ? " open" : ""}`} onClick={() => { setShowLeftSidebar(!showLeftSidebar); setShowRightSidebar(false); }}>
-              {showLeftSidebar ? "▶ Hide Filters" : "◀ Filters"}
-            </button>
-            <button className={`toggle-btn${showRightSidebar ? " open" : ""}`} onClick={() => { setShowRightSidebar(!showRightSidebar); setShowLeftSidebar(false); }}>
-              {showRightSidebar ? "Analytics ◀" : "Analytics ▶"}
-            </button>
-          </div>
-        )}
-
-        {/* Skylit Heatseeker */}
-        {page === "skylit" && (
-          <div className="flex-1 overflow-auto">
-            <ErrorBoundary>
-              <HeatseekerDashboard
-                ticker={ticker}
-                spot={livespot?.spot ?? data?.spot}
-                isOffline={data?.data_fallback === true}
-                dataAge={data?.stale_age_s != null ? data.stale_age_s * 1000 : null}
-                dataFallback={data?.data_fallback === true}
-              />
-            </ErrorBoundary>
           </div>
         )}
 
