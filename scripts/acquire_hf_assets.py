@@ -25,7 +25,7 @@ import os
 import sys
 import time
 from pathlib import Path
-from typing import Optional
+from typing import Any, Optional
 from datetime import datetime, timezone
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
@@ -39,24 +39,24 @@ MANIFEST_PATH = PROJECT_ORACLE / "MANIFEST.json"
 
 # ── Target assets ──────────────────────────────────────────────────────────────
 
-TIME_SERIES_MODELS = [
+TIME_SERIES_MODELS: list[dict[str, Any]] = [
     {"search": "patchts", "task": "time-series-forecasting", "family": "PatchTST", "limit": 3},
     {"search": "autoformer", "task": "time-series-forecasting", "family": "Autoformer", "limit": 3},
     {"search": "timesnet time series", "task": "time-series-forecasting", "family": "TimesNet", "limit": 3},
 ]
 
-ANOMALY_MODELS = [
+ANOMALY_MODELS: list[dict[str, Any]] = [
     {"model_id": "1D-CNN-AE", "task": "anomaly-detection", "family": "1D-CNN-AE", "search": "1D-CNN autoencoder anomaly"},
     {"model_id": "Transformer-AE", "task": "anomaly-detection", "family": "Transformer-AE", "search": "transformer autoencoder anomaly"},
 ]
 
-LOB_MODELS = [
+LOB_MODELS: list[dict[str, Any]] = [
     {"model_id": "DeepLOB", "task": "lob-prediction", "family": "DeepLOB", "search": "deeplob"},
     {"model_id": "LiT", "task": "lob-prediction", "family": "LiT", "search": "limit order book transformer"},
     {"model_id": "Neural-Hawkes", "task": "lob-prediction", "family": "Neural-Hawkes", "search": "hawkes process financial"},
 ]
 
-DATASETS = [
+DATASETS: list[dict[str, Any]] = [
     {"dataset_id": "benchmark/fi-2010", "task": "lob-benchmark", "family": "FI-2010", "search": "fi-2010"},
     {"dataset_id": "NASDAQ-LOB", "task": "lob-snapshot", "family": "NASDAQ-LOB", "search": "NASDAQ limit order book"},
 ]
@@ -76,10 +76,10 @@ def file_size_mb(path: Path) -> float:
     return round(path.stat().st_size / (1024 * 1024), 2)
 
 
-def search_models(query: str, limit: int = 5) -> list[dict]:
+def search_models(query: str, limit: int = 5) -> list[dict[str, Any]]:
     """Search HuggingFace Hub for models matching query."""
     try:
-        from huggingface_hub import HfApi
+        from huggingface_hub import HfApi  # type: ignore[import-not-found]
         api = HfApi()
         results = list(api.list_models(search=query, limit=limit))
         return [
@@ -97,7 +97,7 @@ def search_models(query: str, limit: int = 5) -> list[dict]:
         return []
 
 
-def search_datasets(query: str, limit: int = 5) -> list[dict]:
+def search_datasets(query: str, limit: int = 5) -> list[dict[str, Any]]:
     """Search HuggingFace Hub for datasets matching query."""
     try:
         from huggingface_hub import HfApi
@@ -117,7 +117,7 @@ def search_datasets(query: str, limit: int = 5) -> list[dict]:
         return []
 
 
-def download_model(model_id: str, target_dir: Path) -> Optional[dict]:
+def download_model(model_id: str, target_dir: Path) -> Optional[dict[str, Any]]:
     """Download a model from HuggingFace Hub. Returns provenance dict or None."""
     try:
         from huggingface_hub import snapshot_download
@@ -151,7 +151,7 @@ def download_model(model_id: str, target_dir: Path) -> Optional[dict]:
         return None
 
 
-def download_dataset(dataset_id: str, target_dir: Path) -> Optional[dict]:
+def download_dataset(dataset_id: str, target_dir: Path) -> Optional[dict[str, Any]]:
     """Download a dataset from HuggingFace Hub. Returns provenance dict or None."""
     try:
         from huggingface_hub import snapshot_download
@@ -176,7 +176,7 @@ def download_dataset(dataset_id: str, target_dir: Path) -> Optional[dict]:
         return None
 
 
-def build_manifest(models: list[dict], datasets: list[dict], search_results: dict) -> dict:
+def build_manifest(models: list[dict[str, Any]], datasets: list[dict[str, Any]], search_results: dict[str, Any]) -> dict[str, Any]:
     """Build the provenance manifest."""
     return {
         "project": "Project Oracle",
@@ -194,7 +194,7 @@ def build_manifest(models: list[dict], datasets: list[dict], search_results: dic
     }
 
 
-def main():
+def main() -> None:
     parser = argparse.ArgumentParser(description="Acquire HuggingFace assets for Project Oracle")
     parser.add_argument("--dry-run", action="store_true", help="Search only, don't download")
     parser.add_argument("--models-only", action="store_true", help="Only download models")
@@ -205,9 +205,9 @@ def main():
     MODELS_DIR.mkdir(parents=True, exist_ok=True)
     DATASETS_DIR.mkdir(parents=True, exist_ok=True)
 
-    manifest_models = []
-    manifest_datasets = []
-    search_results = {}
+    manifest_models: list[dict[str, Any]] = []
+    manifest_datasets: list[dict[str, Any]] = []
+    search_results: dict[str, Any] = {}
 
     # ── Phase 1: Search ──────────────────────────────────────────────────────
     log.info("=" * 60)
@@ -216,25 +216,25 @@ def main():
 
     # Search time-series models
     for m in TIME_SERIES_MODELS:
-        results = search_models(m["model_id"], limit=3)
-        search_results[m["model_id"]] = results
-        log.info(f"  TS model '{m['model_id']}': {len(results)} results")
+        results: list[dict[str, Any]] = search_models(str(m["search"]), limit=3)
+        search_results[str(m["search"])] = results
+        log.info(f"  TS model '{m['search']}': {len(results)} results")
 
     # Search anomaly models
     for m in ANOMALY_MODELS:
-        results = search_models(m["search"], limit=5)
-        search_results[m["search"]] = results
+        results = search_models(str(m["search"]), limit=5)
+        search_results[str(m["search"])] = results
         log.info(f"  Anomaly search '{m['search']}': {len(results)} results")
 
     # Search LOB models
     for m in LOB_MODELS:
-        results = search_models(m["search"], limit=5)
-        search_results[m["search"]] = results
+        results = search_models(str(m["search"]), limit=5)
+        search_results[str(m["search"])] = results
         log.info(f"  LOB search '{m['search']}': {len(results)} results")
 
     # Search datasets
     for d in DATASETS:
-        query = d.get("search", d["dataset_id"])
+        query = str(d.get("search", d["dataset_id"]))
         results = search_datasets(query, limit=5)
         search_results[query] = results
         log.info(f"  Dataset search '{query}': {len(results)} results")
@@ -253,8 +253,8 @@ def main():
         log.info("=" * 60)
 
         for m in TIME_SERIES_MODELS:
-            search_query = m["search"]
-            limit = m.get("limit", 3)
+            search_query = str(m["search"])
+            limit = int(m.get("limit", 3))
             results = search_models(search_query, limit=limit)
             if results:
                 top_model = results[0]["model_id"]
@@ -268,7 +268,7 @@ def main():
 
         # For anomaly/LOB models, try the top search result
         for m in ANOMALY_MODELS + LOB_MODELS:
-            results = search_models(m["search"], limit=1)
+            results = search_models(str(m["search"]), limit=1)
             if results:
                 top_model = results[0]["model_id"]
                 result = download_model(top_model, MODELS_DIR)

@@ -19,6 +19,7 @@ import sys
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
 from collections import defaultdict
+from typing import Any
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 KANBAN_DIR = REPO_ROOT / "kanban"
@@ -27,9 +28,9 @@ RETRO_DIR = KANBAN_DIR / "retros"
 CONFIG_PATH = Path.home() / ".mem0" / "config.json"
 
 
-def get_sprint_cards(sprint_start: datetime, sprint_end: datetime) -> list[dict]:
+def get_sprint_cards(sprint_start: datetime, sprint_end: datetime) -> list[dict[str, Any]]:
     """Get cards completed during the sprint period."""
-    import yaml
+    import yaml  # type: ignore[import-untyped]
     cards = []
 
     for f in sorted(CARDS_DIR.glob("*.md")):
@@ -75,7 +76,7 @@ def get_sprint_commits(sprint_start: datetime, sprint_end: datetime) -> list[str
     return []
 
 
-def get_blockers() -> list[dict]:
+def get_blockers() -> list[dict[str, Any]]:
     """Get blockers from INCIDENTS.md."""
     incidents_file = KANBAN_DIR / "INCIDENTS.md"
     if not incidents_file.exists():
@@ -96,7 +97,7 @@ def get_blockers() -> list[dict]:
     return blockers
 
 
-def compute_sprint_stats(cards: list[dict], commits: list[str]) -> dict:
+def compute_sprint_stats(cards: list[dict[str, Any]], commits: list[str]) -> dict[str, Any]:
     """Compute sprint statistics."""
     stats = {
         "cards_completed": len(cards),
@@ -108,20 +109,20 @@ def compute_sprint_stats(cards: list[dict], commits: list[str]) -> dict:
 
     for card in cards:
         agent = card.get("assignee", "unknown")
-        stats["agents"][agent] += 1
+        stats["agents"][agent] += 1  # type: ignore[index]
         est = card.get("estimate_hours", 0)
         if isinstance(est, (int, float)) and est > 0:
-            stats["total_estimate_hours"] += est
+            stats["total_estimate_hours"] += est  # type: ignore[operator]
 
     if cards:
-        stats["avg_estimate_hours"] = round(stats["total_estimate_hours"] / len(cards), 1)
+        stats["avg_estimate_hours"] = round(stats["total_estimate_hours"] / len(cards), 1)  # type: ignore[operator]
 
-    stats["agents"] = dict(stats["agents"])
+    stats["agents"] = dict(stats["agents"])  # type: ignore[call-overload]
     return stats
 
 
-def generate_retro_with_llm(sprint_stats: dict, cards: list[dict],
-                            commits: list[str], blockers: list[dict]) -> str:
+def generate_retro_with_llm(sprint_stats: dict[str, Any], cards: list[dict[str, Any]],
+                            commits: list[str], blockers: list[dict[str, Any]]) -> str:
     """Generate retrospective using LLM synthesis."""
     # Build context for LLM
     context = f"""
@@ -187,7 +188,7 @@ Format in markdown. Every claim must reference a specific card ID or agent.
             )
             resp = urllib.request.urlopen(req, timeout=30)
             result = json.loads(resp.read())
-            return result["choices"][0]["message"]["content"]
+            return result["choices"][0]["message"]["content"]  # type: ignore[no-any-return]
     except Exception as e:
         pass
 
@@ -195,7 +196,7 @@ Format in markdown. Every claim must reference a specific card ID or agent.
     return generate_template_retro(sprint_stats, cards, blockers)
 
 
-def generate_template_retro(stats: dict, cards: list[dict], blockers: list[dict]) -> str:
+def generate_template_retro(stats: dict[str, Any], cards: list[dict[str, Any]], blockers: list[dict[str, Any]]) -> str:
     """Generate retrospective without LLM (fallback)."""
     lines = [
         f"# Sprint Retrospective",
@@ -234,7 +235,7 @@ def generate_template_retro(stats: dict, cards: list[dict], blockers: list[dict]
     return "\n".join(lines)
 
 
-def spawn_action_items(retro: str):
+def spawn_action_items(retro: str) -> None:
     """Spawn action items as kanban cards."""
     action_items = []
     in_actions = False
@@ -270,7 +271,7 @@ blockers: []
         retro_cards_file.write_text(content)
 
 
-def main():
+def main() -> None:
     parser = argparse.ArgumentParser(description="Generate sprint retrospective")
     parser.add_argument("--week", type=int, default=None, help="Sprint week number")
     parser.add_argument("--dry-run", action="store_true", help="Don't write files")
