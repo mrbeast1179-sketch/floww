@@ -20,6 +20,7 @@ import subprocess
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import Any
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 KANBAN_DIR = REPO_ROOT / "kanban"
@@ -28,7 +29,7 @@ CLAUDE_MEMORY_DIR = Path.home() / ".claude" / "projects" / "-Users-nav-Documents
 CONFIG_PATH = Path.home() / ".mem0" / "config.json"
 
 
-def get_mem0_client():
+def get_mem0_client() -> Any:
     """Initialize mem0 MemoryClient from config."""
     if not CONFIG_PATH.exists():
         return None
@@ -37,19 +38,19 @@ def get_mem0_client():
     if not api_key:
         return None
     try:
-        from mem0 import MemoryClient
+        from mem0 import MemoryClient  # type: ignore[attr-defined]
         return MemoryClient(api_key=api_key)
     except Exception:
         return None
 
 
-def search_mem0(client, query: str, user_id: str = "user_c778280e23af",
-                project: str = None, limit: int = 5) -> list[dict]:
+def search_mem0(client: Any, query: str, user_id: str = "user_c778280e23af",
+                project: str | None = None, limit: int = 5) -> list[dict[str, Any]]:
     """Search mem0 for relevant memories."""
     if not client:
         return []
 
-    filters = {"user_id": user_id}
+    filters: dict[str, Any] = {"user_id": user_id}
     if project:
         filters["metadata"] = {"project": project}
 
@@ -60,13 +61,13 @@ def search_mem0(client, query: str, user_id: str = "user_c778280e23af",
             limit=limit,
         )
         if isinstance(results, dict):
-            return results.get("results", [])
+            return results.get("results", [])  # type: ignore[no-any-return]
         return results if isinstance(results, list) else []
     except Exception as e:
         return []
 
 
-def search_git_log(query: str, limit: int = 5) -> list[dict]:
+def search_git_log(query: str, limit: int = 5) -> list[dict[str, Any]]:
     """Search git log for relevant commits."""
     try:
         # Build grep pattern from query words
@@ -96,9 +97,9 @@ def search_git_log(query: str, limit: int = 5) -> list[dict]:
         return []
 
 
-def search_kanban(query: str, limit: int = 5) -> list[dict]:
+def search_kanban(query: str, limit: int = 5) -> list[dict[str, Any]]:
     """Search kanban cards for relevant content."""
-    results = []
+    results: list[dict[str, Any]] = []
     if not KANBAN_DIR.exists():
         return results
 
@@ -127,9 +128,9 @@ def search_kanban(query: str, limit: int = 5) -> list[dict]:
     return results[:limit]
 
 
-def search_memory_files(query: str, limit: int = 5) -> list[dict]:
+def search_memory_files(query: str, limit: int = 5) -> list[dict[str, Any]]:
     """Search local memory .md files."""
-    results = []
+    results: list[dict[str, Any]] = []
     if not CLAUDE_MEMORY_DIR.exists():
         return results
 
@@ -150,8 +151,8 @@ def search_memory_files(query: str, limit: int = 5) -> list[dict]:
     return results[:limit]
 
 
-def synthesize_results(mem0_results: list, git_results: list,
-                       kanban_results: list, memory_results: list,
+def synthesize_results(mem0_results: list[dict[str, Any]], git_results: list[dict[str, Any]],
+                       kanban_results: list[dict[str, Any]], memory_results: list[dict[str, Any]],
                        query: str) -> str:
     """Generate a one-paragraph synthesis of all results."""
     parts = []
@@ -180,7 +181,7 @@ def synthesize_results(mem0_results: list, git_results: list,
     return " ".join(parts)
 
 
-def main():
+def main() -> None:
     parser = argparse.ArgumentParser(
         description="Ask Hermes — query memory, commits, and kanban",
         formatter_class=argparse.RawDescriptionHelpFormatter,
@@ -216,7 +217,7 @@ Examples:
     memory_results = search_memory_files(args.query, args.limit)
 
     # Combine and rank
-    all_results = []
+    all_results: list[dict[str, Any]] = []
     for r in mem0_results:
         r["source_type"] = "mem0"
         all_results.append(r)
