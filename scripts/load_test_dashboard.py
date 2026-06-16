@@ -45,16 +45,16 @@ class SimulatedDashboard:
     Uses real DuckDB engine for realistic load.
     """
 
-    def __init__(self):
-        from services.duckdb_engine import DuckDBEngine
-        from services.mock_schwab_feed import MockSchwabFeed
+    def __init__(self) -> None:
+        from services.duckdb_engine import DuckDBEngine  # type: ignore[import-not-found]
+        from services.mock_schwab_feed import MockSchwabFeed  # type: ignore[import-not-found]
 
         self.engine = DuckDBEngine(db_path=":memory:")
         self.feed = MockSchwabFeed(rate=100, symbols=["SPY", "QQQ", "DIA"], seed=42)
-        self._ws_ticks: List[Dict] = []
+        self._ws_ticks: list[dict[str, Any]] = []
         self._ws_start = 0.0
 
-    async def start(self):
+    async def start(self) -> None:
         await self.engine.start()
         # Pre-load some data
         for i in range(100):
@@ -72,10 +72,10 @@ class SimulatedDashboard:
             )
         await self.engine._flush_all()
 
-    async def stop(self):
+    async def stop(self) -> None:
         await self.engine.stop()
 
-    async def api_get_ticks(self, symbol: str = "SPY", limit: int = 100) -> Dict:
+    async def api_get_ticks(self, symbol: str = "SPY", limit: int = 100) -> dict[str, Any]:
         """Simulate GET /api/ticks?symbol=SPY&limit=100"""
         rows = self.engine.query(
             "SELECT * FROM ticks WHERE symbol = ? ORDER BY timestamp DESC LIMIT ?",
@@ -83,7 +83,7 @@ class SimulatedDashboard:
         )
         return {"data": rows, "count": len(rows)}
 
-    async def api_get_gex_summary(self) -> Dict:
+    async def api_get_gex_summary(self) -> dict[str, Any]:
         """Simulate GET /api/gex/summary"""
         rows = self.engine.query(
             "SELECT symbol, AVG(delta_val) as avg_delta, AVG(gamma_val) as avg_gamma "
@@ -91,7 +91,7 @@ class SimulatedDashboard:
         )
         return {"data": rows}
 
-    async def api_get_vpin(self, symbol: str = "SPY") -> Dict:
+    async def api_get_vpin(self, symbol: str = "SPY") -> dict[str, Any]:
         """Simulate GET /api/vpin?symbol=SPY"""
         rows = self.engine.query(
             "SELECT symbol, COUNT(*) as tick_count FROM ticks WHERE symbol = ? GROUP BY symbol",
@@ -99,7 +99,7 @@ class SimulatedDashboard:
         )
         return {"data": rows}
 
-    async def api_insert_tick(self) -> Dict:
+    async def api_insert_tick(self) -> dict[str, Any]:
         """Simulate POST /api/ticks (write operation)"""
         await self.engine.insert_tick(
             symbol=random.choice(["SPY", "QQQ", "DIA"]),
@@ -115,29 +115,29 @@ class SimulatedDashboard:
         )
         return {"status": "ok"}
 
-    async def ws_feed(self):
+    async def ws_feed(self) -> None:
         """Simulate WebSocket tick feed."""
         self._ws_start = time.monotonic()
         self.feed.on_tick(lambda t: self._ws_ticks.append(t))
         await self.feed.start()
 
-    async def ws_stop(self):
+    async def ws_stop(self) -> None:
         await self.feed.stop()
 
 
 class LoadTestResults:
     """Collects and analyzes load test results."""
 
-    def __init__(self):
-        self.api_latencies: List[float] = []  # ms
-        self.ws_latencies: List[float] = []  # ms
-        self.errors: List[str] = []
+    def __init__(self) -> None:
+        self.api_latencies: list[float] = []  # ms
+        self.ws_latencies: list[float] = []  # ms
+        self.errors: list[str] = []
         self.total_requests = 0
         self.successful_requests = 0
         self.start_time = 0.0
         self.end_time = 0.0
 
-    def record_api(self, latency_ms: float, error: Optional[str] = None):
+    def record_api(self, latency_ms: float, error: Optional[str] = None) -> None:
         self.total_requests += 1
         self.api_latencies.append(latency_ms)
         if error:
@@ -145,7 +145,7 @@ class LoadTestResults:
         else:
             self.successful_requests += 1
 
-    def record_ws(self, latency_ms: float):
+    def record_ws(self, latency_ms: float) -> None:
         self.ws_latencies.append(latency_ms)
 
     @property
@@ -160,14 +160,14 @@ class LoadTestResults:
     def error_rate(self) -> float:
         return (len(self.errors) / self.total_requests * 100) if self.total_requests > 0 else 0
 
-    def percentile(self, data: List[float], p: float) -> float:
+    def percentile(self, data: list[float], p: float) -> float:
         if not data:
             return 0.0
         sorted_data = sorted(data)
         idx = min(int(len(sorted_data) * p / 100), len(sorted_data) - 1)
         return sorted_data[idx]
 
-    def summary(self) -> Dict[str, Any]:
+    def summary(self) -> dict[str, Any]:
         return {
             "duration_s": round(self.duration_s, 2),
             "total_requests": self.total_requests,
@@ -195,7 +195,7 @@ async def simulated_user(
     dashboard: SimulatedDashboard,
     results: LoadTestResults,
     duration_s: int,
-):
+) -> None:
     """Simulate a single user making API requests."""
     end_time = time.monotonic() + duration_s
     think_time_base = random.uniform(0.05, 0.2)  # 50-200ms think time
@@ -211,7 +211,7 @@ async def simulated_user(
         method = random.choice(api_methods)
         start = time.monotonic()
         try:
-            await method()
+            await method()  # type: ignore[no-untyped-call]
             latency_ms = (time.monotonic() - start) * 1000
             results.record_api(latency_ms)
         except Exception as e:
@@ -222,14 +222,14 @@ async def simulated_user(
         await asyncio.sleep(think_time_base + random.uniform(-0.02, 0.02))
 
 
-async def ws_feed_task(dashboard: SimulatedDashboard, results: LoadTestResults, duration_s: int):
+async def ws_feed_task(dashboard: SimulatedDashboard, results: LoadTestResults, duration_s: int) -> None:
     """Simulate WebSocket feed writing ticks concurrently."""
     end_time = time.monotonic() + duration_s
     ws_start = time.monotonic()
 
-    collected_ticks = []
+    collected_ticks: list[Any] = []
 
-    async def ws_handler(tick):
+    async def ws_handler(tick: Any) -> None:
         collected_ticks.append(tick)
 
     dashboard.feed.on_tick(ws_handler)
@@ -255,7 +255,7 @@ async def run_load_test(
     num_users: int = 50,
     duration_s: int = 10,
     output_path: Optional[str] = None,
-) -> bool:
+) -> Any:
     """Run the full load test."""
     logger.info(f"Starting load test: {num_users} users, {duration_s}s duration")
 
@@ -327,7 +327,7 @@ async def run_load_test(
     return all_passed
 
 
-def generate_report(summary: Dict, num_users: int, duration_s: int) -> str:
+def generate_report(summary: dict[str, Any], num_users: int, duration_s: int) -> str:
     """Generate a markdown load test report."""
     today = date.today().isoformat()
     lines = [
