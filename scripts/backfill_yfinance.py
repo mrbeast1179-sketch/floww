@@ -27,8 +27,8 @@ from datetime import date, datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-import yfinance as yf
-import pandas as pd
+import yfinance as yf  # type: ignore[import-untyped]
+import pandas as pd  # type: ignore[import-untyped]
 from pymongo import MongoClient, UpdateOne
 from dotenv import load_dotenv
 
@@ -45,8 +45,8 @@ DEFAULT_TICKERS = ["SPY", "QQQ", "IWM", "DIA", "VIX", "VIX9D", "DXY", "TLT"]
 BATCH_SIZE = 500
 
 
-def get_db():
-    client = MongoClient(MONGO_URL)
+def get_db() -> Any:
+    client: Any = MongoClient(MONGO_URL)
     return client[DB_NAME]
 
 
@@ -71,7 +71,7 @@ def df_to_docs(ticker: str, df: pd.DataFrame) -> List[Dict[str, Any]]:
     docs = []
     for idx, row in df.iterrows():
         # Handle MultiIndex columns from yfinance
-        def get_val(col):
+        def get_val(col: str) -> Any:
             v = row[col]
             if hasattr(v, 'item'):
                 return v.item()
@@ -101,7 +101,7 @@ def df_to_docs(ticker: str, df: pd.DataFrame) -> List[Dict[str, Any]]:
     return docs
 
 
-def _safe_float(v) -> Optional[float]:
+def _safe_float(v: Any) -> Optional[float]:
     if v is None:
         return None
     try:
@@ -113,7 +113,7 @@ def _safe_float(v) -> Optional[float]:
         return None
 
 
-def _safe_int(v) -> Optional[int]:
+def _safe_int(v: Any) -> Optional[int]:
     if v is None:
         return None
     try:
@@ -122,7 +122,7 @@ def _safe_int(v) -> Optional[int]:
         return None
 
 
-def bulk_upsert(db_handle, collection: str, docs: List[Dict]) -> int:
+def bulk_upsert(db_handle: Any, collection: str, docs: List[Dict[str, Any]]) -> int:
     """Bulk upsert documents, returns count."""
     if not docs:
         return 0
@@ -135,7 +135,7 @@ def bulk_upsert(db_handle, collection: str, docs: List[Dict]) -> int:
         for d in docs
     ]
     result = db_handle[collection].bulk_write(ops, ordered=False)
-    return result.upserted_count + result.modified_count
+    return result.upserted_count + result.modified_count  # type: ignore[no-any-return]
 
 
 def write_manifest(source_key: str, ticker: str, row_count: int, start: str, end: str) -> None:
@@ -193,7 +193,7 @@ def run_backfill(tickers: List[str], start: str, end: str) -> None:
     print(f"Collection total: {db_handle[COLLECTION].count_documents({})}")
 
 
-def main():
+def main() -> None:
     parser = argparse.ArgumentParser(description="Backfill yfinance OHLCV into MongoDB")
     parser.add_argument("--tickers", default=",".join(DEFAULT_TICKERS), help="Comma-separated tickers")
     parser.add_argument("--start", default="2015-01-01", help="Start date (YYYY-MM-DD)")
