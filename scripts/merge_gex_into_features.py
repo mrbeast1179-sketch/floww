@@ -12,8 +12,9 @@ Usage:
 import argparse, os, sys, time
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import Any
 import numpy as np
-import pandas as pd
+import pandas as pd  # type: ignore[import-untyped]
 from pymongo import MongoClient
 from dotenv import load_dotenv
 
@@ -25,7 +26,7 @@ DB_NAME = os.environ.get("DB_NAME", "confluence_decoder")
 
 GEX_FIELDS = ['net_gex', 'call_gex', 'put_gex', 'total_vex', 'total_dex', 'total_vega', 'n_strikes']
 
-def merge_ticker(db, ticker, base_version='v1.0', new_version='v3.0_gex'):
+def merge_ticker(db: Any, ticker: str, base_version: str = 'v1.0', new_version: str = 'v3.0_gex') -> int:
     """Merge GEX features into ml_features for one ticker."""
     print(f"\n{ticker}: merging GEX into {base_version} -> {new_version}")
     
@@ -79,7 +80,7 @@ def merge_ticker(db, ticker, base_version='v1.0', new_version='v3.0_gex'):
     print(f"  Merged: {merged}, Skipped (no GEX): {skipped}")
     return merged
 
-def main():
+def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--ticker", help="Single ticker to process")
     parser.add_argument("--base-version", default="v1.0")
@@ -87,7 +88,7 @@ def main():
     parser.add_argument("--all", action="store_true", help="Process all tickers with GEX data")
     args = parser.parse_args()
     
-    client = MongoClient(MONGO_URL, serverSelectionTimeoutMS=30000)
+    client: Any = MongoClient(MONGO_URL, serverSelectionTimeoutMS=30000)
     db = client[DB_NAME]
     
     if args.all:
