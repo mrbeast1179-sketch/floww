@@ -21,6 +21,7 @@ import sys
 import difflib
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
+from typing import Any, Dict, List, Optional, Tuple
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 MEMORY_DIR = REPO_ROOT / "memory"
@@ -31,7 +32,7 @@ CONFIG_PATH = Path.home() / ".mem0" / "config.json"
 DUPLICATE_THRESHOLD = 0.95
 
 
-def get_mem0_client():
+def get_mem0_client() -> Any:
     """Initialize mem0 MemoryClient from config."""
     if not CONFIG_PATH.exists():
         print("ERROR: ~/.mem0/config.json not found. Run mem0 init first.")
@@ -43,11 +44,11 @@ def get_mem0_client():
         print("ERROR: No mem0 platform API key in config.")
         sys.exit(1)
 
-    from mem0 import MemoryClient
+    from mem0 import MemoryClient  # type: ignore[attr-defined]
     return MemoryClient(api_key=api_key)
 
 
-def get_recent_entries(client, user_id: str, hours: int = 24) -> list[dict]:
+def get_recent_entries(client: Any, user_id: str, hours: int = 24) -> list[dict[str, Any]]:
     """Fetch entries added in the last N hours."""
     since = datetime.now(timezone.utc) - timedelta(hours=hours)
     since_str = since.strftime("%Y-%m-%dT%H:%M:%S-00:00")
@@ -74,7 +75,7 @@ def get_recent_entries(client, user_id: str, hours: int = 24) -> list[dict]:
     return all_entries
 
 
-def get_all_entries(client, user_id: str) -> list[dict]:
+def get_all_entries(client: Any, user_id: str) -> list[dict[str, Any]]:
     """Fetch all entries for a user."""
     all_entries = []
     page = 1
@@ -103,7 +104,7 @@ def text_similarity(a: str, b: str) -> float:
     return difflib.SequenceMatcher(None, a.lower().strip(), b.lower().strip()).ratio()
 
 
-def find_duplicates(entries: list[dict]) -> list[tuple[int, int, float]]:
+def find_duplicates(entries: list[dict[str, Any]]) -> list[tuple[int, int, float]]:
     """Find duplicate pairs above threshold. Returns list of (i, j, score)."""
     duplicates = []
     for i in range(len(entries)):
@@ -116,7 +117,7 @@ def find_duplicates(entries: list[dict]) -> list[tuple[int, int, float]]:
     return duplicates
 
 
-def check_stale_references(entry: dict, repo_root: Path) -> list[str]:
+def check_stale_references(entry: dict[str, Any], repo_root: Path) -> list[str]:
     """Check if a memory references files that no longer exist."""
     stale = []
     memory_text = entry.get("memory", "")
@@ -141,7 +142,7 @@ def check_stale_references(entry: dict, repo_root: Path) -> list[str]:
     return stale
 
 
-def merge_entries(client, keep: dict, remove: dict) -> bool:
+def merge_entries(client: Any, keep: dict[str, Any], remove: dict[str, Any]) -> bool:
     """Merge two entries: update keep with combined info, delete remove."""
     try:
         # Update the kept entry with combined memory
@@ -157,8 +158,8 @@ def merge_entries(client, keep: dict, remove: dict) -> bool:
         return False
 
 
-def write_log(log_path: Path, entries: list[dict], duplicates: list[tuple],
-              stale: dict, merged: list, dry_run: bool):
+def write_log(log_path: Path, entries: list[dict[str, Any]], duplicates: list[tuple[int, int, float]],
+              stale: dict[str, Any], merged: list[tuple[str, str]], dry_run: bool) -> None:
     """Write consolidation log."""
     LOG_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -201,7 +202,7 @@ def write_log(log_path: Path, entries: list[dict], duplicates: list[tuple],
     log_path.write_text("\n".join(lines) + "\n")
 
 
-def main():
+def main() -> None:
     parser = argparse.ArgumentParser(description="Daily memory consolidation")
     parser.add_argument("--dry-run", action="store_true", help="Print proposed merges without executing")
     parser.add_argument("--user-id", default="user_c778280e23af", help="mem0 user ID")
