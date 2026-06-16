@@ -40,7 +40,7 @@ load_dotenv(ROOT / "backend" / ".env")
 
 from pymongo import MongoClient  # noqa: E402
 
-from services.gex_history import build_gex_history  # noqa: E402
+from services.gex_history import build_gex_history  # type: ignore[import-not-found]  # noqa: E402
 
 DEFAULT_TICKERS = ["SPY", "DIA", "IWM"]
 COLLECTION = "gex_history"
@@ -89,7 +89,7 @@ def _build_manifest(
     }
 
 
-def _count_missing(db, ticker: str, start: date, end: date) -> Dict[str, int]:
+def _count_missing(db: Any, ticker: str, start: date, end: date) -> Dict[str, int]:
     """Count trading-day mismatches between chains and bars in the window."""
     start_s, end_s = start.isoformat(), end.isoformat()
     chain_days = {
@@ -114,7 +114,7 @@ def _count_missing(db, ticker: str, start: date, end: date) -> Dict[str, int]:
     }
 
 
-def _upsert_rows(db, ticker: str, rows: List[Dict[str, Any]]) -> int:
+def _upsert_rows(db: Any, ticker: str, rows: List[Dict[str, Any]]) -> int:
     coll = db[COLLECTION]
     try:
         coll.create_index(
@@ -142,7 +142,7 @@ def run(
         raise RuntimeError(
             "MONGO_URL and DB_NAME must be set (load via backend/.env)"
         )
-    client = MongoClient(mongo_url, serverSelectionTimeoutMS=10000)
+    client: Any = MongoClient(mongo_url, serverSelectionTimeoutMS=10000)
     db = client[db_name]
 
     MANIFEST_DIR.mkdir(parents=True, exist_ok=True)

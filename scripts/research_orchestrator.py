@@ -48,7 +48,7 @@ log = logging.getLogger("orchestrator")
 
 def _load_state() -> Dict[str, Any]:
     if STATE_PATH.exists():
-        return json.loads(STATE_PATH.read_text())
+        return json.loads(STATE_PATH.read_text())  # type: ignore[no-any-return]
     return {"run_count": 0, "last_run": None, "last_hf_run": None, "last_digest_run": None, "last_kg_run": None}
 
 
@@ -56,7 +56,7 @@ def _save_state(state: Dict[str, Any]) -> None:
     STATE_PATH.write_text(json.dumps(state, indent=2))
 
 
-def _run(cmd: List[str], cwd: Path = REPO_ROOT, timeout: int = 600) -> subprocess.CompletedProcess:
+def _run(cmd: List[str], cwd: Path = REPO_ROOT, timeout: int = 600) -> subprocess.CompletedProcess[Any]:
     log.info(f"Running: {' '.join(cmd[:5])}...")
     return subprocess.run(
         cmd, cwd=str(cwd), capture_output=True, text=True, timeout=timeout,
@@ -195,7 +195,7 @@ def step_digest(state: Dict[str, Any]) -> bool:
         lines.append("## Top Papers")
         lines.append("")
         # Deduplicate by ID
-        seen: set = set()
+        seen: set[str] = set()
         unique_papers = []
         for p in recent_papers:
             pid = p.get("id", "")
@@ -254,7 +254,7 @@ def step_kg_build() -> bool:
         try:
             import sys as _sys
             _sys.path.insert(0, str(REPO_ROOT / "backend"))
-            from services.research.knowledge_graph import KnowledgeGraph
+            from services.research.knowledge_graph import KnowledgeGraph  # type: ignore[import-not-found]
             kg = KnowledgeGraph(str(REPO_ROOT / "data" / "research_kg.duckdb"))
             stats = kg.get_stats()
             log.info(f"KG: {stats['papers']} papers, {stats['repos']} repos, {stats['edges']} edges")
