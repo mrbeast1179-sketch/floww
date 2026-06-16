@@ -17,6 +17,7 @@ import json
 import os
 import shutil
 import sys
+from typing import Any
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
 
@@ -67,7 +68,7 @@ def archive_file(src: Path, archive_dir: Path) -> Path:
     return dst
 
 
-def update_index(index_file: Path, entries: list[dict]):
+def update_index(index_file: Path, entries: list[dict[str, Any]]) -> None:
     """Update the archive INDEX.md."""
     lines = [
         "# Memory Archive Index",
@@ -84,7 +85,7 @@ def update_index(index_file: Path, entries: list[dict]):
     index_file.write_text("\n".join(lines) + "\n")
 
 
-def main():
+def main() -> None:
     parser = argparse.ArgumentParser(description="Nightly memory pruning")
     parser.add_argument("--dry-run", action="store_true", help="Show what would be archived")
     args = parser.parse_args()
@@ -148,7 +149,7 @@ def main():
     if not args.dry_run and archived_entries:
         ARCHIVE_DIR.mkdir(parents=True, exist_ok=True)
         # Load existing index entries
-        existing = []
+        existing: list[dict[str, Any]] = []
         if INDEX_FILE.exists():
             # Parse existing entries (simple approach: just append)
             pass
