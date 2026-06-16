@@ -7,17 +7,18 @@ Uses small batches (100 docs) with _id pagination for unreliable connections.
 """
 import os, time
 from pathlib import Path
+from typing import Any
 from dotenv import load_dotenv
 load_dotenv(Path('backend/.env'))
 from pymongo import MongoClient
-import pandas as pd
+import pandas as pd  # type: ignore[import-untyped]
 
 CACHE_DIR = Path('data/cached_features')
 CACHE_DIR.mkdir(parents=True, exist_ok=True)
 
-def fetch_all(ticker, version='v1.0', batch_size=100):
+def fetch_all(ticker: str, version: str = 'v1.0', batch_size: int = 100) -> list[dict[str, Any]]:
     """Fetch all documents in small batches."""
-    client = MongoClient(
+    client: Any = MongoClient(
         os.environ['MONGO_URL'],
         serverSelectionTimeoutMS=10000,
         socketTimeoutMS=60000,
@@ -31,7 +32,7 @@ def fetch_all(ticker, version='v1.0', batch_size=100):
     print(f"  Total docs: {total}")
     
     while True:
-        query = {'ticker': ticker, 'feature_version': version}
+        query: dict[str, Any] = {'ticker': ticker, 'feature_version': version}
         if last_id:
             query['_id'] = {'$gt': last_id}
         
