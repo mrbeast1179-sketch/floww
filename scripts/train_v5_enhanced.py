@@ -13,17 +13,18 @@ import sys
 import time
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import Any
 
 import numpy as np
-import pandas as pd
-from sklearn.ensemble import GradientBoostingClassifier, RandomForestClassifier
-from sklearn.linear_model import LogisticRegression
-from sklearn.preprocessing import StandardScaler
-from sklearn.model_selection import TimeSeriesSplit
+import pandas as pd  # type: ignore[import-untyped]
+from sklearn.ensemble import GradientBoostingClassifier, RandomForestClassifier  # type: ignore[import-untyped]
+from sklearn.linear_model import LogisticRegression  # type: ignore[import-untyped]
+from sklearn.preprocessing import StandardScaler  # type: ignore[import-untyped]
+from sklearn.model_selection import TimeSeriesSplit  # type: ignore[import-untyped]
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "backend"))
 
-from services.ml.quality import (
+from services.ml.quality import (  # type: ignore[import-not-found]
     assert_class_balance,
     assert_feature_variance,
     assert_prediction_distribution,
@@ -41,7 +42,7 @@ TARGET_COLS = {
 }
 
 
-def load_and_engineer(ticker, version='v1.0'):
+def load_and_engineer(ticker: str, version: str = 'v1.0') -> Any:
     """Load cached features and engineer additional features."""
     csv_path = CACHE_DIR / f"{ticker}_{version}.csv"
     if not csv_path.exists():
@@ -110,7 +111,7 @@ def load_and_engineer(ticker, version='v1.0'):
     return df
 
 
-def prepare_data(df, target='target_directional_move'):
+def prepare_data(df: Any, target: str = 'target_directional_move') -> tuple[Any, Any, list[str], list[Any]]:
     """Prepare feature matrix and target."""
     feature_cols = [c for c in df.columns if c not in META_COLS and c not in TARGET_COLS]
     
@@ -126,7 +127,7 @@ def prepare_data(df, target='target_directional_move'):
     return X, y, feature_cols, dates
 
 
-def walk_forward_splits(n, n_splits=8, train_size=500, test_size=100, embargo=5):
+def walk_forward_splits(n: int, n_splits: int = 8, train_size: int = 500, test_size: int = 100, embargo: int = 5) -> list[tuple[Any, Any]]:
     splits = []
     for i in range(n_splits):
         test_start = n - (n_splits - i) * test_size
@@ -139,7 +140,7 @@ def walk_forward_splits(n, n_splits=8, train_size=500, test_size=100, embargo=5)
     return splits
 
 
-def sharpe(preds, actuals):
+def sharpe(preds: list[Any], actuals: Any) -> float:
     rets = [1.0 if p == 1 and a == 1 else -1.0 if p == 1 and a == 0 else 0.0
             for p, a in zip(preds, actuals)]
     if len(rets) < 2:
@@ -147,7 +148,7 @@ def sharpe(preds, actuals):
     return float(np.mean(rets) / (np.std(rets) + 1e-8) * np.sqrt(252))
 
 
-def train_and_evaluate(X, y, splits, model_name, params=None):
+def train_and_evaluate(X: Any, y: Any, splits: list[tuple[Any, Any]], model_name: str, params: Any = None) -> dict[str, Any] | None:
     all_preds, all_actuals = [], []
     
     model_map = {
@@ -199,7 +200,7 @@ def train_and_evaluate(X, y, splits, model_name, params=None):
     }
 
 
-def run_enhanced(ticker, version='v1.0'):
+def run_enhanced(ticker: str, version: str = 'v1.0') -> dict[str, Any]:
     print(f"\n{'='*60}")
     print(f"Enhanced training: {ticker} {version}")
     print(f"{'='*60}")
