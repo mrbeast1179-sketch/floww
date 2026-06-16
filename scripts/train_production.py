@@ -10,15 +10,16 @@ Usage:
 import argparse, json, os, sys, time
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import Any
 import numpy as np
-import pandas as pd
-from sklearn.preprocessing import StandardScaler
-from sklearn.linear_model import LogisticRegression
-from sklearn.ensemble import GradientBoostingClassifier, RandomForestClassifier
-import joblib
+import pandas as pd  # type: ignore[import-untyped]
+from sklearn.preprocessing import StandardScaler  # type: ignore[import-untyped]
+from sklearn.linear_model import LogisticRegression  # type: ignore[import-untyped]
+from sklearn.ensemble import GradientBoostingClassifier, RandomForestClassifier  # type: ignore[import-untyped]
+import joblib  # type: ignore[import-untyped]
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "backend"))
-from services.ml.quality import (
+from services.ml.quality import (  # type: ignore[import-not-found]
     assert_class_balance, assert_feature_variance,
     assert_prediction_distribution, DegenerateModelError,
 )
@@ -33,7 +34,7 @@ TARGET_COLS = {
     'target_range_expansion', 'target_any_materialization',
 }
 
-def load_cached(ticker, version='v1.0'):
+def load_cached(ticker: str, version: str = 'v1.0') -> Any:
     csv_path = CACHE_DIR / f"{ticker}_{version}.csv"
     if not csv_path.exists():
         raise FileNotFoundError(f"No cached data: {csv_path}. Run cache_features_to_csv.py first.")
@@ -41,7 +42,7 @@ def load_cached(ticker, version='v1.0'):
     print(f"Loaded {len(df)} rows from {csv_path}")
     return df
 
-def prepare_data(df, target='target_directional_move'):
+def prepare_data(df: Any, target: str = 'target_directional_move') -> tuple[Any, Any, list[str], list[Any]]:
     df = df.dropna(subset=[target]).reset_index(drop=True)
     feature_cols = [c for c in df.columns if c not in META_COLS and c not in TARGET_COLS]
     X = df[feature_cols].values.astype(float)
@@ -50,7 +51,7 @@ def prepare_data(df, target='target_directional_move'):
     dates = df['date'].tolist() if 'date' in df.columns else list(range(len(y)))
     return X, y, feature_cols, dates
 
-def walk_forward_splits(n, n_splits=8, train_size=500, test_size=100, embargo=5):
+def walk_forward_splits(n: int, n_splits: int = 8, train_size: int = 500, test_size: int = 100, embargo: int = 5) -> list[tuple[Any, Any]]:
     splits = []
     for i in range(n_splits):
         test_start = n - (n_splits - i) * test_size
@@ -62,13 +63,13 @@ def walk_forward_splits(n, n_splits=8, train_size=500, test_size=100, embargo=5)
         splits.append((np.arange(train_start, train_end), np.arange(test_start, test_end)))
     return splits
 
-def compute_sharpe(preds, actuals):
+def compute_sharpe(preds: list[Any], actuals: list[Any]) -> float:
     rets = [1.0 if p == 1 and a == 1 else -1.0 if p == 1 and a == 0 else 0.0 for p, a in zip(preds, actuals)]
     if len(rets) < 2:
         return 0.0
     return float(np.mean(rets) / (np.std(rets) + 1e-8) * np.sqrt(252))
 
-def get_model(name):
+def get_model(name: str) -> Any:
     models = {
         "gbm": GradientBoostingClassifier(n_estimators=100, max_depth=4, learning_rate=0.1, subsample=0.8, random_state=42),
         "gbm_deep": GradientBoostingClassifier(n_estimators=200, max_depth=6, learning_rate=0.05, subsample=0.7, random_state=42),
@@ -77,7 +78,7 @@ def get_model(name):
     }
     return models[name]
 
-def train_and_evaluate(X, y, splits, model_name):
+def train_and_evaluate(X: Any, y: Any, splits: list[tuple[Any, Any]], model_name: str) -> tuple[float | None, float | None, float | None]:
     all_preds, all_probas, all_actuals = [], [], []
     fold_metrics = []
     
@@ -133,7 +134,7 @@ def train_and_evaluate(X, y, splits, model_name):
     
     return sharpe, acc, avg_f1
 
-def main():
+def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--ticker", default="QQQ")
     parser.add_argument("--feature-version", default="v1.0")
