@@ -48,7 +48,7 @@ class TurboQuantGenerateRequest(BaseModel):
 # LLM Routes
 # ---------------------------------------------------------------------------
 
-@router.post("/api/llm/analyze-trade")
+@router.post("/llm/analyze-trade")
 async def llm_analyze_trade(request: TradeAnalysisRequest):
     """Analyze a trade opportunity using the configured LLM provider."""
     try:
@@ -68,7 +68,7 @@ async def llm_analyze_trade(request: TradeAnalysisRequest):
         raise HTTPException(500, str(e))
 
 
-@router.post("/api/llm/generate")
+@router.post("/llm/generate")
 async def llm_generate(request: GenerateRequest):
     """Generate text using the configured LLM provider (OpenRouter by default)."""
     try:
@@ -88,7 +88,7 @@ async def llm_generate(request: GenerateRequest):
         raise HTTPException(500, str(e))
 
 
-@router.get("/api/llm/providers")
+@router.get("/llm/providers")
 async def llm_providers():
     """List available LLM providers and their configuration status."""
     try:
@@ -107,7 +107,7 @@ async def llm_providers():
 # turboQuantDC KV Cache Routes
 # ---------------------------------------------------------------------------
 
-@router.get("/api/turboquant/status")
+@router.get("/turboquant/status")
 async def turboquant_status():
     """Get turboQuantDC KV cache compression service status."""
     from services.turboquant_cache import get_turboquant_service
@@ -115,7 +115,7 @@ async def turboquant_status():
     return service.status()
 
 
-@router.get("/api/turboquant/presets")
+@router.get("/turboquant/presets")
 async def turboquant_presets():
     """List available turboQuantDC quality presets."""
     from services.turboquant_cache import get_turboquant_service
@@ -127,7 +127,7 @@ async def turboquant_presets():
     }
 
 
-@router.post("/api/turboquant/generate")
+@router.post("/turboquant/generate")
 async def turboquant_generate(request: TurboQuantGenerateRequest):
     """Generate text using a local HuggingFace model with turboQuantDC compressed KV cache.
 
