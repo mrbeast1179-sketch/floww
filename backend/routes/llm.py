@@ -1,72 +1,196 @@
 """
 backend/routes/llm.py
 
-LLM analysis routes.
+LLM analysis routes — OpenRouter, Gemini, and turboQuantDC KV cache compression.
 """
 from __future__ import annotations
 
 from fastapi import APIRouter, HTTPException
+from pydantic import BaseModel
 
 router = APIRouter()
 
 
-@router.post("/llm/analyze-trade")
-async def llm_analyze_trade(request: dict):
-    """Analyze a trade opportunity using LLM."""
+# ---------------------------------------------------------------------------
+# Request models
+# ---------------------------------------------------------------------------
+
+class TradeAnalysisRequest(BaseModel):
+    ticker: str
+    spot: float
+    regime: str = "NEUTRAL"
+    net_gex: float = 0.0
+    prediction: str = "HOLD"
+    confidence: float = 0.5
+
+
+class GenerateRequest(BaseModel):
+    prompt: str
+    system_prompt: str = "You are a market analyst."
+    max_tokens: int = 512
+    provider: str | None = None  # override per-request
+
+
+# Module-level model cache (models are expensive to load)
+_MODEL_CACHE: dict[str, tuple] = {}
+
+
+class TurboQuantGenerateRequest(BaseModel):
+    prompt: str
+    model_name: str = "Qwen/Qwen2.5-3B-Instruct"
+    system_prompt: str = ""
+    max_new_tokens: int = 128
+    preset: str = "balanced"
+    bits: int = 4
+
+
+# ---------------------------------------------------------------------------
+# LLM Routes
+# ---------------------------------------------------------------------------
+
+@router.post("/api/llm/analyze-trade")
+async def llm_analyze_trade(request: TradeAnalysisRequest):
+    """Analyze a trade opportunity using the configured LLM provider."""
     try:
         from services.llm import analyze_trade_with_llm
-        ticker = request.get("ticker", "")
-        spot = request.get("spot", 0.0)
-        regime = request.get("regime", "unknown")
-        net_gex = request.get("net_gex", 0.0)
-        prediction = request.get("prediction", "")
-        confidence = request.get("confidence", 0.0)
         result = await analyze_trade_with_llm(
-            ticker=ticker,
-            spot=spot,
-            regime=regime,
-            net_gex=net_gex,
-            prediction=prediction,
-            confidence=confidence,
+            ticker=request.ticker,
+            spot=request.spot,
+            regime=request.regime,
+            net_gex=request.net_gex,
+            prediction=request.prediction,
+            confidence=request.confidence,
         )
         return result
     except ImportError:
-        raise HTTPException(status_code=503, detail="LLM not configured") from None
+        raise HTTPException(503, "LLM service not configured")
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e)) from e
+        raise HTTPException(500, str(e))
 
 
-@router.post("/llm/generate-briefing")
-async def llm_generate_briefing(request: dict):
-    """Generate a morning briefing using LLM."""
+@router.post("/api/llm/generate")
+async def llm_generate(request: GenerateRequest):
+    """Generate text using the configured LLM provider (OpenRouter by default)."""
     try:
         from services.llm import get_llm_service
         llm = get_llm_service()
-        prompt = request.get("prompt", "")
-        system_prompt = request.get("system_prompt", "You are a market analyst. Provide a concise morning briefing.")
-        result = llm.generate(prompt, system_prompt=system_prompt, max_tokens=request.get("max_tokens", 512))
+        result = llm.generate(
+            prompt=request.prompt,
+            system_prompt=request.system_prompt,
+            max_tokens=request.max_tokens,
+        )
         return result
     except ImportError:
-        raise HTTPException(status_code=503, detail="LLM not configured") from None
+        raise HTTPException(503, "LLM service not configured")
+    except ValueError as e:
+        raise HTTPException(400, str(e))
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e)) from e
+        raise HTTPException(500, str(e))
 
 
-@router.get("/llm/providers")
+@router.get("/api/llm/providers")
 async def llm_providers():
-    """List available LLM providers."""
+    """List available LLM providers and their configuration status."""
     try:
         from services.llm import get_llm_service
         llm = get_llm_service()
         return {
-            "providers": [
-                {
-                    "name": llm.provider,
-                    "configured": bool(llm.api_key),
-                }
-            ]
+            "providers": llm.available_providers,
+            "current": llm.provider,
+            "configured": llm.is_configured,
         }
-    except ImportError:
-        raise HTTPException(status_code=503, detail="LLM not configured") from None
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e)) from e
+        raise HTTPException(500, str(e))
+
+
+# ---------------------------------------------------------------------------
+# turboQuantDC KV Cache Routes
+# ---------------------------------------------------------------------------
+
+@router.get("/api/turboquant/status")
+async def turboquant_status():
+    """Get turboQuantDC KV cache compression service status."""
+    from services.turboquant_cache import get_turboquant_service
+    service = get_turboquant_service()
+    return service.status()
+
+
+@router.get("/api/turboquant/presets")
+async def turboquant_presets():
+    """List available turboQuantDC quality presets."""
+    from services.turboquant_cache import get_turboquant_service
+    service = get_turboquant_service()
+    return {
+        "available": service.available,
+        "presets": service.presets,
+        "default": service.default_preset,
+    }
+
+
+@router.post("/api/turboquant/generate")
+async def turboquant_generate(request: TurboQuantGenerateRequest):
+    """Generate text using a local HuggingFace model with turboQuantDC compressed KV cache.
+
+    This loads a model locally and uses turboQuantDC's GenerationCache to compress
+    the KV cache by 3-5x, reducing VRAM usage while maintaining <0.5% quality loss.
+
+    Requires: turboquantdc, transformers, accelerate, and optionally bitsandbytes.
+    """
+    try:
+        from services.turboquant_cache import get_turboquant_service
+        service = get_turboquant_service()
+
+        if not service.available:
+            raise HTTPException(
+                503,
+                "turboQuantDC not installed. Install: pip install turboquantdc[all]"
+            )
+
+        try:
+            from transformers import AutoModelForCausalLM, AutoTokenizer
+            import torch
+        except ImportError:
+            raise HTTPException(503, "transformers/torch not installed")
+
+        # Load model + tokenizer (cached to avoid re-loading on every request)
+        cache_key = request.model_name
+        if cache_key not in _MODEL_CACHE:
+            tokenizer = AutoTokenizer.from_pretrained(request.model_name, trust_remote_code=True)
+            model = AutoModelForCausalLM.from_pretrained(
+                request.model_name,
+                torch_dtype=torch.float16,
+                device_map="auto",
+                trust_remote_code=True,
+            )
+            _MODEL_CACHE[cache_key] = (model, tokenizer)
+        model, tokenizer = _MODEL_CACHE[cache_key]
+
+        # Create compressed KV cache
+        cache = service.create_cache(preset=request.preset, bits=request.bits)
+
+        # Tokenize and generate
+        inputs = tokenizer(request.prompt, return_tensors="pt").to(model.device)
+        with torch.no_grad():
+            outputs = model.generate(
+                **inputs,
+                past_key_values=cache,
+                max_new_tokens=request.max_new_tokens,
+                do_sample=True,
+                temperature=0.7,
+            )
+
+        generated = tokenizer.decode(outputs[0][inputs["input_ids"].shape[1]:], skip_special_tokens=True)
+        stats = service.get_compression_stats(cache)
+
+        return {
+            "generated_text": generated,
+            "model": request.model_name,
+            "preset": request.preset,
+            "compression_stats": stats,
+            "input_tokens": inputs["input_ids"].shape[1],
+            "output_tokens": outputs.shape[1] - inputs["input_ids"].shape[1],
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(500, f"Generation failed: {e}")
