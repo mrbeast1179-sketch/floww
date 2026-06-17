@@ -312,11 +312,36 @@
 .skylit-panels { width: 100%; }
 .skylit-panel-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(360px, 1fr));
-  gap: 14px;
-  padding: 16px;
+  grid-template-columns: repeat(auto-fill, minmax(380px, 1fr));
+  gap: 16px;
+  padding: 18px;
   align-items: start;
+  line-height: 1.5;
 }
+/* Turn every panel into an appealing card instead of a dense text list */
+.skylit-panel-grid > *,
+.skylit-panel-grid .panel {
+  background: linear-gradient(180deg, rgba(22,28,48,0.72), rgba(13,18,37,0.72)) !important;
+  border: 1px solid rgba(255,255,255,0.07) !important;
+  border-radius: 14px !important;
+  padding: 16px 18px !important;
+  box-shadow: 0 2px 10px rgba(0,0,0,0.35);
+  transition: border-color 120ms ease, transform 120ms ease;
+}
+.skylit-panel-grid > *:hover {
+  border-color: rgba(94,234,212,0.35) !important;
+  transform: translateY(-1px);
+}
+/* Bigger, friendlier text */
+.skylit-panel-grid .label {
+  font-size: 12.5px !important;
+  letter-spacing: 0.06em;
+  color: #cbd5e1 !important;
+  margin-bottom: 10px;
+}
+.skylit-panel-grid .text-\[9px\]  { font-size: 11px !important; }
+.skylit-panel-grid .text-\[10px\] { font-size: 12px !important; }
+.skylit-panel-grid .text-\[11px\] { font-size: 12.5px !important; }
 @media (max-width: 640px) {
   .skylit-panel-grid { grid-template-columns: 1fr; padding: 10px; }
 }
