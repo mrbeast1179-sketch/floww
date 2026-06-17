@@ -60,6 +60,14 @@ export default function Sidebar({ page, onNavigate, userEmail, userTier }) {
     document.documentElement.setAttribute("data-sidebar-collapsed", String(collapsed));
   }, [collapsed]);
 
+  // Auto-collapse on narrow windows so the rail never eats half a small screen.
+  useEffect(() => {
+    const onResize = () => { if (window.innerWidth < 1024) setCollapsed(true); };
+    onResize();
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, []);
+
   // Group nav items by their group
   const groups = [];
   let currentGroup = null;
