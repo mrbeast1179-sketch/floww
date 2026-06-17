@@ -34,6 +34,28 @@ export const expFmt = (e) => { try { const [, m, d] = e.split("-"); return `${m}
 // ============ Color Scale ============
 // Default GEX: teal (positive) / purple (negative). Skylit: VIRIDIS colormap.
 
+// 8-stop VIRIDIS colormap. t in [0,1] -> {r,g,b}. Robust to NaN / out-of-range so
+// cellColor() can never read .r/.g/.b off undefined (the bug that crashed Skylit:
+// this function was called but never defined).
+export function viridisColor(t) {
+  const STOPS = [
+    [68, 1, 84], [70, 50, 126], [54, 92, 141], [39, 127, 142],
+    [31, 161, 135], [74, 193, 109], [159, 218, 58], [253, 231, 37],
+  ];
+  let x = Number(t);
+  if (!Number.isFinite(x)) x = 0;
+  x = Math.min(1, Math.max(0, x));
+  const seg = x * (STOPS.length - 1);
+  const i = Math.min(STOPS.length - 2, Math.floor(seg));
+  const f = seg - i;
+  const a = STOPS[i], b = STOPS[i + 1];
+  return {
+    r: Math.round(a[0] + (b[0] - a[0]) * f),
+    g: Math.round(a[1] + (b[1] - a[1]) * f),
+    b: Math.round(a[2] + (b[2] - a[2]) * f),
+  };
+}
+
 export function cellColor(v, maxAbs, isKing = false, mode = "gex", skylitTheme = false) {
   if (!v || maxAbs === 0) {
     return skylitTheme
