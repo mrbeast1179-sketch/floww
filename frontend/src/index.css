@@ -643,18 +643,18 @@ input:focus, select:focus, textarea:focus, button:focus-visible {
     .mono { font-size: 10px !important; }
     table { font-size: 9px !important; }
     th, td { padding: 3px 6px !important; }
-    aside { width: 200px !important; }
+    .heatseeker-sidebar-left, .heatseeker-sidebar-right { width: 200px !important; }
     .grid-cols-2 { grid-template-columns: 1fr !important; }
 }
 
 @media (max-width: 1024px) {
-    aside { width: 240px !important; }
+    .heatseeker-sidebar-left, .heatseeker-sidebar-right { width: 240px !important; }
     .grid-cols-3 { grid-template-columns: repeat(2, 1fr) !important; }
 }
 
 @media (min-width: 1400px) {
     html { font-size: 15px; }
-    aside { width: 320px !important; }
+    .heatseeker-sidebar-left, .heatseeker-sidebar-right { width: 320px !important; }
 }
 
 @media (hover: none) and (pointer: coarse) {
