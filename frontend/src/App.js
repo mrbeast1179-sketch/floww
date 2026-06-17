@@ -899,40 +899,11 @@ export default function App() {
 
         {/* Skylit — GEX Grid + Analytics Column */}
         {page === "skylit" && (
-          <div className="legacy-theme heatseeker-layout skylit-layout">
-            {/* Main Content - GEX Grid */}
-            <main className="heatseeker-main">
-              <div className="panel m-2 p-3 flex-1 flex flex-col overflow-hidden">
-                <div className="flex justify-between items-center mb-2 flex-shrink-0">
-                  <div>
-                    <div className="label">Skylit · GEX Grid (Strike × Expiry)</div>
-                    <div className="text-[10px] text-slate-500">
-                      Viridis: purple (neg) → teal → yellow (pos) · Magenta = King
-                    </div>
-                  </div>
-                  <div className="flex gap-2 text-[10px]">
-                    <span className="tag king">KING</span>
-                    <span className="tag floor">FLOOR</span>
-                    <span className="tag ceiling">CEIL</span>
-                    <span className="tag gate">GATE</span>
-                    <span className="tag air">AIR</span>
-                  </div>
-                </div>
-                <div className="flex-1 overflow-hidden heatmap-scroll-container">
-                  <ErrorBoundary>
-                    {displayData ? (
-                      <GridHeatmap data={displayData} filters={filters} onCellClick={(s, e) => setDrilldown({ ticker, expiry: e, strike: s })} viewMode={viewMode} skylitTheme={true} />
-                    ) : (
-                      <div className="text-slate-500 text-xs p-6 text-center">Loading…</div>
-                    )}
-                  </ErrorBoundary>
-                </div>
-              </div>
-            </main>
-
-            {/* Right Sidebar - Analytics Panels */}
-            <aside className={`heatseeker-sidebar-right ${showRightSidebar ? 'open' : ''}`}>
-              <div className="p-2 space-y-2">
+          <div className="legacy-theme skylit-dashboard">
+            {/* GEX grid removed from Skylit — it already lives under Heatseeker.
+                Analytics panels shown full-width in a friendly responsive grid. */}
+            <aside className="skylit-panels">
+              <div className="skylit-panel-grid">
                 {page === "skylit" && <MorningBriefing ticker={ticker} spot={livespot?.spot ?? data?.spot} />}
                 <DashboardSummary ticker={ticker} spot={livespot?.spot ?? data?.spot} />
                 <FlipZonesPanel data={data} loading={loading} error={err} />

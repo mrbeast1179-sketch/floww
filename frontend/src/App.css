@@ -302,6 +302,25 @@
   }
 }
 
+/* ===== SKYLIT full-width dashboard (no GEX grid; panels in a friendly responsive grid) ===== */
+.skylit-dashboard {
+  flex: 1;
+  min-height: 0;
+  width: 100%;
+  overflow: auto;
+}
+.skylit-panels { width: 100%; }
+.skylit-panel-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(360px, 1fr));
+  gap: 14px;
+  padding: 16px;
+  align-items: start;
+}
+@media (max-width: 640px) {
+  .skylit-panel-grid { grid-template-columns: 1fr; padding: 10px; }
+}
+
 /* ===== PWA INSTALL PROMPT ===== */
 .pwa-install-banner {
   position: fixed;
