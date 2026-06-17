@@ -6,6 +6,7 @@ import { ALPHAPOD_API } from "./config/api";
 
 import { fmt, fmtAbs, pctClass, tagFor, TRINITY, DEFAULT_TICKERS } from "./lib/helpers";
 import GridHeatmap from "./components/GridHeatmap";
+import HeatseekerDashboard from "./components/heatseeker/HeatseekerDashboard";
 import BarHeatmap from "./components/BarHeatmap";
 import PatternCard from "./components/PatternCard";
 import TrinityView from "./components/TrinityView";
@@ -902,6 +903,16 @@ export default function App() {
           <div className="legacy-theme skylit-dashboard">
             {/* GEX grid removed from Skylit — it already lives under Heatseeker.
                 Analytics panels shown full-width in a friendly responsive grid. */}
+            {/* Original Skylit dashboard — Beach Ball + pattern/structure cards */}
+            <ErrorBoundary>
+              <HeatseekerDashboard
+                ticker={ticker}
+                spot={livespot?.spot ?? data?.spot}
+                isOffline={data?.data_fallback === true}
+                dataAge={data?.stale_age_s != null ? data.stale_age_s * 1000 : null}
+                dataFallback={data?.data_fallback === true}
+              />
+            </ErrorBoundary>
             <aside className="skylit-panels">
               <div className="skylit-panel-grid">
                 {page === "skylit" && <MorningBriefing ticker={ticker} spot={livespot?.spot ?? data?.spot} />}
