@@ -3,7 +3,7 @@ import { useAuth } from '../context/AuthContext';
 
 export default function SignInPage({ onSignIn }) {
   const { login } = useAuth();
-  const [email, setEmail] = useState('demo@alphapod.dev');
+  const [email, setEmail] = useState('demo@skylit.dev');
   const [tier, setTier] = useState('pro');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
