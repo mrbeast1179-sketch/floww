@@ -1,7 +1,7 @@
 import React from "react";
 import { fmt, fmtAbs, pctClass, tagFor, cellColor, expFmt, fmtCell } from "../lib/helpers";
 
-export default function GridHeatmap({ data, filters, onCellClick, viewMode = "gex" }) {
+export default function GridHeatmap({ data, filters, onCellClick, viewMode = "gex", skylitTheme = false }) {
   const spotRowRef = React.useRef(null);
   React.useEffect(() => {
     if (spotRowRef.current) spotRowRef.current.scrollIntoView({ block: "center", behavior: "auto" });
@@ -46,13 +46,13 @@ export default function GridHeatmap({ data, filters, onCellClick, viewMode = "ge
   const spotIdx = strikes.findIndex(s => s <= spot);
 
   return (
-    <div className="overflow-auto" data-testid="grid-heatmap" style={{ maxHeight: "60vh" }}>
-      <table className="border-collapse mono text-[10px]">
-        <thead className="sticky top-0 z-10" style={{ background: "var(--panel)" }}>
+    <div className={`overflow-auto${skylitTheme ? ' skylit-grid-container' : ''}`} data-testid="grid-heatmap" style={{ maxHeight: skylitTheme ? "65vh" : "60vh" }}>
+      <table className="border-collapse mono text-[10px]" style={{ borderSpacing: skylitTheme ? 0 : undefined }}>
+        <thead className="sticky top-0 z-10" style={{ background: skylitTheme ? "#0d1225" : "var(--panel)" }}>
           <tr>
-            <th className="px-2 py-1 text-left text-slate-500 sticky left-0 z-20" style={{ background: "var(--panel)" }}>Strike</th>
-            {expiries.map((e) => <th key={e} className="px-2 py-1 text-slate-400 font-normal" style={{ minWidth: 64 }}>{expFmt(e)}</th>)}
-            <th className="px-2 py-1 text-slate-500 text-left">Tags</th>
+            <th className="px-1.5 py-1 text-left text-slate-500 sticky left-0 z-20" style={{ background: skylitTheme ? "#0d1225" : "var(--panel)", fontSize: skylitTheme ? 9 : undefined, letterSpacing: skylitTheme ? "0.05em" : undefined }}>Strike</th>
+            {expiries.map((e) => <th key={e} className="px-1 py-1 text-slate-400 font-normal text-center" style={{ minWidth: skylitTheme ? 56 : 64, fontSize: skylitTheme ? 9 : undefined, letterSpacing: skylitTheme ? "0.03em" : undefined }}>{expFmt(e)}</th>)}
+            <th className="px-1 py-1 text-slate-500 text-left" style={{ fontSize: skylitTheme ? 9 : undefined }}>Tags</th>
           </tr>
         </thead>
         <tbody>
@@ -62,34 +62,37 @@ export default function GridHeatmap({ data, filters, onCellClick, viewMode = "ge
             const isCeil = ceilSet.has(s);
             const isGate = gkSet.has(s);
             const airy = inAir(s);
+            const isATM = i === spotIdx;
             return (
               <React.Fragment key={s}>
-                {i === spotIdx && (
-                  <tr ref={spotRowRef}>
-                    <td colSpan={expiries.length + 2} style={{ padding: 0 }}>
+                {isATM && (
+                  <tr ref={spotRowRef} className={skylitTheme ? "skylit-atm-row" : undefined}>
+                    <td colSpan={expiries.length + 2} style={{ padding: 0, height: skylitTheme ? 2 : undefined }}>
                       <div className="relative" style={{ height: 18 }}>
-                        <div className="absolute inset-x-0 top-1/2" style={{ height: 1, background: "linear-gradient(90deg, transparent, rgba(94,234,212,0.85), transparent)", boxShadow: "0 0 6px rgba(94,234,212,0.55)" }} />
-                        <div className="absolute left-2 top-0 text-[10px] font-bold tracking-widest text-teal-300 px-1" style={{ background: "var(--panel)", textShadow: "0 0 6px rgba(94,234,212,0.6)" }}>◆ SPOT {fmt(spot, 2)}</div>
+                        <div className="absolute inset-x-0 top-1/2" style={{ height: 1, background: skylitTheme ? "rgba(255,255,255,0.4)" : "linear-gradient(90deg, transparent, rgba(94,234,212,0.85), transparent)", boxShadow: skylitTheme ? "0 0 8px rgba(255,255,255,0.3)" : "0 0 6px rgba(94,234,212,0.55)" }} />
+                        {skylitTheme && <div className="absolute left-0 top-0" style={{ width: 0, height: 0, borderTop: "7px solid transparent", borderBottom: "7px solid transparent", borderLeft: "10px solid #ffffff" }} />}
+                        <div className={`absolute ${skylitTheme ? 'left-3' : 'left-2'} top-0 text-[10px] font-bold tracking-widest ${skylitTheme ? 'text-white' : 'text-teal-300'} px-1`} style={{ background: skylitTheme ? "#0a0e1a" : "var(--panel)", textShadow: skylitTheme ? "0 0 4px rgba(255,255,255,0.4)" : "0 0 6px rgba(94,234,212,0.6)" }}>◆ SPOT {fmt(spot, 2)}</div>
                       </div>
                     </td>
                   </tr>
                 )}
-                <tr className={`bar-row ${airy ? "opacity-65" : ""}`} data-testid={`grid-row-${s}`}>
-                  <td className={`px-2 py-1 font-bold sticky left-0 z-10 ${isKing ? "text-amber-300" : isFloor ? "text-emerald-400" : isCeil ? "text-rose-400" : isGate ? "text-sky-400" : "text-slate-400"}`} style={{ background: "var(--panel)" }}>
+                <tr className={`${skylitTheme ? 'skylit-grid-row' : 'bar-row'}${airy ? " opacity-50" : ""}${skylitTheme && isATM ? " skylit-atm-highlight" : ""}`} data-testid={`grid-row-${s}`} style={skylitTheme && isATM ? { background: "rgba(255,255,255,0.04)" } : {}}>
+                  <td className={`${skylitTheme ? 'px-1.5 py-0.5' : 'px-2 py-1'} font-bold sticky left-0 z-10 ${skylitTheme && isKing ? "text-fuchsia-300" : isKing ? "text-amber-300" : isFloor ? "text-emerald-400" : isCeil ? "text-rose-400" : isGate ? "text-sky-400" : "text-slate-400"}`} style={{ background: skylitTheme ? (isATM ? "rgba(10,14,26,0.95)" : "#0a0e1a") : "var(--panel)", fontSize: skylitTheme ? 10 : undefined }}>
+                    {skylitTheme && isKing && <span className="mr-0.5" style={{ color: "#e040fb" }}>★</span>}
                     {fmt(s, s >= 1000 ? 0 : 1)}
                   </td>
                   {expiries.map((e) => {
                     const v = cellOf(e, s);
                     const isKingCell = isKing && Math.abs(v) > 0.6 * maxAbs;
-                    const col = cellColor(v, maxAbs, isKingCell, viewMode);
+                    const col = cellColor(v, maxAbs, isKingCell, viewMode, skylitTheme);
                     return (
-                      <td key={e} className="px-1 py-1 text-center cursor-pointer hover:outline hover:outline-1 hover:outline-teal-400" style={{ background: col.bg, color: col.text, minWidth: 60 }} onClick={() => onCellClick && onCellClick(s, e, v)} title={`strike ${s} · exp ${e} · ${viewMode === "charm" ? "charm" : "gex"} ${fmtCell(v)}`}>
-                        {fmtCell(v)}
+                      <td key={e} className={`${skylitTheme ? 'text-right' : 'text-center'} cursor-pointer ${skylitTheme ? 'hover:ring-1 hover:ring-white/30' : 'hover:outline hover:outline-1 hover:outline-teal-400'}`} style={{ background: col.bg, color: col.text, minWidth: skylitTheme ? 54 : 60, padding: skylitTheme ? "1px 3px" : undefined, fontSize: skylitTheme ? 10 : undefined, fontFamily: skylitTheme ? "'JetBrains Mono', monospace" : undefined, fontVariantNumeric: skylitTheme ? "tabular-nums" : undefined }} onClick={() => onCellClick && onCellClick(s, e, v)} title={`strike ${s} · exp ${e} · ${viewMode === "charm" ? "charm" : "gex"} ${fmtCell(v)}`}>
+                        {skylitTheme && isKingCell ? <span>★{fmtCell(v)}</span> : fmtCell(v)}
                       </td>
                     );
                   })}
-                  <td className="px-2 py-1">
-                    <div className="flex gap-1 items-center">
+                  <td className={skylitTheme ? "px-1 py-0.5" : "px-2 py-1"}>
+                    <div className={`flex ${skylitTheme ? 'gap-0.5' : 'gap-1'} items-center`}>
                       {isKing && <span className="tag king">KING</span>}
                       {isFloor && <span className="tag floor">FLR</span>}
                       {isCeil && <span className="tag ceiling">CEIL</span>}

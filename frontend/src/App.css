@@ -267,6 +267,41 @@
   to   { opacity: 0; transform: translateY(-12px) scale(0.95); }
 }
 
+/* ===== SKYLIT 2D GRID — dark navy/viridis styling ===== */
+.skylit-grid-container {
+  background: #0a0e1a !important;
+  border-radius: 6px;
+  border: 1px solid rgba(255,255,255,0.04);
+}
+
+.skylit-grid-row {
+  transition: background 80ms ease;
+}
+
+.skylit-grid-row:hover {
+  background: rgba(255,255,255,0.03) !important;
+}
+
+.skylit-atm-highlight {
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,0.06);
+}
+
+.skylit-atm-row {
+  background: #0a0e1a;
+}
+
+/* Skylit two-column layout override (no left sidebar = no dead column) */
+@media (min-width: 1024px) {
+  .skylit-layout {
+    grid-template-columns: 1fr 280px !important;
+  }
+}
+@media (min-width: 768px) and (max-width: 1023px) {
+  .skylit-layout {
+    grid-template-columns: 1fr 280px !important;
+  }
+}
+
 /* ===== PWA INSTALL PROMPT ===== */
 .pwa-install-banner {
   position: fixed;
