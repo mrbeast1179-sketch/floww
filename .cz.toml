@@ -1,0 +1,192 @@
+# floww/.cz.toml — commitizen config.
+#
+# PROJECT-LOCAL: cz 4.16.3 (homebrew-installed) reads this file from
+# the current working directory only — there is no HOME/XDG fallback.
+# To apply the same conventions in another repo, copy this file as
+# `.cz.toml` next to its `pyproject.toml`, or invoke cz with
+# `cz --config /path/to/this/file.toml`.
+#
+# Adapter: cz_customize (cz 4.x declarative adapter — zero Python,
+# ships with commitizen). Curated types: feat/fix/chore/docs/refactor
+# (drawn from existing floww commit history). Curated scopes: see
+# `[[tool.commitizen.customize.questions]]` below.
+#
+# Validate by running any of (from inside floww):
+#   cz example        # prints an example commit shape
+#   cz info           # prints the help/type/scope table
+#   cz schema         # prints the schema-regex + diagram
+#   cz ls             # parses commit log against the commit_parser
+#   cz changelog      # regenerates a CHANGELOG from history
+#   cz check          # validates latest commit message against the schema
+
+[tool.commitizen]
+name = "cz_customize"
+version = "0.0.0"
+tag_format = "v$version"
+# Cap subjects to 72 chars — the project's house style.
+message_length_limit = 72
+# Allow merge/revert/fixup/squash commits to bypass the schema check.
+allowed_prefixes = ["Merge", "Revert", "fixup!", "squash!", "Amend!", "chore(release)"]
+
+# ─── Adapt via cz_customize: declarative schema, no Python needed ──────
+# All scalar keys below MUST be defined BEFORE the [[...questions]]
+# array-of-tables — per TOML 1.0, after an array-of-tables declaration
+# subsequent scalars attach to that array's last entry, not to the
+# parent table.
+[tool.commitizen.customize]
+# Recognized change types — drawn from the existing 50-commit history.
+change_type_order = ["feat", "fix", "chore", "docs", "refactor"]
+
+# Bump pattern (substring-search regex) + bump_map (lookup).
+# Literal-string TOML quotes preserve `\(`, `\)`, `\s` as single backslashes.
+bump_pattern = '^(feat|fix|chore|docs|refactor)(\(.+\))?(!)?: (.+)$'
+bump_map = {feat = "MINOR", fix = "PATCH", chore = "PATCH", docs = "PATCH", refactor = "PATCH"}
+# bump_map_major_version_zero is intentionally omitted — cz_customize's
+# `_derive_major_version_zero` helper auto-derives it from bump_map.
+
+# Existing-commit parser — required for `cz changelog` and `cz check`.
+commit_parser = '^(?P<change_type>feat|fix|chore|docs|refactor)(?:\((?P<scope>[^)]+)\))?(?P<breaking>!)?:\s(?P<subject>.+)$'
+changelog_pattern = '^(?P<change_type>feat|fix|chore|docs|refactor)(?:\((?P<scope>[^)]+)\))?(?P<breaking>!)?:\s(?P<subject>.+)$'
+
+# Static commit-shape example — printed by `cz example`.
+example = "feat(integrations/agentfield): add bs_call quote reasoner (parity with scipy)"
+schema_pattern = '^(?P<change_type>feat|fix|chore|docs|refactor)(?:\((?P<scope>[^)]+)\))?(?P<breaking>!)?:\s(?P<subject>.+)$'
+schema = """
+<type>(<scope>): <subject>
+  │    │           │
+  │    │           └─⯈ imperative, ≤72 chars, no trailing dot
+  │    └─⯈ optional scope; one of the curated floww scopes
+  └─⯈ one of: feat | fix | chore | docs | refactor
+
+<body>            ⯈ optional, wrap ≤72 chars, separate lines with "|"
+<footer>          ⯈ optional, e.g. BREAKING CHANGE: … / Closes #N
+"""
+
+# Long-form help — printed by `cz info`.
+info = """
+## Commit Message Style (floww / cz_customize)
+
+### Allowed types (drawn from existing floww commit history)
+
+  feat        new feature                                                  → MINOR bump
+  fix         bug fix                                                      → PATCH bump
+  chore       tooling, evidence reports, non-runtime changes               → PATCH bump
+  docs        documentation-only                                           → PATCH bump
+  refactor    code change that neither fixes nor adds                      → PATCH bump
+
+### Curated scopes (drawn from existing scope-frequency table)
+
+  integrations/agentfield   additive AgentField PoC adapter
+  reports                   iter-x evidence reports
+  decoder                   decoder / heatmap modules
+  routes                    backend route adjustments
+  nav+skylit / skylit+nav   cross-cutting scopes (use `+` to combine)
+  llm                       LLM / OpenRouter / turboQuant layer
+  frontend                  frontend React / shell work
+  mypy                      type-stub regen
+  (none)                    pick if no scope fits
+
+### Subject rules
+
+  1 line, ≤72 chars, imperative ("add" not "added"), no final period.
+
+### Body rules
+
+  Wrap ≤72 chars. Use `|` to separate lines; the rendered output splits
+  on `|` and emits real newlines (jinja2 `replace` filter).
+
+### Footer rules
+
+  Optional one-liner, e.g. `BREAKING CHANGE: …` or `Closes #N`.
+
+### Compatibility with existing commit history
+
+  Existing commits whose type isn't in feat/fix/chore/docs/refactor
+  (e.g. `type(mypy)` from prior mypy-stubs regen, `style(skylit)`) are
+  excluded from `cz ls / cz changelog` by design. Older conventional
+  commits (e.g. `feat(reports): additive bs_greeks AgentField reasoner
+  PoC`) still validate fine because the commit_parser regex accepts any
+  text inside the `(?P<scope>)` group — so historical scope names pass
+  unchanged.
+
+### Tip on breaking-change footers
+
+  When the `Are there any breaking changes?` prompt answers `yes`
+  but the footer text is left empty, cz falls back to a placeholder
+  `BREAKING CHANGE: see commit body for details` line in the footer.
+  For production traceability, always populate the footer with a
+  concrete description (e.g. `Migration: see body`) before committing.
+
+Press <Enter> on an interactive prompt to accept the default.
+"""
+
+# ─── Message template — jinja2 (cz 4.x picks jinja2 first) ────────────
+# Logic:
+#   - Header line: `<type>(<scope>): <subject>`. Parens omitted when
+#     scope is "(none)" / empty / None.
+#   - Body block (optional): pipe-separated paragraphs joined by "\n".
+#   - Footer block (optional), conventional-commits-folding:
+#       breaking=True  + footer    → "BREAKING CHANGE: …\n\n<footer>"
+#       breaking=True  + no footer → "BREAKING CHANGE: …"
+#       breaking=False + footer    → "<footer>"
+#       breaking=False + no footer → omitted.
+message_template = """
+{%- if scope and scope != '(none)' -%}
+{{ change_type }}({{ scope }}): {{ subject }}
+{%- else -%}
+{{ change_type }}: {{ subject }}
+{%- endif -%}
+{%- if body %}
+
+{{ body | replace('|', '\n') }}
+{%- endif -%}
+{%- if breaking and footer %}
+
+BREAKING CHANGE: see commit body for details
+
+{{ footer }}
+{%- elif breaking %}
+
+BREAKING CHANGE: see commit body for details
+{%- elif footer %}
+
+{{ footer }}
+{%- endif -%}
+"""
+
+# ─── Interactive question flow — prompt-toolkit questions dicts ─────────
+# Each entry becomes a prompt-toolkit `question(...)` call.
+# This array-of-tables is intentionally AFTER all scalar keys above so
+# scalars attach to [tool.commitizen.customize] (per TOML 1.0).
+[[tool.commitizen.customize.questions]]
+type = "list"
+name = "change_type"
+message = "Select the type of change you are committing:"
+choices = ["feat", "fix", "chore", "docs", "refactor"]
+
+[[tool.commitizen.customize.questions]]
+type = "list"
+name = "scope"
+message = "What is the scope of this change? (curated floww scopes; pick (none) for un-scoped)"
+choices = ["integrations/agentfield", "reports", "decoder", "routes", "nav+skylit", "skylit+nav", "llm", "frontend", "mypy", "(none)"]
+
+[[tool.commitizen.customize.questions]]
+type = "input"
+name = "subject"
+message = "Subject — concise, imperative description (≤72 chars, no trailing dot):"
+
+[[tool.commitizen.customize.questions]]
+type = "input"
+name = "body"
+message = "Body — longer description (optional; wrap ≤72 chars; use '|' between lines):"
+
+[[tool.commitizen.customize.questions]]
+type = "confirm"
+name = "breaking"
+default = false
+message = "Are there any breaking changes?"
+
+[[tool.commitizen.customize.questions]]
+type = "input"
+name = "footer"
+message = "Footer (e.g. 'BREAKING CHANGE: …' or 'Closes #N') — optional:"
