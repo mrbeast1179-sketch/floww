@@ -29,11 +29,13 @@ Live variant (iterate 2 evidence):
 
 from __future__ import annotations
 
+import math
 import os
 from typing import Any, Dict
 
 import httpx
 import pytest
+from scipy.stats import norm
 
 # Import-time discipline: before bs_agent.py existed the test failed
 # with ModuleNotFoundError at collection; now `app` is a real Agent.
@@ -129,3 +131,67 @@ async def test_real_control_plane_dispatch_unknown_reasoner() -> None:
         f"unknown reasoner should 404/422, got {response.status_code}: "
         f"{response.text!r}"
     )
+
+
+@pytest.mark.asyncio
+async def test_bs_vomma_returns_valid_payload() -> None:
+    """In-process ``/reasoners/bs_vomma`` sanity check (always runs).
+
+    Ground truth is the **closed-form** Black-Scholes vomma computed
+    INDEPENDENTLY from scipy + math in this file (not via the wrapper's
+    internal upstream call). Catches:
+      - wrong-argument wiring (e.g. S↔K, sigma↔T_years),
+      - wrong-function wiring (anyone who substitutes bs_zomma/bs_gamma/
+        bs_vega for bs_vomma — these return values very different from
+        the closed-form ~9.85 for S=K=100, T=1y, sigma=0.2),
+      - missing input normalization.
+
+    Tight absolute tolerance (1e-9) is safe in double-precision.
+    """
+    inputs = {"S": 100.0, "K": 100.0, "T_years": 1.0, "sigma": 0.2, "r": 0.05, "q": 0.0}
+    transport = httpx.ASGITransport(app=app)
+    async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+        response = await client.post("/reasoners/bs_vomma", json=inputs)
+    assert response.status_code == 200, (
+        f"expected 200 from /reasoners/bs_vomma, got {response.status_code}: "
+        f"{response.text!r}"
+    )
+    payload = response.json()
+    assert isinstance(payload, dict)
+    assert {"vomma"} == set(payload.keys()), (
+        f"vomma wrapper should return ONLY {{'vomma'}}, got {sorted(payload.keys())}"
+    )
+    actual = float(payload["vomma"])
+    # Independent closed-form: vega * d1 * d2 / sigma
+    d1 = (math.log(inputs["S"] / inputs["K"])
+          + (inputs["r"] - inputs["q"] + 0.5 * inputs["sigma"] ** 2)
+            * inputs["T_years"]) / (inputs["sigma"] * math.sqrt(inputs["T_years"]))
+    d2 = d1 - inputs["sigma"] * math.sqrt(inputs["T_years"])
+    vega = (inputs["S"] * math.exp(-inputs["q"] * inputs["T_years"])
+            * norm.pdf(d1) * math.sqrt(inputs["T_years"]))
+    expected = vega * d1 * d2 / inputs["sigma"]
+    assert abs(actual - expected) < 1e-9, (
+        f"wrapper returned vomma={actual}, expected {expected} (closed-form BS vomma)"
+    )
+    assert actual == actual, "vomma is NaN"  # NaN guard
+
+
+@pytest.mark.asyncio
+async def test_bs_vomma_handles_degenerate_input() -> None:
+    """In-process ``/reasoners/bs_vomma`` degenerate-input check.
+
+    For S <= 0 the upstream ``bs_vomma`` returns 0.0 (silent-zero
+    convention). The wrapper must surface the same 200-with-zeros
+    envelope rather than 4xx-ing on the degenerate case, so floww's
+    analytics surfaces stay numerically aligned with ``bs_quote``.
+    """
+    inputs = {"S": 0.0, "K": 100.0, "T_years": 1.0, "sigma": 0.2, "r": 0.05, "q": 0.0}
+    transport = httpx.ASGITransport(app=app)
+    async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+        response = await client.post("/reasoners/bs_vomma", json=inputs)
+    assert response.status_code == 200, (
+        f"degenerate input should 200-with-zeros, got {response.status_code}: "
+        f"{response.text!r}"
+    )
+    payload = response.json()
+    assert payload == {"vomma": 0.0}, payload

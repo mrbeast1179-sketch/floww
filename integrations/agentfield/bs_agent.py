@@ -6,12 +6,21 @@ Iter 1 (now superseded) demonstrated an in-process @app.reasoner with a
 co-located `/api/v1/execute/{node}.{func}` proxy mounted on the Agent's
 FastAPI instance itself, because no Go toolchain was available in the
 environment. Iter 2 replaces that proxy with a true control-plane
-dispatch path:
+dispatch path; iter 3 widens the surface to two reasoners:
 
-  client → :8080/api/v1/execute/floww_greeks.bs_quote
+  client → :8080/api/v1/execute/floww_greeks.{bs_quote,bs_vomma}
         → AgentField Go control plane (af dev)
-        → :8002/reasoners/bs_quote  (this Agent)
+        → :8002/reasoners/{bs_quote,bs_vomma}  (this Agent)
         → backend/bs_greeks.py  (read-only)
+
+Two reasoners ship together (both registered against the same
+``floww_greeks`` node_id, both visible in
+``GET /api/v1/discovery/capabilities`` on the real CP):
+  - ``bs_quote``  call/put pricing + first-order Greeks (delta,
+                    gamma, vega). Symmetric schema under ``kind``.
+  - ``bs_vomma``  higher-order ∂²Price/∂σ² (= dVega/dSigma).
+                    Symmetric for call/put, useful in vol-of-vol
+                    surfaces and risk reports.
 
 To start the plane: brew install go && cd /Users/nav/GitHub/agentfield/control-plane
    && PATH=/Users/nav/.local/bin:$PATH go run ./cmd/af dev --port 8080
@@ -60,6 +69,7 @@ from bs_greeks import (  # noqa: E402  -- sys.path injection above is intentiona
     bs_gamma,
     bs_put_price,
     bs_vega,
+    bs_vomma as upstream_bs_vomma,  # renamed (no leading underscore) so the test file can reference it as a public upstream binding
 )
 
 from agentfield import Agent, AIConfig  # noqa: E402  -- editable install in backend venv
@@ -149,6 +159,44 @@ async def bs_quote(
         "gamma": float(gamma),
         "vega": float(vega),
     }
+
+
+@app.reasoner(tags=["floww", "greeks", "poc", "vomma"])
+async def bs_vomma(
+    S: float,
+    K: float,
+    T_years: float,
+    sigma: float,
+    r: float = 0.05,
+    q: float = 0.0,
+) -> Dict[str, Any]:
+    """Black-Scholes vomma (∂²Price/∂σ²) = ``vega * d1 * d2 / sigma``.
+
+    Higher-order Greek measuring the sensitivity of vega to a move in
+    implied volatility — useful in vol-of-vol surfaces and risk reports
+    where a first-order gamma/vega profile alone is insufficient.
+
+    Inputs use the same conventions as ``bs_quote``:
+
+        - ``S`` : spot price of the underlying
+        - ``K`` : strike price
+        - ``T_years`` : time-to-expiry in years
+        - ``sigma`` : annualised IV (decimal, e.g. ``0.2`` for 20%)
+
+    Returns ``{"vomma": float}``. Degenerate inputs (S/K/T_years/sigma <= 0)
+    and masked numerical errors yield ``{"vomma": 0.0}`` — matches
+    ``backend/bs_greeks.py``'s silent-zero convention.
+
+    Same dependent-clean guarantee as ``bs_quote``: pure computation,
+    no IO, no shared state, paper/analytics safe.
+    """
+    # Upstream bs_vomma already enforces the degenerate-input guard and
+    # masks numerical errors via _mask_zero; no need to pre-replicate.
+    # `r=0.05` default in the wrapper matches bs_vomma's upstream
+    # default — intentional non-override so callers can omit `r` and
+    # get the same value from the wrapper or the bare function.
+    vomma = upstream_bs_vomma(S, K, T_years, sigma, q=q, r=r)
+    return {"vomma": float(vomma)}
 
 
 # ──────────────────────────────────────────────────────────────────────
