@@ -1313,10 +1313,11 @@ async def tap_counts(ticker: str, strikes: list[float], days: int = 5) -> dict[f
 # ----------------------------- Snapshot persistence (velocity/rolling) --------
 
 TRINITY = ["^SPX", "SPY", "QQQ"]
-DEFAULT_TICKERS = ["SPY", "QQQ", "^SPX", "IWM", "AAPL", "NVDA", "TSLA", "META", "AMZN", "MSFT", "GOOGL", "AMD"]
+DEFAULT_TICKERS = ["SPY", "QQQ", "^SPX", "IWM", "AAPL", "NVDA", "TSLA", "META", "AMZN", "MSFT", "GOOGL", "AMD", "KO", "XOM", "GM", "MCD", "^VIX"]
 POPULAR_UNIVERSE = ["AAPL", "NVDA", "TSLA", "META", "AMZN", "MSFT", "GOOGL", "AMD", "AVGO", "NFLX",
                     "COIN", "PLTR", "MU", "SMCI", "BABA", "CRM", "ORCL", "GME", "AMC", "INTC",
-                    "DIS", "BA", "JPM", "GS", "XOM", "UBER", "SHOP", "SOFI", "F", "MARA"]
+                    "DIS", "BA", "JPM", "GS", "XOM", "UBER", "SHOP", "SOFI", "F", "MARA",
+                    "KO", "GM", "MCD", "^VIX"]
 
 PATTERN_GLOSSARY = {
     "gamma_flip": {"name": "Gamma Flip", "description": "The spot price level where total GEX flips from positive to negative."},
