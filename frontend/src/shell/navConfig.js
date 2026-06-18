@@ -14,6 +14,7 @@ export const NAV_ITEMS = [
   { id: "portfolio",  label: "Portfolio",  group: "Trading", icon: "trending-up" },
   { id: "journal",    label: "Journal",    group: "Trading", icon: "list" },
   { id: "swarmspx",   label: "SwarmSPX",   group: "Trading", icon: "sparkles" },
+  { id: "turboquant", label: "turboQuantDC", group: "Trading", icon: "cpu" },
 ];
 
 export const LEGACY_PAGES = new Set(NAV_ITEMS.filter(i => i.legacy).map(i => i.id));

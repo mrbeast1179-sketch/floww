@@ -39,6 +39,7 @@ import { DashboardSummary } from "./components/DashboardSummary";
 import { TradeAnalytics } from "./components/TradeAnalytics";
 import { SocialFlowPanel } from "./components/SocialFlowPanel";
 import SwarmFrame from "./components/SwarmFrame";
+import TurboQuantPanel from "./components/TurboQuantPanel";
 import FlowseekerTab from "./components/flowseeker/FlowseekerTab";
 import AlertOverlay from "./components/AlertOverlay";
 import PWAInstallBanner from "./components/PWAInstallBanner";
@@ -992,6 +993,9 @@ export default function App() {
 
         {/* SwarmSPX Neural Intelligence */}
         {page === "swarmspx" && <SwarmFrame />}
+
+        {/* turboQuantDC KV Cache Compression */}
+        {page === "turboquant" && <TurboQuantPanel />}
 
         {/* Flowseeker Tab */}
         {page === "flowseeker" && (
