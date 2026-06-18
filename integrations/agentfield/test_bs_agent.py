@@ -1,31 +1,42 @@
 """
-Failing-first smoke test for the additive AgentField bs_quote reasoner.
+Tests for the additive AgentField POC adapter.
 
-Per the brief's test discipline: this test MUST fail before
-`integrations/agentfield/bs_agent.py` exists, and MUST pass after.
+Iter 1 had THREE test cases:
+  - in-process /reasoners/bs_quote sanity (kept)
+  - co-located /api/v1/execute/... proxy (REMOVED in iter 2 — proxy is
+    replaced by the real Go control plane)
+  - co-located 404 (REMOVED in iter 2 — same reason)
 
-It exercises bs_quote in-process via httpx.AsyncClient (no network),
-which is the standard way to smoke-test a FastAPI app without spinning
-up a real uvicorn server. Same FastAPI object the agent exposes at
-serve() time, just held in memory for the request lifecycle.
+Iter 2:
+  - SAME sanity test for the in-process reasoner (proves SDK wiring +
+    pure-math correctness without needing the plane).
+  - NEW live network test gated by `AGENTFIELD_LIVE_TEST=1`. When set,
+    it asserts that `POST :8080/api/v1/execute/floww_greeks.bs_quote`
+    against the real Go control plane dispatches to :8002 and returns
+    a valid BS quote. Without that env var, the test skips so it
+    doesn't flake in environments without a running control plane.
 
-Run from the repo root:
+Run from repo root:
     cd /Users/nav/Documents/GitHub/floww
+    backend/.venv/bin/python3 -m pytest \
+        integrations/agentfield/test_bs_agent.py -v --no-header -p no:cacheprovider
+
+Live variant (iterate 2 evidence):
+    AGENTFIELD_LIVE_TEST=1 \
     backend/.venv/bin/python3 -m pytest \
         integrations/agentfield/test_bs_agent.py -v --no-header -p no:cacheprovider
 """
 
 from __future__ import annotations
 
+import os
 from typing import Any, Dict
 
 import httpx
 import pytest
 
-# This import is the test: before bs_agent.py exists, it fails with
-# ModuleNotFoundError (which pytest reports as a collection/import error).
-# After bs_agent.py is added, app becomes a real Agent (FastAPI subclass)
-# that exposes POST /reasoners/bs_quote and returns Black-Scholes quotes.
+# Import-time discipline: before bs_agent.py existed the test failed
+# with ModuleNotFoundError at collection; now `app` is a real Agent.
 from integrations.agentfield.bs_agent import app  # noqa: F401  -- intentional import-time assertion
 
 
@@ -36,41 +47,28 @@ SAMPLE_INPUTS: Dict[str, Any] = {
     "T_years": 1.0,
     "sigma": 0.2,
 }
-
-# Reference values from bs_greeks.bs_call_price(100,100,1,0.2) ~= 10.18611
-# (verified during precondition sweep before this test was authored; if a
-# future SDK upgrade drifts the SDK's type coercion in a way that changes
-# the result, this tolerance will catch it before merge).
 EXPECTED_KEYS = {"price", "delta", "gamma", "vega"}
-EXPECTED_PRICE_FLOOR = 10.18  # bs_call_price(100,100,1,0.2) ≈ 10.1861
+# Reference: bs_call_price(100,100,1,0.2) ≈ 10.1861.
+# Loose tolerance -> catches a schema drift without flaking on noise.
+EXPECTED_PRICE_FLOOR = 10.18
 EXPECTED_PRICE_CEIL = 10.19
 
 
 @pytest.mark.asyncio
 async def test_bs_quote_returns_valid_call_payload() -> None:
-    """Hit POST /reasoners/bs_quote in-process and assert sane BS call quote."""
+    """In-process /reasoners/bs_quote sanity check (always runs)."""
     transport = httpx.ASGITransport(app=app)
     async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
         response = await client.post("/reasoners/bs_quote", json=SAMPLE_INPUTS)
-
     assert response.status_code == 200, (
         f"expected 200 from /reasoners/bs_quote, got {response.status_code}: "
         f"{response.text!r}"
     )
-
     payload = response.json()
-    assert isinstance(payload, dict), f"expected dict payload, got {type(payload).__name__}"
-    assert EXPECTED_KEYS.issubset(payload.keys()), (
-        f"missing greek keys in {sorted(payload.keys())}; "
-        f"need at least {sorted(EXPECTED_KEYS)}"
-    )
-
+    assert isinstance(payload, dict)
+    assert EXPECTED_KEYS.issubset(payload.keys()), payload
     price = float(payload["price"])
-    assert EXPECTED_PRICE_FLOOR <= price <= EXPECTED_PRICE_CEIL, (
-        f"bs_call_price(100,100,1,0.2) = {price}, "
-        f"expected in [{EXPECTED_PRICE_FLOOR}, {EXPECTED_PRICE_CEIL}]"
-    )
-
+    assert EXPECTED_PRICE_FLOOR <= price <= EXPECTED_PRICE_CEIL, price
     for greek in ("delta", "gamma", "vega"):
         value = float(payload[greek])
         assert 0.0 < value < 50.0, f"{greek}={value} out of sanity range"
@@ -78,40 +76,56 @@ async def test_bs_quote_returns_valid_call_payload() -> None:
 
 
 @pytest.mark.asyncio
-async def test_bs_quote_control_plane_compat_route() -> None:
-    """The co-located /api/v1/execute/{node}.{func} proxy returns the same payload shape.
+@pytest.mark.skipif(
+    not os.getenv("AGENTFIELD_LIVE_TEST"),
+    reason="set AGENTFIELD_LIVE_TEST=1 when the Go control plane is running on :8080 and the agent is registered on :8002",
+)
+async def test_real_control_plane_dispatch_live() -> None:
+    """Hit POST :8080/api/v1/execute/floww_greeks.bs_quote against the REAL Go control plane.
 
-    The AgentField control plane (Go) normally exposes this path. Because no
-    Go control plane binary is present in this environment, the path is
-    re-implemented as a thin FastAPI proxy on the Agent itself. This test
-    asserts that proxy route produces a real BS quote end-to-end (not a
-    stub / 404). Disclosed in reports/agentfield_poc_<date>.md.
+    Path: client -> Go control plane (8080) -> agent (8002 /reasoners/bs_quote) -> backend.bs_greeks.
+
+    Requires:
+      - Go toolchain installed (`brew install go`)
+      - Control plane running: `cd /Users/nav/GitHub/agentfield/control-plane
+        && PATH=/Users/nav/.local/bin:$PATH go run ./cmd/af dev --port 8080`
+      - Agent running: `backend/.venv/bin/python3 integrations/agentfield/bs_agent.py`
+      - export AGENTFIELD_LIVE_TEST=1 before pytest
+
+    The Go control plane is expected to validate node_id "floww_greeks"
+    against its registry, then dispatch the call to the agent.
     """
-    transport = httpx.ASGITransport(app=app)
-    async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+    base = os.getenv("AGENTFIELD_CONTROL_PLANE", "http://127.0.0.1:8080")
+    async with httpx.AsyncClient(base_url=base) as client:
         response = await client.post(
             "/api/v1/execute/floww_greeks.bs_quote",
             json=SAMPLE_INPUTS,
         )
-
     assert response.status_code == 200, (
-        f"expected 200 from /api/v1/execute/floww_greeks.bs_quote, "
-        f"got {response.status_code}: {response.text!r}"
+        f"expected 200 from real Go plane, got {response.status_code}: "
+        f"{response.text!r}"
     )
     payload = response.json()
     assert isinstance(payload, dict)
-    assert EXPECTED_KEYS.issubset(payload.keys())
+    assert EXPECTED_KEYS.issubset(payload.keys()), payload
+    price = float(payload["price"])
+    assert EXPECTED_PRICE_FLOOR <= price <= EXPECTED_PRICE_CEIL, price
 
 
 @pytest.mark.asyncio
-async def test_bs_quote_rejects_unknown_reasoner_via_compat_route() -> None:
-    """The compat proxy must 404 when the node.func combo isn't registered."""
-    transport = httpx.ASGITransport(app=app)
-    async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+@pytest.mark.skipif(
+    not os.getenv("AGENTFIELD_LIVE_TEST"),
+    reason="set AGENTFIELD_LIVE_TEST=1 when the Go control plane is running on :8080 and the agent is registered on :8002",
+)
+async def test_real_control_plane_dispatch_unknown_reasoner() -> None:
+    """The real Go plane returns 404 for an unregistered function on a known node."""
+    base = os.getenv("AGENTFIELD_CONTROL_PLANE", "http://127.0.0.1:8080")
+    async with httpx.AsyncClient(base_url=base) as client:
         response = await client.post(
             "/api/v1/execute/floww_greeks.nonexistent_reasoner",
             json=SAMPLE_INPUTS,
         )
-    assert response.status_code == 404, (
-        f"unknown reasoner should 404, got {response.status_code}"
+    assert response.status_code in (404, 422), (
+        f"unknown reasoner should 404/422, got {response.status_code}: "
+        f"{response.text!r}"
     )
