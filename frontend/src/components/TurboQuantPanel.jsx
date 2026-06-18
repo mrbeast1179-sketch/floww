@@ -1,12 +1,13 @@
 import React, { useState, useEffect } from "react";
+import { API } from "../config/api";
 
 // turboQuantDC KV-cache compression panel.
 // Mirrors SwarmFrame's defensive pattern: probe the backend first, and if it's
 // not reachable show a calm placeholder instead of a wall of failed fetches.
-// Talks to the floww backend routes in backend/routes/llm.py (prefix /api):
-//   GET /api/turboquant/status   -> { available, default_preset, default_bits, fp16_window, ... }
-//   GET /api/turboquant/presets  -> { available, presets: {id:{description,compression}}, default }
-const API_BASE = process.env.REACT_APP_API_URL || "";
+// Talks to the floww backend routes in backend/routes/llm.py (prefix /api).
+// API ("http://localhost:8000/api") comes from config/api.js — the SAME absolute
+// backend convention every other panel uses. (There is no dev proxy, so a relative
+// "/api/..." would hit the :3000 dev server and fail with "Failed to fetch".)
 
 export default function TurboQuantPanel() {
   const [state, setState] = useState({
@@ -25,8 +26,8 @@ export default function TurboQuantPanel() {
     async function load() {
       try {
         const [sRes, pRes] = await Promise.all([
-          fetch(`${API_BASE}/api/turboquant/status`, { signal: ctrl.signal }),
-          fetch(`${API_BASE}/api/turboquant/presets`, { signal: ctrl.signal }),
+          fetch(`${API}/turboquant/status`, { signal: ctrl.signal }),
+          fetch(`${API}/turboquant/presets`, { signal: ctrl.signal }),
         ]);
         if (!sRes.ok) throw new Error(`status ${sRes.status}`);
         const status = await sRes.json();
