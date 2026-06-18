@@ -1,0 +1,19 @@
+# Local override of AF control-plane defaults for the additive PoC.
+# Upstream /Users/nav/GitHub/agentfield/control-plane/config/
+# agentfield.yaml has storage.local.database_path pointing at
+# /tmp/agentfield_poc/agentfield.db which works on host but is
+# NOT inside a colima container. This override points the storage
+# paths at the writable docker volume /var/agentfield/data.
+#
+# All other sections (agentfield.port, ui.mode, api.cors,
+# features.did, features.connector, ...) are inherited from
+# upstream defaults loaded by `af` from its CWD. Only the storage
+# stanza is overridden here, so the AF stack retains full feature
+# parity (DID auth, connector, vector store, execution queue,
+# webhook retry, etc.) without editing shared upstream config.
+
+storage:
+  mode: "local"
+  local:
+    database_path: "/var/agentfield/data/agentfield.db"
+    kv_store_path: "/var/agentfield/data/agentfield.kv"

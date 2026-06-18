@@ -1,0 +1,72 @@
+# docker-compose for the additive AgentField PoC adapter.
+# Single-container stack: AF Go control-plane + floww_greeks
+# Python bs_agent running in the same colima VM container so
+# their 127.0.0.1 loopbacks match and bs_agent.py's hardcoded
+# `app.base_url = "http://127.0.0.1:8002"` works untouched.
+#
+# Cold start ~120-180 s on first build (Go compile + python
+# deps + base image pulls). Once warm, `docker compose up -d`
+# is ~5 s on the colima VM.
+#
+# The AF SDK and floww source are bind-mounted into the
+# container so `pip install -e /sdk` at startup picks up
+# SDK source edits without rebuilding the image.
+
+services:
+  floww_greeks_stack:
+    build:
+      context: .
+      additional_contexts:
+        - af_cp=/Users/nav/GitHub/agentfield/control-plane
+      dockerfile: Dockerfile.stack
+    image: floww/greeks_stack:local
+    container_name: floww_greeks_stack
+    restart: unless-stopped
+    ports:
+      # Bare host:VM port mappings. Inside the colima VM these bind
+      # on 0.0.0.0; colima's vz-driver vmnet then forwards the
+      # VM-side listeners back to the host's loopback (this is the
+      # wiring that made the iter-3 contract verification work on
+      # the macOS host).
+      #
+      # Do NOT scope to 127.0.0.1:HOST:VM: under colima's vz driver
+      # the VM's loopback and the Mac's loopback are in separate
+      # network namespaces, so a 127.0.0.1 binding inside the VM
+      # would NOT be reachable from the Mac host's localhost --
+      # breaking the contract verification path this compose file
+      # is meant to enable.
+      #
+      # Defense-in-depth for this closed-loop paper-trading PoC
+      # lives upstream of the port binding:
+      #   - AF upstream agentfield.yaml: api.cors.allowed_origins
+      #     allowlists only loopback origins; same-origin browser
+      #     requests only.
+      #   - AF upstream agentfield.yaml: connector.token and
+      #     authorization.admin_token are dev-default placeholders
+      #     ("test-connector-token-123", "admin-secret") that must
+      #     be replaced before any prod cutover.
+      #   - floww's additive policy: paper-trading semantics only;
+      #     no live order execution path.
+      # LAN-side exposure of a dev colima VM is acceptable for a
+      # paper-trading PoC and is the simplest friction-free path to
+      # verifying the 200-OK contract on every compose up.
+      - "8080:8080"   # AF control-plane HTTP from macOS host
+      - "8002:8002"   # bs_agent uvicorn (debug access from host)
+    environment:
+      AGENTFIELD_SERVER: "http://127.0.0.1:8080"
+      PYTHONUNBUFFERED: "1"
+    volumes:
+      # bind-mount floww + agentfield SDK so source edits are live
+      - /Users/nav/Documents/GitHub/floww:/floww
+      - /Users/nav/GitHub/agentfield/sdk/python:/sdk
+      # persistent SQLite/BoltDB storage for the AF control plane
+      - cp_data:/var/agentfield/data
+    healthcheck:
+      test: ["CMD", "curl", "-fs", "http://127.0.0.1:8080/api/v1/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 90s
+
+volumes:
+  cp_data:

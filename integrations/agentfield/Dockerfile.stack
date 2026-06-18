@@ -1,0 +1,65 @@
+# Multi-stage build of the additive PoC stack:
+#   Stage 1 (golang:1.25-bookworm): build the AgentField Go CP
+#     binary from /Users/nav/GitHub/agentfield/control-plane
+#     (passed in via compose `additional_contexts: af_cp`).
+#     Two constraints drive the base-image choice:
+#       (a) AF's go.mod declares `go 1.25.0`, so the builder
+#           must be Go 1.25+ (1.22 fails the toolchain check).
+#       (b) AF's storage layer uses go-sqlite3 (a CGO package);
+#           go-sqlite3 requires gcc + musl/glibc headers at
+#           build time. alpine's `golang:1.25-alpine` defaults
+#           to CGO_ENABLED=0, producing a "stub" binary that
+#           fatals on `PRAGMA wal_autocheckout` at runtime
+#           with: `Binary was compiled with 'CGO_ENABLED=0',
+#           go-sqlite3 requires cgo to work. This is a stub.`
+#           Debian's `golang:1.25-bookworm` ships gcc + libc-dev
+#           by default, enabling CGO_ENABLED=1 cleanly.
+#     The resulting binary is statically linked to SQLite's C
+#     sources (via mattn/go-sqlite3) but dynamically links only
+#     to standard glibc (libc.so, libpthread.so). Stage 2 is
+#     Debian-derivative (python:3.12-slim), so glibc is already
+#     present there -- no runtime libsqlite3 dep needed.
+#   Stage 2 (python:3.12-slim): combine the Go CP binary with
+#     the floww_greeks Python bs_agent + AF SDK editable install
+#     patches + entrypoint.sh.
+
+FROM golang:1.25-bookworm AS go_builder
+WORKDIR /af
+COPY --from=af_cp . ./
+RUN CGO_ENABLED=1 go build -o /out/af ./cmd/af
+
+FROM python:3.12-slim
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends \
+        curl \
+        bash \
+        ca-certificates \
+        git \
+ && rm -rf /var/lib/apt/lists/*
+
+# Bake in the relatively-heavy Python deps so cold start is fast.
+RUN pip install --no-cache-dir \
+        'scipy>=1.10' \
+        'fastapi>=0.100' \
+        'uvicorn[standard]>=0.23' \
+        'httpx>=0.24' \
+        'pydantic>=2.0'
+
+# Pull the Go CP binary from the builder stage.
+COPY --from=go_builder /out/af /usr/local/bin/af
+
+# Persistent storage for the AF control plane (matched by compose
+# volumes `cp_data:` and `agentfield.yaml` paths).
+RUN mkdir -p /var/agentfield/data
+
+# Local override of the upstream `agentfield.yaml`: only the storage
+# section is rewritten to point at /var/agentfield/data; every other
+# stanza (agentfield.port, ui.mode, api.cors, features.did, etc.)
+# falls back to AF upstream defaults loaded by `af` from CWD.
+WORKDIR /app
+COPY agentfield.yaml /app/agentfield.yaml
+COPY entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
+
+EXPOSE 8080 8002
+ENTRYPOINT ["/entrypoint.sh"]
