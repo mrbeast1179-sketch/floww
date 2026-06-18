@@ -2,10 +2,7 @@
   "mcpServers": {
     "trading-volatility": {
       "command": "uvx",
-      "args": ["tv-mcp"],
-      "env": {
-        "TV_API_KEY": "${TV_API_KEY}"
-      }
+      "args": ["--from", "tv-mcp==0.2.0", "tv-mcp"]
     }
   }
 }
