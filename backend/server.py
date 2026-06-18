@@ -1620,8 +1620,13 @@ except ImportError:
             return wrapper
         return decorator
 
+@app.api_route("/", methods=["GET", "HEAD"])
+async def root_head():
+    """Root health probe — responds to HEAD and GET for iframe reachability checks."""
+    return {"app": "confluence-decoder", "status": "ok"}
+
 @app.get("/api/")
-async def root():
+async def api_root():
     return {"app": "confluence-decoder", "version": "2.0", "ts": datetime.now(UTC).isoformat()}
 
 
