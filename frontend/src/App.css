@@ -370,3 +370,218 @@
     width: 360px;
   }
 }
+
+/* ================================================================
+   DOM / Level 2 Order Book Heatmap
+   Matches Skylit reference: price axis left, 5 data columns,
+   color-coded cells (teal=bid/buy, purple=ask/sell, yellow=extreme)
+   ================================================================ */
+
+.dom-heatmap-container {
+  overflow-y: auto;
+  overflow-x: hidden;
+  flex: 1;
+  min-height: 0;
+  background: #0a0e1a;
+  font-variant-numeric: tabular-nums;
+}
+
+.dom-heatmap-table {
+  width: 100%;
+  border-collapse: collapse;
+  border-spacing: 0;
+  font-size: 10px;
+  font-family: "JetBrains Mono", ui-monospace, Consolas, monospace;
+  table-layout: fixed;
+}
+
+/* ── Column headers ── */
+.dom-price-header,
+.dom-data-header {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  background: #0a0e1a;
+  color: #5a6a8a;
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  padding: 3px 4px;
+  text-align: right;
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+  white-space: nowrap;
+  font-family: "Inter", system-ui, sans-serif;
+}
+
+.dom-price-header {
+  text-align: left;
+  width: 56px;
+  left: 0;
+  z-index: 11;
+  padding-left: 6px;
+}
+
+.dom-data-header {
+  min-width: 70px;
+}
+
+/* ── Price axis column ── */
+.dom-price-cell {
+  position: sticky;
+  left: 0;
+  z-index: 5;
+  background: #0a0e1a;
+  color: #94a3b8;
+  font-size: 10px;
+  font-weight: 600;
+  padding: 1px 4px 1px 6px;
+  text-align: left;
+  white-space: nowrap;
+  border-right: 1px solid rgba(255,255,255,0.03);
+}
+
+/* Current price row */
+.dom-current-price-row {
+  background: rgba(255,255,255,0.04);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.08), inset 0 -1px 0 rgba(255,255,255,0.08);
+}
+
+.dom-current-price-row .dom-price-cell {
+  color: #ffffff;
+  border-left: 4px solid #ffffff;
+  padding-left: 2px;
+  background: rgba(255,255,255,0.06);
+  font-weight: 700;
+}
+
+/* ── Data cells ── */
+.dom-data-cell {
+  padding: 1px 3px;
+  text-align: right;
+  white-space: nowrap;
+  font-size: 10px;
+  cursor: default;
+  border: none;
+}
+
+/* ── Star for extreme values ── */
+.dom-star {
+  color: #fbbf24;
+  font-size: 8px;
+  margin-right: 1px;
+  vertical-align: middle;
+}
+
+.dom-star-cell {
+  font-weight: 700;
+}
+
+/* ── Percentage badge ── */
+.dom-pct-cell {
+  padding: 1px 3px;
+  text-align: center;
+  width: 44px;
+}
+
+.dom-pct-badge {
+  display: inline-block;
+  padding: 0px 4px;
+  border-radius: 2px;
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  font-family: "JetBrains Mono", ui-monospace, monospace;
+}
+
+.dom-pct-pos {
+  background: rgba(34, 211, 238, 0.12);
+  color: #22d3ee;
+  border: 1px solid rgba(34, 211, 238, 0.25);
+}
+
+.dom-pct-neg {
+  background: rgba(168, 85, 247, 0.12);
+  color: #c084fc;
+  border: 1px solid rgba(168, 85, 247, 0.25);
+}
+
+/* ── Row hover ── */
+.dom-row:hover .dom-data-cell {
+  filter: brightness(1.2);
+}
+
+/* ── Scrollbar ── */
+.dom-heatmap-container::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
+
+.dom-heatmap-container::-webkit-scrollbar-track {
+  background: #0a0e1a;
+}
+
+.dom-heatmap-container::-webkit-scrollbar-thumb {
+  background: rgba(255,255,255,0.06);
+  border-radius: 3px;
+}
+
+.dom-heatmap-container::-webkit-scrollbar-thumb:hover {
+  background: rgba(255,255,255,0.12);
+}
+
+/* ── Top bar ── */
+.dom-top-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 3px 8px;
+  background: #0a0e1a;
+  border-bottom: 1px solid rgba(255,255,255,0.05);
+  flex-shrink: 0;
+}
+
+.dom-ticker-info {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.dom-ticker-label {
+  font-family: "Space Grotesk", "Inter", sans-serif;
+  font-size: 13px;
+  font-weight: 700;
+  color: #e2e8f0;
+  letter-spacing: 0.03em;
+}
+
+.dom-regime {
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  padding: 1px 5px;
+  border-radius: 3px;
+}
+
+.dom-regime-pos { color: #34d399; background: rgba(52,211,153,0.08); }
+.dom-regime-neg { color: #f87171; background: rgba(248,113,113,0.08); }
+.dom-regime-neu { color: #94a3b8; background: rgba(148,163,184,0.06); }
+
+.dom-spot-price {
+  font-family: "JetBrains Mono", ui-monospace, monospace;
+  font-size: 12px;
+  font-weight: 700;
+  color: #e2e8f0;
+}
+
+.dom-live-dot {
+  font-size: 8px;
+  color: #34d399;
+  animation: pulse 2.5s ease-in-out infinite;
+}
+
+.dom-view-controls {
+  display: flex;
+  gap: 3px;
+}

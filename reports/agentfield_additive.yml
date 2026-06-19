@@ -1,0 +1,27 @@
+# reports/agentfield_additive.yml
+#
+# ---------------------------------------------------------------
+# Source of truth for the SHAs included in the AgentField
+# consolidated-diff report (`reports/agentfield_consolidated_diff_*.md`).
+# ---------------------------------------------------------------
+# To add a new additive commit:
+#   1. Append its short SHA below (in chronological order).
+#   2. Add the matching `### \`<sha>\` — <subject>` heading + markdown
+#      table skeleton to the consolidated-diff report (File Path |
+#      Lines Added | Lines Removed | Files Changed | Behavioural Delta).
+#      Behavioural Delta prose stays human-written; the script fills
+#      only the 3 numeric columns.
+#   3. Run `make consolidate-diff` (or just `git commit` — the
+#      pre-commit hook fires automatically).
+
+shas:
+  - 72dee2c   # iter-1: additive bs_greeks AgentField reasoner PoC
+  - f6a6bc4   # iter-2: register bs_agent with real Go control plane (:8080)
+  - 8581c1d   # chore(reports): iter-1 AgentField PoC evidence report (evidence-only)
+  - a4a991e   # iter-3: add bs_vomma reasoner (∂²Price/∂σ² higher-order Greek)
+
+# Optional override: explicit path to the consolidated-diff report.
+# Defaults to `reports/agentfield_consolidated_diff_2026-06-17.md` when
+# omitted.
+# report:
+#   path: reports/agentfield_consolidated_diff_2026-06-17.md

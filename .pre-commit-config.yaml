@@ -1,0 +1,27 @@
+# /Users/nav/Documents/GitHub/floww/.pre-commit-config.yaml
+#
+# Local pre-commit hook for the AgentField consolidated-diff report.
+# When ANY file matched by `files:` is staged, this hook runs
+# `make consolidate-diff`, which invokes `scripts/consolidate_diff.py`
+# to re-derive the per-file numstat tables against the SHAs declared
+# in `reports/agentfield_additive.yml`.
+#
+# If the script's output changes the report on disk, pre-commit
+# exits non-zero — forcing the user to `git add` the regenerated
+# bytes before the commit lands. This is the canonical
+# "report must be regenerated+restaged before commit" pattern.
+
+repos:
+  - repo: local
+    hooks:
+      - id: consolidate-diff
+        name: Regenerate AgentField consolidated-diff report
+        entry: make consolidate-diff
+        language: system
+        pass_filenames: false
+        files: ^(reports/agentfield_|integrations/agentfield/)
+        description: >-
+          Re-derives the per-file numstat tables in
+          reports/agentfield_consolidated_diff_*.md whenever the
+          additive SHA manifest changes or an additive file lands;
+          forces a restage if the report bytes drift.
