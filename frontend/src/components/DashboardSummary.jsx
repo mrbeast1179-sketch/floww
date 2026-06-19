@@ -15,9 +15,22 @@ export function DashboardSummary({ ticker, spot }) {
     const fetchSummary = async () => {
       setLoading(true);
       try {
-        const r = await fetch(`${API}/alerts/summary/${ticker}`);
+        const r = await fetch(`${API}/heatmap/${ticker}?expiries=4&mode=day`);
         if (!cancelled && r.ok) {
-          setSummary(await r.json());
+          const data = await r.json();
+          setSummary({
+            ticker: data.ticker,
+            spot: data.spot,
+            regime: data.nodes?.regime?.toUpperCase() || "UNKNOWN",
+            gamma_flip: data.gamma_flip?.gamma_flip || data.nodes?.gamma_flip,
+            net_gex: data.nodes?.total_gex || 0,
+            call_wall: data.gamma_flip?.call_wall,
+            put_wall: data.gamma_flip?.put_wall,
+            max_pain: data.nodes?.max_pain,
+            alert_count: data.nodes?.alerts?.length || 0,
+            high_priority: 0,
+            timestamp: data.asof,
+          });
         }
       } catch (e) {
         if (!cancelled) setSummary(null);

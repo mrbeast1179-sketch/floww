@@ -150,13 +150,16 @@ class ToxicityEnsemble:
             "combined": (cnn_score + stat_score + forecast_score) / 3.0,
         })
 
-        return {
+        result = {
             "ensemble_probabilities": ensemble_probs,
             "component_scores": raw_scores,
             "cnn_anomaly": cnn_result.get("is_anomaly", False),
             "statistical_anomaly": stat_result.get("is_anomaly", False),
             "status": "active",
         }
+        # Store last result so get_state() can include it
+        self._last_result = result
+        return result
 
     def _compute_forecast_residual(self, current_vpin: float) -> float:
         """Compute forecast vs realized residual."""
@@ -184,7 +187,7 @@ class ToxicityEnsemble:
             self._calibrators[horizon].fit(scores, labels)
 
     def get_state(self) -> dict[str, Any]:
-        return {
+        state = {
             "type": "toxicity_ensemble",
             "seq_len": self.seq_len,
             "device": self.device,
@@ -192,3 +195,9 @@ class ToxicityEnsemble:
             "horizons": self.HORIZON_MINUTES,
             "n_score_history": len(self._score_history),
         }
+        # Include last update result if available
+        if hasattr(self, "_last_result") and self._last_result:
+            state.update(self._last_result)
+        else:
+            state["status"] = "inactive"
+        return state
