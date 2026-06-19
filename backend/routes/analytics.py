@@ -17,6 +17,7 @@ from datetime import UTC, datetime
 
 from fastapi import APIRouter, HTTPException, Query
 
+from domain.greek_scalers import dollar_vex_per_1pct_spot_move
 from services.fetch_coordinator import CacheRouter, FetchCoordinator, degraded_response
 
 logger = logging.getLogger(__name__)
@@ -140,9 +141,10 @@ async def charm_integral_endpoint(
 async def vanna_endpoint(
     ticker: str,
     expiries: int = Query(default=4, ge=1, le=12),
+    max_age_seconds: int = Query(default=300, ge=0, le=3600),
 ):
     """Alias for vanna-exposure."""
-    return await vanna_exposure_endpoint(ticker, expiries)
+    return await vanna_exposure_endpoint(ticker, expiries, max_age_seconds)
 
 
 @router.get("/vanna-exposure/{ticker}")
@@ -187,7 +189,15 @@ async def vanna_exposure_endpoint(
             )[0])
 
             sign = 1.0 if c.get("type") == "call" else -1.0
-            weighted = vanna * oi * sign * 100
+            # Bug fix: was `vanna * oi * sign * 100` — missing the
+            # ``* spot * 0.01`` that the platform-wide VEX convention
+            # uses (matches ``bs_greeks.dollar_vex_per_contract``).
+            # For SPY at $580, the previous value was 5.8× low.
+            # See backend/domain/greek_scalers.py for the canonical
+            # convention-named helper.
+            weighted = dollar_vex_per_1pct_spot_move(
+                float(vanna), float(oi), float(spot)
+            ) * sign
             strike_vanna[strike] = strike_vanna.get(strike, 0.0) + weighted
 
         sorted_strikes = sorted(strike_vanna.keys())
