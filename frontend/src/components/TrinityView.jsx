@@ -1,13 +1,55 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useMemo } from "react";
 import axios from "axios";
-import { fmt, fmtAbs, pctClass, TRINITY } from "../lib/helpers";
-import BarHeatmap from "./BarHeatmap";
-import { BACKEND_URL, API } from "../config/api";
+import { fmt, fmtAbs, TRINITY } from "../lib/helpers";
 
-// API imported from config/api.js
+const API = process.env.REACT_APP_BACKEND_URL
+  ? `${process.env.REACT_APP_BACKEND_URL}/api`
+  : "/api";
 
+/**
+ * Trinity 3-Panel View — Skylit reference layout
+ *
+ * Three side-by-side panels (SPXW, SPY, QQQ), each showing:
+ * - Header: ticker, price, change%
+ * - Sub-header: King label + yellow dot, net GEX%
+ * - Data grid: price levels | percentage badges | value column
+ * - Footer: gradient bar (purple → yellow) with min/max labels
+ *
+ * Colors: teal/green = positive GEX, purple = negative GEX,
+ * yellow = extreme/key levels, white highlight = current price row
+ */
+
+// ── Color scale for cell backgrounds ──────────────────────────────
+function rowColor(gexVal, maxAbs) {
+  if (!gexVal || !maxAbs) return "transparent";
+  const norm = Math.min(1, Math.abs(gexVal) / maxAbs);
+  const isNeg = gexVal < 0;
+
+  if (norm > 0.80) {
+    return isNeg ? "rgba(168, 55, 230, 0.55)" : "rgba(253, 224, 71, 0.75)";
+  }
+  if (norm > 0.50) {
+    return isNeg ? "rgba(168, 85, 247, 0.40)" : "rgba(45, 212, 191, 0.50)";
+  }
+  if (norm > 0.20) {
+    return isNeg ? "rgba(168, 85, 247, 0.22)" : "rgba(45, 212, 191, 0.25)";
+  }
+  return isNeg ? "rgba(88, 28, 135, 0.12)" : "rgba(22, 78, 99, 0.12)";
+}
+
+function textColor(gexVal, maxAbs) {
+  if (!gexVal || !maxAbs) return "var(--text-faint)";
+  const norm = Math.min(1, Math.abs(gexVal) / maxAbs);
+  if (norm > 0.80) return "#0a0e1a";
+  if (norm > 0.50) return isNeg(gexVal) ? "#e9d5ff" : "#0a0e1a";
+  return isNeg(gexVal) ? "#c4b5fd" : "#6ee7b7";
+}
+
+function isNeg(v) { return v < 0; }
+
+// ── Main Trinity View ─────────────────────────────────────────────
 export default function TrinityView({ onFocusTicker }) {
-  const [data, setData] = useState({});
+  const [allData, setAllData] = useState({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
@@ -17,15 +59,14 @@ export default function TrinityView({ onFocusTicker }) {
       setLoading(true);
       try {
         const results = await Promise.allSettled(
-          TRINITY.map(t => axios.get(`${API}/heatmap/${t}?expiries=3&mode=day`).then(r => ({ ticker: t, data: r.data })))
+          TRINITY.map(t =>
+            axios.get(`${API}/heatmap/${t}?expiries=3&mode=day`, { timeout: 15000 })
+              .then(r => ({ ticker: t, data: r.data }))
+          )
         );
         const newData = {};
         results.forEach(r => {
           if (r.status === "fulfilled") newData[r.value.ticker] = r.value.data;
-          else if (r.status === "rejected") {
-            const ticker = TRINITY[results.indexOf(r)];
-            newData[ticker] = { error: r.reason?.message || "Failed" };
-          }
         });
         if (mounted) { setData(newData); setLoading(false); }
       } catch (e) {
@@ -37,118 +78,201 @@ export default function TrinityView({ onFocusTicker }) {
     return () => { mounted = false; clearInterval(id); };
   }, []);
 
-  if (loading && Object.keys(data).length === 0) return <div className="p-4 text-slate-500 text-sm">Loading Trinity...</div>;
-  if (error) return <div className="p-4 text-rose-400 text-sm">Error: {error}</div>;
+  if (loading && Object.keys(allData).length === 0) {
+    return <div className="p-4 text-slate-500 text-sm">Loading Trinity…</div>;
+  }
+  if (error) {
+    return <div className="p-4 text-rose-400 text-sm">Error: {error}</div>;
+  }
 
   return (
-    <div className="space-y-3">
-      {/* Confluence Summary */}
-      <ConfluenceSummary data={data} />
-      {/* Three ticker cards */}
-      <div className="grid grid-cols-3 gap-3" style={{ minHeight: 0 }}>
+    <div className="trinity-layout" data-testid="trinity-view">
+      {/* Confluence summary bar */}
+      <ConfluenceBar data={allData} />
+
+      {/* Three panels */}
+      <div className="trinity-panels">
         {TRINITY.map(t => (
-          <TrinityCard key={t} ticker={t} data={data[t]} onFocus={() => onFocusTicker && onFocusTicker(t)} />
+          <TrinityPanel
+            key={t}
+            ticker={t}
+            data={allData[t]}
+            onFocus={() => onFocusTicker && onFocusTicker(t)}
+          />
         ))}
       </div>
     </div>
   );
 }
 
-function ConfluenceSummary({ data }) {
+// ── Confluence Summary Bar ────────────────────────────────────────
+function ConfluenceBar({ data }) {
   const tickers = TRINITY.map(t => data[t]).filter(d => d && !d.error);
   if (tickers.length === 0) return null;
 
   const regimes = tickers.map(d => d.nodes?.regime).filter(Boolean);
   const allSame = regimes.length > 0 && regimes.every(r => r === regimes[0]);
-  const confluence = regimes.length > 0 ? regimes.filter(r => r === regimes[0]).length / regimes.length : 0;
+  const confluence = regimes.length > 0
+    ? regimes.filter(r => r === regimes[0]).length / regimes.length
+    : 0;
 
-  const biases = [];
-  tickers.forEach(d => (d.patterns || []).forEach(p => biases.push(p.bias)));
-  const uniqueBiases = [...new Set(biases)];
-
-  const verdict = confluence === 1 ? "full_alignment" : confluence >= 0.66 ? "partial_alignment" : "divergence";
-  const verdictColor = verdict === "full_alignment" ? "text-emerald-400" : verdict === "partial_alignment" ? "text-amber-400" : "text-rose-400";
-  const verdictText = verdict === "full_alignment" ? "All three agree. Highest conviction." : verdict === "partial_alignment" ? "Two-of-three. Reduced size." : "Disagreement. Wait.";
+  const verdict = confluence === 1 ? "full" : confluence >= 0.66 ? "partial" : "diverge";
+  const verdictColor = verdict === "full" ? "trinity-verdict-pos" : verdict === "partial" ? "trinity-verdict-warn" : "trinity-verdict-neg";
+  const verdictText = verdict === "full" ? "All three agree. Highest conviction." : verdict === "partial" ? "Two-of-three. Reduced size." : "Disagreement. Wait.";
 
   return (
-    <div className="panel p-3">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-4">
-          <div>
-            <div className="label">Confluence</div>
-            <div className="text-sm mono">
-              <span className={confluence === 1 ? "text-emerald-400" : confluence >= 0.66 ? "text-amber-400" : "text-rose-400"}>
-                {(confluence * 100).toFixed(0)}%
-              </span>
-              <span className="text-slate-500"> alignment</span>
-            </div>
-          </div>
-          <div className="dotted-divider h-6" style={{ width: 1 }} />
-          <div>
-            <div className="label">Regime</div>
-            <div className="text-sm mono">
-              <span className={regimes[0] === "positive" ? "text-emerald-400" : regimes[0] === "negative" ? "text-rose-400" : "text-slate-400"}>
-                {regimes[0] || "—"}
-              </span>
-            </div>
-          </div>
-          {uniqueBiases.length > 0 && <>
-            <div className="dotted-divider h-6" style={{ width: 1 }} />
-            <div>
-              <div className="label">Biases</div>
-              <div className="flex gap-1">
-                {uniqueBiases.map(b => (
-                  <span key={b} className="text-[8px] px-1 py-px border border-slate-700 rounded uppercase tracking-wider text-slate-400">{b}</span>
-                ))}
-              </div>
-            </div>
-          </>}
+    <div className="trinity-summary">
+      <div className="trinity-summary-left">
+        <div className="trinity-stat">
+          <span className="trinity-stat-label">Confluence</span>
+          <span className={`trinity-stat-value ${confluence === 1 ? "text-emerald-400" : confluence >= 0.66 ? "text-amber-400" : "text-rose-400"}`}>
+            {(confluence * 100).toFixed(0)}%
+          </span>
         </div>
-        <div className={`text-[10px] uppercase tracking-widest font-bold ${verdictColor}`}>
-          {verdictText}
+        <div className="trinity-divider" />
+        <div className="trinity-stat">
+          <span className="trinity-stat-label">Regime</span>
+          <span className={`trinity-stat-value ${regimes[0] === "positive" ? "text-emerald-400" : regimes[0] === "negative" ? "text-rose-400" : "text-slate-400"}`}>
+            {regimes[0] || "—"}
+          </span>
         </div>
       </div>
+      <span className={`trinity-verdict ${verdictColor}`}>{verdictText}</span>
     </div>
   );
 }
 
-function TrinityCard({ ticker, data, onFocus }) {
-  if (!data || data.error) {
-    return (
-      <div className="panel p-3">
-        <div className="flex justify-between items-baseline mb-1">
-          <div className="font-bold text-xs">{ticker.replace("^", "")}</div>
-          <div className="text-[9px] text-rose-400">{data?.error || "No data"}</div>
-        </div>
-      </div>
-    );
-  }
+// ── Single Trinity Panel ──────────────────────────────────────────
+function TrinityPanel({ ticker, data, onFocus }) {
+  const spot = data?.spot;
+  const nodes = data?.nodes;
 
-  const { spot, nodes, implied_move } = data;
+  // Build sorted strike rows
+  const rows = useMemo(() => {
+    if (!data?.strikes) return [];
+    return data.strikes
+      .filter(s => s.strike != null && s.gex != null)
+      .sort((a, b) => b.strike - a.strike);
+  }, [data]);
+
+  // Max abs GEX for color scaling within this panel
+  const maxAbs = useMemo(() => {
+    if (!rows.length) return 1;
+    return Math.max(...rows.map(s => Math.abs(s.gex || 0)), 1);
+  }, [rows]);
+
+  // Current price row index (closest strike to spot)
+  const spotIdx = useMemo(() => {
+    if (!spot || !rows.length) return -1;
+    let best = 0;
+    let bestDist = Math.abs(rows[0].strike - spot);
+    for (let i = 1; i < rows.length; i++) {
+      const d = Math.abs(rows[i].strike - spot);
+      if (d < bestDist) { bestDist = d; best = i; }
+    }
+    return best;
+  }, [rows, spot]);
+
+  // King node (strike with highest abs GEX)
+  const kingStrike = useMemo(() => {
+    if (!nodes?.king?.strike) return null;
+    return nodes.king.strike;
+  }, [nodes]);
+
+  // Panel net GEX sum
+  const netGex = useMemo(() => {
+    if (!rows.length) return 0;
+    return rows.reduce((sum, s) => sum + (s.gex || 0), 0);
+  }, [rows]);
+
+  // Min/max for footer gradient
+  const minGex = useMemo(() => {
+    if (!rows.length) return 0;
+    return Math.min(...rows.map(s => s.gex || 0));
+  }, [rows]);
+  const maxGex = useMemo(() => {
+    if (!rows.length) return 0;
+    return Math.max(...rows.map(s => s.gex || 0));
+  }, [rows]);
+
+  const displayName = ticker.replace("^", "");
+  const change = data?.change; // not available from heatmap endpoint
   const regime = nodes?.regime || "—";
   const regimeColor = regime === "positive" ? "text-emerald-400" : regime === "negative" ? "text-rose-400" : "text-slate-400";
-  const patterns = (data.patterns || []).slice(0, 3);
 
   return (
-    <div className="panel p-3 flex flex-col" style={{ minHeight: 0 }}>
-      <div className="flex justify-between items-baseline mb-1">
-        <div className="font-bold text-xs">{ticker.replace("^", "")}</div>
-        <div className="text-[9px] mono text-slate-400">spot {fmt(spot, 1)} · <span className={regimeColor}>{regime}γ</span></div>
+    <div className="trinity-panel">
+      {/* Header */}
+      <div className="trinity-panel-header">
+        <span className="trinity-panel-ticker">{displayName}</span>
+        <span className="trinity-panel-price">${fmt(spot, spot >= 1000 ? 2 : 2)}</span>
+        <span className={`trinity-panel-regime ${regimeColor}`}>{regime}γ</span>
       </div>
-      <div className="mb-1 flex-1 overflow-hidden" style={{ maxHeight: 200 }}>
-        <BarHeatmap data={data} filters={{}} compact />
+
+      {/* Sub-header: King */}
+      <div className="trinity-panel-subheader">
+        <span className="trinity-king-dot" />
+        <span className="trinity-king-label">King</span>
+        {kingStrike && <span className="trinity-king-value">{fmt(kingStrike, 0)}</span>}
+        <span className={`trinity-net-badge ${netGex >= 0 ? "trinity-net-pos" : "trinity-net-neg"}`}>
+          {netGex >= 0 ? "+" : ""}{fmtAbs(netGex)}
+        </span>
       </div>
-      <div className="flex flex-wrap gap-0.5 mt-1">
-        {patterns.map((p, i) => (
-          <span key={i} className="text-[8px] px-1 py-px border border-slate-700 rounded uppercase tracking-wider text-slate-400">{p.name}</span>
-        ))}
+
+      {/* Data grid */}
+      <div className="trinity-grid">
+        {rows.map((row, i) => {
+          const isCurrent = i === spotIdx;
+          const isKing = row.strike === kingStrike;
+          const gex = row.gex || 0;
+          const bg = rowColor(gex, maxAbs);
+          const tc = textColor(gex, maxAbs);
+
+          // Percentage of max for badge
+          const pctVal = maxAbs > 0 ? Math.abs(gex / maxAbs) * 100 : 0;
+
+          return (
+            <div
+              key={row.strike}
+              className={`trinity-row ${isCurrent ? "trinity-row-current" : ""} ${isKing ? "trinity-row-king" : ""}`}
+              style={{ background: bg }}
+            >
+              {/* Price */}
+              <span className={`trinity-row-price ${isCurrent ? "trinity-price-current" : ""}`}>
+                {isCurrent && <span className="trinity-price-triangle" />}
+                {isKing && <span className="trinity-king-star">★</span>}
+                {fmt(row.strike, row.strike >= 1000 ? 0 : 1)}
+              </span>
+
+              {/* Percentage badge */}
+              <span className="trinity-row-pct">
+                {pctVal > 30 && (
+                  <span className={`trinity-pct-badge ${gex >= 0 ? "trinity-pct-pos" : "trinity-pct-neg"}`}>
+                    {gex >= 0 ? "+" : ""}{pctVal.toFixed(0)}%
+                  </span>
+                )}
+              </span>
+
+              {/* Value */}
+              <span className="trinity-row-value" style={{ color: tc }}>
+                {isKing ? "★" : ""}{fmtAbs(gex)}
+              </span>
+            </div>
+          );
+        })}
       </div>
-      {implied_move && (
-        <div className="text-[8px] text-slate-500 mt-1">
-          ±{implied_move.implied_move_pct}% · {fmt(implied_move.lower_range, 0)}–{fmt(implied_move.upper_range, 0)}
+
+      {/* Footer gradient bar */}
+      <div className="trinity-footer">
+        <span className="trinity-footer-min">{fmtAbs(minGex)}</span>
+        <div className="trinity-gradient-bar">
+          <div className="trinity-gradient-fill" />
         </div>
-      )}
-      <button className="text-[8px] text-teal-400 underline mt-1 text-left" onClick={onFocus}>focus →</button>
+        <span className="trinity-footer-max">{fmtAbs(maxGex)}</span>
+      </div>
+
+      {/* Focus link */}
+      <button className="trinity-focus-btn" onClick={onFocus}>focus →</button>
     </div>
   );
 }
