@@ -8,6 +8,7 @@ import { fmt, fmtAbs, pctClass, tagFor, TRINITY, DEFAULT_TICKERS } from "./lib/h
 import GridHeatmap from "./components/GridHeatmap";
 import DomHeatmap from "./components/DomHeatmap";
 import MultiTickerHeatmap from "./components/MultiTickerHeatmap";
+import VolumeProfileGrid from "./components/VolumeProfileGrid";
 import HeatseekerDashboard from "./components/heatseeker/HeatseekerDashboard";
 import BarHeatmap from "./components/BarHeatmap";
 import PatternCard from "./components/PatternCard";
@@ -816,6 +817,7 @@ export default function App() {
                   </div>
                   <div className="flex gap-1 mb-2">
                     <button onClick={() => setView("multi")} className={`btn flex-1 ${view === "multi" ? "active" : ""}`}>Multi</button>
+                    <button onClick={() => setView("profile")} className={`btn flex-1 ${view === "profile" ? "active" : ""}`}>Profile</button>
                   </div>
                   <div className="text-slate-500 mb-1 text-[10px]">Mode</div>
                   <div className="flex gap-1 mb-2">
@@ -878,6 +880,8 @@ export default function App() {
                   <ErrorBoundary>
                     {view === "multi" ? (
                       <MultiTickerHeatmap tickers={tickers} />
+                    ) : view === "profile" ? (
+                      <VolumeProfileGrid data={displayData} spot={livespot?.spot ?? displayData?.spot} />
                     ) : displayData ? (
                       view === "chain"
                         ? <OptionsChainTable ticker={ticker} spot={livespot?.spot ?? displayData?.spot} />
