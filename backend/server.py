@@ -373,8 +373,8 @@ def compute_gex_grid(spot: float, contracts: list[dict[str, Any]], ticker: str =
         charm = bs_charm(spot, c["strike"], c["T"], c["iv"], q=q, kind=c["type"])
         if gamma <= 0:
             continue
-        gex_unit = gamma * c["oi"] * 100.0 * spot * spot * 0.01
-        charm_unit = charm * c["oi"] * 100.0 * spot * 0.01
+        gex_unit = dollar_gex_per_contract(gamma, c["oi"], spot)
+        charm_unit = dollar_charm_per_contract(charm, c["oi"], spot)
         sign = 1.0 if c["type"] == "call" else -1.0
         cell = sign * gex_unit
         charm_cell = sign * charm_unit
@@ -398,6 +398,8 @@ def compute_gex_grid(spot: float, contracts: list[dict[str, Any]], ticker: str =
         "strike_totals": [{"strike": k, "gex": v} for k, v in sorted(strike_totals.items())],
     }
 # Import from shared module to avoid circular imports with portfolio.py
+# DOLLAR_MOVE_CONVENTION  = 0.01   (industry-standard 1%-move convention; see bs_greeks.py)
+# CONTRACT_MULTIPLIER     = 100    (shares per equity option contract)
 from bs_greeks import (
     bs_charm,
     bs_gamma,
@@ -405,6 +407,9 @@ from bs_greeks import (
     bs_vega,
     bs_vomma,
     bs_zomma,
+    dollar_charm_per_contract,
+    dollar_gex_per_contract,
+    dollar_vex_per_contract,
 )
 
 
@@ -852,11 +857,11 @@ def compute_gex_by_strike(spot: float, contracts: list[dict[str, Any]], ticker: 
         zomma = bs_zomma(spot, c["strike"], c["T"], c["iv"], q=q)
         if gamma <= 0 and abs(vanna) <= 0:
             continue
-        gex_unit = gamma * oi * 100.0 * spot * spot * 0.01
-        vex_unit = vanna * oi * 100.0 * spot * 0.01
-        vega_unit = vega_val * oi * 100.0
-        charm_unit = charm * oi * 100.0 * spot * 0.01
-        vomma_unit = vomma * oi * 100.0
+        gex_unit = dollar_gex_per_contract(gamma, oi, spot)
+        vex_unit = dollar_vex_per_contract(vanna, oi, spot)
+        vega_unit = vega_val * oi * 100.0  # per unit-σ; see bs_greeks normalization note
+        charm_unit = dollar_charm_per_contract(charm, oi, spot)
+        vomma_unit = vomma * oi * 100.0  # per unit-σ
         zomma_unit = zomma * oi * 100.0 * spot * 0.01
         sign = 1.0 if c["type"] == "call" else -1.0
         bucket = agg.setdefault(c["strike"], {
@@ -963,7 +968,7 @@ def calc_aggregate_gex_curve(spot: float, contracts: list[dict[str, Any]],
             if oi <= 0:
                 continue
             gamma = bs_gamma(price, c["strike"], c["T"], c["iv"], q=q)
-            gex = gamma * oi * 100.0 * price * price * 0.01
+            gex = dollar_gex_per_contract(gamma, oi, price)
             sign = 1.0 if c["type"] == "call" else -1.0
             total_gex += sign * gex
         curve.append({"price": round(price, 2), "gex": round(total_gex / 1e9, 4) if not (math.isnan(total_gex) or math.isinf(total_gex)) else 0.0})
@@ -1412,7 +1417,7 @@ def compute_gex_by_strike_volume(spot: float, contracts: list[dict[str, Any]], t
         vol = c.get("volume", 0) or 0
         if vol <= 0:
             continue
-        gex_unit = gamma * vol * 100.0 * spot * spot * 0.01
+        gex_unit = dollar_gex_per_contract(gamma, vol, spot)
         sign = 1.0 if c["type"] == "call" else -1.0
         bucket = agg.setdefault(c["strike"], {
             "strike": c["strike"], "gex": 0.0, "call_gex": 0.0, "put_gex": 0.0,
@@ -2585,6 +2590,77 @@ async def prometheus_metrics():
     )
 
 
+# ── VPIN Auto-Feed Background Service ──────────────────────────────────
+# Computes VPIN from yfinance trade data and feeds the ToxicityEnsemble
+# so the toxicity gauge shows live data instead of "INACTIVE".
+
+# Tickers to auto-feed (configurable)
+_VPIN_AUTOFETCH_TICKERS = ["SPY", "QQQ", "PLTR", "AAPL", "TSLA", "NVDA", "AMD", "MSFT", "AMZN", "META"]
+_VPIN_AUTOFETCH_INTERVAL = 30  # seconds between updates
+
+
+async def _vpin_autofeed_loop():
+    """Background loop: fetch recent trades from yfinance, compute VPIN,
+    and feed to the ToxicityEnsemble for each tracked ticker."""
+    from routes.vpin import _vpin_engines
+    from routes.ensemble import _ensembles
+    import yfinance as yf
+
+    log.info(f"VPIN auto-feed: started for {_VPIN_AUTOFETCH_TICKERS}")
+    while not _shutdown_event.is_set():
+        try:
+            for ticker in _VPIN_AUTOFETCH_TICKERS:
+                if _shutdown_event.is_set():
+                    break
+                try:
+                    # Get recent 1-min bars from yfinance
+                    hist = await asyncio.to_thread(
+                        lambda t=ticker: yf.Ticker(t).history(period="1d", interval="1m")
+                    )
+                    if hist is None or len(hist) < 5:
+                        continue
+
+                    # Get or create VPIN engine for this ticker
+                    t = ticker.upper()
+                    if t not in _vpin_engines:
+                        from services.vpin_engine import VpinEngine
+                        _vpin_engines[t] = VpinEngine(
+                            bucket_size=50000.0, window=50, ticker=t
+                        )
+                    engine = _vpin_engines[t]
+
+                    # Feed each bar as a trade
+                    price_changes = hist["Close"].diff().dropna().values.astype(float)
+                    volumes = hist["Volume"].iloc[1:].values.astype(float)
+                    sigma = float(np.std(price_changes)) if len(price_changes) > 1 else 0.01
+
+                    for pc, vol in zip(price_changes, volumes):
+                        if vol > 0 and sigma > 0:
+                            engine.update(float(pc), float(vol), sigma, dt=1.0)
+
+                    # Feed current VPIN+QI to ensemble
+                    vpin_val = engine.compute_vpin()
+                    qi_val = engine._qi_tracker.qi
+                    if vpin_val > 0:
+                        if t not in _ensembles:
+                            from services.ml_ensemble import ToxicityEnsemble
+                            _ensembles[t] = ToxicityEnsemble()
+                        _ensembles[t].update(vpin_val, qi_val)
+
+                except Exception as e:
+                    log.debug(f"VPIN auto-feed: {ticker} error: {e}")
+                    continue
+
+        except Exception as e:
+            log.warning(f"VPIN auto-feed loop error: {e}")
+
+        try:
+            await asyncio.wait_for(_shutdown_event.wait(), timeout=_VPIN_AUTOFETCH_INTERVAL)
+        except asyncio.TimeoutError:
+            pass  # normal interval timeout, continue loop
+
+    log.info("VPIN auto-feed: shutdown complete")
+
 
 @app.on_event("startup")
 async def on_start():
@@ -2604,6 +2680,11 @@ async def on_start():
         _background_tasks.add(_scheduler_task)
         _scheduler_task.add_done_callback(_background_tasks.discard)
         log.info(f"scheduler started · prefetch at {PREFETCH_HHMM} ET")
+    # Start VPIN auto-feed background task for toxicity ensemble
+    _t = asyncio.create_task(_logged_task(_vpin_autofeed_loop(), "vpin_autofeed"))
+    _background_tasks.add(_t)
+    _t.add_done_callback(_background_tasks.discard)
+    log.info("VPIN auto-feed started for toxicity ensemble")
     log.info("databento cache initialized")
 
 

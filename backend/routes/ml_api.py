@@ -479,11 +479,35 @@ async def ml_briefing(ticker: str) -> dict[str, Any]:
             "hold": round(pred.probabilities[1], 4) if len(pred.probabilities) > 1 else 0.34,
             "up": round(pred.probabilities[2], 4) if len(pred.probabilities) > 2 else 0.33,
         }
-        result["features_used"] = len(pred.features_used)
+        result["features_used"] = len(pred.feature_values)
         result["feature_values"] = {k: round(v, 6) for k, v in pred.feature_values.items()}
         result["data_age_sec"] = round(pred.data_age_sec, 1)
     except DegenerateModelError as e:
         result["prediction_error"] = str(e)
+        # Fallback: derive signal from GEX regime when no ML model exists
+        try:
+            from server import fetch_spot_and_chains_merged
+            from services.heatseeker import _gex_per_strike
+            raw = await fetch_spot_and_chains_merged(ticker, 4)
+            spot = raw.get("spot", 0)
+            contracts = raw.get("contracts", [])
+            if spot > 0 and contracts:
+                gex_map = _gex_per_strike(spot, contracts)
+                net_gex = sum(gex_map.values())
+                if net_gex > 0:
+                    result["prediction_label"] = "bullish"
+                    result["confidence"] = 0.55
+                    result["probabilities"] = {"down": 0.25, "hold": 0.35, "up": 0.40}
+                else:
+                    result["prediction_label"] = "bearish"
+                    result["confidence"] = 0.55
+                    result["probabilities"] = {"down": 0.40, "hold": 0.35, "up": 0.25}
+                result["features_used"] = 0
+                result["feature_values"] = {"gex_regime": "positive" if net_gex > 0 else "negative", "net_gex": round(net_gex, 0)}
+                result["data_age_sec"] = 0
+                result["model_type"] = "gex_fallback"
+        except Exception:
+            pass
     except Exception as e:
         result["prediction_error"] = str(e)
 

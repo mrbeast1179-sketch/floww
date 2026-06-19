@@ -6,6 +6,7 @@ import { ALPHAPOD_API } from "./config/api";
 
 import { fmt, fmtAbs, pctClass, tagFor, TRINITY, DEFAULT_TICKERS } from "./lib/helpers";
 import GridHeatmap from "./components/GridHeatmap";
+import DomHeatmap from "./components/DomHeatmap";
 import HeatseekerDashboard from "./components/heatseeker/HeatseekerDashboard";
 import BarHeatmap from "./components/BarHeatmap";
 import PatternCard from "./components/PatternCard";
@@ -848,31 +849,34 @@ export default function App() {
               </div>
             </aside>
 
-            {/* Main Content - Heatmap */}
+            {/* Main Content - DOM Heatmap */}
             <main className="heatseeker-main">
-              <div className="panel m-2 p-3 flex-1 flex flex-col overflow-hidden">
-                <div className="flex justify-between items-center mb-2 flex-shrink-0">
-                  <div>
-                    <div className="label">Heatseeker · {viewMode === "vex" ? "VEX" : viewMode === "charm" ? "Charm" : "GEX"} {view === "grid" ? "Grid (Strike × Expiry)" : "Bars"}</div>
-                    <div className="text-[10px] text-slate-500">
-                      {viewMode === "vex" ? "Amber = positive vanna · Pink = negative vanna" : viewMode === "charm" ? "Cyan = positive charm · Violet = negative charm" : "Teal (Pika) = positive γ · Purple (Barney) = negative · Yellow-green = King"}
-                    </div>
+              <div className="flex-1 flex flex-col overflow-hidden" style={{ background: "#0a0e1a" }}>
+                {/* Ticker info bar */}
+                <div className="dom-top-bar">
+                  <div className="dom-ticker-info">
+                    <span className="dom-ticker-label">{ticker.replace("^", "")}</span>
+                    <span className={`dom-regime ${data?.nodes?.regime === "positive" ? "dom-regime-pos" : data?.nodes?.regime === "negative" ? "dom-regime-neg" : "dom-regime-neu"}`}>
+                      {data?.nodes?.regime || "—"} γ
+                    </span>
+                    <span className="dom-spot-price">${fmt(livespot?.spot ?? data?.spot, 2)}</span>
+                    <span className="dom-live-dot">● live</span>
                   </div>
-                  <div className="flex gap-2 text-[10px]">
+                  <div className="dom-view-controls">
                     <span className="tag king">KING</span>
-                    <span className="tag floor">FLOOR</span>
+                    <span className="tag floor">FLR</span>
                     <span className="tag ceiling">CEIL</span>
                     <span className="tag gate">GATE</span>
                     <span className="tag air">AIR</span>
                   </div>
                 </div>
-                <div className="flex-1 overflow-hidden heatmap-scroll-container">
+                <div className="flex-1 overflow-hidden">
                   <ErrorBoundary>
                     {displayData ? (
                       view === "chain"
                         ? <OptionsChainTable ticker={ticker} spot={livespot?.spot ?? displayData?.spot} />
                         : view === "grid"
-                        ? <GridHeatmap data={displayData} filters={filters} onCellClick={(s, e) => setDrilldown({ ticker, expiry: e, strike: s })} viewMode={viewMode} />
+                        ? <DomHeatmap data={displayData} spot={livespot?.spot ?? displayData?.spot} ticker={ticker} />
                         : <BarHeatmap data={displayData} filters={filters} compact={false} viewMode={viewMode} />
                     ) : (
                       <div className="text-slate-500 text-xs p-6 text-center">Loading…</div>
@@ -955,7 +959,7 @@ export default function App() {
                 <ToxicityGauge
                   ensemble={ensembleData}
                   onRefresh={() => {
-                    axios.get(`${API}/anomaly/ensemble/state?ticker=${ticker}`).then(r => setEnsembleData(r.data)).catch(() => {});
+                    axios.get(`${API}/ensemble/state?ticker=${ticker}`).then(r => setEnsembleData(r.data)).catch(() => {});
                   }}
                 />
                 {data && <NodesTable data={data} />}
