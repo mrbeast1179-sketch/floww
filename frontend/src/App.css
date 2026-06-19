@@ -372,9 +372,9 @@
 }
 
 /* ================================================================
-   DOM / Level 2 Order Book Heatmap
-   Matches Skylit reference: price axis left, 5 data columns,
-   color-coded cells (teal=bid/buy, purple=ask/sell, yellow=extreme)
+   DOM / Level 2 Order Book Heatmap — Skylit reference style
+   No column headers, 5 data cells per row, price axis left.
+   Colors: teal/green = positive, purple = negative, yellow = extreme
    ================================================================ */
 
 .dom-heatmap-container {
@@ -395,77 +395,54 @@
   table-layout: fixed;
 }
 
-/* ── Column headers ── */
-.dom-price-header,
-.dom-data-header {
-  position: sticky;
-  top: 0;
-  z-index: 10;
-  background: #0a0e1a;
-  color: #5a6a8a;
-  font-size: 8px;
-  font-weight: 700;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  padding: 3px 4px;
-  text-align: right;
-  border-bottom: 1px solid rgba(255,255,255,0.06);
-  white-space: nowrap;
-  font-family: "Inter", system-ui, sans-serif;
-}
-
-.dom-price-header {
-  text-align: left;
-  width: 56px;
-  left: 0;
-  z-index: 11;
-  padding-left: 6px;
-}
-
-.dom-data-header {
-  min-width: 70px;
-}
-
-/* ── Price axis column ── */
+/* ── Price axis ── */
 .dom-price-cell {
   position: sticky;
   left: 0;
   z-index: 5;
   background: #0a0e1a;
-  color: #94a3b8;
+  color: #b0bec5;
   font-size: 10px;
-  font-weight: 600;
-  padding: 1px 4px 1px 6px;
+  font-weight: 500;
+  padding: 0 4px 0 18px;
   text-align: left;
   white-space: nowrap;
-  border-right: 1px solid rgba(255,255,255,0.03);
+  width: 60px;
+  border: none;
 }
 
-/* Current price row */
-.dom-current-price-row {
-  background: rgba(255,255,255,0.04);
-  box-shadow: inset 0 1px 0 rgba(255,255,255,0.08), inset 0 -1px 0 rgba(255,255,255,0.08);
-}
-
-.dom-current-price-row .dom-price-cell {
+/* ── Current price row ── */
+.dom-current-row .dom-price-cell {
   color: #ffffff;
-  border-left: 4px solid #ffffff;
-  padding-left: 2px;
-  background: rgba(255,255,255,0.06);
   font-weight: 700;
+  background: rgba(255,255,255,0.05);
+  position: relative;
+}
+
+.dom-current-row .dom-price-cell .dom-triangle {
+  position: absolute;
+  left: 4px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 0;
+  height: 0;
+  border-top: 4px solid transparent;
+  border-bottom: 4px solid transparent;
+  border-left: 5px solid #ffffff;
 }
 
 /* ── Data cells ── */
 .dom-data-cell {
-  padding: 1px 3px;
+  padding: 0 3px;
   text-align: right;
   white-space: nowrap;
   font-size: 10px;
   cursor: default;
   border: none;
+  line-height: 1.3;
 }
 
-/* ── Star for extreme values ── */
+/* ── Star + extreme highlight ── */
 .dom-star {
   color: #fbbf24;
   font-size: 8px;
@@ -479,56 +456,43 @@
 
 /* ── Percentage badge ── */
 .dom-pct-cell {
-  padding: 1px 3px;
+  padding: 0 2px;
   text-align: center;
-  width: 44px;
+  width: 40px;
+  border: none;
 }
 
 .dom-pct-badge {
   display: inline-block;
-  padding: 0px 4px;
+  padding: 0 3px;
   border-radius: 2px;
   font-size: 8px;
   font-weight: 700;
-  letter-spacing: 0.04em;
   font-family: "JetBrains Mono", ui-monospace, monospace;
 }
 
 .dom-pct-pos {
-  background: rgba(34, 211, 238, 0.12);
+  background: rgba(34, 211, 238, 0.1);
   color: #22d3ee;
-  border: 1px solid rgba(34, 211, 238, 0.25);
+  border: 1px solid rgba(34, 211, 238, 0.2);
 }
 
 .dom-pct-neg {
-  background: rgba(168, 85, 247, 0.12);
+  background: rgba(168, 85, 247, 0.1);
   color: #c084fc;
-  border: 1px solid rgba(168, 85, 247, 0.25);
+  border: 1px solid rgba(168, 85, 247, 0.2);
 }
 
 /* ── Row hover ── */
 .dom-row:hover .dom-data-cell {
-  filter: brightness(1.2);
+  filter: brightness(1.25);
 }
 
 /* ── Scrollbar ── */
-.dom-heatmap-container::-webkit-scrollbar {
-  width: 5px;
-  height: 5px;
-}
-
-.dom-heatmap-container::-webkit-scrollbar-track {
-  background: #0a0e1a;
-}
-
-.dom-heatmap-container::-webkit-scrollbar-thumb {
-  background: rgba(255,255,255,0.06);
-  border-radius: 3px;
-}
-
-.dom-heatmap-container::-webkit-scrollbar-thumb:hover {
-  background: rgba(255,255,255,0.12);
-}
+.dom-heatmap-container::-webkit-scrollbar { width: 4px; height: 4px; }
+.dom-heatmap-container::-webkit-scrollbar-track { background: #0a0e1a; }
+.dom-heatmap-container::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.05); border-radius: 2px; }
+.dom-heatmap-container::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.1); }
 
 /* ── Top bar ── */
 .dom-top-bar {
@@ -537,51 +501,22 @@
   justify-content: space-between;
   padding: 3px 8px;
   background: #0a0e1a;
-  border-bottom: 1px solid rgba(255,255,255,0.05);
+  border-bottom: 1px solid rgba(255,255,255,0.04);
   flex-shrink: 0;
 }
 
-.dom-ticker-info {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
+.dom-ticker-info { display: flex; align-items: center; gap: 6px; }
 
 .dom-ticker-label {
   font-family: "Space Grotesk", "Inter", sans-serif;
-  font-size: 13px;
-  font-weight: 700;
-  color: #e2e8f0;
-  letter-spacing: 0.03em;
+  font-size: 13px; font-weight: 700; color: #e2e8f0; letter-spacing: 0.03em;
 }
 
-.dom-regime {
-  font-size: 9px;
-  font-weight: 600;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  padding: 1px 5px;
-  border-radius: 3px;
-}
-
+.dom-regime { font-size: 9px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; padding: 1px 5px; border-radius: 3px; }
 .dom-regime-pos { color: #34d399; background: rgba(52,211,153,0.08); }
 .dom-regime-neg { color: #f87171; background: rgba(248,113,113,0.08); }
 .dom-regime-neu { color: #94a3b8; background: rgba(148,163,184,0.06); }
 
-.dom-spot-price {
-  font-family: "JetBrains Mono", ui-monospace, monospace;
-  font-size: 12px;
-  font-weight: 700;
-  color: #e2e8f0;
-}
-
-.dom-live-dot {
-  font-size: 8px;
-  color: #34d399;
-  animation: pulse 2.5s ease-in-out infinite;
-}
-
-.dom-view-controls {
-  display: flex;
-  gap: 3px;
-}
+.dom-spot-price { font-family: "JetBrains Mono", ui-monospace, monospace; font-size: 12px; font-weight: 700; color: #e2e8f0; }
+.dom-live-dot { font-size: 8px; color: #34d399; animation: pulse 2.5s ease-in-out infinite; }
+.dom-view-controls { display: flex; gap: 3px; }
