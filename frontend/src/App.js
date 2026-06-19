@@ -7,6 +7,7 @@ import { ALPHAPOD_API } from "./config/api";
 import { fmt, fmtAbs, pctClass, tagFor, TRINITY, DEFAULT_TICKERS } from "./lib/helpers";
 import GridHeatmap from "./components/GridHeatmap";
 import DomHeatmap from "./components/DomHeatmap";
+import MultiTickerHeatmap from "./components/MultiTickerHeatmap";
 import HeatseekerDashboard from "./components/heatseeker/HeatseekerDashboard";
 import BarHeatmap from "./components/BarHeatmap";
 import PatternCard from "./components/PatternCard";
@@ -813,6 +814,9 @@ export default function App() {
                     <button onClick={() => setView("bar")} className={`btn flex-1 ${view === "bar" ? "active" : ""}`}>Bars</button>
                     <button onClick={() => setView("chain")} className={`btn flex-1 ${view === "chain" ? "active" : ""}`}>Chain</button>
                   </div>
+                  <div className="flex gap-1 mb-2">
+                    <button onClick={() => setView("multi")} className={`btn flex-1 ${view === "multi" ? "active" : ""}`}>Multi</button>
+                  </div>
                   <div className="text-slate-500 mb-1 text-[10px]">Mode</div>
                   <div className="flex gap-1 mb-2">
                     {["day", "swing", "scalp"].map(m => (
@@ -872,7 +876,9 @@ export default function App() {
                 </div>
                 <div className="flex-1 overflow-hidden">
                   <ErrorBoundary>
-                    {displayData ? (
+                    {view === "multi" ? (
+                      <MultiTickerHeatmap tickers={tickers} />
+                    ) : displayData ? (
                       view === "chain"
                         ? <OptionsChainTable ticker={ticker} spot={livespot?.spot ?? displayData?.spot} />
                         : view === "grid"

@@ -520,3 +520,79 @@
 .dom-spot-price { font-family: "JetBrains Mono", ui-monospace, monospace; font-size: 12px; font-weight: 700; color: #e2e8f0; }
 .dom-live-dot { font-size: 8px; color: #34d399; animation: pulse 2.5s ease-in-out infinite; }
 .dom-view-controls { display: flex; gap: 3px; }
+
+/* ================================================================
+   Multi-Ticker Heatmap — Skylit reference style
+   Rows = SPY strikes (descending), Columns = tickers
+   Cell color = Net GEX for that ticker at that strike
+   ================================================================ */
+
+.multi-heatmap-container {
+  overflow-y: auto;
+  overflow-x: auto;
+  flex: 1;
+  min-height: 0;
+  background: #0a0e1a;
+  font-variant-numeric: tabular-nums;
+}
+
+.multi-heatmap-table {
+  width: 100%;
+  border-collapse: collapse;
+  border-spacing: 0;
+  font-size: 9px;
+  font-family: "JetBrains Mono", ui-monospace, Consolas, monospace;
+}
+
+.multi-price-cell {
+  position: sticky;
+  left: 0;
+  z-index: 5;
+  background: #0a0e1a;
+  color: #b0bec5;
+  font-size: 9px;
+  font-weight: 500;
+  padding: 0 3px 0 14px;
+  text-align: left;
+  white-space: nowrap;
+  width: 52px;
+  border: none;
+}
+
+.multi-current-row .multi-price-cell {
+  color: #ffffff;
+  font-weight: 700;
+  background: rgba(255,255,255,0.05);
+  position: relative;
+}
+
+.multi-current-row .multi-price-cell .multi-triangle {
+  position: absolute;
+  left: 3px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 0;
+  height: 0;
+  border-top: 3px solid transparent;
+  border-bottom: 3px solid transparent;
+  border-left: 4px solid #ffffff;
+}
+
+.multi-data-cell {
+  padding: 0 2px;
+  text-align: right;
+  white-space: nowrap;
+  font-size: 9px;
+  cursor: default;
+  border: none;
+  min-width: 40px;
+  line-height: 1.3;
+}
+
+.multi-row:hover .multi-data-cell {
+  filter: brightness(1.25);
+}
+
+.multi-heatmap-container::-webkit-scrollbar { width: 4px; height: 4px; }
+.multi-heatmap-container::-webkit-scrollbar-track { background: #0a0e1a; }
+.multi-heatmap-container::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.05); border-radius: 2px; }
