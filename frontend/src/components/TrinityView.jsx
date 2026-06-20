@@ -68,7 +68,7 @@ export default function TrinityView({ onFocusTicker }) {
         results.forEach(r => {
           if (r.status === "fulfilled") newData[r.value.ticker] = r.value.data;
         });
-        if (mounted) { setData(newData); setLoading(false); }
+        if (mounted) { setAllData(newData); setLoading(false); }
       } catch (e) {
         if (mounted) { setError(e.message); setLoading(false); }
       }
