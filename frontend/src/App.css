@@ -406,16 +406,16 @@
 }
 
 /* ── Price axis ── */
-/* ── Price axis — white background, contrasting with grid ── */
+/* ── Price axis — white background strip for ALL rows ── */
 .dom-price-cell {
   position: sticky;
   left: 0;
   z-index: 5;
-  background: #0c1526;
-  color: #b8c4d4;
+  background: rgba(255,255,255,0.95);
+  color: #0b1121;
   font-size: 11px;
   font-weight: 600;
-  padding: 1px 8px 1px 8px;
+  padding: 1px 8px;
   text-align: left;
   white-space: nowrap;
   width: 78px;
@@ -425,23 +425,29 @@
 }
 
 .dom-row-even .dom-price-cell {
-  background: #0e1830;
+  background: rgba(255,255,255,0.93);
 }
 
-/* Current price: white background cell with black text (inverted) */
+/* Current price: highlighted white cell with bold text */
 .dom-current-row .dom-price-cell {
-  background: rgba(255,255,255,0.97) !important;
+  background: #ffffff !important;
   color: #0b1121 !important;
   font-weight: 800;
   font-size: 12px;
-  border-left: 3px solid #ffffff;
+  border-left: 3px solid #38bdf8;
   padding-left: 5px;
   position: relative;
   z-index: 5;
 }
 
+/* ── Point of Control cell (yellow highlight) ── */
+.dom-poc-cell {
+  position: relative;
+  z-index: 2;
+  box-shadow: 0 0 8px rgba(251, 191, 36, 0.3);
+}
+
 /* ── Data cells ── */
-.dom-data-cell {
   padding: 1px 4px;
   text-align: right;
   white-space: nowrap;

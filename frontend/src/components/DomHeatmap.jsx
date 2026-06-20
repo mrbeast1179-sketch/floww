@@ -70,6 +70,24 @@ export default function DomHeatmap({ data, spot, ticker }) {
     return m;
   }, [rows]);
 
+  // Find the single max-value cell (Point of Control) for yellow highlight
+  const pocCell = useMemo(() => {
+    let maxVal = 0;
+    let pocRowIdx = -1, pocColIdx = -1;
+    for (let ri = 0; ri < rows.length; ri++) {
+      const keys = ["call_gex", "gex", "put_gex", "vex", "charm"];
+      for (let ci = 0; ci < keys.length; ci++) {
+        const v = Math.abs(rows[ri][keys[ci]] || 0);
+        if (v > maxVal) {
+          maxVal = v;
+          pocRowIdx = ri;
+          pocColIdx = ci;
+        }
+      }
+    }
+    return { rowIdx: pocRowIdx, colIdx: pocColIdx };
+  }, [rows]);
+
   // Max for percentage badge (net GEX only)
   const gexMaxAbs = useMemo(() => {
     let m = 1;
@@ -152,14 +170,17 @@ export default function DomHeatmap({ data, spot, ticker }) {
                   {/* 5 data columns */}
                   {cols.map((val, ci) => {
                     const cc = domCellColor(val, colorMaxAbs);
+                    const isPoc = i === pocCell.rowIdx && ci === pocCell.colIdx;
                     return (
                       <td
                         key={ci}
-                        className="dom-data-cell"
-                        style={{ background: cc.bg, color: cc.text }}
+                        className={`dom-data-cell${isPoc ? " dom-poc-cell" : ""}`}
+                        style={{ background: isPoc ? "rgba(251, 191, 36, 0.85)" : cc.bg, color: isPoc ? "#0b1121" : cc.text }}
                         title={`${ticker} @ ${strike}: ${domFmt(val)}`}
                       >
-                        {cc.star ? (
+                        {isPoc ? (
+                          <span className="dom-star-cell">★{domFmt(val)}</span>
+                        ) : cc.star ? (
                           <span className="dom-star-cell">★{domFmt(val)}</span>
                         ) : (
                           domFmt(val)
