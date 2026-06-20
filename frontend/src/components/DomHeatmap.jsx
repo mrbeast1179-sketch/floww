@@ -18,19 +18,26 @@ function domCellColor(v, maxAbs) {
   const norm = Math.min(1, Math.abs(v) / maxAbs);
   const isNeg = v < 0;
 
-  if (!isNeg) {
-    if (norm > 0.70) return { bg: `rgba(251, 191, 36, ${0.75 + 0.2 * norm})`, text: "#0a0e1a", star: true };
-    if (norm > 0.50) return { bg: `rgba(45, 212, 191, ${0.55 + 0.35 * norm})`, text: "#0a0e1a" };
-    if (norm > 0.25) return { bg: `rgba(45, 212, 191, ${0.25 + 0.4 * norm})`, text: "#a7f3d0" };
-    if (norm > 0.08) return { bg: `rgba(22, 78, 99, ${0.18 + 0.25 * norm})`, text: "#6ee7b7" };
-    return { bg: `rgba(22, 78, 99, 0.12)`, text: "#5eead4" };
+  // Yellow highlight for extreme values (top 10%)
+  if (norm > 0.85) {
+    return isNeg
+      ? { bg: `rgba(168, 55, 230, ${0.6 + 0.3 * norm})`, text: "#fce7fe", star: true }
+      : { bg: `rgba(251, 191, 36, ${0.75 + 0.2 * norm})`, text: "#0a0e1a", star: true };
   }
 
-  if (norm > 0.70) return { bg: `rgba(168, 55, 230, ${0.6 + 0.3 * norm})`, text: "#fce7fe" };
-  if (norm > 0.50) return { bg: `rgba(168, 85, 247, ${0.45 + 0.3 * norm})`, text: "#e9d5ff" };
-  if (norm > 0.25) return { bg: `rgba(168, 85, 247, ${0.25 + 0.35 * norm})`, text: "#d8b4fe" };
-  if (norm > 0.08) return { bg: `rgba(88, 28, 135, ${0.18 + 0.25 * norm})`, text: "#c4b5fd" };
-  return { bg: `rgba(88, 28, 135, 0.12)`, text: "#a78bfa" };
+  if (!isNeg) {
+    // Positive values: teal/green backgrounds with green text
+    if (norm > 0.50) return { bg: `rgba(45, 212, 191, ${0.5 + 0.35 * norm})`, text: "#0a0e1a" };
+    if (norm > 0.25) return { bg: `rgba(45, 212, 191, ${0.2 + 0.4 * norm})`, text: "#a7f3d0" };
+    if (norm > 0.08) return { bg: `rgba(22, 78, 99, ${0.15 + 0.25 * norm})`, text: "#6ee7b7" };
+    return { bg: `rgba(22, 78, 99, 0.1)`, text: "#5eead4" };
+  }
+
+  // Negative values: purple backgrounds with light text
+  if (norm > 0.50) return { bg: `rgba(168, 85, 247, ${0.4 + 0.3 * norm})`, text: "#e9d5ff" };
+  if (norm > 0.25) return { bg: `rgba(168, 85, 247, ${0.2 + 0.35 * norm})`, text: "#d8b4fe" };
+  if (norm > 0.08) return { bg: `rgba(88, 28, 135, ${0.15 + 0.25 * norm})`, text: "#c4b5fd" };
+  return { bg: `rgba(88, 28, 135, 0.1)`, text: "#a78bfa" };
 }
 
 function domFmt(v) {
@@ -133,6 +140,13 @@ export default function DomHeatmap({ data, spot, ticker }) {
                   <td className={`dom-price-cell ${isCurrent ? "dom-current-price" : ""}`}>
                     {hasStar && <span className="dom-star">★</span>}
                     {strike >= 1000 ? fmt(strike, 0) : fmt(strike, 1)}
+                  </td>
+
+                  {/* Left-side percentage badge (like reference SPXW view) */}
+                  <td className="dom-pct-left-cell">
+                    <span className={`dom-pct-badge ${pctVal > 50 ? "dom-pct-hot" : pctVal > 20 ? "dom-pct-warm" : "dom-pct-cool"} ${netGex >= 0 ? "dom-pct-pos" : "dom-pct-neg"}`}>
+                      {netGex >= 0 ? "+" : ""}{pctVal < 1 && pctVal > 0 ? pctVal.toFixed(1) : pctVal.toFixed(0)}%
+                    </span>
                   </td>
 
                   {/* 5 data columns */}

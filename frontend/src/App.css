@@ -486,9 +486,17 @@
   z-index: 4;
 }
 
-/* ── Scrollbar ── */
+/* ── Left-side percentage badge (between price and data) ── */
+.dom-pct-left-cell {
+  padding: 1px 3px;
+  text-align: center;
+  width: 42px;
+  border: none;
+}
+
+/* ── Right-side percentage badge ── */
 .dom-pct-cell {
-  padding: 2px 3px;
+  padding: 1px 3px;
   text-align: center;
   width: 42px;
   border: none;
@@ -596,6 +604,7 @@
   width: 52px;
   flex-shrink: 0;
   font-weight: 600;
+  position: relative;
 }
 
 .dom-ticker-label {
@@ -891,15 +900,8 @@
   background: rgba(255,255,255,0.06) !important;
 }
 
-/* ── Scrollbar ── */
-  font-family: "JetBrains Mono", monospace;
-  font-size: 9px;
-  color: #94a3b8;
-  width: 40px;
-  text-align: left;
-  flex-shrink: 0;
-  position: relative;
-  padding-left: 10px;
+.trinity-row-king {
+  box-shadow: inset 2px 0 0 #fbbf24;
 }
 
 .trinity-price-current {
