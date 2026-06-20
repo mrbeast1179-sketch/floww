@@ -2606,7 +2606,7 @@ async def prometheus_metrics():
 
 # Tickers to auto-feed (configurable)
 _VPIN_AUTOFETCH_TICKERS = ["SPY", "QQQ", "IWM", "DIA", "TLT", "SPX", "PLTR", "AAPL", "TSLA", "NVDA", "AMD", "MSFT", "AMZN", "META"]
-_VPIN_AUTOFETCH_INTERVAL = 30  # seconds between updates
+_VPIN_AUTOFETCH_INTERVAL = 120  # seconds between updates (was 30s - too aggressive)
 
 
 async def _vpin_autofeed_loop():
@@ -2623,6 +2623,8 @@ async def _vpin_autofeed_loop():
                 if _shutdown_event.is_set():
                     break
                 try:
+                    # Small delay between tickers to avoid overwhelming yfinance
+                    await asyncio.sleep(0.5)
                     # Get recent 1-min bars from yfinance
                     # Index options (SPX, NDX, RUT) need ^ prefix for yfinance
                     yf_ticker = ticker
