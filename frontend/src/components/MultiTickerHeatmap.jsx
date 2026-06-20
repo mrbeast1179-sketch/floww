@@ -9,36 +9,48 @@ const API = process.env.REACT_APP_BACKEND_URL
 /**
  * Multi-Ticker Heatmap — Skylit reference style
  *
- * Rows = strike prices (descending), Columns = tickers
+ * Rows = SPY strike prices (descending)
+ * Columns = GEX | VEX | AMD | AMZN | GOOGL | ...
  * Each cell shows the Net GEX for that ticker at that strike.
- * Color scheme: teal = positive GEX, purple = negative GEX,
- * yellow+star = extreme values
  *
- * Matches reference image: columns are tickers (AMD, AMZN, GOOGL...),
- * rows are SPY strike prices, cells are colored by Net GEX value.
+ * Reference image shows:
+ * - First two columns: GEX and VEX aggregate indicators
+ * - Subsequent columns: individual tickers
+ * - Current price row: white background with black text
+ * - Yellow cell: Point of Control (max value)
+ * - Percentage badges in some cells
  */
 
 function cellColor(v, maxAbs) {
   if (v === null || v === undefined || isNaN(v) || v === 0) {
-    return { bg: "rgba(10, 15, 30, 0.95)", text: "#2a3550" };
+    return { bg: "rgba(11, 17, 33, 0.95)", text: "#3a4560" };
   }
   const norm = Math.min(1, Math.abs(v) / maxAbs);
   const isNeg = v < 0;
 
-  if (!isNeg) {
-    if (norm > 0.70) return { bg: `rgba(253, 224, 71, 0.85)`, text: "#0a0e1a", star: true };
-    if (norm > 0.45) return { bg: `rgba(45, 212, 191, 0.6)`, text: "#0a0e1a" };
-    if (norm > 0.20) return { bg: `rgba(45, 212, 191, 0.3)`, text: "#a7f3d0" };
-    return { bg: `rgba(22, 78, 99, 0.15)`, text: "#6ee7b7" };
+  // Yellow for extreme (top 10%)
+  if (norm > 0.85) {
+    return isNeg
+      ? { bg: `rgba(168, 55, 230, ${0.5 + 0.35 * norm})`, text: "#fce7fe", star: true }
+      : { bg: `rgba(251, 191, 36, ${0.7 + 0.2 * norm})`, text: "#0b1121", star: true };
   }
-  if (norm > 0.70) return { bg: `rgba(168, 55, 230, 0.65)`, text: "#fce7fe" };
-  if (norm > 0.45) return { bg: `rgba(168, 85, 247, 0.45)`, text: "#e9d5ff" };
-  if (norm > 0.20) return { bg: `rgba(168, 85, 247, 0.25)`, text: "#d8b4fe" };
-  return { bg: `rgba(88, 28, 135, 0.15)`, text: "#c4b5fd" };
+
+  if (!isNeg) {
+    if (norm > 0.50) return { bg: `rgba(45, 212, 191, ${0.45 + 0.35 * norm})`, text: "#0b1121" };
+    if (norm > 0.25) return { bg: `rgba(45, 212, 191, ${0.18 + 0.4 * norm})`, text: "#a7f3d0" };
+    if (norm > 0.08) return { bg: `rgba(22, 78, 99, ${0.12 + 0.25 * norm})`, text: "#6ee7b7" };
+    return { bg: `rgba(22, 78, 99, 0.08)`, text: "#5eead4" };
+  }
+
+  // Negative: purple backgrounds with pink/red text
+  if (norm > 0.50) return { bg: `rgba(168, 85, 247, ${0.35 + 0.35 * norm})`, text: "#f9a8d4" };
+  if (norm > 0.25) return { bg: `rgba(168, 85, 247, ${0.18 + 0.35 * norm})`, text: "#d8b4fe" };
+  if (norm > 0.08) return { bg: `rgba(88, 28, 135, ${0.12 + 0.25 * norm})`, text: "#c4b5fd" };
+  return { bg: `rgba(88, 28, 135, 0.08)`, text: "#a78bfa" };
 }
 
 function fmtCell(v) {
-  if (v === null || v === undefined || isNaN(v) || v === 0) return "";
+  if (v === null || v === undefined || isNaN(v) || v === 0) return "—";
   const a = Math.abs(v);
   const sign = v < 0 ? "-" : "";
   if (a >= 1e6) return sign + (a / 1e6).toFixed(1) + "M";
@@ -52,14 +64,11 @@ export default function MultiTickerHeatmap({ tickers }) {
   const [error, setError] = useState(null);
 
   const selectedTickers = useMemo(() => {
-    // Use popular tickers, max 20 for performance
     const list = (tickers?.popular || DEFAULT_TICKERS).slice(0, 20);
-    // Always include SPY as primary
     if (!list.includes("SPY")) list.unshift("SPY");
     return [...new Set(list)];
   }, [tickers]);
 
-  // Use SPY strikes as the reference strike list
   const refTicker = "SPY";
 
   useEffect(() => {
@@ -93,7 +102,6 @@ export default function MultiTickerHeatmap({ tickers }) {
     return () => { mounted = false; clearInterval(id); };
   }, [selectedTickers.join(",")]);
 
-  // Build unified strike list from reference ticker (SPY)
   const strikes = useMemo(() => {
     const ref = allData[refTicker];
     if (!ref?.strikes) return [];
@@ -103,10 +111,8 @@ export default function MultiTickerHeatmap({ tickers }) {
       .map(s => s.strike);
   }, [allData, refTicker]);
 
-  // Current spot from reference ticker
   const spot = allData[refTicker]?.spot;
 
-  // Find closest strike to spot
   const spotRowIdx = useMemo(() => {
     if (!spot || !strikes.length) return -1;
     let bestIdx = 0;
@@ -118,7 +124,7 @@ export default function MultiTickerHeatmap({ tickers }) {
     return bestIdx;
   }, [strikes, spot]);
 
-  // Compute max abs Net GEX across all tickers and strikes for color scaling
+  // Max abs across all tickers for color scaling
   const maxAbs = useMemo(() => {
     let m = 1;
     for (const t of selectedTickers) {
@@ -131,6 +137,71 @@ export default function MultiTickerHeatmap({ tickers }) {
     }
     return m;
   }, [allData, selectedTickers]);
+
+  // Find POC cell (single max value across all tickers and strikes)
+  const pocCell = useMemo(() => {
+    let maxVal = 0;
+    let pocRI = -1, pocCI = -1, pocTicker = null;
+    strikes.forEach((strike, ri) => {
+      selectedTickers.forEach((t, ci) => {
+        const d = allData[t];
+        if (!d?.strikes) return;
+        const s = d.strikes.find(s2 => s2.strike === strike);
+        const v = Math.abs(s?.gex || 0);
+        if (v > maxVal) {
+          maxVal = v;
+          pocRI = ri;
+          pocCI = ci;
+          pocTicker = t;
+        }
+      });
+    });
+    return { rowIdx: pocRI, colIdx: pocCI, ticker: pocTicker };
+  }, [allData, selectedTickers, strikes]);
+
+  // Aggregate GEX and VEX for the first two columns
+  const aggGex = useMemo(() => {
+    const map = {};
+    strikes.forEach(strike => {
+      let sum = 0;
+      selectedTickers.forEach(t => {
+        const d = allData[t];
+        if (!d?.strikes) return;
+        const s = d.strikes.find(s2 => s2.strike === strike);
+        sum += (s?.gex || 0);
+      });
+      map[strike] = sum;
+    });
+    return map;
+  }, [allData, selectedTickers, strikes]);
+
+  const aggVex = useMemo(() => {
+    const map = {};
+    strikes.forEach(strike => {
+      let sum = 0;
+      selectedTickers.forEach(t => {
+        const d = allData[t];
+        if (!d?.strikes) return;
+        const s = d.strikes.find(s2 => s2.strike === strike);
+        sum += (s?.vex || 0);
+      });
+      map[strike] = sum;
+    });
+    return map;
+  }, [allData, selectedTickers, strikes]);
+
+  const getGex = (ticker, strike) => {
+    const d = allData[ticker];
+    if (!d?.strikes) return 0;
+    const s = d.strikes.find(s2 => s2.strike === strike);
+    return s ? (s.gex || 0) : 0;
+  };
+
+  // Percentage of max for showing badges
+  const getPct = (val) => {
+    if (!maxAbs || !val) return 0;
+    return Math.abs(val) / maxAbs * 100;
+  };
 
   if (loading && Object.keys(allData).length === 0) {
     return (
@@ -156,14 +227,6 @@ export default function MultiTickerHeatmap({ tickers }) {
     );
   }
 
-  // Helper: get Net GEX for a ticker at a strike
-  const getGex = (ticker, strike) => {
-    const d = allData[ticker];
-    if (!d?.strikes) return 0;
-    const s = d.strikes.find(s2 => s2.strike === strike);
-    return s ? (s.gex || 0) : 0;
-  };
-
   return (
     <div className="multi-heatmap-container" data-testid="multi-ticker-heatmap">
       <table className="multi-heatmap-table">
@@ -171,25 +234,68 @@ export default function MultiTickerHeatmap({ tickers }) {
           {strikes.map((strike, i) => {
             const isCurrent = i === spotRowIdx;
             return (
-              <tr key={strike} className={`multi-row ${isCurrent ? "multi-current-row" : ""}`}>
+              <tr key={strike} className={`multi-row${isCurrent ? " multi-current-row" : ""}`}>
                 {/* Price axis */}
-                <td className={`multi-price-cell ${isCurrent ? "multi-current-price" : ""}`}>
-                  {isCurrent && <span className="multi-triangle"/>}
-                  {fmt(strike, strike >= 1000 ? 0 : 1)}
+                <td className={`multi-price-cell${isCurrent ? " multi-current-price" : ""}`}>
+                  {strike >= 1000 ? fmt(strike, 0) : fmt(strike, 1)}
                 </td>
 
+                {/* Aggregate GEX column */}
+                {(() => {
+                  const val = aggGex[strike] || 0;
+                  const cc = cellColor(val, maxAbs);
+                  const isPoc = i === pocCell.rowIdx && pocCell.ticker === "__agg_gex__";
+                  const pct = getPct(val);
+                  return (
+                    <td className="multi-data-cell" style={{ background: cc.bg, color: cc.text }}>
+                      <div className="multi-cell-inner">
+                        {fmtCell(val)}
+                        {pct > 30 && <span className={`multi-pct${val >= 0 ? " multi-pct-pos" : " multi-pct-neg"}`}>{val >= 0 ? "+" : ""}{pct.toFixed(0)}%</span>}
+                      </div>
+                    </td>
+                  );
+                })()}
+
+                {/* Aggregate VEX column */}
+                {(() => {
+                  const val = aggVex[strike] || 0;
+                  const cc = cellColor(val, maxAbs);
+                  const pct = getPct(val);
+                  return (
+                    <td className="multi-data-cell" style={{ background: cc.bg, color: cc.text }}>
+                      <div className="multi-cell-inner">
+                        {fmtCell(val)}
+                        {pct > 30 && <span className={`multi-pct${val >= 0 ? " multi-pct-pos" : " multi-pct-neg"}`}>{val >= 0 ? "+" : ""}{pct.toFixed(0)}%</span>}
+                      </div>
+                    </td>
+                  );
+                })()}
+
                 {/* Ticker columns */}
-                {selectedTickers.map(t => {
+                {selectedTickers.map((t, ci) => {
                   const val = getGex(t, strike);
                   const cc = cellColor(val, maxAbs);
+                  const isPoc = i === pocCell.rowIdx && ci === pocCell.colIdx;
+                  const pct = getPct(val);
                   return (
                     <td
                       key={t}
-                      className="multi-data-cell"
-                      style={{ background: cc.bg, color: cc.text }}
+                      className={`multi-data-cell${isPoc ? " multi-poc-cell" : ""}`}
+                      style={{
+                        background: isPoc ? "rgba(251, 191, 36, 0.85)" : cc.bg,
+                        color: isPoc ? "#0b1121" : cc.text,
+                      }}
                       title={`${t} @ ${strike}: Net GEX ${fmtCell(val)}`}
                     >
-                      {fmtCell(val)}
+                      <div className="multi-cell-inner">
+                        {isPoc ? <span className="multi-star">★</span> : null}
+                        {fmtCell(val)}
+                        {pct > 30 && (
+                          <span className={`multi-pct${val >= 0 ? " multi-pct-pos" : " multi-pct-neg"}`}>
+                            {val >= 0 ? "+" : ""}{pct.toFixed(0)}%
+                          </span>
+                        )}
+                      </div>
                     </td>
                   );
                 })}

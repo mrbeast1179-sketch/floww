@@ -647,7 +647,7 @@
   overflow-x: auto;
   flex: 1;
   min-height: 0;
-  background: #0a0e1a;
+  background: #0b1121;
   font-variant-numeric: tabular-nums;
 }
 
@@ -663,77 +663,69 @@
   position: sticky;
   left: 0;
   z-index: 5;
-  background: #0a0e1a;
-  color: #b0bec5;
-  font-size: 9px;
-  font-weight: 500;
-  padding: 0 3px 0 14px;
+  background: rgba(255,255,255,0.95);
+  color: #0b1121;
+  font-size: 10px;
+  font-weight: 600;
+  padding: 1px 6px;
   text-align: left;
   white-space: nowrap;
-  width: 52px;
+  width: 60px;
   border: none;
 }
 
 .multi-current-row .multi-price-cell {
-  color: #ffffff;
-  font-weight: 700;
-  background: rgba(255,255,255,0.05);
-  position: relative;
+  background: #ffffff !important;
+  color: #0b1121 !important;
+  font-weight: 800;
+  border-left: 3px solid #38bdf8;
+  padding-left: 3px;
 }
 
-.multi-current-row .multi-price-cell .multi-triangle {
-  position: absolute;
-  left: 3px;
-  top: 50%;
-  transform: translateY(-50%);
-  width: 0;
-  height: 0;
-  border-top: 3px solid transparent;
-  border-bottom: 3px solid transparent;
-  border-left: 4px solid #ffffff;
-}
-
-/* ── Tags column (right side) ── */
-.dom-tags-cell {
-  padding: 1px 4px;
+.multi-data-cell {
+  padding: 1px 3px;
   text-align: right;
   white-space: nowrap;
-  width: 90px;
   border: none;
+  line-height: 1.4;
+  font-variant-numeric: tabular-nums;
 }
 
-.dom-tags-row {
+.multi-cell-inner {
   display: flex;
-  gap: 2px;
-  justify-content: flex-end;
-  flex-wrap: wrap;
-}
-
-.dom-tag {
-  display: inline-flex;
   align-items: center;
-  padding: 1px 5px;
-  font-size: 8px;
-  font-weight: 700;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  border-radius: 2px;
-  line-height: 1.2;
+  justify-content: flex-end;
+  gap: 3px;
 }
 
-.dom-tag.king { color: #fbbf24; background: rgba(251,191,36,0.1); border: 1px solid rgba(251,191,36,0.3); }
-.dom-tag.floor { color: #34d399; background: rgba(52,211,153,0.08); border: 1px solid rgba(52,211,153,0.25); }
-.dom-tag.ceiling { color: #f87171; background: rgba(248,113,113,0.08); border: 1px solid rgba(248,113,113,0.25); }
-.dom-tag.gate { color: #38bdf8; background: rgba(56,189,248,0.08); border: 1px solid rgba(56,189,248,0.25); }
-.dom-tag.air { color: #94a3b8; background: rgba(148,163,184,0.06); border: 1px dashed rgba(148,163,184,0.2); }
+.multi-pct {
+  font-size: 7px;
+  font-weight: 700;
+  padding: 0 2px;
+  border-radius: 2px;
+}
+
+.multi-pct-pos { color: #6ee7b7; }
+.multi-pct-neg { color: #f9a8d4; }
+
+.multi-star {
+  font-size: 8px;
+  margin-right: 1px;
+}
+
+.multi-poc-cell {
+  position: relative;
+  z-index: 2;
+  box-shadow: 0 0 10px rgba(251, 191, 36, 0.4);
+}
 
 .multi-row:hover .multi-data-cell {
-  filter: brightness(1.25);
+  filter: brightness(1.15);
 }
 
 .multi-heatmap-container::-webkit-scrollbar { width: 4px; height: 4px; }
-.multi-heatmap-container::-webkit-scrollbar-track { background: #0a0e1a; }
-.multi-heatmap-container::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.05); border-radius: 2px; }
+.multi-heatmap-container::-webkit-scrollbar-track { background: #0b1121; }
+.multi-heatmap-container::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.06); border-radius: 2px; }
 
 /* ================================================================
    Trinity 3-Panel View — Skylit reference style
