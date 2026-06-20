@@ -867,13 +867,13 @@ export default function App() {
                     </span>
                     <span className="dom-spot-price">${fmt(livespot?.spot ?? data?.spot, 2)}</span>
                     <span className="dom-live-dot">● live</span>
-                  </div>
-                  <div className="dom-view-controls">
-                    <span className="tag king">KING</span>
-                    <span className="tag floor">FLR</span>
-                    <span className="tag ceiling">CEIL</span>
-                    <span className="tag gate">GATE</span>
-                    <span className="tag air">AIR</span>
+                    <div className="dom-tags-inline">
+                      <span className="tag king">KING</span>
+                      <span className="tag floor">FLR</span>
+                      <span className="tag ceiling">CEIL</span>
+                      <span className="tag gate">GATE</span>
+                      <span className="tag air">AIR</span>
+                    </div>
                   </div>
                 </div>
                 <div className="flex-1 overflow-hidden">

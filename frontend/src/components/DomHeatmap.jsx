@@ -34,7 +34,8 @@ function domCellColor(v, maxAbs) {
 }
 
 function domFmt(v) {
-  if (v === null || v === undefined || isNaN(v) || v === 0) return "";
+  if (v === null || v === undefined || isNaN(v)) return "—";
+  if (v === 0) return "—";
   const a = Math.abs(v);
   const sign = v < 0 ? "-" : "";
   if (a >= 1e6) return sign + (a / 1e6).toFixed(2) + "M";
@@ -50,13 +51,24 @@ export default function DomHeatmap({ data, spot, ticker }) {
       .sort((a, b) => b.strike - a.strike);
   }, [data]);
 
-  const maxAbs = useMemo(() => {
+  // Global max for cell color scaling (across all 5 columns)
+  const colorMaxAbs = useMemo(() => {
     let m = 1;
     for (const row of rows) {
       for (const key of ["call_gex", "gex", "put_gex", "vex", "charm"]) {
         const v = Math.abs(row[key] || 0);
         if (v > m) m = v;
       }
+    }
+    return m;
+  }, [rows]);
+
+  // Max for percentage badge (net GEX only)
+  const gexMaxAbs = useMemo(() => {
+    let m = 1;
+    for (const row of rows) {
+      const v = Math.abs(row.gex || 0);
+      if (v > m) m = v;
     }
     return m;
   }, [rows]);
@@ -125,9 +137,9 @@ export default function DomHeatmap({ data, spot, ticker }) {
                 row.vex || 0,
                 row.charm || 0,
               ];
-              const hasStar = cols.some((v) => domCellColor(v, maxAbs).star);
+              const hasStar = cols.some((v) => domCellColor(v, colorMaxAbs).star);
               const netGex = row.gex || 0;
-              const pctVal = maxAbs > 0 ? Math.abs(netGex / maxAbs) * 100 : 0;
+              const pctVal = gexMaxAbs > 0 ? Math.abs(netGex / gexMaxAbs) * 100 : 0;
               const isEven = i % 2 === 0;
 
               return (
@@ -143,7 +155,7 @@ export default function DomHeatmap({ data, spot, ticker }) {
 
                   {/* 5 data columns */}
                   {cols.map((val, ci) => {
-                    const cc = domCellColor(val, maxAbs);
+                    const cc = domCellColor(val, colorMaxAbs);
                     return (
                       <td
                         key={ci}
@@ -174,7 +186,7 @@ export default function DomHeatmap({ data, spot, ticker }) {
                   {/* Percentage badge — show on all rows with visual weight */}
                   <td className="dom-pct-cell">
                     <span className={`dom-pct-badge ${pctVal > 50 ? "dom-pct-hot" : pctVal > 20 ? "dom-pct-warm" : "dom-pct-cool"} ${netGex >= 0 ? "dom-pct-pos" : "dom-pct-neg"}`}>
-                      {netGex >= 0 ? "+" : ""}{pctVal.toFixed(0)}%
+                      {netGex >= 0 ? "+" : ""}{pctVal < 1 && pctVal > 0 ? pctVal.toFixed(1) : pctVal.toFixed(0)}%
                     </span>
                   </td>
                 </tr>

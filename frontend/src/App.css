@@ -608,7 +608,12 @@
   flex-shrink: 0;
 }
 
-.dom-ticker-info { display: flex; align-items: center; gap: 6px; }
+.dom-ticker-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
 
 .dom-ticker-label {
   font-family: "Space Grotesk", "Inter", sans-serif;
@@ -622,7 +627,11 @@
 
 .dom-spot-price { font-family: "JetBrains Mono", ui-monospace, monospace; font-size: 12px; font-weight: 700; color: #e2e8f0; }
 .dom-live-dot { font-size: 8px; color: #34d399; animation: pulse 2.5s ease-in-out infinite; }
-.dom-view-controls { display: flex; gap: 3px; }
+.dom-tags-inline {
+  display: flex;
+  gap: 3px;
+  margin-left: auto;
+}
 
 /* ================================================================
    Multi-Ticker Heatmap — Skylit reference style
