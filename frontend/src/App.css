@@ -908,9 +908,15 @@
   background: rgba(255,255,255,0.06) !important;
 }
 
-.trinity-row-king {
-  /* king row gets a subtle border */
-  box-shadow: inset 2px 0 0 #fbbf24;
+.dom-row-king {
+  box-shadow: inset 2px 0 0 #fbbf24, inset 0 0 0 1px rgba(251,191,36,0.15);
+  z-index: 3;
+}
+
+.dom-row-king .dom-price-cell {
+  background: rgba(251, 191, 36, 0.1) !important;
+  color: #fbbf24 !important;
+  font-weight: 800;
 }
 
 .trinity-row-price {

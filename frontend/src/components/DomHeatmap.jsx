@@ -142,10 +142,17 @@ export default function DomHeatmap({ data, spot, ticker }) {
               const pctVal = gexMaxAbs > 0 ? Math.abs(netGex / gexMaxAbs) * 100 : 0;
               const isEven = i % 2 === 0;
 
+              // Row-level heatmap intensity (for background tint)
+              const rowIntensity = colorMaxAbs > 0 ? Math.abs(netGex) / colorMaxAbs : 0;
+              const rowHeatColor = netGex >= 0
+                ? `rgba(45, 212, 191, ${Math.min(0.08, rowIntensity * 0.15)})`
+                : `rgba(168, 85, 247, ${Math.min(0.08, rowIntensity * 0.15)})`;
+
               return (
                 <tr
                   key={strike}
-                  className={`dom-row ${isCurrent ? "dom-current-row" : ""} ${isEven ? "dom-row-even" : ""}`}
+                  className={`dom-row ${isCurrent ? "dom-current-row" : ""} ${isEven ? "dom-row-even" : ""} ${isKing ? "dom-row-king" : ""}`}
+                  style={{ background: isKing ? "rgba(251, 191, 36, 0.06)" : rowHeatColor }}
                 >
                   {/* Price axis cell */}
                   <td className={`dom-price-cell ${isCurrent ? "dom-current-price" : ""}`}>
