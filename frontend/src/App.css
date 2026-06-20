@@ -406,16 +406,16 @@
 }
 
 /* ── Price axis ── */
-/* ── Price axis — prominent, easy to read ── */
+/* ── Price axis — white background, contrasting with grid ── */
 .dom-price-cell {
   position: sticky;
   left: 0;
   z-index: 5;
-  background: rgba(15, 23, 42, 0.98);
+  background: #0f172a;
   color: #e2e8f0;
   font-size: 12px;
   font-weight: 700;
-  padding: 3px 8px 3px 8px;
+  padding: 2px 8px;
   text-align: left;
   white-space: nowrap;
   width: 80px;
@@ -425,28 +425,30 @@
 }
 
 .dom-row-even .dom-price-cell {
-  background: rgba(20, 30, 50, 0.98);
+  background: #111b2e;
 }
 
+/* Current price: white background cell like reference */
 .dom-current-row .dom-price-cell {
-  color: #ffffff;
+  background: rgba(255,255,255,0.95) !important;
+  color: #0a0e1a !important;
   font-weight: 800;
   font-size: 12px;
-  background: rgba(255,255,255,0.08);
   border-left: 3px solid #ffffff;
   padding-left: 5px;
+  position: relative;
+  z-index: 5;
 }
 
 /* ── Data cells ── */
 .dom-data-cell {
-  padding: 2px 4px;
+  padding: 1px 4px;
   text-align: right;
   white-space: nowrap;
   font-size: 10px;
   cursor: default;
   border: none;
-  border-right: 1px solid rgba(255,255,255,0.03);
-  line-height: 1.5;
+  line-height: 1.4;
   transition: background-color 100ms ease;
   font-variant-numeric: tabular-nums;
 }
@@ -468,52 +470,23 @@
 .dom-current-row {
   box-shadow: inset 0 0 0 1px rgba(255,255,255,0.12);
   z-index: 3;
+  position: relative;
 }
 
-/* ── Tags column (right side) ── */
-.dom-tags-cell {
-  padding: 2px 4px;
-  text-align: right;
-  white-space: nowrap;
-  width: 90px;
-  border: none;
+/* Horizontal price line extending across grid */
+.dom-current-row::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 50%;
+  height: 1px;
+  background: linear-gradient(90deg, rgba(255,255,255,0.5), rgba(255,255,255,0.05));
+  pointer-events: none;
+  z-index: 4;
 }
 
-.dom-tags-row {
-  display: flex;
-  gap: 2px;
-  justify-content: flex-end;
-  flex-wrap: wrap;
-}
-
-.dom-tag {
-  display: inline-flex;
-  align-items: center;
-  gap: 2px;
-  padding: 1px 5px;
-  font-size: 8px;
-  font-weight: 700;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  border-radius: 3px;
-  line-height: 1.3;
-}
-
-.dom-tag-dot {
-  width: 5px;
-  height: 5px;
-  border-radius: 50%;
-  background: #fbbf24;
-  display: inline-block;
-}
-
-.dom-tag.king { color: #fbbf24; background: rgba(251,191,36,0.15); border: 1px solid rgba(251,191,36,0.35); }
-.dom-tag.floor { color: #34d399; background: rgba(52,211,153,0.12); border: 1px solid rgba(52,211,153,0.3); }
-.dom-tag.ceiling { color: #f87171; background: rgba(248,113,113,0.12); border: 1px solid rgba(248,113,113,0.3); }
-.dom-tag.gate { color: #38bdf8; background: rgba(56,189,248,0.12); border: 1px solid rgba(56,189,248,0.3); }
-.dom-tag.air { color: #94a3b8; background: rgba(148,163,184,0.06); border: 1px dashed rgba(148,163,184,0.25); }
-
-/* ── Percentage badges — all rows ── */
+/* ── Scrollbar ── */
 .dom-pct-cell {
   padding: 2px 3px;
   text-align: center;
@@ -613,6 +586,16 @@
   align-items: center;
   gap: 8px;
   flex-shrink: 0;
+}
+
+.trinity-row-price {
+  font-family: "JetBrains Mono", monospace;
+  font-size: 9px;
+  color: #94a3b8;
+  text-align: right;
+  width: 52px;
+  flex-shrink: 0;
+  font-weight: 600;
 }
 
 .dom-ticker-label {
@@ -908,18 +891,7 @@
   background: rgba(255,255,255,0.06) !important;
 }
 
-.dom-row-king {
-  box-shadow: inset 2px 0 0 #fbbf24, inset 0 0 0 1px rgba(251,191,36,0.15);
-  z-index: 3;
-}
-
-.dom-row-king .dom-price-cell {
-  background: rgba(251, 191, 36, 0.1) !important;
-  color: #fbbf24 !important;
-  font-weight: 800;
-}
-
-.trinity-row-price {
+/* ── Scrollbar ── */
   font-family: "JetBrains Mono", monospace;
   font-size: 9px;
   color: #94a3b8;

@@ -84,18 +84,6 @@ export default function DomHeatmap({ data, spot, ticker }) {
     return bestIdx;
   }, [rows, spot]);
 
-  const kingStrike = useMemo(() => {
-    if (!data?.nodes?.king?.strike) return null;
-    return data.nodes.king.strike;
-  }, [data]);
-
-  const tagSets = useMemo(() => {
-    const floors = new Set((data?.nodes?.floors || []).map(f => f.strike));
-    const ceilings = new Set((data?.nodes?.ceilings || []).map(f => f.strike));
-    const gates = new Set((data?.nodes?.gatekeepers || []).map(f => f.strike));
-    return { floors, ceilings, gates };
-  }, [data]);
-
   // Min/max for legend
   const { minGex, maxGex } = useMemo(() => {
     if (!rows.length) return { minGex: 0, maxGex: 0 };
@@ -124,12 +112,6 @@ export default function DomHeatmap({ data, spot, ticker }) {
             {rows.map((row, i) => {
               const strike = row.strike;
               const isCurrent = i === spotRowIdx;
-              const isKing = strike === kingStrike;
-              const isFloor = tagSets.floors.has(strike);
-              const isCeil = tagSets.ceilings.has(strike);
-              const isGate = tagSets.gates.has(strike);
-              const inAir = (data?.nodes?.air_pockets || []).some(a => strike >= a.low && strike <= a.high);
-
               const cols = [
                 row.call_gex || 0,
                 row.gex || 0,
@@ -142,17 +124,10 @@ export default function DomHeatmap({ data, spot, ticker }) {
               const pctVal = gexMaxAbs > 0 ? Math.abs(netGex / gexMaxAbs) * 100 : 0;
               const isEven = i % 2 === 0;
 
-              // Row-level heatmap intensity (for background tint)
-              const rowIntensity = colorMaxAbs > 0 ? Math.abs(netGex) / colorMaxAbs : 0;
-              const rowHeatColor = netGex >= 0
-                ? `rgba(45, 212, 191, ${Math.min(0.08, rowIntensity * 0.15)})`
-                : `rgba(168, 85, 247, ${Math.min(0.08, rowIntensity * 0.15)})`;
-
               return (
                 <tr
                   key={strike}
-                  className={`dom-row ${isCurrent ? "dom-current-row" : ""} ${isEven ? "dom-row-even" : ""} ${isKing ? "dom-row-king" : ""}`}
-                  style={{ background: isKing ? "rgba(251, 191, 36, 0.06)" : rowHeatColor }}
+                  className={`dom-row ${isCurrent ? "dom-current-row" : ""} ${isEven ? "dom-row-even" : ""}`}
                 >
                   {/* Price axis cell */}
                   <td className={`dom-price-cell ${isCurrent ? "dom-current-price" : ""}`}>
@@ -178,17 +153,6 @@ export default function DomHeatmap({ data, spot, ticker }) {
                       </td>
                     );
                   })}
-
-                  {/* Tags column */}
-                  <td className="dom-tags-cell">
-                    <div className="dom-tags-row">
-                      {isKing && <span className="dom-tag king"><span className="dom-tag-dot"/>KING</span>}
-                      {isFloor && <span className="dom-tag floor">FLR</span>}
-                      {isCeil && <span className="dom-tag ceiling">CEIL</span>}
-                      {isGate && <span className="dom-tag gate">GATE</span>}
-                      {inAir && <span className="dom-tag air">≈AIR</span>}
-                    </div>
-                  </td>
 
                   {/* Percentage badge — show on all rows with visual weight */}
                   <td className="dom-pct-cell">
