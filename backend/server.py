@@ -2624,8 +2624,12 @@ async def _vpin_autofeed_loop():
                     break
                 try:
                     # Get recent 1-min bars from yfinance
+                    # Index options (SPX, NDX, RUT) need ^ prefix for yfinance
+                    yf_ticker = ticker
+                    if yf_ticker.upper() in ("SPX", "SPXW", "NDX", "RUT"):
+                        yf_ticker = f"^{yf_ticker}"
                     hist = await asyncio.to_thread(
-                        lambda t=ticker: yf.Ticker(t).history(period="1d", interval="1m")
+                        lambda t=yf_ticker: yf.Ticker(t).history(period="1d", interval="1m")
                     )
                     if hist is None or len(hist) < 5:
                         continue
