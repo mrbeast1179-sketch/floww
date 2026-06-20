@@ -307,7 +307,7 @@ async def _load_portfolio_from_mongo(name: str) -> Portfolio | None:
 
 # ============ Data Fetching Functions (moved here to maintain correct order) ============
 
-DEFAULT_PAID_TICKERS = {"SPY"}
+DEFAULT_PAID_TICKERS = {"SPY", "QQQ", "IWM", "DIA", "TLT", "SPX"}
 PAID_TICKERS: set = (
     set()
     if os.environ.get("DISABLE_DATABENTO", "").lower() in ("1", "true", "yes")

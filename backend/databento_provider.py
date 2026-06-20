@@ -37,6 +37,8 @@ PARENT_MAP = {
     "SPY": "SPY.OPT",
     "QQQ": "QQQ.OPT",
     "IWM": "IWM.OPT",
+    "DIA": "DIA.OPT",
+    "TLT": "TLT.OPT",
     "SPX": "SPXW.OPT",
     "^SPX": "SPXW.OPT",
     "SPXW": "SPXW.OPT",
