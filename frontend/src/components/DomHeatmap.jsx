@@ -1,13 +1,14 @@
 import React, { useMemo } from "react";
-import { fmt, tagFor } from "../lib/helpers";
+import { fmt } from "../lib/helpers";
 
 /**
  * DOM/Level 2 Order Book Heatmap — Skylit reference style
  *
  * Layout: Price (left) | 5 data columns | Tags (right)
- * Price: bold, prominent, triangle marker on current row
+ * Price: bold, prominent, left-border accent on current row
  * Tags: KING/FLR/CEIL/GATE/AIR badges on the right side
  * Colors: teal/green = positive, purple = negative, yellow = extreme
+ * Footer: gradient legend bar (purple → teal → green → yellow)
  */
 
 function domCellColor(v, maxAbs) {
@@ -18,7 +19,7 @@ function domCellColor(v, maxAbs) {
   const isNeg = v < 0;
 
   if (!isNeg) {
-    if (norm > 0.70) return { bg: `rgba(253, 224, 71, ${0.8 + 0.15 * norm})`, text: "#0a0e1a", star: true };
+    if (norm > 0.70) return { bg: `rgba(251, 191, 36, ${0.75 + 0.2 * norm})`, text: "#0a0e1a", star: true };
     if (norm > 0.50) return { bg: `rgba(45, 212, 191, ${0.55 + 0.35 * norm})`, text: "#0a0e1a" };
     if (norm > 0.25) return { bg: `rgba(45, 212, 191, ${0.25 + 0.4 * norm})`, text: "#a7f3d0" };
     if (norm > 0.08) return { bg: `rgba(22, 78, 99, ${0.18 + 0.25 * norm})`, text: "#6ee7b7" };
@@ -71,23 +72,29 @@ export default function DomHeatmap({ data, spot, ticker }) {
     return bestIdx;
   }, [rows, spot]);
 
-  // King node (strike with highest abs GEX)
   const kingStrike = useMemo(() => {
     if (!data?.nodes?.king?.strike) return null;
     return data.nodes.king.strike;
   }, [data]);
 
-  // Floor/Ceiling/Gatekeeper/Air sets
   const tagSets = useMemo(() => {
     const floors = new Set((data?.nodes?.floors || []).map(f => f.strike));
     const ceilings = new Set((data?.nodes?.ceilings || []).map(f => f.strike));
     const gates = new Set((data?.nodes?.gatekeepers || []).map(f => f.strike));
-    const air = new Set((data?.nodes?.air_pockets || []).map(a => {
-      // Air pockets are ranges — mark all strikes in range
-      return a;
-    }));
-    return { floors, ceilings, gates, air };
+    return { floors, ceilings, gates };
   }, [data]);
+
+  // Min/max for legend
+  const { minGex, maxGex } = useMemo(() => {
+    if (!rows.length) return { minGex: 0, maxGex: 0 };
+    let min = Infinity, max = -Infinity;
+    for (const row of rows) {
+      const v = row.gex || 0;
+      if (v < min) min = v;
+      if (v > max) max = v;
+    }
+    return { minGex: min === Infinity ? 0 : min, maxGex: max === -Infinity ? 0 : max };
+  }, [rows]);
 
   if (!rows.length) {
     return (
@@ -98,84 +105,98 @@ export default function DomHeatmap({ data, spot, ticker }) {
   }
 
   return (
-    <div className="dom-heatmap-container" data-testid="dom-heatmap">
-      <table className="dom-heatmap-table">
-        <tbody>
-          {rows.map((row, i) => {
-            const strike = row.strike;
-            const isCurrent = i === spotRowIdx;
-            const isKing = strike === kingStrike;
-            const isFloor = tagSets.floors.has(strike);
-            const isCeil = tagSets.ceilings.has(strike);
-            const isGate = tagSets.gates.has(strike);
-            const inAir = (data?.nodes?.air_pockets || []).some(a => strike >= a.low && strike <= a.high);
+    <div className="dom-heatmap-wrapper">
+      <div className="dom-heatmap-container" data-testid="dom-heatmap">
+        <table className="dom-heatmap-table">
+          <tbody>
+            {rows.map((row, i) => {
+              const strike = row.strike;
+              const isCurrent = i === spotRowIdx;
+              const isKing = strike === kingStrike;
+              const isFloor = tagSets.floors.has(strike);
+              const isCeil = tagSets.ceilings.has(strike);
+              const isGate = tagSets.gates.has(strike);
+              const inAir = (data?.nodes?.air_pockets || []).some(a => strike >= a.low && strike <= a.high);
 
-            const cols = [
-              row.call_gex || 0,
-              row.gex || 0,
-              row.put_gex || 0,
-              row.vex || 0,
-              row.charm || 0,
-            ];
-            const hasStar = cols.some((v) => domCellColor(v, maxAbs).star);
-            const netGex = row.gex || 0;
-            const pctVal = maxAbs > 0 ? Math.abs(netGex / maxAbs) * 100 : 0;
+              const cols = [
+                row.call_gex || 0,
+                row.gex || 0,
+                row.put_gex || 0,
+                row.vex || 0,
+                row.charm || 0,
+              ];
+              const hasStar = cols.some((v) => domCellColor(v, maxAbs).star);
+              const netGex = row.gex || 0;
+              const pctVal = maxAbs > 0 ? Math.abs(netGex / maxAbs) * 100 : 0;
+              const isEven = i % 2 === 0;
 
-            return (
-              <tr
-                key={strike}
-                className={`dom-row ${isCurrent ? "dom-current-row" : ""}`}
-              >
-                {/* Price axis cell — prominent styling */}
-                <td className={`dom-price-cell ${isCurrent ? "dom-current-price" : ""}`}>
-                  {isCurrent && <span className="dom-triangle"/>}
-                  {hasStar && <span className="dom-star">★</span>}
-                  {strike >= 1000 ? fmt(strike, 0) : fmt(strike, 1)}
-                </td>
+              return (
+                <tr
+                  key={strike}
+                  className={`dom-row ${isCurrent ? "dom-current-row" : ""} ${isEven ? "dom-row-even" : ""}`}
+                >
+                  {/* Price axis cell */}
+                  <td className={`dom-price-cell ${isCurrent ? "dom-current-price" : ""}`}>
+                    {hasStar && <span className="dom-star">★</span>}
+                    {strike >= 1000 ? fmt(strike, 0) : fmt(strike, 1)}
+                  </td>
 
-                {/* 5 data columns */}
-                {cols.map((val, ci) => {
-                  const cc = domCellColor(val, maxAbs);
-                  return (
-                    <td
-                      key={ci}
-                      className="dom-data-cell"
-                      style={{ background: cc.bg, color: cc.text }}
-                      title={`${ticker} @ ${strike}: ${domFmt(val)}`}
-                    >
-                      {cc.star ? (
-                        <span className="dom-star-cell">★{domFmt(val)}</span>
-                      ) : (
-                        domFmt(val)
-                      )}
-                    </td>
-                  );
-                })}
+                  {/* 5 data columns */}
+                  {cols.map((val, ci) => {
+                    const cc = domCellColor(val, maxAbs);
+                    return (
+                      <td
+                        key={ci}
+                        className="dom-data-cell"
+                        style={{ background: cc.bg, color: cc.text }}
+                        title={`${ticker} @ ${strike}: ${domFmt(val)}`}
+                      >
+                        {cc.star ? (
+                          <span className="dom-star-cell">★{domFmt(val)}</span>
+                        ) : (
+                          domFmt(val)
+                        )}
+                      </td>
+                    );
+                  })}
 
-                {/* Tags column — KING/FLR/CEIL/GATE/AIR on the right */}
-                <td className="dom-tags-cell">
-                  <div className="dom-tags-row">
-                    {isKing && <span className="dom-tag king">KING</span>}
-                    {isFloor && <span className="dom-tag floor">FLR</span>}
-                    {isCeil && <span className="dom-tag ceiling">CEIL</span>}
-                    {isGate && <span className="dom-tag gate">GATE</span>}
-                    {inAir && <span className="dom-tag air">AIR</span>}
-                  </div>
-                </td>
+                  {/* Tags column */}
+                  <td className="dom-tags-cell">
+                    <div className="dom-tags-row">
+                      {isKing && <span className="dom-tag king"><span className="dom-tag-dot"/>KING</span>}
+                      {isFloor && <span className="dom-tag floor">FLR</span>}
+                      {isCeil && <span className="dom-tag ceiling">CEIL</span>}
+                      {isGate && <span className="dom-tag gate">GATE</span>}
+                      {inAir && <span className="dom-tag air">≈AIR</span>}
+                    </div>
+                  </td>
 
-                {/* Percentage badge */}
-                <td className="dom-pct-cell">
-                  {pctVal > 50 && (
-                    <span className={`dom-pct-badge ${netGex >= 0 ? "dom-pct-pos" : "dom-pct-neg"}`}>
+                  {/* Percentage badge — show on all rows with visual weight */}
+                  <td className="dom-pct-cell">
+                    <span className={`dom-pct-badge ${pctVal > 50 ? "dom-pct-hot" : pctVal > 20 ? "dom-pct-warm" : "dom-pct-cool"} ${netGex >= 0 ? "dom-pct-pos" : "dom-pct-neg"}`}>
                       {netGex >= 0 ? "+" : ""}{pctVal.toFixed(0)}%
                     </span>
-                  )}
-                </td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+
+      {/* Bottom gradient legend bar */}
+      <div className="dom-legend">
+        <span className="dom-legend-min">{domFmt(minGex)}</span>
+        <div className="dom-legend-bar">
+          <div className="dom-legend-gradient" />
+          <div className="dom-legend-ticks">
+            <span>0</span>
+            <span>{domFmt(maxGex * 0.5)}</span>
+            <span>{domFmt(maxGex)}</span>
+          </div>
+        </div>
+        <span className="dom-legend-max">{domFmt(maxGex)}</span>
+      </div>
     </div>
   );
 }

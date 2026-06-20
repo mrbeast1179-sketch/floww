@@ -406,105 +406,196 @@
 }
 
 /* ── Price axis ── */
+/* ── Price axis — prominent, easy to read ── */
 .dom-price-cell {
   position: sticky;
   left: 0;
   z-index: 5;
-  background: #0a0e1a;
+  background: rgba(15, 23, 42, 0.98);
   color: #e2e8f0;
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 700;
-  padding: 2px 6px 2px 20px;
-  text-align: right;
+  padding: 3px 8px 3px 8px;
+  text-align: left;
   white-space: nowrap;
-  width: 64px;
+  width: 80px;
   border: none;
   letter-spacing: 0.02em;
+  transition: background-color 100ms ease;
 }
 
-/* ── Current price row ── */
+.dom-row-even .dom-price-cell {
+  background: rgba(20, 30, 50, 0.98);
+}
+
 .dom-current-row .dom-price-cell {
   color: #ffffff;
   font-weight: 800;
   font-size: 12px;
-  background: rgba(255,255,255,0.07);
-  position: relative;
-}
-
-.dom-current-row .dom-price-cell .dom-triangle {
-  position: absolute;
-  left: 4px;
-  top: 50%;
-  transform: translateY(-50%);
-  width: 0;
-  height: 0;
-  border-top: 4px solid transparent;
-  border-bottom: 4px solid transparent;
-  border-left: 5px solid #ffffff;
+  background: rgba(255,255,255,0.08);
+  border-left: 3px solid #ffffff;
+  padding-left: 5px;
 }
 
 /* ── Data cells ── */
 .dom-data-cell {
-  padding: 0 3px;
+  padding: 2px 4px;
   text-align: right;
   white-space: nowrap;
   font-size: 10px;
   cursor: default;
   border: none;
+  border-right: 1px solid rgba(255,255,255,0.03);
+  line-height: 1.5;
+  transition: background-color 100ms ease;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── Row styling ── */
+.dom-row {
+  transition: box-shadow 100ms ease;
+}
+
+.dom-row:hover {
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,0.08);
+  z-index: 2;
+}
+
+.dom-row:hover .dom-price-cell {
+  background: rgba(255,255,255,0.06);
+}
+
+.dom-current-row {
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,0.12);
+  z-index: 3;
+}
+
+/* ── Tags column (right side) ── */
+.dom-tags-cell {
+  padding: 2px 4px;
+  text-align: right;
+  white-space: nowrap;
+  width: 90px;
+  border: none;
+}
+
+.dom-tags-row {
+  display: flex;
+  gap: 2px;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+}
+
+.dom-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 1px 5px;
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  border-radius: 3px;
   line-height: 1.3;
 }
 
-/* ── Star + extreme highlight ── */
-.dom-star {
-  color: #fbbf24;
-  font-size: 8px;
-  margin-right: 1px;
-  vertical-align: middle;
+.dom-tag-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: #fbbf24;
+  display: inline-block;
 }
 
-.dom-star-cell {
-  font-weight: 700;
-}
+.dom-tag.king { color: #fbbf24; background: rgba(251,191,36,0.15); border: 1px solid rgba(251,191,36,0.35); }
+.dom-tag.floor { color: #34d399; background: rgba(52,211,153,0.12); border: 1px solid rgba(52,211,153,0.3); }
+.dom-tag.ceiling { color: #f87171; background: rgba(248,113,113,0.12); border: 1px solid rgba(248,113,113,0.3); }
+.dom-tag.gate { color: #38bdf8; background: rgba(56,189,248,0.12); border: 1px solid rgba(56,189,248,0.3); }
+.dom-tag.air { color: #94a3b8; background: rgba(148,163,184,0.06); border: 1px dashed rgba(148,163,184,0.25); }
 
-/* ── Percentage badge ── */
+/* ── Percentage badges — all rows ── */
 .dom-pct-cell {
-  padding: 0 2px;
+  padding: 2px 3px;
   text-align: center;
-  width: 40px;
+  width: 42px;
   border: none;
 }
 
 .dom-pct-badge {
   display: inline-block;
   padding: 0 3px;
-  border-radius: 2px;
+  border-radius: 3px;
   font-size: 8px;
-  font-weight: 700;
   font-family: "JetBrains Mono", ui-monospace, monospace;
+  font-variant-numeric: tabular-nums;
 }
 
-.dom-pct-pos {
-  background: rgba(34, 211, 238, 0.1);
-  color: #22d3ee;
-  border: 1px solid rgba(34, 211, 238, 0.2);
+.dom-pct-hot { font-weight: 800; }
+.dom-pct-warm { font-weight: 600; }
+.dom-pct-cool { font-weight: 400; opacity: 0.6; }
+
+.dom-pct-pos.dom-pct-hot { color: #22d3ee; background: rgba(34,211,238,0.12); }
+.dom-pct-pos.dom-pct-warm { color: #6ee7b7; }
+.dom-pct-pos.dom-pct-cool { color: #6ee7b7; }
+.dom-pct-neg.dom-pct-hot { color: #c084fc; background: rgba(192,132,252,0.12); }
+.dom-pct-neg.dom-pct-warm { color: #f9a8d4; }
+.dom-pct-neg.dom-pct-cool { color: #f9a8d4; }
+
+/* ── Bottom gradient legend bar ── */
+.dom-legend {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  background: rgba(15, 23, 42, 0.8);
+  border-top: 1px solid rgba(255,255,255,0.04);
+  flex-shrink: 0;
 }
 
-.dom-pct-neg {
-  background: rgba(168, 85, 247, 0.1);
-  color: #c084fc;
-  border: 1px solid rgba(168, 85, 247, 0.2);
+.dom-legend-min,
+.dom-legend-max {
+  font-family: "JetBrains Mono", ui-monospace, monospace;
+  font-size: 9px;
+  color: #64748b;
+  white-space: nowrap;
+  min-width: 50px;
 }
 
-/* ── Row hover ── */
-.dom-row:hover .dom-data-cell {
-  filter: brightness(1.25);
+.dom-legend-min { text-align: right; }
+.dom-legend-max { text-align: left; }
+
+.dom-legend-bar {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.dom-legend-gradient {
+  height: 6px;
+  border-radius: 3px;
+  background: linear-gradient(90deg, 
+    rgba(88, 28, 135, 0.8),
+    rgba(168, 85, 247, 0.8),
+    rgba(45, 212, 191, 0.8),
+    rgba(74, 222, 128, 0.8),
+    rgba(251, 191, 36, 0.8)
+  );
+}
+
+.dom-legend-ticks {
+  display: flex;
+  justify-content: space-between;
+  font-family: "JetBrains Mono", ui-monospace, monospace;
+  font-size: 7px;
+  color: #475569;
 }
 
 /* ── Scrollbar ── */
-.dom-heatmap-container::-webkit-scrollbar { width: 4px; height: 4px; }
+.dom-heatmap-container::-webkit-scrollbar { width: 6px; height: 6px; }
 .dom-heatmap-container::-webkit-scrollbar-track { background: #0a0e1a; }
-.dom-heatmap-container::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.05); border-radius: 2px; }
-.dom-heatmap-container::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.1); }
+.dom-heatmap-container::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.08); border-radius: 3px; }
+.dom-heatmap-container::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.15); }
 
 /* ── Top bar ── */
 .dom-top-bar {
