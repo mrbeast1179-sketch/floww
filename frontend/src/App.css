@@ -138,6 +138,7 @@
 
   .heatseeker-sidebar-left {
     display: block !important;
+    order: 0 !important;
     position: static !important;
     z-index: auto;
     border-right: 1px solid var(--border);
@@ -148,8 +149,9 @@
   }
 
   .heatseeker-main {
+    order: 0 !important;
     overflow-y: auto;
-    overflow-x: hidden;
+    overflow-x: auto;
     min-height: 0;
     min-width: 0;
     padding: 0.75rem;
@@ -395,11 +397,12 @@
 
 .dom-heatmap-table {
   width: 100%;
+  max-width: 100%;
   border-collapse: collapse;
   border-spacing: 0;
   font-size: 10px;
   font-family: "JetBrains Mono", ui-monospace, Consolas, monospace;
-  table-layout: fixed;
+  table-layout: auto;
 }
 
 /* ── Price axis ── */
