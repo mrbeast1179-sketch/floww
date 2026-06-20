@@ -133,20 +133,25 @@
     display: grid;
     grid-template-columns: 240px 1fr;
     grid-template-rows: 1fr;
+    min-height: 0;
   }
 
   .heatseeker-sidebar-left {
     display: block !important;
-    order: 0;
     position: static !important;
     z-index: auto;
     border-right: 1px solid var(--border);
     overflow-y: auto;
+    overflow-x: hidden;
     padding: 0.5rem;
+    min-height: 0;
   }
 
   .heatseeker-main {
-    order: 0;
+    overflow-y: auto;
+    overflow-x: hidden;
+    min-height: 0;
+    min-width: 0;
     padding: 0.75rem;
   }
 
@@ -191,16 +196,18 @@
 @media (min-width: 1024px) {
   .heatseeker-layout {
     grid-template-columns: 260px 1fr 280px;
+    min-height: 0;
   }
 
   .heatseeker-sidebar-right {
     display: block !important;
-    order: 0;
     position: static !important;
     z-index: auto;
     border-left: 1px solid var(--border);
     overflow-y: auto;
+    overflow-x: hidden;
     padding: 0.5rem;
+    min-height: 0;
   }
 
   .heatseeker-sidebar-right.open {
