@@ -759,7 +759,8 @@ def fetch_spot_and_chains(ticker: str, max_expiries: int = 4) -> dict[str, Any]:
                 oi = float(row.get("openInterest", 0) or 0)
                 iv = float(row.get("impliedVolatility", 0) or 0)
                 vol = float(row.get("volume", 0) or 0)
-                if strike <= 0 or oi <= 0 or iv <= 0:
+                # Require valid strike; relax OI/IV filter for sparse data (e.g. SPX)
+                if strike <= 0:
                     continue
                 contracts.append({
                     "expiry": exp, "T": T, "type": kind,
