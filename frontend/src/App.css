@@ -440,13 +440,6 @@
   z-index: 5;
 }
 
-/* ── Point of Control cell (yellow highlight) ── */
-.dom-poc-cell {
-  position: relative;
-  z-index: 2;
-  box-shadow: 0 0 8px rgba(251, 191, 36, 0.3);
-}
-
 /* ── Data cells ── */
 .dom-data-cell {
   padding: 1px 4px;
@@ -463,6 +456,7 @@
 /* ── Row styling ── */
 .dom-row {
   transition: box-shadow 100ms ease;
+  border-bottom: 1px solid rgba(255,255,255,0.02);
 }
 
 .dom-row:hover {
@@ -473,12 +467,14 @@
 .dom-row:hover .dom-price-cell {
   background: rgba(255,255,255,0.06);
 }
+
 /* Current price row: full-row highlight */
 .dom-current-row {
   background: rgba(255,255,255,0.04) !important;
   box-shadow: inset 0 0 0 1px rgba(255,255,255,0.12);
   z-index: 3;
   position: relative;
+  border-bottom: 1px solid rgba(255,255,255,0.08);
 }
 
 /* Horizontal price line extending across grid */
@@ -492,6 +488,13 @@
   background: linear-gradient(90deg, rgba(255,255,255,0.6), rgba(255,255,255,0.05));
   pointer-events: none;
   z-index: 4;
+}
+
+/* ── Point of Control cell (yellow highlight + glow) ── */
+.dom-poc-cell {
+  position: relative;
+  z-index: 2;
+  box-shadow: 0 0 12px rgba(251, 191, 36, 0.35), 0 0 4px rgba(251, 191, 36, 0.2);
 }
 
 /* ── Left-side percentage badge (between price and data) ── */
@@ -723,17 +726,6 @@
 .dom-tag.ceiling { color: #f87171; background: rgba(248,113,113,0.08); border: 1px solid rgba(248,113,113,0.25); }
 .dom-tag.gate { color: #38bdf8; background: rgba(56,189,248,0.08); border: 1px solid rgba(56,189,248,0.25); }
 .dom-tag.air { color: #94a3b8; background: rgba(148,163,184,0.06); border: 1px dashed rgba(148,163,184,0.2); }
-
-/* ── Data cells ── */
-.dom-data-cell {
-  padding: 0 3px;
-  text-align: right;
-  white-space: nowrap;
-  font-size: 9px;
-  cursor: default;
-  border: none;
-  line-height: 1.3;
-}
 
 .multi-row:hover .multi-data-cell {
   filter: brightness(1.25);
