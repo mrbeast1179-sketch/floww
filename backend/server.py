@@ -29,9 +29,12 @@ from pydantic import BaseModel
 from scipy.stats import norm
 
 from advanced_analytics import (
+    calc_charm_integral,
     calc_gamma_flip_levels,
+    calc_hedge_impulse_curve,
     calc_implied_pdf,
     calc_market_regime,
+    calc_pressure_cloud,
 )
 from databento_provider import fetch_oi_for_ticker, init_cache
 from portfolio import Portfolio, Position, calc_position_size
@@ -1547,6 +1550,9 @@ async def build_heatmap(ticker: str, max_expiries: int = 4, with_taps: bool = Tr
     market_regime = calc_market_regime(spot, raw["contracts"])
     implied_pdf = calc_implied_pdf(spot, raw["contracts"])
     gamma_flip_data = calc_gamma_flip_levels(spot, raw["contracts"], ticker)
+    hedge_impulse = calc_hedge_impulse_curve(spot, raw["contracts"])
+    pressure_cloud = calc_pressure_cloud(spot, raw["contracts"], ticker)
+    charm_integral = calc_charm_integral(spot, raw["contracts"], ticker)
 
     # Velocity & rolling
     velocity = await velocity_and_rolling(ticker, {"strikes_compact": [{"strike": s["strike"], "gex": s["gex"]} for s in strikes]})
@@ -1578,6 +1584,9 @@ async def build_heatmap(ticker: str, max_expiries: int = 4, with_taps: bool = Tr
         "market_regime": market_regime,
         "implied_pdf": implied_pdf,
         "gamma_flip": gamma_flip_data,
+        "hedge_impulse": hedge_impulse,
+        "pressure_cloud": pressure_cloud,
+        "charm_integral": charm_integral,
     }
 
     _t = asyncio.create_task(_logged_task(save_snapshot(ticker, payload), f"save_snapshot:{ticker}"))
