@@ -69,20 +69,33 @@ def _ensure_gamma(raw: dict[str, Any]) -> dict[str, Any]:
     return raw
 
 
+# Module-level chain cache: {ticker:upper:expiries: (ts, raw_data)}
+_CHAIN_CACHE: dict[str, tuple[float, dict[str, Any]]] = {}
+_CHAIN_CACHE_TTL = 30  # seconds
+
+
 async def _fetch_chain(ticker: str, expiries: int) -> dict[str, Any]:
+    """Resolve the option chain for ``ticker`` with short-TTL caching.
+
+    Caches raw chain data for 30s to prevent redundant yfinance calls
+    when multiple heatseeker panels request the same ticker simultaneously.
     """
-    Resolve the option chain for ``ticker`` using the same fetcher the rest
-    of server.py uses. Imported lazily so the routes module remains import-
-    safe before ``app`` is constructed.
-    """
-    # Local import so the routes module doesn't trigger heavy server.py
-    # initialization at import time.
     from server import fetch_spot_and_chains_merged  # noqa: F401
+    import time
+
     t = ticker.strip().upper()
     if t == "SPX":
         t = "^SPX"
+
+    cache_key = f"{t}:{expiries}"
+    cached = _CHAIN_CACHE.get(cache_key)
+    if cached and (time.time() - cached[0]) < _CHAIN_CACHE_TTL:
+        return cached[1]
+
     raw = await fetch_spot_and_chains_merged(t, expiries)
-    return _ensure_gamma(raw)
+    raw = _ensure_gamma(raw)
+    _CHAIN_CACHE[cache_key] = (time.time(), raw)
+    return raw
 
 
 async def _fetch_history(ticker: str, lookback_mins: int = 1440) -> list[dict[str, Any]]:
