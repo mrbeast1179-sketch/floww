@@ -391,7 +391,7 @@
   overflow-x: hidden;
   flex: 1;
   min-height: 0;
-  background: #0a0e1a;
+  background: #0b1121;
   font-variant-numeric: tabular-nums;
 }
 
@@ -411,27 +411,27 @@
   position: sticky;
   left: 0;
   z-index: 5;
-  background: #0f172a;
-  color: #e2e8f0;
-  font-size: 12px;
-  font-weight: 700;
-  padding: 2px 8px;
+  background: #0c1526;
+  color: #b8c4d4;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 1px 8px 1px 8px;
   text-align: left;
   white-space: nowrap;
-  width: 80px;
+  width: 78px;
   border: none;
   letter-spacing: 0.02em;
   transition: background-color 100ms ease;
 }
 
 .dom-row-even .dom-price-cell {
-  background: #111b2e;
+  background: #0e1830;
 }
 
-/* Current price: white background cell like reference */
+/* Current price: white background cell with black text (inverted) */
 .dom-current-row .dom-price-cell {
-  background: rgba(255,255,255,0.95) !important;
-  color: #0a0e1a !important;
+  background: rgba(255,255,255,0.97) !important;
+  color: #0b1121 !important;
   font-weight: 800;
   font-size: 12px;
   border-left: 3px solid #ffffff;
@@ -514,12 +514,12 @@
 
 .dom-pct-hot { font-weight: 800; }
 .dom-pct-warm { font-weight: 600; }
-.dom-pct-cool { font-weight: 400; opacity: 0.6; }
+.dom-pct-cool { font-weight: 400; opacity: 0.5; }
 
-.dom-pct-pos.dom-pct-hot { color: #22d3ee; background: rgba(34,211,238,0.12); }
+.dom-pct-pos.dom-pct-hot { color: #22d3ee; background: rgba(34,211,238,0.15); }
 .dom-pct-pos.dom-pct-warm { color: #6ee7b7; }
 .dom-pct-pos.dom-pct-cool { color: #6ee7b7; }
-.dom-pct-neg.dom-pct-hot { color: #c084fc; background: rgba(192,132,252,0.12); }
+.dom-pct-neg.dom-pct-hot { color: #f43f5e; background: rgba(244,63,94,0.15); }
 .dom-pct-neg.dom-pct-warm { color: #f9a8d4; }
 .dom-pct-neg.dom-pct-cool { color: #f9a8d4; }
 

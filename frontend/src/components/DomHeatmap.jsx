@@ -13,7 +13,7 @@ import { fmt } from "../lib/helpers";
 
 function domCellColor(v, maxAbs) {
   if (v === null || v === undefined || isNaN(v) || v === 0) {
-    return { bg: "rgba(10, 15, 30, 0.95)", text: "#2a3550" };
+    return { bg: "rgba(11, 17, 33, 0.95)", text: "#3a4560" };
   }
   const norm = Math.min(1, Math.abs(v) / maxAbs);
   const isNeg = v < 0;
@@ -21,23 +21,23 @@ function domCellColor(v, maxAbs) {
   // Yellow highlight for extreme values (top 10%)
   if (norm > 0.85) {
     return isNeg
-      ? { bg: `rgba(168, 55, 230, ${0.6 + 0.3 * norm})`, text: "#fce7fe", star: true }
-      : { bg: `rgba(251, 191, 36, ${0.75 + 0.2 * norm})`, text: "#0a0e1a", star: true };
+      ? { bg: `rgba(168, 55, 230, ${0.5 + 0.35 * norm})`, text: "#fce7fe", star: true }
+      : { bg: `rgba(251, 191, 36, ${0.7 + 0.2 * norm})`, text: "#0b1121", star: true };
   }
 
   if (!isNeg) {
     // Positive values: teal/green backgrounds with green text
-    if (norm > 0.50) return { bg: `rgba(45, 212, 191, ${0.5 + 0.35 * norm})`, text: "#0a0e1a" };
-    if (norm > 0.25) return { bg: `rgba(45, 212, 191, ${0.2 + 0.4 * norm})`, text: "#a7f3d0" };
-    if (norm > 0.08) return { bg: `rgba(22, 78, 99, ${0.15 + 0.25 * norm})`, text: "#6ee7b7" };
-    return { bg: `rgba(22, 78, 99, 0.1)`, text: "#5eead4" };
+    if (norm > 0.50) return { bg: `rgba(45, 212, 191, ${0.45 + 0.35 * norm})`, text: "#0b1121" };
+    if (norm > 0.25) return { bg: `rgba(45, 212, 191, ${0.18 + 0.4 * norm})`, text: "#a7f3d0" };
+    if (norm > 0.08) return { bg: `rgba(22, 78, 99, ${0.12 + 0.25 * norm})`, text: "#6ee7b7" };
+    return { bg: `rgba(22, 78, 99, 0.08)`, text: "#5eead4" };
   }
 
-  // Negative values: purple backgrounds with light text
-  if (norm > 0.50) return { bg: `rgba(168, 85, 247, ${0.4 + 0.3 * norm})`, text: "#e9d5ff" };
-  if (norm > 0.25) return { bg: `rgba(168, 85, 247, ${0.2 + 0.35 * norm})`, text: "#d8b4fe" };
-  if (norm > 0.08) return { bg: `rgba(88, 28, 135, ${0.15 + 0.25 * norm})`, text: "#c4b5fd" };
-  return { bg: `rgba(88, 28, 135, 0.1)`, text: "#a78bfa" };
+  // Negative values: purple backgrounds with pink/red text
+  if (norm > 0.50) return { bg: `rgba(168, 85, 247, ${0.35 + 0.35 * norm})`, text: "#f9a8d4" };
+  if (norm > 0.25) return { bg: `rgba(168, 85, 247, ${0.18 + 0.35 * norm})`, text: "#d8b4fe" };
+  if (norm > 0.08) return { bg: `rgba(88, 28, 135, ${0.12 + 0.25 * norm})`, text: "#c4b5fd" };
+  return { bg: `rgba(88, 28, 135, 0.08)`, text: "#a78bfa" };
 }
 
 function domFmt(v) {
