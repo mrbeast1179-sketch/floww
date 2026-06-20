@@ -2605,8 +2605,8 @@ async def prometheus_metrics():
 # so the toxicity gauge shows live data instead of "INACTIVE".
 
 # Tickers to auto-feed (configurable)
-_VPIN_AUTOFETCH_TICKERS = ["SPY", "QQQ", "IWM", "DIA", "TLT", "SPX", "PLTR", "AAPL", "TSLA", "NVDA", "AMD", "MSFT", "AMZN", "META"]
-_VPIN_AUTOFETCH_INTERVAL = 120  # seconds between updates (was 30s - too aggressive)
+_VPIN_AUTOFETCH_TICKERS = ["SPY", "QQQ", "IWM", "DIA", "TLT", "SPX", "PLTR"]
+_VPIN_AUTOFETCH_INTERVAL = 300  # seconds between updates (5 min - prevents resource exhaustion)
 
 
 async def _vpin_autofeed_loop():
