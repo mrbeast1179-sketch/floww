@@ -1,24 +1,13 @@
 import React, { useMemo } from "react";
-import { fmt } from "../lib/helpers";
+import { fmt, tagFor } from "../lib/helpers";
 
 /**
  * DOM/Level 2 Order Book Heatmap — Skylit reference style
  *
- * Matches the Skylit DOM heatmap from reference images:
- * - 5 data columns (no headers — just colored cells)
- * - Price axis on left (white text, monospaced, descending)
- * - Current price row: white triangle marker + highlight
- * - Colors: teal/green bg for positive, purple bg for negative,
- *   bright yellow bg + star for extreme values
- * - Very faint grid lines, tight cell spacing
- * - Percentage badges on some rows
- *
- * Columns map to per-strike options data:
- *   Col 1: Call GEX (call-side gamma)
- *   Col 2: Net GEX (net gamma exposure, + = call, - = put)
- *   Col 3: Put GEX (put-side gamma)
- *   Col 4: VEX (vanna exposure)
- *   Col 5: Charm (delta decay)
+ * Layout: Price (left) | 5 data columns | Tags (right)
+ * Price: bold, prominent, triangle marker on current row
+ * Tags: KING/FLR/CEIL/GATE/AIR badges on the right side
+ * Colors: teal/green = positive, purple = negative, yellow = extreme
  */
 
 function domCellColor(v, maxAbs) {
@@ -82,6 +71,24 @@ export default function DomHeatmap({ data, spot, ticker }) {
     return bestIdx;
   }, [rows, spot]);
 
+  // King node (strike with highest abs GEX)
+  const kingStrike = useMemo(() => {
+    if (!data?.nodes?.king?.strike) return null;
+    return data.nodes.king.strike;
+  }, [data]);
+
+  // Floor/Ceiling/Gatekeeper/Air sets
+  const tagSets = useMemo(() => {
+    const floors = new Set((data?.nodes?.floors || []).map(f => f.strike));
+    const ceilings = new Set((data?.nodes?.ceilings || []).map(f => f.strike));
+    const gates = new Set((data?.nodes?.gatekeepers || []).map(f => f.strike));
+    const air = new Set((data?.nodes?.air_pockets || []).map(a => {
+      // Air pockets are ranges — mark all strikes in range
+      return a;
+    }));
+    return { floors, ceilings, gates, air };
+  }, [data]);
+
   if (!rows.length) {
     return (
       <div className="flex items-center justify-center h-full">
@@ -97,6 +104,12 @@ export default function DomHeatmap({ data, spot, ticker }) {
           {rows.map((row, i) => {
             const strike = row.strike;
             const isCurrent = i === spotRowIdx;
+            const isKing = strike === kingStrike;
+            const isFloor = tagSets.floors.has(strike);
+            const isCeil = tagSets.ceilings.has(strike);
+            const isGate = tagSets.gates.has(strike);
+            const inAir = (data?.nodes?.air_pockets || []).some(a => strike >= a.low && strike <= a.high);
+
             const cols = [
               row.call_gex || 0,
               row.gex || 0,
@@ -113,7 +126,7 @@ export default function DomHeatmap({ data, spot, ticker }) {
                 key={strike}
                 className={`dom-row ${isCurrent ? "dom-current-row" : ""}`}
               >
-                {/* Price axis cell */}
+                {/* Price axis cell — prominent styling */}
                 <td className={`dom-price-cell ${isCurrent ? "dom-current-price" : ""}`}>
                   {isCurrent && <span className="dom-triangle"/>}
                   {hasStar && <span className="dom-star">★</span>}
@@ -138,6 +151,17 @@ export default function DomHeatmap({ data, spot, ticker }) {
                     </td>
                   );
                 })}
+
+                {/* Tags column — KING/FLR/CEIL/GATE/AIR on the right */}
+                <td className="dom-tags-cell">
+                  <div className="dom-tags-row">
+                    {isKing && <span className="dom-tag king">KING</span>}
+                    {isFloor && <span className="dom-tag floor">FLR</span>}
+                    {isCeil && <span className="dom-tag ceiling">CEIL</span>}
+                    {isGate && <span className="dom-tag gate">GATE</span>}
+                    {inAir && <span className="dom-tag air">AIR</span>}
+                  </div>
+                </td>
 
                 {/* Percentage badge */}
                 <td className="dom-pct-cell">
