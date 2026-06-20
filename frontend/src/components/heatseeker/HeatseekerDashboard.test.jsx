@@ -10,6 +10,28 @@ jest.mock("../../hooks/useHeatseeker", () => ({
   useHeatseeker: jest.fn(),
 }));
 
+// Mock lazy-loaded chart components to avoid dynamic import issues in tests
+jest.mock("../VannaChart", () => ({
+  __esModule: true,
+  default: function MockVannaChart() {
+    return <div data-testid="mock-vanna-chart" />;
+  },
+}));
+jest.mock("../CharmChart", () => ({
+  __esModule: true,
+  default: function MockCharmChart() {
+    return <div data-testid="mock-charm-chart" />;
+  },
+}));
+
+// Mock ErrorBoundary to let errors propagate in tests
+jest.mock("../../components/ErrorBoundary", () => ({
+  __esModule: true,
+  default: function MockErrorBoundary({ children }) {
+    return <>{children}</>;
+  },
+}));
+
 import { useHeatseeker } from "../../hooks/useHeatseeker";
 
 const IDLE = { data: null, loading: false, error: null, refresh: () => {} };
