@@ -488,7 +488,11 @@ async def ml_briefing(ticker: str) -> dict[str, Any]:
         try:
             from server import fetch_spot_and_chains_merged
             from services.heatseeker import _gex_per_strike
-            raw = await fetch_spot_and_chains_merged(ticker, 4)
+            # Normalize ticker: SPX -> ^SPX for index options
+            t = ticker.upper()
+            if t in ("SPX", "SPXW", "NDX", "RUT"):
+                t = f"^{t}"
+            raw = await fetch_spot_and_chains_merged(t, 4)
             spot = raw.get("spot", 0)
             contracts = raw.get("contracts", [])
             if spot > 0 and contracts:

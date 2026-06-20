@@ -579,6 +579,8 @@ async def stacked_nodes_route(
         from server import _sanitize, fetch_spot_and_chains_merged
         from services.heatseeker import detect_stacked_nodes
         t = ticker.strip().upper()
+        if t in ("SPX", "SPXW", "NDX", "RUT"):
+            t = f"^{t}"
         raw = await fetch_spot_and_chains_merged(t, expiries)
         spot = raw.get("spot", 0)
         contracts = raw.get("contracts", [])
@@ -603,7 +605,13 @@ async def tug_of_war_route(
         from server import _sanitize, fetch_spot_and_chains_merged
         from services.heatseeker import calc_tug_of_war_zones
         t = ticker.strip().upper()
+        if t in ("SPX", "SPXW", "NDX", "RUT"):
+            t = f"^{t}"
         raw = await fetch_spot_and_chains_merged(t, expiries)
+        spot = raw.get("spot", 0)
+        contracts = raw.get("contracts", [])
+        if not spot or not contracts:
+            raise HTTPException(404, f"No options data for {ticker}")
         spot = raw.get("spot", 0)
         contracts = raw.get("contracts", [])
         if not spot or not contracts:
