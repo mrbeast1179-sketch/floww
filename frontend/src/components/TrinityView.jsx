@@ -11,43 +11,64 @@ const API = process.env.REACT_APP_BACKEND_URL
  *
  * Three side-by-side panels (SPXW, SPY, QQQ), each showing:
  * - Header: ticker, price, change%
- * - Sub-header: King label + yellow dot, net GEX%
- * - Data grid: price levels | percentage badges | value column
+ * - Sub-header: King label + yellow dot, net GEX
+ * - Data grid: strike price | percentage badge | GEX value
  * - Footer: gradient bar (purple → yellow) with min/max labels
  *
- * Colors: teal/green = positive GEX, purple = negative GEX,
- * yellow = extreme/key levels, white highlight = current price row
+ * Colors per reference image 9:
+ * - Positive GEX: teal/green backgrounds, green text badges
+ * - Negative GEX: purple backgrounds, red/purple text badges
+ * - Extreme (top 20%): bright yellow background
+ * - Current price: white background, dark text (inverted)
+ * - King node: gold star + highlighted row
  */
 
-// ── Color scale for cell backgrounds ──────────────────────────────
+// ── Color scale for row backgrounds ─────────────────────────────────
+// Reference: purple (neg) → teal (pos) → yellow (extreme)
 function rowColor(gexVal, maxAbs) {
   if (!gexVal || !maxAbs) return "transparent";
   const norm = Math.min(1, Math.abs(gexVal) / maxAbs);
   const isNeg = gexVal < 0;
 
   if (norm > 0.80) {
-    return isNeg ? "rgba(168, 55, 230, 0.55)" : "rgba(253, 224, 71, 0.75)";
+    // Extreme — bright yellow for both pos and neg
+    return "rgba(253, 224, 71, 0.65)";
   }
   if (norm > 0.50) {
-    return isNeg ? "rgba(168, 85, 247, 0.40)" : "rgba(45, 212, 191, 0.50)";
+    return isNeg ? "rgba(168, 85, 247, 0.40)" : "rgba(45, 212, 191, 0.45)";
   }
   if (norm > 0.20) {
     return isNeg ? "rgba(168, 85, 247, 0.22)" : "rgba(45, 212, 191, 0.25)";
   }
-  return isNeg ? "rgba(88, 28, 135, 0.12)" : "rgba(22, 78, 99, 0.12)";
+  return isNeg ? "rgba(88, 28, 135, 0.10)" : "rgba(22, 78, 99, 0.10)";
 }
 
+// ── Text color for value column ─────────────────────────────────────
 function textColor(gexVal, maxAbs) {
-  if (!gexVal || !maxAbs) return "var(--text-faint)";
+  if (!gexVal || !maxAbs) return "#4a5568";
   const norm = Math.min(1, Math.abs(gexVal) / maxAbs);
-  if (norm > 0.80) return "#0a0e1a";
+  if (norm > 0.80) return "#0a0e1a";  // dark text on yellow bg
   if (norm > 0.50) return isNeg(gexVal) ? "#e9d5ff" : "#0a0e1a";
   return isNeg(gexVal) ? "#c4b5fd" : "#6ee7b7";
 }
 
 function isNeg(v) { return v < 0; }
 
-// ── Main Trinity View ─────────────────────────────────────────────
+// ── Format GEX value as "$X,XXX.XK" ────────────────────────────────
+function fmtGex(v) {
+  if (v === null || v === undefined || isNaN(v)) return "—";
+  const abs = Math.abs(v);
+  const sign = v < 0 ? "-" : "";
+  if (abs >= 1e6) {
+    return `${sign}$${(abs / 1e6).toFixed(1)}M`;
+  }
+  if (abs >= 1e3) {
+    return `${sign}$${(abs / 1e3).toFixed(1)}K`;
+  }
+  return `${sign}$${abs.toFixed(0)}`;
+}
+
+// ── Main Trinity View ──────────────────────────────────────────────
 export default function TrinityView({ onFocusTicker }) {
   const [allData, setAllData] = useState({});
   const [loading, setLoading] = useState(true);
@@ -105,7 +126,7 @@ export default function TrinityView({ onFocusTicker }) {
   );
 }
 
-// ── Confluence Summary Bar ────────────────────────────────────────
+// ── Confluence Summary Bar ─────────────────────────────────────────
 function ConfluenceBar({ data }) {
   const tickers = TRINITY.map(t => data[t]).filter(d => d && !d.error);
   if (tickers.length === 0) return null;
@@ -142,7 +163,7 @@ function ConfluenceBar({ data }) {
   );
 }
 
-// ── Single Trinity Panel ──────────────────────────────────────────
+// ── Single Trinity Panel ───────────────────────────────────────────
 function TrinityPanel({ ticker, data, onFocus }) {
   const spot = data?.spot;
   const nodes = data?.nodes;
@@ -186,19 +207,19 @@ function TrinityPanel({ ticker, data, onFocus }) {
   }, [rows]);
 
   // Min/max for footer gradient
-  const minGex = useMemo(() => {
-    if (!rows.length) return 0;
-    return Math.min(...rows.map(s => s.gex || 0));
-  }, [rows]);
-  const maxGex = useMemo(() => {
-    if (!rows.length) return 0;
-    return Math.max(...rows.map(s => s.gex || 0));
+  const [minGex, maxGex] = useMemo(() => {
+    if (!rows.length) return [0, 0];
+    const gexs = rows.map(s => s.gex || 0);
+    return [Math.min(...gexs), Math.max(...gexs)];
   }, [rows]);
 
   const displayName = ticker.replace("^", "");
-  const change = data?.change; // not available from heatmap endpoint
   const regime = nodes?.regime || "—";
   const regimeColor = regime === "positive" ? "text-emerald-400" : regime === "negative" ? "text-rose-400" : "text-slate-400";
+  const regimeLabel = regime === "positive" ? "positive γ" : regime === "negative" ? "negative γ" : "neutral";
+
+  // Total GEX from nodes (more accurate than summing strikes)
+  const totalGex = nodes?.total_gex;
 
   return (
     <div className="trinity-panel">
@@ -206,21 +227,24 @@ function TrinityPanel({ ticker, data, onFocus }) {
       <div className="trinity-panel-header">
         <span className="trinity-panel-ticker">{displayName}</span>
         <span className="trinity-panel-price">${fmt(spot, spot >= 1000 ? 2 : 2)}</span>
-        <span className={`trinity-panel-regime ${regimeColor}`}>{regime}γ</span>
+        <span className={`trinity-panel-regime ${regimeColor}`}>{regimeLabel}</span>
       </div>
 
       {/* Sub-header: King */}
       <div className="trinity-panel-subheader">
         <span className="trinity-king-dot" />
         <span className="trinity-king-label">King</span>
-        {kingStrike && <span className="trinity-king-value">{fmt(kingStrike, 0)}</span>}
+        {kingStrike != null && <span className="trinity-king-value">{fmt(kingStrike, 0)}</span>}
         <span className={`trinity-net-badge ${netGex >= 0 ? "trinity-net-pos" : "trinity-net-neg"}`}>
-          {netGex >= 0 ? "+" : ""}{fmtAbs(netGex)}
+          {fmtGex(netGex)}
         </span>
       </div>
 
       {/* Data grid */}
       <div className="trinity-grid">
+        {rows.length === 0 && (
+          <div className="trinity-no-data">No strike data available</div>
+        )}
         {rows.map((row, i) => {
           const isCurrent = i === spotIdx;
           const isKing = row.strike === kingStrike;
@@ -246,7 +270,7 @@ function TrinityPanel({ ticker, data, onFocus }) {
 
               {/* Percentage badge */}
               <span className="trinity-row-pct">
-                {pctVal > 30 && (
+                {pctVal > 15 && (
                   <span className={`trinity-pct-badge ${gex >= 0 ? "trinity-pct-pos" : "trinity-pct-neg"}`}>
                     {gex >= 0 ? "+" : ""}{pctVal.toFixed(0)}%
                   </span>
@@ -255,7 +279,7 @@ function TrinityPanel({ ticker, data, onFocus }) {
 
               {/* Value */}
               <span className="trinity-row-value" style={{ color: tc }}>
-                {isKing ? "★" : ""}{fmtAbs(gex)}
+                {fmtGex(gex)}
               </span>
             </div>
           );
@@ -264,11 +288,11 @@ function TrinityPanel({ ticker, data, onFocus }) {
 
       {/* Footer gradient bar */}
       <div className="trinity-footer">
-        <span className="trinity-footer-min">{fmtAbs(minGex)}</span>
+        <span className="trinity-footer-min">{fmtGex(minGex)}</span>
         <div className="trinity-gradient-bar">
           <div className="trinity-gradient-fill" />
         </div>
-        <span className="trinity-footer-max">{fmtAbs(maxGex)}</span>
+        <span className="trinity-footer-max">{fmtGex(maxGex)}</span>
       </div>
 
       {/* Focus link */}

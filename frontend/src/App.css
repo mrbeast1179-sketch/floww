@@ -898,7 +898,17 @@
 }
 
 .trinity-row-current {
-  background: rgba(255,255,255,0.06) !important;
+  background: #ffffff !important;
+}
+.trinity-row-current .trinity-row-price {
+  color: #0a0e1a;
+  font-weight: 700;
+}
+.trinity-row-current .trinity-row-value {
+  color: #0a0e1a !important;
+}
+.trinity-row-current .trinity-price-triangle {
+  border-left-color: #0a0e1a;
 }
 
 .trinity-row-king {
@@ -908,6 +918,13 @@
 .trinity-price-current {
   color: #ffffff;
   font-weight: 700;
+}
+
+.trinity-no-data {
+  padding: 8px;
+  text-align: center;
+  color: #4a5568;
+  font-size: 9px;
 }
 
 .trinity-price-triangle {
@@ -942,8 +959,8 @@
   font-weight: 700;
   font-family: "JetBrains Mono", monospace;
 }
-.trinity-pct-pos { background: rgba(34,211,238,0.12); color: #22d3ee; }
-.trinity-pct-neg { background: rgba(168,85,247,0.12); color: #c084fc; }
+.trinity-pct-pos { background: rgba(52,211,153,0.18); color: #34d399; }
+.trinity-pct-neg { background: rgba(248,113,113,0.18); color: #f87171; }
 
 .trinity-row-value {
   font-family: "JetBrains Mono", monospace;
