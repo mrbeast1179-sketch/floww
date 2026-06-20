@@ -448,6 +448,7 @@
 }
 
 /* ── Data cells ── */
+.dom-data-cell {
   padding: 1px 4px;
   text-align: right;
   white-space: nowrap;
