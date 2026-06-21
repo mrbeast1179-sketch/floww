@@ -85,24 +85,28 @@ function ChainChart({ chainData, spot }) {
     const strikes = exp.strikes.map(s => s[0]).filter(v => v > 0);
     if (strikes.length === 0) return null;
 
-    // Extract OI from call_vals/put_vals if available, otherwise use synthetic
+    // Find field indices from params (params includes "strike" at index 0, but vals arrays skip it)
+    const params = chainData.params || [];
+    const oiFieldIdx = params.indexOf("openInterest");
+    const oiValsIdx = oiFieldIdx > 0 ? oiFieldIdx - 1 : 4; // -1 because vals skip strike
+
+    // Extract OI from call_vals/put_vals using correct field index
     const callOI = exp.strikes.map(s => {
       const vals = s[1];
       if (Array.isArray(vals) && vals.length > 0) {
-        // Try to find OI-like value (first numeric)
-        const n = Number(vals[0]);
+        const n = Number(vals[oiValsIdx]);
         if (!isNaN(n) && n > 0) return n;
       }
-      return Math.round(Math.random() * 5000 + 500); // synthetic fallback
+      return 0;
     });
 
     const putOI = exp.strikes.map(s => {
       const vals = s[2];
       if (Array.isArray(vals) && vals.length > 0) {
-        const n = Number(vals[0]);
+        const n = Number(vals[oiValsIdx]);
         if (!isNaN(n) && n > 0) return n;
       }
-      return Math.round(Math.random() * 5000 + 500); // synthetic fallback
+      return 0;
     });
 
     // Synthetic delta line (bell curve around ATM)
