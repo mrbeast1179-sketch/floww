@@ -2659,7 +2659,7 @@ async def prometheus_metrics():
 # so the toxicity gauge shows live data instead of "INACTIVE".
 
 # Tickers to auto-feed (configurable)
-_VPIN_AUTOFETCH_TICKERS = []  # Disabled - was causing resource exhaustion. Re-enable with fewer tickers and longer interval when needed.
+_VPIN_AUTOFETCH_TICKERS = ["SPY", "QQQ", "IWM"]  # Re-enabled with 3 tickers
 _VPIN_AUTOFETCH_INTERVAL = 300
 
 
