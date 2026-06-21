@@ -11,6 +11,7 @@ Routes fetch the option chain and pass it into the pure functions in
 input on failure — the pure functions tolerate that.
 """
 
+import asyncio
 import logging
 from datetime import UTC
 from typing import Any
@@ -467,9 +468,11 @@ async def trinity_confluence_route(
     """
     from server import _sanitize
     try:
-        spx = await _trinity_snapshot("SPX", expiries)
-        spy = await _trinity_snapshot("SPY", expiries)
-        qqq = await _trinity_snapshot("QQQ", expiries)
+        spx, spy, qqq = await asyncio.gather(
+            _trinity_snapshot("SPX", expiries),
+            _trinity_snapshot("SPY", expiries),
+            _trinity_snapshot("QQQ", expiries),
+        )
         result = calc_trinity_confluence(spx, spy, qqq)
         return _sanitize({
             "snapshots": {"SPX": spx, "SPY": spy, "QQQ": qqq},
