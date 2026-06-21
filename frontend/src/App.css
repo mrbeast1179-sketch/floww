@@ -1216,3 +1216,102 @@
   flex-shrink: 0;
   font-weight: 600;
 }
+
+/* ── Live indicator dot ── */
+.trinity-live-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: #34d399;
+  animation: trinity-live-pulse 2s ease-in-out infinite;
+}
+@keyframes trinity-live-pulse {
+  0%, 100% { opacity: 1; box-shadow: 0 0 0 0 rgba(52,211,153,0.6); }
+  50% { opacity: 0.6; box-shadow: 0 0 0 3px rgba(52,211,153,0); }
+}
+
+/* ── Node tags ── */
+.trinity-tags {
+  display: flex;
+  gap: 3px;
+  margin-left: auto;
+}
+.trinity-tag {
+  font-size: 7px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  padding: 1px 4px;
+  border-radius: 2px;
+  border: 1px solid;
+}
+.trinity-tag-king { color: #fbbf24; background: rgba(251,191,36,0.12); border-color: rgba(251,191,36,0.35); }
+.trinity-tag-flr { color: #a78bfa; background: rgba(167,139,250,0.12); border-color: rgba(167,139,250,0.35); }
+.trinity-tag-ceil { color: #f87171; background: rgba(248,113,113,0.12); border-color: rgba(248,113,113,0.35); }
+.trinity-tag-gate { color: #38bdf8; background: rgba(56,189,248,0.12); border-color: rgba(56,189,248,0.35); }
+.trinity-tag-air { color: #94a3b8; background: rgba(148,163,184,0.06); border-color: rgba(148,163,184,0.25); border-style: dashed; }
+
+/* ── Current price arrow (white left border pointer) ── */
+.trinity-price-arrow {
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 0;
+  height: 0;
+  border-top: 4px solid transparent;
+  border-bottom: 4px solid transparent;
+  border-left: 5px solid #ffffff;
+}
+.trinity-row-current .trinity-price-arrow { border-left-color: #0b1121; }
+
+/* ── Zero gamma flip row ── */
+.trinity-row-flip {
+  box-shadow: inset 0 0 0 1px rgba(167,139,250,0.5);
+  background: rgba(167,139,250,0.06) !important;
+}
+.trinity-row-flip .trinity-grid-price,
+.trinity-row-flip .trinity-row-price {
+  color: #a78bfa !important;
+}
+
+/* ── Color legend ── */
+.trinity-legend {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 6px;
+  border-top: 1px solid rgba(255,255,255,0.03);
+  flex-shrink: 0;
+}
+.trinity-legend-label {
+  font-size: 7px;
+  color: #4a5568;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.trinity-legend-bar {
+  flex: 1;
+  height: 4px;
+  border-radius: 2px;
+  display: flex;
+  overflow: hidden;
+}
+.trinity-legend-seg { flex: 1; }
+.legend-neg-strong { background: rgba(59,130,246,0.8); }
+.legend-neg-weak { background: rgba(168,85,247,0.5); }
+.legend-zero { background: rgba(100,116,139,0.5); }
+.legend-pos-weak { background: rgba(45,212,191,0.5); }
+.legend-pos-strong { background: rgba(251,191,36,0.85); }
+.trinity-legend-labels {
+  display: flex;
+  justify-content: space-between;
+  font-size: 7px;
+  color: #4a5568;
+}
+
+/* ── Grid extreme cells ── */
+.trinity-grid-extreme {
+  font-weight: 700;
+  position: relative;
+  z-index: 2;
+}
