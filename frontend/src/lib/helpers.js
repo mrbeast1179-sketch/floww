@@ -59,8 +59,8 @@ export function viridisColor(t) {
 export function cellColor(v, maxAbs, isKing = false, mode = "gex", skylitTheme = false) {
   if (!v || maxAbs === 0) {
     return skylitTheme
-      ? { bg: "rgba(10, 14, 26, 0.85)", text: "#3a4566" }
-      : { bg: "rgba(15, 22, 32, 0.7)", text: "#5a6781" };
+      ? { bg: "rgba(19, 23, 34, 0.85)", text: "#3a4566" }
+      : { bg: "rgba(19, 23, 34, 0.7)", text: "#5a6781" };
   }
   const norm = Math.min(1, Math.abs(v) / maxAbs);
 

@@ -55,12 +55,12 @@ export default function VolumeProfileGrid({ data, spot }) {
   }
 
   return (
-    <div className="overflow-auto flex-1" data-testid="volume-profile-grid" style={{ background: "#0a0e1a" }}>
+    <div className="overflow-auto flex-1" data-testid="volume-profile-grid" style={{ background: "#131722" }}>
       <table className="border-collapse mono text-[10px]" style={{ borderSpacing: 0 }}>
-        <thead className="sticky top-0 z-10" style={{ background: "#0a0e1a" }}>
+        <thead className="sticky top-0 z-10" style={{ background: "#131722" }}>
           <tr>
             <th className="px-1.5 py-1 text-left text-slate-500 sticky left-0 z-20"
-                style={{ background: "#0a0e1a", fontSize: 9, letterSpacing: "0.05em" }}>
+                style={{ background: "#131722", fontSize: 9, letterSpacing: "0.05em" }}>
               Strike
             </th>
             {expiries.map((e) => (
@@ -76,9 +76,9 @@ export default function VolumeProfileGrid({ data, spot }) {
           {strikes.map((s, i) => {
             const isSpot = i === spotIdx;
             return (
-              <tr key={s} style={isSpot ? { background: "rgba(255,255,255,0.03)" } : {}}>
-                <td className="px-2 py-0.5 font-bold sticky left-0 z-10 text-slate-400"
-                    style={{ background: isSpot ? "rgba(10,14,26,0.95)" : "#0a0e1a", fontSize: 10 }}>
+              <tr key={s} style={isSpot ? { background: "rgba(255,255,255,0.04)" } : {}}>
+                <td className="px-2 py-1 font-bold sticky left-0 z-10 text-slate-300"
+                    style={{ background: isSpot ? "rgba(19,23,34,0.95)" : "#131722", fontSize: 10 }}>
                   {fmt(s, s >= 1000 ? 0 : 1)}
                 </td>
                 {expiries.map((e) => {
