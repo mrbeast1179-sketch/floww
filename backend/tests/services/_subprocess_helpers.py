@@ -21,12 +21,14 @@ at the call site:
 Adding a new test file?  Just `from _subprocess_helpers import _SUBPROCESS_MIN_ENV`
 (relative-style sibling import works because `tests/services/__init__.py`
 makes this directory a package) and spread per-call-site keys as above.
+
+SINGLE SOURCE OF TRUTH for the subprocess-test baseline env — new static keys go HERE, not at per-test sites.
 """
 
 # Baseline Python env for subprocess-driven test suites.
 # (PATH / API_SECRET_KEY / FLOWW_ENABLE_LIVE_SCHWAB are truly-static and
 # can be baked at import time; PYTHONPATH and HOME are per-call-site-computed.)
-# FLOWW_ENABLE_LIVE_SCHWAB=0 guards live-Schwab -- harmless when spread
+# FLOWW_ENABLE_LIVE_SCHWAB=0 guards live-Schwab — harmless when spread
 # into dev/paper-only tests (Schwab branch never fires without creds).
 _SUBPROCESS_MIN_ENV: dict[str, str] = {
     "PATH": "/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/bin:/opt/homebrew/bin",
