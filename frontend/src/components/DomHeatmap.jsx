@@ -4,40 +4,46 @@ import { fmt } from "../lib/helpers";
 /**
  * DOM/Level 2 Order Book Heatmap — Skylit reference style
  *
- * Layout: Price (left) | 5 data columns | Tags (right)
- * Price: bold, prominent, left-border accent on current row
- * Tags: KING/FLR/CEIL/GATE/AIR badges on the right side
- * Colors: teal/green = positive, purple = negative, yellow = extreme
- * Footer: gradient legend bar (purple → teal → green → yellow)
+ * Layout: Price (left, dark bg, white triangle on current) |
+ *         Left % badge | 5 data columns | Right % badge
+ *
+ * Reference colors:
+ * - Background: dark navy (#0b1121)
+ * - Base cells: muted teal (#2c7a7b range)
+ * - High positive: bright green (#00e676 range)
+ * - Negative: deep purple (#6a1b9a range)
+ * - Extreme/POC: bright yellow (#ffea00 range), black text + star
+ * - Current price: white triangle marker on left edge
+ * - Zero padding, faint vertical grid lines between columns
  */
 
 function domCellColor(v, maxAbs) {
   if (v === null || v === undefined || isNaN(v) || v === 0) {
-    return { bg: "rgba(11, 17, 33, 0.95)", text: "#3a4560" };
+    return { bg: "rgba(15, 23, 42, 0.92)", text: "#1e3a5f" };
   }
   const norm = Math.min(1, Math.abs(v) / maxAbs);
   const isNeg = v < 0;
 
-  // Yellow highlight for extreme values (top 10%)
+  // Extreme values (top 10%): yellow for positive, purple for negative
   if (norm > 0.85) {
     return isNeg
-      ? { bg: `rgba(168, 55, 230, ${0.5 + 0.35 * norm})`, text: "#fce7fe", star: true }
-      : { bg: `rgba(251, 191, 36, ${0.7 + 0.2 * norm})`, text: "#0b1121", star: true };
+      ? { bg: `rgba(107, 33, 168, ${0.55 + 0.35 * norm})`, text: "#e9d5ff", star: true }
+      : { bg: `rgba(255, 234, 0, ${0.75 + 0.2 * norm})`, text: "#000000", star: true };
   }
 
   if (!isNeg) {
-    // Positive values: teal/green backgrounds with green text
-    if (norm > 0.50) return { bg: `rgba(45, 212, 191, ${0.45 + 0.35 * norm})`, text: "#0b1121" };
-    if (norm > 0.25) return { bg: `rgba(45, 212, 191, ${0.18 + 0.4 * norm})`, text: "#a7f3d0" };
-    if (norm > 0.08) return { bg: `rgba(22, 78, 99, ${0.12 + 0.25 * norm})`, text: "#6ee7b7" };
-    return { bg: `rgba(22, 78, 99, 0.08)`, text: "#5eead4" };
+    // Positive: muted teal → bright green as norm increases
+    if (norm > 0.60) return { bg: `rgba(0, 230, 118, ${0.35 + 0.45 * norm})`, text: "#000000" };
+    if (norm > 0.35) return { bg: `rgba(44, 122, 123, ${0.25 + 0.4 * norm})`, text: "#ffffff" };
+    if (norm > 0.12) return { bg: `rgba(38, 166, 90, ${0.12 + 0.3 * norm})`, text: "#e0f2f1" };
+    return { bg: `rgba(30, 90, 90, 0.15)`, text: "#b2dfdb" };
   }
 
-  // Negative values: purple backgrounds with pink/red text
-  if (norm > 0.50) return { bg: `rgba(168, 85, 247, ${0.35 + 0.35 * norm})`, text: "#f9a8d4" };
-  if (norm > 0.25) return { bg: `rgba(168, 85, 247, ${0.18 + 0.35 * norm})`, text: "#d8b4fe" };
-  if (norm > 0.08) return { bg: `rgba(88, 28, 135, ${0.12 + 0.25 * norm})`, text: "#c4b5fd" };
-  return { bg: `rgba(88, 28, 135, 0.08)`, text: "#a78bfa" };
+  // Negative: deep purple
+  if (norm > 0.60) return { bg: `rgba(107, 33, 168, ${0.45 + 0.35 * norm})`, text: "#e9d5ff" };
+  if (norm > 0.35) return { bg: `rgba(107, 33, 168, ${0.25 + 0.35 * norm})`, text: "#d1c4e9" };
+  if (norm > 0.12) return { bg: `rgba(74, 20, 140, ${0.12 + 0.25 * norm})`, text: "#b39ddb" };
+  return { bg: `rgba(74, 20, 140, 0.12)`, text: "#9575cd" };
 }
 
 function domFmt(v) {
@@ -58,7 +64,7 @@ export default function DomHeatmap({ data, spot, ticker }) {
       .sort((a, b) => b.strike - a.strike);
   }, [data]);
 
-  // Global max for cell color scaling (across all 5 columns)
+  // Global max for cell color scaling
   const colorMaxAbs = useMemo(() => {
     let m = 1;
     for (const row of rows) {
@@ -70,25 +76,21 @@ export default function DomHeatmap({ data, spot, ticker }) {
     return m;
   }, [rows]);
 
-  // Find the single max-value cell (Point of Control) for yellow highlight
+  // POC cell (single max value)
   const pocCell = useMemo(() => {
     let maxVal = 0;
-    let pocRowIdx = -1, pocColIdx = -1;
+    let pocRI = -1, pocCI = -1;
     for (let ri = 0; ri < rows.length; ri++) {
       const keys = ["call_gex", "gex", "put_gex", "vex", "charm"];
       for (let ci = 0; ci < keys.length; ci++) {
         const v = Math.abs(rows[ri][keys[ci]] || 0);
-        if (v > maxVal) {
-          maxVal = v;
-          pocRowIdx = ri;
-          pocColIdx = ci;
-        }
+        if (v > maxVal) { maxVal = v; pocRI = ri; pocCI = ci; }
       }
     }
-    return { rowIdx: pocRowIdx, colIdx: pocColIdx };
+    return { rowIdx: pocRI, colIdx: pocCI };
   }, [rows]);
 
-  // Max for percentage badge (net GEX only)
+  // Max for percentage badges (net GEX only)
   const gexMaxAbs = useMemo(() => {
     let m = 1;
     for (const row of rows) {
@@ -103,13 +105,13 @@ export default function DomHeatmap({ data, spot, ticker }) {
     let bestIdx = 0;
     let bestDist = Math.abs(rows[0].strike - spot);
     for (let i = 1; i < rows.length; i++) {
-      const dist = Math.abs(rows[i].strike - spot);
-      if (dist < bestDist) { bestDist = dist; bestIdx = i; }
+      const d = Math.abs(rows[i].strike - spot);
+      if (d < bestDist) { bestDist = d; bestIdx = i; }
     }
     return bestIdx;
   }, [rows, spot]);
 
-  // Min/max for legend
+  // Legend
   const { minGex, maxGex } = useMemo(() => {
     if (!rows.length) return { minGex: 0, maxGex: 0 };
     let min = Infinity, max = -Infinity;
@@ -137,30 +139,22 @@ export default function DomHeatmap({ data, spot, ticker }) {
             {rows.map((row, i) => {
               const strike = row.strike;
               const isCurrent = i === spotRowIdx;
-              const cols = [
-                row.call_gex || 0,
-                row.gex || 0,
-                row.put_gex || 0,
-                row.vex || 0,
-                row.charm || 0,
-              ];
-              const hasStar = cols.some((v) => domCellColor(v, colorMaxAbs).star);
+              const cols = [row.call_gex||0, row.gex||0, row.put_gex||0, row.vex||0, row.charm||0];
               const netGex = row.gex || 0;
               const pctVal = gexMaxAbs > 0 ? Math.abs(netGex / gexMaxAbs) * 100 : 0;
               const isEven = i % 2 === 0;
 
               return (
-                <tr
-                  key={strike}
-                  className={`dom-row ${isCurrent ? "dom-current-row" : ""} ${isEven ? "dom-row-even" : ""}`}
-                >
-                  {/* Price axis cell */}
-                  <td className={`dom-price-cell ${isCurrent ? "dom-current-price" : ""}`}>
-                    {hasStar && <span className="dom-star">★</span>}
+                <tr key={strike}
+                    className={`dom-row${isCurrent ? " dom-current-row" : ""}${isEven ? " dom-row-even" : ""}`}>
+
+                  {/* Price axis — dark bg, white triangle on current */}
+                  <td className={`dom-price-cell${isCurrent ? " dom-current-price" : ""}`}>
+                    {isCurrent && <span className="dom-triangle" />}
                     {strike >= 1000 ? fmt(strike, 0) : fmt(strike, 1)}
                   </td>
 
-                  {/* Left-side percentage badge (like reference SPXW view) */}
+                  {/* Left-side % badge */}
                   <td className="dom-pct-left-cell">
                     <span className={`dom-pct-badge ${pctVal > 50 ? "dom-pct-hot" : pctVal > 20 ? "dom-pct-warm" : "dom-pct-cool"} ${netGex >= 0 ? "dom-pct-pos" : "dom-pct-neg"}`}>
                       {netGex >= 0 ? "+" : ""}{pctVal < 1 && pctVal > 0 ? pctVal.toFixed(1) : pctVal.toFixed(0)}%
@@ -172,24 +166,21 @@ export default function DomHeatmap({ data, spot, ticker }) {
                     const cc = domCellColor(val, colorMaxAbs);
                     const isPoc = i === pocCell.rowIdx && ci === pocCell.colIdx;
                     return (
-                      <td
-                        key={ci}
-                        className={`dom-data-cell${isPoc ? " dom-poc-cell" : ""}`}
-                        style={{ background: isPoc ? "rgba(251, 191, 36, 0.85)" : cc.bg, color: isPoc ? "#0b1121" : cc.text }}
-                        title={`${ticker} @ ${strike}: ${domFmt(val)}`}
-                      >
-                        {isPoc ? (
-                          <span className="dom-star-cell">★{domFmt(val)}</span>
-                        ) : cc.star ? (
-                          <span className="dom-star-cell">★{domFmt(val)}</span>
-                        ) : (
-                          domFmt(val)
-                        )}
+                      <td key={ci}
+                          className={`dom-data-cell${isPoc ? " dom-poc-cell" : ""}`}
+                          style={{
+                            background: isPoc ? "rgba(255, 234, 0, 0.88)" : cc.bg,
+                            color: isPoc ? "#000000" : cc.text,
+                          }}
+                          title={`${ticker} @ ${strike}: ${domFmt(val)}`}>
+                        {isPoc ? (<span className="dom-star-cell">*{domFmt(val)}</span>)
+                          : cc.star ? (<span className="dom-star-cell">*{domFmt(val)}</span>)
+                          : domFmt(val)}
                       </td>
                     );
                   })}
 
-                  {/* Percentage badge — show on all rows with visual weight */}
+                  {/* Right-side % badge */}
                   <td className="dom-pct-cell">
                     <span className={`dom-pct-badge ${pctVal > 50 ? "dom-pct-hot" : pctVal > 20 ? "dom-pct-warm" : "dom-pct-cool"} ${netGex >= 0 ? "dom-pct-pos" : "dom-pct-neg"}`}>
                       {netGex >= 0 ? "+" : ""}{pctVal < 1 && pctVal > 0 ? pctVal.toFixed(1) : pctVal.toFixed(0)}%

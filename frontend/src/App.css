@@ -406,38 +406,40 @@
 }
 
 /* ── Price axis ── */
-/* ── Price axis — white background strip for ALL rows ── */
+/* ── Price axis — dark background, white triangle on current row ── */
 .dom-price-cell {
   position: sticky;
   left: 0;
   z-index: 5;
-  background: rgba(255,255,255,0.95);
-  color: #0b1121;
-  font-size: 11px;
+  background: rgba(15, 23, 42, 0.95);
+  color: #e2e8f0;
+  font-size: 10px;
   font-weight: 600;
-  padding: 1px 8px;
+  padding: 0 4px 0 12px;
   text-align: left;
   white-space: nowrap;
-  width: 78px;
+  width: 72px;
   border: none;
-  letter-spacing: 0.02em;
-  transition: background-color 100ms ease;
 }
 
-.dom-row-even .dom-price-cell {
-  background: rgba(255,255,255,0.93);
-}
-
-/* Current price: highlighted white cell with bold text */
-.dom-current-row .dom-price-cell {
-  background: #ffffff !important;
-  color: #0b1121 !important;
-  font-weight: 800;
-  font-size: 12px;
-  border-left: 3px solid #38bdf8;
-  padding-left: 5px;
+.dom-current-price {
+  background: rgba(15, 23, 42, 0.98) !important;
+  color: #ffffff !important;
+  font-weight: 700;
   position: relative;
-  z-index: 5;
+}
+
+/* White triangle pointing right at current price */
+.dom-triangle {
+  position: absolute;
+  left: 2px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 0;
+  height: 0;
+  border-top: 4px solid transparent;
+  border-bottom: 4px solid transparent;
+  border-left: 5px solid #ffffff;
 }
 
 /* ── Data cells ── */
@@ -485,35 +487,43 @@
   right: 0;
   top: 50%;
   height: 1px;
-  background: linear-gradient(90deg, rgba(255,255,255,0.6), rgba(255,255,255,0.05));
+  background: linear-gradient(90deg, rgba(255,255,255,0.5), rgba(255,255,255,0.03));
   pointer-events: none;
   z-index: 4;
 }
 
-/* ── Point of Control cell (yellow highlight + glow) ── */
+/* ── Data cells — zero padding, faint vertical lines ── */
+.dom-data-cell {
+  padding: 0 2px;
+  text-align: right;
+  white-space: nowrap;
+  font-size: 10px;
+  cursor: default;
+  border: none;
+  border-right: 1px solid rgba(255,255,255,0.03);
+  line-height: 1.5;
+  font-variant-numeric: tabular-nums;
+}
+
+.dom-data-cell:last-child {
+  border-right: none;
+}
+
+/* ── Left/right percentage cells ── */
+.dom-pct-left-cell,
+.dom-pct-cell {
+  padding: 0 2px;
+  text-align: center;
+  width: 38px;
+  border: none;
+}
+
+/* ── POC cell ── */
 .dom-poc-cell {
   position: relative;
   z-index: 2;
-  box-shadow: 0 0 12px rgba(251, 191, 36, 0.35), 0 0 4px rgba(251, 191, 36, 0.2);
+  box-shadow: 0 0 10px rgba(255, 234, 0, 0.35);
 }
-
-/* ── Left-side percentage badge (between price and data) ── */
-.dom-pct-left-cell {
-  padding: 1px 3px;
-  text-align: center;
-  width: 42px;
-  border: none;
-}
-
-/* ── Right-side percentage badge ── */
-.dom-pct-cell {
-  padding: 1px 3px;
-  text-align: center;
-  width: 42px;
-  border: none;
-}
-
-.dom-pct-badge {
   display: inline-block;
   padding: 0 3px;
   border-radius: 3px;
