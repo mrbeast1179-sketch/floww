@@ -44,9 +44,9 @@ except ImportError:
 
 # Available presets (from turboquantdc's autoresearch sweep)
 PRESETS = {
-    "lossless": {"description": "K8/V3, FP16 anchors every 12 layers — near-perfect quality", "compression": "~2x"},
-    "balanced": {"description": "K4/V3, residual quant, FP16 window 64 — best quality/speed tradeoff", "compression": "~4x"},
-    "aggressive": {"description": "K3/V2, wide anchor spacing — maximum compression", "compression": "~6x"},
+    "lossless": {"description": "K8/V3, FP16 window 128, anchor every 6 — near-perfect quality", "compression": "~2x"},
+    "balanced": {"description": "K4/V3, FP16 window 64, anchor every 12 — best quality/speed tradeoff", "compression": "~4x"},
+    "aggressive": {"description": "K3/V2, FP16 window 32, anchor every 6 — maximum compression", "compression": "~6x"},
 }
 
 
@@ -98,10 +98,14 @@ class TurboQuantService:
         if not self._available:
             raise ImportError("turboquantdc not installed: pip install turboquantdc[all]")
 
-        if preset:
+        # Try GenerationCache.from_preset first (newer versions)
+        if preset and hasattr(GenerationCache, 'from_preset'):
             return GenerationCache.from_preset(preset, fp16_window=fp16_window or self._fp16_window)
 
-        kv_bits = bits or self._default_bits
+        # Use TurboQuantCache which has get_seq_length (HF cache-compatible)
+        # Preset maps to bits: lossless=8, balanced=4, aggressive=3
+        preset_bits = {"lossless": 8, "balanced": 4, "aggressive": 3}
+        kv_bits = bits or (preset_bits.get(preset, self._default_bits) if preset else self._default_bits)
         return TurboQuantCache(bits=kv_bits)
 
     def create_generation_cache(
@@ -109,7 +113,7 @@ class TurboQuantService:
         preset: Optional[str] = None,
         **kwargs: Any,
     ) -> Any:
-        """Create a GenerationCache for turboquantdc's generation pipeline.
+        """Create a GenerationCache for turboquantdc's own generation pipeline.
 
         Args:
             preset: Quality preset name. If None, uses default configuration.
@@ -124,8 +128,15 @@ class TurboQuantService:
         if not self._available:
             raise ImportError("turboquantdc not installed: pip install turboquantdc[all]")
 
+        preset_cfgs = {
+            "lossless": {"key_bits": 8, "val_bits": 3, "fp16_window": 128, "anchor_interval": 6},
+            "balanced": {"key_bits": 4, "val_bits": 3, "fp16_window": 64, "anchor_interval": 12},
+            "aggressive": {"key_bits": 3, "val_bits": 2, "fp16_window": 32, "anchor_interval": 6},
+        }
         if preset:
-            return GenerationCache.from_preset(preset, **kwargs)
+            cfg = preset_cfgs.get(preset, preset_cfgs["balanced"]).copy()
+            cfg.update(kwargs)
+            return GenerationCache(**cfg)
         return GenerationCache(**kwargs)
 
     def get_compression_stats(self, cache: Any) -> dict[str, Any]:

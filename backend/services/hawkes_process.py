@@ -49,8 +49,12 @@ import logging
 from typing import Any
 
 logger = logging.getLogger(__name__)
+import math
+
 import numpy as np
 from scipy.optimize import minimize
+
+from domain.hawkes import exponential_intensity, exponential_log_likelihood
 
 logger = logging.getLogger(__name__)
 
@@ -128,8 +132,11 @@ class HawkesProcess:
         """
         Compute the conditional intensity lambda(t) at time t given past events.
 
-        For exponential kernel:
+        For exponential kernel (delegated to ``domain.hawkes.exponential_intensity``):
             lambda(t) = mu + sum_{t_i < t} alpha * exp(-beta * (t - t_i))
+
+        For power-law kernel (no domain primitive exists; kept inline):
+            lambda(t) = mu + sum_{t_i < t} alpha / (t - t_i + c)^(1 + gamma)
 
         Parameters
         ----------
@@ -146,19 +153,20 @@ class HawkesProcess:
         if event_times is None or len(event_times) == 0:
             return self.mu
 
+        if self.kernel == "exponential":
+            return exponential_intensity(
+                t, event_times, self.mu, self.alpha, self.beta,
+            )
+
+        # Power-law branch stays inline (no domain primitive exists for it).
         event_times = np.asarray(event_times, dtype=np.float64)
         past = event_times[event_times < t]
-
         if len(past) == 0:
             return self.mu
-
         dt = t - past
-
-        if self.kernel == "exponential":
-            excitation = self.alpha * np.sum(np.exp(-self.beta * dt))
-        else:  # power_law
-            excitation = self.alpha * np.sum(1.0 / (dt + self._pl_c) ** (1.0 + self._pl_gamma))
-
+        excitation = self.alpha * np.sum(
+            1.0 / (dt + self._pl_c) ** (1.0 + self._pl_gamma)
+        )
         return self.mu + excitation
 
     def _intensity_vectorized(self, t_array: np.ndarray, event_times: np.ndarray) -> np.ndarray:
@@ -176,15 +184,14 @@ class HawkesProcess:
         """
         Compute the negative log-likelihood for parameter estimation.
 
-        The log-likelihood of a Hawkes process is:
+        For the exponential kernel, delegates to
+        ``domain.hawkes.exponential_log_likelihood`` (closed-form), negates
+        the result for ``scipy.optimize.minimize`` convention, and remaps
+        ``-inf`` / ``NaN`` to the L-BFGS-B-friendly 1e15 barrier.
 
-            L(mu, alpha, beta) = sum_i log(lambda(t_i)) - integral_0^T lambda(t) dt
-
-        For the exponential kernel, the integral has a closed form:
-
-            integral = mu * T + (alpha / beta) * sum_i [1 - exp(-beta * (T - t_i))]
-
-        We return the negative because scipy.optimize.minimize minimizes.
+        For the power-law kernel (no domain primitive exists for the
+        non-closed-form integral), the math stays inline with numerical
+        integration via ``numpy.trapezoid``.
 
         Parameters
         ----------
@@ -204,7 +211,13 @@ class HawkesProcess:
         if mu <= 0 or alpha < 0 or beta <= 0:
             return 1e15
 
-        # Compute log(lambda(t_i)) for each event
+        if self.kernel == "exponential":
+            ll = exponential_log_likelihood(event_times, mu, alpha, beta)
+            if math.isinf(ll) or math.isnan(ll):
+                return 1e15
+            return -ll
+
+        # Power-law branch stays inline (no domain primitive exists).
         t0 = event_times[0]
         log_lambdas = np.empty(len(event_times), dtype=np.float64)
         for i, ti in enumerate(event_times):
@@ -213,40 +226,32 @@ class HawkesProcess:
                 lam = mu
             else:
                 dt = ti - past
-                if self.kernel == "exponential":
-                    lam = mu + alpha * np.sum(np.exp(-beta * dt))
-                else:
-                    lam = mu + alpha * np.sum(1.0 / (dt + self._pl_c) ** (1.0 + self._pl_gamma))
+                lam = mu + alpha * np.sum(
+                    1.0 / (dt + self._pl_c) ** (1.0 + self._pl_gamma)
+                )
             log_lambdas[i] = np.log(max(lam, 1e-300))
 
         sum_log = np.sum(log_lambdas)
-
-        # Compute integral of lambda(t) from t0 to T_end
         T_end = event_times[-1]
-        if self.kernel == "exponential":
-            # integral = mu * (T_end - t0) + (alpha / beta) * sum_i [1 - exp(-beta * (T_end - t_i))]
-            integral = mu * (T_end - t0) + (alpha / beta) * np.sum(
-                1.0 - np.exp(-beta * (T_end - event_times))
-            )
-        else:
-            # Numerical integration for power-law kernel
-            n_steps = max(1000, len(event_times) * 10)
-            t_grid = np.linspace(t0, T_end, n_steps)
-            dt_grid = t_grid[1] - t_grid[0]
-            lam_grid = np.empty(n_steps, dtype=np.float64)
-            for j, t in enumerate(t_grid):
-                past = event_times[event_times < t]
-                if len(past) == 0:
-                    lam_grid[j] = mu
-                else:
-                    dt_vals = t - past
-                    lam_grid[j] = mu + alpha * np.sum(
-                        1.0 / (dt_vals + self._pl_c) ** (1.0 + self._pl_gamma)
-                    )
-            integral = float(np.trapezoid(lam_grid, dx=dt_grid))
+        n_steps = max(1000, len(event_times) * 10)
+        t_grid = np.linspace(t0, T_end, n_steps)
+        dt_grid = t_grid[1] - t_grid[0]
+        lam_grid = np.empty(n_steps, dtype=np.float64)
+        for j, t in enumerate(t_grid):
+            past = event_times[event_times < t]
+            if len(past) == 0:
+                lam_grid[j] = mu
+            else:
+                dt_vals = t - past
+                lam_grid[j] = mu + alpha * np.sum(
+                    1.0 / (dt_vals + self._pl_c) ** (1.0 + self._pl_gamma)
+                )
+        integral = float(np.trapezoid(lam_grid, dx=dt_grid))
 
         ll = sum_log - integral
-        return -ll  # negative for minimization
+        if math.isinf(ll) or math.isnan(ll):
+            return 1e15
+        return -ll
 
     # ------------------------------------------------------------------
     # Fitting

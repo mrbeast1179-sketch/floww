@@ -51,6 +51,8 @@ import numpy as np
 from scipy.interpolate import RectBivariateSpline
 from scipy.optimize import minimize
 
+from domain.sabr import hagan_implied_lognormal_vol, hagan_implied_normal_vol
+
 logger = logging.getLogger(__name__)
 
 
@@ -87,107 +89,37 @@ class SABRModel:
         """
         Hagan's SABR implied normal (Bachelier) volatility.
 
-        Uses the Hagan et al. (2002) formula for the Bachelier implied
-        volatility under the SABR dynamics.
-
-        Args:
-            F: Forward price.
-            K: Strike price.
-            T: Time to expiry in years.
-
-        Returns:
-            Implied normal (Bachelier) volatility.
+        Delegates to the closed-form primitive in :mod:`domain.sabr`. For
+        invalid inputs (F / K / T <= 0), the domain primitive returns 0.0;
+        this wrapper maps that sentinel back to ``self.alpha`` to preserve
+        the legacy service contract used by ``VolSurfaceConstructor`` and
+        its tests.
         """
         if F <= 0 or K <= 0 or T <= 0:
             return self.alpha
 
-        alpha = self.alpha
-        beta = self.beta
-        rho = self.rho
-        nu = self.nu
-
-        # Handle ATM case
-        if abs(F - K) < 1e-12:
-            # ATM normal vol formula
-            term1 = alpha / (F ** beta)
-            term2 = (
-                (beta - 1) ** 2 * alpha ** 2 / (24 * F ** (2 * beta))
-                + rho * beta * nu * alpha / (4 * F ** beta)
-                + (2 - 3 * rho ** 2) * nu ** 2 / 24
-            ) * T
-            sigma_n = term1 * (1 + term2)
-            return max(sigma_n, 1e-8)
-
-        z = (nu / alpha) * (F * K) ** ((1 - beta) / 2) * np.log(F / K)
-        x_z = np.log((np.sqrt(1 - 2 * rho * z + z ** 2) + z - rho) / (1 - rho))
-
-        if abs(x_z) < 1e-12:
-            # Fallback to ATM
-            return self.hagan_normal_vol(F, F, T)
-
-        term1 = alpha / ((F * K) ** (beta / 2) * (1 + (1 - beta) ** 2 / 24 * np.log(F / K) ** 2 + (1 - beta) ** 4 / 1920 * np.log(F / K) ** 4))
-        term2 = z / x_z
-        term3 = (
-            (1 - beta) ** 2 * alpha ** 2 / (24 * (F * K) ** (1 - beta))
-            + rho * beta * nu * alpha / (4 * (F * K) ** ((1 - beta) / 2))
-            + (2 - 3 * rho ** 2) * nu ** 2 / 24
-        ) * T
-
-        sigma_n = term1 * term2 * (1 + term3)
-        return max(sigma_n, 1e-8)
+        vol = hagan_implied_normal_vol(
+            self.alpha, self.beta, self.rho, self.nu, F, K, T,
+        )
+        return self.alpha if vol == 0.0 else vol
 
     def hagan_lognormal_vol(self, F: float, K: float, T: float) -> float:
         """
         Hagan's SABR implied lognormal (Black) volatility.
 
-        Uses the Hagan et al. (2002) formula for the Black implied
-        volatility under the SABR dynamics.
-
-        Args:
-            F: Forward price.
-            K: Strike price.
-            T: Time to expiry in years.
-
-        Returns:
-            Implied lognormal (Black) volatility.
+        Delegates to the closed-form primitive in :mod:`domain.sabr`. For
+        invalid inputs (F / K / T <= 0), the domain primitive returns 0.0;
+        this wrapper maps that sentinel back to ``self.alpha`` to preserve
+        the legacy service contract used by ``VolSurfaceConstructor`` and
+        its tests.
         """
         if F <= 0 or K <= 0 or T <= 0:
             return self.alpha
 
-        alpha = self.alpha
-        beta = self.beta
-        rho = self.rho
-        nu = self.nu
-
-        # Handle ATM case
-        if abs(F - K) < 1e-12:
-            logFK = np.log(F / K) if K > 0 else 0.0
-            term1 = alpha / (F ** (1 - beta))
-            term2 = (
-                (1 - beta) ** 2 * alpha ** 2 / (24 * F ** (2 - 2 * beta))
-                + rho * beta * nu * alpha / (4 * F ** (1 - beta))
-                + (2 - 3 * rho ** 2) * nu ** 2 / 24
-            ) * T
-            sigma_b = term1 * (1 + term2)
-            return max(sigma_b, 1e-8)
-
-        logFK = np.log(F / K)
-        z = (nu / alpha) * (F * K) ** ((1 - beta) / 2) * logFK
-        x_z = np.log((np.sqrt(1 - 2 * rho * z + z ** 2) + z - rho) / (1 - rho))
-
-        if abs(x_z) < 1e-12:
-            return self.hagan_lognormal_vol(F, F, T)
-
-        term1 = alpha / ((F * K) ** ((1 - beta) / 2) * (1 + (1 - beta) ** 2 / 24 * logFK ** 2 + (1 - beta) ** 4 / 1920 * logFK ** 4))
-        term2 = z / x_z
-        term3 = (
-            (1 - beta) ** 2 * alpha ** 2 / (24 * (F * K) ** (1 - beta))
-            + rho * beta * nu * alpha / (4 * (F * K) ** ((1 - beta) / 2))
-            + (2 - 3 * rho ** 2) * nu ** 2 / 24
-        ) * T
-
-        sigma_b = term1 * term2 * (1 + term3)
-        return max(sigma_b, 1e-8)
+        vol = hagan_implied_lognormal_vol(
+            self.alpha, self.beta, self.rho, self.nu, F, K, T,
+        )
+        return self.alpha if vol == 0.0 else vol
 
     def fit(
         self,
