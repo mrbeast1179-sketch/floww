@@ -417,27 +417,36 @@
   table-layout: auto;
 }
 
-/* ── Price axis ── */
+/* ── Price axis — dark bg, white text ── */
 .dom-price-cell {
   position: sticky;
   left: 0;
   z-index: 5;
-  background: #2d3a4d;
-  color: #ffffff;
+  background: #1e293b;
+  color: #c9d1d9;
   font-size: 10px;
   font-weight: 400;
-  padding: 2px 4px 2px 14px;
+  padding: 3px 4px 3px 14px;
   text-align: left;
   white-space: nowrap;
   width: 68px;
   border: none;
 }
 
+/* ── Current price row — dark bg, white text, white triangle pointer ── */
+.dom-current-row {
+  background: #1e293b !important;
+}
+
 .dom-current-price {
-  background: #ffffff !important;
-  color: #000000 !important;
+  background: #1e293b !important;
+  color: #ffffff !important;
   font-weight: 700;
   position: relative;
+}
+
+.dom-current-row .dom-data-cell {
+  color: #ffffff !important;
 }
 
 .dom-triangle-ptr {
@@ -449,16 +458,7 @@
   height: 0;
   border-top: 4px solid transparent;
   border-bottom: 4px solid transparent;
-  border-left: 5px solid #1a1a1a;
-}
-
-/* ── Current price row — white bg bar ── */
-.dom-current-row {
-  background: #ffffff !important;
-}
-
-.dom-current-row .dom-data-cell {
-  color: #000000 !important;
+  border-left: 5px solid #ffffff;
 }
 
 /* ── Data cells — tight, seamless ── */

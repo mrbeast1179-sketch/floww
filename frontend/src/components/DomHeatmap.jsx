@@ -50,10 +50,14 @@ function domFmt(v) {
   if (v === null || v === undefined || isNaN(v)) return "—";
   if (v === 0) return "$0.0K";
   const a = Math.abs(v);
-  const sign = v < 0 ? "-" : "";
-  if (a >= 1e6) return "$" + sign + (a / 1e6).toFixed(1) + "M";
-  if (a >= 1e3) return "$" + sign + (a / 1e3).toFixed(1) + "K";
-  return "$" + sign + a.toFixed(0);
+  if (v < 0) {
+    if (a >= 1e6) return "-$" + (a / 1e6).toFixed(1) + "M";
+    if (a >= 1e3) return "-$" + (a / 1e3).toFixed(1) + "K";
+    return "-$" + a.toFixed(0);
+  }
+  if (a >= 1e6) return "$" + (a / 1e6).toFixed(1) + "M";
+  if (a >= 1e3) return "$" + (a / 1e3).toFixed(1) + "K";
+  return "$" + a.toFixed(0);
 }
 
 export default function DomHeatmap({ data, spot, ticker }) {
