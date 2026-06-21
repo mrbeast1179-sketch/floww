@@ -18,6 +18,7 @@ from typing import Any
 import numpy as np
 
 from bs_greeks import bs_call_price, bs_charm, bs_gamma, bs_vanna
+from domain.greek_scalers import dollar_vex_per_1pct_spot_move
 
 # ============================================================================
 # Implied PDF (Breeden-Litzenberger)
@@ -790,7 +791,13 @@ def calc_vex(spot: float, contracts: list[dict[str, Any]],
             continue
 
         vanna = bs_vanna(spot, strike, T, iv, q=0.0, r=risk_free_rate)
-        vex = vanna * oi * spot
+        # Bug fix (2026-Q2 audit): was `vanna * oi * spot` — missing both
+        # the CONTRACT_MULTIPLIER (100) and the DOLLAR_MOVE_CONVENTION
+        # (0.01) of the platform-wide VEX convention. For SPY at $580 the
+        # previous value was ≈5000× low. Use the canonical helper.
+        vex = dollar_vex_per_1pct_spot_move(
+            float(vanna), float(oi), float(spot)
+        )
         vex_by_strike[strike] = vex_by_strike.get(strike, 0.0) + vex
 
         if c.get("type", "").upper() in ("C", "CALL"):

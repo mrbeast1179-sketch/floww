@@ -181,7 +181,7 @@ class TestComputeGexFeaturesEdgeCases:
         spot = 530.0
         gamma = 0.02
         oi = 500
-        expected_call_gex = gamma * oi * 100.0 * spot * spot * 0.01  # = 0.02 * 500 * 100 * 530^2 * 0.01 = 280,900.0
+        expected_call_gex = gamma * oi * 100.0 * spot * spot * 0.01  # = 0.02 * 500 * 100 * 530^2 * 0.01 = 2,809,000.0
         chain = {
             "spot": spot,
             "contracts": [self._make_contract("C", strike=spot, gamma=gamma, oi=oi)],

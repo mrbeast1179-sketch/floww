@@ -5,8 +5,12 @@ LLM analysis routes — OpenRouter, Gemini, and turboQuantDC KV cache compressio
 """
 from __future__ import annotations
 
+import logging
+
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -170,22 +174,38 @@ async def turboquant_generate(request: TurboQuantGenerateRequest):
 
         # Tokenize and generate
         inputs = tokenizer(request.prompt, return_tensors="pt").to(model.device)
-        with torch.no_grad():
-            outputs = model.generate(
-                **inputs,
-                past_key_values=cache,
-                max_new_tokens=request.max_new_tokens,
-                do_sample=True,
-                temperature=0.7,
-            )
+        compression_used = True
+
+        try:
+            with torch.no_grad():
+                outputs = model.generate(
+                    **inputs,
+                    past_key_values=cache,
+                    max_new_tokens=request.max_new_tokens,
+                    do_sample=True,
+                    temperature=0.7,
+                )
+        except (TypeError, AttributeError, IndexError) as e:
+            # turboQuantDC cache not compatible with this model/transformers version
+            # Fall back to standard generation
+            logger.warning(f"turboQuantDC cache incompatible, using standard generation: {e}")
+            compression_used = False
+            with torch.no_grad():
+                outputs = model.generate(
+                    **inputs,
+                    max_new_tokens=request.max_new_tokens,
+                    do_sample=True,
+                    temperature=0.7,
+                )
 
         generated = tokenizer.decode(outputs[0][inputs["input_ids"].shape[1]:], skip_special_tokens=True)
-        stats = service.get_compression_stats(cache)
+        stats = service.get_compression_stats(cache) if compression_used else {"available": True, "compatible": False}
 
         return {
             "generated_text": generated,
             "model": request.model_name,
             "preset": request.preset,
+            "compression_used": compression_used,
             "compression_stats": stats,
             "input_tokens": inputs["input_ids"].shape[1],
             "output_tokens": outputs.shape[1] - inputs["input_ids"].shape[1],

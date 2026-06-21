@@ -26,6 +26,8 @@ from typing import Any
 from dotenv import load_dotenv
 from pydantic import BaseModel
 
+from domain.position_sizing import delta_adjusted_max_loss_size
+
 load_dotenv()
 
 logger = logging.getLogger(__name__)
@@ -126,8 +128,67 @@ def calculate_position_size(
     signal_type: str,
     account_equity: float,
     risk_pct: float = 0.02,
+    *,
+    delta: float | None = None,
+    entry_spot: float | None = None,
+    stop_spot: float | None = None,
+    multiplier: float = 100.0,
 ) -> int:
-    """Calculate position size based on account equity and risk."""
+    """Calculate position size based on account equity and risk.
+
+    Two paths:
+
+    * **Delta-aware (preferred)**: when ``delta``, ``entry_spot`` and
+      ``stop_spot`` are supplied, the position size is computed via
+      :func:`domain.position_sizing.delta_adjusted_max_loss_size` so that
+      the expected dollar loss at the stop is bounded by
+      ``equity * risk_pct``. This handles both options (multiplier=100,
+      delta in [-1,1]) and stocks (multiplier=1, delta=1).
+
+      Returns ``0`` to **refuse the trade** when the Greeks cannot be
+      safely sized (delta ≈ 0 or |entry − stop| ≈ 0) — caller must
+      interpret ``0`` as "do not trade".
+
+    * **Naive fallback**: when Greeks / stop distance are unknown, the
+      legacy fixed-$100/contract heuristic is used. This path is preserved
+      so callers that haven't yet migrated (e.g. older signal producers)
+      keep their current behaviour.
+
+    Reference: Tharp (1998) Ch. 7; backend/domain/position_sizing.py.
+    """
+    delta_args_supplied = (
+        delta is not None,
+        entry_spot is not None,
+        stop_spot is not None,
+    )
+    # All three required for delta-aware path; partial arg sets would
+    # silently produce stale sizes — surface a warning so callers notice.
+    if any(delta_args_supplied) and not all(delta_args_supplied):
+        logger.warning(
+            "calculate_position_size: delta-aware fields partially supplied "
+            "(delta=%s, entry_spot=%s, stop_spot=%s). Falling back to naive "
+            "$100/contract heuristic. Pass all three to enable Greeks-based sizing.",
+            delta,
+            entry_spot,
+            stop_spot,
+        )
+
+    if all(delta_args_supplied):
+        qty = delta_adjusted_max_loss_size(
+            account_equity=account_equity,
+            risk_pct=risk_pct,
+            delta=delta,
+            entry_spot=entry_spot,
+            stop_spot=stop_spot,
+            multiplier=multiplier,
+        )
+        # Cap by MAX_POSITION_SIZE.  Do NOT floor at 1 — the domain
+        # primitive returns 0 to mean "cannot safely size; refuse the trade"
+        # and resurrecting it would defeat that safety sentinel.
+        return min(qty, MAX_POSITION_SIZE)
+
+    # Naive legacy fallback (kept so callers without Greeks & stop
+    # distance still produce the same numbers they did before).
     risk_amount = account_equity * risk_pct
     # For options, risk is typically the premium paid
     # Conservative: risk no more than 2% of equity per trade
