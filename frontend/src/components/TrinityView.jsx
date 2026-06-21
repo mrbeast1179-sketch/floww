@@ -108,6 +108,7 @@ export default function TrinityView({ onFocusTicker }) {
   const [viewMode, setViewMode] = useState("dom");
   const [gexVexMode, setGexVexMode] = useState("gex");
   const [panelTickers, setPanelTickers] = useState({ "0": "^SPX", "1": "SPY", "2": "QQQ" });
+  const [dteFilter, setDteFilter] = useState(3);
 
   // Fetch all tickers on mount + track which tickers we have data for
   useEffect(() => {
@@ -118,7 +119,7 @@ export default function TrinityView({ onFocusTicker }) {
       try {
         const results = await Promise.allSettled(
           allTickers.map(t =>
-            axios.get(`${API}/heatmap/${t}?expiries=3&mode=day`, { timeout: 15000 })
+            axios.get(`${API}/heatmap/${t}?expiries=${dteFilter}&mode=day`, { timeout: 15000 })
               .then(r => ({ ticker: t, data: r.data }))
           )
         );
@@ -134,7 +135,7 @@ export default function TrinityView({ onFocusTicker }) {
     fetchAll();
     const id = setInterval(fetchAll, 30000);
     return () => { mounted = false; clearInterval(id); };
-  }, []);
+  }, [dteFilter]);
 
   if (loading && Object.keys(allData).length === 0) {
     return <div className="p-4 text-slate-500 text-sm">Loading Trinity…</div>;
@@ -145,7 +146,7 @@ export default function TrinityView({ onFocusTicker }) {
 
   return (
     <div className="trinity-layout" data-testid="trinity-view">
-      <ConfluenceBar data={allData} viewMode={viewMode} onViewModeChange={setViewMode} gexVexMode={gexVexMode} onGexVexChange={setGexVexMode} />
+      <ConfluenceBar data={allData} viewMode={viewMode} onViewModeChange={setViewMode} gexVexMode={gexVexMode} onGexVexChange={setGexVexMode} dteFilter={dteFilter} onDteChange={setDteFilter} />
       <div className="trinity-panels">
         {TRINITY.map((defaultTicker, idx) => {
           const currentTicker = panelTickers[idx] || defaultTicker;
@@ -167,7 +168,7 @@ export default function TrinityView({ onFocusTicker }) {
 }
 
 // ── Confluence Summary Bar ─────────────────────────────────────────
-function ConfluenceBar({ data, viewMode, onViewModeChange, gexVexMode, onGexVexChange }) {
+function ConfluenceBar({ data, viewMode, onViewModeChange, gexVexMode, onGexVexChange, dteFilter, onDteChange }) {
   const tickers = TRINITY.map(t => data[t]).filter(d => d && !d.error);
   if (tickers.length === 0) return null;
 
@@ -220,6 +221,17 @@ function ConfluenceBar({ data, viewMode, onViewModeChange, gexVexMode, onGexVexC
               onClick={() => onGexVexChange(m.id)}
             >
               {m.label}
+            </button>
+          ))}
+        </div>
+        <div className="trinity-dte-toggle">
+          {[{id: 1, label: "0DTE"}, {id: 3, label: "1DTE"}, {id: 7, label: "Week"}, {id: 12, label: "All"}].map(d => (
+            <button
+              key={d.id}
+              className={`trinity-dte-btn${dteFilter === d.id ? " trinity-dte-active" : ""}`}
+              onClick={() => onDteChange(d.id)}
+            >
+              {d.label}
             </button>
           ))}
         </div>

@@ -383,16 +383,28 @@
 /* ================================================================
    DOM / Level 2 Order Book Heatmap — Skylit reference style
    No column headers, 5 data cells per row, price axis left.
+   Background: #1a1a1a (dark charcoal)
+   Price axis: #2d3a4d (blue-gray)
+   Current price: white bg bar + black text + pointer
    Colors: teal/green = positive, purple = negative, yellow = extreme
+   Zero values: dark blue bg (#2c3e50 range)
+   No cell borders, seamless grid
    ================================================================ */
+
+.dom-heatmap-wrapper {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
 
 .dom-heatmap-container {
   overflow-y: auto;
   overflow-x: hidden;
   flex: 1;
   min-height: 0;
-  background: #131722;
-  font-variant-numeric: tabular-nums;
+  background: #1a1a1a;
 }
 
 .dom-heatmap-table {
@@ -406,16 +418,15 @@
 }
 
 /* ── Price axis ── */
-/* ── Price axis — dark bg, white triangle on current row ── */
 .dom-price-cell {
   position: sticky;
   left: 0;
   z-index: 5;
-  background: #131722;
-  color: #c9d1d9;
+  background: #2d3a4d;
+  color: #ffffff;
   font-size: 10px;
-  font-weight: 500;
-  padding: 4px 4px 4px 14px;
+  font-weight: 400;
+  padding: 2px 4px 2px 14px;
   text-align: left;
   white-space: nowrap;
   width: 68px;
@@ -423,142 +434,95 @@
 }
 
 .dom-current-price {
-  background: rgba(255,255,255,0.95) !important;
-  color: #0d1117 !important;
+  background: #ffffff !important;
+  color: #000000 !important;
   font-weight: 700;
   position: relative;
 }
 
-/* White triangle pointing right at current price */
-.dom-triangle {
+.dom-triangle-ptr {
   position: absolute;
-  left: 2px;
+  left: 3px;
   top: 50%;
   transform: translateY(-50%);
   width: 0;
   height: 0;
   border-top: 4px solid transparent;
   border-bottom: 4px solid transparent;
-  border-left: 5px solid #ffffff;
+  border-left: 5px solid #1a1a1a;
 }
 
-/* ── Data cells ── */
-.dom-data-cell {
-  padding: 1px 4px;
-  text-align: right;
-  white-space: nowrap;
-  font-size: 10px;
-  cursor: default;
-  border: none;
-  line-height: 1.4;
-  transition: background-color 100ms ease;
-  font-variant-numeric: tabular-nums;
-}
-
-/* ── Row styling ── */
-.dom-row {
-  transition: box-shadow 100ms ease;
-  border-bottom: 1px solid rgba(255,255,255,0.02);
-}
-
-.dom-row:hover {
-  box-shadow: inset 0 0 0 1px rgba(255,255,255,0.08);
-  z-index: 2;
-}
-
-.dom-row:hover .dom-price-cell {
-  background: rgba(255,255,255,0.06);
-}
-
-/* Current price row: full-row highlight */
+/* ── Current price row — white bg bar ── */
 .dom-current-row {
-  background: rgba(255,255,255,0.04) !important;
-  box-shadow: inset 0 0 0 1px rgba(255,255,255,0.12);
-  z-index: 3;
-  position: relative;
-  border-bottom: 1px solid rgba(255,255,255,0.08);
+  background: #ffffff !important;
 }
 
-/* Horizontal price line extending across grid */
-.dom-current-row::after {
-  content: '';
-  position: absolute;
-  left: 0;
-  right: 0;
-  top: 50%;
-  height: 1px;
-  background: linear-gradient(90deg, rgba(255,255,255,0.5), rgba(255,255,255,0.03));
-  pointer-events: none;
-  z-index: 4;
+.dom-current-row .dom-data-cell {
+  color: #000000 !important;
 }
 
-/* ── Data cells — 4px padding, faint horizontal + vertical lines ── */
+/* ── Data cells — tight, seamless ── */
 .dom-data-cell {
-  padding: 4px 4px;
+  padding: 2px 3px;
   text-align: right;
   white-space: nowrap;
   font-size: 10px;
+  font-weight: 400;
   cursor: default;
   border: none;
-  border-right: 1px solid rgba(255,255,255,0.025);
-  border-bottom: 1px solid rgba(42,46,57,0.4);
-  line-height: 1.4;
+  line-height: 1.3;
   font-variant-numeric: tabular-nums;
 }
 
-.dom-data-cell:last-child {
-  border-right: none;
-}
-
-/* ── Left/right percentage cells ── */
+/* ── Percentage cells ── */
 .dom-pct-left-cell,
 .dom-pct-cell {
-  padding: 4px 3px;
+  padding: 2px 2px;
   text-align: center;
-  width: 38px;
+  width: 36px;
   border: none;
-  border-bottom: 1px solid rgba(42,46,57,0.4);
 }
 
-.dom-pct-left-cell {
-  border-right: 1px solid rgba(255,255,255,0.025);
-}
-
-/* ── POC cell ── */
-.dom-poc-cell {
-  position: relative;
-  z-index: 2;
-  box-shadow: 0 0 10px rgba(250, 204, 21, 0.3);
-}
-
-/* ── Percentage badges ── */
 .dom-pct-badge {
   display: inline-block;
-  padding: 0 3px;
-  border-radius: 3px;
-  font-size: 8px;
+  padding: 0 2px;
+  border-radius: 2px;
+  font-size: 7px;
   font-family: "JetBrains Mono", ui-monospace, monospace;
-  font-variant-numeric: tabular-nums;
+  font-weight: 700;
 }
 
 .dom-pct-hot { font-weight: 800; }
 .dom-pct-warm { font-weight: 600; }
-.dom-pct-cool { font-weight: 400; opacity: 0.5; }
-
-.dom-pct-pos.dom-pct-hot { color: #22d3ee; background: rgba(34,211,238,0.15); }
+.dom-pct-cool { font-weight: 400; opacity: 0.6; }
+.dom-pct-pos.dom-pct-hot { color: #34d399; }
 .dom-pct-pos.dom-pct-warm { color: #6ee7b7; }
-.dom-pct-pos.dom-pct-cool { color: #6ee7b7; }
-.dom-pct-neg.dom-pct-hot { color: #f43f5e; background: rgba(244,63,94,0.15); }
-.dom-pct-neg.dom-pct-warm { color: #f9a8d4; }
-.dom-pct-neg.dom-pct-cool { color: #f9a8d4; }
+.dom-pct-neg.dom-pct-hot { color: #f87171; }
+.dom-pct-neg.dom-pct-warm { color: #fca5a5; }
 
-/* ── Bottom gradient legend bar ── */
+/* ── Star / POC ── */
+.dom-star-cell {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+}
+
+/* ── Row hover ── */
+.dom-row:hover {
+  filter: brightness(1.15);
+}
+
+.dom-row:hover .dom-price-cell {
+  background: #3d4a5d;
+}
+
+/* ── Bottom legend bar ── */
 .dom-legend {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 6px 12px;
-  background: rgba(15, 23, 42, 0.8);
+  gap: 6px;
+  padding: 4px 8px;
+  background: #1a1a1a;
   border-top: 1px solid rgba(255,255,255,0.04);
   flex-shrink: 0;
 }
@@ -566,7 +530,7 @@
 .dom-legend-min,
 .dom-legend-max {
   font-family: "JetBrains Mono", ui-monospace, monospace;
-  font-size: 9px;
+  font-size: 8px;
   color: #64748b;
   white-space: nowrap;
   min-width: 50px;
@@ -585,12 +549,12 @@
 .dom-legend-gradient {
   height: 6px;
   border-radius: 3px;
-  background: linear-gradient(90deg, 
-    rgba(88, 28, 135, 0.8),
-    rgba(168, 85, 247, 0.8),
-    rgba(45, 212, 191, 0.8),
-    rgba(74, 222, 128, 0.8),
-    rgba(251, 191, 36, 0.8)
+  background: linear-gradient(90deg,
+    rgba(107, 33, 168, 0.7),
+    rgba(142, 68, 173, 0.5),
+    rgba(44, 122, 123, 0.5),
+    rgba(46, 204, 113, 0.6),
+    rgba(241, 196, 15, 0.8)
   );
 }
 
@@ -603,57 +567,10 @@
 }
 
 /* ── Scrollbar ── */
-.dom-heatmap-container::-webkit-scrollbar { width: 6px; height: 6px; }
-.dom-heatmap-container::-webkit-scrollbar-track { background: #0a0e1a; }
-.dom-heatmap-container::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.08); border-radius: 3px; }
-.dom-heatmap-container::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.15); }
-
-/* ── Top bar ── */
-.dom-top-bar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 3px 8px;
-  background: #0a0e1a;
-  border-bottom: 1px solid rgba(255,255,255,0.04);
-  flex-shrink: 0;
-}
-
-.dom-ticker-info {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-shrink: 0;
-}
-
-.trinity-row-price {
-  font-family: "JetBrains Mono", monospace;
-  font-size: 9px;
-  color: #94a3b8;
-  text-align: right;
-  width: 52px;
-  flex-shrink: 0;
-  font-weight: 600;
-  position: relative;
-}
-
-.dom-ticker-label {
-  font-family: "Space Grotesk", "Inter", sans-serif;
-  font-size: 13px; font-weight: 700; color: #e2e8f0; letter-spacing: 0.03em;
-}
-
-.dom-regime { font-size: 9px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; padding: 1px 5px; border-radius: 3px; }
-.dom-regime-pos { color: #34d399; background: rgba(52,211,153,0.08); }
-.dom-regime-neg { color: #f87171; background: rgba(248,113,113,0.08); }
-.dom-regime-neu { color: #94a3b8; background: rgba(148,163,184,0.06); }
-
-.dom-spot-price { font-family: "JetBrains Mono", ui-monospace, monospace; font-size: 12px; font-weight: 700; color: #e2e8f0; }
-.dom-live-dot { font-size: 8px; color: #34d399; animation: pulse 2.5s ease-in-out infinite; }
-.dom-tags-inline {
-  display: flex;
-  gap: 3px;
-  margin-left: auto;
-}
+.dom-heatmap-container::-webkit-scrollbar { width: 5px; height: 5px; }
+.dom-heatmap-container::-webkit-scrollbar-track { background: #1a1a1a; }
+.dom-heatmap-container::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.06); border-radius: 3px; }
+.dom-heatmap-container::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.12); }
 
 /* ================================================================
    Multi-Ticker Heatmap — Skylit reference style
@@ -1563,4 +1480,31 @@
 .trinity-ticker-active {
   color: #fbbf24;
   background: rgba(251,191,36,0.1);
+}
+
+/* ── DTE filter toggle ── */
+.trinity-dte-toggle {
+  display: flex;
+  gap: 1px;
+  background: rgba(255,255,255,0.03);
+  border: 1px solid rgba(255,255,255,0.06);
+  border-radius: 4px;
+  padding: 2px;
+}
+.trinity-dte-btn {
+  background: none;
+  border: none;
+  color: #4a5568;
+  font-size: 8px;
+  font-weight: 700;
+  padding: 3px 8px;
+  border-radius: 3px;
+  cursor: pointer;
+  transition: all 150ms ease;
+}
+.trinity-dte-btn:hover { color: #94a3b8; background: rgba(255,255,255,0.04); }
+.trinity-dte-active {
+  color: #22d3ee;
+  background: rgba(34,211,238,0.12);
+  border: 1px solid rgba(34,211,238,0.25);
 }
