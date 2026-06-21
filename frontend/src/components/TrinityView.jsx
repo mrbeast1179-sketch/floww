@@ -9,70 +9,86 @@ const API = process.env.REACT_APP_BACKEND_URL
 /**
  * Trinity 3-Panel View — Skylit reference layout
  *
- * Three side-by-side panels (SPXW, SPY, QQQ), each showing:
- * - Header: ticker, price, change%
- * - Sub-header: King label + yellow dot, net GEX
- * - Data grid: strike price | percentage badge | GEX value
- * - Footer: gradient bar (purple → yellow) with min/max labels
+ * View modes:
+ * - "grid": 2D heatmap grid (strike × [call_gex, gex, put_gex, vex, charm])
+ * - "bars": horizontal bar chart per strike showing GEX magnitude
+ * - "list": price ladder with % badges (original view)
  *
- * Colors per reference image 9:
- * - Positive GEX: teal/green backgrounds, green text badges
- * - Negative GEX: purple backgrounds, red/purple text badges
- * - Extreme (top 20%): bright yellow background
- * - Current price: white background, dark text (inverted)
- * - King node: gold star + highlighted row
+ * King node (brightest cell) gets gold glow + large star + pulse
  */
 
-// ── Color scale for row backgrounds ─────────────────────────────────
-// Reference: purple (neg) → teal (pos) → yellow (extreme)
+// ── Color scale for cell backgrounds ─────────────────────────────────
+function gridCellColor(v, maxAbs) {
+  if (v === null || v === undefined || isNaN(v) || v === 0) {
+    return { bg: "rgba(11, 17, 33, 0.95)", text: "#3a4560", star: false };
+  }
+  const norm = Math.min(1, Math.abs(v) / maxAbs);
+  const isNeg = v < 0;
+
+  // Extreme (top 15%) — bright yellow + star
+  if (norm > 0.85) {
+    return isNeg
+      ? { bg: `rgba(168, 55, 230, ${0.5 + 0.35 * norm})`, text: "#fce7fe", star: true }
+      : { bg: `rgba(251, 191, 36, ${0.7 + 0.2 * norm})`, text: "#0b1121", star: true };
+  }
+  if (norm > 0.50) {
+    return isNeg
+      ? { bg: `rgba(168, 85, 247, ${0.40 + 0.25 * norm})`, text: "#e9d5ff", star: false }
+      : { bg: `rgba(45, 212, 191, ${0.40 + 0.25 * norm})`, text: "#0b1121", star: false };
+  }
+  if (norm > 0.20) {
+    return isNeg
+      ? { bg: `rgba(168, 85, 247, ${0.15 + 0.15 * norm})`, text: "#c4b5fd", star: false }
+      : { bg: `rgba(45, 212, 191, ${0.15 + 0.15 * norm})`, text: "#6ee7b7", star: false };
+  }
+  return isNeg
+    ? { bg: "rgba(88, 28, 135, 0.08)", text: "#8b7fd4", star: false }
+    : { bg: "rgba(22, 78, 99, 0.08)", text: "#5ebfb0", star: false };
+}
+
 function rowColor(gexVal, maxAbs) {
   if (!gexVal || !maxAbs) return "transparent";
   const norm = Math.min(1, Math.abs(gexVal) / maxAbs);
   const isNeg = gexVal < 0;
 
-  if (norm > 0.80) {
-    // Extreme — bright yellow for both pos and neg
-    return "rgba(253, 224, 71, 0.65)";
-  }
-  if (norm > 0.50) {
-    return isNeg ? "rgba(168, 85, 247, 0.40)" : "rgba(45, 212, 191, 0.45)";
-  }
-  if (norm > 0.20) {
-    return isNeg ? "rgba(168, 85, 247, 0.22)" : "rgba(45, 212, 191, 0.25)";
-  }
+  if (norm > 0.80) return "rgba(253, 224, 71, 0.65)";
+  if (norm > 0.50) return isNeg ? "rgba(168, 85, 247, 0.40)" : "rgba(45, 212, 191, 0.45)";
+  if (norm > 0.20) return isNeg ? "rgba(168, 85, 247, 0.22)" : "rgba(45, 212, 191, 0.25)";
   return isNeg ? "rgba(88, 28, 135, 0.10)" : "rgba(22, 78, 99, 0.10)";
 }
 
-// ── Text color for value column ─────────────────────────────────────
 function textColor(gexVal, maxAbs) {
   if (!gexVal || !maxAbs) return "#4a5568";
   const norm = Math.min(1, Math.abs(gexVal) / maxAbs);
-  if (norm > 0.80) return "#0a0e1a";  // dark text on yellow bg
+  if (norm > 0.80) return "#0a0e1a";
   if (norm > 0.50) return isNeg(gexVal) ? "#e9d5ff" : "#0a0e1a";
   return isNeg(gexVal) ? "#c4b5fd" : "#6ee7b7";
 }
 
 function isNeg(v) { return v < 0; }
 
-// ── Format GEX value as "$X,XXX.XK" ────────────────────────────────
 function fmtGex(v) {
   if (v === null || v === undefined || isNaN(v)) return "—";
   const abs = Math.abs(v);
   const sign = v < 0 ? "-" : "";
-  if (abs >= 1e6) {
-    return `${sign}$${(abs / 1e6).toFixed(1)}M`;
-  }
-  if (abs >= 1e3) {
-    return `${sign}$${(abs / 1e3).toFixed(1)}K`;
-  }
-  return `${sign}$${abs.toFixed(0)}`;
+  if (abs >= 1e6) return `${sign}$${(abs / 1e6).toFixed(1)}M`;
+  if (abs >= 1e3) return `${sign}${(abs / 1e3).toFixed(1)}K`;
+  return `${sign}${abs.toFixed(0)}`;
 }
+
+// ── View mode options ────────────────────────────────────────────────
+const VIEW_MODES = [
+  { id: "grid", label: "2D Grid", icon: "⊞" },
+  { id: "bars", label: "Bars", icon: "▤" },
+  { id: "list", label: "List", icon: "☰" },
+];
 
 // ── Main Trinity View ──────────────────────────────────────────────
 export default function TrinityView({ onFocusTicker }) {
   const [allData, setAllData] = useState({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [viewMode, setViewMode] = useState("grid");
 
   useEffect(() => {
     let mounted = true;
@@ -108,8 +124,8 @@ export default function TrinityView({ onFocusTicker }) {
 
   return (
     <div className="trinity-layout" data-testid="trinity-view">
-      {/* Confluence summary bar */}
-      <ConfluenceBar data={allData} />
+      {/* Confluence summary bar with view toggle */}
+      <ConfluenceBar data={allData} viewMode={viewMode} onViewModeChange={setViewMode} />
 
       {/* Three panels */}
       <div className="trinity-panels">
@@ -118,6 +134,7 @@ export default function TrinityView({ onFocusTicker }) {
             key={t}
             ticker={t}
             data={allData[t]}
+            viewMode={viewMode}
             onFocus={() => onFocusTicker && onFocusTicker(t)}
           />
         ))}
@@ -127,7 +144,7 @@ export default function TrinityView({ onFocusTicker }) {
 }
 
 // ── Confluence Summary Bar ─────────────────────────────────────────
-function ConfluenceBar({ data }) {
+function ConfluenceBar({ data, viewMode, onViewModeChange }) {
   const tickers = TRINITY.map(t => data[t]).filter(d => d && !d.error);
   if (tickers.length === 0) return null;
 
@@ -158,13 +175,28 @@ function ConfluenceBar({ data }) {
           </span>
         </div>
       </div>
-      <span className={`trinity-verdict ${verdictColor}`}>{verdictText}</span>
+      <div className="trinity-summary-right">
+        <span className={`trinity-verdict ${verdictColor}`}>{verdictText}</span>
+        <div className="trinity-view-toggle">
+          {VIEW_MODES.map(vm => (
+            <button
+              key={vm.id}
+              className={`trinity-view-btn ${viewMode === vm.id ? "trinity-view-active" : ""}`}
+              onClick={() => onViewModeChange(vm.id)}
+              title={vm.label}
+            >
+              <span className="trinity-view-icon">{vm.icon}</span>
+              <span className="trinity-view-label">{vm.label}</span>
+            </button>
+          ))}
+        </div>
+      </div>
     </div>
   );
 }
 
 // ── Single Trinity Panel ───────────────────────────────────────────
-function TrinityPanel({ ticker, data, onFocus }) {
+function TrinityPanel({ ticker, data, viewMode, onFocus }) {
   const spot = data?.spot;
   const nodes = data?.nodes;
 
@@ -182,6 +214,19 @@ function TrinityPanel({ ticker, data, onFocus }) {
     return Math.max(...rows.map(s => Math.abs(s.gex || 0)), 1);
   }, [rows]);
 
+  // Max abs across ALL 5 grid columns for consistent grid coloring
+  const gridMaxAbs = useMemo(() => {
+    if (!rows.length) return 1;
+    let m = 1;
+    for (const row of rows) {
+      for (const key of ["call_gex", "gex", "put_gex", "vex", "charm"]) {
+        const v = Math.abs(row[key] || 0);
+        if (v > m) m = v;
+      }
+    }
+    return m;
+  }, [rows]);
+
   // Current price row index (closest strike to spot)
   const spotIdx = useMemo(() => {
     if (!spot || !rows.length) return -1;
@@ -194,11 +239,17 @@ function TrinityPanel({ ticker, data, onFocus }) {
     return best;
   }, [rows, spot]);
 
-  // King node (strike with highest abs GEX)
-  const kingStrike = useMemo(() => {
-    if (!nodes?.king?.strike) return null;
-    return nodes.king.strike;
-  }, [nodes]);
+  // King node (strike with highest abs GEX) — find from rows directly
+  const kingRowIdx = useMemo(() => {
+    if (!rows.length) return -1;
+    let maxVal = 0;
+    let kingI = -1;
+    for (let i = 0; i < rows.length; i++) {
+      const v = Math.abs(rows[i].gex || 0);
+      if (v > maxVal) { maxVal = v; kingI = i; }
+    }
+    return kingI;
+  }, [rows]);
 
   // Panel net GEX sum
   const netGex = useMemo(() => {
@@ -218,8 +269,21 @@ function TrinityPanel({ ticker, data, onFocus }) {
   const regimeColor = regime === "positive" ? "text-emerald-400" : regime === "negative" ? "text-rose-400" : "text-slate-400";
   const regimeLabel = regime === "positive" ? "positive γ" : regime === "negative" ? "negative γ" : "neutral";
 
-  // Total GEX from nodes (more accurate than summing strikes)
-  const totalGex = nodes?.total_gex;
+  // Render the appropriate view based on viewMode
+  const renderView = () => {
+    if (rows.length === 0) {
+      return <div className="trinity-no-data">No strike data available</div>;
+    }
+    switch (viewMode) {
+      case "bars":
+        return <BarsView rows={rows} maxAbs={maxAbs} spotIdx={spotIdx} kingRowIdx={kingRowIdx} />;
+      case "list":
+        return <ListView rows={rows} maxAbs={maxAbs} spotIdx={spotIdx} kingRowIdx={kingRowIdx} />;
+      case "grid":
+      default:
+        return <GridView rows={rows} gridMaxAbs={gridMaxAbs} spotIdx={spotIdx} kingRowIdx={kingRowIdx} />;
+    }
+  };
 
   return (
     <div className="trinity-panel">
@@ -234,56 +298,15 @@ function TrinityPanel({ ticker, data, onFocus }) {
       <div className="trinity-panel-subheader">
         <span className="trinity-king-dot" />
         <span className="trinity-king-label">King</span>
-        {kingStrike != null && <span className="trinity-king-value">{fmt(kingStrike, 0)}</span>}
+        {kingRowIdx >= 0 && <span className="trinity-king-value">{fmt(rows[kingRowIdx].strike, 0)}</span>}
         <span className={`trinity-net-badge ${netGex >= 0 ? "trinity-net-pos" : "trinity-net-neg"}`}>
           {fmtGex(netGex)}
         </span>
       </div>
 
-      {/* Data grid */}
+      {/* Data view */}
       <div className="trinity-grid">
-        {rows.length === 0 && (
-          <div className="trinity-no-data">No strike data available</div>
-        )}
-        {rows.map((row, i) => {
-          const isCurrent = i === spotIdx;
-          const isKing = row.strike === kingStrike;
-          const gex = row.gex || 0;
-          const bg = rowColor(gex, maxAbs);
-          const tc = textColor(gex, maxAbs);
-
-          // Percentage of max for badge
-          const pctVal = maxAbs > 0 ? Math.abs(gex / maxAbs) * 100 : 0;
-
-          return (
-            <div
-              key={row.strike}
-              className={`trinity-row ${isCurrent ? "trinity-row-current" : ""} ${isKing ? "trinity-row-king" : ""}`}
-              style={{ background: bg }}
-            >
-              {/* Price */}
-              <span className={`trinity-row-price ${isCurrent ? "trinity-price-current" : ""}`}>
-                {isCurrent && <span className="trinity-price-triangle" />}
-                {isKing && <span className="trinity-king-star">★</span>}
-                {fmt(row.strike, row.strike >= 1000 ? 0 : 1)}
-              </span>
-
-              {/* Percentage badge */}
-              <span className="trinity-row-pct">
-                {pctVal > 15 && (
-                  <span className={`trinity-pct-badge ${gex >= 0 ? "trinity-pct-pos" : "trinity-pct-neg"}`}>
-                    {gex >= 0 ? "+" : ""}{pctVal.toFixed(0)}%
-                  </span>
-                )}
-              </span>
-
-              {/* Value */}
-              <span className="trinity-row-value" style={{ color: tc }}>
-                {fmtGex(gex)}
-              </span>
-            </div>
-          );
-        })}
+        {renderView()}
       </div>
 
       {/* Footer gradient bar */}
@@ -298,5 +321,145 @@ function TrinityPanel({ ticker, data, onFocus }) {
       {/* Focus link */}
       <button className="trinity-focus-btn" onClick={onFocus}>focus →</button>
     </div>
+  );
+}
+
+// ── 2D Grid View ───────────────────────────────────────────────────
+function GridView({ rows, gridMaxAbs, spotIdx, kingRowIdx }) {
+  const gridCols = ["call_gex", "gex", "put_gex", "vex", "charm"];
+  const colLabels = ["Call", "Net", "Put", "VEX", "Charm"];
+
+  return (
+    <div className="trinity-grid-scroll">
+      <table className="trinity-grid-table">
+        <thead>
+          <tr className="trinity-grid-header">
+            <th className="trinity-grid-th-price">Strike</th>
+            {colLabels.map((label, i) => (
+              <th key={i} className="trinity-grid-th">{label}</th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((row, i) => {
+            const isCurrent = i === spotIdx;
+            const isKing = i === kingRowIdx;
+            return (
+              <tr
+                key={row.strike}
+                className={`trinity-grid-row ${isCurrent ? "trinity-row-current" : ""} ${isKing ? "trinity-row-king-grid" : ""}`}
+              >
+                <td className={`trinity-grid-price ${isCurrent ? "trinity-price-current" : ""}`}>
+                  {isCurrent && <span className="trinity-price-triangle" />}
+                  {isKing && <span className="trinity-king-star-grid">★</span>}
+                  {fmt(row.strike, row.strike >= 1000 ? 0 : 1)}
+                </td>
+                {gridCols.map((key, ci) => {
+                  const val = row[key] || 0;
+                  const cc = gridCellColor(val, gridMaxAbs);
+                  const isMaxInCol = isKing && key === "gex";
+                  return (
+                    <td
+                      key={ci}
+                      className={`trinity-grid-cell ${cc.star ? "trinity-grid-star" : ""} ${isMaxInCol ? "trinity-grid-poc" : ""}`}
+                      style={{ background: cc.bg, color: cc.text }}
+                      title={`${fmt(row.strike, 0)} ${colLabels[ci]}: ${fmtGex(val)}`}
+                    >
+                      {cc.star ? <span className="trinity-grid-star-icon">★</span> : ""}{fmtGex(val)}
+                    </td>
+                  );
+                })}
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+// ── Bars View ──────────────────────────────────────────────────────
+function BarsView({ rows, maxAbs, spotIdx, kingRowIdx }) {
+  return (
+    <div className="trinity-bars-scroll">
+      {rows.map((row, i) => {
+        const isCurrent = i === spotIdx;
+        const isKing = i === kingRowIdx;
+        const gex = row.gex || 0;
+        const absGex = Math.abs(gex);
+        const pct = maxAbs > 0 ? (absGex / maxAbs) * 100 : 0;
+        const isNeg = gex < 0;
+        const barColor = isKing
+          ? "linear-gradient(90deg, rgba(251,191,36,0.9), rgba(253,224,71,0.95))"
+          : isNeg
+            ? "linear-gradient(90deg, rgba(168,85,247,0.6), rgba(168,85,247,0.3))"
+            : "linear-gradient(90deg, rgba(45,212,191,0.6), rgba(45,212,191,0.3))";
+
+        return (
+          <div
+            key={row.strike}
+            className={`trinity-bar-row ${isCurrent ? "trinity-row-current" : ""} ${isKing ? "trinity-row-king-bar" : ""}`}
+          >
+            <span className={`trinity-bar-price ${isCurrent ? "trinity-price-current" : ""}`}>
+              {isCurrent && <span className="trinity-price-triangle" />}
+              {isKing && <span className="trinity-king-star-bar">★</span>}
+              {fmt(row.strike, row.strike >= 1000 ? 0 : 1)}
+            </span>
+            <div className="trinity-bar-track">
+              <div
+                className={`trinity-bar-fill ${isKing ? "trinity-bar-king" : ""}`}
+                style={{
+                  width: `${Math.min(100, pct)}%`,
+                  background: barColor,
+                }}
+              />
+            </div>
+            <span className="trinity-bar-value" style={{ color: isKing ? "#fbbf24" : isNeg ? "#c4b5fd" : "#6ee7b7" }}>
+              {fmtGex(gex)}
+            </span>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+// ── List View (original price ladder) ──────────────────────────────
+function ListView({ rows, maxAbs, spotIdx, kingRowIdx }) {
+  return (
+    <>
+      {rows.map((row, i) => {
+        const isCurrent = i === spotIdx;
+        const isKing = i === kingRowIdx;
+        const gex = row.gex || 0;
+        const bg = rowColor(gex, maxAbs);
+        const tc = textColor(gex, maxAbs);
+        const pctVal = maxAbs > 0 ? Math.abs(gex / maxAbs) * 100 : 0;
+
+        return (
+          <div
+            key={row.strike}
+            className={`trinity-row ${isCurrent ? "trinity-row-current" : ""} ${isKing ? "trinity-row-king" : ""}`}
+            style={{ background: bg }}
+          >
+            <span className={`trinity-row-price ${isCurrent ? "trinity-price-current" : ""}`}>
+              {isCurrent && <span className="trinity-price-triangle" />}
+              {isKing && <span className="trinity-king-star">★</span>}
+              {fmt(row.strike, row.strike >= 1000 ? 0 : 1)}
+            </span>
+            <span className="trinity-row-pct">
+              {pctVal > 15 && (
+                <span className={`trinity-pct-badge ${gex >= 0 ? "trinity-pct-pos" : "trinity-pct-neg"}`}>
+                  {gex >= 0 ? "+" : ""}{pctVal.toFixed(0)}%
+                </span>
+              )}
+            </span>
+            <span className="trinity-row-value" style={{ color: tc }}>
+              {fmtGex(gex)}
+            </span>
+          </div>
+        );
+      })}
+    </>
   );
 }
