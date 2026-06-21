@@ -2,11 +2,27 @@
 Additive AgentField PoC adapter for floww's Black-Scholes module.
 Iteration 2 — registered against the REAL AgentField Go control plane.
 
-Iter 1 (now superseded) demonstrated an in-process @app.reasoner with a
-co-located `/api/v1/execute/{node}.{func}` proxy mounted on the Agent's
-FastAPI instance itself, because no Go toolchain was available in the
-environment. Iter 2 replaces that proxy with a true control-plane
-dispatch path; iter 3 widens the surface to two reasoners:
+Iter 2 (current): registers the `floww_greeks` node against the REAL
+AgentField Go control plane on `:8080` via the @app.on_event("startup")
+hook further down in this file — it calls
+`app.agentfield_handler.register_with_agentfield_server(8002)` then
+`app.agentfield_handler.start_heartbeat()`. The dispatch path is
+
+  client → :8080/api/v1/execute/floww_greeks.{bs_quote|bs_vomma}
+        → AgentField Go control plane (`af dev --port 8080`)
+        → :8002/reasoners/{bs_quote|bs_vomma}   (this Agent)
+        → backend/bs_greeks.py                  (read-only)
+
+Iter 1 (superseded; see commit `72dee2c`) had a CO-LOCATED
+`/api/v1/execute/{node}.{func}` proxy mounted on this Agent's FastAPI
+instance itself, because no Go toolchain was then available. Iter 2
+(commit `f6a6bc4`) REMOVED that proxy entirely (not feature-flagged) —
+calling `/api/v1/execute/...` on `:8002` now returns 404. Clients MUST
+hit `:8080/api/v1/execute/...` once `af dev` is up; the in-process
+proxy is gone. Iter 3 (commit `a4a991e`) widens the surface to a
+SECOND co-registered reasoner `bs_vomma` (∂²Price/∂σ² — higher-order
+Greek) on the same `floww_greeks` node; both reasoners are visible in
+`GET /api/v1/discovery/capabilities` on the real control plane.
 
   client → :8080/api/v1/execute/floww_greeks.{bs_quote,bs_vomma}
         → AgentField Go control plane (af dev)

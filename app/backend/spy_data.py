@@ -29,6 +29,35 @@ logger = logging.getLogger(__name__)
 RISK_FREE = 0.045  # 4.5% approx
 DIV_YIELD = 0.013  # SPY ~1.3%
 
+# Dollar-GEX convention constants — must match backend/bs_greeks.py.
+# See backend/bs_greeks.py docstring for industry citations (Perfiliev /
+# SqueezeMetrics / SpotGamma).
+CONTRACT_MULTIPLIER = 100.0
+DOLLAR_MOVE_CONVENTION = 0.01  # 1% spot move
+
+def _dollar_gex(gamma: float, oi: float, spot: float) -> float:
+    """Dollar Gamma Exposure per contract (industry-standard 1%-move convention).
+    Mirrors ``backend.bs_greeks.dollar_gex_per_contract`` so this module
+    stays self-contained (it has its own ``greeks`` import, not bs_greeks).
+    """
+    return gamma * oi * CONTRACT_MULTIPLIER * spot * spot * DOLLAR_MOVE_CONVENTION
+
+def _dollar_vex_charm_zomma(greek_val: float, oi: float, spot: float) -> float:
+    """Dollar per-contract exposure for vanna / charm / zomma (linear spot).
+    Mirrors ``backend.bs_greeks.dollar_vex_per_contract`` (and friends).
+    These greeks have units of [1/spot], so the formula is linear in spot
+    with the same 0.01 (1%) convention. (Note: bs_greeks will be renamed
+    to dollar_charm_per_contract / dollar_zomma_per_contract if either
+    grows an independent call.)
+    """
+    return greek_val * oi * CONTRACT_MULTIPLIER * spot * DOLLAR_MOVE_CONVENTION
+
+def _dollar_vomma_vega(greek_val: float, oi: float) -> float:
+    """Dollar per-contract exposure for vomma / vega (per unit-σ).
+    No move-convention factor — these are sensitivities to implied vol.
+    """
+    return greek_val * oi * CONTRACT_MULTIPLIER
+
 
 def _get_spot_yf(symbol: str) -> float | None:
     """Fetch spot price from yfinance (free, no Databento credits)."""
@@ -110,13 +139,18 @@ def _aggregate(contracts: List[Dict[str, Any]], spot: float, source: str) -> Dic
             "charm_exp": 0.0, "vanna_exp": 0.0, "theta_exp": 0.0, "vomma_exp": 0.0,
             "call_oi": 0, "put_oi": 0,
         })
-        row["gex"] += sign * g["gamma"] * oi * 100 * spot  # dollar gamma per 1% move
-        row["vex"] += sign * g["vanna"] * oi * 100
+        # FIX 2026-06: prior code was missing the spot²·0.01 factor for GEX
+        # and the spot·0.01 factor for the second-order greeks (vex/charm/zomma).
+        # That meant dollar values in the app shell were ~1/spot (linear) smaller
+        # than the rest of the backend pipeline. See backend/bs_greeks.py for
+        # the industry-standard convention (Perfiliev / SqueezeMetrics).
+        row["gex"] += sign * _dollar_gex(g["gamma"], oi, spot)
+        row["vex"] += sign * _dollar_vex_charm_zomma(g["vanna"], oi, spot)
         row["dex"] += sign * g["delta"] * oi * 100
-        row["charm_exp"] += sign * g["charm"] * oi * 100
-        row["vanna_exp"] += sign * g["vanna"] * oi * 100
+        row["charm_exp"] += sign * _dollar_vex_charm_zomma(g["charm"], oi, spot)
+        row["vanna_exp"] += sign * _dollar_vex_charm_zomma(g["vanna"], oi, spot)
         row["theta_exp"] += sign * g["theta"] * oi * 100
-        row["vomma_exp"] += sign * g["vomma"] * oi * 100
+        row["vomma_exp"] += sign * _dollar_vomma_vega(g["vomma"], oi)
         if opt == "C":
             row["call_oi"] += oi
             totals["call_oi"] += oi

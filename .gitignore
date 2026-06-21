@@ -109,3 +109,10 @@ backend/tests/service_tests/
 .coverage
 .coverage.*
 __pycache__/
+
+# Excluded paths (2026 hardening batch migration)
+# Wild-west workspace directory (Hermes CLI capture / scratch) - kept local only
+.hermes/
+
+# Private model artifacts under project_oracle/ - kept local only (consider LFS later)
+/project_oracle/models/*.pt
