@@ -5,6 +5,7 @@ from datetime import UTC
 from typing import Any
 
 from fastapi import APIRouter, Query, WebSocket, WebSocketDisconnect
+from fastapi.responses import JSONResponse
 
 logger = logging.getLogger(__name__)
 
@@ -109,14 +110,17 @@ async def get_alerts_summary():
         }
     except Exception as e:
         logger.error(f"Error in alerts summary: {e}")
-        return {
-            "total": 0,
-            "critical": 0,
-            "warning": 0,
-            "info": 0,
-            "last_24h": 0,
-            "error": str(e),
-        }
+        return JSONResponse(
+            status_code=503,
+            content={
+                "total": 0,
+                "critical": 0,
+                "warning": 0,
+                "info": 0,
+                "last_24h": 0,
+                "error": str(e),
+            },
+        )
 
 
 @router.get("/status")
@@ -131,7 +135,7 @@ async def get_alert_status():
             "snapshot_counts": {t: len(s) for t, s in engine._snapshots.items()},
         }
     except Exception as e:
-        return {"error": str(e)}
+        return JSONResponse(status_code=503, content={"error": str(e)})
 
 
 @router.get("/{ticker}")
@@ -178,4 +182,4 @@ async def add_snapshot(snapshot: dict[str, Any]):
             "alerts": [a.to_dict() for a in alerts],
         }
     except Exception as e:
-        return {"error": str(e)}
+        return JSONResponse(status_code=503, content={"error": str(e)})
