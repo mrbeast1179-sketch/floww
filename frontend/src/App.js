@@ -2,7 +2,6 @@ import React, { useEffect, useMemo, useState, useCallback, useRef } from "react"
 import axios from "axios";
 import "@/App.css";
 import { useAuth } from "./context/AuthContext";
-import { ALPHAPOD_API } from "./config/api";
 
 import { fmt, fmtAbs, pctClass, tagFor, TRINITY, DEFAULT_TICKERS } from "./lib/helpers";
 import GridHeatmap from "./components/GridHeatmap";
@@ -331,8 +330,8 @@ function FlowAlertsPage({ ticker, token }) {
     let mounted = true;
     const fetchAlerts = async () => {
       try {
-        // Try AlphaPod API first, fall back to local backend
-        const base = token ? ALPHAPOD_API : API;
+        // Local backend only (AlphaPod egress removed per Freebuff security policy)
+        const base = API;
         const headers = token ? { Authorization: `Bearer ${token}` } : {};
         const res = await axios.get(`${base}/api/alerts?page=1&page_size=50${ticker && ticker !== "SPY" ? `&ticker=${ticker}` : ""}`, { headers });
         if (mounted) setAlerts(res.data.alerts || res.data || []);
