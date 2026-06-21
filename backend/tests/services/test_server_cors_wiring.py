@@ -461,3 +461,120 @@ class TestRedacted500CountMetric:
             f"prod 500 — expected >= 1.0, got {metric_val!r}. The handler is "
             f"not wired to the metric (P2.5-D)."
         )
+
+
+
+
+# ============================================================
+# P2.5-A/E -- local-dev CORS fallthrough (wildcard fallback acceptable)
+# ============================================================
+class TestLocalDevFallthrough:
+    """Pinned (P2.5-A/E): in `development` env (the default), `CORS_ORIGINS`
+    unset MUST NOT raise -- preserving the local-dev experience where the
+    wildcard ["*"] fallback is acceptable.  Symmetric to
+    TestCorsRuntimeImportRaises: that class asserts prod/staging RAISE when
+    CORS_ORIGINS is unset; this class asserts development does NOT raise
+    under the same condition.  Together they pin the env-strapped guard
+    without over-blocking local dev."""
+
+    def test_default_no_env_vars_set_does_not_raise(self):
+        "Pinned: implicit development via unset env vars. CORS_ORIGINS unset must NOT raise on import."
+        repo_root = Path(__file__).resolve().parents[3]
+        backend_dir = repo_root / "backend"
+
+        env = {
+            "PATH": "/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/bin:/opt/homebrew/bin",
+            "PYTHONPATH": str(backend_dir),
+            "HOME": str(Path.home()),
+            "API_SECRET_KEY": "test-secret-key",
+            "FLOWW_ENABLE_LIVE_SCHWAB": "0",
+        }
+
+        result = subprocess.run(
+            [sys.executable, "-W", "ignore", "-c", "import server"],
+            capture_output=True, text=True, env=env, timeout=60, cwd=str(backend_dir),
+        )
+        assert result.returncode == 0, (
+            "server.py refused to import with default (development) env and "
+            "CORS_ORIGINS unset -- local-dev fallthrough broken (P2.5-A/E).\n"
+            "STDOUT:\n" + result.stdout +
+            "\nSTDERR:\n" + result.stderr
+        )
+
+    def test_explicit_development_env_does_not_raise(self):
+        "Pinned: explicit ENV=development; CORS_ORIGINS unset must NOT raise on import."
+        repo_root = Path(__file__).resolve().parents[3]
+        backend_dir = repo_root / "backend"
+
+        env = {
+            "PATH": "/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/bin:/opt/homebrew/bin",
+            "PYTHONPATH": str(backend_dir),
+            "HOME": str(Path.home()),
+            "API_SECRET_KEY": "test-secret-key",
+            "FLOWW_ENABLE_LIVE_SCHWAB": "0",
+            "ENVIRONMENT": "development",
+            "ENV": "development",
+            "FLOWW_ENV": "development",
+        }
+
+        result = subprocess.run(
+            [sys.executable, "-W", "ignore", "-c", "import server"],
+            capture_output=True, text=True, env=env, timeout=60, cwd=str(backend_dir),
+        )
+        assert result.returncode == 0, (
+            "server.py refused to import in explicit development env with "
+            "CORS_ORIGINS unset -- local-dev fallthrough broken (P2.5-A/E).\n"
+            "STDOUT:\n" + result.stdout +
+            "\nSTDERR:\n" + result.stderr
+        )
+
+    def test_dev_cors_origins_resolves_to_wildcard(self):
+        "Pinned: in dev, server._cors_origins must resolve to ['*'] when CORS_ORIGINS is unset."
+        repo_root = Path(__file__).resolve().parents[3]
+        backend_dir = repo_root / "backend"
+
+        env = {
+            "PATH": "/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/bin:/opt/homebrew/bin",
+            "PYTHONPATH": str(backend_dir),
+            "HOME": str(Path.home()),
+            "API_SECRET_KEY": "test-secret-key",
+            "FLOWW_ENABLE_LIVE_SCHWAB": "0",
+            "ENVIRONMENT": "development",
+        }
+
+        driver = (
+            "import os; "
+            "os.environ['ENVIRONMENT'] = 'development'; "
+            "import server; "
+            "import json; "
+            "print('CORS_ORIGINS=', json.dumps(server._cors_origins))"
+        )
+
+        result = subprocess.run(
+            [sys.executable, "-W", "ignore", "-c", driver],
+            capture_output=True, text=True, env=env, timeout=60, cwd=str(backend_dir),
+        )
+        assert result.returncode == 0, (
+            "subprocess to inspect _cors_origins in dev env failed.\n"
+            "STDOUT:\n" + result.stdout +
+            "\nSTDERR:\n" + result.stderr
+        )
+
+        cors_line = None
+        for line in result.stdout.splitlines():
+            if line.startswith("CORS_ORIGINS="):
+                cors_line = line
+                break
+        assert cors_line is not None, (
+            "could not locate CORS_ORIGINS= line in stdout.\n"
+            "STDOUT:\n" + result.stdout +
+            "\nSTDERR:\n" + result.stderr
+        )
+        import json as _json
+        body = cors_line.split("CORS_ORIGINS=", 1)[1].lstrip()
+        parsed = _json.loads(body)
+        assert parsed == ["*"], (
+            "server._cors_origins in dev with CORS_ORIGINS unset should be "
+            "['*'] (wildcard fallthrough), got " + repr(parsed) +
+            ". Local-dev must continue to work without CORS_ORIGINS configured (P2.5-A/E)."
+        )
