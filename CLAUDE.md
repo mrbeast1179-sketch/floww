@@ -116,7 +116,7 @@ Subject line: `<type>(<scope>): <one-line>`. Types: `feat`, `fix`, `docs`, `test
 | Frontend tests | jest | `cd frontend && npx jest` |
 | CI | GitHub Actions | `.github/workflows/lint.yml` |
 
-**Venv:** `backend/.venv/bin/python3` (Python 3.13). Always use this — never the system Python.
+**Venv:** `backend/.venv/bin/python3` (Python 3.12). Always use this — never the system Python.
 
 ---
 
@@ -257,6 +257,27 @@ This is what catches Round 7's fake-completion pattern in real time.
 - Decisions about scope/priority/architecture direction
 
 What Claude drives: shell, git, pytest, ruff, npm, file edits, docs, agent prompt authoring.
+
+---
+
+## Dev Environment (2026-07-28)
+
+**Homebrew:** 296 formulae, 13 casks. Key tools available globally:
+- **Runtimes:** Python 3.12+3.14, Node 26, Go 1.26.4, Rust 1.96
+- **Editors:** neovim 0.12.3, helix 25.01
+- **Terminal:** tmux 3.6b, zellij 0.44.3, starship, atuin, fzf, zoxide
+- **Git:** delta, difftastic, lazygit, tig, gitui, diff-so-fancy
+- **Databases:** MongoDB 8.2.9, PostgreSQL 16.14, Redis 8.8.0 (all running)
+- **Containers:** Docker 29.5.3 via colima, lazydocker, dive
+- **K8S:** kubectl, helm, minikube, kind, k9s
+- **Python tools:** ruff, mypy, isort, pre-commit, poetry, pyenv, pipx
+- **Rust tools:** cargo-watch, cargo-edit, cargo-expand, cargo-audit, cargo-generate
+- **Go tools:** golangci-lint, gofumpt, staticcheck, goreleaser
+- **Linting:** shellcheck, shfmt, yamllint, prettier, eslint, clang-format
+- **Data:** dasel, jq, yq, fx, jc, xsv, csvkit, miller
+- **Network:** doggo, mitmproxy, socat, netcat, nmap
+
+**Services running:** redis, postgresql@16 (via brew services). Start with `brew services start redis postgresql@16` if needed.
 
 ---
 
