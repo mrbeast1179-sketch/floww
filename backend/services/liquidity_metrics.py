@@ -32,13 +32,12 @@ class KyleLambda:
         self._signed_volumes: deque = deque(maxlen=window)
 
     def update(self, price: float, volume: float, sign: int):
-        """Add an observation. sign: +1 for buy, -1 for sell."""
-        if len(self._returns) > 0:
-            prev_price = self._last_price if hasattr(self, '_last_price') else price
-            if prev_price > 0:
-                ret = math.log(price / prev_price) if price > 0 and prev_price > 0 else 0.0
-                self._returns.append(ret)
-                self._signed_volumes.append(sign * volume)
+        """Add an observation. sign: +1 for buy, -1 for sell.  See P2 entry #6 in
+        docs/superpowers/plans/2026-06-20-freebuff-decoder-hardening-60h.md."""
+        if hasattr(self, '_last_price') and self._last_price > 0 and price > 0:
+            ret = math.log(price / self._last_price)
+            self._returns.append(ret)
+            self._signed_volumes.append(sign * volume)
         self._last_price = price
 
     def update_from_prices(self, prices: list[float], volumes: list[float], signs: list[int]):

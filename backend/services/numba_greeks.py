@@ -160,7 +160,7 @@ def bs_delta_vec(
         if S <= 0.0 or K[i] <= 0.0 or T[i] <= 0.0 or sigma[i] <= 0.0:
             out[i] = 0.0
             continue
-        d1, _d2 = _d1d2(S, K[i], T[i], sigma[i], 0.0, q)
+        d1, _d2 = _d1d2(S, K[i], T[i], sigma[i], r, q)  # honour the r parameter (P2 entry #5)
         if kind == 0:
             out[i] = math.exp(-q * T[i]) * _norm_cdf(d1)
         else:
