@@ -19,7 +19,7 @@ import { fmt } from "../lib/helpers";
 
 function domCellColor(v, maxAbs) {
   if (v === null || v === undefined || isNaN(v) || v === 0) {
-    return { bg: "rgba(15, 23, 42, 0.92)", text: "#1e3a5f" };
+    return { bg: "#131722", text: "#1e3a5f" };
   }
   const norm = Math.min(1, Math.abs(v) / maxAbs);
   const isNeg = v < 0;
@@ -28,7 +28,7 @@ function domCellColor(v, maxAbs) {
   if (norm > 0.85) {
     return isNeg
       ? { bg: `rgba(107, 33, 168, ${0.55 + 0.35 * norm})`, text: "#e9d5ff", star: true }
-      : { bg: `rgba(255, 234, 0, ${0.75 + 0.2 * norm})`, text: "#000000", star: true };
+      : { bg: `rgba(250, 204, 21, ${0.7 + 0.2 * norm})`, text: "#000000", star: true };
   }
 
   if (!isNeg) {
@@ -169,7 +169,7 @@ export default function DomHeatmap({ data, spot, ticker }) {
                       <td key={ci}
                           className={`dom-data-cell${isPoc ? " dom-poc-cell" : ""}`}
                           style={{
-                            background: isPoc ? "rgba(255, 234, 0, 0.88)" : cc.bg,
+                            background: isPoc ? "rgba(250, 204, 21, 0.88)" : cc.bg,
                             color: isPoc ? "#000000" : cc.text,
                           }}
                           title={`${ticker} @ ${strike}: ${domFmt(val)}`}>

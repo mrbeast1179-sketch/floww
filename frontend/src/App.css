@@ -391,7 +391,7 @@
   overflow-x: hidden;
   flex: 1;
   min-height: 0;
-  background: #0b1121;
+  background: #131722;
   font-variant-numeric: tabular-nums;
 }
 
@@ -406,25 +406,25 @@
 }
 
 /* ── Price axis ── */
-/* ── Price axis — dark background, white triangle on current row ── */
+/* ── Price axis — dark bg, white triangle on current row ── */
 .dom-price-cell {
   position: sticky;
   left: 0;
   z-index: 5;
-  background: rgba(15, 23, 42, 0.95);
-  color: #e2e8f0;
+  background: #131722;
+  color: #c9d1d9;
   font-size: 10px;
-  font-weight: 600;
-  padding: 0 4px 0 12px;
+  font-weight: 500;
+  padding: 4px 4px 4px 14px;
   text-align: left;
   white-space: nowrap;
-  width: 72px;
+  width: 68px;
   border: none;
 }
 
 .dom-current-price {
-  background: rgba(15, 23, 42, 0.98) !important;
-  color: #ffffff !important;
+  background: rgba(255,255,255,0.95) !important;
+  color: #0d1117 !important;
   font-weight: 700;
   position: relative;
 }
@@ -492,16 +492,17 @@
   z-index: 4;
 }
 
-/* ── Data cells — zero padding, faint vertical lines ── */
+/* ── Data cells — 4px padding, faint horizontal + vertical lines ── */
 .dom-data-cell {
-  padding: 0 2px;
+  padding: 4px 4px;
   text-align: right;
   white-space: nowrap;
   font-size: 10px;
   cursor: default;
   border: none;
-  border-right: 1px solid rgba(255,255,255,0.03);
-  line-height: 1.5;
+  border-right: 1px solid rgba(255,255,255,0.025);
+  border-bottom: 1px solid rgba(42,46,57,0.4);
+  line-height: 1.4;
   font-variant-numeric: tabular-nums;
 }
 
@@ -512,17 +513,26 @@
 /* ── Left/right percentage cells ── */
 .dom-pct-left-cell,
 .dom-pct-cell {
-  padding: 0 2px;
+  padding: 4px 3px;
   text-align: center;
   width: 38px;
   border: none;
+  border-bottom: 1px solid rgba(42,46,57,0.4);
+}
+
+.dom-pct-left-cell {
+  border-right: 1px solid rgba(255,255,255,0.025);
 }
 
 /* ── POC cell ── */
 .dom-poc-cell {
   position: relative;
   z-index: 2;
-  box-shadow: 0 0 10px rgba(255, 234, 0, 0.35);
+  box-shadow: 0 0 10px rgba(250, 204, 21, 0.3);
+}
+
+/* ── Percentage badges ── */
+.dom-pct-badge {
   display: inline-block;
   padding: 0 3px;
   border-radius: 3px;
