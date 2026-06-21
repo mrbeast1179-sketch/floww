@@ -229,11 +229,23 @@ async def global_exception_handler(request: Request, exc: Exception):
     except Exception:
         pass
     # INTENTIONAL: no path/type/exc in prod to avoid internal-info leak (P2.5-C).
+    _redacted = bool(_is_prod or _is_staging)  # single source-of-truth for the env branch
     _payload = (
         {"error": "Internal server error"}
-        if (_is_prod or _is_staging)
+        if _redacted
         else {"error": "Internal server error", "type": type(exc).__name__, "path": request.url.path}
     )
+    # INTENTIONAL: track volume of redacted 500s for P2.5-D observability —
+    # the wire payload above is already redacted; this only counts how often
+    # the redaction branch fires, so dashboards can detect attack / upstream
+    # failure spikes originating from prod traffic. The metric never blocks
+    # the request (try/except swallows any Prom-client import or .inc() fault).
+    if _redacted:
+        try:
+            from error_tracking import redacted_500_count
+            redacted_500_count.labels(env=_env).inc()
+        except Exception:
+            pass
     return JSONResponse(
         status_code=500,
         content=_payload,

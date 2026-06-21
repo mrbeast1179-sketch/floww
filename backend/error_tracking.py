@@ -131,3 +131,19 @@ class PerformanceMonitor:
 
 
 perf_monitor = PerformanceMonitor()
+
+
+# ---------------------------------------------------------------------------
+# Re-export the redaction Counter (defined in services/observability.py
+# alongside all other floww_ Prom metrics) so server.py:global_exception_handler
+# can call `error_tracking.redacted_500_count.labels(env=_env).inc()`
+# directly.  This keeps prometheus_client and the registry confined to a
+# single backend module while exposing a stable cross-module call surface
+# here.  Wrapped in try/except so a missing prometheus_client dep does not
+# turn `import error_tracking` into a top-level crash — callers (server.py)
+# already wrap the metric .inc() in try/except as belt-and-suspenders.
+# ---------------------------------------------------------------------------
+try:
+    from services.observability import redacted_500_count  # noqa: F401  (re-export)
+except Exception:
+    redacted_500_count = None  # type: ignore[assignment]  CALLER MUST try/except

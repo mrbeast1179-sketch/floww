@@ -330,3 +330,134 @@ class TestGlobalExceptionHandlerPayloadRedaction:
         assert "highly-sensitive-internal-error-detail" not in body, (
             f"production 500 response leaks the deliberately-leaked payload: {body!r}"
         )
+
+
+# ============================================================
+# P2.5-D — redaction observability (Prom counter on handler floor)
+# ============================================================
+class TestRedacted500CountMetric:
+    """Pinned (P2.5-D): global_exception_handler must increment
+    `error_tracking.redacted_500_count.labels(env=_env)` when the redaction
+    branch fires in prod/staging so dashboards can detect attack / upstream
+    failure spikes originating from prod traffic.  Pre-fix: 0.0; post-fix: >= 1.0
+    per 500 triggered.
+
+    Reuses the existing T2 subprocess-driver convention so we drive the real
+    global_exception_handler (no mocks) and observe the metric the way
+    Prometheus would."""
+
+    def test_redacted_500_count_is_exported_from_error_tracking(self):
+        """Module-level pin: the Counter must be importable as
+        `error_tracking.redacted_500_count` and have an `env` label, with a
+        fresh 0.0 baseline for any unseen (env, ...) combination."""
+        repo_root = Path(__file__).resolve().parents[3]
+        backend_dir = repo_root / "backend"
+
+        r = subprocess.run(
+            [sys.executable, "-c",
+             "import error_tracking; m = error_tracking.redacted_500_count; "
+             "v = m.labels(env='production')._value.get(); print('VAL=', v)"],
+            capture_output=True, text=True,
+            env={
+                "PATH": "/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/bin:/opt/homebrew/bin",
+                "PYTHONPATH": str(backend_dir),
+                "HOME": str(Path.home()),
+            },
+            cwd=str(backend_dir), timeout=30,
+        )
+        assert r.returncode == 0, (
+            f"error_tracking.redacted_500_count is not importable — module re-export missing "
+            f"or prometheus_client not installed.\n"
+            f"STDOUT:\n{r.stdout}\nSTDERR:\n{r.stderr}"
+        )
+        assert ("VAL= 0.0" in r.stdout) or ("VAL=0.0" in r.stdout), (
+            f"redacted_500_count[env=production] should resolve to a fresh 0.0 counter, "
+            f"got stdout={r.stdout!r}. Check labelnames=['env'] wiring in services/observability.py."
+        )
+
+    def test_global_handler_source_calls_redacted_500_count(self):
+        """Source-text guard: the global_exception_handler function body must
+        reference `redacted_500_count` so a future refactor can't silently
+        drop the observability hook."""
+        source = _read_server_source()
+        assert "redacted_500_count" in source, (
+            "server.py does NOT reference `redacted_500_count` — "
+            "global_exception_handler should increment the counter on "
+            "redaction-branch 500s (P2.5-D)."
+        )
+
+    def test_redacted_500_count_increments_when_prod_handler_fires(self):
+        """Behavioural pin: drive global_exception_handler into the redaction
+        branch via subprocess; confirm that after the 500 surfaces,
+        error_tracking.redacted_500_count[env=production] >= 1.0.
+        Pre-fix: 0.0; post-fix: 1.0+."""
+        repo_root = Path(__file__).resolve().parents[3]
+        backend_dir = repo_root / "backend"
+
+        env = {
+            "PATH": "/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/bin:/opt/homebrew/bin",
+            "PYTHONPATH": str(backend_dir),
+            "HOME": str(Path.home()),
+            "API_SECRET_KEY": "test-secret-key",
+            "FLOWW_ENABLE_LIVE_SCHWAB": "0",
+            # ENVIRONMENT drives _env (top-of-file) AND the CORS config guard.
+            "ENVIRONMENT": "production",
+            "ENV": "production",
+            "FLOWW_ENV": "production",
+            "CORS_ORIGINS": "*",
+        }
+
+        driver = (
+            "import os; "
+            "os.environ['ENVIRONMENT'] = 'production'; "
+            "os.environ['ENV'] = 'production'; "
+            "os.environ['FLOWW_ENV'] = 'production'; "
+            "os.environ['CORS_ORIGINS'] = '*'; "
+            "import server; "
+            "from fastapi.testclient import TestClient; "
+            # Decorator must be on its own physical line — Python grammar forbids
+            # `@decorator` after a `;`-terminated statement on the same line.
+            "LEAKED = 'metric-driver-leak-marker'\n"
+            "@server.app.get('/__redact_metric_test__')\n"
+            "def _t():\n"
+            "    raise ValueError(LEAKED)\n"
+            "client = TestClient(server.app, raise_server_exceptions=False)\n"
+            "try:\n"
+            "    resp = client.get('/__redact_metric_test__')\n"
+            "    print('STATUS=', resp.status_code)\n"
+            "    print('BODY=', resp.text)\n"
+            "    import error_tracking\n"
+            "    val = error_tracking.redacted_500_count.labels(env='production')._value.get()\n"
+            "    print('METRIC=', val)\n"
+            "except Exception as _e:\n"
+            "    print('STATUS=CRASH')\n"
+            "    print('BODY=CRASH:', repr(_e))\n"
+            "    print('METRIC=CRASH')\n"
+        )
+
+        result = subprocess.run(
+            [sys.executable, "-W", "ignore", "-c", driver],
+            capture_output=True, text=True, env=env, timeout=120, cwd=str(backend_dir),
+        )
+        assert "STATUS=" in result.stdout, (
+            f"metric driver did not produce STATUS= line.\n"
+            f"STDOUT:\n{result.stdout}\nSTDERR:\n{result.stderr}"
+        )
+        assert "BODY=" in result.stdout, "metric driver missing BODY= line"
+        assert "METRIC=" in result.stdout, "metric driver missing METRIC= line"
+
+        # Extract metric value from METRIC= line.
+        metric_val = None
+        for line in result.stdout.splitlines():
+            if line.startswith("METRIC="):
+                try:
+                    metric_val = float(line[len("METRIC="):])
+                except ValueError:
+                    metric_val = -1.0
+                break
+
+        assert metric_val is not None and metric_val >= 1.0, (
+            f"redacted_500_count[env=production] did NOT increment after a "
+            f"prod 500 — expected >= 1.0, got {metric_val!r}. The handler is "
+            f"not wired to the metric (P2.5-D)."
+        )

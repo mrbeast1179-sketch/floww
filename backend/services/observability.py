@@ -299,5 +299,20 @@ rate_limit_429_count = Counter(
     registry=REGISTRY,
 )
 
+# ---------------------------------------------------------------------------
+# Exception handler redaction metrics (P2.5-D)
+# ---------------------------------------------------------------------------
+# Defined here (alongside all other floww_ Prom metrics), then re-exported
+# in error_tracking.py so server.py:global_exception_handler can call
+# `error_tracking.redacted_500_count.labels(env=_env).inc()` directly
+# without an extra import surface — keeps prometheus_client and the
+# registry confined to services/observability.py.
+redacted_500_count = Counter(
+    "floww_redacted_500_total",
+    "Total 500 responses served with a redacted payload (env branch fired).",
+    labelnames=["env"],
+    registry=REGISTRY,
+)
+
 
 metrics = _MetricsNamespace()
