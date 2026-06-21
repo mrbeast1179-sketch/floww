@@ -9,6 +9,7 @@ export const NAV_ITEMS = [
   { id: "trinity",    label: "Trinity",    group: "Decoder", icon: "layers", legacy: true },
   { id: "skylit",     label: "Skylit",     group: "Decoder", icon: "bar-chart" },
   { id: "flowseeker", label: "Flowseeker", group: "Decoder", icon: "activity" },
+  { id: "flowseeker-pro", label: "Flowseeker Pro", group: "Decoder", icon: "zap" },
 
   // Trading
   { id: "portfolio",  label: "Portfolio",  group: "Trading", icon: "trending-up" },

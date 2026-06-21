@@ -43,6 +43,7 @@ import { SocialFlowPanel } from "./components/SocialFlowPanel";
 import SwarmFrame from "./components/SwarmFrame";
 import TurboQuantPanel from "./components/TurboQuantPanel";
 import FlowseekerTab from "./components/flowseeker/FlowseekerTab";
+import FlowseekerProTab from "./components/flowseeker/FlowseekerProTab";
 import AlertOverlay from "./components/AlertOverlay";
 import PWAInstallBanner from "./components/PWAInstallBanner";
 import AppShell from "./shell/AppShell";
@@ -1015,6 +1016,15 @@ export default function App() {
           <div className="flex-1 overflow-auto">
             <ErrorBoundary>
               <FlowseekerTab active={page === "flowseeker"} />
+            </ErrorBoundary>
+          </div>
+        )}
+
+        {/* Flowseeker Pro Tab */}
+        {page === "flowseeker-pro" && (
+          <div className="flex-1 overflow-auto">
+            <ErrorBoundary>
+              <FlowseekerProTab active={page === "flowseeker-pro"} />
             </ErrorBoundary>
           </div>
         )}
