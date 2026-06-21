@@ -37,6 +37,27 @@ from pathlib import Path
 SERVER_PY = Path(__file__).resolve().parents[2] / "server.py"
 
 
+# ------------------------------------------------------------
+# Subprocess test environment baseline (P2.5-A++ DRY refactor)
+# ------------------------------------------------------------
+# Hoisted from 8+ inline env dicts that previously duplicated
+# these 3 truly-static keys verbatim across the file.  Spread
+# into each per-test env via `**_SUBPROCESS_MIN_ENV`, then add
+# call-site-computed PYTHONPATH/HOME plus any per-test-specific
+# keys (ENVIRONMENT/ENV/FLOWW_ENV/CORS_ORIGINS/etc.).
+#
+# PYTHONPATH and HOME are intentionally NOT in this constant
+# because they depend on a per-test `backend_dir` (computed
+# from `repo_root / "backend"`) and the user's actual `$HOME`
+# respectively, so they're appended at the call site.
+_SUBPROCESS_MIN_ENV: dict[str, str] = {
+    "PATH": "/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/bin:/opt/homebrew/bin",
+    "API_SECRET_KEY": "test-secret-key",
+    "FLOWW_ENABLE_LIVE_SCHWAB": "0",
+}
+
+
+
 def _read_server_source() -> str:
     return SERVER_PY.read_text(encoding="utf-8")
 
@@ -87,11 +108,9 @@ class TestCorsRuntimeImportRaises:
         backend_dir = repo_root / "backend"
 
         env = {
-            "PATH": "/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/bin:/opt/homebrew/bin",
+            **_SUBPROCESS_MIN_ENV,
             "PYTHONPATH": str(backend_dir),
             "HOME": str(Path.home()),
-            "API_SECRET_KEY": "test-secret-key",
-            "FLOWW_ENABLE_LIVE_SCHWAB": "0",
             # The server.py CORS config block (server.py ~L2500+) checks
             # `os.environ.get("ENVIRONMENT") == "production"` for the
             # require-explicit-CORS_ORIGINS guard, so we set ENVIRONMENT here.
@@ -155,11 +174,9 @@ class TestCorsRuntimeImportRaises:
         backend_dir = repo_root / "backend"
 
         env = {
-            "PATH": "/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/bin:/opt/homebrew/bin",
+            **_SUBPROCESS_MIN_ENV,
             "PYTHONPATH": str(backend_dir),
             "HOME": str(Path.home()),
-            "API_SECRET_KEY": "test-secret-key",
-            "FLOWW_ENABLE_LIVE_SCHWAB": "0",
             # ENVIRONMENT drives _env (top-of-file L52 chain `os.getenv(ENVIRONMENT)
             # or os.getenv(ENV) or "development"`) AND the CORS guard at server.py
             # L2513+.  Setting all three (ENVIRONMENT, ENV, FLOWW_ENV) so the
@@ -219,11 +236,9 @@ class TestCorsRuntimeImportRaises:
         backend_dir = repo_root / "backend"
 
         env = {
-            "PATH": "/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/bin:/opt/homebrew/bin",
+            **_SUBPROCESS_MIN_ENV,
             "PYTHONPATH": str(backend_dir),
             "HOME": str(Path.home()),
-            "API_SECRET_KEY": "test-secret-key",
-            "FLOWW_ENABLE_LIVE_SCHWAB": "0",
             # All three env-key forms set to "qa" so the resolver chain
             # ENVIRONMENT > ENV > "development" lands on "qa" cleanly.
             "ENVIRONMENT": "qa",
@@ -490,7 +505,7 @@ class TestRedacted500CountMetric:
              "v = m.labels(env='production')._value.get(); print('VAL=', v)"],
             capture_output=True, text=True,
             env={
-                "PATH": "/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/bin:/opt/homebrew/bin",
+                **_SUBPROCESS_MIN_ENV,
                 "PYTHONPATH": str(backend_dir),
                 "HOME": str(Path.home()),
             },
@@ -526,11 +541,9 @@ class TestRedacted500CountMetric:
         backend_dir = repo_root / "backend"
 
         env = {
-            "PATH": "/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/bin:/opt/homebrew/bin",
+            **_SUBPROCESS_MIN_ENV,
             "PYTHONPATH": str(backend_dir),
             "HOME": str(Path.home()),
-            "API_SECRET_KEY": "test-secret-key",
-            "FLOWW_ENABLE_LIVE_SCHWAB": "0",
             # ENVIRONMENT drives _env (top-of-file) AND the CORS config guard.
             "ENVIRONMENT": "production",
             "ENV": "production",
@@ -614,11 +627,9 @@ class TestLocalDevFallthrough:
         backend_dir = repo_root / "backend"
 
         env = {
-            "PATH": "/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/bin:/opt/homebrew/bin",
+            **_SUBPROCESS_MIN_ENV,
             "PYTHONPATH": str(backend_dir),
             "HOME": str(Path.home()),
-            "API_SECRET_KEY": "test-secret-key",
-            "FLOWW_ENABLE_LIVE_SCHWAB": "0",
         }
 
         result = subprocess.run(
@@ -638,11 +649,9 @@ class TestLocalDevFallthrough:
         backend_dir = repo_root / "backend"
 
         env = {
-            "PATH": "/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/bin:/opt/homebrew/bin",
+            **_SUBPROCESS_MIN_ENV,
             "PYTHONPATH": str(backend_dir),
             "HOME": str(Path.home()),
-            "API_SECRET_KEY": "test-secret-key",
-            "FLOWW_ENABLE_LIVE_SCHWAB": "0",
             "ENVIRONMENT": "development",
             "ENV": "development",
             "FLOWW_ENV": "development",
@@ -665,11 +674,9 @@ class TestLocalDevFallthrough:
         backend_dir = repo_root / "backend"
 
         env = {
-            "PATH": "/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/bin:/opt/homebrew/bin",
+            **_SUBPROCESS_MIN_ENV,
             "PYTHONPATH": str(backend_dir),
             "HOME": str(Path.home()),
-            "API_SECRET_KEY": "test-secret-key",
-            "FLOWW_ENABLE_LIVE_SCHWAB": "0",
             "ENVIRONMENT": "development",
         }
 
