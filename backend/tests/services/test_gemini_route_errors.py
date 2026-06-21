@@ -160,10 +160,10 @@ async def test_gemini_503_on_analyzer_exception(endpoint_fn, args, monkeypatch):
     _stub_analyzer(monkeypatch, behavior="exception")
 
     from routes.gemini import (  # noqa: E402
-        analyze_trade,
         analyze_regime,
-        summarize_day,
+        analyze_trade,
         explain_signal,
+        summarize_day,
     )
 
     fn_map = {
@@ -206,10 +206,10 @@ async def test_gemini_503_on_analyzer_returns_none(endpoint_fn, args, monkeypatc
     _stub_analyzer(monkeypatch, behavior="none")
 
     from routes.gemini import (  # noqa: E402
-        analyze_trade,
         analyze_regime,
-        summarize_day,
+        analyze_trade,
         explain_signal,
+        summarize_day,
     )
 
     fn_map = {
