@@ -4,56 +4,56 @@ import { fmt } from "../lib/helpers";
 /**
  * DOM/Level 2 Order Book Heatmap — Skylit reference style
  *
- * Layout: Price (left, dark bg, white triangle on current) |
- *         Left % badge | 5 data columns | Right % badge
- *
- * Reference colors:
- * - Background: dark navy (#0b1121)
- * - Base cells: muted teal (#2c7a7b range)
- * - High positive: bright green (#00e676 range)
- * - Negative: deep purple (#6a1b9a range)
- * - Extreme/POC: bright yellow (#ffea00 range), black text + star
- * - Current price: white triangle marker on left edge
- * - Zero padding, faint vertical grid lines between columns
+ * Reference: TSLA DOM heatmap at $406.43
+ * - Background: #1a1a1a (dark charcoal)
+ * - Price axis: #2d3a4d (blue-gray), white text
+ * - Current price: white bg bar + black text + white pointer triangle
+ * - Colors: dark teal → bright green (positive), dark blue → purple (negative)
+ * - Zero values: dark blue bg (#2c3e50 range)
+ * - POC: bright yellow (#f1c40f) + white star
+ * - No cell borders, seamless grid
+ * - Font: 10-11px monospace, regular weight
+ * - Extremely dense: ~2.5-3px row height
  */
 
 function domCellColor(v, maxAbs) {
   if (v === null || v === undefined || isNaN(v) || v === 0) {
-    return { bg: "#131722", text: "#1e3a5f" };
+    // Zero values: dark blue background (not same as overall bg)
+    return { bg: "rgba(44, 62, 80, 0.85)", text: "#ffffff" };
   }
   const norm = Math.min(1, Math.abs(v) / maxAbs);
   const isNeg = v < 0;
 
-  // Extreme values (top 10%): yellow for positive, purple for negative
+  // Extreme (top 10%): bright yellow + black text
   if (norm > 0.85) {
     return isNeg
-      ? { bg: `rgba(107, 33, 168, ${0.55 + 0.35 * norm})`, text: "#e9d5ff", star: true }
-      : { bg: `rgba(250, 204, 21, ${0.7 + 0.2 * norm})`, text: "#000000", star: true };
+      ? { bg: `rgba(107, 33, 168, ${0.55 + 0.35 * norm})`, text: "#ffffff", star: true }
+      : { bg: `rgba(241, 196, 15, ${0.7 + 0.2 * norm})`, text: "#000000", star: true };
   }
 
   if (!isNeg) {
-    // Positive: muted teal → bright green as norm increases
-    if (norm > 0.60) return { bg: `rgba(0, 230, 118, ${0.35 + 0.45 * norm})`, text: "#000000" };
-    if (norm > 0.35) return { bg: `rgba(44, 122, 123, ${0.25 + 0.4 * norm})`, text: "#ffffff" };
-    if (norm > 0.12) return { bg: `rgba(38, 166, 90, ${0.12 + 0.3 * norm})`, text: "#e0f2f1" };
-    return { bg: `rgba(30, 90, 90, 0.15)`, text: "#b2dfdb" };
+    // Positive: dark teal → bright green
+    if (norm > 0.60) return { bg: `rgba(46, 204, 113, ${0.30 + 0.50 * norm})`, text: "#000000" };
+    if (norm > 0.30) return { bg: `rgba(45, 138, 138, ${0.20 + 0.40 * norm})`, text: "#ffffff" };
+    if (norm > 0.08) return { bg: `rgba(38, 100, 100, ${0.12 + 0.25 * norm})`, text: "#e0f2f1" };
+    return { bg: "rgba(30, 80, 80, 0.18)", text: "#b2dfdb" };
   }
 
-  // Negative: deep purple
-  if (norm > 0.60) return { bg: `rgba(107, 33, 168, ${0.45 + 0.35 * norm})`, text: "#e9d5ff" };
-  if (norm > 0.35) return { bg: `rgba(107, 33, 168, ${0.25 + 0.35 * norm})`, text: "#d1c4e9" };
-  if (norm > 0.12) return { bg: `rgba(74, 20, 140, ${0.12 + 0.25 * norm})`, text: "#b39ddb" };
-  return { bg: `rgba(74, 20, 140, 0.12)`, text: "#9575cd" };
+  // Negative: dark blue → purple
+  if (norm > 0.60) return { bg: `rgba(142, 68, 173, ${0.40 + 0.35 * norm})`, text: "#ffffff" };
+  if (norm > 0.30) return { bg: `rgba(41, 128, 185, ${0.20 + 0.35 * norm})`, text: "#ffffff" };
+  if (norm > 0.08) return { bg: `rgba(44, 62, 80, ${0.12 + 0.25 * norm})`, text: "#d1d5db" };
+  return { bg: "rgba(44, 62, 80, 0.15)", text: "#9ca3af" };
 }
 
 function domFmt(v) {
   if (v === null || v === undefined || isNaN(v)) return "—";
-  if (v === 0) return "—";
+  if (v === 0) return "$0.0K";
   const a = Math.abs(v);
   const sign = v < 0 ? "-" : "";
-  if (a >= 1e6) return sign + (a / 1e6).toFixed(2) + "M";
-  if (a >= 1e3) return sign + (a / 1e3).toFixed(1) + "K";
-  return sign + a.toFixed(0);
+  if (a >= 1e6) return "$" + sign + (a / 1e6).toFixed(1) + "M";
+  if (a >= 1e3) return "$" + sign + (a / 1e3).toFixed(1) + "K";
+  return "$" + sign + a.toFixed(0);
 }
 
 export default function DomHeatmap({ data, spot, ticker }) {
@@ -64,7 +64,6 @@ export default function DomHeatmap({ data, spot, ticker }) {
       .sort((a, b) => b.strike - a.strike);
   }, [data]);
 
-  // Global max for cell color scaling
   const colorMaxAbs = useMemo(() => {
     let m = 1;
     for (const row of rows) {
@@ -76,7 +75,6 @@ export default function DomHeatmap({ data, spot, ticker }) {
     return m;
   }, [rows]);
 
-  // POC cell (single max value)
   const pocCell = useMemo(() => {
     let maxVal = 0;
     let pocRI = -1, pocCI = -1;
@@ -90,7 +88,6 @@ export default function DomHeatmap({ data, spot, ticker }) {
     return { rowIdx: pocRI, colIdx: pocCI };
   }, [rows]);
 
-  // Max for percentage badges (net GEX only)
   const gexMaxAbs = useMemo(() => {
     let m = 1;
     for (const row of rows) {
@@ -111,7 +108,6 @@ export default function DomHeatmap({ data, spot, ticker }) {
     return bestIdx;
   }, [rows, spot]);
 
-  // Legend
   const { minGex, maxGex } = useMemo(() => {
     if (!rows.length) return { minGex: 0, maxGex: 0 };
     let min = Infinity, max = -Infinity;
@@ -142,19 +138,18 @@ export default function DomHeatmap({ data, spot, ticker }) {
               const cols = [row.call_gex||0, row.gex||0, row.put_gex||0, row.vex||0, row.charm||0];
               const netGex = row.gex || 0;
               const pctVal = gexMaxAbs > 0 ? Math.abs(netGex / gexMaxAbs) * 100 : 0;
-              const isEven = i % 2 === 0;
 
               return (
                 <tr key={strike}
-                    className={`dom-row${isCurrent ? " dom-current-row" : ""}${isEven ? " dom-row-even" : ""}`}>
+                    className={`dom-row${isCurrent ? " dom-current-row" : ""}`}>
 
-                  {/* Price axis — dark bg, white triangle on current */}
+                  {/* Price axis */}
                   <td className={`dom-price-cell${isCurrent ? " dom-current-price" : ""}`}>
-                    {isCurrent && <span className="dom-triangle" />}
+                    {isCurrent && <span className="dom-triangle-ptr" />}
                     {strike >= 1000 ? fmt(strike, 0) : fmt(strike, 1)}
                   </td>
 
-                  {/* Left-side % badge */}
+                  {/* Left % badge */}
                   <td className="dom-pct-left-cell">
                     <span className={`dom-pct-badge ${pctVal > 50 ? "dom-pct-hot" : pctVal > 20 ? "dom-pct-warm" : "dom-pct-cool"} ${netGex >= 0 ? "dom-pct-pos" : "dom-pct-neg"}`}>
                       {netGex >= 0 ? "+" : ""}{pctVal < 1 && pctVal > 0 ? pctVal.toFixed(1) : pctVal.toFixed(0)}%
@@ -169,18 +164,18 @@ export default function DomHeatmap({ data, spot, ticker }) {
                       <td key={ci}
                           className={`dom-data-cell${isPoc ? " dom-poc-cell" : ""}`}
                           style={{
-                            background: isPoc ? "rgba(250, 204, 21, 0.88)" : cc.bg,
+                            background: isPoc ? "rgba(241, 196, 15, 0.88)" : cc.bg,
                             color: isPoc ? "#000000" : cc.text,
                           }}
                           title={`${ticker} @ ${strike}: ${domFmt(val)}`}>
-                        {isPoc ? (<span className="dom-star-cell">*{domFmt(val)}</span>)
-                          : cc.star ? (<span className="dom-star-cell">*{domFmt(val)}</span>)
+                        {isPoc ? (<span className="dom-star-cell">★{domFmt(val)}</span>)
+                          : cc.star ? (<span className="dom-star-cell">★{domFmt(val)}</span>)
                           : domFmt(val)}
                       </td>
                     );
                   })}
 
-                  {/* Right-side % badge */}
+                  {/* Right % badge */}
                   <td className="dom-pct-cell">
                     <span className={`dom-pct-badge ${pctVal > 50 ? "dom-pct-hot" : pctVal > 20 ? "dom-pct-warm" : "dom-pct-cool"} ${netGex >= 0 ? "dom-pct-pos" : "dom-pct-neg"}`}>
                       {netGex >= 0 ? "+" : ""}{pctVal < 1 && pctVal > 0 ? pctVal.toFixed(1) : pctVal.toFixed(0)}%
@@ -193,13 +188,13 @@ export default function DomHeatmap({ data, spot, ticker }) {
         </table>
       </div>
 
-      {/* Bottom gradient legend bar */}
+      {/* Bottom gradient legend */}
       <div className="dom-legend">
         <span className="dom-legend-min">{domFmt(minGex)}</span>
         <div className="dom-legend-bar">
           <div className="dom-legend-gradient" />
           <div className="dom-legend-ticks">
-            <span>0</span>
+            <span>$0</span>
             <span>{domFmt(maxGex * 0.5)}</span>
             <span>{domFmt(maxGex)}</span>
           </div>
