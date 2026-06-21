@@ -131,6 +131,15 @@ class TestCorsRuntimeImportRaises:
             f"server.py failed in prod-without-CORS_ORIGINS but stderr doesn't "
             f"mention CORS:\n{combined}"
         )
+        # Operator-friendly RuntimeError message should include the actual env name
+        # so operators reading the deploy log can pivot immediately (no need to
+        # cross-reference other config).  Pinned via the f-string `_env!r` in
+        # server.py's CORS guard raise.
+        assert "'production'" in combined or '"production"' in combined, (
+            f"server.py raised RuntimeError but the message doesn't surface "
+            f"the actual env name ('production') for operator clarity:\n"
+            f"{combined}"
+        )
 
     def test_staging_with_no_cors_origins_raises_runtimeerror_on_import(self):
         """Run server.py as a subprocess with ENV=staging and CORS_ORIGINS unset.
@@ -186,6 +195,11 @@ class TestCorsRuntimeImportRaises:
         assert "CORS" in combined, (
             f"server.py failed in staging-without-CORS_ORIGINS but stderr "
             f"doesn't mention CORS:\n{combined}"
+        )
+        # Operator-friendly RuntimeError message should include the actual env name.
+        assert "'staging'" in combined or '"staging"' in combined, (
+            f"server.py raised RuntimeError but the message doesn't surface "
+            f"the actual env name ('staging') for operator clarity:\n{combined}"
         )
 
     def test_qa_env_without_cors_origins_raises_runtimeerror_on_import(self):
