@@ -2522,16 +2522,20 @@ async def websocket_gex(websocket: WebSocket, ticker: str):
 
 # CORS — explicit origins only, no wildcard default
 _cors_origins_env = os.environ.get("CORS_ORIGINS", "")
-# INTENTIONAL (P2.5-A, stage-symmetric): prod + staging CORS guard. Local dev
-# (development env) keeps the ["*"] fallthrough per TestLocalDevFallthrough — a
-# server handling real client traffic MUST have an explicit allowlist. Uses
-# the existing _is_prod / _is_staging top-of-file flags (L55-56 chain:
-# ENVIRONMENT > ENV > "development") so env resolution matches the rest of
-# server.py (global_exception_handler, TestCorsRuntimeImportRaises, etc.).
-if not _cors_origins_env and (_is_prod or _is_staging):
+# INTENTIONAL (P2.5-A, fail-closed default): refuse to start with the
+# ["*"] wildcard default in any non-development env.  Hardens against
+# ad-hoc env typos (e.g. ENVIRONMENT=Produciton, ENVIRONMENT=qa) where
+# the operator intended a real-traffic env but accidentally got the
+# dev-only wildcard fallthrough.  Local dev (development env) keeps the
+# ["*"] fallthrough per TestLocalDevFallthrough.  Uses the existing
+# _env top-of-file resolver (L55-56 chain: ENVIRONMENT > ENV >
+# "development").  This replaces the prior `(_is_prod or _is_staging)`
+# named-env check which still left ad-hoc envs (qa, preview, demo,
+# typo'd "production") silently using the wildcard.
+if not _cors_origins_env and _env != "development":
     raise RuntimeError(
-        "CORS_ORIGINS must be set in production or staging — refusing to start "
-        "with wildcard. Set CORS_ORIGINS to a comma-separated list of allowed origins."
+        f"CORS_ORIGINS must be set in {_env!r} — refusing to start with "
+        f"wildcard. Set CORS_ORIGINS to a comma-separated list of allowed origins."
     )
 _cors_origins = [o.strip() for o in _cors_origins_env.split(",") if o.strip()] if _cors_origins_env else ["*"]
 app.add_middleware(

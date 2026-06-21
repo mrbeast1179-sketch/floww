@@ -188,6 +188,67 @@ class TestCorsRuntimeImportRaises:
             f"doesn't mention CORS:\n{combined}"
         )
 
+    def test_qa_env_without_cors_origins_raises_runtimeerror_on_import(self):
+        """Run server.py as a subprocess with ENV=qa (ad-hoc env name) and
+        CORS_ORIGINS unset.  Closes the gap that the new fail-closed default
+        (`_env != "development"`) is supposed to cover: any non-development env,
+        including ad-hoc names like "qa", "preview", "demo" plus typo'd
+        variants like "Produciton", must fail-closed rather than silently
+        fall through to the ["*"] wildcard.  Symmetric to the existing
+        prod/staging behavioural tests but pin the broader policy.
+        Pre-fix (only prod+staging named in the guard): server.py imports
+        successfully in qa env without CORS_ORIGINS (silent security gap).
+        Post-fix (this commit): subprocess exits non-zero with a "CORS"
+        mention in stderr -- the fail-closed default refused startup.
+        """
+        repo_root = Path(__file__).resolve().parents[3]
+        backend_dir = repo_root / "backend"
+
+        env = {
+            "PATH": "/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/bin:/opt/homebrew/bin",
+            "PYTHONPATH": str(backend_dir),
+            "HOME": str(Path.home()),
+            "API_SECRET_KEY": "test-secret-key",
+            "FLOWW_ENABLE_LIVE_SCHWAB": "0",
+            # All three env-key forms set to "qa" so the resolver chain
+            # ENVIRONMENT > ENV > "development" lands on "qa" cleanly.
+            "ENVIRONMENT": "qa",
+            "ENV": "qa",
+            "FLOWW_ENV": "qa",
+        }
+
+        result = subprocess.run(
+            [sys.executable, "-W", "ignore", "-c",
+             "import os; "
+             "os.environ['ENVIRONMENT'] = 'qa'; "
+             "os.environ['ENV'] = 'qa'; "
+             # Force CORS_ORIGINS to '' so the L2525+ guard's
+             # `if not _cors_origins_env` branch fires (load_dotenv defaults
+             # to override=False; honour already-set env).
+             "os.environ['CORS_ORIGINS'] = ''; "
+             "import server"],
+            capture_output=True,
+            text=True,
+            env=env,
+            timeout=60,
+            cwd=str(backend_dir),
+        )
+        assert result.returncode != 0, (
+            "server.py imported successfully in qa env without CORS_ORIGINS -- "
+            "the fail-closed default is missing for ad-hoc envs (P2.5-A). "
+            "Any non-development env must raise RuntimeError, not silently "
+            "fall through to the ['*'] wildcard (typo-resistant)."
+        )
+        combined = (result.stderr or "") + (result.stdout or "")
+        assert "CORS" in combined, (
+            f"server.py failed in qa-without-CORS_ORIGINS but stderr doesn't "
+            f"mention CORS:\n{combined}"
+        )
+        # Operator-friendly RuntimeError message should include the actual env name.
+        assert "'qa'" in combined or '"qa"' in combined, (
+            f"server.py raised RuntimeError but the message doesn't surface "
+            f"the actual env name ('qa') for operator clarity:\n{combined}"
+        )
 
 # ============================================================
 # P2.5-B — Exception-handler wildcard-CORS leak (source-text)
