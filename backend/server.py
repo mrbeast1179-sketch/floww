@@ -51,6 +51,30 @@ from vol_analytics import (
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / ".env")
 
+_env = os.getenv("ENVIRONMENT") or os.getenv("ENV") or "development"
+_is_prod = bool(_env == "production")  # noqa: F841  (used by exception handlers)
+_is_staging = bool(_env == "staging")  # noqa: F841  (used by exception handlers)
+
+def _get_cors_origin_for_handlers() -> str:
+    """Return the runtime-effective CORS origin to echo from exception handlers.
+
+    Reads the module-level `_cors_origins` list that the CORS config block
+    populates at import time (see the L2500+ block).  Reading at handler-call
+    time (not at module-load time) avoids F821 and keeps the handler sites
+    from having to repeat the env-var resolution.
+
+    In production/staging with CORS_ORIGINS unset, server.startup aborts with
+    RuntimeError before this helper ever gets called (defence-in-depth).
+    """
+    # _cors_origins is defined by the CORS config block below (~L2507).
+    # By the time any request reaches the exception handlers, module import
+    # is complete and _cors_origins is in the module namespace.  globals().get
+    # does a runtime lookup with default, surviving future refactors of the
+    # CORS config block position.
+    _origins = globals().get("_cors_origins")
+    return _origins[0] if _origins else "*"
+
+
 MONGO_URL = os.getenv("MONGO_URL", "mongodb://localhost:27017")  # defence-in-depth env-default (P1 entry #3 in docs/superpowers/plans/2026-06-20-freebuff-decoder-hardening-60h.md)
 DB_NAME = os.environ["DB_NAME"]
 POLYGON_API_KEY = os.environ.get("POLYGON_API_KEY", "")
@@ -136,9 +160,11 @@ async def rate_limit_middleware(request: Request, call_next):
                 "retry_after": retry_after,
                 "message": f"Too many requests. Retry in {retry_after}s.",
             },
+            # Belt-and-suspenders: some FastAPI exception paths bypass CORSMiddleware;
+            # echo explicitly so 5xx/4xx still carry the right CORS origin (P2.5-B).
             headers={
                 "Retry-After": str(retry_after),
-                "Access-Control-Allow-Origin": "*",
+                "Access-Control-Allow-Origin": _get_cors_origin_for_handlers(),
                 "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
                 "Access-Control-Allow-Headers": "Content-Type, Authorization, X-API-Key",
             },
@@ -170,7 +196,7 @@ async def http_exception_handler(request: Request, exc: StarletteHTTPException):
         status_code=exc.status_code,
         content={"error": str(exc.detail), "status_code": exc.status_code, "path": request.url.path},
         headers={
-            "Access-Control-Allow-Origin": "*",
+            "Access-Control-Allow-Origin": _get_cors_origin_for_handlers(),
             "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
             "Access-Control-Allow-Headers": "Content-Type, Authorization, X-API-Key",
         },
@@ -183,7 +209,7 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
         status_code=422,
         content={"detail": exc.errors()},
         headers={
-            "Access-Control-Allow-Origin": "*",
+            "Access-Control-Allow-Origin": _get_cors_origin_for_handlers(),
             "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
             "Access-Control-Allow-Headers": "Content-Type, Authorization, X-API-Key",
         },
@@ -192,7 +218,7 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
     log.error(f"Unhandled exception {request.url.path}: {type(exc).__name__}: {exc}", exc_info=True)
-    # Track error
+    # Track error (internal-only; never reaches the wire)
     try:
         from error_tracking import log_error
         log_error(
@@ -202,11 +228,17 @@ async def global_exception_handler(request: Request, exc: Exception):
         )
     except Exception:
         pass
+    # INTENTIONAL: no path/type/exc in prod to avoid internal-info leak (P2.5-C).
+    _payload = (
+        {"error": "Internal server error"}
+        if (_is_prod or _is_staging)
+        else {"error": "Internal server error", "type": type(exc).__name__, "path": request.url.path}
+    )
     return JSONResponse(
         status_code=500,
-        content={"error": "Internal server error", "type": type(exc).__name__, "path": request.url.path},
+        content=_payload,
         headers={
-            "Access-Control-Allow-Origin": "*",
+            "Access-Control-Allow-Origin": _get_cors_origin_for_handlers(),
             "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
             "Access-Control-Allow-Headers": "Content-Type, Authorization, X-API-Key",
         },

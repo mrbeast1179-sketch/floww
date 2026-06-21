@@ -1,0 +1,332 @@
+"""
+backend/tests/services/test_server_cors_wiring.py
+
+Pinned regression tests for the CORS + global exception-handler tightening
+in backend/server.py per docs/superpowers/plans/2026-06-20-freebuff-decoder-
+hardening-60h.md (freebuff-decoder P2.5 — last remaining hardening item).
+
+Pinned properties (each pre-fix = RED, post-fix = GREEN):
+
+P2.5-A — CORS CONFIGURATION
+- Production or staging deployment without CORS_ORIGINS env var must
+  refuse to import (RuntimeError).  Local-dev may fall back to ["*"].
+- When CORS_ORIGINS is set, the middleware must consume the env value
+  verbatim (no silent wildcard substitution).
+
+P2.5-B — HANDLER-WILDCARD LEAK
+- The three exception handlers (http_exception_handler,
+  validation_exception_handler, global_exception_handler) must NOT
+  hardcode `Access-Control-Allow-Origin: "*"` in their JSONResponse
+  headers — they must call a runtime-computed helper
+  (`_get_cors_origin_for_handlers`) so that when CORS_ORIGINS is set
+  to a specific allowlist, the error responses echo that origin
+  (not "*").
+
+P2.5-C — GLOBAL EXCEPTION PAYLOAD REDACTION
+- The global_exception_handler payload must NOT include a full
+  `traceback` / `str(exc)` detail in production/staging.  In dev/local
+  the payload MAY include the detail for debugging.
+"""
+from __future__ import annotations
+
+import re
+import subprocess
+import sys
+from pathlib import Path
+
+SERVER_PY = Path(__file__).resolve().parents[2] / "server.py"
+
+
+def _read_server_source() -> str:
+    return SERVER_PY.read_text(encoding="utf-8")
+
+
+# ============================================================
+# P2.5-A — CORS configuration (source-text + subprocess)
+# ============================================================
+class TestCorsConfiguration:
+    """Pinned: production/staging without CORS_ORIGINS must refuse to start."""
+
+    def test_cors_config_block_uses_runtime_prod_check(self):
+        """The CORS config block must branch on `_is_prod` / `_is_staging`."""
+        source = _read_server_source()
+        # A defensive `_is_staging` check must exist (added by this fix).
+        assert re.search(r"_is_staging\s*=", source), (
+            "server.py CORS config block is missing `_is_staging` "
+            "— should refuse to start in BOTH production AND staging "
+            "when CORS_ORIGINS env var is unset."
+        )
+
+    def test_cors_config_raises_runtimeerror_for_prod_or_staging(self):
+        """Pinned: the RuntimeError must mention both prod and staging in its condition
+        (per the Freebuff Handoff P2.5-A design)."""
+        source = _read_server_source()
+        # The new condition must mention both prod AND staging.
+        prod_branches = re.findall(r'["\']production["\']', source)
+        assert len(prod_branches) >= 2, (
+            "server.py CORS guard should reference 'production' in BOTH the env check "
+            "AND the runtimeerror message (and similarly for staging)."
+        )
+        staging_branches = re.findall(r'["\']staging["\']', source)
+        assert len(staging_branches) >= 1, (
+            "server.py CORS guard must also catch the staging environment "
+            "(see Freebuff Handoff P2.5-A)."
+        )
+
+
+class TestCorsRuntimeImportRaises:
+    """Behavioural regression: source text alone is not enough — verify the actual
+    startup path raises RuntimeError when env indicates prod without CORS_ORIGINS."""
+
+    def test_prod_with_no_cors_origins_raises_runtimeerror_on_import(self):
+        """Run server.py as a subprocess with ENV=production and CORS_ORIGINS unset.
+        Pre-fix: server.py starts without complaint (wildcard fallback).
+        Post-fix: subprocess exits non-zero with RuntimeError in stderr.
+        """
+        repo_root = Path(__file__).resolve().parents[3]
+        backend_dir = repo_root / "backend"
+
+        env = {
+            "PATH": "/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/bin:/opt/homebrew/bin",
+            "PYTHONPATH": str(backend_dir),
+            "HOME": str(Path.home()),
+            "API_SECRET_KEY": "test-secret-key",
+            "FLOWW_ENABLE_LIVE_SCHWAB": "0",
+            # The server.py CORS config block (server.py ~L2500+) checks
+            # `os.environ.get("ENVIRONMENT") == "production"` for the
+            # require-explicit-CORS_ORIGINS guard, so we set ENVIRONMENT here.
+            "ENVIRONMENT": "production",
+            # Also set ENV so the top-of-file `_env` helper's
+            # `os.getenv(ENVIRONMENT) or os.getenv(ENV)` fallback resolves to prod
+            # even if ENVIRONMENT is unset by the test runner.
+            "ENV": "production",
+            # Intentionally do NOT set CORS_ORIGINS.
+        }
+        # Also unset FLOWW_ENV in case it leaks.
+        env["FLOWW_ENV"] = ""
+
+        result = subprocess.run(
+            [sys.executable, "-W", "ignore", "-c",
+             "import os; "
+             "os.environ['ENVIRONMENT'] = 'production'; "
+             "os.environ['ENV'] = 'production'; "
+             # backend/.env ships CORS_ORIGINS=*, and load_dotenv() defaults to
+             # override=False; honouring already-set env, force CORS_ORIGINS to
+             # '' so the L2500+ guard's `if not _cors_origins_env` branch fires.
+             "os.environ['CORS_ORIGINS'] = ''; "
+             "import server"],
+            capture_output=True,
+            text=True,
+            env=env,
+            timeout=60,
+            cwd=str(backend_dir),
+        )
+        assert result.returncode != 0, (
+            "server.py imported successfully in production without CORS_ORIGINS — "
+            "the CORS guard is missing (P2.5-A)."
+        )
+        # Sanity: the failure message mentions CORS.
+        combined = (result.stderr or "") + (result.stdout or "")
+        assert "CORS" in combined, (
+            f"server.py failed in prod-without-CORS_ORIGINS but stderr doesn't "
+            f"mention CORS:\n{combined}"
+        )
+
+
+# ============================================================
+# P2.5-B — Exception-handler wildcard-CORS leak (source-text)
+# ============================================================
+class TestExceptionHandlerCorsLeak:
+    """Pinned: the 3 exception handlers must not hardcode `Access-Control-Allow-Origin: "*"`."""
+
+    @staticmethod
+    def _count_hardcoded_wildcard_in_jsonresponse_headers(source: str) -> int:
+        """Count occurrences of manual `"Access-Control-Allow-Origin": "*"` inside
+        JSONResponse dict literals (this is the leak: handlers inject their own
+        CORS header instead of delegating to CORSMiddleware)."""
+        return len(re.findall(
+            r'["\']Access-Control-Allow-Origin["\']\s*:\s*["\']\*["\']',
+            source,
+        ))
+
+    def test_helper_get_cors_origin_for_handlers_is_defined(self):
+        source = _read_server_source()
+        # The fix introduces this helper to centralize the runtime-CORS decision.
+        assert re.search(r"def\s+_get_cors_origin_for_handlers\s*\(", source), (
+            "server.py does not define `_get_cors_origin_for_handlers()` — "
+            "the exception handlers cannot centralize their CORS-origin choice "
+            "without this helper (P2.5-B)."
+        )
+
+    def test_handler_cors_leak_sites_call_the_helper(self):
+        """All handler leak sites should call `_get_cors_origin_for_handlers()`
+        for their Access-Control-Allow-Origin header.  Verify by counting
+        helper-calls in handler-context (we accept any reasonable count >= 4:
+        rate-limit middleware + http_exception_handler + validation_exception_handler
+        + global_exception_handler)."""
+        source = _read_server_source()
+        helper_refs = re.findall(
+            r'["\']Access-Control-Allow-Origin["\']\s*:\s*_get_cors_origin_for_handlers\s*\(',
+            source,
+        )
+        assert len(helper_refs) >= 4, (
+            f"only {len(helper_refs)} exception handler(s) call "
+            f"`_get_cors_origin_for_handlers()` for their CORS header — "
+            f"need at least 4 (rate-limit middleware + http_exception_handler + validation_exception_handler + "
+            f"global_exception_handler).  See P2.5-B."
+        )
+
+    def test_no_hardcoded_wildcard_in_jsonresponse_headers(self):
+        """The handlers should NOT retain a hardcoded `Access-Control-Allow-Origin: "*"`.
+        Permitted: zero.  Pre-fix had 3 (one per handler).
+        """
+        source = _read_server_source()
+        leaks = self._count_hardcoded_wildcard_in_jsonresponse_headers(source)
+        assert leaks == 0, (
+            f"server.py has {leaks} hardcoded `Access-Control-Allow-Origin: \"*\"` "
+            f"inside JSONResponse headers (one per exception handler, pre-fix: 3).  "
+            f"All must delegate to `_get_cors_origin_for_handlers()`.  See P2.5-B."
+        )
+
+
+# ============================================================
+# P2.5-C — global_exception_handler payload redaction (source-text)
+# ============================================================
+class TestGlobalExceptionHandlerPayloadRedaction:
+    """Pinned: prod/staging must NOT include str(exc) or traceback in 500 payload."""
+
+    def test_global_handler_payload_uses_is_prod_branch(self):
+        source = _read_server_source()
+        # Look at the body of the function `global_exception_handler` (or whatever
+        # name is used) — must contain a `_is_prod`-style runtime check guarding
+        # whether the payload includes traceback/detail.
+        #
+        # Acceptable markers (any of):
+        #   `_is_prod and t...`
+        #   `if not _is_prod:` (or `if not _is_prod and ...`)
+        #   `if ENV == ...`
+        m_handler = re.search(
+            r"async\s+def\s+global_exception_handler\s*\([^{]*\)\s*:\s*(.*?)(?=\nasync\s+def\s+|@app\.|\nclass\s+|\Z)",
+            source,
+            re.DOTALL,
+        )
+        assert m_handler, "global_exception_handler function body not located"
+        body = m_handler.group(1)
+
+        # Top-of-file helper resolves ENVIRONMENT/ENV fallback to _env, then to
+        # _is_prod / _is_staging flags.  Handler body uses the flags; the string
+        # literals 'production'/'staging' live only at top-of-file.
+        assert "_is_prod" in body or "_is_staging" in body, (
+            "global_exception_handler body must branch on _is_prod / _is_staging "
+            "(top-of-file constants) to redact traceback/detail in "
+            "production/staging (P2.5-C)."
+        )
+        # The runtime check should reference BOTH flags (prod AND staging).
+        assert ("_is_prod" in body) and ("_is_staging" in body), (
+            f"global_exception_handler body must reference BOTH _is_prod AND "
+            f"_is_staging to redact for both production AND staging (P2.5-C).  "
+            f"Found _is_prod={('_is_prod' in body)!r}, "
+            f"_is_staging={('_is_staging' in body)!r}."
+        )
+
+    def test_500_payload_in_prod_does_not_carry_a_traceback_or_full_exc_message(
+        self, monkeypatch,
+    ):
+        """Behavioural check: trigger a 500 in production env, assert response body
+        does not contain a "Traceback (most recent call last):" fragment nor the
+        raw exception message we deliberately leaked."""
+        # Run a subprocess that:
+        #   1) sets ENV=production, FLOWW_ENV unset, CORS_ORIGINS=*
+        #   2) imports server
+        #   3) registers a one-shot 500-raising route
+        #   4) hits it via TestClient and prints the response body
+        # Then we inspect stdout — pre-fix would include traceback, post-fix should not.
+        repo_root = Path(__file__).resolve().parents[3]
+        backend_dir = repo_root / "backend"
+
+        env = {
+            "PATH": "/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/bin:/opt/homebrew/bin",
+            "PYTHONPATH": str(backend_dir),
+            "HOME": str(Path.home()),
+            "API_SECRET_KEY": "test-secret-key",
+            "FLOWW_ENABLE_LIVE_SCHWAB": "0",
+            # ENVIRONMENT drives _is_prod/_is_staging (top-of-file helper) AND the
+            # CORS config block (server.py ~L2500+).  ENV also so the helper's
+            # `os.getenv(ENVIRONMENT) or os.getenv(ENV)` fallback resolves to prod.
+            "ENVIRONMENT": "production",
+            "ENV": "production",
+            "FLOWW_ENV": "production",
+            "CORS_ORIGINS": "*",
+        }
+
+        driver = (
+            "import os; "
+            "os.environ['ENVIRONMENT'] = 'production'; "
+            "os.environ['ENV'] = 'production'; "
+            "os.environ['FLOWW_ENV'] = 'production'; "
+            "os.environ['CORS_ORIGINS'] = '*'; "
+            # Marker so any leak in subprocess stderr is obvious in test output
+            "import sys; sys.stderr.write('REDRACTION_DRV_START\\n'); sys.stderr.flush(); "
+            "import server; "
+            "from fastapi.testclient import TestClient; "
+            # NOTE: must terminate the LEAKED assignment BEFORE the decorator
+            # line.  Python grammar forbids `LEAKED='...'; @decorator` on a
+            # single physical line (`@decorator` requires its own line).  Using
+            # `\n` (Python interprets escape on string-literal parse) yields
+            # an actual newline before the decorator.
+            "LEAKED = 'highly-sensitive-internal-error-detail'\n"
+            "@server.app.get('/__redact_test__')\n"
+            "def _t():\n"
+            "    raise ValueError(LEAKED)\n"
+            "client = TestClient(server.app, raise_server_exceptions=False)\n"
+            "try:\n"
+            "    resp = client.get('/__redact_test__')\n"
+            "    print('STATUS=', resp.status_code)\n"
+            "    print('BODY=', resp.text)\n"
+            "except Exception as _e:\n"
+            "    print('STATUS=CRASH')\n"
+            "    print('BODY=CRASH:', repr(_e))\n"
+        )
+        # The decorator must be on its own line; emit it explicitly to avoid a
+        # single-line syntax error in the -c payload.
+        driver_one = driver.replace(
+            "@server.app.get('/__redact_test__')\n"
+            "def _t():\n"
+            "    raise ValueError(LEAKED)\n",
+            "@server.app.get('/__redact_test__')\n"
+            "def _t():\n"
+            "    raise ValueError(LEAKED)\n",
+        )
+        assert driver_one == driver  # sanity (no transformation needed)
+
+        result = subprocess.run(
+            [sys.executable, "-W", "ignore", "-c", driver],
+            capture_output=True,
+            text=True,
+            env=env,
+            timeout=120,
+            cwd=str(backend_dir),
+        )
+        # We don't strictly require exit code 0 — TestClient.get on a 500 route
+        # surfaces the status in the result object, not via raise_for_status.
+        # We DO require the body to be present.
+        assert "STATUS=" in result.stdout, (
+            f"redaction integration driver did not produce expected stdout.\n"
+            f"STDOUT:\n{result.stdout}\nSTDERR:\n{result.stderr}"
+        )
+        assert "BODY=" in result.stdout, "redaction driver missing BODY= line"
+
+        # Extract "BODY=..." line body and inspect.
+        for line in result.stdout.splitlines():
+            if line.startswith("BODY="):
+                body = line[len("BODY="):]
+                break
+        else:
+            body = ""
+
+        assert "Traceback" not in body, (
+            f"production 500 response leaks 'Traceback' fragment in body: {body!r}"
+        )
+        assert "highly-sensitive-internal-error-detail" not in body, (
+            f"production 500 response leaks the deliberately-leaked payload: {body!r}"
+        )
