@@ -339,7 +339,9 @@ def simulate_hawkes_ogata(
         return _homogeneous_poisson(T, mu, n_max, rng)
 
     lambda_star = max(mu + alpha * n_max / beta, mu)
-    max_iterations = n_max * 50
+    # Budget = λ★·T (expected thinning iters + 3× headroom); floor n_max·50
+    # prevents the small-T regime from under-budgeting on bursty streams.
+    max_iterations = max(n_max * 50, int(lambda_star * T * 3.0))
     events: list[float] = []
     t = 0.0
     iterations = 0
@@ -359,6 +361,14 @@ def simulate_hawkes_ogata(
             u = rng.uniform(0.0, 1.0)
             if u <= lam_t / lambda_star:
                 events.append(t)
+        # DEBUG-ONLY (`assert` is skipped under ``python -O``): flag silent
+        # early exit on iteration-budget exhaustion so downstream analyses
+        # never silently consume a truncated trace.
+        assert t >= T or len(events) >= n_max, (
+            f"simulate_hawkes_ogata exited early: "
+            f"t={t:.4f}<T={T:.4f}, len(events)={len(events)}<n_max={n_max}, "
+            f"iterations={iterations}>=max_iterations={max_iterations}"
+        )
         return np.sort(np.asarray(events, dtype=np.float64))
     except (ValueError, FloatingPointError):
         return np.sort(np.asarray(events, dtype=np.float64))
@@ -485,6 +495,221 @@ def mle_exponential_hawkes(
     return out
 
 
+# ------------------------------------------------------------------- #
+# Method-of-Moments Estimation (deterministic, no scipy.optimize)
+# ------------------------------------------------------------------- #
+
+
+def fit_exponential_hawkes_method_of_moments(
+    event_times: np.ndarray | list[float],
+    T: float | None = None,
+) -> dict[str, Any]:
+    r"""
+    Deterministic Method-of-Moments estimator for exponential-kernel
+    Hawkes parameters.  Closed-form; does NOT call any
+    :mod:`scipy.optimize` routine.  Replaces the L-BFGS-B MLE for CI
+    and smoke-test use cases where the optimizer's local-optimum
+    behaviour causes brittleness.
+
+    Algorithm
+    ---------
+    Part A -- Branching ratio from the bin-count Fano factor
+        Bin the observation window into ``K = max(20, N // 10)``
+        equal-width bins; compute the Fano factor ``F = Var(N_k) / E[N_k]``.
+        For the exponential-kernel Hawkes process, ``F = 1 + eta``
+        (Hawkes & Oakes, 1974), so ``eta_hat = max(0, F - 1)``.
+
+    Part B -- Decay rate from sample-ACF log-linear decay
+        Compute the empirical autocorrelation of bin counts at lags
+        ``k = 1 .. L`` where ``L = min(10, K - 1)``.  Filter to lags
+        where the ACF is strictly positive.  Log-linear regression
+
+            log(ACF_k) ~ intercept - beta * (k * delta_t)
+
+        yields slope -> ``-beta_hat`` (no scipy.optimize -- closed-form
+        OLS or :func:`numpy.polyfit`).  Beta is bounded below by 1e-4.
+        If the fitted slope is non-negative (pathological -- ACF rising
+        instead of decaying), we fall back to ``beta = 1.0`` and set
+        ``beta_from_acf_recovered = False`` so callers can detect the
+        silent fallback.
+
+    Part C -- Baseline intensity from total event rate
+        The empirical rate ``N/T`` approaches the *total* stationary
+        intensity ``mu / (1 - eta)``.  Solve for ``mu``:
+
+            mu_hat = (N / T) * (1 - eta_hat)
+
+    Part D -- Excitation magnitude
+        From the branching-ratio identity:
+
+            alpha_hat = eta_hat * beta_hat
+
+    Part E -- Stationarity clipping
+        If the variance-derived estimator overshoots 1 (``eta_hat >= 1``),
+        clip to ``0.95`` so the fitted process remains subcritical.
+
+    Part F -- Log-likelihood cross-check
+        Evaluate the closed-form ``exponential_log_likelihood`` at the
+        fitted parameters as a diagnostic.  Does NOT drive the fit.
+
+    Returns
+    -------
+    dict with keys:
+        ``mu``, ``alpha``, ``beta`` : float -- fitted parameters
+        ``log_likelihood``         : float -- closed-form LL at fit
+        ``branching_ratio``        : float -- ``alpha / beta``
+        ``n_events``               : int   -- number of events seen
+        ``T``                      : float -- observation window length
+        ``converged``              : bool  -- True iff N >= 2 and T > 0
+        ``method``                 : str   -- always ``"method_of_moments"``
+        ``eta_fano``               : float -- raw ``F - 1`` estimator
+        ``beta_from_acf_slope``    : float -- ACF-recovery value
+                                                (== ``beta`` on success)
+        ``beta_from_acf_recovered``: bool   -- True iff log-ACF
+                                                regression succeeded
+
+    Notes
+    -----
+    Pure function of the input array.  Reproducible to floating-point
+    precision given the same observations.  No random state, no
+    iterative optimizer, no local-optimum hazard.
+
+    Why not Kullback-Leibler?
+        KL divergence was considered as a goodness-of-fit diagnostic
+        for inter-arrival times, but rejected because the Hawkes
+        inter-arrival distribution is non-exponential and admits no
+        closed form.  Closed-form Method-of-Moments is preferred for
+        CI determinism.
+
+    Accuracy caveat
+        Accurate parameter recovery requires N >> 1/eta events and bins
+        narrower than 1/beta.  Under finite-burst moderate-eta samples
+        the bin-count Fano factor saturates the stationarity clip
+        (1 - eta -> 0), causing mu_hat = (N/T) * (1 - eta) to
+        under-estimate mu by up to 100x.  For tight recovery on bursty
+        streams, prefer a Cox-Isham inter-arrival IDI estimator
+        (forthcoming).  This estimator's contract is correctness
+        invariants (subcritical, finite, positive, alpha = eta * beta),
+        NOT parameter recovery.
+    """
+    arr = np.sort(np.asarray(event_times, dtype=np.float64).ravel())
+    n = arr.size
+
+    T_observed = float(T) if T is not None else (
+        float(arr[-1] - arr[0]) if n >= 2 else 0.0
+    )
+
+    out: dict[str, Any] = {
+        "mu": 1.0,
+        "alpha": 0.0,
+        "beta": 1.0,
+        "log_likelihood": -math.inf,
+        "branching_ratio": 0.0,
+        "n_events": int(n),
+        "T": T_observed,
+        "converged": False,
+        "method": "method_of_moments",
+        "eta_fano": 0.0,
+        "beta_from_acf_slope": 1.0,
+        "beta_from_acf_recovered": False,
+    }
+    if n < 2 or T_observed <= 0.0:
+        return out
+
+    # ------------------------------------------------------------------
+    # Part A -- Fano factor of binned counts -> branching ratio.
+    # ------------------------------------------------------------------
+    k_bins = max(20, n // 10)
+    delta_t = T_observed / k_bins
+
+    counts, _ = np.histogram(arr, bins=k_bins)
+    mean_c = float(np.mean(counts))
+    var_c = float(np.var(counts, ddof=1)) if k_bins > 1 else 0.0
+
+    if mean_c > 0.0:
+        f_factor = var_c / mean_c
+        eta_fano = max(0.0, min(f_factor - 1.0, 0.95))
+    else:
+        f_factor = 0.0
+        eta_fano = 0.0
+
+    # ------------------------------------------------------------------
+    # Part C -- mu from total rate with Fano-factor correction.
+    # ------------------------------------------------------------------
+    mu_hat = (n / T_observed) * (1.0 - eta_fano)
+
+    # ------------------------------------------------------------------
+    # Part B -- beta from sample-ACF log-linear decay.
+    # Only accept the ACF slope if strictly negative (intensity MUST
+    # decay for the exponential-kernel Hawkes).  A non-negative slope
+    # is pathological -- fall back to the conservative mid-range beta.
+    # ------------------------------------------------------------------
+    beta_hat = 1.0  # conservative fallback if ACF is malformed.
+    acf_recovered = False
+    max_lag = min(10, k_bins - 1)
+    if max_lag >= 2 and var_c > 0.0:
+        centered = counts - mean_c
+        acfs: list[float] = []
+        for k in range(1, max_lag + 1):
+            denom = float(k_bins - k)
+            if denom <= 0.0:
+                break
+            cov_k = float(np.sum(centered[:-k] * centered[k:])) / denom
+            acfs.append(cov_k / var_c if var_c > 0.0 else 0.0)
+
+        positive_pairs = [
+            (idx, val) for idx, val in enumerate(acfs, 1) if val > 0.0
+        ]
+        if len(positive_pairs) >= 2:
+            ks_arr = np.array(
+                [p[0] for p in positive_pairs], dtype=np.float64
+            ) * delta_t
+            ys_arr = np.log(
+                np.array([p[1] for p in positive_pairs], dtype=np.float64)
+            )
+            # Closed-form OLS regression: log(ACF) ~ intercept - beta * tau.
+            # np.polyfit is pure numpy -- safe to use here.
+            coeffs = np.polyfit(ks_arr, ys_arr, 1)
+            slope = float(coeffs[0])
+            if slope < 0.0:
+                beta_hat = max(-slope, 1e-4)
+                acf_recovered = True
+            # else: pathological rising ACF -- beta_hat stays at the
+            # fallback 1.0; acf_recovered = False surfaces this in the
+            # return dict so callers can detect the silent fallback.
+
+    # ------------------------------------------------------------------
+    # Part D -- alpha from branching-ratio identity.
+    # ------------------------------------------------------------------
+    alpha_hat = eta_fano * beta_hat
+
+    # ------------------------------------------------------------------
+    # Part F -- Log-likelihood cross-check (diagnostic only).
+    # ------------------------------------------------------------------
+    ll = exponential_log_likelihood(arr, mu_hat, alpha_hat, beta_hat)
+    if math.isinf(ll) or math.isnan(ll):
+        # Fall back: degenerate Poisson (alpha=0) for the LL diagnostic
+        # so we always return a finite number for monitoring.
+        ll = exponential_log_likelihood(arr, mu_hat, 0.0, beta_hat)
+        if math.isinf(ll) or math.isnan(ll):
+            ll = -math.inf
+
+    out.update(
+        {
+            "mu": float(mu_hat),
+            "alpha": float(alpha_hat),
+            "beta": float(beta_hat),
+            "log_likelihood": float(ll),
+            "branching_ratio": float(alpha_hat / beta_hat) if beta_hat > 0.0 else 0.0,
+            "converged": True,
+            "eta_fano": float(eta_fano),
+            "beta_from_acf_slope": float(beta_hat),
+            "beta_from_acf_recovered": bool(acf_recovered),
+        }
+    )
+    return out
+
+
 __all__ = [
     "exponential_intensity",
     "exponential_log_likelihood",
@@ -492,4 +717,5 @@ __all__ = [
     "hawkes_stationary_intensity",
     "simulate_hawkes_ogata",
     "mle_exponential_hawkes",
+    "fit_exponential_hawkes_method_of_moments",
 ]
