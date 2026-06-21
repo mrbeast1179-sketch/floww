@@ -43,6 +43,15 @@ async def _reset_event_loop_and_motor(aclient, monkeypatch):
     # Set API_SECRET_KEY for tests so auth doesn't block mutating routes
     os.environ.setdefault("API_SECRET_KEY", "test-secret-key")
 
+    # Defence-in-depth default for the live-Schwab env gate in
+    # services/order_router.py — legacy order_router health tests below
+    # exercise the happy path via httpx mocking; with FLOWW_ENABLE_LIVE_SCHWAB
+    # set to "1" here, they reach the post-guard code path unchanged.  The
+    # dedicated gate tests in
+    # backend/tests/services/test_order_router_gate.py explicitly delete
+    # this env var via monkeypatch to verify the gate short-circuits.
+    os.environ.setdefault("FLOWW_ENABLE_LIVE_SCHWAB", "1")
+
     # Step 1: Close old event loop
     try:
         old_loop = asyncio.get_event_loop()

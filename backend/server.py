@@ -51,7 +51,7 @@ from vol_analytics import (
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / ".env")
 
-MONGO_URL = os.environ["MONGO_URL"]
+MONGO_URL = os.getenv("MONGO_URL", "mongodb://localhost:27017")  # defence-in-depth env-default (P1 entry #3 in docs/superpowers/plans/2026-06-20-freebuff-decoder-hardening-60h.md)
 DB_NAME = os.environ["DB_NAME"]
 POLYGON_API_KEY = os.environ.get("POLYGON_API_KEY", "")
 
@@ -3088,11 +3088,7 @@ from routes.paper_trading import router as paper_trading_router
 
 app.include_router(paper_trading_router, tags=["paper_trading"])
 
-# ============ Replay Route ============
-from routes.replay import router as replay_router
-
-app.include_router(replay_router, tags=["replay"])
-
+# (deduped — see L2905 in the Replay, Agent Hub, Nexus block; P1 entry #4 in docs/superpowers/plans/2026-06-20-freebuff-decoder-hardening-60h.md.)
 # ============ Dash UI Mount ============
 try:
     from services.dash_ui import create_dash_app

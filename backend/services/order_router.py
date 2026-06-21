@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import hashlib
 import logging
+import os
 import time
 from datetime import UTC, datetime
 from typing import Any
@@ -137,6 +138,25 @@ class OrderRouter:
         if client_order_id in self._order_cache:
             logger.info(f"Duplicate order suppressed: {client_order_id}")
             return self._order_cache[client_order_id]
+
+        # Defence-in-depth live-execution gate.  Production deployments set
+        # FLOWW_ENABLE_LIVE_SCHWAB=1 to allow real Schwab order POSTs;
+        # paper-trading environments leave the env unset and this guard
+        # short-circuits with a structured error before any outbound httpx
+        # call.  Returns a dict (not raise) so the gate is on the same
+        # return-channel contract as every other submit_order error path.
+        # See docs/superpowers/plans/2026-06-20-freebuff-decoder-hardening-60h.md
+        # (Priority-0 entry #2).
+        if os.getenv("FLOWW_ENABLE_LIVE_SCHWAB") != "1":
+            logger.warning(
+                "submit_order blocked by FLOWW_ENABLE_LIVE_SCHWAB gate — "
+                "live execution not enabled (env unset or != '1')"
+            )
+            return {
+                "status": "error",
+                "reason": "live order submission requires FLOWW_ENABLE_LIVE_SCHWAB=1 "
+                "(paper-only by default; see Freebuff Handoff non-negotiables)",
+            }
 
         payload = self._build_order_payload(intent)
         url = SCHWAB_ORDERS_URL.format(account_id=self.account_id)
