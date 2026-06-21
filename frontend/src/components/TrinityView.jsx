@@ -91,7 +91,13 @@ const VIEW_MODES = [
   { id: "dom", label: "DOM", icon: "▦" },
   { id: "grid", label: "Grid", icon: "⊞" },
   { id: "bars", label: "Bars", icon: "▤" },
-  { id: "list", label: "List", icon: "☰" },
+  { id: "chain", label: "Chain", icon: "☰" },
+  { id: "list", label: "List", icon: "≡" },
+];
+
+const GEX_VEX_MODES = [
+  { id: "gex", label: "GEX" },
+  { id: "vex", label: "VEX" },
 ];
 
 // ── Main Trinity View ──────────────────────────────────────────────
@@ -100,6 +106,7 @@ export default function TrinityView({ onFocusTicker }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [viewMode, setViewMode] = useState("dom");
+  const [gexVexMode, setGexVexMode] = useState("gex");
 
   useEffect(() => {
     let mounted = true;
@@ -135,7 +142,7 @@ export default function TrinityView({ onFocusTicker }) {
 
   return (
     <div className="trinity-layout" data-testid="trinity-view">
-      <ConfluenceBar data={allData} viewMode={viewMode} onViewModeChange={setViewMode} />
+      <ConfluenceBar data={allData} viewMode={viewMode} onViewModeChange={setViewMode} gexVexMode={gexVexMode} onGexVexChange={setGexVexMode} />
       <div className="trinity-panels">
         {TRINITY.map(t => (
           <TrinityPanel
@@ -152,7 +159,7 @@ export default function TrinityView({ onFocusTicker }) {
 }
 
 // ── Confluence Summary Bar ─────────────────────────────────────────
-function ConfluenceBar({ data, viewMode, onViewModeChange }) {
+function ConfluenceBar({ data, viewMode, onViewModeChange, gexVexMode, onGexVexChange }) {
   const tickers = TRINITY.map(t => data[t]).filter(d => d && !d.error);
   if (tickers.length === 0) return null;
 
@@ -197,13 +204,24 @@ function ConfluenceBar({ data, viewMode, onViewModeChange }) {
             </button>
           ))}
         </div>
+        <div className="trinity-gexvex-toggle">
+          {GEX_VEX_MODES.map(m => (
+            <button
+              key={m.id}
+              className={`trinity-gexvex-btn${gexVexMode === m.id ? " trinity-gexvex-active" : ""}`}
+              onClick={() => onGexVexChange(m.id)}
+            >
+              {m.label}
+            </button>
+          ))}
+        </div>
       </div>
     </div>
   );
 }
 
 // ── Single Trinity Panel ───────────────────────────────────────────
-function TrinityPanel({ ticker, data, viewMode, onFocus }) {
+function TrinityPanel({ ticker, data, viewMode, gexVexMode, onFocus }) {
   const spot = data?.spot;
   const nodes = data?.nodes;
   const gridData = data?.grid?.grid;
@@ -307,20 +325,33 @@ function TrinityPanel({ ticker, data, viewMode, onFocus }) {
   const regimeColor = regime === "positive" ? "text-emerald-400" : regime === "negative" ? "text-rose-400" : "text-slate-400";
   const regimeLabel = regime === "positive" ? "positive γ" : regime === "negative" ? "negative γ" : "neutral";
 
-  // DOM column config: [key, label, maxAbs source]
-  const domCols = useMemo(() => [
-    { key: "call_gex", label: "Call GEX", field: "call_gex" },
-    { key: "gex", label: "Net GEX", field: "gex" },
-    { key: "put_gex", label: "Put GEX", field: "put_gex" },
-    { key: "vex", label: "VEX", field: "vex" },
-    { key: "charm", label: "Charm", field: "charm" },
-  ], []);
+  // DOM column config based on GEX/VEX mode
+  const domCols = useMemo(() => {
+    if (gexVexMode === "vex") {
+      return [
+        { key: "call_vex", label: "Call VEX", field: "call_vex" },
+        { key: "vex", label: "Net VEX", field: "vex" },
+        { key: "put_vex", label: "Put VEX", field: "put_vex" },
+        { key: "vomma", label: "Vomma", field: "vomma" },
+        { key: "zomma", label: "Zomma", field: "zomma" },
+      ];
+    }
+    return [
+      { key: "call_gex", label: "Call GEX", field: "call_gex" },
+      { key: "gex", label: "Net GEX", field: "gex" },
+      { key: "put_gex", label: "Put GEX", field: "put_gex" },
+      { key: "vex", label: "VEX", field: "vex" },
+      { key: "charm", label: "Charm", field: "charm" },
+    ];
+  }, [gexVexMode]);
 
   const renderView = () => {
     if (rows.length === 0) return <div className="trinity-no-data">No strike data available</div>;
     switch (viewMode) {
       case "dom":
         return <DOMView rows={rows} domCols={domCols} spotIdx={spotIdx} kingStrike={kingStrike} flipStrike={flipStrike} tags={tags} />;
+      case "chain":
+        return <ChainView rows={rows} spotIdx={spotIdx} kingStrike={kingStrike} flipStrike={flipStrike} />;
       case "bars":
         return <BarsView rows={rows} maxAbs={maxAbs} spotIdx={spotIdx} kingStrike={kingStrike} tags={tags} />;
       case "list":
@@ -507,6 +538,80 @@ function DOMView({ rows, domCols, spotIdx, kingStrike, flipStrike, tags }) {
                   {tags.map(tag => (
                     <span key={tag} className={`trinity-tag trinity-tag-${tag.toLowerCase()}`}>{tag}</span>
                   ))}
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+// ── Chain View (raw options table) ─────────────────────────────────
+function ChainView({ rows, spotIdx, kingStrike, flipStrike }) {
+  return (
+    <div className="trinity-chain-scroll">
+      <table className="trinity-chain-table">
+        <thead>
+          <tr className="trinity-chain-header">
+            <th className="trinity-chain-th">Strike</th>
+            <th className="trinity-chain-th">Type</th>
+            <th className="trinity-chain-th">GEX</th>
+            <th className="trinity-chain-th">Call GEX</th>
+            <th className="trinity-chain-th">Put GEX</th>
+            <th className="trinity-chain-th">OI</th>
+            <th className="trinity-chain-th">VEX</th>
+            <th className="trinity-chain-th">Charm</th>
+            <th className="trinity-chain-th">IV</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((row, i) => {
+            const isCurrent = i === spotIdx;
+            const isKing = row.strike === kingStrike;
+            const isFlip = flipStrike != null && Math.abs(row.strike - flipStrike) <= (rows[0]?.strike - rows[1]?.strike || 5) / 2;
+            const rowBg = isKing
+              ? "rgba(251,191,36,0.08)"
+              : isFlip
+                ? "rgba(167,139,250,0.06)"
+                : "transparent";
+            return (
+              <tr
+                key={row.strike}
+                className={`trinity-chain-row${isCurrent ? " trinity-row-current" : ""}`}
+                style={{ background: rowBg }}
+              >
+                <td className={`trinity-chain-price${isCurrent ? " trinity-price-current" : ""}`}>
+                  {isCurrent && <span className="trinity-price-arrow" />}
+                  {isKing && <span className="trinity-king-star">★</span>}
+                  {fmt(row.strike, row.strike >= 1000 ? 0 : 1)}
+                </td>
+                <td className="trinity-chain-type">
+                  <span className={`trinity-chain-type-badge ${row.gex >= 0 ? "type-call" : "type-put"}`}>
+                    {row.call_gex > Math.abs(row.put_gex) ? "C" : "P"}
+                  </span>
+                </td>
+                <td className="trinity-chain-cell" style={{ color: row.gex >= 0 ? "#6ee7b7" : "#c4b5fd" }}>
+                  {fmtGex(row.gex)}
+                </td>
+                <td className="trinity-chain-cell" style={{ color: "#6ee7b7" }}>
+                  {fmtGex(row.call_gex)}
+                </td>
+                <td className="trinity-chain-cell" style={{ color: "#c4b5fd" }}>
+                  {fmtGex(row.put_gex)}
+                </td>
+                <td className="trinity-chain-cell trinity-chain-oi">
+                  {fmtAbs(row.total_oi || 0)}
+                </td>
+                <td className="trinity-chain-cell" style={{ color: row.vex >= 0 ? "#6ee7b7" : "#c4b5fd" }}>
+                  {fmtGex(row.vex)}
+                </td>
+                <td className="trinity-chain-cell" style={{ color: row.charm >= 0 ? "#6ee7b7" : "#c4b5fd" }}>
+                  {fmtGex(row.charm)}
+                </td>
+                <td className="trinity-chain-cell trinity-chain-iv">
+                  {row.iv != null ? `${(row.iv * 100).toFixed(1)}%` : "—"}
                 </td>
               </tr>
             );
