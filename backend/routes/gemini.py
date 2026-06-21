@@ -4,6 +4,7 @@ import logging
 from typing import Any
 
 from fastapi import APIRouter
+from fastapi.responses import JSONResponse
 
 logger = logging.getLogger(__name__)
 
@@ -19,9 +20,9 @@ async def analyze_trade(trade: dict[str, Any], market_context: dict[str, Any] | 
         result = await analyzer.analyze_trade(trade, market_context)
         if result:
             return {"analysis": result, "source": "gemini"}
-        return {"error": "Gemini not available. Check API key and quota."}
+        return JSONResponse(status_code=503, content={"error": "Gemini not available. Check API key and quota."})
     except Exception as e:
-        return {"error": str(e)}
+        return JSONResponse(status_code=503, content={"error": str(e)})
 
 
 @router.post("/analyze-regime")
@@ -33,9 +34,9 @@ async def analyze_regime(regime_data: dict[str, Any]):
         result = await analyzer.analyze_regime(regime_data)
         if result:
             return {"analysis": result, "source": "gemini"}
-        return {"error": "Gemini not available. Check API key and quota."}
+        return JSONResponse(status_code=503, content={"error": "Gemini not available. Check API key and quota."})
     except Exception as e:
-        return {"error": str(e)}
+        return JSONResponse(status_code=503, content={"error": str(e)})
 
 
 @router.post("/summarize-day")
@@ -51,9 +52,9 @@ async def summarize_day(
         result = await analyzer.summarize_day(trades, pnl, regime)
         if result:
             return {"summary": result, "source": "gemini"}
-        return {"error": "Gemini not available. Check API key and quota."}
+        return JSONResponse(status_code=503, content={"error": "Gemini not available. Check API key and quota."})
     except Exception as e:
-        return {"error": str(e)}
+        return JSONResponse(status_code=503, content={"error": str(e)})
 
 
 @router.post("/explain-signal")
@@ -65,9 +66,9 @@ async def explain_signal(signal: dict[str, Any]):
         result = await analyzer.explain_flow_signal(signal)
         if result:
             return {"explanation": result, "source": "gemini"}
-        return {"error": "Gemini not available. Check API key and quota."}
+        return JSONResponse(status_code=503, content={"error": "Gemini not available. Check API key and quota."})
     except Exception as e:
-        return {"error": str(e)}
+        return JSONResponse(status_code=503, content={"error": str(e)})
 
 
 @router.get("/status")
@@ -84,4 +85,4 @@ async def get_ai_status():
             }
         }
     except Exception as e:
-        return {"error": str(e)}
+        return JSONResponse(status_code=503, content={"error": str(e)})
