@@ -315,7 +315,7 @@ function TrinityPanel({ ticker, data, viewMode, onFocus }) {
         return <ListView rows={rows} maxAbs={maxAbs} spotIdx={spotIdx} kingStrike={kingStrike} flipStrike={flipStrike} />;
       case "grid":
       default:
-        return <GridView rows={rows} expiries={expiries} gridData={gridData} gridMaxAbs={gridMaxAbs} spot={spot} flipStrike={flipStrike} />;
+        return <GridView rows={rows} expiries={expiries} gridData={gridData} gridMaxAbs={gridMaxAbs} spotIdx={spotIdx} flipStrike={flipStrike} />;
     }
   };
 
@@ -381,7 +381,7 @@ function TrinityPanel({ ticker, data, viewMode, onFocus }) {
 }
 
 // ── Grid View (strike × expiry heatmap) ───────────────────────────
-function GridView({ rows, expiries, gridData, gridMaxAbs, spot, flipStrike }) {
+function GridView({ rows, expiries, gridData, gridMaxAbs, spotIdx, flipStrike }) {
   if (!gridData || expiries.length === 0) {
     // Fallback to list view if no grid data
     return <div className="trinity-no-data">No grid data available</div>;
@@ -400,8 +400,8 @@ function GridView({ rows, expiries, gridData, gridMaxAbs, spot, flipStrike }) {
         </thead>
         <tbody>
           {rows.map((row, i) => {
-            const isCurrent = i === spot;
-            const isFlip = flipStrike != null && Math.abs(row.strike - flipStrike) < 1;
+            const isCurrent = i === spotIdx;
+            const isFlip = flipStrike != null && Math.abs(row.strike - flipStrike) <= (rows[0]?.strike - rows[1]?.strike || 5) / 2;
             return (
               <tr
                 key={row.strike}
@@ -484,7 +484,7 @@ function ListView({ rows, maxAbs, spotIdx, kingStrike, flipStrike }) {
       {rows.map((row, i) => {
         const isCurrent = i === spotIdx;
         const isKing = row.strike === kingStrike;
-        const isFlip = flipStrike != null && Math.abs(row.strike - flipStrike) < 1;
+        const isFlip = flipStrike != null && Math.abs(row.strike - flipStrike) <= (rows[0]?.strike - rows[1]?.strike || 5) / 2;
         const gex = row.gex || 0;
         const bg = rowColor(gex, maxAbs);
         const tc = textColor(gex, maxAbs);
