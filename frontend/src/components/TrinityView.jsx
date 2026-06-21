@@ -107,14 +107,17 @@ export default function TrinityView({ onFocusTicker }) {
   const [error, setError] = useState(null);
   const [viewMode, setViewMode] = useState("dom");
   const [gexVexMode, setGexVexMode] = useState("gex");
+  const [panelTickers, setPanelTickers] = useState({ "0": "^SPX", "1": "SPY", "2": "QQQ" });
 
+  // Fetch all tickers on mount + track which tickers we have data for
   useEffect(() => {
     let mounted = true;
+    const allTickers = ["^SPX", "SPY", "QQQ", "^NDX", "IWM", "DIA", "TLT"];
     const fetchAll = async () => {
       setLoading(true);
       try {
         const results = await Promise.allSettled(
-          TRINITY.map(t =>
+          allTickers.map(t =>
             axios.get(`${API}/heatmap/${t}?expiries=3&mode=day`, { timeout: 15000 })
               .then(r => ({ ticker: t, data: r.data }))
           )
@@ -144,15 +147,20 @@ export default function TrinityView({ onFocusTicker }) {
     <div className="trinity-layout" data-testid="trinity-view">
       <ConfluenceBar data={allData} viewMode={viewMode} onViewModeChange={setViewMode} gexVexMode={gexVexMode} onGexVexChange={setGexVexMode} />
       <div className="trinity-panels">
-        {TRINITY.map(t => (
-          <TrinityPanel
-            key={t}
-            ticker={t}
-            data={allData[t]}
-            viewMode={viewMode}
-            onFocus={() => onFocusTicker && onFocusTicker(t)}
-          />
-        ))}
+        {TRINITY.map((defaultTicker, idx) => {
+          const currentTicker = panelTickers[idx] || defaultTicker;
+          return (
+            <TrinityPanel
+              key={idx}
+              ticker={currentTicker}
+              data={allData[currentTicker] || allData[defaultTicker]}
+              viewMode={viewMode}
+              gexVexMode={gexVexMode}
+              onFocus={() => onFocusTicker && onFocusTicker(currentTicker)}
+              onTickerChange={(t) => setPanelTickers(prev => ({ ...prev, [idx]: t }))}
+            />
+          );
+        })}
       </div>
     </div>
   );
@@ -221,7 +229,10 @@ function ConfluenceBar({ data, viewMode, onViewModeChange, gexVexMode, onGexVexC
 }
 
 // ── Single Trinity Panel ───────────────────────────────────────────
-function TrinityPanel({ ticker, data, viewMode, gexVexMode, onFocus }) {
+const PANEL_TICKERS = ["^SPX", "SPY", "QQQ", "^NDX", "IWM", "DIA", "TLT"];
+
+function TrinityPanel({ ticker, data, viewMode, gexVexMode, onFocus, onTickerChange }) {
+  const [showTickerMenu, setShowTickerMenu] = useState(false);
   const spot = data?.spot;
   const nodes = data?.nodes;
   const gridData = data?.grid?.grid;
@@ -366,7 +377,29 @@ function TrinityPanel({ ticker, data, viewMode, gexVexMode, onFocus }) {
     <div className="trinity-panel">
       {/* Header — DOM ladder style */}
       <div className="trinity-panel-header">
-        <span className="trinity-panel-ticker">{displayName}</span>
+        <div className="trinity-ticker-wrap">
+          <button
+            className="trinity-ticker-btn"
+            onClick={() => setShowTickerMenu(!showTickerMenu)}
+            title="Switch ticker"
+          >
+            {displayName}
+            <span className="trinity-ticker-caret">▾</span>
+          </button>
+          {showTickerMenu && (
+            <div className="trinity-ticker-menu">
+              {PANEL_TICKERS.map(t => (
+                <button
+                  key={t}
+                  className={`trinity-ticker-option${t === ticker ? " trinity-ticker-active" : ""}`}
+                  onClick={() => { onTickerChange(t); setShowTickerMenu(false); }}
+                >
+                  {t.replace("^", "")}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
         <span className="trinity-panel-price">${fmt(spot, spot >= 1000 ? 2 : 2)}</span>
         <span className="trinity-live-dot" />
         <span className={`trinity-panel-regime ${regimeColor}`}>{regimeLabel}</span>

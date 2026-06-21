@@ -1508,3 +1508,59 @@
   color: #64748b !important;
   font-size: 7px;
 }
+
+/* ── Ticker selector dropdown ── */
+.trinity-ticker-wrap {
+  position: relative;
+}
+.trinity-ticker-btn {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  background: none;
+  border: none;
+  color: #e2e8f0;
+  font-family: "Space Grotesk", "Inter", sans-serif;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+  padding: 2px 4px;
+  border-radius: 3px;
+  transition: background 150ms ease;
+}
+.trinity-ticker-btn:hover { background: rgba(255,255,255,0.06); }
+.trinity-ticker-caret {
+  font-size: 8px;
+  color: #4a5568;
+}
+.trinity-ticker-menu {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  z-index: 20;
+  background: rgba(10,14,26,0.97);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 4px;
+  padding: 3px;
+  min-width: 70px;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.5);
+}
+.trinity-ticker-option {
+  display: block;
+  width: 100%;
+  background: none;
+  border: none;
+  color: #94a3b8;
+  font-size: 10px;
+  font-weight: 600;
+  padding: 4px 8px;
+  text-align: left;
+  cursor: pointer;
+  border-radius: 2px;
+  transition: all 150ms ease;
+}
+.trinity-ticker-option:hover { background: rgba(255,255,255,0.06); color: #e2e8f0; }
+.trinity-ticker-active {
+  color: #fbbf24;
+  background: rgba(251,191,36,0.1);
+}
