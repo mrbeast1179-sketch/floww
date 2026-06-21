@@ -1,37 +1,43 @@
 import React from "react";
 import { render, screen } from "@testing-library/react";
-import HeatseekerDashboard from "./HeatseekerDashboard";
 
-// Mock the shared fetch hook once — every child panel calls it. We return a
-// minimal { data: null, loading: false, error: null } so children render their
-// empty/idle states without exploding on missing fields.
+// Mock IntersectionObserver — trigger immediately so LazyRow renders children
+global.IntersectionObserver = class IntersectionObserver {
+  constructor(callback) {
+    this.callback = callback;
+  }
+  observe() {
+    this.callback([{ isIntersecting: true }]);
+  }
+  disconnect() {}
+  unobserve() {}
+};
+
+// Mock react-plotly.js (required by VannaChart and CharmChart)
+// Must be before any component imports
+jest.mock("react-plotly.js", () => {
+  const React = require("react");
+  return React.forwardRef(function MockPlot(props, ref) {
+    return React.createElement("div", { "data-testid": "mock-plot", ref });
+  });
+});
+
+// Mock useHeatseeker
 jest.mock("../../hooks/useHeatseeker", () => ({
   __esModule: true,
   useHeatseeker: jest.fn(),
 }));
 
-// Mock lazy-loaded chart components to avoid dynamic import issues in tests
-jest.mock("../VannaChart", () => ({
-  __esModule: true,
-  default: function MockVannaChart() {
-    return <div data-testid="mock-vanna-chart" />;
-  },
-}));
-jest.mock("../CharmChart", () => ({
-  __esModule: true,
-  default: function MockCharmChart() {
-    return <div data-testid="mock-charm-chart" />;
-  },
-}));
-
-// Mock ErrorBoundary to let errors propagate in tests
-jest.mock("../../components/ErrorBoundary", () => ({
+// Mock ErrorBoundary
+jest.mock("../ErrorBoundary", () => ({
   __esModule: true,
   default: function MockErrorBoundary({ children }) {
     return <>{children}</>;
   },
 }));
 
+// Import AFTER mocks are set up
+import HeatseekerDashboard from "./HeatseekerDashboard";
 import { useHeatseeker } from "../../hooks/useHeatseeker";
 
 const IDLE = { data: null, loading: false, error: null, refresh: () => {} };
