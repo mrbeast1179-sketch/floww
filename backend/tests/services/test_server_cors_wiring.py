@@ -132,6 +132,62 @@ class TestCorsRuntimeImportRaises:
             f"mention CORS:\n{combined}"
         )
 
+    def test_staging_with_no_cors_origins_raises_runtimeerror_on_import(self):
+        """Run server.py as a subprocess with ENV=staging and CORS_ORIGINS unset.
+        Symmetric to the prod test above — staging must also refuse to import
+        without an explicit CORS allowlist. Currently staging is pinned only
+        via source-text grep (TestCorsConfiguration: cheap, but won't catch
+        runtime regressions like a refactor that accidentally lets staging
+        through). This behavioural subprocess test closes the gap.
+        Pre-fix: server.py starts without complaint.
+        Post-fix: subprocess exits non-zero with RuntimeError in stderr.
+        """
+        repo_root = Path(__file__).resolve().parents[3]
+        backend_dir = repo_root / "backend"
+
+        env = {
+            "PATH": "/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/bin:/opt/homebrew/bin",
+            "PYTHONPATH": str(backend_dir),
+            "HOME": str(Path.home()),
+            "API_SECRET_KEY": "test-secret-key",
+            "FLOWW_ENABLE_LIVE_SCHWAB": "0",
+            # ENVIRONMENT drives _env (top-of-file L52 chain `os.getenv(ENVIRONMENT)
+            # or os.getenv(ENV) or "development"`) AND the CORS guard at server.py
+            # L2513+.  Setting all three (ENVIRONMENT, ENV, FLOWW_ENV) so the
+            # resolution is unambiguous regardless of which key the resolver picks.
+            "ENVIRONMENT": "staging",
+            "ENV": "staging",
+            "FLOWW_ENV": "staging",
+        }
+
+        result = subprocess.run(
+            [sys.executable, "-W", "ignore", "-c",
+             "import os; "
+             "os.environ['ENVIRONMENT'] = 'staging'; "
+             "os.environ['ENV'] = 'staging'; "
+             # Force CORS_ORIGINS to '' so the L2513+ guard's
+             # `if not _cors_origins_env` branch fires (load_dotenv defaults to
+             # override=False; honour already-set env).
+             "os.environ['CORS_ORIGINS'] = ''; "
+             "import server"],
+            capture_output=True,
+            text=True,
+            env=env,
+            timeout=60,
+            cwd=str(backend_dir),
+        )
+        assert result.returncode != 0, (
+            "server.py imported successfully in staging without CORS_ORIGINS — "
+            "the CORS guard is missing for staging (P2.5-A). Production and "
+            "staging must be symmetric so a prod-style deploy does not silently "
+            "work in staging by accident."
+        )
+        combined = (result.stderr or "") + (result.stdout or "")
+        assert "CORS" in combined, (
+            f"server.py failed in staging-without-CORS_ORIGINS but stderr "
+            f"doesn't mention CORS:\n{combined}"
+        )
+
 
 # ============================================================
 # P2.5-B — Exception-handler wildcard-CORS leak (source-text)
