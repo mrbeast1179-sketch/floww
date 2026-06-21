@@ -9,6 +9,7 @@ Failures from the upstream provider degrade to 200 with empty payloads so
 the frontend can render an empty state instead of crashing.
 """
 
+import asyncio
 import logging
 
 from fastapi import APIRouter, HTTPException, Query
@@ -66,44 +67,40 @@ async def options_chain(
 
     try:
         import yfinance as yf
-        import asyncio
 
-        loop = asyncio.get_event_loop()
-        ticker = await loop.run_in_executor(None, lambda: yf.Ticker(sym))
-        expirations = await loop.run_in_executor(None, lambda: list(ticker.options)[:6])
+        def _fetch_chain():
+            """Synchronous yfinance call."""
+            t = yf.Ticker(sym)
+            exps = list(t.options)[:6]
+            if not exps:
+                return {"symbol": sym, "params": ["strike"] + requested_fields, "chain": []}
 
-        if not expirations:
-            return {"symbol": sym, "params": ["strike"] + requested_fields, "chain": []}
+            result = []
+            for exp in exps:
+                try:
+                    oc = t.option_chain(exp)
+                    calls, puts = oc.calls, oc.puts
+                    strikes_out = []
+                    for _, row in calls.iterrows():
+                        strike = float(row.get("strike", 0))
+                        cv, pv = [], []
+                        for field in requested_fields:
+                            v1 = row.get(field)
+                            pr = puts[puts["strike"] == strike]
+                            v2 = pr.iloc[0].get(field) if len(pr) > 0 else None
+                            cv.append(float(v1) if v1 is not None and isinstance(v1, (int, float)) else None)
+                            pv.append(float(v2) if v2 is not None and isinstance(v2, (int, float)) else None)
+                        strikes_out.append([strike, cv, pv])
+                    result.append({"expiration": exp, "strikes": strikes_out})
+                except Exception:
+                    continue
+            return {"symbol": sym, "params": ["strike"] + requested_fields, "chain": result}
 
-        chain_out = []
-        for exp in expirations:
-            try:
-                opt_chain = await loop.run_in_executor(None, lambda e=exp: ticker.option_chain(e))
-                calls = opt_chain.calls
-                puts = opt_chain.puts
-
-                strikes_out = []
-                for _, row in calls.iterrows():
-                    strike = float(row.get("strike", 0))
-                    call_vals = []
-                    put_vals = []
-                    for field in requested_fields:
-                        cv = row.get(field)
-                        put_row = puts[puts["strike"] == strike]
-                        pv = put_row.iloc[0].get(field) if len(put_row) > 0 else None
-                        call_vals.append(float(cv) if cv is not None and isinstance(cv, (int, float)) else None)
-                        put_vals.append(float(pv) if pv is not None and isinstance(pv, (int, float)) else None)
-                    strikes_out.append([strike, call_vals, put_vals])
-
-                chain_out.append({"expiration": exp, "strikes": strikes_out})
-            except Exception as e:
-                logger.warning(f"flowseeker chain: error fetching {sym} {exp}: {e}")
-                continue
-
-        return {"symbol": sym, "params": ["strike"] + requested_fields, "chain": chain_out}
+        chain_data = await asyncio.to_thread(_fetch_chain)
+        return chain_data
     except Exception as e:
         logger.warning(f"flowseeker chain: error for {sym}: {e}")
-        return {"symbol": sym, "params": ["strike"] + requested_fields, "chain": [], "error": str(e)}
+        return {"symbol": sym, "params": requested_fields, "chain": [], "error": str(e)}
 
 
 @router.get("/screen")

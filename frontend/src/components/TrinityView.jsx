@@ -88,7 +88,8 @@ const TAG_STYLES = {
 
 // ── View mode options ────────────────────────────────────────────────
 const VIEW_MODES = [
-  { id: "grid", label: "2D Grid", icon: "⊞" },
+  { id: "dom", label: "DOM", icon: "▦" },
+  { id: "grid", label: "Grid", icon: "⊞" },
   { id: "bars", label: "Bars", icon: "▤" },
   { id: "list", label: "List", icon: "☰" },
 ];
@@ -98,7 +99,7 @@ export default function TrinityView({ onFocusTicker }) {
   const [allData, setAllData] = useState({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [viewMode, setViewMode] = useState("grid");
+  const [viewMode, setViewMode] = useState("dom");
 
   useEffect(() => {
     let mounted = true;
@@ -306,9 +307,20 @@ function TrinityPanel({ ticker, data, viewMode, onFocus }) {
   const regimeColor = regime === "positive" ? "text-emerald-400" : regime === "negative" ? "text-rose-400" : "text-slate-400";
   const regimeLabel = regime === "positive" ? "positive γ" : regime === "negative" ? "negative γ" : "neutral";
 
+  // DOM column config: [key, label, maxAbs source]
+  const domCols = useMemo(() => [
+    { key: "call_gex", label: "Call GEX", field: "call_gex" },
+    { key: "gex", label: "Net GEX", field: "gex" },
+    { key: "put_gex", label: "Put GEX", field: "put_gex" },
+    { key: "vex", label: "VEX", field: "vex" },
+    { key: "charm", label: "Charm", field: "charm" },
+  ], []);
+
   const renderView = () => {
     if (rows.length === 0) return <div className="trinity-no-data">No strike data available</div>;
     switch (viewMode) {
+      case "dom":
+        return <DOMView rows={rows} domCols={domCols} spotIdx={spotIdx} kingStrike={kingStrike} flipStrike={flipStrike} tags={tags} />;
       case "bars":
         return <BarsView rows={rows} maxAbs={maxAbs} spotIdx={spotIdx} kingStrike={kingStrike} tags={tags} />;
       case "list":
@@ -425,6 +437,77 @@ function GridView({ rows, expiries, gridData, gridMaxAbs, spotIdx, flipStrike })
                     </td>
                   );
                 })}
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+// ── DOM Ladder View (strike × Greek columns) ────────────────────────
+function DOMView({ rows, domCols, spotIdx, kingStrike, flipStrike, tags }) {
+  // Compute maxAbs per DOM column for color scaling
+  const colMaxAbs = useMemo(() => {
+    const result = {};
+    for (const col of domCols) {
+      let m = 1;
+      for (const row of rows) {
+        const v = Math.abs(row[col.field] || 0);
+        if (v > m) m = v;
+      }
+      result[col.field] = m;
+    }
+    return result;
+  }, [rows, domCols]);
+
+  return (
+    <div className="trinity-dom-scroll">
+      <table className="trinity-dom-table">
+        <thead>
+          <tr className="trinity-dom-header">
+            <th className="trinity-dom-th-price">Strike</th>
+            {domCols.map(col => (
+              <th key={col.field} className="trinity-dom-th">{col.label}</th>
+            ))}
+            <th className="trinity-dom-th-tags">Tags</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((row, i) => {
+            const isCurrent = i === spotIdx;
+            const isKing = row.strike === kingStrike;
+            const isFlip = flipStrike != null && Math.abs(row.strike - flipStrike) <= (rows[0]?.strike - rows[1]?.strike || 5) / 2;
+            return (
+              <tr
+                key={row.strike}
+                className={`trinity-dom-row${isCurrent ? " trinity-row-current" : ""}${isKing ? " trinity-row-king" : ""}${isFlip ? " trinity-row-flip" : ""}`}
+              >
+                <td className={`trinity-dom-price${isCurrent ? " trinity-price-current" : ""}`}>
+                  {isCurrent && <span className="trinity-price-arrow" />}
+                  {isKing && <span className="trinity-king-star">★</span>}
+                  {fmt(row.strike, row.strike >= 1000 ? 0 : 1)}
+                </td>
+                {domCols.map(col => {
+                  const val = row[col.field] || 0;
+                  const cc = heatColor(val, colMaxAbs[col.field]);
+                  return (
+                    <td
+                      key={col.field}
+                      className={`trinity-dom-cell${cc.star ? " trinity-grid-star" : ""}${cc.extreme ? " trinity-grid-extreme" : ""}`}
+                      style={{ background: cc.bg, color: cc.text }}
+                      title={`${col.label}: ${fmtGex(val)}`}
+                    >
+                      {cc.star && <span className="trinity-grid-star-icon">★</span>}{fmtGex(val)}
+                    </td>
+                  );
+                })}
+                <td className="trinity-dom-tags">
+                  {tags.map(tag => (
+                    <span key={tag} className={`trinity-tag trinity-tag-${tag.toLowerCase()}`}>{tag}</span>
+                  ))}
+                </td>
               </tr>
             );
           })}
