@@ -34,6 +34,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+import pytest
+
 SERVER_PY = Path(__file__).resolve().parents[2] / "server.py"
 
 
@@ -92,13 +94,21 @@ class TestCorsConfiguration:
 
 
 class TestCorsRuntimeImportRaises:
-    """Behavioural regression: source text alone is not enough — verify the actual
-    startup path raises RuntimeError when env indicates prod without CORS_ORIGINS."""
+    """Behavioural regression: source text alone is not enough -- verify the actual
+    startup path raises RuntimeError for ANY non-development env without CORS_ORIGINS.
+    Parametrized over {"production", "staging", "qa"} so the fail-closed
+    `(_env != "development")` guard is exercised across the named-prod, named-
+    staging, and ad-hoc env branches in one test method (avoids triplicate
+    drift after future refactors of the guard / RuntimeError / resolver)."""
 
-    def test_prod_with_no_cors_origins_raises_runtimeerror_on_import(self):
-        """Run server.py as a subprocess with ENV=production and CORS_ORIGINS unset.
-        Pre-fix: server.py starts without complaint (wildcard fallback).
-        Post-fix: subprocess exits non-zero with RuntimeError in stderr.
+    @pytest.mark.parametrize("env_name", ["production", "staging", "qa"])
+    def test_non_dev_env_with_no_cors_origins_raises_runtimeerror_on_import(self, env_name):
+        """Run server.py as a subprocess with ENVIRONMENT=<env_name> and CORS_ORIGINS unset.
+
+        Pre-fix: server.py starts without complaint in any of {production, staging, qa}.
+        Post-fix: subprocess exits non-zero with RuntimeError in stderr mentioning
+        "CORS" + the actual env name (so operators reading the deploy log can pivot
+        immediately without cross-referencing other config).
         """
         repo_root = Path(__file__).resolve().parents[3]
         backend_dir = repo_root / "backend"
@@ -107,146 +117,18 @@ class TestCorsRuntimeImportRaises:
             **_SUBPROCESS_MIN_ENV,
             "PYTHONPATH": str(backend_dir),
             "HOME": str(Path.home()),
-            # The server.py CORS config block (server.py ~L2500+) checks
-            # `os.environ.get("ENVIRONMENT") == "production"` for the
-            # require-explicit-CORS_ORIGINS guard, so we set ENVIRONMENT here.
-            "ENVIRONMENT": "production",
-            # Also set ENV so the top-of-file `_env` helper's
-            # `os.getenv(ENVIRONMENT) or os.getenv(ENV)` fallback resolves to prod
-            # even if ENVIRONMENT is unset by the test runner.
-            "ENV": "production",
-            # Intentionally do NOT set CORS_ORIGINS.
-        }
-        # Also unset FLOWW_ENV in case it leaks.
-        env["FLOWW_ENV"] = ""
-
-        result = subprocess.run(
-            [sys.executable, "-W", "ignore", "-c",
-             "import os; "
-             "os.environ['ENVIRONMENT'] = 'production'; "
-             "os.environ['ENV'] = 'production'; "
-             # backend/.env ships CORS_ORIGINS=*, and load_dotenv() defaults to
-             # override=False; honouring already-set env, force CORS_ORIGINS to
-             # '' so the L2500+ guard's `if not _cors_origins_env` branch fires.
-             "os.environ['CORS_ORIGINS'] = ''; "
-             "import server"],
-            capture_output=True,
-            text=True,
-            env=env,
-            timeout=60,
-            cwd=str(backend_dir),
-        )
-        assert result.returncode != 0, (
-            "server.py imported successfully in production without CORS_ORIGINS — "
-            "the CORS guard is missing (P2.5-A)."
-        )
-        # Sanity: the failure message mentions CORS.
-        combined = (result.stderr or "") + (result.stdout or "")
-        assert "CORS" in combined, (
-            f"server.py failed in prod-without-CORS_ORIGINS but stderr doesn't "
-            f"mention CORS:\n{combined}"
-        )
-        # Operator-friendly RuntimeError message should include the actual env name
-        # so operators reading the deploy log can pivot immediately (no need to
-        # cross-reference other config).  Pinned via the f-string `_env!r` in
-        # server.py's CORS guard raise.
-        assert "'production'" in combined or '"production"' in combined, (
-            f"server.py raised RuntimeError but the message doesn't surface "
-            f"the actual env name ('production') for operator clarity:\n"
-            f"{combined}"
-        )
-
-    def test_staging_with_no_cors_origins_raises_runtimeerror_on_import(self):
-        """Run server.py as a subprocess with ENV=staging and CORS_ORIGINS unset.
-        Symmetric to the prod test above — staging must also refuse to import
-        without an explicit CORS allowlist. Currently staging is pinned only
-        via source-text grep (TestCorsConfiguration: cheap, but won't catch
-        runtime regressions like a refactor that accidentally lets staging
-        through). This behavioural subprocess test closes the gap.
-        Pre-fix: server.py starts without complaint.
-        Post-fix: subprocess exits non-zero with RuntimeError in stderr.
-        """
-        repo_root = Path(__file__).resolve().parents[3]
-        backend_dir = repo_root / "backend"
-
-        env = {
-            **_SUBPROCESS_MIN_ENV,
-            "PYTHONPATH": str(backend_dir),
-            "HOME": str(Path.home()),
-            # ENVIRONMENT drives _env (top-of-file L52 chain `os.getenv(ENVIRONMENT)
-            # or os.getenv(ENV) or "development"`) AND the CORS guard at server.py
-            # L2513+.  Setting all three (ENVIRONMENT, ENV, FLOWW_ENV) so the
-            # resolution is unambiguous regardless of which key the resolver picks.
-            "ENVIRONMENT": "staging",
-            "ENV": "staging",
-            "FLOWW_ENV": "staging",
+            # ENVIRONMENT drives _env (top-of-file L55 chain
+            # `os.getenv(ENVIRONMENT) or os.getenv(ENV) or "development"`) AND
+            # the CORS fail-closed guard at server.py L2525+.  Setting all 3
+            # env-key forms so the resolver picks env_name unambiguously.
+            **{k: env_name for k in ("ENVIRONMENT", "ENV", "FLOWW_ENV")},
         }
 
         result = subprocess.run(
             [sys.executable, "-W", "ignore", "-c",
-             "import os; "
-             "os.environ['ENVIRONMENT'] = 'staging'; "
-             "os.environ['ENV'] = 'staging'; "
-             # Force CORS_ORIGINS to '' so the L2513+ guard's
-             # `if not _cors_origins_env` branch fires (load_dotenv defaults to
-             # override=False; honour already-set env).
-             "os.environ['CORS_ORIGINS'] = ''; "
-             "import server"],
-            capture_output=True,
-            text=True,
-            env=env,
-            timeout=60,
-            cwd=str(backend_dir),
-        )
-        assert result.returncode != 0, (
-            "server.py imported successfully in staging without CORS_ORIGINS — "
-            "the CORS guard is missing for staging (P2.5-A). Production and "
-            "staging must be symmetric so a prod-style deploy does not silently "
-            "work in staging by accident."
-        )
-        combined = (result.stderr or "") + (result.stdout or "")
-        assert "CORS" in combined, (
-            f"server.py failed in staging-without-CORS_ORIGINS but stderr "
-            f"doesn't mention CORS:\n{combined}"
-        )
-        # Operator-friendly RuntimeError message should include the actual env name.
-        assert "'staging'" in combined or '"staging"' in combined, (
-            f"server.py raised RuntimeError but the message doesn't surface "
-            f"the actual env name ('staging') for operator clarity:\n{combined}"
-        )
-
-    def test_qa_env_without_cors_origins_raises_runtimeerror_on_import(self):
-        """Run server.py as a subprocess with ENV=qa (ad-hoc env name) and
-        CORS_ORIGINS unset.  Closes the gap that the new fail-closed default
-        (`_env != "development"`) is supposed to cover: any non-development env,
-        including ad-hoc names like "qa", "preview", "demo" plus typo'd
-        variants like "Produciton", must fail-closed rather than silently
-        fall through to the ["*"] wildcard.  Symmetric to the existing
-        prod/staging behavioural tests but pin the broader policy.
-        Pre-fix (only prod+staging named in the guard): server.py imports
-        successfully in qa env without CORS_ORIGINS (silent security gap).
-        Post-fix (this commit): subprocess exits non-zero with a "CORS"
-        mention in stderr -- the fail-closed default refused startup.
-        """
-        repo_root = Path(__file__).resolve().parents[3]
-        backend_dir = repo_root / "backend"
-
-        env = {
-            **_SUBPROCESS_MIN_ENV,
-            "PYTHONPATH": str(backend_dir),
-            "HOME": str(Path.home()),
-            # All three env-key forms set to "qa" so the resolver chain
-            # ENVIRONMENT > ENV > "development" lands on "qa" cleanly.
-            "ENVIRONMENT": "qa",
-            "ENV": "qa",
-            "FLOWW_ENV": "qa",
-        }
-
-        result = subprocess.run(
-            [sys.executable, "-W", "ignore", "-c",
-             "import os; "
-             "os.environ['ENVIRONMENT'] = 'qa'; "
-             "os.environ['ENV'] = 'qa'; "
+             f"import os; "
+             f"os.environ['ENVIRONMENT'] = {env_name!r}; "
+             f"os.environ['ENV'] = {env_name!r}; "
              # Force CORS_ORIGINS to '' so the L2525+ guard's
              # `if not _cors_origins_env` branch fires (load_dotenv defaults
              # to override=False; honour already-set env).
@@ -259,20 +141,23 @@ class TestCorsRuntimeImportRaises:
             cwd=str(backend_dir),
         )
         assert result.returncode != 0, (
-            "server.py imported successfully in qa env without CORS_ORIGINS -- "
-            "the fail-closed default is missing for ad-hoc envs (P2.5-A). "
-            "Any non-development env must raise RuntimeError, not silently "
-            "fall through to the ['*'] wildcard (typo-resistant)."
+            f"server.py imported successfully in {env_name} env without CORS_ORIGINS -- "
+            f"the CORS fail-closed guard is missing for {env_name} (P2.5-A). Any "
+            f"non-development env must raise RuntimeError, not silently fall through "
+            f"to the ['*'] wildcard (typo-resistant)."
         )
         combined = (result.stderr or "") + (result.stdout or "")
         assert "CORS" in combined, (
-            f"server.py failed in qa-without-CORS_ORIGINS but stderr doesn't "
-            f"mention CORS:\n{combined}"
+            f"server.py failed in {env_name}-without-CORS_ORIGINS but stderr "
+            f"doesn't mention CORS:\n{combined}"
         )
-        # Operator-friendly RuntimeError message should include the actual env name.
-        assert "'qa'" in combined or '"qa"' in combined, (
+        # Operator-friendly RuntimeError message should include the actual env name
+        # so operators reading the deploy log can pivot immediately (no need to
+        # cross-reference other config).  Pinned via the f-string `_env!r` in
+        # server.py's CORS guard raise.
+        assert f"'{env_name}'" in combined or f'"{env_name}"' in combined, (
             f"server.py raised RuntimeError but the message doesn't surface "
-            f"the actual env name ('qa') for operator clarity:\n{combined}"
+            f"the actual env name ('{env_name}') for operator clarity:\n{combined}"
         )
 
 # ============================================================
