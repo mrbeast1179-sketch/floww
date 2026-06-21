@@ -37,22 +37,18 @@ from pathlib import Path
 SERVER_PY = Path(__file__).resolve().parents[2] / "server.py"
 
 
-# ------------------------------------------------------------
-# Subprocess test environment baseline (P2.5-A++ DRY refactor)
-# ------------------------------------------------------------
-# Hoisted from 8+ inline env dicts that previously duplicated
-# these 3 truly-static keys verbatim across the file.  Spread
-# into each per-test env via `**_SUBPROCESS_MIN_ENV`, then add
-# call-site-computed PYTHONPATH/HOME plus any per-test-specific
-# keys (ENVIRONMENT/ENV/FLOWW_ENV/CORS_ORIGINS/etc.).
-#
-# PYTHONPATH and HOME are intentionally NOT in this constant
-# because they depend on a per-test `backend_dir` (computed
-# from `repo_root / "backend"`) and the user's actual `$HOME`
-# respectively, so they're appended at the call site.
+# Subprocess-test-env baseline (DRY refactor).  Spread
+# `**_SUBPROCESS_MIN_ENV` at each test, plus call-site-computed
+# `PYTHONPATH`/`HOME` and per-test keys (ENVIRONMENT/ENV/...).
+
 _SUBPROCESS_MIN_ENV: dict[str, str] = {
+    # PYTHONPATH and HOME intentionally EXCLUDED -- they depend on
+    # per-test `backend_dir` + per-process `Path.home()`, so each
+    # test spreads them in alongside this constant.
     "PATH": "/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/bin:/opt/homebrew/bin",
     "API_SECRET_KEY": "test-secret-key",
+    # "0" guards live-Schwab -- harmless when spread into dev tests
+    # (the live-Schwab branch never fires without creds anyway).
     "FLOWW_ENABLE_LIVE_SCHWAB": "0",
 }
 
