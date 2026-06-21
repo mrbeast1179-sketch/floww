@@ -30,6 +30,8 @@ import re
 import sys
 from pathlib import Path
 
+from ._subprocess_helpers import _SUBPROCESS_MIN_ENV
+
 SERVER_PY = Path(__file__).resolve().parents[2] / "server.py"
 
 
@@ -110,11 +112,9 @@ class TestServerP1ImportDoesNotCrash:
         backend_dir = repo_root / "backend"
 
         env = {
-            "PATH": "/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/bin:/opt/homebrew/bin",
+            **_SUBPROCESS_MIN_ENV,
             "PYTHONPATH": str(backend_dir),
             "HOME": str(Path.home()),
-            "API_SECRET_KEY": "test-secret-key",
-            "FLOWW_ENABLE_LIVE_SCHWAB": "0",  # paper-only
         }
         # Intentionally do NOT set MONGO_URL: the test exercises the default-on-miss.
 

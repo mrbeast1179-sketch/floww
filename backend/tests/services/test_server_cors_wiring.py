@@ -34,25 +34,12 @@ import subprocess
 import sys
 from pathlib import Path
 
+from ._subprocess_helpers import _SUBPROCESS_MIN_ENV
+
 import pytest
 
 SERVER_PY = Path(__file__).resolve().parents[2] / "server.py"
 
-
-# Subprocess-test-env baseline (DRY refactor).  Spread
-# `**_SUBPROCESS_MIN_ENV` at each test, plus call-site-computed
-# `PYTHONPATH`/`HOME` and per-test keys (ENVIRONMENT/ENV/...).
-
-_SUBPROCESS_MIN_ENV: dict[str, str] = {
-    # PYTHONPATH and HOME intentionally EXCLUDED -- they depend on
-    # per-test `backend_dir` + per-process `Path.home()`, so each
-    # test spreads them in alongside this constant.
-    "PATH": "/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/bin:/opt/homebrew/bin",
-    "API_SECRET_KEY": "test-secret-key",
-    # "0" guards live-Schwab -- harmless when spread into dev tests
-    # (the live-Schwab branch never fires without creds anyway).
-    "FLOWW_ENABLE_LIVE_SCHWAB": "0",
-}
 
 
 
