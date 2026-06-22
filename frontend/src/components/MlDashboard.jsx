@@ -76,13 +76,21 @@ export function MlDashboard({ ticker = "SPY", spot }) {
     setLoading(true);
     setError(null);
     try {
-      const r = await fetch(`${API}/ml/briefing/${ticker}`);
-      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 8000);
+      const r = await fetch(`${API}/ml/predict/${ticker}`, { signal: controller.signal });
+      clearTimeout(timeoutId);
+      if (!r.ok) {
+        if (r.status === 404) throw new Error("ML model not loaded for this ticker");
+        if (r.status === 503) throw new Error("ML service unavailable");
+        throw new Error(`HTTP ${r.status}`);
+      }
       const data = await r.json();
       setPrediction(data);
       setHistory(prev => [data, ...prev.filter(p => !(p.ticker === data.ticker && p.ts === data.ts))].slice(0, 20));
     } catch (e) {
-      setError(e.message);
+      if (e.name === "AbortError") setError("ML inference timeout — model may be loading");
+      else setError(e.message);
     } finally {
       setLoading(false);
     }
@@ -137,8 +145,9 @@ export function MlDashboard({ ticker = "SPY", spot }) {
       </div>
 
       {error && (
-        <div className="text-[9px] text-amber-400/70 bg-amber-500/5 rounded px-1.5 py-0.5 border border-amber-500/20">
-          {error}
+        <div className="text-[10px] text-amber-400 bg-amber-500/5 rounded-lg px-2 py-1.5 border border-amber-500/20">
+          <span className="font-bold">⚠</span> {error}
+          {!error.includes("timeout") && <span className="text-slate-500 ml-1">— ML models may need training</span>}
         </div>
       )}
 
