@@ -441,6 +441,14 @@ async def unusual_activity_alerts(
 
             chain_data = raw.get("chain", [])
             spot = float(raw.get("underlying_price", 0) or 0)
+            # Fallback: extract spot from first strike's underlying_price field
+            if spot == 0 and chain_data and chain_data[0].get("strikes"):
+                first_strike = chain_data[0]["strikes"][0]
+                if first_strike and len(first_strike) > 1:
+                    cv = first_strike[1] if len(first_strike) > 1 else []
+                    # underlying_price is at index 12 in the requested columns
+                    if cv and len(cv) > 12:
+                        spot = float(cv[12] or 0)
 
             # Analyze each expiry for unusual activity
             all_alerts = []
@@ -465,14 +473,18 @@ async def unusual_activity_alerts(
                         except (TypeError, ValueError):
                             return 0.0
 
+                    # Column indices matching the requested columns array:
+                    # 0:ticker 1:strike_price 2:expiration_date 3:contract_type
+                    # 4:open_interest 5:implied_volatility 6:delta 7:gamma
+                    # 8:bid 9:ask 10:midpoint 11:day_volume 12:underlying_price
                     call_oi = safe_float(cv, 4)
                     put_oi = safe_float(pv, 4)
-                    call_vol = safe_float(cv, 9)
-                    put_vol = safe_float(pv, 9)
-                    call_iv = safe_float(cv, 3)
-                    put_iv = safe_float(pv, 3)
-                    call_delta = safe_float(cv, 2)
-                    put_delta = safe_float(pv, 2)
+                    call_vol = safe_float(cv, 11)
+                    put_vol = safe_float(pv, 11)
+                    call_iv = safe_float(cv, 5)
+                    put_iv = safe_float(pv, 5)
+                    call_delta = safe_float(cv, 6)
+                    put_delta = safe_float(pv, 6)
                     call_bid = safe_float(cv, 8)
                     call_ask = safe_float(cv, 9)
                     put_bid = safe_float(pv, 8)
