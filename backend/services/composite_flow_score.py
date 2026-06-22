@@ -1,0 +1,283 @@
+"""
+backend/services/composite_flow_score.py
+
+Composite Flow Score synthesis service.
+
+This is the *headline synthesis* of every analytics service that has
+been ported into Flowseeker Pro so far. It takes the existing five
+sub-services and produces a single 0..100 tradable conviction score +
+a 4-band label, displayed as the LEAD chip in the Flowseeker Pro
+summary bar.
+
+Pure-Python only — no torch / numba / scipy (Round-9 freeze rule).
+
+The score combines four orthogonal sub-scores (each in [0, 1]):
+
+  * **illiquidity** — average of (Amihud normalised) and (|Kyle's λ|
+    normalised). High when the chained illiquidity story suggests
+    shallow markets.
+  * **toxicity**    — VPIN itself (already 0..1). High when the order
+    flow has a high informed-fraction.
+  * **dislocation** — HMM regime confidence × disagreement-with-OFI
+    factor. ELEVATES when regime and flow disagree (tradable
+    mispricing).
+  * **direction**   — |OFI aggregate| normalised to a 1000-share cap.
+    High when short-term book dominance is strong in either direction.
+
+Composite::
+
+    score = 100 · (0.30·illiquidity + 0.25·toxicity
+                  + 0.25·dislocation + 0.20·direction)
+
+Threshold bands (mirrors the Blademap
+:func:`institutional_detector.convictionLabel` precedent)::
+
+      score >= 80         → HIGH    (green)
+      60 ≤ score < 80     → MED     (amber)
+      40 ≤ score < 60     → WATCH   (slate-grey)
+      score < 40          → LOW     (slate-dark)
+
+The composite is **strictly ANY-warming**: if any sub-service reports
+``is_warming=True`` (or OFI lacks ≥2 chain snapshots) the composite is
+flagged ``is_warming=True`` and ``score = 0`` — we never report a
+signal built on under-initialised components.
+
+Output schema (snake_case, matches the established Flowseeker style)::
+
+    {
+        "composite":     float,    # 0..100 (or 0 while warming)
+        "label":         "HIGH" | "MED" | "WATCH" | "LOW",
+        "label_color":   "#...",
+        "sub_scores":    { "illiquidity": .., "toxicity": ..,
+                           "dislocation": .., "direction": .. },
+        "components":    { "amihud_norm": .., "kyle_norm": ..,
+                           "vpin": .., "regime": "TRENDING_BULL"|..,
+                           "ofi_aggr": float },
+        "n_obs_min":     int,
+        "is_warming":    bool,
+    }
+
+Usage::
+
+    from services.composite_flow_score import CompositeFlowScore
+    out = CompositeFlowScore.compute(
+        amihud_out  = amihud.compute(),
+        kyle_out    = kyle.compute(),
+        vpin_out    = vpin.compute(),
+        regime_out  = hmm.classify(),
+        ofi_out     = sof.compute(),
+    )
+"""
+
+from __future__ import annotations
+
+from typing import Any, Dict
+
+
+# ─────────────────────────────────────────────────────────────────────
+# Label band + colour palette (mirrors Blademap conviction palette)
+# ─────────────────────────────────────────────────────────────────────
+
+LABEL_HIGH = "HIGH"
+LABEL_MED = "MED"
+LABEL_WATCH = "WATCH"
+LABEL_LOW = "LOW"
+
+LABEL_COLORS: Dict[str, str] = {
+    LABEL_HIGH:  "#22c55e",  # green
+    LABEL_MED:   "#fbbf24",  # amber
+    LABEL_WATCH: "#a3a3a3",  # slate-grey
+    LABEL_LOW:   "#64748b",  # slate-dark
+}
+
+
+def _classify_score(score: float) -> str:
+    """Map a 0..100 composite to a 4-band label per Blademap convention."""
+    if score >= 80.0:
+        return LABEL_HIGH
+    if score >= 60.0:
+        return LABEL_MED
+    if score >= 40.0:
+        return LABEL_WATCH
+    return LABEL_LOW
+
+
+# ─────────────────────────────────────────────────────────────────────
+# Sub-score normalisation helpers (pure functions, no torch)
+# ─────────────────────────────────────────────────────────────────────
+
+# Anchor values for the illiquidity sub-scores (10× the ILLIQUID threshold
+# in each raw-unit space, so a "1.0" sub-score maps well above the spec
+# ILLIQUID band).
+_AMIHUD_ANCHOR = 1e-4
+_KYLE_ANCHOR = 0.01     # 2× the spec ILLIQUID threshold (0.005)
+_OFI_ANCHOR = 1000.0    # shares; caps absolute OFI aggregate
+
+
+def _norm_amihud(amihud: float) -> float:
+    a = float(amihud or 0.0)
+    if a < 0.0:
+        a = 0.0
+    return min(a / _AMIHUD_ANCHOR, 1.0)
+
+
+def _norm_kyle(lam: float) -> float:
+    a = abs(float(lam or 0.0))
+    if a < 0.0:
+        a = 0.0
+    return min(a / _KYLE_ANCHOR, 1.0)
+
+
+def _norm_vpin(vpin: float) -> float:
+    v = float(vpin or 0.0)
+    if v < 0.0:
+        v = 0.0
+    return min(v, 1.0)
+
+
+def _norm_direction(ofi_aggr: float) -> float:
+    v = abs(float(ofi_aggr or 0.0))
+    return min(v / _OFI_ANCHOR, 1.0)
+
+
+def _dislocation(regime_out: Dict[str, Any], ofi_out: Dict[str, Any]) -> float:
+    """Combine HMM regime confidence with regime/flow disagreement.
+
+    A trending regime agreeing with the flow direction scores
+    ~``0.5 · confidence`` (normal trend; *some* dislocation).
+    A trending regime disagreeing with the flow direction scores
+    ``1.0 · confidence`` (deep dislocation; tradable mispricing).
+    A ranging regime scores 0 regardless of OFI.
+
+    Capped at 1.0.
+    """
+    state = regime_out.get("current_state", "RANGING") or "RANGING"
+    confidence = float(regime_out.get("confidence", 0.0) or 0.0)
+    raw_ofi = float(ofi_out.get("of_aggregated", 0.0) or 0.0)
+
+    if state == "RANGING":
+        return 0.0
+
+    state_bull = state == "TRENDING_BULL"
+    ofi_bull = raw_ofi > 0.0
+    conflict = 1.0 if (state_bull != ofi_bull) else 0.0
+    non_ranging = 1.0
+    raw = confidence * (non_ranging * 0.5 + conflict * 1.0)
+    return min(raw, 1.0)
+
+
+# ─────────────────────────────────────────────────────────────────────
+# Pure synthesis class (no per-instance state; sub-services own the
+# rolling windows).
+# ─────────────────────────────────────────────────────────────────────
+
+# Sub-score weights (sum = 1.0; illiquidity gets the largest slice
+# because market-depth collapse synchronously opens the door for tox
+# and dislocation to compound).
+_W_ILLIQUIDITY = 0.30
+_W_TOXICITY    = 0.25
+_W_DISLOCATION = 0.25
+_W_DIRECTION   = 0.20
+
+
+class CompositeFlowScore:
+    """Stateless synthesis of the Flowseeker Pro 5-service stack."""
+
+    @staticmethod
+    def compute(
+        amihud_out:  Dict[str, Any],
+        kyle_out:    Dict[str, Any],
+        vpin_out:    Dict[str, Any],
+        regime_out:  Dict[str, Any],
+        ofi_out:     Dict[str, Any],
+    ) -> Dict[str, Any]:
+        # 1. Strict ANY-warming across sub-services. OFI is special-cased
+        # because it doesn't expose ``is_warming`` — its warming marker
+        # is ``snaps_used < 2``.
+        amihud_warming = bool(amihud_out.get("is_warming", True))
+        kyle_warming   = bool(kyle_out.get("is_warming", True))
+        vpin_warming   = bool(vpin_out.get("is_warming", True))
+        regime_warming = bool(regime_out.get("is_warming", True))
+        ofi_snaps      = int(ofi_out.get("snaps_used", 0) or 0)
+        ofi_warming    = ofi_snaps < 2
+        is_warming     = any([
+            amihud_warming, kyle_warming, vpin_warming,
+            regime_warming, ofi_warming,
+        ])
+
+        # The minimum n_obs across the stack (excluding OFI which uses
+        # snaps_used).
+        n_obs_min = min(
+            int(amihud_out.get("n_obs", 0) or 0),
+            int(kyle_out.get("n_obs", 0) or 0),
+            int(vpin_out.get("n_buckets",
+                             vpin_out.get("n_obs", 0)) or 0),
+            int(regime_out.get("n_obs", 0) or 0),
+        )
+
+        # 2. Per-sub-score normalisation.
+        raw_amihud   = float(amihud_out.get("amihud", 0.0) or 0.0)
+        norm_amihud  = _norm_amihud(raw_amihud)
+        raw_kyle     = float(kyle_out.get("lambda_value", 0.0) or 0.0)
+        norm_kyle    = _norm_kyle(raw_kyle)
+        illiquidity_score = (norm_amihud + norm_kyle) / 2.0
+
+        raw_vpin     = float(vpin_out.get("vpin", 0.0) or 0.0)
+        toxicity_score    = _norm_vpin(raw_vpin)
+
+        dislocation_score = _dislocation(regime_out, ofi_out)
+
+        raw_ofi_aggr = float(ofi_out.get("of_aggregated", 0.0) or 0.0)
+        direction_score   = _norm_direction(raw_ofi_aggr)
+
+        # 3. Weighted composite.
+        composite_raw = 100.0 * (
+            _W_ILLIQUIDITY * illiquidity_score
+            + _W_TOXICITY    * toxicity_score
+            + _W_DISLOCATION * dislocation_score
+            + _W_DIRECTION   * direction_score
+        )
+        if is_warming:
+            composite_raw = 0.0
+        composite_final = float(round(composite_raw, 1))
+
+        # 4. Label + colour.
+        label = _classify_score(composite_final)
+        label_color = LABEL_COLORS[label]
+
+        # 5. Clip the components payload so it stays Ethernet-safe
+        # (round large OFI aggregates to a 4-digit float to avoid
+        # printing e.g. 9.87654e32 in the UI).
+        clipped_ofi = max(-9999.0, min(raw_ofi_aggr, 9999.0))
+
+        return {
+            "composite":   composite_final,
+            "label":       label,
+            "label_color": label_color,
+            "sub_scores": {
+                "illiquidity": float(round(illiquidity_score, 3)),
+                "toxicity":    float(round(toxicity_score, 3)),
+                "dislocation": float(round(dislocation_score, 3)),
+                "direction":   float(round(direction_score, 3)),
+            },
+            "components": {
+                "amihud_norm": float(round(norm_amihud, 3)),
+                "kyle_norm":   float(round(norm_kyle, 3)),
+                "vpin":        float(round(raw_vpin, 3)),
+                "regime":      str(regime_out.get("current_state",
+                                                   "RANGING") or "RANGING"),
+                "ofi_aggr":    float(clipped_ofi),
+            },
+            "n_obs_min":  int(n_obs_min),
+            "is_warming": bool(is_warming),
+        }
+
+
+__all__ = [
+    "CompositeFlowScore",
+    "LABEL_HIGH",
+    "LABEL_MED",
+    "LABEL_WATCH",
+    "LABEL_LOW",
+    "LABEL_COLORS",
+]

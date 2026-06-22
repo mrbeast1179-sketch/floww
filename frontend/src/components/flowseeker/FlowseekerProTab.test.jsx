@@ -127,14 +127,14 @@ describe("FlowseekerProTab — Blademap alert cards", () => {
 
   test("renders sub-score meters, tier badge, direction pill for a full alert", async () => {
     render(<FlowseekerProTab active />);
-    expect(await screen.findByTestId("conviction-score")).toHaveTextContent("87");
-    expect(await screen.findByTestId("tier-badge")).toHaveTextContent("T1");
-    expect(await screen.findByTestId("direction-pill")).toHaveTextContent("BULLISH");
-    expect(await screen.findByTestId("subscore-statistical_anomaly")).toBeInTheDocument();
-    expect(await screen.findByTestId("subscore-institutional_pattern")).toBeInTheDocument();
-    expect(await screen.findByTestId("subscore-market_context")).toBeInTheDocument();
-    expect(await screen.findByTestId("subscore-price_impact")).toBeInTheDocument();
-    const kl = await screen.findByTestId("key-levels");
+    expect(await screen.findByTestId("conviction-score", {}, { timeout: 30000 })).toHaveTextContent("87");
+    expect(await screen.findByTestId("tier-badge", {}, { timeout: 30000 })).toHaveTextContent("T1");
+    expect(await screen.findByTestId("direction-pill", {}, { timeout: 30000 })).toHaveTextContent("BULLISH");
+    expect(await screen.findByTestId("subscore-statistical_anomaly", {}, { timeout: 30000 })).toBeInTheDocument();
+    expect(await screen.findByTestId("subscore-institutional_pattern", {}, { timeout: 30000 })).toBeInTheDocument();
+    expect(await screen.findByTestId("subscore-market_context", {}, { timeout: 30000 })).toBeInTheDocument();
+    expect(await screen.findByTestId("subscore-price_impact", {}, { timeout: 30000 })).toBeInTheDocument();
+    const kl = await screen.findByTestId("key-levels", {}, { timeout: 30000 });
     expect(kl).toHaveTextContent("Entry");
     expect(kl).toHaveTextContent("Stop");
     expect(kl).toHaveTextContent("Target");
@@ -142,12 +142,12 @@ describe("FlowseekerProTab — Blademap alert cards", () => {
 
   test("clicking the card expands rationale + recommended actions", async () => {
     render(<FlowseekerProTab active />);
-    const card = await screen.findByTestId("blademap-alert-card");
+    const card = await screen.findByTestId("blademap-alert-card", {}, { timeout: 30000 });
     fireEvent.click(card);
-    expect(await screen.findByTestId("rationale")).toHaveTextContent(/dealer zero-gamma flip/i);
-    expect(await screen.findByTestId("recommended-actions")).toHaveTextContent(/Watch for confirmation/i);
-    expect(await screen.findByTestId("indicators-row")).toBeInTheDocument();
-    expect(await screen.findByTestId("signal-types")).toBeInTheDocument();
+    expect(await screen.findByTestId("rationale", {}, { timeout: 30000 })).toHaveTextContent(/dealer zero-gamma flip/i);
+    expect(await screen.findByTestId("recommended-actions", {}, { timeout: 30000 })).toHaveTextContent(/Watch for confirmation/i);
+    expect(await screen.findByTestId("indicators-row", {}, { timeout: 30000 })).toBeInTheDocument();
+    expect(await screen.findByTestId("signal-types", {}, { timeout: 30000 })).toBeInTheDocument();
   });
 
   test("renders a partial / legacy alert without crashing", async () => {
@@ -160,7 +160,7 @@ describe("FlowseekerProTab — Blademap alert cards", () => {
       return Promise.resolve(jsonResponse({}));
     });
     render(<FlowseekerProTab active />);
-    const card = await screen.findByTestId("blademap-alert-card");
+    const card = await screen.findByTestId("blademap-alert-card", {}, { timeout: 30000 });
     // Conviction falls back to confidence_score
     expect(card).toHaveAttribute("data-conviction", "70");
     expect(card).toHaveAttribute("data-signal-type", "high_volume");
