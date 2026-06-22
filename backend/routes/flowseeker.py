@@ -487,9 +487,9 @@ async def unusual_activity_alerts(
                         "put_bid": put_bid, "put_ask": put_ask,
                     })
 
-                # Only analyze strikes near spot price (within 15%)
+                # Only analyze strikes near spot price (within 25%)
                 if spot > 0:
-                    near_money = [d for d in call_data if abs(d["strike"] - spot) / spot <= 0.15]
+                    near_money = [d for d in call_data if abs(d["strike"] - spot) / spot <= 0.25]
                 else:
                     near_money = call_data
                 
@@ -529,21 +529,21 @@ async def unusual_activity_alerts(
                         confidence_score += 10
                         factors.append("OI: %.0f (avg: %.0f, %.1fx average)" % (total_oi, avg_oi, total_oi / max(avg_oi, 1)))
 
-                    # Check delta extreme with high OI (min 500)
-                    if abs(d["call_delta"]) > 0.7 and d["call_oi"] > 500:
+                    # Check delta extreme with high OI (min 200)
+                    if abs(d["call_delta"]) > 0.6 and d["call_oi"] > 200:
                         alerts_for_strike.append("delta_extreme")
                         confidence_score += 8
                         factors.append("Deep ITM call (delta: %.2f, OI: %.0f)" % (d["call_delta"], d["call_oi"]))
-                    elif abs(d["put_delta"]) > 0.7 and d["put_oi"] > 500:
+                    elif abs(d["put_delta"]) > 0.6 and d["put_oi"] > 200:
                         alerts_for_strike.append("delta_extreme")
                         confidence_score += 8
                         factors.append("Deep ITM put (delta: %.2f, OI: %.0f)" % (abs(d["put_delta"]), d["put_oi"]))
 
-                    # Check premium concentration (min 1000 OI)
+                    # Check premium concentration (min 500 OI)
                     call_mid = (d["call_bid"] + d["call_ask"]) / 2 if d["call_bid"] > 0 and d["call_ask"] > 0 else 0
-                    if call_mid > 0 and total_oi >= 1000:
+                    if call_mid > 0 and total_oi >= 500:
                         premium = call_mid * total_oi * 100
-                        if premium > 500_000:
+                        if premium > 250_000:
                             alerts_for_strike.append("premium_concentration")
                             confidence_score += 12
                             factors.append("Est. premium: $%.0fK concentrated at strike %.0f" % (premium / 1000, d["strike"]))

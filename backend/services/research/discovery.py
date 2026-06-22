@@ -25,9 +25,12 @@ import time
 import urllib.parse
 import urllib.request
 import xml.etree.ElementTree as ET
+import logging
 from abc import ABC, abstractmethod
 from collections.abc import Callable, Iterable
 from dataclasses import asdict, dataclass, field
+
+logger = logging.getLogger(__name__)
 from datetime import UTC, datetime
 from typing import Any
 
@@ -496,7 +499,11 @@ class SSRNSource(DiscoverySource):
                     tags=["ssrn", "preprint"],
                     license=None,
                 ))
-        except Exception:
+        except Exception as e:
+            logger.warning(
+                f"research_discovery: ssrn-tail-failed: {e}",
+                exc_info=True,
+            )
             pass
         return results
 
@@ -595,7 +602,11 @@ class NBERSource(DiscoverySource):
                     tags=["nber", "working-paper"],
                     license=None,
                 ))
-        except Exception:
+        except Exception as e:
+            logger.warning(
+                f"research_discovery: nber-tail-failed: {e}",
+                exc_info=True,
+            )
             pass
         return results
 
