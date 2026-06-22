@@ -23,6 +23,7 @@ export default function FlowseekerProTab({ active = true }) {
       const d = await r.json();
       if (!d?.chain?.length) throw new Error("No chain data");
       setChain(d);
+      // Default to nearest expiry (first one)
       setExpiryIdx(0);
       setLastUpdate(new Date().toLocaleTimeString());
     } catch (e) {
@@ -78,28 +79,34 @@ export default function FlowseekerProTab({ active = true }) {
         { y: strikes, x: putOI.map(v => (v / maxOI) * 100), type: "bar", orientation: "h",
           name: "Put OI", marker: { color: "rgba(244,63,94,0.65)" },
           customdata: putOI, hovertemplate: "Put OI: %{customdata}<extra></extra>" },
-        { y: strikes, x: deltaLine.map(v => (v - 0.5) * 200), type: "scatter", mode: "lines",
-          name: "Delta", line: { color: "#fbbf24", width: 2 } },
+        { y: strikes, x: deltaLine.map(v => (v - 0.5) * 80), type: "scatter", mode: "lines",
+          name: "Delta", line: { color: "#fbbf24", width: 2.5 }, xaxis: "x2" },
       ];
 
-      if (spot > 0) {
-        traces.push({
-          y: [spot, spot], x: [-100, 100], type: "scatter", mode: "lines",
-          name: `Spot $${spot.toFixed(0)}`, line: { color: "#38bdf8", width: 1.5, dash: "dot" },
-        });
-      }
+      // Spot price shown as shape + annotation, not a trace
 
       const layout = {
         title: { text: `OI by Strike — ${ticker} (${exp.expiration}) — ${strikes.length} strikes`,
           font: { color: "#94a3b8", size: 12 } },
         paper_bgcolor: "rgba(0,0,0,0)", plot_bgcolor: "rgba(0,0,0,0)", barmode: "overlay",
-        margin: { l: 50, r: 20, t: 35, b: 35 },
+        margin: { l: 50, r: 60, t: 35, b: 35 },
         xaxis: { title: "OI (norm)", color: "#64748b", zeroline: true, zerolinecolor: "#334155",
-          gridcolor: "#1e293b", tickfont: { size: 8 } },
+          gridcolor: "#1e293b", tickfont: { size: 8 }, range: [-100, 100] },
+        xaxis2: { overlaying: "x", side: "top", title: "Delta", color: "#fbbf24",
+          tickfont: { size: 7, color: "#fbbf24" }, range: [-40, 40],
+          tickvals: [-40, -20, 0, 20, 40], ticktext: ["1.0", "0.75", "0.5", "0.25", "0.0"] },
         yaxis: { title: "Strike", color: "#64748b", gridcolor: "#1e293b", tickfont: { size: 8 } },
         legend: { font: { color: "#94a3b8", size: 9 }, orientation: "h", y: 1.08 },
         hovermode: "y unified", showlegend: true,
         height: Math.max(350, strikes.length * 16),
+        shapes: spot > 0 ? [{
+          type: "line", x0: -100, x1: 100, y0: spot, y1: spot,
+          line: { color: "#38bdf8", width: 1.5, dash: "dot" },
+        }] : [],
+        annotations: spot > 0 ? [{
+          x: 95, y: spot, text: `$${spot.toFixed(0)}`, showarrow: false,
+          font: { color: "#38bdf8", size: 9 }, xref: "x", yref: "y",
+        }] : [],
       };
 
       setChartData({ traces, layout });

@@ -260,7 +260,15 @@ async def fetch_chain_from_cvserver(
     if fields is None:
         fields = DEFAULT_FIELDS
 
-    try:
+    # Map yfinance-style index symbols to cvserver format
+    # cvserver uses I: prefix for index underlyings
+    _symbol_map = {
+        "^SPX": "I:SPX",
+        "^NDX": "I:NDX",
+        "^RUT": "I:RUT",
+        "^VIX": "I:VIX",
+    }
+    cv_symbol = _symbol_map.get(symbol.upper(), symbol.upper())
         raw = await _cvserver_call_async("tools/call", {
             "name": "get_chain",
             "arguments": {
