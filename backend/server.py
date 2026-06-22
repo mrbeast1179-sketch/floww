@@ -1532,6 +1532,7 @@ _BUILD_HEATMAP_CACHE: dict[str, Any] = {}
 _BUILD_HEATMAP_CACHE_TTL = 60
 
 async def build_heatmap(ticker: str, max_expiries: int = 4, with_taps: bool = True, mode: str = "day", dte: int | None = None, scalp: bool = False, max_strikes: int = 200) -> dict[str, Any]:
+    log.info(f"build_heatmap: {ticker} expiries={max_expiries} mode={mode} max_strikes={max_strikes}")
     # Check cache first
     cache_key = f"{ticker}:{max_expiries}:{mode}:{dte}:{scalp}:{with_taps}:{max_strikes}"
     cached = _BUILD_HEATMAP_CACHE.get(cache_key)
