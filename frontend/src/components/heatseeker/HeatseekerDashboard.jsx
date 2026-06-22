@@ -215,6 +215,17 @@ export default function HeatseekerDashboard({
 
   return (
     <div className="p-4 space-y-4" data-testid="heatseeker-dashboard">
+      {/* Header */}
+      <div className="flex items-baseline justify-between">
+        <div>
+          <div className="label">Skylit Heatseeker</div>
+          <div className="text-sm font-bold tracking-wider">
+            {normalizedTicker}
+            <span className="ml-2 text-[10px] uppercase tracking-widest text-slate-500">Wave 1 + 2 + 3</span>
+          </div>
+        </div>
+        <StaleDataBadge dataAge={dataAge} dataFallback={dataFallback} />
+      </div>
 
       {/* Offline banner */}
       <OfflineBanner isOffline={isOffline} />
