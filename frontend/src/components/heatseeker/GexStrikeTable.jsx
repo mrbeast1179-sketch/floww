@@ -66,8 +66,8 @@ export default function GexStrikeTable({ rows = [], spot }) {
             let rowCls = "gex-row";
             if (isKing) rowCls += " gex-row-king";
             else if (flrPct >= 99) rowCls += " gex-row-king";
-            else if (flrPct >= 40) rowCls += " gex-row-high";
-            else if (flrPct >= 10) rowCls += " gex-row-mid";
+            else if (flrPct >= 40) rowCls += " gex-row-extreme";
+            else if (flrPct >= 10) rowCls += " gex-row-high";
             else if (flrPct >= 2) rowCls += " gex-row-low";
             if (near && !isKing) rowCls += " gex-row-near";
 

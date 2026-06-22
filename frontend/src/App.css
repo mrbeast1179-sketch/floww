@@ -1810,9 +1810,9 @@ button, select, input {
 .gex-td-air { text-align: right; color: #475569; }
 .gex-td-net { text-align: right; font-weight: 600; }
 .gex-row:hover { background: rgba(255,255,255,0.03); }
-.gex-row-current { background: rgba(255,255,255,0.06) !important; }
-.gex-row-near { background: rgba(251,191,36,0.10) !important; }
-.gex-row-king { background: rgba(168,85,247,0.22) !important; box-shadow: inset 3px 0 0 #2dd4bf; }
-.gex-row-high { background: rgba(168,85,247,0.18) !important; }
-.gex-row-mid  { background: rgba(30,58,138,0.35) !important; }
-.gex-row-low  { background: rgba(148,163,184,0.08) !important; }
+.gex-row-current { background: rgba(255,255,255,0.05) !important; }
+.gex-row-near { background: rgba(251,191,36,0.08) !important; }
+.gex-row-king { background: rgba(168,85,247,0.30) !important; box-shadow: inset 3px 0 0 #2dd4bf; }
+.gex-row-extreme { background: rgba(168,85,247,0.22) !important; }
+.gex-row-high { background: rgba(30,58,138,0.35) !important; }
+.gex-row-low { background: rgba(148,163,184,0.08) !important; }
