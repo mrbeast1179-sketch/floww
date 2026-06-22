@@ -48,7 +48,7 @@ from vol_analytics import (
     calc_skew_metrics,
 )
 
-ROOT_DIR = Path(__file__).parent
+ROOT_DIR = Path(__file__).parent  # backend/
 load_dotenv(ROOT_DIR / ".env")
 
 _env = os.getenv("ENVIRONMENT") or os.getenv("ENV") or "development"

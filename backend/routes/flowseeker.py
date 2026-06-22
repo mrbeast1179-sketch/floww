@@ -7,6 +7,7 @@ Falls back to yfinance when CVForge is unavailable.
 """
 
 import asyncio
+from datetime import datetime
 import json
 import logging
 import math
@@ -383,3 +384,100 @@ async def _cvforge_screen(
     except Exception as e:
         logger.warning(f"cvforge screen: {symbol}: {e}")
     return None
+
+
+@router.get("/alerts/{symbol}")
+async def sweep_alerts(symbol: str, min_premium: float = Query(50000.0, ge=0)):
+    """
+    Live whale sweep alerts for a symbol.
+    Returns large trades classified as sweeps, blocks, or unusual activity.
+    Filters by minimum premium (default $50k).
+    """
+    sym = (symbol or "").strip().upper()
+
+    # Try CVForge screen API for large trades
+    columns = [
+        "ticker", "strike_price", "expiration_date", "contract_type",
+        "trade_size", "trade_price", "open_interest", "implied_volatility",
+        "delta", "trade_conditions", "trade_exchange",
+    ]
+    filters = [
+        {"field": "underlying_ticker", "op": "eq", "value": sym},
+        {"field": "trade_price", "op": "gte", "value": min_premium / 100},
+    ]
+    if not CVFORGE_API_KEY:
+        return {"ticker": sym, "alerts": [], "error": "no API key"}
+
+    headers = {
+        "Content-Type": "application/json",
+        "Authorization": f"Bearer {CVFORGE_API_KEY}",
+    }
+    payload = {
+        "jsonrpc": "2.0",
+        "id": 1,
+        "method": "tools/call",
+        "params": {
+            "name": "screen",
+            "arguments": {
+                "columns": columns,
+                "filters": filters,
+                "sort": [{"field": "trade_price", "direction": "desc"}],
+                "limit": 50,
+            },
+        },
+    }
+    try:
+        async with httpx.AsyncClient(timeout=CVFORGE_TIMEOUT) as client:
+            resp = await client.post(CVFORGE_URL, json=payload, headers=headers)
+            if resp.status_code != 200:
+                return {"ticker": sym, "alerts": [], "error": f"HTTP {resp.status_code}"}
+            result = resp.json()
+            content = result.get("result", {}).get("content", [])
+            if content and content[0].get("type") == "text":
+                d = json.loads(content[0]["text"])
+            else:
+                d = result.get("result", {})
+
+            rows = d.get("rows", [])
+            alerts = []
+            for r in rows:
+                trade_size = float(r[4] or 0)
+                trade_price = float(r[5] or 0)
+                oi = float(r[6] or 0)
+                premium = trade_size * trade_price * 100  # per contract = 100 shares
+
+                # Classify the trade
+                classification = "regular"
+                if trade_size >= 100 and premium >= min_premium:
+                    classification = "sweep"
+                if trade_size >= 500:
+                    classification = "block"
+                if oi > 0 and trade_size / oi > 0.5:
+                    classification = "unusual"
+
+                alerts.append({
+                    "ticker": r[0],
+                    "strike": float(r[1] or 0),
+                    "expiration": r[2],
+                    "type": r[3],
+                    "size": trade_size,
+                    "price": trade_price,
+                    "oi": oi,
+                    "iv": float(r[7] or 0),
+                    "delta": float(r[8] or 0),
+                    "conditions": r[9] or "",
+                    "exchange": r[10] or "",
+                    "premium": premium,
+                    "classification": classification,
+                    "timestamp": datetime.now().isoformat(),
+                })
+
+            return {
+                "ticker": sym,
+                "count": len(alerts),
+                "alerts": alerts,
+                "data_source": "cvserver",
+            }
+    except Exception as e:
+        logger.warning(f"sweep alerts: {sym}: {e}")
+        return {"ticker": sym, "alerts": [], "error": str(e)}
