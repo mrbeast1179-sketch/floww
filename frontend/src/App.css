@@ -136,6 +136,7 @@
     grid-template-columns: 240px 1fr;
     grid-template-rows: 1fr;
     min-height: 0;
+    overflow: hidden;
   }
 
   .heatseeker-sidebar-left {
@@ -153,9 +154,10 @@
   .heatseeker-main {
     order: 0 !important;
     overflow-y: auto;
-    overflow-x: auto;
+    overflow-x: hidden;
     min-height: 0;
     min-width: 0;
+    width: 100%;
     padding: 0.75rem;
   }
 
@@ -201,6 +203,7 @@
   .heatseeker-layout {
     grid-template-columns: 260px 1fr;
     min-height: 0;
+    overflow: hidden;
   }
 
   .heatseeker-sidebar-right {
@@ -1539,3 +1542,73 @@
   background: rgba(34,211,238,0.12);
   border: 1px solid rgba(34,211,238,0.25);
 }
+
+/* ===== GLOBAL PANEL MODERNIZATION ===== */
+/* Transforms all old panel-2 and label patterns to new institutional style */
+
+/* Old panel-2 → new rounded card */
+.panel-2 {
+  background: rgba(15, 23, 42, 0.4) !important;
+  border: 1px solid rgba(51, 65, 85, 0.3) !important;
+  border-radius: 12px !important;
+  padding: 14px 16px !important;
+  transition: border-color 150ms ease;
+}
+.panel-2:hover {
+  border-color: rgba(94, 234, 212, 0.25) !important;
+}
+
+/* Old label → new accent-bar label */
+.panel-2 .label,
+.panel .label {
+  font-size: 12px !important;
+  font-weight: 600 !important;
+  letter-spacing: 0.06em !important;
+  color: #e2e8f0 !important;
+  margin-bottom: 10px !important;
+  display: flex !important;
+  align-items: center !important;
+  gap: 6px !important;
+}
+.panel-2 .label::before,
+.panel .label::before {
+  content: '' !important;
+  display: inline-block !important;
+  width: 3px !important;
+  height: 12px !important;
+  border-radius: 2px !important;
+  background: linear-gradient(180deg, #38bdf8, #0ea5e9) !important;
+  flex-shrink: 0 !important;
+}
+
+/* Old muted text sizes → readable sizes */
+.text-\[8px\] { font-size: 10px !important; }
+.text-\[9px\] { font-size: 11px !important; }
+.text-\[10px\] { font-size: 12px !important; }
+.text-\[11px\] { font-size: 13px !important; }
+.text-\[12px\] { font-size: 13.5px !important; }
+
+/* Brighter accent colors globally */
+.text-emerald-400 { color: #34d399 !important; }
+.text-rose-400 { color: #fb7185 !important; }
+.text-amber-400 { color: #fbbf24 !important; }
+.text-sky-400 { color: #38bdf8 !important; }
+.text-purple-400 { color: #c084fc !important; }
+.text-teal-400 { color: #2dd4bf !important; }
+
+/* Mono numbers: tabular nums */
+.mono {
+  font-feature-settings: "tnum";
+  font-variant-numeric: tabular-nums;
+}
+
+/* Smooth transitions on interactive elements */
+button, select, input {
+  transition: all 150ms ease;
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #334155; border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: #475569; }
