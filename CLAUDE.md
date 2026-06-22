@@ -96,6 +96,11 @@ Subject line: `<type>(<scope>): <one-line>`. Types: `feat`, `fix`, `docs`, `test
   - P0.1: conftest waiver + apply (drops 23 collection errors → 0)
   - P0.2: restore `fetch_spot_and_chains` (heatseeker flip-zones returns degraded)
   - P0.3: A9 STALE_IMPORT cleanup
+- **Phase 6 Task 10 (silent-failure audit): CLOSED** at `654a377`. Audit doc: `docs/superpowers/research/2026-06-20-decoder-endpoint-silent-failure-audit.md` (initial `ebd5f77`). All 4 Decision Queue fixes shipped on `origin/main`:
+  - DQ #1 `routes/ml_api.py` 5× silent excepts → `5f0dec5` (observability contract; partial-data preserved over audit's `HTTPException(500)` recommendation)
+  - DQ #2 `routes/gemini.py` 9× silent error returns → `23baf34` (`JSONResponse(503)` shim)
+  - DQ #3 `routes/alerts.py` 2× silent error returns → `2b3af45` (`JSONResponse(503)` shim)
+  - DQ #4 `routes/admin.py` 2× silent excepts → `72b00c8` (observability contract)
 - **Active backlog summary:** `docs/ROUND10_PLAN.md` is the source of truth. `docs/ROUND9_FINAL_CLOSURE.md` for retrospective.
 
 ---
