@@ -247,8 +247,6 @@ async def fetch_chain_from_cvserver(
         logger.debug("cvserver: no API key configured, skipping")
         return None
 
-    logger.debug(f"cvserver: fetching {symbol}, key={'set' if CVSERVER_API_KEY else 'EMPTY'}")
-
     # Check cache
     cache_key = f"cvserver:{symbol}:{max_expiries}"
     if cache_key in _cache:
@@ -269,7 +267,6 @@ async def fetch_chain_from_cvserver(
         "^VIX": "I:VIX",
     }
     cv_symbol = _symbol_map.get(symbol.upper(), symbol.upper())
-    logger.debug(f"cvserver: {symbol} → {cv_symbol}")
 
     try:
         raw = await _cvserver_call_async("tools/call", {
@@ -284,14 +281,13 @@ async def fetch_chain_from_cvserver(
             logger.warning(f"cvserver: empty chain for {symbol}")
             return None
 
-        parsed = _parse_chain_response(raw, cv_symbol)
+        # Limit expiries BEFORE parsing to avoid OOM on large chains (e.g. SPX has 32+ expiries)
+        chain = raw["chain"]
+        if max_expiries and len(chain) > max_expiries:
+            chain = sorted(chain, key=lambda g: g.get("expiration", ""))[:max_expiries]
+            raw = {**raw, "chain": chain}
 
-        # Limit to nearest N expiries to avoid OOM on large chains (e.g. SPX has 32+ expiries)
-        if max_expiries and len(parsed["expiries"]) > max_expiries:
-            sorted_expiries = sorted(parsed["expiries"])
-            kept = set(sorted_expiries[:max_expiries])
-            parsed["contracts"] = [c for c in parsed["contracts"] if c.get("expiry") in kept]
-            parsed["expiries"] = sorted(kept)
+        parsed = _parse_chain_response(raw, cv_symbol)
 
         if not parsed["contracts"]:
             logger.warning(f"cvserver: no contracts parsed for {symbol}")

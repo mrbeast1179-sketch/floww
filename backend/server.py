@@ -832,15 +832,19 @@ async def fetch_spot_and_chains_merged(ticker: str, max_expiries: int = 4) -> di
       1. cvserver (CVForge) — 32 expiries, 171 strikes, all greeks included
       2. yfinance + Databento OI overlay (legacy path)
     """
-    # ── 1. Try cvserver first ──
+    # ── 1. Try cvserver first (with timeout) ──
     try:
         from services.cvserver_client import fetch_chain_from_cvserver
-        cv_data = await fetch_chain_from_cvserver(ticker, max_expiries=max_expiries)
+        cv_data = await asyncio.wait_for(
+            fetch_chain_from_cvserver(ticker, max_expiries=max_expiries),
+            timeout=15.0
+        )
         if cv_data and cv_data.get("contracts") and cv_data.get("spot", 0) > 0:
-            # Mark all contracts as cvserver-sourced
             for c in cv_data["contracts"]:
                 c["oi_source"] = "cvserver"
             return cv_data
+    except asyncio.TimeoutError:
+        log.warning(f"cvserver timeout for {ticker}, falling back to yfinance")
     except Exception as e:
         log.warning(f"cvserver fetch failed for {ticker}: {e}")
 
