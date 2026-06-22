@@ -817,8 +817,25 @@ def fetch_spot_and_chains(ticker: str, max_expiries: int = 4) -> dict[str, Any]:
 
 
 async def fetch_spot_and_chains_merged(ticker: str, max_expiries: int = 4) -> dict[str, Any]:
-    """yfinance for spot+IV + Databento for OI (only if ticker is in PAID_TICKERS).
-    Falls back to pure yfinance for free-tier tickers."""
+    """Try cvserver first (CVForge free data), then fall back to yfinance + Databento.
+
+    Priority:
+      1. cvserver (CVForge) — 32 expiries, 171 strikes, all greeks included
+      2. yfinance + Databento OI overlay (legacy path)
+    """
+    # ── 1. Try cvserver first ──
+    try:
+        from services.cvserver_client import fetch_chain_from_cvserver
+        cv_data = await fetch_chain_from_cvserver(ticker, max_expiries=max_expiries)
+        if cv_data and cv_data.get("contracts") and cv_data.get("spot", 0) > 0:
+            # Mark all contracts as cvserver-sourced
+            for c in cv_data["contracts"]:
+                c["oi_source"] = "cvserver"
+            return cv_data
+    except Exception as e:
+        log.warning(f"cvserver fetch failed for {ticker}: {e}")
+
+    # ── 2. Fallback: yfinance + Databento ──
     yf_data = await asyncio.to_thread(fetch_spot_and_chains, ticker, max_expiries)
     yf_data["spot"]
 

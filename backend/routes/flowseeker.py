@@ -20,8 +20,10 @@ from services.flowseeker import contract_drilldown, fetch_live_flow
 logger = logging.getLogger(__name__)
 
 # ── CVForge cvserver config ──
-CVFORGE_URL = os.environ.get("CVFORGE_URL", "http://localhost:63621")
-CVFORGE_TIMEOUT = 10.0  # seconds
+# Use the remote cvserver endpoint (same as screener project)
+CVFORGE_URL = os.environ.get("CVSERVER_URL", "https://tap.convexvalue.com/api/data/mcp")
+CVFORGE_API_KEY = os.environ.get("CVSERVER_API_KEY", "")
+CVFORGE_TIMEOUT = 15.0  # seconds
 
 # ── Cache ──
 _chain_cache: dict[str, tuple[float, dict]] = {}
@@ -40,7 +42,7 @@ def _safe_float(v):
 
 async def _cvforge_chain(symbol: str, fields: list[str] | None = None) -> dict | None:
     """
-    Fetch options chain from CVForge's cvserver API.
+    Fetch options chain from CVForge's cvserver API via MCP JSON-RPC.
     Returns None on failure (caller should fallback to yfinance).
     """
     if not fields:
@@ -50,16 +52,42 @@ async def _cvforge_chain(symbol: str, fields: list[str] | None = None) -> dict |
             "bid", "ask", "midpoint", "open_interest", "day_volume",
             "underlying_price",
         ]
+    if not CVFORGE_API_KEY:
+        logger.debug("cvforge: no API key, skipping")
+        return None
+
+    headers = {
+        "Content-Type": "application/json",
+        "Authorization": f"Bearer {CVFORGE_API_KEY}",
+    }
+    payload = {
+        "jsonrpc": "2.0",
+        "id": 1,
+        "method": "tools/call",
+        "params": {
+            "name": "get_chain",
+            "arguments": {
+                "symbol": symbol.upper(),
+                "params": fields,
+            },
+        },
+    }
     try:
         async with httpx.AsyncClient(timeout=CVFORGE_TIMEOUT) as client:
-            resp = await client.post(
-                f"{CVFORGE_URL}/api/data/chains",
-                json={"symbol": symbol, "params": fields},
-            )
-            if resp.status_code == 200:
-                return resp.json()
-            logger.warning(f"cvforge chain: HTTP {resp.status_code} for {symbol}")
-            return None
+            resp = await client.post(CVFORGE_URL, json=payload, headers=headers)
+            if resp.status_code != 200:
+                logger.warning(f"cvforge chain: HTTP {resp.status_code} for {symbol}")
+                return None
+            result = resp.json()
+            if "error" in result:
+                logger.warning(f"cvforge chain: error for {symbol}: {result['error']}")
+                return None
+            # Extract text content from MCP response
+            content = result.get("result", {}).get("content", [])
+            if content and content[0].get("type") == "text":
+                import json
+                return json.loads(content[0]["text"])
+            return result.get("result", {})
     except Exception as e:
         logger.warning(f"cvforge chain: error for {symbol}: {e}")
         return None
@@ -227,34 +255,53 @@ async def _cvforge_screen(
         "delta", "gamma", "theta", "vega", "bid", "ask",
     ]
     filters = [{"field": "underlying_ticker", "op": "eq", "value": symbol}]
+    if not CVFORGE_API_KEY:
+        return None
+    headers = {
+        "Content-Type": "application/json",
+        "Authorization": f"Bearer {CVFORGE_API_KEY}",
+    }
+    payload = {
+        "jsonrpc": "2.0",
+        "id": 1,
+        "method": "tools/call",
+        "params": {
+            "name": "screen",
+            "arguments": {
+                "columns": columns,
+                "filters": filters,
+                "sort": [{"field": "trade_price", "direction": "desc"}],
+                "limit": limit,
+            },
+        },
+    }
     try:
         async with httpx.AsyncClient(timeout=CVFORGE_TIMEOUT) as client:
-            resp = await client.post(
-                f"{CVFORGE_URL}/api/data/screen",
-                json={
-                    "columns": columns,
-                    "filters": filters,
-                    "sort": [{"field": "trade_price", "direction": "desc"}],
-                    "limit": limit,
-                },
-            )
-            if resp.status_code == 200:
-                d = resp.json()
-                rows = d.get("rows", [])
-                return {
-                    "ticker": symbol,
-                    "count": len(rows),
-                    "results": [
-                        {
-                            "ticker": r[0], "strike": r[1], "expiration": r[2],
-                            "type": r[3], "size": r[4], "price": r[5],
-                            "oi": r[6], "iv": r[7], "delta": r[8],
-                            "gamma": r[9], "theta": r[10], "vega": r[11],
-                            "bid": r[12], "ask": r[13],
-                        }
-                        for r in rows
-                    ],
-                }
+            resp = await client.post(CVFORGE_URL, json=payload, headers=headers)
+            if resp.status_code != 200:
+                return None
+            result = resp.json()
+            content = result.get("result", {}).get("content", [])
+            if content and content[0].get("type") == "text":
+                import json
+                d = json.loads(content[0]["text"])
+            else:
+                d = result.get("result", {})
+            rows = d.get("rows", [])
+            return {
+                "ticker": symbol,
+                "count": len(rows),
+                "results": [
+                    {
+                        "ticker": r[0], "strike": r[1], "expiration": r[2],
+                        "type": r[3], "size": r[4], "price": r[5],
+                        "oi": r[6], "iv": r[7], "delta": r[8],
+                        "gamma": r[9], "theta": r[10], "vega": r[11],
+                        "bid": r[12], "ask": r[13],
+                    }
+                    for r in rows
+                ],
+            }
     except Exception as e:
         logger.warning(f"cvforge screen: {symbol}: {e}")
     return None

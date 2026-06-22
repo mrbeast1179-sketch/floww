@@ -47,7 +47,7 @@ A future Task‑10‑extension audit could expand the matrix to ~25 dimensions, 
 | # | Plan dimension | File | Status | LOC | Date‑of‑last‑touch (commit on origin/main) | Grade | Evidence |
 |---|----------------|------|--------|-----|--------------------------------------------|-------|----------|
 | 1 | `routes/admin.py` | `backend/routes/admin.py` | **PRESENT** | 239 | `0133ad7` (ruff‑auto 2,761 violations) | SUSPECTED | One `except Exception: pass` block at L151 inside the streamer health‑check background loop. See §Hot‑spot deep‑dive. |
-| 2 | `routes/ml_api.py` | `backend/routes/ml_api.py` | **PRESENT** | 916 | `0133ad7` | **REPRODUCIBLE‑HOT‑SPOT** | 5 silent `except Exception: pass` blocks at L378/513/525/534/546. **Loudest silent‑failure concentration in the audit.** See §Hot‑spot deep‑dive. |
+| 2 | `routes/ml_api.py` | `backend/routes/ml_api.py` | **PRESENT + FIXED** | 916 | `5f0dec5` (Decision Queue #1 commit) | **FIXED** (was REPRODUCIBLE‑HOT‑SPOT) | All 5 silent `except Exception: pass` blocks at L378/513/525/534/546 confirmed inside `async def` interactive request handlers (recon this commit‑era). Per‑site observability‑contract fix shipped in `5f0dec5` (logger.error + body["<section>_error"] injection, preserving HTTP 200 + partial‑data). See §Hot‑spot deep‑dive #1 for the per‑line classifications table. |
 | 3 | `routes/predictive.py` | `backend/routes/predictive.py` | **PRESENT** | 87 | `3a3bad9`‑era | CLEAN | Explicit `{"error": …}, 404` return on missing scenario (L86); 1 explicit HTTPException‑equivalent, no silent‑except leaks. |
 | 4 | `routes/gemini.py` | `backend/routes/gemini.py` | **PRESENT** | 87 | recent | **REPRODUCIBLE‑HOT‑SPOT** | 8 endpoints return `{"error": "Gemini not available…"}` body **without HTTPException**, leaving framework default HTTP 200 on error. See §Hot‑spot deep‑dive. |
 | 5 | `routes/alerts.py` | `backend/routes/alerts.py` | **PRESENT** | 181 | `0133ad7` | SUSPECTED | 2 `{"error": str(e)}` returns without HTTPException (L134/181); plus the websocket keep‑alive `except WebSocketDisconnect:` which is DEFENSIBLE. See §Hot‑spot deep‑dive. |
@@ -140,7 +140,7 @@ The following 5 commits would close the queue. **None are included in this commi
 
 | # | Finding | Failing‑test file (proposed) | Minimal fix | Risk |
 |---|---------|------------------------------|-------------|------|
-| 1 | `routes/ml_api.py` 5× silent except | `tests/services/test_ml_api_silent_error.py` | Replace `pass` with `raise HTTPException(500, …)` after verifying each is interactive‑request context, not loop | Med (depending on context) |
+| 1 | `routes/ml_api.py` 5× silent except | `tests/services/test_ml_api_silent_error_observability.py` | **FIXED** (commit `5f0dec5`) — observability contract per admin.py precedent; HTTP 200 + per‑section error keys, NOT `HTTPException(500)` | Med (audit doc original recommendation was rejected in favor of partial‑data preservation) |
 | 2 | `routes/gemini.py` 8× error‑body‑on‑200 | `tests/services/test_gemini_route_errors.py` | Wrap each error response in `JSONResponse(status_code=503)` or `raise HTTPException(503, …)` | Low (mechanical refactor) |
 | 3 | `routes/alerts.py` 2× error‑body‑on‑200 | `tests/services/test_alerts_route_errors.py` | Same shim as gemini | Low |
 | 4 | `routes/admin.py:151` silent except | `tests/routes/test_admin_streamer_health.py` | Either: confirm context + 1‑line comment (if DEFENSIBLE) OR apply gemini shim (if REPRODUCIBLE) | Low |
