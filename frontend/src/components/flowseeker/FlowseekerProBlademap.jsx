@@ -74,6 +74,7 @@ export default function FlowseekerProBlademap({ active = true }) {
   const [clock, setClock] = useState("");
   const [plotlyReady, setPlotlyReady] = useState(!!window.Plotly);
   const [volTicker, setVolTicker] = useState("SPY");
+  const [micro, setMicro] = useState({});
 
   const microRef = useRef({});            // { vpin, regimeConf, lambdaR2 } for selected ticker
   const gaugeRef = useRef(null), radarRef = useRef(null), ofiRef = useRef(null);
@@ -95,26 +96,28 @@ export default function FlowseekerProBlademap({ active = true }) {
     return () => clearInterval(id);
   }, []);
 
-  // ---- live flow feed: merge a few tickers into one tape ----
+  // ---- live flow feed (FlashAlpha-backed) ----
+  // FlashAlpha's flow endpoints are the ONLY source of trade prints (cvserver
+  // serves chain/GEX, not trades). The configured key is on the Free plan =
+  // 5 requests/DAY, so we MUST poll conservatively: the selected ticker only,
+  // every 60s — never a 5-ticker tight tape (that vaporises the quota in seconds).
   useEffect(() => {
     if (!active) return;
     let cancelled = false;
     const ctrl = new AbortController();
     const poll = async () => {
       try {
-        const all = await Promise.all(FEED_TICKERS.map((t) =>
-          getJSON(`${API}/live?ticker=${t}&limit=25`, ctrl.signal).catch(() => null)));
+        const r = await getJSON(`${API}/live?ticker=${ticker}&limit=60`, ctrl.signal);
         if (cancelled) return;
-        const prints = [];
-        for (const r of all) for (const p of (r?.prints || [])) prints.push({ ...p, _conv: rowConviction(p) });
+        const prints = (r?.prints || []).map((p) => ({ ...p, _conv: rowConviction(p) }));
         prints.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
         setSignals(prints.slice(0, 120));
-      } catch { /* transient */ }
+      } catch { /* provider quota / transient — keep last data */ }
     };
     poll();
-    const id = setInterval(poll, 4000);
+    const id = setInterval(poll, 60000);
     return () => { cancelled = true; ctrl.abort(); clearInterval(id); };
-  }, [active]);
+  }, [active, ticker]);
 
   // ---- per-ticker microstructure (regime pill + selected conviction inputs) ----
   useEffect(() => {
@@ -133,6 +136,8 @@ export default function FlowseekerProBlademap({ active = true }) {
       microRef.current = {
         vpin: vpin?.vpin, regimeConf: reg?.confidence, lambdaR2: lam?.r_squared,
       };
+      setMicro({ vpin: vpin?.vpin, vpinLabel: vpin?.label, regimeConf: reg?.confidence,
+        lambdaR2: lam?.r_squared, lambdaLabel: lam?.label });
       const st = String(reg?.current_state || "").toLowerCase();
       const cls = st.includes("trend") || st.includes("bull") ? "up"
         : st.includes("mean") || st.includes("bear") || st.includes("rever") ? "down" : "chop";
@@ -357,7 +362,7 @@ export default function FlowseekerProBlademap({ active = true }) {
                     <th>DTE</th><th className="num">Premium</th><th className="num">V/OI</th><th className="num">Conv</th>
                   </tr></thead>
                   <tbody>
-                    {filtered.length === 0 && <tr><td colSpan={9} className="fsb-muted" style={{ padding: 14 }}>Waiting for live prints…</td></tr>}
+                    {filtered.length === 0 && <tr><td colSpan={9} className="fsb-muted" style={{ padding: 14, lineHeight: 1.7 }}>No live prints — the flow provider (FlashAlpha) is on the <b style={{ color: "var(--fsb-amber)" }}>Free plan: 5 requests/day, currently exhausted</b> (resets 00:00 UTC). GEX, regime &amp; gamma below stay live from cvforge. Upgrade FlashAlpha to Basic for a live tape.</td></tr>}
                     {filtered.slice(0, 80).map((p, i) => {
                       const conv = p._conv;
                       return (
