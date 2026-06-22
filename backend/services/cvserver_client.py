@@ -72,11 +72,11 @@ FIELD_MAP = {
 }
 
 # Default fields to request from cvserver
+# Keep minimal — each field adds to payload size and parse time
+# For heatmap/GEX we need: expiry, type, strike, iv, oi, underlying_price
 DEFAULT_FIELDS = [
     "expiration_date", "strike_price", "contract_type",
-    "implied_volatility", "delta", "gamma", "theta", "vega",
-    "bid", "ask", "midpoint", "open_interest", "day_volume",
-    "underlying_price",
+    "implied_volatility", "open_interest", "underlying_price",
 ]
 
 # In-memory cache: symbol -> (timestamp, data)

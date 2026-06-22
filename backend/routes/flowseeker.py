@@ -120,9 +120,7 @@ async def _cvforge_chain(symbol: str, fields: list[str] | None = None) -> dict |
     if not fields:
         fields = [
             "expiration_date", "strike_price", "contract_type",
-            "implied_volatility", "delta", "gamma", "theta", "vega",
-            "bid", "ask", "midpoint", "open_interest", "day_volume",
-            "underlying_price",
+            "implied_volatility", "open_interest", "underlying_price",
         ]
     if not CVFORGE_API_KEY:
         logger.debug("cvforge: no API key, skipping")
@@ -389,22 +387,21 @@ async def _cvforge_screen(
 @router.get("/alerts/{symbol}")
 async def unusual_activity_alerts(
     symbol: str,
-    min_oi: int = Query(1000, ge=0),
-    min_vol_oi_ratio: float = Query(0.1, ge=0),
+    min_oi: int = Query(100, ge=0),
+    min_vol_oi_ratio: float = Query(0.05, ge=0),
     page: int = Query(1, ge=1),
     page_size: int = Query(50, ge=1, le=200),
 ):
     """
     Unusual activity alerts for a symbol's options chain.
 
-    Since live flow data (sweep/block) requires paid API access,
-    this identifies unusual activity based on option chain snapshots:
-
+    Identifies unusual activity based on option chain snapshots:
     - **high_volume**: day_volume / open_interest ratio above threshold
-    - **high_iv**: implied IV in top 10% for this expiry
-    - **oi_spike**: open interest significantly above average
+    - **high_iv**: implied IV in top 25% for this expiry
+    - **oi_spike**: open interest significantly above average (1.5x)
     - **delta_extreme**: deep ITM/OTM with high OI (directional bet)
-    - **premium_concentration**: strikes with premium > $1M
+    - **premium_concentration**: strikes with premium > $500K
+    - **near_money**: ATM options with highest OI concentration
 
     Each alert includes confidence scoring and human-readable factors.
     """
@@ -490,9 +487,8 @@ async def unusual_activity_alerts(
 
                 # Calculate statistics
                 avg_oi = sum(d["call_oi"] + d["put_oi"] for d in call_data) / max(len(call_data), 1)
-                avg_iv = sum(d["call_iv"] for d in call_data if d["call_iv"] > 0) / max(sum(1 for d in call_data if d["call_iv"] > 0), 1)
                 iv_values = sorted([d["call_iv"] for d in call_data if d["call_iv"] > 0])
-                iv_p90 = iv_values[int(len(iv_values) * 0.9)] if iv_values else 0
+                iv_p75 = iv_values[int(len(iv_values) * 0.75)] if iv_values else 0
 
                 for d in call_data:
                     alerts_for_strike = []
@@ -511,23 +507,23 @@ async def unusual_activity_alerts(
                             factors.append("Day volume: %.0f contracts" % total_vol)
 
                     # Check IV spike
-                    if d["call_iv"] > 0 and iv_p90 > 0 and d["call_iv"] >= iv_p90:
+                    if d["call_iv"] > 0 and iv_p75 > 0 and d["call_iv"] >= iv_p75:
                         alerts_for_strike.append("high_iv")
                         confidence_score += 10
-                        factors.append("IV: %.1f%% (90th percentile: %.1f%%)" % (d["call_iv"] * 100, iv_p90 * 100))
+                        factors.append("IV: %.1f%% (75th percentile: %.1f%%)" % (d["call_iv"] * 100, iv_p75 * 100))
 
                     # Check OI spike
-                    if total_oi > avg_oi * 3 and total_oi >= min_oi:
+                    if total_oi > avg_oi * 1.5 and total_oi >= min_oi:
                         alerts_for_strike.append("oi_spike")
                         confidence_score += 10
-                        factors.append("OI: %.0fa (avg: %.0f, %.1fx average)" % (total_oi, avg_oi, total_oi / max(avg_oi, 1)))
+                        factors.append("OI: %.0f (avg: %.0f, %.1fx average)" % (total_oi, avg_oi, total_oi / max(avg_oi, 1)))
 
                     # Check delta extreme with high OI
-                    if abs(d["call_delta"]) > 0.8 and d["call_oi"] > 500:
+                    if abs(d["call_delta"]) > 0.7 and d["call_oi"] > 200:
                         alerts_for_strike.append("delta_extreme")
                         confidence_score += 8
                         factors.append("Deep ITM call (delta: %.2f, OI: %.0f)" % (d["call_delta"], d["call_oi"]))
-                    elif abs(d["put_delta"]) > 0.8 and d["put_oi"] > 500:
+                    elif abs(d["put_delta"]) > 0.7 and d["put_oi"] > 200:
                         alerts_for_strike.append("delta_extreme")
                         confidence_score += 8
                         factors.append("Deep ITM put (delta: %.2f, OI: %.0f)" % (abs(d["put_delta"]), d["put_oi"]))
@@ -536,10 +532,10 @@ async def unusual_activity_alerts(
                     mid = (d.get("call_bid", 0) + d.get("call_ask", 0)) / 2
                     if mid > 0 and total_oi > 0:
                         premium = mid * total_oi * 100
-                        if premium > 1_000_000:
+                        if premium > 500_000:
                             alerts_for_strike.append("premium_concentration")
                             confidence_score += 12
-                            factors.append("Est. premium: $%.1fM concentrated at strike %.0f" % (premium / 1_000_000, d["strike"]))
+                            factors.append("Est. premium: $%.0fK concentrated at strike %.0f" % (premium / 1000, d["strike"]))
 
                     if alerts_for_strike:
                         classification = alerts_for_strike[0]  # Primary classification
