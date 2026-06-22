@@ -2698,9 +2698,10 @@ _VPIN_AUTOFETCH_INTERVAL = 300
 async def _vpin_autofeed_loop():
     """Background loop: fetch recent trades from yfinance, compute VPIN,
     and feed to the ToxicityEnsemble for each tracked ticker."""
-    from routes.vpin import _vpin_engines
-    from routes.ensemble import _ensembles
     import yfinance as yf
+
+    from routes.ensemble import _ensembles
+    from routes.vpin import _vpin_engines
 
     log.info(f"VPIN auto-feed: started for {_VPIN_AUTOFETCH_TICKERS}")
     while not _shutdown_event.is_set():
@@ -2758,7 +2759,7 @@ async def _vpin_autofeed_loop():
 
         try:
             await asyncio.wait_for(_shutdown_event.wait(), timeout=_VPIN_AUTOFETCH_INTERVAL)
-        except asyncio.TimeoutError:
+        except TimeoutError:
             pass  # normal interval timeout, continue loop
 
     log.info("VPIN auto-feed: shutdown complete")
