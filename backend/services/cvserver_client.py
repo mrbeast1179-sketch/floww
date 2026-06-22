@@ -269,10 +269,12 @@ async def fetch_chain_from_cvserver(
         "^VIX": "I:VIX",
     }
     cv_symbol = _symbol_map.get(symbol.upper(), symbol.upper())
+
+    try:
         raw = await _cvserver_call_async("tools/call", {
             "name": "get_chain",
             "arguments": {
-                "symbol": symbol.upper(),
+                "symbol": cv_symbol,
                 "params": fields,
             },
         })
@@ -281,7 +283,7 @@ async def fetch_chain_from_cvserver(
             logger.warning(f"cvserver: empty chain for {symbol}")
             return None
 
-        parsed = _parse_chain_response(raw, symbol.upper())
+        parsed = _parse_chain_response(raw, cv_symbol)
 
         if not parsed["contracts"]:
             logger.warning(f"cvserver: no contracts parsed for {symbol}")

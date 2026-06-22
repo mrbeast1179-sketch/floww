@@ -127,6 +127,10 @@ async def _cvforge_chain(symbol: str, fields: list[str] | None = None) -> dict |
         logger.debug("cvforge: no API key, skipping")
         return None
 
+    # Map yfinance-style index symbols to cvserver format
+    _sym_map = {"^SPX": "I:SPX", "^NDX": "I:NDX", "^RUT": "I:RUT", "^VIX": "I:VIX"}
+    cv_symbol = _sym_map.get(symbol.upper(), symbol.upper())
+
     headers = {
         "Content-Type": "application/json",
         "Authorization": f"Bearer {CVFORGE_API_KEY}",
@@ -138,7 +142,7 @@ async def _cvforge_chain(symbol: str, fields: list[str] | None = None) -> dict |
         "params": {
             "name": "get_chain",
             "arguments": {
-                "symbol": symbol.upper(),
+                "symbol": cv_symbol,
                 "params": fields,
             },
         },
