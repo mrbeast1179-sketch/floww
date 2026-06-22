@@ -15,7 +15,7 @@ import "./FlowseekerProBlademap.css";
 
 const API = `${BACKEND_URL}/api/flowseeker`;
 const WATCH = ["SPY", "QQQ", "IWM", "NVDA", "TSLA", "AAPL", "MSFT", "AMZN", "META", "GOOGL"];
-const FEED_TICKERS = ["SPY", "QQQ", "NVDA", "TSLA", "AAPL"]; // merged into the tape
+const NOISE_FLOOR = 5; // ignore day-volume deltas below this many contracts
 
 const PL = {
   paper: "rgba(0,0,0,0)", plot: "rgba(0,0,0,0)", grid: "#1c2230", axis: "#3a4358",
@@ -36,6 +36,12 @@ async function getJSON(url, signal) {
   const r = await fetch(url, { signal });
   if (!r.ok) throw new Error(`HTTP ${r.status}`);
   return r.json();
+}
+// Rough ATM premium estimate when cvserver isn't quoting bid/ask (per-contract $).
+function estPrice(strike, iv, expiry) {
+  const dte = Math.max(1, dteOf(expiry));
+  const ivv = iv > 1 ? iv / 100 : (iv || 0.2);
+  return Math.max(0.05, strike * ivv * Math.sqrt(dte / 365) * 0.4);
 }
 
 // Per-print conviction proxy (0-100) from classification + premium + vol/oi.
@@ -96,26 +102,54 @@ export default function FlowseekerProBlademap({ active = true }) {
     return () => clearInterval(id);
   }, []);
 
-  // ---- live flow feed (FlashAlpha-backed) ----
-  // FlashAlpha's flow endpoints are the ONLY source of trade prints (cvserver
-  // serves chain/GEX, not trades). The configured key is on the Free plan =
-  // 5 requests/DAY, so we MUST poll conservatively: the selected ticker only,
-  // every 60s — never a 5-ticker tight tape (that vaporises the quota in seconds).
+  // ---- live flow feed from CVFORGE (unusual options activity) ----
+  // cvserver serves day-aggregated chain SNAPSHOTS (not a trade stream — day_volume
+  // is static between short polls), so a per-trade tape isn't possible. Instead we
+  // surface the most unusual activity by volume-vs-open-interest each refresh.
+  // 100% cvserver data — the same source that powers GEX/regime here.
   useEffect(() => {
     if (!active) return;
     let cancelled = false;
     const ctrl = new AbortController();
     const poll = async () => {
       try {
-        const r = await getJSON(`${API}/live?ticker=${ticker}&limit=60`, ctrl.signal);
+        const d = await getJSON(`${API}/chain/${ticker}?fields=oi,volume,iv,bid,ask,lastPrice`, ctrl.signal);
         if (cancelled) return;
-        const prints = (r?.prints || []).map((p) => ({ ...p, _conv: rowConviction(p) }));
-        prints.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
-        setSignals(prints.slice(0, 120));
-      } catch { /* provider quota / transient — keep last data */ }
+        const params = d.params || [];
+        const vi = (name) => { const i = params.indexOf(name); return i > 0 ? i - 1 : -1; }; // vals skip strike
+        const iVol = vi("volume"), iOI = vi("openInterest"), iIV = vi("impliedVolatility");
+        const iBid = vi("bid"), iAsk = vi("ask"), iLast = vi("lastPrice");
+        const rows = [];
+        for (const exp of (d.chain || [])) {
+          for (const s of (exp.strikes || [])) {
+            const strike = s[0];
+            for (const [sideU, vals] of [["CALL", s[1] || []], ["PUT", s[2] || []]]) {
+              const vol = Number(vals[iVol]) || 0;
+              if (vol < NOISE_FLOOR * 20) continue;             // only notable activity (>=100)
+              const oi = Number(vals[iOI]) || 0;
+              const voi = oi > 0 ? vol / oi : vol / 100;
+              if (voi < 0.4) continue;                          // skip plain-vanilla
+              const iv = Number(vals[iIV]) || 0;
+              const last = Number(vals[iLast]) || 0;
+              const mid = last || (((Number(vals[iBid]) || 0) + (Number(vals[iAsk]) || 0)) / 2) || estPrice(strike, iv, exp.expiration);
+              const cls = voi >= 1.5 ? "sweep" : voi >= 0.8 ? "unusual" : "block";
+              const p = {
+                ticker, type: sideU.toLowerCase(), classification: cls,
+                strike, expiration: exp.expiration, timestamp: Date.now(),
+                volume: vol, oi, vol_oi_ratio: voi, iv: iv < 1 ? iv * 100 : iv,
+                premium: Math.round(vol * mid * 100),
+              };
+              p._conv = rowConviction(p);
+              rows.push(p);
+            }
+          }
+        }
+        rows.sort((a, b) => b.vol_oi_ratio - a.vol_oi_ratio);
+        setSignals(rows.slice(0, 100));
+      } catch { /* transient cvserver hiccup — keep last data */ }
     };
     poll();
-    const id = setInterval(poll, 60000);
+    const id = setInterval(poll, 15000);
     return () => { cancelled = true; ctrl.abort(); clearInterval(id); };
   }, [active, ticker]);
 
@@ -362,7 +396,7 @@ export default function FlowseekerProBlademap({ active = true }) {
                     <th>DTE</th><th className="num">Premium</th><th className="num">V/OI</th><th className="num">Conv</th>
                   </tr></thead>
                   <tbody>
-                    {filtered.length === 0 && <tr><td colSpan={9} className="fsb-muted" style={{ padding: 14, lineHeight: 1.7 }}>No live prints — the flow provider (FlashAlpha) is on the <b style={{ color: "var(--fsb-amber)" }}>Free plan: 5 requests/day, currently exhausted</b> (resets 00:00 UTC). GEX, regime &amp; gamma below stay live from cvforge. Upgrade FlashAlpha to Basic for a live tape.</td></tr>}
+                    {filtered.length === 0 && <tr><td colSpan={9} className="fsb-muted" style={{ padding: 14, lineHeight: 1.7 }}>Loading unusual options activity from <b style={{ color: "var(--fsb-blue)" }}>cvforge</b> (ranked by volume-vs-open-interest)…</td></tr>}
                     {filtered.slice(0, 80).map((p, i) => {
                       const conv = p._conv;
                       return (
@@ -462,7 +496,7 @@ export default function FlowseekerProBlademap({ active = true }) {
         {/* SCANNER VIEW */}
         <div className={`fsb-view${tab === "scanner" ? " active" : ""}`} style={{ gridTemplateColumns: "1fr" }}>
           <div className="fsb-panel">
-            <div className="fsb-panel-h"><span>Ticker Scanner</span><span className="fsb-muted fsb-small">live · top conviction across {FEED_TICKERS.length} symbols</span></div>
+            <div className="fsb-panel-h"><span>Ticker Scanner</span><span className="fsb-muted fsb-small">live · top conviction · {ticker} (cvforge volume-delta)</span></div>
             <div className="fsb-flow-wrap">
               <table className="fsb-table">
                 <thead><tr><th>Time</th><th>Ticker</th><th>Type</th><th>Side</th><th className="num">Strike</th><th>DTE</th><th className="num">Premium</th><th className="num">Conv</th></tr></thead>
