@@ -1,6 +1,69 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import Plot from "react-plotly.js";
 
+
+//
+// normalizeAlert / normalizeAlerts
+// -----------------------------------------------------------------------------
+// Module-level guard for /api/flowseeker/alerts/{sym} response shape.
+// Backend wraps in {alerts: [...]}; pre-envelope clients and test fixtures
+// sometimes return the array directly or a single alert-shaped object.
+// BlademapAlertCard reads 18 fields; downstream render code can dereference
+// freely thanks to these helpers.
+// -----------------------------------------------------------------------------
+const isPlainObject = (x) =>
+  x !== null && typeof x === "object" && !Array.isArray(x);
+
+// "Is a real dictionary with at least one own key" — distinguishes
+// {} (no data) from { foo: 1 } (real data). Lets normalizeAlert return
+// null for empty containers instead of `{}` so downstream
+// keyLevels / indicators / sub_scores / context can use a single
+// `?? null` read without per-key ternary guards.
+const isNonEmptyPlainObject = (x) =>
+  isPlainObject(x) && Object.keys(x).length > 0;
+
+const normalizeAlert = (raw) => {
+  if (!isPlainObject(raw)) return null;
+  return {
+    alert_id:           raw.alert_id ?? null,
+    classification:     raw.classification ?? "REGULAR",
+    confidence_score:   typeof raw.confidence_score  === "number" ? raw.confidence_score  : 0,
+    conviction_score:   typeof raw.conviction_score  === "number" ? raw.conviction_score  : 0,
+    direction:          raw.direction          ?? null,
+    expiration:         raw.expiration         ?? null,
+    indicators:         isNonEmptyPlainObject(raw.indicators) ? raw.indicators : null,
+    key_levels:         isNonEmptyPlainObject(raw.key_levels) ? raw.key_levels : null,
+    context:            isNonEmptyPlainObject(raw.context)    ? raw.context    : null,
+    option_type:        raw.option_type        ?? null,
+    rationale:          raw.rationale          ?? null,
+    recommended_actions: Array.isArray(raw.recommended_actions) ? raw.recommended_actions : [],
+    side:               raw.side               ?? null,
+    signal_type:        raw.signal_type        ?? raw.classification ?? "REGULAR",
+    signal_types:       Array.isArray(raw.signal_types)
+                          ? raw.signal_types
+                          : (raw.signal_type ? [raw.signal_type] : []),
+    strike:             typeof raw.strike     === "number" ? raw.strike : null,
+    sub_scores:         isNonEmptyPlainObject(raw.sub_scores) ? raw.sub_scores : null,
+    tier:               raw.tier               ?? null,
+    tier_label:         raw.tier_label         ?? null,
+    timestamp:          raw.timestamp          ?? null,
+    ticker:             raw.ticker             ?? null,
+    underlying_price:   typeof raw.underlying_price === "number" ? raw.underlying_price : null,
+  };
+};
+
+// Three accepted shapes:
+//   1) bare array of alert objects   -> .map(normalizeAlert).filter(Boolean)
+//   2) envelope { alerts: [...] }   -> .alerts.map(normalizeAlert).filter(Boolean)
+//   3) single alert-shaped object   -> [normalizeAlert(raw)]
+// Anything else (null, primitives) -> [].
+const normalizeAlerts = (raw) => {
+  if (Array.isArray(raw)) return raw.map(normalizeAlert).filter(Boolean);
+  if (Array.isArray(raw && raw.alerts)) return raw.alerts.map(normalizeAlert).filter(Boolean);
+  if (isPlainObject(raw)) return [normalizeAlert(raw)].filter(Boolean);
+  return [];
+};
+
 const API = "http://localhost:8000/api/flowseeker";
 const DASH_API = "http://localhost:8000/api";
 const TICKERS = ["SPY","QQQ","IWM","DIA","TLT","AAPL","MSFT","NVDA","TSLA","AMZN","META","GOOGL"];
@@ -111,15 +174,19 @@ export default function FlowseekerProTab({ active = true }) {
   }, []);
 
   const fetchAlerts = useCallback(async (sym) => {
+    if (!sym) return;
     try {
       const r = await fetch(`${API}/alerts/${sym}?min_premium=50000`);
       if (!r.ok) return;
       const d = await r.json();
-      if (d.alerts?.length > prevAlertCount.current && soundEnabled && audioRef.current) {
+      if (activeSymRef.current !== sym) return;
+      const next = normalizeAlerts(d);
+      const grew = next.length > prevAlertCount.current;
+      setAlerts(next);
+      prevAlertCount.current = next.length;
+      if (grew && soundEnabled && audioRef.current) {
         audioRef.current.play().catch(() => {});
       }
-      prevAlertCount.current = d.alerts?.length || 0;
-      setAlerts(d.alerts || []);
     } catch (e) { /* silent */ }
   }, [soundEnabled]);
 
@@ -352,113 +419,107 @@ export default function FlowseekerProTab({ active = true }) {
   }, [topAlert]);
 
   return (
-    <div className="flex h-full overflow-hidden">
+    <div className="flowseeker-layout h-full">
       <audio ref={audioRef} src="data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2teleQo6l9/Ss2QdBz2Y3dKyaB8F" preload="auto" />
 
-      {/* Sidebar — unchanged from v1 except for the new summary panel */}
-      <div className="w-56 flex-shrink-0 border-r border-slate-800/50 bg-[#0b0d12] p-3 space-y-3 overflow-y-auto">
+      {/* Sidebar */}
+      <div className="flowseeker-sidebar">
         <div>
-          <div className="text-[9px] uppercase tracking-widest text-slate-500 font-bold mb-1">Ticker</div>
+          <div className="flowseeker-label">Ticker</div>
           <input value={ticker} onChange={e => setTicker(e.target.value.toUpperCase())}
             onKeyDown={e => { if (e.key === "Enter") fetchChain(ticker); }}
-            className="w-full bg-slate-800/50 border border-slate-700/40 rounded-lg px-2 py-1.5 text-sm text-slate-200 outline-none focus:border-sky-500/50 font-mono" />
+            className="flowseeker-input" />
           <div className="flex flex-wrap gap-1 mt-1.5">
             {TICKERS.map(t => (
               <button key={t} onClick={() => setTicker(t)}
-                className={`text-[9px] px-1.5 py-0.5 rounded-md font-mono transition-all ${t === ticker ? "bg-sky-600 text-white shadow-lg shadow-sky-500/20" : "bg-slate-800/50 text-slate-500 hover:bg-slate-700/50"}`}>{t}</button>
+                className={`flowseeker-chip ${t === ticker ? "active" : ""}`}>{t}</button>
             ))}
           </div>
         </div>
 
         {expiries.length > 0 && (
           <div>
-            <div className="text-[9px] uppercase tracking-widest text-slate-500 font-bold mb-1">Expiry</div>
+            <div className="flowseeker-label">Expiry</div>
             <select value={expiryIdx} onChange={e => setExpiryIdx(Number(e.target.value))}
-              className="w-full bg-slate-800/50 border border-slate-700/40 rounded-lg px-2 py-1.5 text-xs text-slate-200">
+              className="flowseeker-input">
               {expiries.map((exp, i) => <option key={i} value={i}>{exp}</option>)}
             </select>
           </div>
         )}
 
-        <div className="border-t border-slate-800/50 pt-2">
-          <div className="text-[9px] uppercase tracking-widest text-slate-500 font-bold mb-1.5">Summary</div>
-          <div className="grid grid-cols-2 gap-1.5">
-            <div className="bg-slate-800/30 rounded-lg p-2 text-center">
-              <div className="text-[8px] text-slate-500 uppercase">Alerts</div>
-              <div className="text-sm font-bold text-slate-200">{stats.totalAlerts}</div>
+        <div className="flowseeker-panel">
+          <div className="flowseeker-label">Summary</div>
+          <div className="flowseeker-grid-cols-2">
+            <div className="text-center">
+              <div className="text-[9px] text-slate-500 uppercase tracking-wider">Alerts</div>
+              <div className="text-[13px] font-bold font-mono text-slate-200">{stats.totalAlerts}</div>
             </div>
-            <div className="bg-slate-800/30 rounded-lg p-2 text-center">
-              <div className="text-[8px] text-slate-500 uppercase">High Conf</div>
-              <div className="text-sm font-bold text-emerald-400">{stats.highConf}</div>
+            <div className="text-center">
+              <div className="text-[9px] text-slate-500 uppercase tracking-wider">High Conf</div>
+              <div className="text-[13px] font-bold font-mono text-emerald-400">{stats.highConf}</div>
             </div>
-            <div className="bg-slate-800/30 rounded-lg p-2 text-center">
-              <div className="text-[8px] text-slate-500 uppercase">Sweeps</div>
-              <div className="text-sm font-bold text-rose-400">{stats.sweeps}</div>
+            <div className="text-center">
+              <div className="text-[9px] text-slate-500 uppercase tracking-wider">Sweeps</div>
+              <div className="text-[13px] font-bold font-mono text-rose-400">{stats.sweeps}</div>
             </div>
-            <div className="bg-slate-800/30 rounded-lg p-2 text-center">
-              <div className="text-[8px] text-slate-500 uppercase">Premium</div>
-              <div className="text-sm font-bold text-amber-400">${(stats.totalPremium / 1e6).toFixed(1)}M</div>
+            <div className="text-center">
+              <div className="text-[9px] text-slate-500 uppercase tracking-wider">Premium</div>
+              <div className="text-[13px] font-bold font-mono text-amber-400">${(stats.totalPremium / 1e6).toFixed(1)}M</div>
             </div>
           </div>
         </div>
 
-        <div className="text-[9px] space-y-1 border-t border-slate-800/50 pt-2">
-          {loading && <div className="text-amber-400 flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />Loading chain...</div>}
+        <div className="flowseeker-panel space-y-1">
+          {loading && <div className="text-amber-400 flex items-center gap-2"><span className="flowseeker-live-dot" style={{background: '#fbbf24'}} />Loading chain...</div>}
           {error && <div className="text-rose-400">⚠ {error}</div>}
           {chain && !loading && (
             <>
-              <div className="text-emerald-400 flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />LIVE — {chain.chain.length} exp</div>
-              {lastUpdate && <div className="text-slate-600">Updated {lastUpdate}</div>}
+              <div className="flowseeker-live-badge">LIVE — {chain.chain.length} exp</div>
+              {lastUpdate && <div className="text-[10px] text-slate-500 mt-1">Updated {lastUpdate}</div>}
             </>
           )}
         </div>
 
         <div className="flex items-center justify-between border-t border-slate-800/50 pt-2">
-          <span className="text-[9px] text-slate-500">🔔 Sweep Alerts</span>
+          <span className="text-[9px] text-slate-500 uppercase tracking-wider">🔔 Sweep Alerts</span>
           <button onClick={() => setSoundEnabled(!soundEnabled)}
-            className={`text-[9px] px-2 py-0.5 rounded-full font-bold ${soundEnabled ? "bg-emerald-600/20 text-emerald-400" : "bg-slate-800 text-slate-500"}`}>
+            className={`flowseeker-chip ${soundEnabled ? "active" : ""}`}>
             {soundEnabled ? "ON" : "OFF"}
           </button>
         </div>
-
         <button onClick={() => { fetchChain(ticker); fetchAlerts(ticker); }}
-          className="w-full text-[9px] py-1.5 bg-slate-800/50 hover:bg-slate-700/50 rounded-lg text-slate-400 border border-slate-700/30">↻ Refresh</button>
+          className="flowseeker-btn w-full">↻ Refresh</button>
       </div>
 
       {/* Main content */}
-      <div className="flex-1 flex flex-col overflow-hidden bg-[#0a0c10]">
+      <div className="flowseeker-main">
         {/* Top bar */}
-        <div className="flex items-center gap-3 px-4 py-2 border-b border-slate-800/30 bg-[#0c0e14]">
-          <span className="text-sm font-bold text-slate-100">{ticker}</span>
-          {chain && <span className="text-[9px] text-emerald-400 px-1.5 py-0.5 bg-emerald-500/10 rounded-full font-bold">● LIVE</span>}
-          {chain && <span className="text-[9px] text-slate-500">{chain.chain?.length || 0} expirations</span>}
-          {stats.highConf > 0 && <span className="text-[9px] text-emerald-400 px-1.5 py-0.5 bg-emerald-500/10 rounded-full font-bold">{stats.highConf} HIGH</span>}
-          {stats.sweeps > 0 && <span className="text-[9px] text-rose-400 px-1.5 py-0.5 bg-rose-500/10 rounded-full font-bold">{stats.sweeps} SWEEPS</span>}
-          {stats.blocks > 0 && <span className="text-[9px] text-orange-300 px-1.5 py-0.5 bg-orange-500/10 rounded-full font-bold">{stats.blocks} BLOCKS</span>}
+        <div className="flowseeker-topbar">
+          <span className="text-[13px] font-bold font-mono text-slate-100">{ticker}</span>
+          {chain && <span className="flowseeker-live-badge"><span className="flowseeker-live-dot" /> LIVE</span>}
+          {chain && <span className="text-[10px] text-slate-500">{chain.chain?.length || 0} expirations</span>}
+          {stats.highConf > 0 && <span className={`flowseeker-chip ${stats.highConf > 0 ? "flowseeker-chip-pos" : ""}`}>{stats.highConf} HIGH</span>}
+          {stats.sweeps > 0 && <span className={`flowseeker-chip ${stats.sweeps > 0 ? "flowseeker-chip-neg" : ""}`}>{stats.sweeps} SWEEPS</span>}
+          {stats.blocks > 0 && <span className={`flowseeker-chip ${stats.blocks > 0 ? "flowseeker-chip-gold" : ""}`}>{stats.blocks} BLOCKS</span>}
         </div>
 
         {/* ─── NEW: Blademap positioning summary bar ─── */}
-        <div className="px-4 py-2 border-b border-slate-800/30 bg-[#0a0c10] flex flex-wrap items-center gap-2 text-[10px]">
-          <span className="text-[9px] uppercase tracking-widest text-slate-500 font-bold">Context</span>
-          <span className="px-2 py-0.5 rounded-full font-mono"
-            title="market_regime from top conviction alert"
-            style={{ background: "rgba(56,189,248,0.10)", color: "#38bdf8", border: "1px solid rgba(56,189,248,0.25)" }}>
+        <div className="flowseeker-context">
+          <span className="flowseeker-label mb-0">Context</span>
+          <span className="flowseeker-chip flowseeker-chip-sky" title="market_regime from top conviction alert">
             regime: {summary.regime}
           </span>
-          <span className="px-2 py-0.5 rounded-full font-mono"
-            title="dealer_positioning from top conviction alert"
-            style={{ background: summary.dealer?.includes("short") ? "rgba(244,63,94,0.10)" : "rgba(34,197,94,0.10)", color: summary.dealer?.includes("short") ? "#fb7185" : "#34d399", border: `1px solid ${summary.dealer?.includes("short") ? "rgba(244,63,94,0.25)" : "rgba(34,197,94,0.25)"}` }}>
+          <span className={`flowseeker-chip ${summary.dealer?.includes("short") ? "flowseeker-chip-neg" : "flowseeker-chip-pos"}`} title="dealer_positioning from top conviction alert">
             dealer: {summary.dealer}
           </span>
           {summary.zeroCross != null && (
-            <span className="px-2 py-0.5 rounded-full font-mono"
-              style={{ background: "rgba(250,204,21,0.10)", color: "#facc15", border: "1px solid rgba(250,204,21,0.25)" }}>
+            <span className="flowseeker-chip flowseeker-chip-gold">
               γ-flip @ ${safe(summary.zeroCross, 2)}
             </span>
           )}
           {summary.rationale && (
-            <span className="text-[10px] text-slate-300 italic truncate max-w-[48ch]" title={summary.rationale}>
-              “{summary.rationale}”
+            <span className="text-[10px] text-slate-200 italic truncate max-w-[48ch]" title={summary.rationale}>
+              "{summary.rationale}"
             </span>
           )}
           {composite && (
@@ -513,13 +574,13 @@ export default function FlowseekerProTab({ active = true }) {
           </div>
 
           {/* ─── Alerts panel — replaced skinny rows with Blademap cards ─── */}
-          <div className="w-96 flex-shrink-0 border-l border-slate-800/30 bg-[#0b0d12] flex flex-col overflow-hidden">
-            <div className="px-3 py-2 border-b border-slate-800/30 flex items-center justify-between">
+          <div className="flowseeker-alerts-panel">
+            <div className="flowseeker-panel-header flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <span className="text-xs">🔔</span>
-                <span className="text-[10px] uppercase tracking-widest text-slate-400 font-bold">Blademap Alerts</span>
+                <span className="flowseeker-label mb-0">Blademap Alerts</span>
               </div>
-              <span className="text-[9px] text-slate-600 bg-slate-800/50 px-1.5 py-0.5 rounded-full">{alerts.length}</span>
+              <span className="flowseeker-chip">{alerts.length}</span>
             </div>
 
             {alerts.length === 0 ? (
@@ -543,7 +604,7 @@ export default function FlowseekerProTab({ active = true }) {
               </div>
             )}
 
-            <div className="flex items-center gap-3 px-3 py-1.5 border-t border-slate-800/30 text-[8px] text-slate-500 bg-[#0a0c10]">
+            <div className="flex items-center gap-3 px-3 py-1.5 border-t border-slate-800/30 text-[8px] text-slate-500">
               <span className="flex items-center gap-1"><span className="w-2 h-1 rounded-sm bg-emerald-500/60" /> Call OI</span>
               <span className="flex items-center gap-1"><span className="w-2 h-1 rounded-sm bg-rose-500/60" /> Put OI</span>
               <span className="flex items-center gap-1"><span className="w-2.5 h-0.5 bg-amber-400" /> Delta</span>
@@ -580,7 +641,7 @@ function BlademapAlertCard({ a, expanded, onToggle }) {
   });
 
   const ind = a.indicators || null;
-  const keyLevels = a.key_levels || null;
+  const keyLevels = a.key_levels ?? null;
   const rationale = a.rationale || null;
   const actions = a.recommended_actions || [];
   const signalTypes = a.signal_types || (signal ? [signal] : []);
@@ -594,9 +655,7 @@ function BlademapAlertCard({ a, expanded, onToggle }) {
       data-signal-type={signal}
       data-direction={direction}
       data-conviction={conviction}
-      className={`border border-slate-800/60 rounded-lg overflow-hidden bg-[#0c0e14] ${
-        expanded ? "ring-1 ring-sky-500/40" : ""
-      } cursor-pointer hover:border-slate-700 transition-colors`}
+      className={`blademap-alert-card ${expanded ? "expanded" : ""}`}
       onClick={onToggle}
     >
       {/* Row 1: signal chip · tier badge · direction pill · strike · side */}
