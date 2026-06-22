@@ -474,12 +474,18 @@ async def unusual_activity_alerts(
                     put_iv = safe_float(pv, 3)
                     call_delta = safe_float(cv, 2)
                     put_delta = safe_float(pv, 2)
+                    call_bid = safe_float(cv, 8)
+                    call_ask = safe_float(cv, 9)
+                    put_bid = safe_float(pv, 8)
+                    put_ask = safe_float(pv, 9)
 
                     call_data.append({
                         "strike": strike, "call_oi": call_oi, "put_oi": put_oi,
                         "call_vol": call_vol, "put_vol": put_vol,
                         "call_iv": call_iv, "put_iv": put_iv,
                         "call_delta": call_delta, "put_delta": put_delta,
+                        "call_bid": call_bid, "call_ask": call_ask,
+                        "put_bid": put_bid, "put_ask": put_ask,
                     })
 
                 if not call_data:
@@ -528,10 +534,11 @@ async def unusual_activity_alerts(
                         confidence_score += 8
                         factors.append("Deep ITM put (delta: %.2f, OI: %.0f)" % (abs(d["put_delta"]), d["put_oi"]))
 
-                    # Check premium concentration
-                    mid = (d.get("call_bid", 0) + d.get("call_ask", 0)) / 2
-                    if mid > 0 and total_oi > 0:
-                        premium = mid * total_oi * 100
+                    # Check premium concentration (use midpoint if available, else bid/ask)
+                    call_mid = (d["call_bid"] + d["call_ask"]) / 2 if d["call_bid"] > 0 and d["call_ask"] > 0 else 0
+                    put_mid = (d["put_bid"] + d["put_ask"]) / 2 if d["put_bid"] > 0 and d["put_ask"] > 0 else 0
+                    if call_mid > 0 and total_oi > 0:
+                        premium = call_mid * total_oi * 100
                         if premium > 500_000:
                             alerts_for_strike.append("premium_concentration")
                             confidence_score += 12
