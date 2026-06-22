@@ -2173,9 +2173,18 @@ def get_schwab_auth_url() -> dict:
     }
 
 
-async def schwab_auth_handler(request: dict) -> dict:
-    """Handle Schwab OAuth callback (stub)."""
-    return {"status": "error", "message": "Schwab auth not configured"}
+async def schwab_auth_handler(request: dict):
+    """Handle Schwab OAuth callback (stub).
+
+    Returns JSONResponse(503) so monitoring agents that filter on
+    status_code != 200 can detect the unconfigured state (gemini.py
+    JSONResponse precedent — commit 23baf34). The body shape is unchanged
+    (status=error, message=...) so the frontend error path is not affected.
+    """
+    return JSONResponse(
+        status_code=503,
+        content={"status": "error", "message": "Schwab auth not configured"},
+    )
 
 
 async def schwab_get_accounts() -> dict:
@@ -2658,8 +2667,8 @@ async def metrics_middleware(request: Request, call_next):
     try:
         if request.scope.get("route"):
             route = request.scope["route"].path
-    except Exception:
-        pass
+    except Exception as e:
+        log.warning(f"server.py: route template extraction raise swallowed (route path preserved): {e}", exc_info=True)
 
     obs_metrics.api_request_duration_seconds.labels(
         route=route,
@@ -3070,8 +3079,8 @@ async def shutdown_duckdb():
     try:
         await duckdb_engine.stop()
         log.info("DuckDB engine stopped")
-    except Exception:
-        pass
+    except Exception as e:
+        log.warning(f"server.py: duckdb_engine.stop() raise swallowed (shutdown continued): {e}", exc_info=True)
 
 # ============ Ingestion Pipeline (Mock Feed for now) ============
 import contextlib

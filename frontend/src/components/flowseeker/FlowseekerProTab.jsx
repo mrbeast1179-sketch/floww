@@ -33,7 +33,7 @@ export default function FlowseekerProTab({ active = true }) {
   useEffect(() => { if (active) fetchChain(ticker); }, [ticker, active, fetchChain]);
   useEffect(() => { if (!active) return; const id = setInterval(() => fetchChain(ticker), 20000); return () => clearInterval(id); }, [ticker, active, fetchChain]);
 
-  // Render chart
+  // Render chart when data or expiry changes
   useEffect(() => {
     if (!chain || !chartRef.current || !window.Plotly) return;
     const exp = chain.chain[expiryIdx];
@@ -96,13 +96,16 @@ export default function FlowseekerProTab({ active = true }) {
     };
 
     window.Plotly.newPlot(chartRef.current, traces, layout, { responsive: true, displayModeBar: false });
-  }, [chain, expiryIdx, ticker]);
+  }, [chain, expiryIdx, ticker, plotlyReady]);
+
+  const [plotlyReady, setPlotlyReady] = useState(false);
 
   // Load Plotly CDN
   useEffect(() => {
-    if (window.Plotly) return;
+    if (window.Plotly) { setPlotlyReady(true); return; }
     const s = document.createElement("script");
     s.src = "https://cdn.plot.ly/plotly-2.35.2.min.js";
+    s.onload = () => setPlotlyReady(true);
     document.head.appendChild(s);
   }, []);
 
