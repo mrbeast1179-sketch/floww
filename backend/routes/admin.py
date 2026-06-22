@@ -5,7 +5,10 @@ Admin/utility routes: errors, performance, databento usage.
 """
 from __future__ import annotations
 
+import logging
 from datetime import UTC
+
+logger = logging.getLogger(__name__)
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 
@@ -132,6 +135,27 @@ async def schwab_health(_: bool = Depends(_require_admin_auth)):
 
     All values cached in process memory; does not hit Schwab API.
     Response time target: <50ms even under heavy ingestion load.
+
+    OBSERVABILITY CONTRACT — Phase 6 Task 10 Decision Queue #4:
+    Any future `try/except Exception:` block added to this function MUST
+    follow the same shape used by the two existing ones (streamer probe
+    + token TTL):
+
+        except Exception as e:
+            logger.error(f"schwab_health: <branch name> failed: {e}")
+            if "error" not in health:
+                health["error"] = f"<branch name> failed: {e}"
+            # optional per-branch graceful default (e.g. token_ttl_seconds=0)
+
+    This preserves the HTTP-200 + partial-data contract that clients
+    depend on, BUT eliminates silent-swallow by surfacing failures via
+    BOTH `logger.error` AND an `error` key in the response body so
+    monitoring agents (Prometheus alerts, dashboard scripts) can detect
+    degraded state without changing the response shape on the happy
+    path.
+
+    Tests in `backend/tests/services/test_admin_schwab_health_observability.py`
+    pin the contract — add a parallel test for any new branch.
     """
     health = {
         "connected": False,
@@ -148,8 +172,13 @@ async def schwab_health(_: bool = Depends(_require_admin_auth)):
         if _schwab_streamer:
             streamer_health = _schwab_streamer.get_health()
             health.update(streamer_health)
-    except Exception:
-        pass
+    except Exception as e:
+        # PHASE 6 TASK 10 — Decision Queue #4: route fixes silent-swallow.
+        # Keep graceful degradation (defaults kept in dict) but surface the
+        # failure via logger.error + an explicit `error` key in the response
+        # so monitoring agents / dashboards can detect a degraded streamer.
+        logger.error(f"schwab_health: streamer probe failed: {e}")
+        health["error"] = f"streamer probe failed: {e}"
 
     # Compute token TTL
     try:
@@ -162,7 +191,15 @@ async def schwab_health(_: bool = Depends(_require_admin_auth)):
             health["token_ttl_seconds"] = max(0, int(expires_at - now))
         else:
             health["token_ttl_seconds"] = 0
-    except Exception:
+    except Exception as e:
+        # PHASE 6 TASK 10 — Decision Queue #4: route fixes silent-swallow.
+        # Same observability-preserving shape: keep graceful default (TTL=0
+        # = "expired" — interpretable) BUT log + inject error key when the
+        # retry path fails.  Don't overwrite a streamer-branch error if one
+        # was already set above (caller still sees degraded context).
+        logger.error(f"schwab_health: token ttl computation failed: {e}")
+        if "error" not in health:
+            health["error"] = f"token ttl computation failed: {e}"
         health["token_ttl_seconds"] = 0
 
     return health

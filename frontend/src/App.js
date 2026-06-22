@@ -1034,7 +1034,7 @@ export default function App() {
 
         {/* Footer */}
         <footer className="border-t border-slate-800 px-4 py-2 text-[10px] text-slate-600 flex justify-between flex-shrink-0">
-          <span>Data: CVForge cvserver · Databento OPRA · yfinance · Polygon · GEX via Black-Scholes γ</span>
+          <span>Data: Databento OPRA (OI) · yfinance (IV) · Polygon (aggs). GEX via Black-Scholes γ.</span>
           <span className="hidden md:inline text-slate-700">
             Keys: 1/2/3 pages · G/B/C views · D/S/X modes · E/V/H overlays · ↑↓ tickers · ? shortcuts
           </span>
