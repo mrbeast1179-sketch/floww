@@ -1532,6 +1532,19 @@ _BUILD_HEATMAP_CACHE: dict[str, Any] = {}
 _BUILD_HEATMAP_CACHE_TTL = 60
 
 async def build_heatmap(ticker: str, max_expiries: int = 4, with_taps: bool = True, mode: str = "day", dte: int | None = None, scalp: bool = False, max_strikes: int = 200) -> dict[str, Any]:
+    """Build heatmap with OOM protection and index symbol fast path."""
+    try:
+        return await _build_heatmap_impl(ticker, max_expiries, with_taps, mode, dte, scalp, max_strikes)
+    except HTTPException:
+        raise
+    except Exception as e:
+        log.error(f"build_heatmap failed for {ticker}: {e}", exc_info=True)
+        return {"ticker": ticker, "spot": 0, "expiries_used": [], "strikes": [],
+                "grid": {}, "nodes": {}, "patterns": [], "data_source": "error",
+                "error": str(e)}
+
+
+async def _build_heatmap_impl(ticker: str, max_expiries: int = 4, with_taps: bool = True, mode: str = "day", dte: int | None = None, scalp: bool = False, max_strikes: int = 200) -> dict[str, Any]:
     log.info(f"build_heatmap: {ticker} expiries={max_expiries} mode={mode} max_strikes={max_strikes}")
     # Check cache first
     cache_key = f"{ticker}:{max_expiries}:{mode}:{dte}:{scalp}:{with_taps}:{max_strikes}"
