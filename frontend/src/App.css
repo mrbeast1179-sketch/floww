@@ -1774,32 +1774,34 @@ button, select, input {
   border-collapse: collapse;
   color: #cbd5e1;
   font-family: "JetBrains Mono", ui-monospace, Consolas, monospace;
-  font-size: 11px;
+  font-size: 10px;
   border-spacing: 0;
 }
 .gex-th {
   text-align: right;
-  padding: 6px 8px;
-  color: #475569;
-  font-size: 9px;
+  padding: 4px 6px;
+  color: #64748b;
+  font-size: 8px;
   font-weight: 700;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.1em;
   white-space: nowrap;
-  background: rgba(15,23,42,0.95);
+  background: rgba(10,14,26,0.95);
   position: sticky;
   top: 0;
   z-index: 2;
+  border-bottom: 1px solid rgba(255,255,255,0.04);
 }
-.gex-th-king { text-align: right; width: 72px; }
-.gex-th-flr { text-align: center; width: 84px; }
-.gex-th-ceil { text-align: right; width: 96px; }
-.gex-th-gate { text-align: right; width: 96px; }
-.gex-th-air { text-align: right; width: 84px; }
+.gex-th-king { text-align: right; width: 68px; }
+.gex-th-flr { text-align: center; width: 76px; }
+.gex-th-ceil { text-align: right; width: 88px; }
+.gex-th-gate { text-align: right; width: 88px; }
+.gex-th-air { text-align: right; width: 76px; }
 .gex-th-net { text-align: right; }
 .gex-td {
-  padding: 5px 8px;
-  border-top: 1px solid rgba(255,255,255,0.03);
+  padding: 3px 6px;
+  border-top: 1px solid rgba(255,255,255,0.02);
   white-space: nowrap;
+  line-height: 1.4;
 }
 .gex-td-king { text-align: right; font-weight: 600; color: #e2e8f0; }
 .gex-td-flr { text-align: center; }
@@ -1809,7 +1811,8 @@ button, select, input {
 .gex-td-net { text-align: right; font-weight: 600; }
 .gex-row:hover { background: rgba(255,255,255,0.03); }
 .gex-row-current { background: rgba(255,255,255,0.06) !important; }
-.gex-row-king { background: rgba(45,212,191,0.12) !important; }
-.gex-row-high { background: rgba(139,92,246,0.18) !important; }
-.gex-row-mid  { background: rgba(30,58,138,0.22) !important; }
-.gex-row-low  { background: rgba(203,213,225,0.06) !important; }
+.gex-row-near { background: rgba(251,191,36,0.10) !important; }
+.gex-row-king { background: rgba(168,85,247,0.22) !important; box-shadow: inset 3px 0 0 #2dd4bf; }
+.gex-row-high { background: rgba(168,85,247,0.18) !important; }
+.gex-row-mid  { background: rgba(30,58,138,0.35) !important; }
+.gex-row-low  { background: rgba(148,163,184,0.08) !important; }

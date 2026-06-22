@@ -1,34 +1,42 @@
 import React, { useMemo } from "react";
-import { fmt, fmtAbs } from "../../lib/helpers";
+import { fmtAbs } from "../../lib/helpers";
 
-const fmtK = (v) => fmtAbs(v);
+function fmtGex(v) {
+  if (v === null || v === undefined || isNaN(v)) return "—";
+  const a = Math.abs(v);
+  if (a >= 1e6) return `$${(a / 1e6).toFixed(1)}M`;
+  if (a >= 1e3) return `$${(a / 1e3).toFixed(1)}K`;
+  return `$${a.toFixed(0)}`;
+}
 
 export default function GexStrikeTable({ rows = [], spot }) {
-  const maxAbs = useMemo(() => {
-    let m = 1;
-    for (const r of rows) {
-      const g = Math.abs(r.call_gex || 0);
+  const sorted = useMemo(
+    () => [...rows].sort((a, b) => (b?.strike ?? 0) - (a?.strike ?? 0)),
+    [rows]
+  );
+
+  const kingRow = useMemo(() => {
+    if (!sorted.length) return null;
+    let best = sorted[0];
+    let bestAbs = 0;
+    for (const r of sorted) {
       const p = Math.abs(r.put_gex || 0);
-      const n = Math.abs(r.gex || 0);
-      if (g > m) m = g;
+      if (p > bestAbs) { bestAbs = p; best = r; }
+    }
+    return best;
+  }, [sorted]);
+
+  const maxPut = useMemo(() => {
+    let m = 1;
+    for (const r of sorted) {
+      const p = Math.abs(r.put_gex || 0);
       if (p > m) m = p;
-      if (n > m) m = n;
     }
     return m;
-  }, [rows]);
+  }, [sorted]);
 
-  const sorted = useMemo(() => [...rows].sort((a, b) => (b?.strike ?? 0) - (a?.strike ?? 0)), [rows]);
-
-  const maxPutGex = useMemo(() => {
-    let m = 1;
-    for (const r of rows) {
-      const p = Math.abs(r.put_gex || 0);
-      if (p > m) m = p;
-    }
-    return m;
-  }, [rows]);
-
-  if (!sorted.length) return <div className="panel p-3 text-slate-500 text-xs">No strike data available</div>;
+  if (!sorted.length)
+    return <div className="panel p-3 text-slate-500 text-xs">No strike data available</div>;
 
   return (
     <div className="gex-chain-wrap">
@@ -50,26 +58,31 @@ export default function GexStrikeTable({ rows = [], spot }) {
             const putGex = r.put_gex || 0;
             const netGex = r.gex ?? callGex - putGex;
 
+            const isKing = kingRow && r.strike === kingRow.strike;
             const near = spot ? Math.abs(strike - spot) / spot < 0.01 : false;
 
-            const flrPct = maxPutGex > 0 && putGex > 0
-              ? (putGex / maxPutGex) * 100
-              : 0;
+            const flrPct = maxPut > 0 && putGex > 0 ? (putGex / maxPut) * 100 : 0;
 
-            const isKing = maxPutGex > 0 && putGex >= maxPutGex * 0.99;
-            const rowClass = [
-              near ? "gex-row-current" : "",
-              isKing ? "gex-row-king" : flrPct > 40 ? "gex-row-high" : flrPct > 10 ? "gex-row-mid" : flrPct > 2 ? "gex-row-low" : "",
-            ].filter(Boolean).join(" ");
+            let rowCls = "gex-row";
+            if (isKing) rowCls += " gex-row-king";
+            else if (flrPct >= 99) rowCls += " gex-row-king";
+            else if (flrPct >= 40) rowCls += " gex-row-high";
+            else if (flrPct >= 10) rowCls += " gex-row-mid";
+            else if (flrPct >= 2) rowCls += " gex-row-low";
+            if (near && !isKing) rowCls += " gex-row-near";
 
             return (
-              <tr key={strike} className={`gex-row ${rowClass}`.trim()}>
-                <td className="gex-td gex-td-king">{typeof strike === "number" ? (strike < 10 ? strike.toFixed(2) : strike.toFixed(0)) : strike}</td>
-                <td className={`gex-td gex-td-flr ${flrPct > 0 ? "text-emerald-400" : flrPct < 0 ? "text-rose-400" : ""}`}> {flrPct > 0 ? "+" : ""}{flrPct.toFixed(1)}%</td>
-                <td className="gex-td gex-td-ceil">{callGex === 0 ? "$0.0K" : callGex >= 1e6 ? `$${(callGex / 1e6).toFixed(1)}M` : `$${(callGex / 1e3).toFixed(1)}K`}</td>
-                <td className="gex-td gex-td-gate">{putGex === 0 ? "$0.0K" : putGex >= 1e6 ? `$${(putGex / 1e6).toFixed(1)}M` : `$${(putGex / 1e3).toFixed(1)}K`}</td>
+              <tr key={strike} className={rowCls}>
+                <td className="gex-td gex-td-king">
+                  {strike < 10 ? strike.toFixed(2) : typeof strike === "number" ? strike.toFixed(0) : strike}
+                </td>
+                <td className={`gex-td gex-td-flr ${flrPct > 0 ? "text-emerald-400" : "text-rose-400"}`}>
+                  {flrPct > 0 ? "+" : "-"}{Math.abs(flrPct).toFixed(1)}%
+                </td>
+                <td className="gex-td gex-td-ceil">{fmtGex(callGex)}</td>
+                <td className="gex-td gex-td-gate">{fmtGex(putGex)}</td>
                 <td className="gex-td gex-td-air">$0.0K</td>
-                <td className="gex-td gex-td-net">{netGex === 0 ? "$0.0K" : netGex >= 1e6 ? `$${(netGex / 1e6).toFixed(1)}M` : `$${(netGex / 1e3).toFixed(1)}K`}</td>
+                <td className="gex-td gex-td-net" style={{ color: "#fbbf24" }}>{fmtGex(netGex)}</td>
               </tr>
             );
           })}
