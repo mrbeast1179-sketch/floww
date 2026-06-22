@@ -217,8 +217,14 @@ class DuckDBEngine:
                         f"ALTER TABLE {table} ADD COLUMN {col} {typ} DEFAULT {default}"
                     )
                     logger.info(f"Added {col} to {table}")
-                except Exception:
-                    pass
+                except Exception as e:
+                    msg = str(e).lower()
+                    if "already exists" not in msg and "duplicate" not in msg:
+                        logger.warning(
+                            f"duckdb_engine: schema-migration-failed table={table} col={col}: {e}",
+                            exc_info=True,
+                        )
+                    pass  # idempotent ADD COLUMN ok
 
     def _create_indexes(self):
         self._conn.execute("CREATE INDEX IF NOT EXISTS idx_ticks_symbol ON ticks(symbol)")

@@ -1543,11 +1543,14 @@ async def build_heatmap(ticker: str, max_expiries: int = 4, with_taps: bool = Tr
 
     today = datetime.now(UTC).date()
 
-    # Limit strikes to max_strikes closest to spot (performance optimization)
-    # Keep all contracts (including 0 OI) for display; GEX will be 0 for those
+    # Limit strikes to max_strikes unique strikes closest to spot (performance optimization)
     if len(raw["contracts"]) > max_strikes * 2:
-        sorted_contracts = sorted(raw["contracts"], key=lambda c: abs(c.get("strike", 0) - spot))
-        raw["contracts"] = sorted_contracts[:max_strikes * 2]
+        # Get unique strikes, sort by distance from spot
+        unique_strikes = sorted(set(c.get("strike", 0) for c in raw["contracts"]),
+                               key=lambda s: abs(s - spot))
+        # Keep only max_strikes unique strikes
+        kept_strikes = set(unique_strikes[:max_strikes])
+        raw["contracts"] = [c for c in raw["contracts"] if c.get("strike", 0) in kept_strikes]
         raw["expiries"] = sorted({c["expiry"] for c in raw["contracts"]})
 
     # Scalp mode: force 0DTE only, tight band, volume-weighted

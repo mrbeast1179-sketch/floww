@@ -915,9 +915,6 @@ export default function App() {
         {/* Skylit — GEX Grid + Analytics Column */}
         {page === "skylit" && (
           <div className="legacy-theme skylit-dashboard">
-            {/* GEX grid removed from Skylit — it already lives under Heatseeker.
-                Analytics panels shown full-width in a friendly responsive grid. */}
-            {/* Original Skylit dashboard — Beach Ball + pattern/structure cards */}
             <ErrorBoundary>
               <HeatseekerDashboard
                 ticker={ticker}
@@ -931,9 +928,6 @@ export default function App() {
               <div className="skylit-panel-grid">
                 {page === "skylit" && <MorningBriefing ticker={ticker} spot={livespot?.spot ?? data?.spot} />}
                 <DashboardSummary ticker={ticker} spot={livespot?.spot ?? data?.spot} />
-                <FlipZonesPanel data={data} loading={loading} error={err} />
-                <StackedNodesPanel data={data} loading={loading} error={err} />
-                <TugOfWarPanel data={data} loading={loading} error={err} />
                 <ScenarioPanel data={data} loading={loading} error={err} />
                 <RiskDashboardPanel data={data} loading={loading} error={err} />
                 <OpportunitiesPanel data={data} loading={loading} error={err} />
@@ -954,16 +948,6 @@ export default function App() {
                 <LivePolicyPanel />
                 {page === "skylit" && <PositionSizing ticker={ticker} spot={livespot?.spot ?? data?.spot} />}
                 {page === "skylit" && <TradeEntry ticker={ticker} spot={livespot?.spot ?? data?.spot} />}
-
-                <div className="panel p-3" data-testid="patterns-panel">
-                  <div className="label mb-2">Patterns Detected</div>
-                  <div className="space-y-2">
-                    {data?.patterns?.length ? data.patterns.map((p, i) => <PatternCard key={i} p={p} />) : (
-                      <div className="text-slate-500 text-xs">No textbook pattern. A+ setups only.</div>
-                    )}
-                  </div>
-                </div>
-
                 <VelocityGauge velocity={data?.velocity} />
                 <ToxicityGauge
                   ensemble={ensembleData}
@@ -971,23 +955,6 @@ export default function App() {
                     axios.get(`${API}/ensemble/state?ticker=${ticker}`).then(r => setEnsembleData(r.data)).catch(() => {});
                   }}
                 />
-                {data && <NodesTable data={data} />}
-
-                {data?.nodes?.air_pockets?.length > 0 && (
-                  <div className="panel p-3" data-testid="air-pockets-panel">
-                    <div className="label mb-2">Air Pockets</div>
-                    <div className="space-y-1 text-[11px]">
-                      {data.nodes.air_pockets.map((a, i) => (
-                        <div key={i} className="flex justify-between text-slate-400">
-                          <span className="mono">{fmt(a.low, 0)} – {fmt(a.high, 0)}</span>
-                          <span className="text-slate-500">w {a.width} · mid {fmt(a.mid, 0)}</span>
-                        </div>
-                      ))}
-                    </div>
-                    <div className="text-[10px] text-slate-600 mt-2 italic">Pathways, not targets.</div>
-                  </div>
-                )}
-
                 <GreekReferencePanel />
               </div>
             </aside>

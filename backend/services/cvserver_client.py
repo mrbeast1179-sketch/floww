@@ -55,10 +55,9 @@ CVSERVER_API_KEY = os.environ.get("CVSERVER_API_KEY", "")
 CVSERVER_TIMEOUT = float(os.environ.get("CVSERVER_TIMEOUT", "15"))
 
 # Field name mapping: cvserver param -> our internal contract field name
+# Only map numeric fields here; string fields (expiration_date, contract_type) 
+# are set directly from the group/structural data
 FIELD_MAP = {
-    "expiration_date": "expiry",
-    "strike_price": "strike",
-    "contract_type": "type",
     "implied_volatility": "iv",
     "delta": "delta",
     "gamma": "gamma",
