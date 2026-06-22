@@ -9,6 +9,7 @@ import DomHeatmap from "./components/DomHeatmap";
 import MultiTickerHeatmap from "./components/MultiTickerHeatmap";
 import VolumeProfileGrid from "./components/VolumeProfileGrid";
 import HeatseekerDashboard from "./components/heatseeker/HeatseekerDashboard";
+import GexStrikeTable from "./components/heatseeker/GexStrikeTable";
 import BarHeatmap from "./components/BarHeatmap";
 import PatternCard from "./components/PatternCard";
 import TrinityView from "./components/TrinityView";
@@ -883,7 +884,7 @@ export default function App() {
                       <VolumeProfileGrid data={displayData} spot={livespot?.spot ?? displayData?.spot} />
                     ) : displayData ? (
                       view === "chain"
-                        ? <OptionsChainTable ticker={ticker} spot={livespot?.spot ?? displayData?.spot} />
+                        ? <GexStrikeTable rows={displayData?.strikes || []} spot={livespot?.spot ?? displayData?.spot} />
                         : view === "grid"
                         ? <DomHeatmap data={displayData} spot={livespot?.spot ?? displayData?.spot} ticker={ticker} />
                         : <BarHeatmap data={displayData} filters={filters} compact={false} viewMode={viewMode} />

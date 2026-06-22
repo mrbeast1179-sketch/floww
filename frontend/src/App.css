@@ -1759,3 +1759,51 @@ button, select, input {
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: #334155; border-radius: 3px; }
 ::-webkit-scrollbar-thumb:hover { background: #475569; }
+
+/* GexStrikeTable (heatseeker chain view) */
+.gex-chain-wrap {
+  overflow: auto;
+  max-height: calc(100vh - 240px);
+}
+.gex-chain-table {
+  width: 100%;
+  max-width: 100%;
+  table-layout: fixed;
+  border-collapse: collapse;
+  color: #cbd5e1;
+  font-family: "JetBrains Mono", ui-monospace, Consolas, monospace;
+  font-size: 11px;
+  border-spacing: 0;
+}
+.gex-th {
+  text-align: right;
+  padding: 6px 8px;
+  color: #475569;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  white-space: nowrap;
+  background: rgba(15,23,42,0.95);
+  position: sticky;
+  top: 0;
+  z-index: 2;
+}
+.gex-th-king { text-align: right; width: 72px; }
+.gex-th-flr { text-align: center; width: 84px; }
+.gex-th-ceil { text-align: right; width: 96px; }
+.gex-th-gate { text-align: right; width: 96px; }
+.gex-th-air { text-align: right; width: 84px; }
+.gex-th-net { text-align: right; }
+.gex-td {
+  padding: 5px 8px;
+  border-top: 1px solid rgba(255,255,255,0.03);
+  white-space: nowrap;
+}
+.gex-td-king { text-align: right; font-weight: 600; color: #e2e8f0; }
+.gex-td-flr { text-align: center; }
+.gex-td-ceil { text-align: right; }
+.gex-td-gate { text-align: right; }
+.gex-td-air { text-align: right; color: #475569; }
+.gex-td-net { text-align: right; font-weight: 600; }
+.gex-row:hover { background: rgba(255,255,255,0.03); }
+.gex-row-current { background: rgba(255,255,255,0.06) !important; }
