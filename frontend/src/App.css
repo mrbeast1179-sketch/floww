@@ -313,7 +313,7 @@
   }
 }
 
-/* ===== SKYLIT full-width dashboard (no GEX grid; panels in a friendly responsive grid) ===== */
+/* ===== SKYLIT full-width dashboard ===== */
 .skylit-dashboard {
   flex: 1;
   min-height: 0;
@@ -323,34 +323,62 @@
 .skylit-panels { width: 100%; }
 .skylit-panel-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(380px, 1fr));
-  gap: 14px;
-  padding: 16px;
+  grid-template-columns: repeat(auto-fill, minmax(400px, 1fr));
+  gap: 16px;
+  padding: 18px;
   align-items: start;
-  line-height: 1.45;
+  line-height: 1.5;
 }
-/* Match the black panels up top: real .panel children keep their native black
-   look (no double-padding); only non-panel children get matching card chrome. */
 .skylit-panel-grid > * { min-width: 0; }
 .skylit-panel-grid > :not(.panel) {
   background: var(--panel);
   border: 1px solid var(--border);
   border-radius: 16px;
-  padding: 14px 16px;
+  padding: 16px 18px;
 }
 .skylit-panel-grid > *:hover { border-color: rgba(94,234,212,0.30) !important; }
-/* Bigger, friendlier text */
+
+/* Panel header styling */
 .skylit-panel-grid .label {
-  font-size: 12.5px !important;
+  font-size: 13px !important;
   letter-spacing: 0.06em;
-  color: #cbd5e1 !important;
-  margin-bottom: 10px;
+  color: #e2e8f0 !important;
+  margin-bottom: 12px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
 }
-.skylit-panel-grid .text-\[9px\]  { font-size: 11px !important; }
-.skylit-panel-grid .text-\[10px\] { font-size: 12px !important; }
-.skylit-panel-grid .text-\[11px\] { font-size: 12.5px !important; }
+.skylit-panel-grid .label::before {
+  content: '';
+  display: inline-block;
+  width: 3px;
+  height: 14px;
+  border-radius: 2px;
+  background: linear-gradient(180deg, #38bdf8, #0ea5e9);
+  flex-shrink: 0;
+}
+
+/* Text size improvements */
+.skylit-panel-grid .text-\\[8px\\]  { font-size: 11px !important; }
+.skylit-panel-grid .text-\\[9px\\]  { font-size: 12px !important; }
+.skylit-panel-grid .text-\\[10px\\] { font-size: 13px !important; }
+.skylit-panel-grid .text-\\[11px\\] { font-size: 13.5px !important; }
+.skylit-panel-grid .text-\\[12px\\] { font-size: 14px !important; }
+
+/* Mono number styling */
+.skylit-panel-grid .mono {
+  font-feature-settings: "tnum";
+  font-variant-numeric: tabular-nums;
+}
+
+/* Better contrast for key values */
+.skylit-panel-grid .text-emerald-400 { color: #34d399 !important; }
+.skylit-panel-grid .text-rose-400 { color: #fb7185 !important; }
+.skylit-panel-grid .text-amber-400 { color: #fbbf24 !important; }
+.skylit-panel-grid .text-sky-400 { color: #38bdf8 !important; }
+
 @media (max-width: 640px) {
-  .skylit-panel-grid { grid-template-columns: 1fr; padding: 10px; }
+  .skylit-panel-grid { grid-template-columns: 1fr; padding: 12px; gap: 12px; }
 }
 
 /* ===== PWA INSTALL PROMPT ===== */
