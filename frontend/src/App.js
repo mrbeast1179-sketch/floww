@@ -42,7 +42,6 @@ import { TradeAnalytics } from "./components/TradeAnalytics";
 import { SocialFlowPanel } from "./components/SocialFlowPanel";
 import SwarmFrame from "./components/SwarmFrame";
 import TurboQuantPanel from "./components/TurboQuantPanel";
-import FlowseekerTab from "./components/flowseeker/FlowseekerTab";
 import FlowseekerProTab from "./components/flowseeker/FlowseekerProTab";
 import AlertOverlay from "./components/AlertOverlay";
 import PWAInstallBanner from "./components/PWAInstallBanner";
