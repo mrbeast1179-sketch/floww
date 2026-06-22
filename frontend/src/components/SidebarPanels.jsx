@@ -24,15 +24,15 @@ function EmptyState() {
 function Section({ title, children, defaultOpen = true, badge }) {
   const [open, setOpen] = React.useState(defaultOpen);
   return (
-    <div className="panel-2 p-2">
+    <div className="rounded-xl border border-slate-700/30 bg-slate-800/20 p-3">
       <button className="flex items-center justify-between w-full text-left" onClick={() => setOpen(!open)} style={{ background: "none", border: "none", padding: 0, cursor: "pointer" }}>
-        <div className="label mb-0">{title}</div>
-        <div className="flex items-center gap-1">
-          {badge && <span className="text-[8px] px-1 py-px rounded bg-slate-700 text-slate-400">{badge}</span>}
-          <span className="text-slate-500 text-[10px]">{open ? "▾" : "▸"}</span>
+        <div className="flex items-center gap-2">
+          <div className="text-xs font-semibold text-slate-200 uppercase tracking-wider">{title}</div>
+          {badge && <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-slate-700/50 text-slate-400 font-medium">{badge}</span>}
         </div>
+        <span className="text-slate-500 text-xs">{open ? "▾" : "▸"}</span>
       </button>
-      {open && <div className="mt-1.5">{children}</div>}
+      {open && <div className="mt-2">{children}</div>}
     </div>
   );
 }

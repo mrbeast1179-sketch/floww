@@ -33,15 +33,15 @@ function StateWrap({ loading, error, empty, children, label }) {
 function Section({ title, children, defaultOpen = true, badge }) {
   const [open, setOpen] = React.useState(defaultOpen);
   return (
-    <div className="panel-2 p-2">
+    <div className="rounded-xl border border-slate-700/30 bg-slate-800/20 p-3">
       <button className="flex items-center justify-between w-full text-left" onClick={() => setOpen(!open)} style={{ background: "none", border: "none", padding: 0, cursor: "pointer" }}>
-        <div className="label mb-0">{title}</div>
-        <div className="flex items-center gap-1">
-          {badge && <span className="text-[8px] px-1 py-px rounded bg-slate-700 text-slate-400">{badge}</span>}
-          <span className="text-slate-500 text-[10px]">{open ? "▾" : "▸"}</span>
+        <div className="flex items-center gap-2">
+          <div className="text-xs font-semibold text-slate-200 uppercase tracking-wider">{title}</div>
+          {badge && <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-slate-700/50 text-slate-400 font-medium">{badge}</span>}
         </div>
+        <span className="text-slate-500 text-xs">{open ? "▾" : "▸"}</span>
       </button>
-      {open && <div className="mt-1.5">{children}</div>}
+      {open && <div className="mt-2">{children}</div>}
     </div>
   );
 }
@@ -53,12 +53,12 @@ function MiniBar({ value, max, color = "teal", label }) {
   const pct = sm > 0 ? Math.min(100, Math.abs(sv) / sm * 100) : 0;
   const barColor = color === "teal" ? "bg-teal-500/60" : color === "rose" ? "bg-rose-500/60" : color === "amber" ? "bg-amber-500/60" : "bg-sky-500/60";
   return (
-    <div className="flex items-center gap-1 text-[8px]">
-      <span className="text-slate-500 w-12 text-right truncate">{label}</span>
-      <div className="flex-1 h-1.5 bg-slate-800 rounded-full overflow-hidden">
+    <div className="flex items-center gap-2 text-[10px]">
+      <span className="text-slate-500 w-14 text-right truncate font-medium">{label}</span>
+      <div className="flex-1 h-2 bg-slate-800/60 rounded-full overflow-hidden">
         <div className={`h-full rounded-full ${barColor}`} style={{ width: `${pct}%` }} />
       </div>
-      <span className="mono text-slate-400 w-10 text-right">{typeof value === "number" ? safeFixed(value, 2) : value}</span>
+      <span className="mono text-slate-300 w-14 text-right">{typeof value === "number" ? safeFixed(value, 2) : value}</span>
     </div>
   );
 }
