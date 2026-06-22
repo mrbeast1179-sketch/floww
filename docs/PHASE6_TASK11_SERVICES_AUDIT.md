@@ -74,7 +74,7 @@ Each row: site ID, current shape (pre-fix), role, proposed fix shape (post-fix l
 **Status legend:**
 - ✓ CLOSED = fix landed + `grep -cF '<substring>' <file>` verified ≥ 1
 - ✗ OPEN = fix not landed; proposed substring queued for Round 7+ retry
-- ⚠ VERIFY = body excerpt truncated by Phase 6 Task 11 scanner (200-char window); read source before applying
+- ⚠ **VERIFY-before-remediation** = body excerpt truncated by Phase 6 Task 11 scanner (200-char window); MUST read source and re-classify before applying any proposed fix shape (truncated window may hide a graceful metric update or non-dummy return)
 
 ### `backend/services/duckdb_engine.py`
 
@@ -136,14 +136,14 @@ Each row: site ID, current shape (pre-fix), role, proposed fix shape (post-fix l
 
 | Site | Current shape (pre-fix) | Role | Proposed fix shape | Severity | Status |
 |---|---|---|---|---|---|
-| L32 | `except Exception: <body>` (truncated by scanner) | GEX inference pre-step | `logger.warning(f"gex_inference: pre-step: {e}", exc_info=True)` | MEDIUM ⚠ VERIFY | **✗ OPEN** |
-| L48 | `except Exception: <body>` (truncated by scanner) | GEX inference compute | `logger.warning(f"gex_inference: compute: {e}", exc_info=True)` | MEDIUM ⚠ VERIFY | **✗ OPEN** |
+| L32 | `except Exception: <body>` (truncated by scanner) | GEX inference pre-step | `logger.warning(f"gex_inference: pre-step: {e}", exc_info=True)` | MEDIUM **VERIFY-before-remediation** | **✗ OPEN** |
+| L48 | `except Exception: <body>` (truncated by scanner) | GEX inference compute | `logger.warning(f"gex_inference: compute: {e}", exc_info=True)` | MEDIUM **VERIFY-before-remediation** | **✗ OPEN** |
 
 ### `backend/services/ml/features.py`
 
 | Site | Current shape (pre-fix) | Role | Proposed fix shape | Severity | Status |
 |---|---|---|---|---|---|
-| L988 | `except Exception: <body>` (truncated by scanner) | Feature engineering tail | `logger.warning(f"ml_features: tail: {e}", exc_info=True)` | MEDIUM ⚠ VERIFY | **✗ OPEN** |
+| L988 | `except Exception: <body>` (truncated by scanner) | Feature engineering tail | `logger.warning(f"ml_features: tail: {e}", exc_info=True)` | MEDIUM **VERIFY-before-remediation** | **✗ OPEN** |
 
 ### `backend/services/ml/health_monitor.py`
 
@@ -193,7 +193,7 @@ Each row: site ID, current shape (pre-fix), role, proposed fix shape (post-fix l
 
 | Site | Current shape (pre-fix) | Role | Proposed fix shape | Severity | Status |
 |---|---|---|---|---|---|
-| L201 | `except Exception: <body>` (truncated by scanner) | Memory-federation sync | `logger.warning(f"memory_federation: sync: {e}", exc_info=True)` | MEDIUM ⚠ VERIFY | **✗ OPEN** |
+| L201 | `except Exception: <body>` (truncated by scanner) | Memory-federation sync | `logger.warning(f"memory_federation: sync: {e}", exc_info=True)` | MEDIUM **VERIFY-before-remediation** | **✗ OPEN** |
 
 ### `backend/services/research/discovery.py`
 
@@ -275,11 +275,11 @@ A subsequent commit `2f614c1` (`fix(skylit): fix HeatseekerDashboard tests for n
 
 | # | Site | Retry strategy | Substring target (already specified above) |
 |---|---|---|---|
-| 1 | `ml/gex_inference.py:32` | `write_file` Python-script tooling (avoid bash heredoc truncation seen in Round 7); per ⚠ VERIFY, re-read source lines 25–40 first to confirm body is `pass`/`return None` and not graceful metric update | `gex_inference: pre-step` |
+| 1 | `ml/gex_inference.py:32` | `write_file` Python-script tooling (avoid bash heredoc truncation seen in Round 7); per **VERIFY-before-remediation**, re-read source lines 25–40 first to confirm body is `pass`/`return None` and not graceful metric update | `gex_inference: pre-step` |
 | 2 | `ml/gex_inference.py:48` | Same as #1; source line 40–55 | `gex_inference: compute` |
-| 3 | `ml/features.py:988` | `write_file` tooling; per ⚠ VERIFY, source line 980–1000 | `ml_features: tail` |
+| 3 | `ml/features.py:988` | `write_file` tooling; per **VERIFY-before-remediation**, source line 980–1000 | `ml_features: tail` |
 | 4 | `ml/outcomes.py:205` | Re-scan file (current line bled relative to original scan snapshot); re-apply with refreshed line | `ml_outcomes: outcome-fetch-fallback-failed` |
-| 5 | `memory/federation.py:201` | `write_file` tooling; per ⚠ VERIFY, source line 195–210 | `memory_federation: sync` |
+| 5 | `memory/federation.py:201` | `write_file` tooling; per **VERIFY-before-remediation**, source line 195–210 | `memory_federation: sync` |
 | 6 | `research/discovery.py:499` (SSRN source) | `write_file` Python-script (Round 7 bash-heredoc was truncated before `PYEOF`); module-level needs `import logging` + `logger = logging.getLogger(__name__)` since file currently has no logger convention | `research_discovery: tail-failed` |
 | 7 | `research/discovery.py:598` (NBER source) | Same as #6 | `research_discovery: post-failed` |
 
@@ -299,7 +299,7 @@ Re-prioritized from the original Top-3 (now obsolete — Rows 1/2/3 of the prior
 | # | Sites | Why rank-top | Pathspec |
 |---|---|---|---|
 | 1 | `ml/gex_inference.py:32/48` + `ml/features.py:988` + `ml/outcomes.py:205` (3 files, 4 sites) | ML-domain MEDIUM severity; consistent with the Round-5 dynamic-convention pipeline that worked for `ml/outcomes.py:137` + `ml_ensemble` + `ml_realtime_features` | per-file pathspec covering `ml/gex_inference.py` + `ml/features.py` + `ml/outcomes.py` (single commit) |
-| 2 | `memory/federation.py:201` | MEDIUM severity; single-site; ⚠ VERIFY caveat to clear first | per-file pathspec |
+| 2 | `memory/federation.py:201` | MEDIUM severity; single-site; **VERIFY-before-remediation** caveat to clear first | per-file pathspec |
 | 3 | `research/discovery.py:499/598` (1 file, 2 sites) | LOW severity but blocked on the bash-heredoc reliability issue that already produced the Round 7 abort; switch to `write_file` tooling | per-file pathspec (single commit covering both sites + module-level logger setup) |
 
 Each Round-7+ commit must cite this doc as parent precedent and update the Sign-off sub-table row from `0 / 0` to `1 / 1` once the corresponding `grep -cF` returns `1`.
@@ -312,7 +312,7 @@ Each Round-7+ commit must cite this doc as parent precedent and update the Sign-
 - **`causal_inference.py:427/434/445`** trio (`except np.linalg.LinAlgError`) is `UNKNOWN` under heuristic — `LinAlgError` is a specific exception but not in our `SPECIFIC` allow-set. Acceptable as-is.
 - **`memory/code_embeddings.py:101`** (`except SyntaxError: pass`) is `UNKNOWN` (SyntaxError = specific). Acceptable since it's a parse-failure tolerance.
 - **`request_deduplicator.py:34`** has explicit explanatory comment ("shard may have been replaced by *new* future"). Documented intent — fix shape downgrades to `logger.debug` rather than `warning`.
-- **4 ⚠ VERIFY rows** (`memory/federation:201`, `ml/features:988`, `ml/gex_inference:32/48`) have body excerpts truncated by the Phase 6 Task 11 scanner's `[:200]` char window. Read source before fixing to confirm body is `pass` / dummy-return and not, say, a graceful metric update.
+- **4 **VERIFY-before-remediation** rows** (`memory/federation:201`, `ml/features:988`, `ml/gex_inference:32/48`) have body excerpts truncated by the Phase 6 Task 11 scanner's `[:200]` char window. Read source before fixing to confirm body is `pass` / dummy-return and not, say, a graceful metric update.
 
 ---
 
@@ -344,7 +344,7 @@ python3 /tmp/silent_scanner.py
 # Output: ###SCAN_TARGETS### -> per-file ###FILE### blocks -> ###DOMAIN_CLUSTER### -> ###SILENT_VERDICT_LIST### -> ###TOTALS###
 ```
 
-Scanners may use AST (`ast.parse` + walk `ast.ExceptHandler`) for robustness instead of regex. The 4 ⚠ VERIFY rows should be re-extracted with `body[:1000]` or full body extraction to confirm classification.
+Scanners may use AST (`ast.parse` + walk `ast.ExceptHandler`) for robustness instead of regex. The 4 **VERIFY-before-remediation** rows should be re-extracted with `body[:1000]` or full body extraction to confirm classification.
 
 ---
 
