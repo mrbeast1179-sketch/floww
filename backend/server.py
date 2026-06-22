@@ -1529,7 +1529,7 @@ _BUILD_HEATMAP_CACHE_TTL = 60
 
 async def build_heatmap(ticker: str, max_expiries: int = 4, with_taps: bool = True, mode: str = "day", dte: int | None = None, scalp: bool = False, max_strikes: int = 80) -> dict[str, Any]:
     # Check cache first
-    cache_key = f"{ticker}:{max_expiries}:{mode}:{dte}:{scalp}:{with_taps}"
+    cache_key = f"{ticker}:{max_expiries}:{mode}:{dte}:{scalp}:{with_taps}:{max_strikes}"
     cached = _BUILD_HEATMAP_CACHE.get(cache_key)
     if cached and (time.time() - cached["ts"]) < _BUILD_HEATMAP_CACHE_TTL:
         return cached["data"]
@@ -1542,6 +1542,12 @@ async def build_heatmap(ticker: str, max_expiries: int = 4, with_taps: bool = Tr
         raise HTTPException(404, f"No options data for {ticker}")
 
     today = datetime.now(UTC).date()
+
+    # Limit strikes to max_strikes closest to spot (performance optimization)
+    if len(raw["contracts"]) > max_strikes * 2:
+        sorted_contracts = sorted(raw["contracts"], key=lambda c: abs(c.get("strike", 0) - spot))
+        raw["contracts"] = sorted_contracts[:max_strikes * 2]
+        raw["expiries"] = sorted({c["expiry"] for c in raw["contracts"]})
 
     # Scalp mode: force 0DTE only, tight band, volume-weighted
     if scalp:

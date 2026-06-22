@@ -119,7 +119,7 @@ export default function TrinityView({ onFocusTicker }) {
       try {
         const results = await Promise.allSettled(
           allTickers.map(t =>
-            axios.get(`${API}/heatmap/${t}?expiries=${dteFilter}&mode=day`, { timeout: 15000 })
+            axios.get(`${API}/heatmap/${t}?expiries=${dteFilter}&mode=day&max_strikes=60`, { timeout: 30000 })
               .then(r => ({ ticker: t, data: r.data }))
           )
         );

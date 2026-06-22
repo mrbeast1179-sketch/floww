@@ -52,13 +52,14 @@ async def get_ticker_data(
     mode: str = Query("day", pattern="^(day|swing|scalp)$"),
     dte: int | None = Query(None, ge=0, le=30),
     scalp: bool = Query(False),
+    max_strikes: int = Query(80, ge=20, le=200),
 ):
     """Get full heatmap data for a ticker (compatible with frontend data fetch)."""
     from server import build_heatmap
     t = ticker.strip().upper()
     if t == "SPX":
         t = "^SPX"
-    return await build_heatmap(t, expiries, taps, mode, dte, scalp)
+    return await build_heatmap(t, expiries, taps, mode, dte, scalp, max_strikes)
 
 
 @router.get("/quote/{ticker}")
