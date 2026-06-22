@@ -371,12 +371,17 @@ async def get_ensemble(ticker: str, horizon_minutes: int = 15) -> dict[str, Any]
 
     # Statistical detector score
     stat_score = 0.5
+    statistical_error_msg = None
     try:
         det = FlowAnomalyDetector()
         stat_result = det.score(features_df.iloc[-1].to_dict())
         stat_score = float(stat_result.get("score", 0.5))
-    except Exception:
-        pass
+    except Exception as e:
+        # PHASE 6 TASK 10 — Decision Queue #1: observability-gap fix.
+        # Preserve partial-data (ml_score unaffected) BUT surface stat-detector
+        # failure via logger.error + 'statistical_error' key in the response.
+        logger.error(f"get_ensemble: statistical detector failed: {e}")
+        statistical_error_msg = f"statistical detector failed: {e}"
 
     # Weighted ensemble (ML model gets higher weight since it's calibrated)
     ensemble_score = 0.6 * ml_score + 0.4 * stat_score
@@ -397,6 +402,10 @@ async def get_ensemble(ticker: str, horizon_minutes: int = 15) -> dict[str, Any]
         "verdict": "TOXIC" if is_toxic else "NORMAL",
         "model_id": model_doc["model_id"],
         "ts": _now_iso(),
+        # PHASE 6 TASK 10 — Decision Queue #1: observability hook for L378.
+        # Injected only when the statistical detector failed; happy-path
+        # callers see no 'statistical_error' key.
+        **({"statistical_error": statistical_error_msg} if statistical_error_msg else {}),
     }
 
 
@@ -462,6 +471,26 @@ async def ml_briefing(ticker: str) -> dict[str, Any]:
     """Unified ML briefing — combines prediction, model info, regime,
     rolling accuracy, and feature importance into one response for the
     MlDashboard frontend component.
+
+    OBSERVABILITY CONTRACT — Phase 6 Task 10 Decision Queue #1:
+    The briefing envelope is a 5-section aggregate (prediction, model
+    info, drift, rolling accuracy, combined signal).  Each section's
+    `try/except Exception:` block MUST follow the same shape used by
+    Decision Queue #4 (commit 72b00c8) for routes/admin.py:
+
+        except Exception as e:
+            logger.error(f"ml_briefing: <section name> failed: {e}")
+            result["<section>_error"] = f"<section name> failed: {e}"
+
+    The session-key pattern is `<section>_error` (e.g. `model_error`,
+    `drift_error`, `rolling_accuracy_error`) so monitoring agents can
+    attribute the failure to the specific section via response shape,
+    without needing log access.  A happy-path caller sees no `<*_error>`
+    keys; a degraded caller sees ONLY the failed-section keys (preserving
+    the HTTP-200 + partial-data design intent of this endpoint).
+
+    Tests in `backend/tests/services/test_ml_api_silent_error_observability.py`
+    pin the contract per section — add a parallel test for any new section.
     """
     from server import db
     ticker = ticker.upper()
@@ -510,8 +539,14 @@ async def ml_briefing(ticker: str) -> dict[str, Any]:
                 result["feature_values"] = {"gex_regime": "positive" if net_gex > 0 else "negative", "net_gex": round(net_gex, 0)}
                 result["data_age_sec"] = 0
                 result["model_type"] = "gex_fallback"
-        except Exception:
-            pass
+        except Exception as e:
+            # PHASE 6 TASK 10 — Decision Queue #1: observability-gap fix at L513.
+            # The GEX fallback is optional INSIDE the predict()=DegenerateModelError
+            # branch; without this observability fix, a GEX fetch failure swal-
+            # lows silently and the response only carries `prediction_error`
+            # without an actionable secondary-failure signal.
+            logger.error(f"ml_briefing: GEX fallback failed: {e}")
+            result["prediction_fallback_error"] = f"GEX fallback failed: {e}"
     except Exception as e:
         result["prediction_error"] = str(e)
 
@@ -522,8 +557,12 @@ async def ml_briefing(ticker: str) -> dict[str, Any]:
         result["model_type"] = info.model_type
         result["n_features"] = info.n_features
         result["train_accuracy"] = round(info.train_accuracy, 4)
-    except Exception:
-        pass
+    except Exception as e:
+        # PHASE 6 TASK 10 — Decision Queue #1: observability-gap fix at L525.
+        # Section 2 (model info) is OPTIONAL inside the briefing envelope;
+        # a section failure should be surfaced, not silently swallowed.
+        logger.error(f"ml_briefing: model info failed: {e}")
+        result["model_error"] = f"model info failed: {e}"
 
     # 3. Regime (from advanced analytics if available via db)
     try:
@@ -531,8 +570,12 @@ async def ml_briefing(ticker: str) -> dict[str, Any]:
         drift = await registry.compute_drift(ticker)
         result["drift_status"] = drift.get("status", "unknown")
         result["drift_features"] = drift.get("n_recent_samples", 0)
-    except Exception:
-        pass
+    except Exception as e:
+        # PHASE 6 TASK 10 — Decision Queue #1: observability-gap fix at L534.
+        # Section 3 (drift/regime) is OPTIONAL inside the briefing envelope;
+        # a section failure should be surfaced, not silently swallowed.
+        logger.error(f"ml_briefing: drift computation failed: {e}")
+        result["drift_error"] = f"drift computation failed: {e}"
 
     # 4. Rolling accuracy
     try:
@@ -543,8 +586,12 @@ async def ml_briefing(ticker: str) -> dict[str, Any]:
         result["rolling_7d_n"] = acc7.get("n_with_outcomes", 0)
         result["rolling_30d_accuracy"] = acc30.get("accuracy")
         result["rolling_30d_n"] = acc30.get("n_with_outcomes", 0)
-    except Exception:
-        pass
+    except Exception as e:
+        # PHASE 6 TASK 10 — Decision Queue #1: observability-gap fix at L546.
+        # Section 4 (rolling accuracy) is OPTIONAL inside the briefing envelope;
+        # a section failure should be surfaced, not silently swallowed.
+        logger.error(f"ml_briefing: rolling accuracy failed: {e}")
+        result["rolling_accuracy_error"] = f"rolling accuracy failed: {e}"
 
     # 5. Combined signal
     pred_conf = result.get("confidence", 0.5)
