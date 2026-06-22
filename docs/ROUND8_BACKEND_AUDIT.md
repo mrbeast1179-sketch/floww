@@ -51,7 +51,7 @@ Total: 5
 
 The original Round 8 audit (backend/ proxy-passthrough gate) was a *route-shape* audit: stop the moment a 5xx/404 surface, treat it as "the route is missing/broken." That boundary deliberately excluded *server-internal* silent-failure patterns — the route works but exceptions are swallowed with `except Exception: pass`.
 
-Phase 6 Task 10 (decision queue +5 new row) expanded the boundary to cover `backend/server.py`, the largest silent-failure concentration in the codebase. This is the **closure entry** for that expansion sweep.
+Phase 6 Task 10 (decision queue = open-task ledger maintained in `Documents/Obsidian Vault/`; +5 = priority order during this closure sweep) expanded the boundary to cover `backend/server.py`, the largest silent-failure concentration in the codebase. This is the **closure entry** for that expansion sweep.
 
 ### Scope-boundary expansion
 
@@ -66,34 +66,39 @@ Phase 6 Task 10 (decision queue +5 new row) expanded the boundary to cover `back
 
 7 sites classified by uniform-shape: `except Exception: pass` → `log.warning(f"server.py: <thing> raise swallowed (<shape preserved>): {e}", exc_info=True)` for 6 sites, plus a full-shape replacement (dict-return → `JSONResponse(503)`) for 1 site.
 
-| Line | Site                                                       | Fix shape (log.warning w/ exc_info=True or full replacement)                                                                              | Pre-fix severity                            |
+Site identification is by **grep-verifiable role label** rather than line number — line positions drift as the file is edited; the post-fix wording strings are stable identifiers.
+
+| Site pattern (post-fix wording substring)                                                                                  | Role                                                                                  | Fix shape                                              | Pre-fix severity                          |
 |---|---|---|---|
-| L153 | rate_limit_middleware 429 metric                          | swallowed except — log `rate_limit_429_count` metric raise                                                                                | high — silent label-counter loss             |
-| L229 | error_handler log_error call                               | swallowed except — log `error_tracking.log_error` raise                                                                                   | high — silent log-tracker loss               |
-| L247 | prod-branch 500-redaction counter                          | swallowed except — log `redacted_500_count` metric raise                                                                                  | medium — observability gap                   |
-| L274 | perf_monitor.record + set_request_id                       | swallowed except — log `perf_monitor` / `set_request_id` raise                                                                              | medium — telemetry loss                      |
-| L2661 | performance_middleware route-template extraction         | swallowed except — log route-template extraction raise                                                                                  | low — best-effort, now logged                |
-| L3072 | `@app.on_event("shutdown")` → `shutdown_duckdb()`          | swallowed except — log `duckdb_engine.stop()` raise                                                                                       | medium — duckdb-conn leak invisible          |
-| **L2178** | schwab_auth_handler dict-return swallow              | dict-return → explicit `return JSONResponse(status_code=503, content={...})` (gemini.py precedent)                                     | **critical** — caller treated 200 dict as auth-configured |
+| `rate_limit_429_count metric raise swallowed`                                                                             | rate_limit_middleware 429 Prometheus counter                                          | log.warning w/ exc_info=True                           | high — silent label-counter loss           |
+| `error_tracking.log_error raise swallowed`                                                                                | error_handler error_tracking.log_error call                                           | log.warning w/ exc_info=True                           | high — silent log-tracker loss             |
+| `redacted_500_count metric raise swallowed`                                                                               | prod-branch 500-redaction Prometheus counter                                          | log.warning w/ exc_info=True                           | medium — observability gap                 |
+| `perf_monitor / set_request_id raise swallowed`                                                                           | perf_monitor.record + set_request_id                                                  | log.warning w/ exc_info=True                           | medium — telemetry loss                    |
+| `route template extraction raise swallowed`                                                                               | performance_middleware route-template extraction (best-effort)                       | log.warning w/ exc_info=True                           | low — best-effort, now logged              |
+| `duckdb_engine.stop() raise swallowed`                                                                                    | @app.on_event("shutdown") → shutdown_duckdb() handler                                 | log.warning w/ exc_info=True                           | medium — duckdb-conn leak invisible        |
+| `return JSONResponse(status_code=503`                                                                                      | schwab_auth_handler dict-return swallow                                               | full replacement: JSONResponse(503, content)           | **critical** — caller treats 200 dict as auth-configured |
 
-Test file: `backend/tests/server/test_server_silent_failure_observability.py` — 8 tests, TDD red→green pre/post proven via `+ log.warning` grep count (0 → 6) and `isinstance(result, JSONResponse)` introspection on L2178. ruff CLEAN (`E9/F63/F7/F82/F401/F811` + full style).
+Test file: `backend/tests/server/test_server_silent_failure_observability.py` — 8 tests, TDD red→green pre/post proven via `+ log.warning raise swallowed` grep count (0 → 6) and `isinstance(result, JSONResponse)` introspection on the schwab site. ruff CLEAN (`E9/F63/F7/F82/F401/F811` + full style).
 
-### Audit-discrepancy reconciliation
+### Sign-off (verified 2026-06-21)
 
-The Round 8 raw sweep cited 6 `except Exception: pass` sites; the Phase 6 Task 10 recon walked every `except` clause in `backend/server.py` and identified exactly 6 + 1 dict-return = 7.
+Grep-count verification on `backend/server.py`:
 
-- **False positives**: L2629 and L3040 — decorator wrappers without body (no `pass` to swallow).
-- **True positives (new discoveries)**: L2661 and L3072 — the original sweep tagged these differently due to prefix-line pattern matching, but they live in the silent-failure zone.
+| grep -cF pattern                                                                                  | Count |
+|---|---|
+| `rate_limit_429_count metric raise swallowed`                                                     | 1     |
+| `error_tracking.log_error raise swallowed`                                                        | 1     |
+| `redacted_500_count metric raise swallowed`                                                       | 1     |
+| `perf_monitor / set_request_id raise swallowed`                                                   | 1     |
+| `route template extraction raise swallowed`                                                       | 1     |
+| `duckdb_engine.stop() raise swallowed`                                                            | 1     |
+| `return JSONResponse(status_code=503`                                                             | 1     |
+| **Total**                                                                                         | **7 / 7** |
 
-This entry supersedes any prior in-line reference to "6 silent-exception sites" for `backend/server.py` — the correct number is **7**.
-
-### Sign-off
-
-- [x] `backend/server.py` grep post-fix wording: 7/7 hits
-- [x] test file pytest: 8/8 passed
-- [x] ruff `E9/F63/F7/F82/F401/F811` + full style: clean
-- [x] `py_compile` on `backend/server.py` + test file: clean
-- [x] pathspec commit (DOC ONLY) on `docs/ROUND8_BACKEND_AUDIT.md`
+- `[x] pytest tests/server/test_server_silent_failure_observability.py` → 8 / 8 passed
+- `[x] ruff check --select=E9,F63,F7,F82,F401,F811 backend/server.py backend/tests/server/test_server_silent_failure_observability.py` → clean
+- `[x] ruff check backend/server.py backend/tests/server/test_server_silent_failure_observability.py` (full style) → clean
+- `[x] python3 -m py_compile backend/server.py backend/tests/server/test_server_silent_failure_observability.py` → clean
 
 ### Forward-looking (Round 9 picks up)
 
