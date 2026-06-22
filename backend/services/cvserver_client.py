@@ -37,6 +37,7 @@ index 3.
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import logging
 import math
 import os
@@ -183,10 +184,8 @@ def _parse_chain_response(raw: dict, symbol: str) -> dict:
                 for vals in (call_values, put_values):
                     idx = field_idx.get("underlying_price")
                     if idx is not None and idx < len(vals) and vals[idx] is not None:
-                        try:
+                        with contextlib.suppress(TypeError, ValueError):
                             spot = float(vals[idx])
-                        except (TypeError, ValueError):
-                            pass
 
             # Build contract dicts for call and put
             for kind, vals in [("call", call_values), ("put", put_values)]:
