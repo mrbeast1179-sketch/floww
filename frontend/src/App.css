@@ -323,9 +323,9 @@
 .skylit-panels { width: 100%; }
 .skylit-panel-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
-  gap: 12px;
-  padding: 14px;
+  grid-template-columns: repeat(auto-fill, minmax(380px, 1fr));
+  gap: 14px;
+  padding: 16px;
   align-items: start;
   line-height: 1.45;
 }
