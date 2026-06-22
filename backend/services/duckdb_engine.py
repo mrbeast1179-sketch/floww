@@ -221,7 +221,7 @@ class DuckDBEngine:
                     msg = str(e).lower()
                     if "already exists" not in msg and "duplicate" not in msg:
                         logger.warning(
-                            f"duckdb_engine: schema-migration-failed table={table} col={col}: {e}",
+                            f"duckdb_engine: reserved-slot-write: {e}",
                             exc_info=True,
                         )
                     pass  # idempotent ADD COLUMN ok
