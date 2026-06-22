@@ -1572,6 +1572,12 @@ async def build_heatmap(ticker: str, max_expiries: int = 4, with_taps: bool = Tr
     if not spot or spot != spot or not raw["contracts"]:  # spot != spot catches NaN
         raise HTTPException(404, f"No options data for {ticker}")
 
+    # Safety: limit total contracts to prevent OOM
+    if len(raw["contracts"]) > 15000:
+        sorted_c = sorted(raw["contracts"], key=lambda c: abs(c.get("strike", 0) - spot))
+        raw["contracts"] = sorted_c[:15000]
+        raw["expiries"] = sorted({c["expiry"] for c in raw["contracts"]})
+
     today = datetime.now(UTC).date()
 
     # Limit strikes to max_strikes unique strikes closest to spot (performance optimization)
