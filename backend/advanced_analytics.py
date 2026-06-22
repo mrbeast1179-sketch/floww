@@ -44,7 +44,7 @@ def calc_implied_pdf(spot: float, contracts: list[dict[str, Any]],
     # Group calls by expiry
     by_expiry = defaultdict(list)
     for c in contracts:
-        if c["type"] == "call" and c.get("iv", 0) > 0 and c.get("strike", 0) > 0:
+        if c["type"] == "call" and (c.get("iv") or 0) > 0 and (c.get("strike") or 0) > 0:
             by_expiry[c["expiry"]].append(c)
 
     if not by_expiry:
@@ -184,14 +184,16 @@ def calc_market_regime(spot: float, contracts: list[dict[str, Any]]) -> dict[str
 
     # Get ATM IV
     atm_contract = min(contracts, key=lambda c: abs(c["strike"] - spot))
-    atm_iv = atm_contract.get("iv", 0.2)
+    atm_iv = atm_contract.get("iv") or 0.2
 
     # Compute skew (slope of IV across strikes)
     otm_puts = [c for c in contracts if c["type"] == "put" and c["strike"] < spot * 0.95]
     otm_calls = [c for c in contracts if c["type"] == "call" and c["strike"] > spot * 1.05]
 
-    avg_put_iv = np.mean([c["iv"] for c in otm_puts]) if otm_puts else atm_iv
-    avg_call_iv = np.mean([c["iv"] for c in otm_calls]) if otm_calls else atm_iv
+    put_ivs = [c["iv"] for c in otm_puts if c.get("iv")]
+    call_ivs = [c["iv"] for c in otm_calls if c.get("iv")]
+    avg_put_iv = np.mean(put_ivs) if put_ivs else atm_iv
+    avg_call_iv = np.mean(call_ivs) if call_ivs else atm_iv
 
     # Skew: put IV - call IV (positive = put skew = fear)
     skew = avg_put_iv - avg_call_iv
