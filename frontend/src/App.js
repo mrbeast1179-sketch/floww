@@ -36,7 +36,7 @@ import { ShortcutsModal } from "./components/ShortcutsModal";
 import { MorningBriefing } from "./components/MorningBriefing";
 import { PositionSizing } from "./components/PositionSizing";
 import { TradeEntry } from "./components/TradeEntry";
-import { TradeJournal } from "./components/TradeJournal";
+import TradeJournal from "./components/TradeJournal";
 import { DashboardSummary } from "./components/DashboardSummary";
 import { TradeAnalytics } from "./components/TradeAnalytics";
 import { SocialFlowPanel } from "./components/SocialFlowPanel";
