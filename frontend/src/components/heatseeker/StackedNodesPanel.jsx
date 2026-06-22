@@ -3,23 +3,15 @@ import { fmt, fmtAbs } from "../../lib/helpers";
 import { useHeatseeker } from "../../hooks/useHeatseeker";
 
 /**
- * Wave 3 — GET /api/heatseeker/stacked-nodes
- * Returns:
- *   { ticker, spot, stacked_nodes, count }
- *
- * Each stacked node carries: { strike, call_gex, put_gex, conflict }
- *
- * Visualization: side-by-side bars where call (emerald) and put (rose)
- * widths are scaled to the largest combined magnitude in the result set —
- * makes it visually obvious which strikes carry the largest two-sided
- * dealer footprint. Sorted by combined |GEX| descending.
+ * Wave 3 — Stacked Nodes.
+ * Shows strikes with two-sided dealer footprint (call + put GEX).
  */
 export default function StackedNodesPanel({ ticker = "SPY" }) {
   const { data, loading, error } = useHeatseeker("stacked-nodes", { ticker });
 
   const { rows, maxMag } = useMemo(() => {
     const nodes = data?.stacked_nodes || [];
-    const enriched = nodes.map((n) => {
+    const enriched = nodes.map(n => {
       const cg = Math.abs(Number(n.call_gex) || 0);
       const pg = Math.abs(Number(n.put_gex) || 0);
       return { ...n, cg, pg, mag: cg + pg };
@@ -30,67 +22,47 @@ export default function StackedNodesPanel({ ticker = "SPY" }) {
   }, [data]);
 
   return (
-    <div className="panel p-3" data-testid="hs-stacked-nodes">
+    <div className="rounded-xl border border-slate-700/30 bg-slate-800/20 p-3" data-testid="hs-stacked-nodes">
       <div className="flex items-center justify-between mb-2">
-        <div className="label">Stacked Nodes</div>
-        <span className="text-[9px] text-slate-500">{data?.count ?? 0}</span>
+        <div className="flex items-center gap-2">
+          <span className="text-sm">📚</span>
+          <span className="text-xs font-semibold text-slate-200">Stacked Nodes</span>
+        </div>
+        <span className="text-[10px] text-slate-500">{data?.count ?? 0} found</span>
       </div>
-      {loading && !data && (
-        <div className="text-slate-500 text-[11px]">Loading…</div>
-      )}
+      {loading && !data && <div className="text-slate-500 text-xs">Loading…</div>}
       {error && <div className="text-rose-400 text-[10px]">Error: {error}</div>}
       {data && rows.length === 0 && (
-        <div className="text-slate-500 text-[11px]">
-          No stacked conflict strikes.
-        </div>
+        <div className="text-slate-500 text-xs py-2 text-center">No stacked conflict strikes</div>
       )}
       {rows.length > 0 && (
-        <div className="space-y-2">
+        <div className="space-y-2.5">
           {rows.map((n, i) => {
-            const cw = (n.cg / maxMag) * 50; // half-width, 0-50%
+            const cw = (n.cg / maxMag) * 50;
             const pw = (n.pg / maxMag) * 50;
             return (
-              <div key={`${n.strike}-${i}`} className="text-[11px]">
-                <div className="flex items-center justify-between mb-0.5">
-                  <span className="mono font-bold text-slate-200">
-                    {fmt(n.strike, 0)}
-                  </span>
-                  <span className="mono text-[10px] text-amber-300">
-                    {fmtAbs(n.mag)}
-                  </span>
+              <div key={`${n.strike}-${i}`} className="text-xs">
+                <div className="flex items-center justify-between mb-1">
+                  <span className="mono font-bold text-slate-200">${fmt(n.strike, 0)}</span>
+                  <span className="mono text-[10px] text-amber-300 font-bold">{fmtAbs(n.mag)}</span>
                 </div>
-                <div className="relative h-2 bg-slate-800/60 rounded overflow-hidden flex">
-                  {/* Put bar grows leftward from center */}
+                <div className="relative h-2.5 bg-slate-800/60 rounded-full overflow-hidden flex">
                   <div className="w-1/2 flex justify-end">
-                    <div
-                      className="h-full bg-rose-400/70"
-                      style={{ width: `${Math.max(2, pw * 2)}%` }}
-                    />
+                    <div className="h-full bg-rose-400/70 rounded-l-full" style={{ width: `${Math.max(2, pw * 2)}%` }} />
                   </div>
-                  {/* Call bar grows rightward from center */}
+                  <div className="absolute top-0 bottom-0 left-1/2 w-0.5 bg-slate-500/60" />
                   <div className="w-1/2 flex justify-start">
-                    <div
-                      className="h-full bg-emerald-400/70"
-                      style={{ width: `${Math.max(2, cw * 2)}%` }}
-                    />
+                    <div className="h-full bg-emerald-400/70 rounded-r-full" style={{ width: `${Math.max(2, cw * 2)}%` }} />
                   </div>
-                  {/* Center divider */}
-                  <div className="absolute top-0 bottom-0 left-1/2 w-px bg-slate-600/60" />
                 </div>
                 <div className="flex justify-between text-[9px] mono mt-0.5">
-                  <span className="text-rose-400">
-                    put {fmtAbs(n.put_gex)}
-                  </span>
-                  <span className="text-emerald-400">
-                    call {fmtAbs(n.call_gex)}
-                  </span>
+                  <span className="text-rose-400">put {fmtAbs(n.put_gex)}</span>
+                  <span className="text-emerald-400">call {fmtAbs(n.call_gex)}</span>
                 </div>
               </div>
             );
           })}
-          <div className="text-[9px] text-slate-600 italic">
-            Two-sided dealer footprint.
-          </div>
+          <div className="text-[10px] text-slate-500 italic pt-1 border-t border-slate-700/30">Two-sided dealer footprint</div>
         </div>
       )}
     </div>

@@ -52,7 +52,7 @@ CVSERVER_URL = os.environ.get(
     "CVSERVER_URL", "https://tap.convexvalue.com/api/data/mcp"
 )
 CVSERVER_API_KEY = os.environ.get("CVSERVER_API_KEY", "")
-CVSERVER_TIMEOUT = float(os.environ.get("CVSERVER_TIMEOUT", "15"))
+CVSERVER_TIMEOUT = float(os.environ.get("CVSERVER_TIMEOUT", "30"))
 
 # Field name mapping: cvserver param -> our internal contract field name
 # Only map numeric fields here; string fields (expiration_date, contract_type) 

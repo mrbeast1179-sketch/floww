@@ -488,15 +488,19 @@ async def build_briefing(
     # Use pre-fetched chain if no DB connection
     elif chain_contracts:
         safe_spot = spot if spot > 0 else 0.0
+        from services.gex_aggregator import GexAggregator
         try:
-            from services.gex_aggregator import GexAggregator
             agg = GexAggregator()
             gex_result = agg.compute(safe_spot, chain_contracts)
             net_gex = gex_result.get("net_gex", 0.0)
             zero_crossings = gex_result.get("zero_gamma_levels", [])
             if zero_crossings:
                 flip_level = zero_crossings[0]
-        except Exception:
+        except Exception as e:
+            logger.warning(
+                f"morning_briefing: gex-compute-failed ticker={ticker}: {e}",
+                exc_info=True,
+            )
             pass
 
         call_oi_total = sum(

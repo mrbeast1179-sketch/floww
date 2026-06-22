@@ -225,7 +225,11 @@ async def _get_active_model_doc(registry, ticker):
     try:
         models = await registry.list_models(ticker=ticker, status="active")
         return models[0] if models else None
-    except Exception:
+    except Exception as e:
+        logger.warning(
+            f"ml_health_monitor: fallback: {e}",
+            exc_info=True,
+        )
         return None
 
 

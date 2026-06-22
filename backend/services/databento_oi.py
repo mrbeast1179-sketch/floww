@@ -178,7 +178,11 @@ def get_oi(
                             and data.get("type", "") == opt_type
                         ):
                             return _clamp_oi(data.get("oi", 0))
-                    except Exception:
+                    except Exception as e:
+                        logger.warning(
+                            f"databento_oi: top-mover-loop: {e}",
+                            exc_info=True,
+                        )
                         continue
         except Exception as e:
             log.debug(f"Databento OI lookup failed for {ticker}: {e}")

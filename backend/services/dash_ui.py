@@ -1166,6 +1166,10 @@ T: Toggle theme  M: Mute alerts  ?: Show this help
                     data = json.loads(resp.read().decode())
                 return data, f"Updated: {data.get('ts', 'now')}"
             except Exception as e:
+                logger.warning(
+                    f"dash_ui: fetch-api-failed context=fetch_chain: {e}",
+                    exc_info=True,
+                )
                 return {}, f"Error: {e}"
 
         # Fetch flow data
@@ -1180,7 +1184,11 @@ T: Toggle theme  M: Mute alerts  ?: Show this help
                 with urllib.request.urlopen(urllib.request.Request(url), timeout=5) as resp:
                     data = json.loads(resp.read().decode())
                 return data if isinstance(data, list) else data.get("flows", [])
-            except Exception:
+            except Exception as e:
+                logger.warning(
+                    f"dash_ui: fetch-api-failed context=fetch_flow: {e}",
+                    exc_info=True,
+                )
                 return []
 
         # Fetch toxicity
@@ -1194,7 +1202,11 @@ T: Toggle theme  M: Mute alerts  ?: Show this help
                 url = f"http://localhost:8000/api/toxicity-dashboard/{ticker}"
                 with urllib.request.urlopen(urllib.request.Request(url), timeout=5) as resp:
                     return json.loads(resp.read().decode())
-            except Exception:
+            except Exception as e:
+                logger.warning(
+                    f"dash_ui: fetch-api-failed context=fetch_toxicity: {e}",
+                    exc_info=True,
+                )
                 return {}
 
         # Fetch vol surface
@@ -1208,7 +1220,11 @@ T: Toggle theme  M: Mute alerts  ?: Show this help
                 url = f"http://localhost:8000/api/vol-surface/{ticker}"
                 with urllib.request.urlopen(urllib.request.Request(url), timeout=5) as resp:
                     return json.loads(resp.read().decode())
-            except Exception:
+            except Exception as e:
+                logger.warning(
+                    f"dash_ui: fetch-api-failed context=fetch_vol: {e}",
+                    exc_info=True,
+                )
                 return {}
 
         # Fetch trinity
@@ -1221,7 +1237,11 @@ T: Toggle theme  M: Mute alerts  ?: Show this help
             try:
                 with urllib.request.urlopen(urllib.request.Request("http://localhost:8000/api/trinity/align"), timeout=5) as resp:
                     return json.loads(resp.read().decode())
-            except Exception:
+            except Exception as e:
+                logger.warning(
+                    f"dash_ui: fetch-api-failed context=fetch_trinity: {e}",
+                    exc_info=True,
+                )
                 return {}
 
         # Fetch atlas overlays
@@ -1238,7 +1258,11 @@ T: Toggle theme  M: Mute alerts  ?: Show this help
                 from services.atlas_overlays import build_all_overlays
                 overlays = build_all_overlays(spot=spot, contracts=contracts)
                 return {"spot": spot, "contracts": contracts, "overlays": overlays, "ohlc": chain_data.get("ohlc", [])}
-            except Exception:
+            except Exception as e:
+                logger.warning(
+                    f"dash_ui: fetch-api-failed context=fetch_atlas: {e}",
+                    exc_info=True,
+                )
                 return {}
 
         # Fetch agent hub
@@ -1252,7 +1276,11 @@ T: Toggle theme  M: Mute alerts  ?: Show this help
                 with urllib.request.urlopen(urllib.request.Request("http://localhost:8000/api/agent-hub/archetypes"), timeout=5) as resp:
                     data = json.loads(resp.read().decode())
                 return data.get("archetypes", [])
-            except Exception:
+            except Exception as e:
+                logger.warning(
+                    f"dash_ui: fetch-api-failed context=fetch_agent_hub: {e}",
+                    exc_info=True,
+                )
                 return []
 
         # Theme toggle

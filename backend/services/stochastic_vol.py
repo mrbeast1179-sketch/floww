@@ -641,7 +641,11 @@ class VolSurfaceConstructor:
                     try:
                         ivs = svi.implied_vol(log_moneyness, T)
                         iv_grid[:, j] = ivs
-                    except Exception:
+                    except Exception as e:
+                        logger.warning(
+                            f"stochastic_vol: surface-skip: {e}",
+                            exc_info=True,
+                        )
                         pass
 
         # Fill any remaining NaNs with nearest valid column

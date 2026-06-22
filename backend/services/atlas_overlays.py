@@ -140,7 +140,11 @@ def _compute_alignment_score(spy_vals: list[float], qqq_vals: list[float], spx_v
         if len(non_zero) >= 2 and len(set(non_zero)) <= 1:
             return 60.0
         return 25.0
-    except Exception:
+    except Exception as e:
+        logger.warning(
+            f"atlas_overlays: overlay-fallback: {e}",
+            exc_info=True,
+        )
         return 0.0
 
 
