@@ -19,6 +19,15 @@ export default function GexStrikeTable({ rows = [], spot }) {
 
   const sorted = useMemo(() => [...rows].sort((a, b) => (b?.strike ?? 0) - (a?.strike ?? 0)), [rows]);
 
+  const maxPutGex = useMemo(() => {
+    let m = 1;
+    for (const r of rows) {
+      const p = Math.abs(r.put_gex || 0);
+      if (p > m) m = p;
+    }
+    return m;
+  }, [rows]);
+
   if (!sorted.length) return <div className="panel p-3 text-slate-500 text-xs">No strike data available</div>;
 
   return (
@@ -43,12 +52,18 @@ export default function GexStrikeTable({ rows = [], spot }) {
 
             const near = spot ? Math.abs(strike - spot) / spot < 0.01 : false;
 
-            const flrPct = rows.length > 1 && spot
-              ? (((spot - strike) / spot) * 100)
+            const flrPct = maxPutGex > 0 && putGex > 0
+              ? (putGex / maxPutGex) * 100
               : 0;
 
+            const isKing = maxPutGex > 0 && putGex >= maxPutGex * 0.99;
+            const rowClass = [
+              near ? "gex-row-current" : "",
+              isKing ? "gex-row-king" : flrPct > 40 ? "gex-row-high" : flrPct > 10 ? "gex-row-mid" : flrPct > 2 ? "gex-row-low" : "",
+            ].filter(Boolean).join(" ");
+
             return (
-              <tr key={strike} className={`gex-row${near ? " gex-row-current" : ""}`}>
+              <tr key={strike} className={`gex-row ${rowClass}`.trim()}>
                 <td className="gex-td gex-td-king">{typeof strike === "number" ? (strike < 10 ? strike.toFixed(2) : strike.toFixed(0)) : strike}</td>
                 <td className={`gex-td gex-td-flr ${flrPct > 0 ? "text-emerald-400" : flrPct < 0 ? "text-rose-400" : ""}`}> {flrPct > 0 ? "+" : ""}{flrPct.toFixed(1)}%</td>
                 <td className="gex-td gex-td-ceil">{callGex === 0 ? "$0.0K" : callGex >= 1e6 ? `$${(callGex / 1e6).toFixed(1)}M` : `$${(callGex / 1e3).toFixed(1)}K`}</td>

@@ -1809,3 +1809,7 @@ button, select, input {
 .gex-td-net { text-align: right; font-weight: 600; }
 .gex-row:hover { background: rgba(255,255,255,0.03); }
 .gex-row-current { background: rgba(255,255,255,0.06) !important; }
+.gex-row-king { background: rgba(45,212,191,0.12) !important; }
+.gex-row-high { background: rgba(139,92,246,0.18) !important; }
+.gex-row-mid  { background: rgba(30,58,138,0.22) !important; }
+.gex-row-low  { background: rgba(203,213,225,0.06) !important; }
