@@ -4,7 +4,14 @@ import Plot from "react-plotly.js";
 const API = "http://localhost:8000/api/flowseeker";
 const TICKERS = ["SPY","QQQ","IWM","DIA","TLT","AAPL","MSFT","NVDA","TSLA","AMZN","META","GOOGL"];
 
-const CLASS_COLORS = { sweep: "#fbbf24", block: "#f43f5e", unusual: "#a855f7", regular: "#64748b" };
+const CLASS_COLORS = {
+  high_volume: "#fbbf24",      // yellow — unusual trading activity
+  high_iv: "#f43f5e",          // red/pink — IV spike
+  oi_spike: "#a855f7",         // purple — large OI concentration
+  delta_extreme: "#38bdf8",    // blue — deep ITM directional bet
+  premium_concentration: "#22c55e", // green — $1M+ premium at strike
+  regular: "#64748b",          // gray — baseline
+};
 
 export default function FlowseekerProTab({ active = true }) {
   const [ticker, setTicker] = useState("SPY");
@@ -208,27 +215,23 @@ export default function FlowseekerProTab({ active = true }) {
               <span className="text-[9px] text-slate-600 normal-case font-normal">{alerts.length}</span>
             </div>
             {alerts.length === 0 ? (
-              <div className="p-3 text-[10px] text-slate-600 text-center">No large trades detected.<br/><span className="text-slate-700">Monitoring for sweeps, blocks, unusual flow...</span></div>
+              <div className="p-3 text-[10px] text-slate-600 text-center">No unusual activity detected.<br/><span className="text-slate-700">Scanning for volume spikes, IV anomalies, OI concentration...</span></div>
             ) : (
               <div className="divide-y divide-slate-800/30">
                 {alerts.slice(0, 50).map((a, i) => (
                   <div key={i} className="px-2 py-2 hover:bg-slate-800/30 transition-colors cursor-pointer">
                     <div className="flex items-center gap-1.5">
                       <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: CLASS_COLORS[a.classification] || "#64748b" }} />
-                      <span className="text-[10px] font-semibold text-slate-200">{a.classification.toUpperCase()}</span>
+                      <span className="text-[10px] font-semibold text-slate-200">{a.classification.replace(/_/g, ' ').toUpperCase()}</span>
                       <span className="text-[10px] text-slate-400">{a.option_type}</span>
                       <span className="text-[10px] font-mono text-slate-300">{a.strike.toFixed(0)}</span>
                       <span className="text-[9px] text-slate-500">{a.expiration?.slice(5)}</span>
                       {a.tier <= 2 && <span className="text-[8px] px-1 py-0 rounded bg-amber-500/20 text-amber-400">T{a.tier}</span>}
                     </div>
                     <div className="flex items-center gap-2 mt-1 text-[9px]">
-                      <span className="text-slate-400">{a.size.toFixed(0)}x @ ${a.price.toFixed(2)}</span>
-                      <span className="text-slate-500">${(a.premium / 1000).toFixed(0)}k</span>
-                      <span className={`px-1 py-0 rounded text-[8px] ${
-                        a.sentiment === "BULLISH" ? "bg-emerald-500/20 text-emerald-400" :
-                        a.sentiment === "BEARISH" ? "bg-rose-500/20 text-rose-400" :
-                        "bg-slate-700 text-slate-400"
-                      }`}>{a.sentiment}</span>
+                      <span className="text-slate-400">OI: {a.oi?.toFixed(0)}</span>
+                      <span className="text-slate-500">IV: {(a.iv * 100)?.toFixed(1)}%</span>
+                      <span className="text-slate-500">Δ: {a.delta?.toFixed(2)}</span>
                       <span className={`text-[8px] ${
                         a.confidence === "HIGH" ? "text-emerald-400" :
                         a.confidence === "MEDIUM" ? "text-amber-400" : "text-slate-500"

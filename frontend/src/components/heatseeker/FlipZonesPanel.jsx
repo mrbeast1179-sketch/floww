@@ -7,7 +7,7 @@ import { useHeatseeker } from "../../hooks/useHeatseeker";
  * Renders flip zones sorted by distance from spot.
  */
 export default function FlipZonesPanel({ ticker = "SPY", spot = null, windowPct = 0.05 }) {
-  const { data, loading, error } = useheatseeker("flip-zones", { ticker, window_pct: windowPct });
+  const { data, loading, error } = useHeatseeker("flip-zones", { ticker, window_pct: windowPct });
 
   const rows = useMemo(() => {
     const zones = data?.flip_zones || [];

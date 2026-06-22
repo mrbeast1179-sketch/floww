@@ -227,7 +227,7 @@ async def _get_active_model_doc(registry, ticker):
         return models[0] if models else None
     except Exception as e:
         log.warning(
-            f"ml_health_monitor: fallback: {e}",
+            f"ml_health_monitor: active-model-doc-lookup-failed: {e}",
             exc_info=True,
         )
         return None

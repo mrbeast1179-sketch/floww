@@ -1,20 +1,18 @@
+/**
+ * @jest-environment jsdom
+ */
 import React from "react";
-import { render, screen } from "@testing-library/react";
+import { render, screen, act } from "@testing-library/react";
 
 // Mock IntersectionObserver — trigger immediately so LazyRow renders children
 global.IntersectionObserver = class IntersectionObserver {
-  constructor(callback) {
-    this.callback = callback;
-  }
-  observe() {
-    this.callback([{ isIntersecting: true }]);
-  }
+  constructor(callback) { this.callback = callback; }
+  observe() { this.callback([{ isIntersecting: true }]); }
   disconnect() {}
-  unobserve() {}
+  unobserve() {};
 };
 
 // Mock react-plotly.js (required by VannaChart and CharmChart)
-// Must be before any component imports
 jest.mock("react-plotly.js", () => {
   const React = require("react");
   return React.forwardRef(function MockPlot(props, ref) {
@@ -31,10 +29,20 @@ jest.mock("../../hooks/useHeatseeker", () => ({
 // Mock ErrorBoundary
 jest.mock("../ErrorBoundary", () => ({
   __esModule: true,
-  default: function MockErrorBoundary({ children }) {
-    return <>{children}</>;
-  },
+  default: function MockErrorBoundary({ children }) { return <>{children}</>; },
 }));
+
+// Mock React.lazy to render immediately
+jest.mock("react", () => {
+  const React = jest.requireActual("react");
+  return {
+    ...React,
+    lazy: (fn) => {
+      const Component = fn();
+      return (props) => React.createElement(Component, props);
+    },
+  };
+});
 
 // Import AFTER mocks are set up
 import HeatseekerDashboard from "./HeatseekerDashboard";

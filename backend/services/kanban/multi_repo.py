@@ -35,7 +35,11 @@ def load_cards() -> list[dict]:
             fm = yaml.safe_load(parts[1]) or {}
             fm["_file"] = str(f)
             cards.append(fm)
-        except Exception:
+        except Exception as e:
+            logger.debug(
+                f"kanban_multi_repo: scan-failed: {e}",
+                exc_info=True,
+            )
             continue
     return cards
 

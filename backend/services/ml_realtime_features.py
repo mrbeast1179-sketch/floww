@@ -57,7 +57,11 @@ def fetch_live_chain(ticker: str, max_expiries: int = 2) -> dict[str, Any] | Non
         for exp_str in selected:
             try:
                 chain = t.option_chain(exp_str)
-            except Exception:
+            except Exception as e:
+                logger.warning(
+                    f"ml_realtime_features: realtime-feature-fetch-failed: {e}",
+                    exc_info=True,
+                )
                 continue
 
             if spot is None and not chain.calls.empty:

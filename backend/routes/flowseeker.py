@@ -387,55 +387,44 @@ async def _cvforge_screen(
 
 
 @router.get("/alerts/{symbol}")
-async def sweep_alerts(
+async def unusual_activity_alerts(
     symbol: str,
-    min_premium: float = Query(50000.0, ge=0),
+    min_oi: int = Query(1000, ge=0),
+    min_vol_oi_ratio: float = Query(0.1, ge=0),
     page: int = Query(1, ge=1),
     page_size: int = Query(50, ge=1, le=200),
 ):
     """
-    Institutional-grade live whale sweep alerts.
+    Unusual activity alerts for a symbol's options chain.
 
-    Returns large options trades classified by:
-    - sweep: multi-exchange fast execution, size >= 100
-    - block: single large trade, size >= 500
-    - unusual: size/OI ratio > 0.5
-    - floor: large trade at bid/ask midpoint
-    - golden_sweep: sweep + high confidence + directional
+    Since live flow data (sweep/block) requires paid API access,
+    this identifies unusual activity based on option chain snapshots:
 
-    Each alert includes:
-    - confidence_score (0-100) with human-readable confidence_factors
-    - sentiment (BULLISH/BEARISH/NEUTRAL)
-    - direction (directional/ambiguous)
-    - spread detection (is_spread, spread_type)
-    - tier (1-5, where 1 = highest conviction)
+    - **high_volume**: day_volume / open_interest ratio above threshold
+    - **high_iv**: implied IV in top 10% for this expiry
+    - **oi_spike**: open interest significantly above average
+    - **delta_extreme**: deep ITM/OTM with high OI (directional bet)
+    - **premium_concentration**: strikes with premium > $1M
+
+    Each alert includes confidence scoring and human-readable factors.
     """
     sym = (symbol or "").strip().upper()
 
     columns = [
         "ticker", "strike_price", "expiration_date", "contract_type",
-        "trade_size", "trade_price", "open_interest", "implied_volatility",
-        "delta", "gamma", "theta", "vega", "bid", "ask",
-        "trade_conditions", "trade_exchange", "underlying_price",
-        "day_volume",
-    ]
-    filters = [
-        {"field": "underlying_ticker", "op": "eq", "value": sym},
+        "open_interest", "implied_volatility", "delta", "gamma",
+        "bid", "ask", "midpoint", "day_volume", "underlying_price",
     ]
     if not CVFORGE_API_KEY:
         return {"alerts": [], "total": 0, "page": page, "page_size": page_size,
-                "has_next": False, "provenance": {"source": "none", "error": "no API key"}}
+                "has_next": False, "error": "no API key"}
 
     headers = {"Content-Type": "application/json", "Authorization": f"Bearer {CVFORGE_API_KEY}"}
     payload = {
         "jsonrpc": "2.0", "id": 1, "method": "tools/call",
         "params": {
-            "name": "screen",
-            "arguments": {
-                "columns": columns, "filters": filters,
-                "sort": [{"field": "trade_price", "direction": "desc"}],
-                "limit": page_size * page,
-            },
+            "name": "get_chain",
+            "arguments": {"symbol": sym.upper(), "params": columns},
         },
     }
     try:
@@ -443,181 +432,179 @@ async def sweep_alerts(
             resp = await client.post(CVFORGE_URL, json=payload, headers=headers)
             if resp.status_code != 200:
                 return {"alerts": [], "total": 0, "page": page, "page_size": page_size,
-                        "has_next": False, "provenance": {"source": "cvserver", "error": f"HTTP {resp.status_code}"}}
+                        "has_next": False, "error": f"HTTP {resp.status_code}"}
             result = resp.json()
+            if "error" in result:
+                return {"alerts": [], "total": 0, "page": page, "page_size": page_size,
+                        "has_next": False, "error": str(result["error"])}
             content = result.get("result", {}).get("content", [])
             if content and content[0].get("type") == "text":
-                d = json.loads(content[0]["text"])
+                raw = json.loads(content[0]["text"])
             else:
-                d = result.get("result", {})
+                raw = result.get("result", {})
 
-            rows = d.get("rows", [])
-            total = d.get("row_count", len(rows))
+            chain_data = raw.get("chain", [])
+            spot = float(raw.get("underlying_price", 0) or 0)
+
+            # Analyze each expiry for unusual activity
+            all_alerts = []
+            for exp in chain_data:
+                expiry = exp.get("expiration", "")
+                strikes = exp.get("strikes", [])
+                if not strikes:
+                    continue
+
+                # Calculate per-expiry statistics
+                call_data = []
+                for s in strikes:
+                    if not s or len(s) < 3:
+                        continue
+                    strike = float(s[0]) or 0
+                    cv = s[1] if len(s) > 1 else []
+                    pv = s[2] if len(s) > 2 else []
+
+                    def safe_float(arr, idx):
+                        try:
+                            return float(arr[idx]) if arr and idx < len(arr) and arr[idx] is not None else 0.0
+                        except (TypeError, ValueError):
+                            return 0.0
+
+                    call_oi = safe_float(cv, 4)
+                    put_oi = safe_float(pv, 4)
+                    call_vol = safe_float(cv, 9)
+                    put_vol = safe_float(pv, 9)
+                    call_iv = safe_float(cv, 3)
+                    put_iv = safe_float(pv, 3)
+                    call_delta = safe_float(cv, 2)
+                    put_delta = safe_float(pv, 2)
+
+                    call_data.append({
+                        "strike": strike, "call_oi": call_oi, "put_oi": put_oi,
+                        "call_vol": call_vol, "put_vol": put_vol,
+                        "call_iv": call_iv, "put_iv": put_iv,
+                        "call_delta": call_delta, "put_delta": put_delta,
+                    })
+
+                if not call_data:
+                    continue
+
+                # Calculate statistics
+                avg_oi = sum(d["call_oi"] + d["put_oi"] for d in call_data) / max(len(call_data), 1)
+                avg_iv = sum(d["call_iv"] for d in call_data if d["call_iv"] > 0) / max(sum(1 for d in call_data if d["call_iv"] > 0), 1)
+                iv_values = sorted([d["call_iv"] for d in call_data if d["call_iv"] > 0])
+                iv_p90 = iv_values[int(len(iv_values) * 0.9)] if iv_values else 0
+
+                for d in call_data:
+                    alerts_for_strike = []
+                    confidence_score = 50
+                    factors = []
+
+                    # Check volume/OI ratio (unusual trading activity)
+                    total_oi = d["call_oi"] + d["put_oi"]
+                    total_vol = d["call_vol"] + d["put_vol"]
+                    if total_oi > 0:
+                        vol_oi = total_vol / total_oi
+                        if vol_oi >= min_vol_oi_ratio and total_vol > 100:
+                            alerts_for_strike.append("high_volume")
+                            confidence_score += 10
+                            factors.append("Vol/OI ratio: %.1f%% (threshold: %.0f%%)" % (vol_oi * 100, min_vol_oi_ratio * 100))
+                            factors.append("Day volume: %.0f contracts" % total_vol)
+
+                    # Check IV spike
+                    if d["call_iv"] > 0 and iv_p90 > 0 and d["call_iv"] >= iv_p90:
+                        alerts_for_strike.append("high_iv")
+                        confidence_score += 10
+                        factors.append("IV: %.1f%% (90th percentile: %.1f%%)" % (d["call_iv"] * 100, iv_p90 * 100))
+
+                    # Check OI spike
+                    if total_oi > avg_oi * 3 and total_oi >= min_oi:
+                        alerts_for_strike.append("oi_spike")
+                        confidence_score += 10
+                        factors.append("OI: %.0fa (avg: %.0f, %.1fx average)" % (total_oi, avg_oi, total_oi / max(avg_oi, 1)))
+
+                    # Check delta extreme with high OI
+                    if abs(d["call_delta"]) > 0.8 and d["call_oi"] > 500:
+                        alerts_for_strike.append("delta_extreme")
+                        confidence_score += 8
+                        factors.append("Deep ITM call (delta: %.2f, OI: %.0f)" % (d["call_delta"], d["call_oi"]))
+                    elif abs(d["put_delta"]) > 0.8 and d["put_oi"] > 500:
+                        alerts_for_strike.append("delta_extreme")
+                        confidence_score += 8
+                        factors.append("Deep ITM put (delta: %.2f, OI: %.0f)" % (abs(d["put_delta"]), d["put_oi"]))
+
+                    # Check premium concentration
+                    mid = (d.get("call_bid", 0) + d.get("call_ask", 0)) / 2
+                    if mid > 0 and total_oi > 0:
+                        premium = mid * total_oi * 100
+                        if premium > 1_000_000:
+                            alerts_for_strike.append("premium_concentration")
+                            confidence_score += 12
+                            factors.append("Est. premium: $%.1fM concentrated at strike %.0f" % (premium / 1_000_000, d["strike"]))
+
+                    if alerts_for_strike:
+                        classification = alerts_for_strike[0]  # Primary classification
+                        confidence_score = min(100, confidence_score)
+
+                        # Determine tier
+                        if confidence_score >= 80:
+                            tier = 1
+                        elif confidence_score >= 65:
+                            tier = 2
+                        elif confidence_score >= 50:
+                            tier = 3
+                        elif confidence_score >= 35:
+                            tier = 4
+                        else:
+                            tier = 5
+
+                        # DTE calculation
+                        try:
+                            exp_date = datetime.strptime(expiry, "%Y-%m-%d")
+                            dte = (exp_date - datetime.now()).days
+                        except Exception:
+                            dte = None
+
+                        all_alerts.append({
+                            "alert_id": "%s-%s-%s-%.0f" % (sym, expiry, classification, d["strike"]),
+                            "ticker": sym,
+                            "classification": classification,
+                            "strike": d["strike"],
+                            "expiration": expiry,
+                            "dte": dte,
+                            "underlying_price": spot,
+                            "oi": total_oi,
+                            "call_oi": d["call_oi"],
+                            "put_oi": d["put_oi"],
+                            "iv": d["call_iv"] if d["call_iv"] > 0 else d["put_iv"],
+                            "delta": d["call_delta"],
+                            "day_volume": total_vol,
+                            "vol_oi_ratio": (total_vol / total_oi) if total_oi > 0 else 0,
+                            "confidence_score": confidence_score,
+                            "confidence_factors": factors,
+                            "tier": tier,
+                            "created_at": datetime.now().isoformat(),
+                        })
+
+            # Sort by confidence score descending
+            all_alerts.sort(key=lambda a: a["confidence_score"], reverse=True)
+            total = len(all_alerts)
 
             # Paginate
             start = (page - 1) * page_size
             end = start + page_size
-            page_rows = rows[start:end]
-
-            alerts = []
-            for r in page_rows:
-                trade_size = float(r[4] or 0)
-                trade_price = float(r[5] or 0)
-                oi = float(r[6] or 0)
-                iv = float(r[7] or 0)
-                delta_val = float(r[8] or 0) if r[8] is not None else None
-                gamma_val = float(r[9] or 0) if r[9] is not None else 0
-                theta_val = float(r[10] or 0) if r[10] is not None else 0
-                vega_val = float(r[11] or 0) if r[11] is not None else 0
-                bid = float(r[12] or 0) if r[12] is not None else 0
-                ask = float(r[13] or 0) if r[13] is not None else 0
-                conditions = r[14] or ""
-                exchange = r[15] or ""
-                underlying_price = float(r[16] or 0) if r[16] is not None else 0
-                day_volume = float(r[17] or 0) if r[17] is not None else 0
-
-                premium = trade_size * trade_price * 100  # 100 shares per contract
-                mid_price = (bid + ask) / 2 if bid > 0 and ask > 0 else trade_price
-
-                # Classify the trade
-                classification = "regular"
-                if trade_size >= 100 and premium >= min_premium:
-                    classification = "sweep"
-                if trade_size >= 500:
-                    classification = "block"
-                if oi > 0 and trade_size / oi > 0.5:
-                    classification = "unusual"
-                if "floor" in conditions.lower() or "mid" in conditions.lower():
-                    classification = "floor"
-                if trade_size >= 100 and premium >= 100000 and delta_val and abs(delta_val) > 0.5:
-                    classification = "golden_sweep"
-
-                # Determine sentiment
-                option_type = (r[3] or "").lower()
-                if "buy" in conditions.lower() or trade_price >= mid_price:
-                    sentiment = "BULLISH" if "call" in option_type else "BEARISH"
-                elif "sell" in conditions.lower() or trade_price <= mid_price:
-                    sentiment = "BEARISH" if "call" in option_type else "BULLISH"
-                else:
-                    sentiment = "NEUTRAL"
-
-                # Direction
-                if abs(delta_val or 0) > 0.3:
-                    direction = "directional"
-                else:
-                    direction = "ambiguous"
-
-                # Confidence scoring (0-100)
-                confidence_score = 50  # baseline
-                confidence_factors = []
-
-                if trade_size >= 500:
-                    confidence_score += 15
-                    confidence_factors.append(f"Block trade: {trade_size:.0f} contracts")
-                elif trade_size >= 100:
-                    confidence_score += 10
-                    confidence_factors.append(f"Sweep: {trade_size:.0f} contracts")
-
-                if premium >= 1000000:
-                    confidence_score += 15
-                    confidence_factors.append(f"Premium: ${(premium/1e6):.1f}M")
-                elif premium >= 100000:
-                    confidence_score += 10
-                    confidence_factors.append(f"Premium: ${(premium/1e3):.0f}K")
-
-                if oi > 0:
-                    vol_oi = trade_size / oi
-                    if vol_oi > 0.5:
-                        confidence_score += 10
-                        confidence_factors.append(f"Vol/OI: {vol_oi:.1f}x (high)")
-                    elif vol_oi > 0.1:
-                        confidence_score += 5
-                        confidence_factors.append(f"Vol/OI: {vol_oi:.1f}x")
-
-                if iv > 0.5:
-                    confidence_score += 5
-                    confidence_factors.append(f"IV: {iv:.1%} (elevated)")
-
-                if "sweep" in conditions.lower():
-                    confidence_score += 10
-                    confidence_factors.append("Sweep execution detected")
-
-                if "multi" in exchange.lower() or "," in exchange:
-                    confidence_score += 5
-                    confidence_factors.append("Multi-exchange execution")
-
-                # Cap confidence
-                confidence_score = min(100, max(0, confidence_score))
-
-                # Tier (1 = highest conviction)
-                if confidence_score >= 80:
-                    tier = 1
-                elif confidence_score >= 65:
-                    tier = 2
-                elif confidence_score >= 50:
-                    tier = 3
-                elif confidence_score >= 35:
-                    tier = 4
-                else:
-                    tier = 5
-
-                # DTE calculation
-                try:
-                    exp_date = datetime.strptime(r[2], "%Y-%m-%d")
-                    dte = (exp_date - datetime.now()).days
-                except Exception:
-                    dte = None
-
-                alerts.append({
-                    "alert_id": f"{sym}-{r[0]}-{r[2]}-{r[1]}",
-                    "ticker": sym,
-                    "option_ticker": r[0],
-                    "option_type": r[3],
-                    "strike": float(r[1] or 0),
-                    "expiration": r[2],
-                    "dte": dte,
-                    "premium": premium,
-                    "size": trade_size,
-                    "price": trade_price,
-                    "bid": bid,
-                    "ask": ask,
-                    "mid_price": mid_price,
-                    "oi": oi,
-                    "iv": iv,
-                    "delta": delta_val,
-                    "gamma": gamma_val,
-                    "theta": theta_val,
-                    "vega": vega_val,
-                    "underlying_price": underlying_price,
-                    "day_volume": day_volume,
-                    "conditions": conditions,
-                    "exchange": exchange,
-                    "classification": classification,
-                    "sentiment": sentiment,
-                    "direction": direction,
-                    "confidence": "HIGH" if confidence_score >= 70 else "MEDIUM" if confidence_score >= 40 else "LOW",
-                    "confidence_score": confidence_score,
-                    "confidence_factors": confidence_factors,
-                    "tier": tier,
-                    "pct_otm": abs((float(r[1] or 0) - underlying_price) / underlying_price * 100) if underlying_price > 0 else None,
-                    "vol_oi_ratio": trade_size / oi if oi > 0 else None,
-                    "created_at": datetime.now().isoformat(),
-                })
+            page_alerts = all_alerts[start:end]
 
             return {
-                "alerts": alerts,
+                "alerts": page_alerts,
                 "total": total,
                 "page": page,
                 "page_size": page_size,
                 "has_next": end < total,
-                "provenance": {
-                    "source": "cvserver",
-                    "fetched_at": datetime.now().isoformat(),
-                    "is_market_hours": True,
-                    "data_kind": "real",
-                },
+                "data_source": "cvserver",
+                "spot_price": spot,
+                "fetched_at": datetime.now().isoformat(),
             }
     except Exception as e:
-        logger.warning(f"sweep alerts: {sym}: {e}")
+        logger.warning("unusual activity alerts: %s: %s" % (sym, e))
         return {"alerts": [], "total": 0, "page": page, "page_size": page_size,
-                "has_next": False, "provenance": {"source": "cvserver", "error": str(e)}}
+                "has_next": False, "error": str(e)}

@@ -31,7 +31,11 @@ class RequestDeduplicator:
             logger.debug("dedup: awaiting existing request %s", key)
             try:
                 return await existing
-            except Exception:
+            except Exception as e:
+                logger.debug(
+                    f"request_deduplicator: shard-replace-fallback-failed: {e}",
+                    exc_info=True,
+                )
                 # The shard may have been replaced by a *new* future since
                 # we awaited the old one; fall through to a fresh attempt.
                 pass

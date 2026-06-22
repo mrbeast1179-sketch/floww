@@ -165,7 +165,11 @@ class ATEEstimator:
                     outcome[idx], treatment[idx], propensity[idx]
                 )
                 ate_estimates.append(ate)
-            except Exception:
+            except Exception as e:
+                log.warning(
+                    f"ate_estimator: obs-loop-failed: {e}",
+                    exc_info=True,
+                )
                 continue
 
         if not ate_estimates:

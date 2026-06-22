@@ -178,7 +178,11 @@ class ToxicityEnsemble:
             # Residual = |forecast[0] - actual|
             residual = abs(forecast[0] - current_vpin)
             return float(residual)
-        except Exception:
+        except Exception as e:
+            logger.warning(
+                f"ml_ensemble: ensemble-vote-fallback-failed: {e}",
+                exc_info=True,
+            )
             return 0.0
 
     def calibrate(self, horizon: int, scores: np.ndarray, labels: np.ndarray) -> None:

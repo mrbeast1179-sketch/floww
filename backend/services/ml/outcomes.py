@@ -134,7 +134,11 @@ async def attach_realized_outcomes(db: Any, batch_size: int = 100) -> int:
             cutoff = datetime.now(UTC) - timedelta(hours=25)
             if pred_dt > cutoff:
                 continue
-        except Exception:
+        except Exception as e:
+            log.warning(
+                f"ml_outcomes: training-row-skip-failed: {e}",
+                exc_info=True,
+            )
             continue
 
         ts_str = str(ts) if not isinstance(ts, str) else ts
