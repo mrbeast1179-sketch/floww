@@ -72,7 +72,6 @@ export default function FlowseekerProBlademap({ active = true }) {
   const [clock, setClock] = useState("");
   const [plotlyReady, setPlotlyReady] = useState(!!window.Plotly);
   const [volTicker, setVolTicker] = useState("SPY");
-  const [micro, setMicro] = useState({});
 
   const microRef = useRef({});            // { vpin, regimeConf, lambdaR2 } for selected ticker
   const gaugeRef = useRef(null), radarRef = useRef(null), ofiRef = useRef(null);
@@ -164,8 +163,6 @@ export default function FlowseekerProBlademap({ active = true }) {
       microRef.current = {
         vpin: vpin?.vpin, regimeConf: reg?.confidence, lambdaR2: lam?.r_squared,
       };
-      setMicro({ vpin: vpin?.vpin, vpinLabel: vpin?.label, regimeConf: reg?.confidence,
-        lambdaR2: lam?.r_squared, lambdaLabel: lam?.label });
       const st = String(reg?.current_state || "").toLowerCase();
       const cls = st.includes("trend") || st.includes("bull") ? "up"
         : st.includes("mean") || st.includes("bear") || st.includes("rever") ? "down" : "chop";
@@ -488,14 +485,14 @@ export default function FlowseekerProBlademap({ active = true }) {
         {/* SCANNER VIEW */}
         <div className={`fsb-view${tab === "scanner" ? " active" : ""}`} style={{ gridTemplateColumns: "1fr" }}>
           <div className="fsb-panel">
-            <div className="fsb-panel-h"><span>Ticker Scanner</span><span className="fsb-muted fsb-small">live · top conviction · {ticker} (cvforge volume-delta)</span></div>
+            <div className="fsb-panel-h"><span>Ticker Scanner</span><span className="fsb-muted fsb-small">live · top conviction · {ticker} (cvforge unusual-activity)</span></div>
             <div className="fsb-flow-wrap">
               <table className="fsb-table">
-                <thead><tr><th>Time</th><th>Ticker</th><th>Type</th><th>Side</th><th className="num">Strike</th><th>DTE</th><th className="num">Premium</th><th className="num">Conv</th></tr></thead>
+                <thead><tr><th>Ticker</th><th>Type</th><th>Side</th><th className="num">Strike</th><th>DTE</th><th className="num">Day $</th><th className="num">Conv</th></tr></thead>
                 <tbody>
                   {signals.slice().sort((a, b) => b._conv - a._conv).slice(0, 40).map((p, i) => (
                     <tr key={`sc-${i}`} onClick={() => { setTab("flow"); selectSignal(p); }}>
-                      <td>{fmtTime(p.timestamp)}</td><td className="tk">{p.ticker}</td>
+                      <td className="tk">{p.ticker}</td>
                       <td className={`fsb-type-${typeOf(p).toLowerCase()}`}>{typeOf(p)}</td>
                       <td className={sideOf(p) === "CALL" ? "fsb-side-call" : "fsb-side-put"}>{sideOf(p)}</td>
                       <td className="num">{Number(p.strike).toFixed(0)}</td><td>{dteOf(p.expiration)}d</td>
