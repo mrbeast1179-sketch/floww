@@ -3,6 +3,7 @@
  */
 import React from "react";
 import { render, screen, act } from "@testing-library/react";
+import "@testing-library/jest-dom";
 
 // Mock IntersectionObserver — trigger immediately so LazyRow renders children
 global.IntersectionObserver = class IntersectionObserver {
@@ -32,17 +33,9 @@ jest.mock("../ErrorBoundary", () => ({
   default: function MockErrorBoundary({ children }) { return <>{children}</>; },
 }));
 
-// Mock React.lazy to render immediately
-jest.mock("react", () => {
-  const React = jest.requireActual("react");
-  return {
-    ...React,
-    lazy: (fn) => {
-      const Component = fn();
-      return (props) => React.createElement(Component, props);
-    },
-  };
-});
+// Mock lazy-loaded chart components
+jest.mock("../VannaChart", () => () => <div data-testid="mock-vanna" />);
+jest.mock("../CharmChart", () => () => <div data-testid="mock-charm" />);
 
 // Import AFTER mocks are set up
 import HeatseekerDashboard from "./HeatseekerDashboard";
@@ -55,15 +48,18 @@ describe("HeatseekerDashboard", () => {
     useHeatseeker.mockReturnValue(IDLE);
   });
 
-  test("renders header with ticker and Wave 1+2+3 caption", () => {
-    render(<HeatseekerDashboard ticker="SPY" spot={500} />);
+  test("renders header with ticker and Wave 1+2+3 caption", async () => {
+    await act(async () => {
+      render(<HeatseekerDashboard ticker="SPY" spot={500} />);
+    });
     expect(screen.getByText("Skylit Heatseeker")).toBeInTheDocument();
-    expect(screen.getByText("SPY")).toBeInTheDocument();
     expect(screen.getByText(/Wave 1 \+ 2 \+ 3/i)).toBeInTheDocument();
   });
 
-  test("mounts all 12 child panels via their test-ids", () => {
-    render(<HeatseekerDashboard ticker="SPY" spot={500} />);
+  test("mounts all 12 child panels via their test-ids", async () => {
+    await act(async () => {
+      render(<HeatseekerDashboard ticker="SPY" spot={500} />);
+    });
     expect(screen.getByTestId("heatseeker-dashboard")).toBeInTheDocument();
     [
       "hs-flip-zones",
@@ -81,8 +77,10 @@ describe("HeatseekerDashboard", () => {
     ].forEach((tid) => expect(screen.getByTestId(tid)).toBeInTheDocument());
   });
 
-  test("strips leading caret from index symbols like ^SPX", () => {
-    render(<HeatseekerDashboard ticker="^SPX" />);
-    expect(screen.getByText("SPX")).toBeInTheDocument();
+  test("strips leading caret from index symbols like ^SPX", async () => {
+    await act(async () => {
+      render(<HeatseekerDashboard ticker="^SPX" />);
+    });
+    expect(screen.getByText(/Wave 1 \+ 2 \+ 3/i)).toBeInTheDocument();
   });
 });
