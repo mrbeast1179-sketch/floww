@@ -54,6 +54,14 @@ CVSERVER_URL = os.environ.get(
 CVSERVER_API_KEY = os.environ.get("CVSERVER_API_KEY", "")
 CVSERVER_TIMEOUT = float(os.environ.get("CVSERVER_TIMEOUT", "30"))
 
+# Symbol mapping: yfinance-style index symbols to cvserver I: format
+_SYMBOL_MAP = {
+    "^SPX": "I:SPX",
+    "^NDX": "I:NDX",
+    "^RUT": "I:RUT",
+    "^VIX": "I:VIX",
+}
+
 # Field name mapping: cvserver param -> our internal contract field name
 # Only map numeric fields here; string fields (expiration_date, contract_type) 
 # are set directly from the group/structural data
@@ -258,15 +266,7 @@ async def fetch_chain_from_cvserver(
     if fields is None:
         fields = DEFAULT_FIELDS
 
-    # Map yfinance-style index symbols to cvserver format
-    # cvserver uses I: prefix for index underlyings
-    _symbol_map = {
-        "^SPX": "I:SPX",
-        "^NDX": "I:NDX",
-        "^RUT": "I:RUT",
-        "^VIX": "I:VIX",
-    }
-    cv_symbol = _symbol_map.get(symbol.upper(), symbol.upper())
+    cv_symbol = _SYMBOL_MAP.get(symbol.upper(), symbol.upper())
 
     try:
         raw = await _cvserver_call_async("tools/call", {
@@ -345,3 +345,111 @@ async def screen_from_cvserver(
 def clear_cache() -> None:
     """Clear the cvserver response cache."""
     _cache.clear()
+
+
+async def fetch_chain_for_heatmap(
+    symbol: str,
+    spot: float,
+    max_strikes: int = 200,
+) -> dict | None:
+    """
+    Fetch options chain optimized for heatmap display.
+    Uses screen API with filters to get only near-ATM contracts with OI > 0.
+    Much faster than get_chain for large symbols like SPX.
+    """
+    if not CVSERVER_API_KEY:
+        return None
+
+    cv_symbol = _SYMBOL_MAP.get(symbol.upper(), symbol.upper())
+
+    # Filter: near-ATM strikes (within 20% of spot) with OI > 0
+    lo_strike = spot * 0.8
+    hi_strike = spot * 1.2
+
+    columns = ["strike_price", "expiration_date", "contract_type",
+               "implied_volatility", "open_interest", "underlying_price"]
+
+    filters = [
+        {"field": "underlying_ticker", "op": "eq", "value": cv_symbol},
+        {"field": "strike_price", "op": "gte", "value": lo_strike},
+        {"field": "strike_price", "op": "lte", "value": hi_strike},
+        {"field": "open_interest", "op": "gt", "value": 0},
+    ]
+
+    try:
+        raw = await asyncio.wait_for(
+            _cvserver_call_async("tools/call", {
+                "name": "screen",
+                "arguments": {
+                    "columns": columns,
+                    "filters": filters,
+                    "sort": [{"field": "strike_price", "direction": "asc"}],
+                    "limit": max_strikes * 4,
+                },
+            }),
+            timeout=15.0
+        )
+        if not raw:
+            return None
+
+        rows = raw.get("rows", [])
+        if not rows:
+            return None
+
+        col_names = raw.get("columns", columns)
+        col_idx = {name: i for i, name in enumerate(col_names)}
+
+        contracts = []
+        expiries = []
+        spot_price = 0.0
+        today = datetime.now(UTC).date()
+
+        for row in rows:
+            try:
+                strike = float(row[col_idx.get("strike_price", 0)])
+                expiry = row[col_idx.get("expiration_date", 1)]
+                ctype = row[col_idx.get("contract_type", 2)]
+                iv = float(row[col_idx.get("implied_volatility", 3)] or 0)
+                oi = float(row[col_idx.get("open_interest", 4)] or 0)
+                underlying = float(row[col_idx.get("underlying_price", 5)] or 0)
+            except (IndexError, TypeError, ValueError):
+                continue
+
+            if not expiry or oi <= 0:
+                continue
+
+            if spot_price == 0 and underlying > 0:
+                spot_price = underlying
+
+            try:
+                exp_date = datetime.strptime(expiry, "%Y-%m-%d").date()
+            except (ValueError, TypeError):
+                continue
+
+            T = max((exp_date - today).days, 1) / 365.0
+
+            contracts.append({
+                "expiry": expiry, "T": T, "type": ctype,
+                "strike": strike, "iv": iv, "oi": oi,
+                "underlying_price": underlying,
+            })
+            if expiry not in expiries:
+                expiries.append(expiry)
+
+        if not contracts:
+            return None
+
+        return {
+            "ticker": symbol.upper(),
+            "spot": spot_price,
+            "expiries": sorted(expiries),
+            "contracts": contracts,
+            "data_source": "cvserver",
+        }
+
+    except asyncio.TimeoutError:
+        logger.warning(f"cvserver screen timeout for {symbol}")
+        return None
+    except Exception as e:
+        logger.warning(f"cvserver screen failed for {symbol}: {e}")
+        return None

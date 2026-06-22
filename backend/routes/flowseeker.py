@@ -396,12 +396,11 @@ async def unusual_activity_alerts(
     Unusual activity alerts for a symbol's options chain.
 
     Identifies unusual activity based on option chain snapshots:
-    - **high_volume**: day_volume / open_interest ratio above threshold
-    - **high_iv**: implied IV in top 25% for this expiry
-    - **oi_spike**: open interest significantly above average (1.5x)
-    - **delta_extreme**: deep ITM/OTM with high OI (directional bet)
-    - **premium_concentration**: strikes with premium > $500K
-    - **near_money**: ATM options with highest OI concentration
+    - **high_volume**: day_volume / open_interest ratio above threshold (near money only)
+    - **high_iv**: implied IV in top 25% for near-money options (min OI 500)
+    - **oi_spike**: open interest > 2x average for near-money options (min OI 500)
+    - **delta_extreme**: deep ITM (|delta| > 0.7) with high OI (>500)
+    - **premium_concentration**: strikes with premium > $500K (min OI 1000)
 
     Each alert includes confidence scoring and human-readable factors.
     """
@@ -488,15 +487,21 @@ async def unusual_activity_alerts(
                         "put_bid": put_bid, "put_ask": put_ask,
                     })
 
-                if not call_data:
+                # Only analyze strikes near spot price (within 15%)
+                if spot > 0:
+                    near_money = [d for d in call_data if abs(d["strike"] - spot) / spot <= 0.15]
+                else:
+                    near_money = call_data
+                
+                if not near_money:
                     continue
 
-                # Calculate statistics
-                avg_oi = sum(d["call_oi"] + d["put_oi"] for d in call_data) / max(len(call_data), 1)
-                iv_values = sorted([d["call_iv"] for d in call_data if d["call_iv"] > 0])
+                # Calculate statistics on near-money options only
+                avg_oi = sum(d["call_oi"] + d["put_oi"] for d in near_money) / max(len(near_money), 1)
+                iv_values = sorted([d["call_iv"] for d in near_money if d["call_iv"] > 0.01])
                 iv_p75 = iv_values[int(len(iv_values) * 0.75)] if iv_values else 0
 
-                for d in call_data:
+                for d in near_money:
                     alerts_for_strike = []
                     confidence_score = 50
                     factors = []
@@ -504,7 +509,7 @@ async def unusual_activity_alerts(
                     # Check volume/OI ratio (unusual trading activity)
                     total_oi = d["call_oi"] + d["put_oi"]
                     total_vol = d["call_vol"] + d["put_vol"]
-                    if total_oi > 0:
+                    if total_oi > 100:
                         vol_oi = total_vol / total_oi
                         if vol_oi >= min_vol_oi_ratio and total_vol > 100:
                             alerts_for_strike.append("high_volume")
@@ -512,32 +517,31 @@ async def unusual_activity_alerts(
                             factors.append("Vol/OI ratio: %.1f%% (threshold: %.0f%%)" % (vol_oi * 100, min_vol_oi_ratio * 100))
                             factors.append("Day volume: %.0f contracts" % total_vol)
 
-                    # Check IV spike
-                    if d["call_iv"] > 0 and iv_p75 > 0 and d["call_iv"] >= iv_p75:
+                    # Check IV spike (min 500 OI)
+                    if d["call_iv"] > 0 and iv_p75 > 0 and d["call_iv"] >= iv_p75 and total_oi >= 500:
                         alerts_for_strike.append("high_iv")
                         confidence_score += 10
                         factors.append("IV: %.1f%% (75th percentile: %.1f%%)" % (d["call_iv"] * 100, iv_p75 * 100))
 
-                    # Check OI spike
-                    if total_oi > avg_oi * 1.5 and total_oi >= min_oi:
+                    # Check OI spike (min 500 OI, >2x average)
+                    if total_oi > avg_oi * 2 and total_oi >= 500:
                         alerts_for_strike.append("oi_spike")
                         confidence_score += 10
                         factors.append("OI: %.0f (avg: %.0f, %.1fx average)" % (total_oi, avg_oi, total_oi / max(avg_oi, 1)))
 
-                    # Check delta extreme with high OI
-                    if abs(d["call_delta"]) > 0.7 and d["call_oi"] > 200:
+                    # Check delta extreme with high OI (min 500)
+                    if abs(d["call_delta"]) > 0.7 and d["call_oi"] > 500:
                         alerts_for_strike.append("delta_extreme")
                         confidence_score += 8
                         factors.append("Deep ITM call (delta: %.2f, OI: %.0f)" % (d["call_delta"], d["call_oi"]))
-                    elif abs(d["put_delta"]) > 0.7 and d["put_oi"] > 200:
+                    elif abs(d["put_delta"]) > 0.7 and d["put_oi"] > 500:
                         alerts_for_strike.append("delta_extreme")
                         confidence_score += 8
                         factors.append("Deep ITM put (delta: %.2f, OI: %.0f)" % (abs(d["put_delta"]), d["put_oi"]))
 
-                    # Check premium concentration (use midpoint if available, else bid/ask)
+                    # Check premium concentration (min 1000 OI)
                     call_mid = (d["call_bid"] + d["call_ask"]) / 2 if d["call_bid"] > 0 and d["call_ask"] > 0 else 0
-                    put_mid = (d["put_bid"] + d["put_ask"]) / 2 if d["put_bid"] > 0 and d["put_ask"] > 0 else 0
-                    if call_mid > 0 and total_oi > 0:
+                    if call_mid > 0 and total_oi >= 1000:
                         premium = call_mid * total_oi * 100
                         if premium > 500_000:
                             alerts_for_strike.append("premium_concentration")

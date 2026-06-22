@@ -837,7 +837,7 @@ async def fetch_spot_and_chains_merged(ticker: str, max_expiries: int = 4) -> di
         from services.cvserver_client import fetch_chain_from_cvserver
         cv_data = await asyncio.wait_for(
             fetch_chain_from_cvserver(ticker, max_expiries=max_expiries),
-            timeout=15.0
+            timeout=30.0
         )
         if cv_data and cv_data.get("contracts") and cv_data.get("spot", 0) > 0:
             for c in cv_data["contracts"]:
@@ -1540,6 +1540,31 @@ async def build_heatmap(ticker: str, max_expiries: int = 4, with_taps: bool = Tr
 
     if mode == "swing":
         max_expiries = max(max_expiries, 8)
+
+    # For large symbols (index options), use screen API to avoid timeout
+    # Screen API filters server-side by strike range and OI
+    is_index = ticker.startswith("^") or ticker.startswith("I:")
+    if is_index and not scalp:
+        # First get spot price from a quick chain fetch (just 1 expiry, minimal fields)
+        from services.cvserver_client import fetch_chain_from_cvserver, fetch_chain_for_heatmap, CVSERVER_API_KEY
+        if CVSERVER_API_KEY:
+            try:
+                spot_raw = await asyncio.wait_for(
+                    fetch_chain_from_cvserver(ticker, max_expiries=1),
+                    timeout=10.0
+                )
+                spot = spot_raw.get("spot", 0) if spot_raw else 0
+                if spot > 0:
+                    heatmap_data = await fetch_chain_for_heatmap(ticker, spot, max_strikes)
+                    if heatmap_data and heatmap_data.get("contracts"):
+                        heatmap_data["data_source"] = "cvserver"
+                        _BUILD_HEATMAP_CACHE[cache_key] = (time.time(), heatmap_data)
+                        return heatmap_data
+            except asyncio.TimeoutError:
+                log.warning(f"cvserver timeout for {ticker}, falling back to yfinance")
+            except Exception as e:
+                log.warning(f"cvserver failed for {ticker}: {e}")
+
     raw = await fetch_spot_and_chains_merged(ticker, max_expiries)
     spot = raw["spot"]
     if not spot or spot != spot or not raw["contracts"]:  # spot != spot catches NaN
