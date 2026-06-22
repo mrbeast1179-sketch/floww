@@ -922,30 +922,35 @@
 .trinity-panel-header {
   display: flex;
   align-items: center;
-  gap: 6px;
-  padding: 4px 6px;
-  border-bottom: 1px solid rgba(255,255,255,0.04);
+  gap: 8px;
+  padding: 6px 8px;
+  border-bottom: 1px solid rgba(255,255,255,0.05);
   flex-shrink: 0;
+  background: rgba(15,23,42,0.55);
 }
 
 .trinity-panel-ticker {
   font-family: "Space Grotesk", "Inter", sans-serif;
-  font-size: 11px;
+  font-size: 13px;
   font-weight: 700;
-  color: #e2e8f0;
+  color: #f1f5f9;
+  letter-spacing: 0.02em;
 }
 
 .trinity-panel-price {
   font-family: "JetBrains Mono", monospace;
-  font-size: 10px;
-  color: #94a3b8;
+  font-size: 11px;
+  font-weight: 600;
+  color: #e2e8f0;
 }
 
 .trinity-panel-regime {
-  font-size: 8px;
-  font-weight: 600;
+  font-size: 9px;
+  font-weight: 700;
   text-transform: uppercase;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.08em;
+  padding: 2px 6px;
+  border-radius: 3px;
   margin-left: auto;
 }
 
@@ -953,44 +958,48 @@
 .trinity-panel-subheader {
   display: flex;
   align-items: center;
-  gap: 4px;
-  padding: 3px 6px;
-  border-bottom: 1px solid rgba(255,255,255,0.03);
+  gap: 6px;
+  padding: 4px 8px;
+  border-bottom: 1px solid rgba(255,255,255,0.04);
   flex-shrink: 0;
+  background: rgba(15,23,42,0.35);
 }
 
 .trinity-king-dot {
-  width: 6px;
-  height: 6px;
+  width: 8px;
+  height: 8px;
   border-radius: 50%;
   background: #fbbf24;
   flex-shrink: 0;
+  box-shadow: 0 0 0 2px rgba(251,191,36,0.15);
 }
 
 .trinity-king-label {
-  font-size: 9px;
-  font-weight: 600;
+  font-size: 10px;
+  font-weight: 700;
   color: #fbbf24;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
 }
 
 .trinity-king-value {
   font-family: "JetBrains Mono", monospace;
-  font-size: 9px;
+  font-size: 10px;
   color: #fbbf24;
   margin-left: 2px;
+  font-weight: 700;
 }
 
 .trinity-net-badge {
   font-family: "JetBrains Mono", monospace;
-  font-size: 8px;
+  font-size: 9px;
   font-weight: 700;
-  padding: 0 4px;
-  border-radius: 2px;
+  padding: 0 5px;
+  border-radius: 3px;
   margin-left: auto;
 }
-.trinity-net-pos { color: #34d399; background: rgba(52,211,153,0.1); }
-.trinity-net-neg { color: #f87171; background: rgba(248,113,113,0.1); }
+.trinity-net-pos { color: #34d399; background: rgba(52,211,153,0.12); }
+.trinity-net-neg { color: #f87171; background: rgba(248,113,113,0.12); }
 
 /* ── Data grid ── */
 .trinity-grid {
@@ -1765,7 +1774,8 @@ button, select, input {
 /* GexStrikeTable (heatseeker chain view) */
 .gex-chain-wrap {
   overflow: auto;
-  max-height: calc(100vh - 240px);
+  max-height: calc(100vh - 200px);
+  contain: strict;
 }
 .gex-chain-table {
   width: 100%;
@@ -1801,7 +1811,7 @@ button, select, input {
   padding: 3px 6px;
   border-top: 1px solid rgba(255,255,255,0.02);
   white-space: nowrap;
-  line-height: 1.4;
+  line-height: 22px;
 }
 .gex-td-king { text-align: right; font-weight: 700; color: #f1f5f9; font-size: 11px; }
 .gex-td-flr { text-align: center; }
@@ -1809,6 +1819,7 @@ button, select, input {
 .gex-td-gate { text-align: right; }
 .gex-td-air { text-align: right; color: #475569; }
 .gex-td-net { text-align: right; font-weight: 600; }
+.gex-row { height: 22px; }
 .gex-row:hover { background: rgba(255,255,255,0.03); }
 .gex-row-current { background: rgba(255,255,255,0.05) !important; }
 .gex-row-near { background: rgba(251,191,36,0.08) !important; }
@@ -1816,3 +1827,4 @@ button, select, input {
 .gex-row-extreme { background: rgba(168,85,247,0.22) !important; }
 .gex-row-high { background: rgba(30,58,138,0.35) !important; }
 .gex-row-low { background: rgba(148,163,184,0.08) !important; }
+

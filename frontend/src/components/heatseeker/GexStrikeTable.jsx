@@ -1,4 +1,4 @@
-import React, { useMemo } from "react";
+import React, { useMemo, useRef, useCallback, useEffect, useState } from "react";
 import { fmtAbs } from "../../lib/helpers";
 
 function fmtGex(v) {
@@ -8,6 +8,9 @@ function fmtGex(v) {
   if (a >= 1e3) return `$${(a / 1e3).toFixed(1)}K`;
   return `$${a.toFixed(0)}`;
 }
+
+const ROW_HEIGHT = 22;
+const OVERSCAN = 6;
 
 export default function GexStrikeTable({ rows = [], spot }) {
   const sorted = useMemo(
@@ -35,11 +38,30 @@ export default function GexStrikeTable({ rows = [], spot }) {
     return m;
   }, [sorted]);
 
+  const wrapRef = useRef(null);
+  const [viewport, setViewport] = useState({ start: 0, end: 40 });
+
+  const onScroll = useCallback(() => {
+    const el = wrapRef.current;
+    if (!el) return;
+    const start = Math.max(0, Math.floor(el.scrollTop / ROW_HEIGHT) - OVERSCAN);
+    const end = Math.min(sorted.length, Math.ceil((el.scrollTop + el.clientHeight) / ROW_HEIGHT) + OVERSCAN);
+    setViewport((v) => (v.start === start && v.end === end ? v : { start, end }));
+  }, [sorted.length]);
+
+  useEffect(() => {
+    onScroll();
+  }, [onScroll]);
+
+  const visible = sorted.slice(viewport.start, viewport.end);
+  const padTop = viewport.start * ROW_HEIGHT;
+  const padBottom = Math.max(0, (sorted.length - viewport.end) * ROW_HEIGHT);
+
   if (!sorted.length)
     return <div className="panel p-3 text-slate-500 text-xs">No strike data available</div>;
 
   return (
-    <div className="gex-chain-wrap">
+    <div className="gex-chain-wrap" ref={wrapRef} onScroll={onScroll}>
       <table className="gex-chain-table">
         <thead>
           <tr>
@@ -52,8 +74,12 @@ export default function GexStrikeTable({ rows = [], spot }) {
           </tr>
         </thead>
         <tbody>
-          {sorted.map((r) => {
-            const strike = typeof r.strike === "number" ? r.strike : Number(r.strike || 0);
+          <tr aria-hidden="true" style={{ height: padTop }}>
+            <td colSpan="6" style={{ padding: 0, border: "none" }} />
+          </tr>
+          {visible.map((r) => {
+            const strike =
+              typeof r.strike === "number" ? r.strike : Number(r.strike || 0);
             const callGex = r.call_gex || 0;
             const putGex = r.put_gex || 0;
             const netGex = r.gex ?? callGex - putGex;
@@ -72,20 +98,28 @@ export default function GexStrikeTable({ rows = [], spot }) {
             if (near && !isKing) rowCls += " gex-row-near";
 
             return (
-              <tr key={strike} className={rowCls}>
+              <tr key={strike} className={rowCls} style={{ height: ROW_HEIGHT }}>
                 <td className="gex-td gex-td-king">
                   {strike < 10 ? strike.toFixed(2) : typeof strike === "number" ? strike.toFixed(0) : strike}
                 </td>
-                <td className={`gex-td gex-td-flr ${flrPct > 0 ? "text-emerald-400" : "text-rose-400"}`}>
-                  {flrPct > 0 ? "+" : "-"}{Math.abs(flrPct).toFixed(1)}%
+                <td
+                  className={`gex-td gex-td-flr ${flrPct > 0 ? "text-emerald-400" : "text-rose-400"}`}
+                >
+                  {flrPct > 0 ? "+" : "-"}
+                  {Math.abs(flrPct).toFixed(1)}%
                 </td>
                 <td className="gex-td gex-td-ceil">{fmtGex(callGex)}</td>
                 <td className="gex-td gex-td-gate">{fmtGex(putGex)}</td>
                 <td className="gex-td gex-td-air">$0.0K</td>
-                <td className="gex-td gex-td-net" style={{ color: "#fbbf24" }}>{fmtGex(netGex)}</td>
+                <td className="gex-td gex-td-net" style={{ color: "#fbbf24" }}>
+                  {fmtGex(netGex)}
+                </td>
               </tr>
             );
           })}
+          <tr aria-hidden="true" style={{ height: padBottom }}>
+            <td colSpan="6" style={{ padding: 0, border: "none" }} />
+          </tr>
         </tbody>
       </table>
     </div>

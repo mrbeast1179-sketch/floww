@@ -43,7 +43,7 @@ import { TradeAnalytics } from "./components/TradeAnalytics";
 import { SocialFlowPanel } from "./components/SocialFlowPanel";
 import SwarmFrame from "./components/SwarmFrame";
 import TurboQuantPanel from "./components/TurboQuantPanel";
-import FlowseekerProTab from "./components/flowseeker/FlowseekerProTab";
+import FlowseekerProBlademap from "./components/flowseeker/FlowseekerProBlademap";
 import AlertOverlay from "./components/AlertOverlay";
 import PWAInstallBanner from "./components/PWAInstallBanner";
 import AppShell from "./shell/AppShell";
@@ -742,20 +742,17 @@ export default function App() {
               <div className="p-2 space-y-2">
                 {/* Ticker Summary */}
                 <div className="panel p-3">
-                  <div className="flex justify-between items-baseline">
-                    <div className="text-lg font-bold tracking-wider">{ticker.replace("^", "")}</div>
-                    <div className={`text-xs uppercase tracking-widest ${regimeColor(data?.nodes?.regime)}`}>{data?.nodes?.regime || "—"} γ</div>
+                  <div className="flex justify-between items-baseline mb-2">
+                    <div className="text-[13px] font-bold tracking-wider">{ticker.replace("^", "")}</div>
+                    <div className={`text-[10px] uppercase tracking-widest ${regimeColor(data?.nodes?.regime)}`}>{data?.nodes?.regime || "—"} γ</div>
                   </div>
-                  <div className="text-2xl mono mt-1" data-testid="spot-price">
-                    ${fmt(livespot?.spot ?? data?.spot, 2)}
-                    {livespot && data?.spot && Math.abs(spotDelta) > 0.01 && (
-                      <span className={`ml-2 text-xs ${spotDelta > 0 ? "text-emerald-400" : "text-rose-400"}`} data-testid="spot-delta">
-                        {spotDelta > 0 ? "▲" : "▼"} {Math.abs(spotDelta).toFixed(2)}
-                      </span>
+                  <div className="text-[22px] mono font-bold mt-0.5 flex items-center gap-2" data-testid="spot-price">
+                    <span>${fmt(livespot?.spot ?? data?.spot, 2)}</span>
+                    {livespot && (
+                      <span className="text-[9px] uppercase tracking-widest text-teal-400 flash-pulse">● live</span>
                     )}
-                    {livespot && <span className="ml-2 text-[9px] uppercase tracking-widest text-teal-500 flash-pulse">● live</span>}
                   </div>
-                  <div className="text-[10px] text-slate-500">
+                  <div className="text-[10px] text-slate-500 mt-1">
                     {data?.expiries_used?.length ? `${data.expiries_used.length} exp · ${data.expiries_used[0]} → ${data.expiries_used.slice(-1)[0]}` : ""}
                   </div>
                   {err && (
@@ -982,7 +979,7 @@ export default function App() {
         {page === "flowseeker-pro" && (
           <div className="flex-1 overflow-auto">
             <ErrorBoundary>
-              <FlowseekerProTab active={page === "flowseeker-pro"} />
+              <FlowseekerProBlademap active={page === "flowseeker-pro"} />
             </ErrorBoundary>
           </div>
         )}
