@@ -1205,7 +1205,7 @@
 .trinity-grid-scroll {
   flex: 1;
   overflow-y: auto;
-  overflow-x: auto;
+  overflow-x: hidden;
   min-height: 0;
 }
 .trinity-grid-table {
