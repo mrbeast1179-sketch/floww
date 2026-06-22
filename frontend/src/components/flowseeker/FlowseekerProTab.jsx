@@ -10,97 +10,38 @@ export default function FlowseekerProTab({ active = true }) {
   const [error, setError] = useState(null);
   const [expiryIdx, setExpiryIdx] = useState(0);
   const [lastUpdate, setLastUpdate] = useState(null);
+  const [plotlyReady, setPlotlyReady] = useState(!!window.Plotly);
   const chartRef = useRef(null);
 
   const fetchChain = useCallback(async (sym) => {
+    if (!sym) return;
     setLoading(true);
     setError(null);
     try {
       const r = await fetch(`${API}/chain/${sym}`);
       if (!r.ok) throw new Error(`HTTP ${r.status}`);
       const d = await r.json();
-      if (!d.chain || d.chain.length === 0) throw new Error("No chain data");
+      if (!d?.chain?.length) throw new Error("No chain data");
       setChain(d);
       setExpiryIdx(0);
       setLastUpdate(new Date().toLocaleTimeString());
     } catch (e) {
-      setError(e.message);
+      setError(e.message || "Failed to fetch chain");
     } finally {
       setLoading(false);
     }
   }, []);
 
-  useEffect(() => { if (active) fetchChain(ticker); }, [ticker, active, fetchChain]);
-  useEffect(() => { if (!active) return; const id = setInterval(() => fetchChain(ticker), 20000); return () => clearInterval(id); }, [ticker, active, fetchChain]);
-
-  // Render chart when data or expiry changes
   useEffect(() => {
-    if (!chain || !chartRef.current || !window.Plotly) return;
-    const exp = chain.chain[expiryIdx];
-    if (!exp || !exp.strikes) return;
+    if (active) fetchChain(ticker);
+  }, [ticker, active, fetchChain]);
 
-    const params = chain.params || [];
-    const oiIdx = params.indexOf("openInterest");
-    const volIdx = params.indexOf("volume");
-    const ivIdx = params.indexOf("impliedVolatility");
-    const deltaIdx = params.indexOf("delta");
+  useEffect(() => {
+    if (!active) return;
+    const id = setInterval(() => fetchChain(ticker), 30000);
+    return () => clearInterval(id);
+  }, [ticker, active, fetchChain]);
 
-    const strikes = [];
-    const callOI = [];
-    const putOI = [];
-    const deltaLine = [];
-    const spotPrice = exp.strikes[0]?.[1]?.[params.indexOf("underlying_price")] || 0;
-
-    for (const s of exp.strikes) {
-      const strike = s[0];
-      const cv = s[1] || [];
-      const pv = s[2] || [];
-      strikes.push(strike);
-      callOI.push(oiIdx >= 0 ? (cv[oiIdx - 1] || 0) : 0);
-      putOI.push(oiIdx >= 0 ? (pv[oiIdx - 1] || 0) : 0);
-      // Use actual delta if available, else synthetic
-      if (deltaIdx >= 0 && cv[deltaIdx - 1] != null) {
-        deltaLine.push(cv[deltaIdx - 1]);
-      } else {
-        const dist = (strike - spotPrice) / (spotPrice * 0.15);
-        deltaLine.push(1 / (1 + Math.exp(-dist * 2)));
-      }
-    }
-
-    if (strikes.length === 0) return;
-    const maxOI = Math.max(...callOI, ...putOI, 1);
-
-    const traces = [
-      { y: strikes, x: callOI.map(v => -(v / maxOI) * 100), type: "bar", orientation: "h", name: "Call OI", marker: { color: "rgba(52,211,153,0.7)" }, customdata: callOI, hovertemplate: "Call OI: %{customdata}<extra></extra>" },
-      { y: strikes, x: putOI.map(v => (v / maxOI) * 100), type: "bar", orientation: "h", name: "Put OI", marker: { color: "rgba(244,63,94,0.7)" }, customdata: putOI, hovertemplate: "Put OI: %{customdata}<extra></extra>" },
-      { y: strikes, x: deltaLine.map(v => (v - 0.5) * 200), type: "scatter", mode: "lines", name: "Delta", line: { color: "#fbbf24", width: 2 } },
-    ];
-
-    if (spotPrice > 0) {
-      traces.push({
-        y: [spotPrice], x: [0], type: "scatter", mode: "markers+text",
-        name: `Spot $${spotPrice.toFixed(0)}`, marker: { color: "#38bdf8", size: 10, symbol: "x" },
-        text: [`$${spotPrice.toFixed(0)}`], textposition: "top right", textfont: { color: "#38bdf8", size: 10 },
-      });
-    }
-
-    const layout = {
-      title: { text: `OI by Strike — ${ticker} (${exp.expiration}) — ${strikes.length} strikes`, font: { color: "#94a3b8", size: 12 } },
-      paper_bgcolor: "rgba(0,0,0,0)", plot_bgcolor: "rgba(0,0,0,0)", barmode: "overlay",
-      margin: { l: 50, r: 20, t: 35, b: 35 },
-      xaxis: { title: "OI (norm)", color: "#64748b", zeroline: true, zerolinecolor: "#475569", gridcolor: "#1e293b", tickfont: { size: 8 } },
-      yaxis: { title: "Strike", color: "#64748b", gridcolor: "#1e293b", tickfont: { size: 8 } },
-      legend: { font: { size: 8 }, orientation: "h", y: 1.1 },
-      hovermode: "y unified", displayModeBar: false,
-      height: Math.max(400, strikes.length * 18),
-    };
-
-    window.Plotly.newPlot(chartRef.current, traces, layout, { responsive: true, displayModeBar: false });
-  }, [chain, expiryIdx, ticker, plotlyReady]);
-
-  const [plotlyReady, setPlotlyReady] = useState(false);
-
-  // Load Plotly CDN
   useEffect(() => {
     if (window.Plotly) { setPlotlyReady(true); return; }
     const s = document.createElement("script");
@@ -109,69 +50,180 @@ export default function FlowseekerProTab({ active = true }) {
     document.head.appendChild(s);
   }, []);
 
+  useEffect(() => {
+    if (!chain || !chartRef.current || !plotlyReady) return;
+    try {
+      const exp = chain.chain[expiryIdx] || chain.chain[0];
+      if (!exp?.strikes?.length) return;
+
+      const params = chain.params || [];
+      const oiIdx = params.indexOf("openInterest");
+      const deltaIdx = params.indexOf("delta");
+
+      const strikes = [], callOI = [], putOI = [], deltaLine = [];
+      const spotRaw = exp.strikes[0]?.[1];
+      const spotIdx = params.indexOf("underlying_price");
+      const spot = spotRaw && spotIdx >= 0 ? (Number(spotRaw[spotIdx - 1]) || 0) : 0;
+
+      for (const s of exp.strikes) {
+        if (!s || s.length < 3) continue;
+        const strike = Number(s[0]) || 0;
+        if (strike <= 0) continue;
+        const cv = Array.isArray(s[1]) ? s[1] : [];
+        const pv = Array.isArray(s[2]) ? s[2] : [];
+
+        strikes.push(strike);
+        const oiVal = oiIdx > 0 ? (Number(cv[oiIdx - 1]) || 0) : 0;
+        const oiVal2 = oiIdx > 0 ? (Number(pv[oiIdx - 1]) || 0) : 0;
+        callOI.push(oiVal > 0 ? oiVal : 0);
+        putOI.push(oiVal2 > 0 ? oiVal2 : 0);
+
+        if (deltaIdx > 0 && cv[deltaIdx - 1] != null) {
+          deltaLine.push(Number(cv[deltaIdx - 1]) || 0.5);
+        } else {
+          const dist = (strike - spot) / Math.max(spot * 0.15, 1);
+          deltaLine.push(1 / (1 + Math.exp(-dist * 2)));
+        }
+      }
+
+      if (!strikes.length) return;
+      const maxOI = Math.max(...callOI, ...putOI, 1);
+
+      const traces = [
+        { y: strikes, x: callOI.map(v => -(v / maxOI) * 100), type: "bar", orientation: "h",
+          name: "Call OI", marker: { color: "rgba(52,211,153,0.65)" },
+          customdata: callOI, hovertemplate: "Call OI: %{customdata}<extra></extra>" },
+        { y: strikes, x: putOI.map(v => (v / maxOI) * 100), type: "bar", orientation: "h",
+          name: "Put OI", marker: { color: "rgba(244,63,94,0.65)" },
+          customdata: putOI, hovertemplate: "Put OI: %{customdata}<extra></extra>" },
+        { y: strikes, x: deltaLine.map(v => (v - 0.5) * 200), type: "scatter", mode: "lines",
+          name: "Delta", line: { color: "#fbbf24", width: 2 } },
+      ];
+
+      if (spot > 0) {
+        traces.push({
+          y: [spot, spot], x: [-100, 100], type: "scatter", mode: "lines",
+          name: `Spot $${spot.toFixed(0)}`, line: { color: "#38bdf8", width: 1.5, dash: "dot" },
+          hoverinfo: "name",
+        });
+      }
+
+      const layout = {
+        title: { text: `OI by Strike — ${ticker} (${exp.expiration}) — ${strikes.length} strikes`,
+          font: { color: "#94a3b8", size: 12 } },
+        paper_bgcolor: "rgba(0,0,0,0)", plot_bgcolor: "rgba(0,0,0,0)", barmode: "overlay",
+        margin: { l: 50, r: 20, t: 35, b: 35 },
+        xaxis: { title: "OI (norm)", color: "#64748b", zeroline: true, zerolinecolor: "#334155",
+          gridcolor: "#1e293b", tickfont: { size: 8 } },
+        yaxis: { title: "Strike", color: "#64748b", gridcolor: "#1e293b", tickfont: { size: 8 } },
+        legend: { font: { color: "#94a3b8", size: 9 }, orientation: "h", y: 1.08 },
+        hovermode: "y unified", displayModeBar: false,
+        height: Math.max(350, strikes.length * 16),
+      };
+
+      window.Plotly.newPlot(chartRef.current, traces, layout,
+        { responsive: true, displayModeBar: false });
+    } catch (e) {
+      console.error("FlowseekerPro chart error:", e);
+    }
+  }, [chain, expiryIdx, ticker, plotlyReady]);
+
   const expiries = chain?.chain?.map(c => c.expiration) || [];
 
   return (
-    <div className="flex h-full">
-      {/* Left sidebar */}
-      <div className="w-56 flex-shrink-0 border-r border-slate-800 bg-slate-900/50 p-3 space-y-3 overflow-y-auto">
-        <div className="text-[10px] uppercase tracking-wider text-slate-500 font-semibold">Ticker</div>
+    <div className="flex h-full overflow-hidden">
+      {/* Sidebar */}
+      <div className="w-52 flex-shrink-0 border-r border-slate-800 bg-[#0d0f14] p-3 space-y-2 overflow-y-auto">
+        <div className="text-[10px] uppercase tracking-widest text-slate-500 font-bold">Ticker</div>
         <input value={ticker} onChange={e => setTicker(e.target.value.toUpperCase())}
-          className="w-full bg-slate-800 border border-slate-700 rounded px-2 py-1 text-sm text-slate-200 outline-none focus:border-sky-500" />
+          onKeyDown={e => { if (e.key === "Enter") fetchChain(ticker); }}
+          className="w-full bg-slate-800/80 border border-slate-700/50 rounded px-2 py-1 text-sm text-slate-200 outline-none focus:border-sky-500/50" />
+
         <div className="flex flex-wrap gap-1">
           {TICKERS.map(t => (
             <button key={t} onClick={() => setTicker(t)}
-              className={`text-[10px] px-2 py-0.5 rounded ${t === t ? "bg-sky-600 text-white" : "bg-slate-800 text-slate-400 hover:bg-slate-700"}`}>
+              className={`text-[10px] px-1.5 py-0.5 rounded transition-colors ${
+                t === ticker
+                  ? "bg-sky-600/80 text-white"
+                  : "bg-slate-800/50 text-slate-400 hover:bg-slate-700/50 hover:text-slate-300"
+              }`}>
               {t}
             </button>
           ))}
         </div>
 
-        <div className="text-[10px] uppercase tracking-wider text-slate-500 font-semibold mt-3">Expiry</div>
-        <select value={expiryIdx} onChange={e => setExpiryIdx(Number(e.target.value))}
-          className="w-full bg-slate-800 border border-slate-700 rounded px-2 py-1 text-xs text-slate-200">
-          {expiries.map((exp, i) => <option key={i} value={i}>{exp}</option>)}
-        </select>
+        {expiries.length > 0 && (
+          <>
+            <div className="text-[10px] uppercase tracking-widest text-slate-500 font-bold mt-2">Expiry</div>
+            <select value={expiryIdx} onChange={e => setExpiryIdx(Number(e.target.value))}
+              className="w-full bg-slate-800/80 border border-slate-700/50 rounded px-2 py-1 text-xs text-slate-200">
+              {expiries.map((exp, i) => <option key={i} value={i}>{exp}</option>)}
+            </select>
+          </>
+        )}
 
-        <div className="text-[10px] text-slate-500 mt-3">
-          {loading && <span className="text-amber-400">● Loading...</span>}
-          {error && <span className="text-rose-400">● {error}</span>}
-          {chain && !loading && <span className="text-emerald-400">● {chain.chain.length} expirations</span>}
-          {lastUpdate && <div className="text-slate-600 mt-1">Updated: {lastUpdate}</div>}
+        <div className="text-[9px] space-y-1 mt-2">
+          {loading && <div className="text-amber-400/80">● Loading chain...</div>}
+          {error && <div className="text-rose-400/80">● {error}</div>}
+          {chain && !loading && (
+            <div className="space-y-0.5">
+              <div className="text-emerald-400/80">● {chain.chain.length} expirations</div>
+              <div className="text-slate-500">{chain.chain?.[expiryIdx]?.strikes?.length || 0} strikes</div>
+              {lastUpdate && <div className="text-slate-600">Updated {lastUpdate}</div>}
+            </div>
+          )}
         </div>
 
-        <div className="text-[10px] text-slate-600 mt-3 border-t border-slate-800 pt-2">
-          <div>Data: CVForge cvserver</div>
-          <div>32 expirations · 171 strikes</div>
+        <div className="text-[9px] text-slate-600 border-t border-slate-800 pt-2 mt-2">
+          <div>CVForge cvserver</div>
+          <div>32 exp · 171 strikes</div>
         </div>
+
+        <button onClick={() => fetchChain(ticker)}
+          className="w-full text-[10px] py-1 bg-slate-800/50 hover:bg-slate-700/50 rounded text-slate-400 hover:text-slate-300 transition-colors">
+          ↻ Refresh
+        </button>
       </div>
 
-      {/* Main chart area */}
-      <div className="flex-1 flex flex-col overflow-hidden">
-        <div className="flex items-center gap-3 px-3 py-2 border-b border-slate-800 bg-slate-900/30">
-          <span className="text-xs text-slate-400">{ticker}</span>
-          {chain && <span className="text-xs text-emerald-400">● LIVE</span>}
-          {chain && <span className="text-xs text-slate-500">{chain.chain?.[expiryIdx]?.strikes?.length || 0} strikes</span>}
-          <button onClick={() => fetchChain(ticker)} className="ml-auto text-[10px] px-2 py-0.5 bg-slate-800 hover:bg-slate-700 rounded text-slate-400">Refresh</button>
+      {/* Main chart */}
+      <div className="flex-1 flex flex-col overflow-hidden bg-[#0b0d12]">
+        {/* Top bar */}
+        <div className="flex items-center gap-3 px-3 py-1.5 border-b border-slate-800/50 bg-[#0d0f14]/50">
+          <span className="text-xs font-medium text-slate-300">{ticker}</span>
+          {chain && <span className="text-[10px] text-emerald-400">● LIVE</span>}
+          {chain && <span className="text-[10px] text-slate-500">{chain.chain?.length || 0} expirations</span>}
+          <div className="ml-auto flex items-center gap-2">
+            <span className="text-[9px] text-slate-600">CVForge</span>
+          </div>
         </div>
 
+        {/* Chart area */}
         <div className="flex-1 p-2 overflow-auto">
           {loading && !chain && (
-            <div className="flex items-center justify-center h-full text-slate-500 text-sm">Loading chain data...</div>
+            <div className="flex flex-col items-center justify-center h-full text-slate-500 text-sm gap-2">
+              <div className="animate-pulse">Loading chain data...</div>
+              <div className="text-[10px] text-slate-600">Fetching from CVForge cvserver</div>
+            </div>
           )}
-          {error && (
-            <div className="flex items-center justify-center h-full text-rose-400 text-sm">{error}</div>
+          {error && !chain && (
+            <div className="flex flex-col items-center justify-center h-full text-rose-400 text-sm gap-2">
+              <div>{error}</div>
+              <button onClick={() => fetchChain(ticker)}
+                className="text-xs px-3 py-1 bg-rose-500/10 hover:bg-rose-500/20 rounded text-rose-400">
+                Retry
+              </button>
+            </div>
           )}
-          <div ref={chartRef} className="w-full" style={{ minHeight: 400 }}></div>
+          <div ref={chartRef} className="w-full" style={{ minHeight: 350 }}></div>
         </div>
 
-        {/* Legend */}
-        <div className="flex items-center gap-4 px-3 py-1.5 border-t border-slate-800 text-[9px] text-slate-500">
-          <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-sm bg-emerald-500/70"></span> Call OI</span>
-          <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-sm bg-rose-500/70"></span> Put OI</span>
-          <span className="flex items-center gap-1"><span className="w-3 h-0.5 bg-amber-400"></span> Delta</span>
-          <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full border border-sky-400"></span> Spot</span>
-          <span className="ml-auto text-slate-600">CVForge cvserver · {chain?.chain?.length || 0} expirations</span>
+        {/* Bottom legend */}
+        <div className="flex items-center gap-4 px-3 py-1.5 border-t border-slate-800/50 text-[9px] text-slate-500">
+          <span className="flex items-center gap-1"><span className="w-2.5 h-1.5 rounded-sm bg-emerald-500/60"></span> Call OI</span>
+          <span className="flex items-center gap-1"><span className="w-2.5 h-1.5 rounded-sm bg-rose-500/60"></span> Put OI</span>
+          <span className="flex items-center gap-1"><span className="w-3 h-0.5 bg-amber-400/80"></span> Delta</span>
+          <span className="flex items-center gap-1"><span className="w-2.5 h-0.5 border-t border-dashed border-sky-400/80"></span> Spot</span>
+          <span className="ml-auto text-slate-600">{expiries[expiryIdx] || "—"}</span>
         </div>
       </div>
     </div>

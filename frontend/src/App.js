@@ -1011,15 +1011,6 @@ export default function App() {
         {/* turboQuantDC KV Cache Compression */}
         {page === "turboquant" && <TurboQuantPanel />}
 
-        {/* Flowseeker Tab */}
-        {page === "flowseeker" && (
-          <div className="flex-1 overflow-auto">
-            <ErrorBoundary>
-              <FlowseekerTab active={page === "flowseeker"} />
-            </ErrorBoundary>
-          </div>
-        )}
-
         {/* Flowseeker Pro Tab */}
         {page === "flowseeker-pro" && (
           <div className="flex-1 overflow-auto">

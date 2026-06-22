@@ -150,8 +150,8 @@ async def rate_limit_middleware(request: Request, call_next):
         try:
             from services.observability import rate_limit_429_count
             rate_limit_429_count.labels(client_ip=client_ip).inc()
-        except Exception:
-            pass
+        except Exception as e:
+            log.warning(f"server.py: rate_limit_429_count metric raise swallowed (429 response preserved): {e}", exc_info=True)
         # Include CORS headers so frontend can read the 429 (not blocked by CORS)
         return JSONResponse(
             status_code=429,
@@ -226,8 +226,8 @@ async def global_exception_handler(request: Request, exc: Exception):
             message=str(exc),
             data={"path": request.url.path, "method": request.method}
         )
-    except Exception:
-        pass
+    except Exception as e:
+        log.warning(f"server.py: error_tracking.log_error raise swallowed (500 response preserved): {e}", exc_info=True)
     # INTENTIONAL: no path/type/exc in prod to avoid internal-info leak (P2.5-C).
     _redacted = bool(_is_prod or _is_staging)  # single source-of-truth for the env branch
     _payload = (
@@ -244,8 +244,8 @@ async def global_exception_handler(request: Request, exc: Exception):
         try:
             from error_tracking import redacted_500_count
             redacted_500_count.labels(env=_env).inc()
-        except Exception:
-            pass
+        except Exception as e:
+            log.warning(f"server.py: redacted_500_count metric raise swallowed (500 response preserved): {e}", exc_info=True)
     return JSONResponse(
         status_code=500,
         content=_payload,
@@ -271,8 +271,8 @@ async def performance_middleware(request: Request, call_next):
         endpoint = f"{request.method} {request.url.path}"
         perf_monitor.record(endpoint, duration_ms)
         set_request_id()
-    except Exception:
-        pass
+    except Exception as e:
+        log.warning(f"server.py: perf_monitor / set_request_id raise swallowed (response+header preserved): {e}", exc_info=True)
 
     response.headers["X-Response-Time-Ms"] = str(round(duration_ms, 2))
     return response
@@ -1024,7 +1024,7 @@ def calc_implied_move(spot: float, contracts: list[dict[str, Any]]) -> dict[str,
 def calc_aggregate_gex_curve(spot: float, contracts: list[dict[str, Any]],
                               ticker: str = "") -> list[dict[str, float]]:
     """Aggregate GEX curve: total GEX if spot moved to each price point.
-    Shows how dealer gamma changes as price moves."""
+    Shows how dealer gamma changes as spot moves."""
     if spot <= 0 or not contracts:
         return []
     q = DIV_YIELD.get(ticker, 0.0)
@@ -1039,16 +1039,18 @@ def calc_aggregate_gex_curve(spot: float, contracts: list[dict[str, Any]],
     step = (hi - lo) / 100
     if step <= 0:
         return []
+    # Pre-filter contracts to only those within relevant range (optimization)
+    relevant = [c for c in contracts if c.get("oi", 0) and float(c.get("oi", 0) or 0) > 0
+                and c.get("strike", 0) >= lo * 0.5 and c.get("strike", 0) <= hi * 1.5]
     curve = []
     price = lo
     while price <= hi:
         total_gex = 0.0
-        for c in contracts:
-            oi = c.get("oi", 0) or 0
-            if oi <= 0:
-                continue
+        for c in relevant:
             gamma = bs_gamma(price, c["strike"], c["T"], c["iv"], q=q)
-            gex = dollar_gex_per_contract(gamma, oi, price)
+            if gamma <= 0:
+                continue
+            gex = dollar_gex_per_contract(gamma, c["oi"], price)
             sign = 1.0 if c["type"] == "call" else -1.0
             total_gex += sign * gex
         curve.append({"price": round(price, 2), "gex": round(total_gex / 1e9, 4) if not (math.isnan(total_gex) or math.isinf(total_gex)) else 0.0})
@@ -1525,7 +1527,7 @@ def compute_gex_by_strike_volume(spot: float, contracts: list[dict[str, Any]], t
 _BUILD_HEATMAP_CACHE: dict[str, Any] = {}
 _BUILD_HEATMAP_CACHE_TTL = 60
 
-async def build_heatmap(ticker: str, max_expiries: int = 4, with_taps: bool = True, mode: str = "day", dte: int | None = None, scalp: bool = False) -> dict[str, Any]:
+async def build_heatmap(ticker: str, max_expiries: int = 4, with_taps: bool = True, mode: str = "day", dte: int | None = None, scalp: bool = False, max_strikes: int = 80) -> dict[str, Any]:
     # Check cache first
     cache_key = f"{ticker}:{max_expiries}:{mode}:{dte}:{scalp}:{with_taps}"
     cached = _BUILD_HEATMAP_CACHE.get(cache_key)
