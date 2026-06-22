@@ -1803,7 +1803,7 @@ button, select, input {
   white-space: nowrap;
   line-height: 1.4;
 }
-.gex-td-king { text-align: right; font-weight: 600; color: #e2e8f0; }
+.gex-td-king { text-align: right; font-weight: 700; color: #f1f5f9; font-size: 11px; }
 .gex-td-flr { text-align: center; }
 .gex-td-ceil { text-align: right; }
 .gex-td-gate { text-align: right; }
