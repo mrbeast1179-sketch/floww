@@ -112,7 +112,7 @@ def _mask_zero(exc: Exception) -> float:
 
 
 def bs_gamma(S, K, T, sigma, q=0.0, r=0.05):
-    if S <= 0 or K <= 0 or T <= 0 or sigma <= 0:
+    if S <= 0 or K <= 0 or T <= 0 or not sigma or sigma <= 0:
         return 0.0
     try:
         d1 = (math.log(S / K) + (r - q + 0.5 * sigma**2) * T) / (sigma * math.sqrt(T))
@@ -125,7 +125,7 @@ def bs_gamma(S, K, T, sigma, q=0.0, r=0.05):
 
 
 def bs_delta(S, K, T, sigma, q=0.0, kind="call", r=0.05):
-    if S <= 0 or K <= 0 or T <= 0 or sigma <= 0:
+    if S <= 0 or K <= 0 or T <= 0 or not sigma or sigma <= 0:
         return 0.0
     try:
         d1 = (math.log(S / K) + (r - q + 0.5 * sigma**2) * T) / (sigma * math.sqrt(T))
@@ -138,7 +138,7 @@ def bs_delta(S, K, T, sigma, q=0.0, kind="call", r=0.05):
 
 
 def bs_vanna(S, K, T, sigma, q=0.0, r=0.05):
-    if S <= 0 or K <= 0 or T <= 0 or sigma <= 0:
+    if S <= 0 or K <= 0 or T <= 0 or not sigma or sigma <= 0:
         return 0.0
     try:
         d1 = (math.log(S / K) + (r - q + 0.5 * sigma**2) * T) / (sigma * math.sqrt(T))
@@ -152,7 +152,7 @@ def bs_vanna(S, K, T, sigma, q=0.0, r=0.05):
 
 
 def bs_charm(S, K, T, sigma, q=0.0, kind="call", r=0.05):
-    if S <= 0 or K <= 0 or T <= 0 or sigma <= 0:
+    if S <= 0 or K <= 0 or T <= 0 or not sigma or sigma <= 0:
         return 0.0
     try:
         d1 = (math.log(S / K) + (r - q + 0.5 * sigma**2) * T) / (sigma * math.sqrt(T))
@@ -170,7 +170,7 @@ def bs_charm(S, K, T, sigma, q=0.0, kind="call", r=0.05):
 
 
 def bs_vomma(S, K, T, sigma, q=0.0, r=0.05):
-    if S <= 0 or K <= 0 or T <= 0 or sigma <= 0:
+    if S <= 0 or K <= 0 or T <= 0 or not sigma or sigma <= 0:
         return 0.0
     try:
         d1 = (math.log(S / K) + (r - q + 0.5 * sigma**2) * T) / (sigma * math.sqrt(T))
@@ -185,7 +185,7 @@ def bs_vomma(S, K, T, sigma, q=0.0, r=0.05):
 
 
 def bs_zomma(S, K, T, sigma, q=0.0, r=0.05):
-    if S <= 0 or K <= 0 or T <= 0 or sigma <= 0:
+    if S <= 0 or K <= 0 or T <= 0 or not sigma or sigma <= 0:
         return 0.0
     try:
         d1 = (math.log(S / K) + (r - q + 0.5 * sigma**2) * T) / (sigma * math.sqrt(T))
@@ -200,7 +200,7 @@ def bs_zomma(S, K, T, sigma, q=0.0, r=0.05):
 
 
 def bs_vega(S, K, T, sigma, q=0.0, r=0.05):
-    if S <= 0 or K <= 0 or T <= 0 or sigma <= 0:
+    if S <= 0 or K <= 0 or T <= 0 or not sigma or sigma <= 0:
         return 0.0
     try:
         d1 = (math.log(S / K) + (r - q + 0.5 * sigma**2) * T) / (sigma * math.sqrt(T))
@@ -214,7 +214,7 @@ def bs_vega(S, K, T, sigma, q=0.0, r=0.05):
 
 def bs_call_price(S, K, T, sigma, r=0.045, q=0.0):
     """Black-Scholes call option price."""
-    if S <= 0 or K <= 0 or T <= 0 or sigma <= 0:
+    if S <= 0 or K <= 0 or T <= 0 or not sigma or sigma <= 0:
         return 0.0
     try:
         d1 = (math.log(S / K) + (r - q + 0.5 * sigma**2) * T) / (sigma * math.sqrt(T))
@@ -229,7 +229,7 @@ def bs_call_price(S, K, T, sigma, r=0.045, q=0.0):
 
 def bs_put_price(S, K, T, sigma, r=0.045, q=0.0):
     """Black-Scholes put option price."""
-    if S <= 0 or K <= 0 or T <= 0 or sigma <= 0:
+    if S <= 0 or K <= 0 or T <= 0 or not sigma or sigma <= 0:
         return 0.0
     try:
         d1 = (math.log(S / K) + (r - q + 0.5 * sigma**2) * T) / (sigma * math.sqrt(T))

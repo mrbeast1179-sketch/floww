@@ -7,6 +7,7 @@ Falls back to yfinance when CVForge is unavailable.
 """
 
 import asyncio
+import json
 import logging
 import math
 import os
@@ -40,9 +41,79 @@ def _safe_float(v):
         return None
 
 
+# ── CVForge → frontend format transformation ──
+
+# Frontend expects these params and order:
+_FRONTEND_PARAMS = ["strike", "bid", "ask", "lastPrice", "volume", "openInterest", "impliedVolatility"]
+
+def _transform_cvforge_response(raw: dict, symbol: str) -> dict:
+    """
+    Transform CVForge cvserver response to the format the FlowseekerProTab expects.
+    CVForge:  params [expiration_date, strike_price, contract_type, iv, delta, gamma, theta, vega,
+                       bid, ask, midpoint, open_interest, day_volume, underlying_price]
+              strikes [strike, [call_vals(14)], [put_vals(14)]]
+    Frontend: params [strike, bid, ask, lastPrice, volume, openInterest, impliedVolatility]
+              strikes [strike, [call_vals(7)], [put_vals(7)]]
+    """
+    cv_params = raw.get("params", [])
+
+    # Build cv_param_name → index mapping
+    cv_idx = {name: i for i, name in enumerate(cv_params)}
+
+    # Map frontend field names to CVForge param names and default indices
+    # Frontend expects: strike, bid, ask, lastPrice, volume, openInterest, impliedVolatility
+    # CVForge has:      strike_price, bid, ask, midpoint(bid+ask)/2, open_interest, implied_volatility
+    field_map = {
+        "bid": "bid",
+        "ask": "ask",
+        "lastPrice": "midpoint",  # Use midpoint as last price
+        "volume": "day_volume",
+        "openInterest": "open_interest",
+        "impliedVolatility": "implied_volatility",
+    }
+
+    def extract_vals(call_or_put_vals: list) -> list:
+        """Extract 7 frontend fields from a 14-element CVForge values array."""
+        result = []
+        for front_name in _FRONTEND_PARAMS:
+            if front_name == "strike":
+                continue  # strike is s[0], not in vals
+            cv_name = field_map.get(front_name, front_name)
+            idx = cv_idx.get(cv_name)
+            if idx is not None and idx < len(call_or_put_vals):
+                result.append(_safe_float(call_or_put_vals[idx]))
+            else:
+                result.append(None)
+        return result
+
+    transformed_chain = []
+    for exp in raw.get("chain", []):
+        exp_strikes = []
+        for strike_data in exp.get("strikes", []):
+            if not strike_data or len(strike_data) < 3:
+                continue
+            strike_price = strike_data[0]
+            call_vals = extract_vals(strike_data[1]) if len(strike_data) > 1 else []
+            put_vals = extract_vals(strike_data[2]) if len(strike_data) > 2 else []
+            exp_strikes.append([strike_price, call_vals, put_vals])
+        transformed_chain.append({
+            "expiration": exp.get("expiration", ""),
+            "strikes": exp_strikes,
+        })
+
+    return {
+        "symbol": symbol.upper(),
+        "params": _FRONTEND_PARAMS,
+        "chain": transformed_chain,
+    }
+
+
 async def _cvforge_chain(symbol: str, fields: list[str] | None = None) -> dict | None:
     """
     Fetch options chain from CVForge's cvserver API via MCP JSON-RPC.
+    Transforms response to match frontend's expected format:
+      params: ["strike", "bid", "ask", "lastPrice", "volume", "openInterest", "impliedVolatility"]
+      strikes: [strike, [call_vals], [put_vals]]
     Returns None on failure (caller should fallback to yfinance).
     """
     if not fields:
@@ -85,9 +156,12 @@ async def _cvforge_chain(symbol: str, fields: list[str] | None = None) -> dict |
             # Extract text content from MCP response
             content = result.get("result", {}).get("content", [])
             if content and content[0].get("type") == "text":
-                import json
-                return json.loads(content[0]["text"])
-            return result.get("result", {})
+                raw = json.loads(content[0]["text"])
+            else:
+                raw = result.get("result", {})
+
+            # Transform CVForge format → frontend-expected format
+            return _transform_cvforge_response(raw, symbol)
     except Exception as e:
         logger.warning(f"cvforge chain: error for {symbol}: {e}")
         return None

@@ -1,444 +1,175 @@
-import React, { useState, useMemo, useRef, useEffect, useCallback } from "react";
-import { useFlowseeker } from "../../hooks/useFlowseeker";
-import { classificationBadge } from "./flowHighlights";
-import { BACKEND_URL } from "../../config/api";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 
-const API = `${BACKEND_URL}/api/flowseeker`;
+const API = "http://localhost:8000/api/flowseeker";
+const TICKERS = ["SPY","QQQ","IWM","DIA","TLT","AAPL","MSFT","NVDA","TSLA","AMZN","META","GOOGL"];
 
-const TICKERS = [
-  "SPY", "QQQ", "IWM", "DIA", "TLT",
-  "AAPL", "MSFT", "NVDA", "TSLA", "AMZN", "META", "GOOGL",
-];
+export default function FlowseekerProTab({ active = true }) {
+  const [ticker, setTicker] = useState("SPY");
+  const [chain, setChain] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [expiryIdx, setExpiryIdx] = useState(0);
+  const [lastUpdate, setLastUpdate] = useState(null);
+  const chartRef = useRef(null);
 
-const CLASS_COLORS = {
-  sweep: "#fbbf24",
-  block: "#f43f5e",
-  unusual: "#38bdf8",
-  regular: "#94a3b8",
-};
-
-// ---- Helpers ----
-
-function fmtPremium(v) {
-  const n = Number(v) || 0;
-  if (n >= 1_000_000) return `$${(n / 1_000_000).toFixed(1)}M`;
-  if (n >= 1_000) return `$${(n / 1_000).toFixed(0)}k`;
-  return `$${n.toFixed(0)}`;
-}
-
-function fmtTime(ts) {
-  try { return new Date(ts).toLocaleTimeString(); } catch { return String(ts || ""); }
-}
-
-// ---- Flow Tape Row ----
-function TapeRow({ p }) {
-  const badge = classificationBadge(p.classification);
-  const badgeColor = CLASS_COLORS[p.classification] || CLASS_COLORS.regular;
-  return (
-    <div className="flex items-center gap-2 text-[10px] mono py-0.5 px-1 bar-row">
-      <span className="text-slate-500 w-14 shrink-0">{fmtTime(p.timestamp)}</span>
-      <span className="text-slate-300 w-10 shrink-0">{p.ticker}</span>
-      <span className={`w-8 shrink-0 ${String(p.type).toUpperCase().startsWith("C") ? "text-emerald-400" : "text-rose-400"}`}>
-        {p.type}
-      </span>
-      <span className="text-slate-300 w-12 text-right shrink-0">{Number(p.strike).toFixed(0)}</span>
-      <span className="text-slate-400 w-16 shrink-0">{p.expiration}</span>
-      <span className="text-amber-300 w-14 text-right shrink-0">{fmtPremium(p.premium)}</span>
-      {badge ? (
-        <span
-          className="text-[8px] px-1 rounded font-bold shrink-0"
-          style={{ color: badgeColor, background: `${badgeColor}20` }}
-        >
-          {badge.label}
-        </span>
-      ) : (
-        <span className="text-slate-600 shrink-0 w-6">—</span>
-      )}
-    </div>
-  );
-}
-
-// ---- Plotly Chart Component ----
-function ChainChart({ chainData, spot }) {
-  const containerRef = useRef(null);
-  const [plotlyReady, setPlotlyReady] = useState(false);
-
-  // Dynamically load Plotly from CDN if not available
-  useEffect(() => {
-    if (window.Plotly) {
-      setPlotlyReady(true);
-      return;
+  const fetchChain = useCallback(async (sym) => {
+    setLoading(true);
+    setError(null);
+    try {
+      const r = await fetch(`${API}/chain/${sym}`);
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      const d = await r.json();
+      if (!d.chain || d.chain.length === 0) throw new Error("No chain data");
+      setChain(d);
+      setExpiryIdx(0);
+      setLastUpdate(new Date().toLocaleTimeString());
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setLoading(false);
     }
-    const script = document.createElement("script");
-    script.src = "https://cdn.plot.ly/plotly-2.27.0.min.js";
-    script.onload = () => setPlotlyReady(true);
-    document.head.appendChild(script);
   }, []);
 
-  const chartData = useMemo(() => {
-    if (!chainData?.chain || chainData.chain.length === 0) return null;
+  useEffect(() => { if (active) fetchChain(ticker); }, [ticker, active, fetchChain]);
+  useEffect(() => { if (!active) return; const id = setInterval(() => fetchChain(ticker), 20000); return () => clearInterval(id); }, [ticker, active, fetchChain]);
 
-    // Use the first expiration with strikes
-    const exp = chainData.chain.find(e => e.strikes && e.strikes.length > 0);
-    if (!exp) return null;
-
-    const strikes = exp.strikes.map(s => s[0]).filter(v => v > 0);
-    if (strikes.length === 0) return null;
-
-    // Find field indices from params (params includes "strike" at index 0, but vals arrays skip it)
-    const params = chainData.params || [];
-    const oiFieldIdx = params.indexOf("openInterest");
-    const oiValsIdx = oiFieldIdx > 0 ? oiFieldIdx - 1 : 4; // -1 because vals skip strike
-
-    // Extract OI from call_vals/put_vals using correct field index
-    const callOI = exp.strikes.map(s => {
-      const vals = s[1];
-      if (Array.isArray(vals) && vals.length > 0) {
-        const n = Number(vals[oiValsIdx]);
-        if (!isNaN(n) && n > 0) return n;
-      }
-      return 0;
-    });
-
-    const putOI = exp.strikes.map(s => {
-      const vals = s[2];
-      if (Array.isArray(vals) && vals.length > 0) {
-        const n = Number(vals[oiValsIdx]);
-        if (!isNaN(n) && n > 0) return n;
-      }
-      return 0;
-    });
-
-    // Synthetic delta line (bell curve around ATM)
-    const atmIdx = strikes.reduce((best, s, i) =>
-      Math.abs(s - spot) < Math.abs(strikes[best] - spot) ? i : best, 0);
-    const delta = strikes.map((_, i) => {
-      const dist = (i - atmIdx) / Math.max(strikes.length / 4, 1);
-      return Math.exp(-dist * dist / 2) * (1 - Math.abs(dist) * 0.3);
-    });
-
-    return { strikes, callOI, putOI, delta, expiration: exp.expiration };
-  }, [chainData, spot]);
-
+  // Render chart
   useEffect(() => {
-    if (!plotlyReady || !containerRef.current || !chartData) return;
+    if (!chain || !chartRef.current || !window.Plotly) return;
+    const exp = chain.chain[expiryIdx];
+    if (!exp || !exp.strikes) return;
 
-    const { strikes, callOI, putOI, delta, expiration } = chartData;
+    const params = chain.params || [];
+    const oiIdx = params.indexOf("openInterest");
+    const volIdx = params.indexOf("volume");
+    const ivIdx = params.indexOf("impliedVolatility");
+    const deltaIdx = params.indexOf("delta");
 
+    const strikes = [];
+    const callOI = [];
+    const putOI = [];
+    const deltaLine = [];
+    const spotPrice = exp.strikes[0]?.[1]?.[params.indexOf("underlying_price")] || 0;
+
+    for (const s of exp.strikes) {
+      const strike = s[0];
+      const cv = s[1] || [];
+      const pv = s[2] || [];
+      strikes.push(strike);
+      callOI.push(oiIdx >= 0 ? (cv[oiIdx - 1] || 0) : 0);
+      putOI.push(oiIdx >= 0 ? (pv[oiIdx - 1] || 0) : 0);
+      // Use actual delta if available, else synthetic
+      if (deltaIdx >= 0 && cv[deltaIdx - 1] != null) {
+        deltaLine.push(cv[deltaIdx - 1]);
+      } else {
+        const dist = (strike - spotPrice) / (spotPrice * 0.15);
+        deltaLine.push(1 / (1 + Math.exp(-dist * 2)));
+      }
+    }
+
+    if (strikes.length === 0) return;
     const maxOI = Math.max(...callOI, ...putOI, 1);
 
     const traces = [
-      // Call OI bars (negative x = left side)
-      {
-        y: strikes,
-        x: callOI.map(v => -(v / maxOI) * 100),
-        type: "bar",
-        orientation: "h",
-        name: "Call OI",
-        marker: { color: "rgba(52, 211, 153, 0.7)" },
-        hovertemplate: "Call OI: %{customdata}<extra></extra>",
-        customdata: callOI,
-      },
-      // Put OI bars (positive x = right side)
-      {
-        y: strikes,
-        x: putOI.map(v => (v / maxOI) * 100),
-        type: "bar",
-        orientation: "h",
-        name: "Put OI",
-        marker: { color: "rgba(244, 63, 94, 0.7)" },
-        hovertemplate: "Put OI: %{customdata}<extra></extra>",
-        customdata: putOI,
-      },
-      // Delta line overlay
-      {
-        y: strikes,
-        x: delta.map(v => (v - 0.5) * 200),
-        type: "scatter",
-        mode: "lines",
-        name: "Delta",
-        line: { color: "#fbbf24", width: 2 },
-        yaxis: "y",
-      },
+      { y: strikes, x: callOI.map(v => -(v / maxOI) * 100), type: "bar", orientation: "h", name: "Call OI", marker: { color: "rgba(52,211,153,0.7)" }, customdata: callOI, hovertemplate: "Call OI: %{customdata}<extra></extra>" },
+      { y: strikes, x: putOI.map(v => (v / maxOI) * 100), type: "bar", orientation: "h", name: "Put OI", marker: { color: "rgba(244,63,94,0.7)" }, customdata: putOI, hovertemplate: "Put OI: %{customdata}<extra></extra>" },
+      { y: strikes, x: deltaLine.map(v => (v - 0.5) * 200), type: "scatter", mode: "lines", name: "Delta", line: { color: "#fbbf24", width: 2 } },
     ];
 
-    const layout = {
-      title: {
-        text: `OI by Strike — ${chainData.symbol} (${expiration})`,
-        font: { color: "#94a3b8", size: 12 },
-      },
-      paper_bgcolor: "rgba(0,0,0,0)",
-      plot_bgcolor: "rgba(0,0,0,0)",
-      barmode: "overlay",
-      margin: { l: 50, r: 20, t: 30, b: 30 },
-      xaxis: {
-        title: "OI (normalized)",
-        color: "#64748b",
-        zeroline: true,
-        zerolinecolor: "#475569",
-        zerolinewidth: 1,
-        gridcolor: "#1e293b",
-        tickfont: { color: "#64748b", size: 9 },
-      },
-      yaxis: {
-        title: "Strike",
-        color: "#64748b",
-        gridcolor: "#1e293b",
-        tickfont: { color: "#64748b", size: 9 },
-      },
-      legend: {
-        font: { color: "#94a3b8", size: 9 },
-        x: 0,
-        y: 1.1,
-        orientation: "h",
-      },
-      shapes: spot ? [
-        {
-          type: "line",
-          x0: -100, x1: 100,
-          y0: spot, y1: spot,
-          line: { color: "#38bdf8", width: 1.5, dash: "dot" },
-        },
-      ] : [],
-      annotations: spot ? [
-        {
-          x: 90, y: spot,
-          text: `$${Number(spot).toFixed(0)}`,
-          showarrow: false,
-          font: { color: "#38bdf8", size: 10 },
-          xref: "x", yref: "y",
-        },
-      ] : [],
-      height: Math.max(300, strikes.length * 22),
-    };
-
-    const config = { responsive: true, displayModeBar: false };
-
-    window.Plotly.newPlot(containerRef.current, traces, layout, config);
-
-    return () => {
-      if (containerRef.current) {
-        window.Plotly.purge(containerRef.current);
-      }
-    };
-  }, [plotlyReady, chartData, chainData?.symbol, spot]);
-
-  if (!chartData) {
-    return (
-      <div className="panel p-4 flex items-center justify-center" style={{ minHeight: 200 }}>
-        <span className="text-slate-500 text-[11px]">
-          {chainData ? "No strikes available for chart." : "Loading chain data…"}
-        </span>
-      </div>
-    );
-  }
-
-  return (
-    <div className="panel p-2">
-      <div ref={containerRef} style={{ width: "100%" }} />
-    </div>
-  );
-}
-
-// ---- Main Component ----
-export default function FlowseekerProTab({ active = true }) {
-  const [ticker, setTicker] = useState("SPY");
-  const [minPremium, setMinPremium] = useState(0);
-  const [classFilter, setClassFilter] = useState("all");
-  const [expiryFilter, setExpiryFilter] = useState("all");
-  const [chainLoading, setChainLoading] = useState(false);
-  const [chainData, setChainData] = useState(null);
-  const [chainError, setChainError] = useState(null);
-
-  // Live flow data via existing hook
-  const { data: flowData, loading: flowLoading, error: flowError, refresh: refreshFlow } = useFlowseeker("live", {
-    ticker,
-    min_premium: minPremium,
-    limit: 100,
-    refreshMs: 5000,
-    skip: !active,
-  });
-
-  // Fetch options chain
-  const fetchChain = useCallback(async () => {
-    if (!ticker || !active) return;
-    setChainLoading(true);
-    setChainError(null);
-    try {
-      const res = await fetch(
-        `${API}/chain/${encodeURIComponent(ticker)}?fields=delta,gamma,oi,volume,iv,bid,ask`
-      );
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const json = await res.json();
-      setChainData(json);
-    } catch (e) {
-      setChainError(e.message || "Chain fetch failed");
-      setChainData(null);
-    } finally {
-      setChainLoading(false);
+    if (spotPrice > 0) {
+      traces.push({
+        y: [spotPrice], x: [0], type: "scatter", mode: "markers+text",
+        name: `Spot $${spotPrice.toFixed(0)}`, marker: { color: "#38bdf8", size: 10, symbol: "x" },
+        text: [`$${spotPrice.toFixed(0)}`], textposition: "top right", textfont: { color: "#38bdf8", size: 10 },
+      });
     }
-  }, [ticker, active]);
 
-  // Auto-refresh chain every 30s (less frequent than flow)
-  useEffect(() => {
-    fetchChain();
-    if (!active) return;
-    const id = setInterval(fetchChain, 30000);
-    return () => clearInterval(id);
-  }, [fetchChain, active]);
-
-  // Filtered prints
-  const prints = useMemo(() => {
-    const all = flowData?.prints || [];
-    if (classFilter === "all") return all;
-    return all.filter((p) => p.classification === classFilter);
-  }, [flowData, classFilter]);
-
-  // Expiry options from chain data
-  const expiryOptions = useMemo(() => {
-    if (!chainData?.chain) return [];
-    return chainData.chain.map((e) => e.expiration).filter(Boolean);
-  }, [chainData]);
-
-  // Spot price from flow data
-  const spot = useMemo(() => {
-    if (prints.length > 0) return prints[0].spot;
-    return null;
-  }, [prints]);
-
-  // Filtered chain for chart (by expiry)
-  const filteredChain = useMemo(() => {
-    if (!chainData) return chainData;
-    if (expiryFilter === "all") return chainData;
-    return {
-      ...chainData,
-      chain: chainData.chain.filter((e) => e.expiration === expiryFilter),
+    const layout = {
+      title: { text: `OI by Strike — ${ticker} (${exp.expiration}) — ${strikes.length} strikes`, font: { color: "#94a3b8", size: 12 } },
+      paper_bgcolor: "rgba(0,0,0,0)", plot_bgcolor: "rgba(0,0,0,0)", barmode: "overlay",
+      margin: { l: 50, r: 20, t: 35, b: 35 },
+      xaxis: { title: "OI (norm)", color: "#64748b", zeroline: true, zerolinecolor: "#475569", gridcolor: "#1e293b", tickfont: { size: 8 } },
+      yaxis: { title: "Strike", color: "#64748b", gridcolor: "#1e293b", tickfont: { size: 8 } },
+      legend: { font: { size: 8 }, orientation: "h", y: 1.1 },
+      hovermode: "y unified", displayModeBar: false,
+      height: Math.max(400, strikes.length * 18),
     };
-  }, [chainData, expiryFilter]);
+
+    window.Plotly.newPlot(chartRef.current, traces, layout, { responsive: true, displayModeBar: false });
+  }, [chain, expiryIdx, ticker]);
+
+  // Load Plotly CDN
+  useEffect(() => {
+    if (window.Plotly) return;
+    const s = document.createElement("script");
+    s.src = "https://cdn.plot.ly/plotly-2.35.2.min.js";
+    document.head.appendChild(s);
+  }, []);
+
+  const expiries = chain?.chain?.map(c => c.expiration) || [];
 
   return (
-    <div className="p-3 space-y-3">
-      {/* Header: Ticker selector + filters */}
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <div className="flex flex-wrap items-center gap-2">
-          {/* Ticker pills */}
-          <div className="flex flex-wrap gap-1">
-            {TICKERS.map((t) => (
-              <button
-                key={t}
-                className={`btn text-[11px] px-2 py-0.5 ${ticker === t ? "active" : ""}`}
-                onClick={() => setTicker(t)}
-              >
-                {t}
-              </button>
-            ))}
-          </div>
+    <div className="flex h-full">
+      {/* Left sidebar */}
+      <div className="w-56 flex-shrink-0 border-r border-slate-800 bg-slate-900/50 p-3 space-y-3 overflow-y-auto">
+        <div className="text-[10px] uppercase tracking-wider text-slate-500 font-semibold">Ticker</div>
+        <input value={ticker} onChange={e => setTicker(e.target.value.toUpperCase())}
+          className="w-full bg-slate-800 border border-slate-700 rounded px-2 py-1 text-sm text-slate-200 outline-none focus:border-sky-500" />
+        <div className="flex flex-wrap gap-1">
+          {TICKERS.map(t => (
+            <button key={t} onClick={() => setTicker(t)}
+              className={`text-[10px] px-2 py-0.5 rounded ${t === t ? "bg-sky-600 text-white" : "bg-slate-800 text-slate-400 hover:bg-slate-700"}`}>
+              {t}
+            </button>
+          ))}
         </div>
-        <button className="btn" onClick={() => { refreshFlow(); fetchChain(); }}>
-          Refresh
-        </button>
+
+        <div className="text-[10px] uppercase tracking-wider text-slate-500 font-semibold mt-3">Expiry</div>
+        <select value={expiryIdx} onChange={e => setExpiryIdx(Number(e.target.value))}
+          className="w-full bg-slate-800 border border-slate-700 rounded px-2 py-1 text-xs text-slate-200">
+          {expiries.map((exp, i) => <option key={i} value={i}>{exp}</option>)}
+        </select>
+
+        <div className="text-[10px] text-slate-500 mt-3">
+          {loading && <span className="text-amber-400">● Loading...</span>}
+          {error && <span className="text-rose-400">● {error}</span>}
+          {chain && !loading && <span className="text-emerald-400">● {chain.chain.length} expirations</span>}
+          {lastUpdate && <div className="text-slate-600 mt-1">Updated: {lastUpdate}</div>}
+        </div>
+
+        <div className="text-[10px] text-slate-600 mt-3 border-t border-slate-800 pt-2">
+          <div>Data: CVForge cvserver</div>
+          <div>32 expirations · 171 strikes</div>
+        </div>
       </div>
 
-      {/* Filters row */}
-      <div className="flex flex-wrap items-center gap-2 text-[11px]">
-        {/* Classification filter */}
-        {["all", "sweep", "block", "unusual"].map((c) => (
-          <button
-            key={c}
-            className={`btn ${classFilter === c ? "active" : ""}`}
-            onClick={() => setClassFilter(c)}
-          >
-            {c === "all" ? "All" : c.charAt(0).toUpperCase() + c.slice(1)}
-          </button>
-        ))}
+      {/* Main chart area */}
+      <div className="flex-1 flex flex-col overflow-hidden">
+        <div className="flex items-center gap-3 px-3 py-2 border-b border-slate-800 bg-slate-900/30">
+          <span className="text-xs text-slate-400">{ticker}</span>
+          {chain && <span className="text-xs text-emerald-400">● LIVE</span>}
+          {chain && <span className="text-xs text-slate-500">{chain.chain?.[expiryIdx]?.strikes?.length || 0} strikes</span>}
+          <button onClick={() => fetchChain(ticker)} className="ml-auto text-[10px] px-2 py-0.5 bg-slate-800 hover:bg-slate-700 rounded text-slate-400">Refresh</button>
+        </div>
 
-        {/* Min premium */}
-        <input
-          className="bg-slate-800 border border-slate-600 rounded px-2 py-0.5 text-[11px] mono text-slate-300 w-24"
-          placeholder="Min premium"
-          type="number"
-          min="0"
-          value={minPremium || ""}
-          onChange={(e) => {
-            const v = e.target.value === "" ? 0 : Number(e.target.value);
-            setMinPremium(isNaN(v) ? 0 : Math.max(0, v));
-          }}
-        />
-
-        {/* Expiry selector */}
-        {expiryOptions.length > 0 && (
-          <select
-            className="bg-slate-800 border border-slate-600 rounded px-2 py-0.5 text-[11px] mono text-slate-300"
-            value={expiryFilter}
-            onChange={(e) => setExpiryFilter(e.target.value)}
-          >
-            <option value="all">All Expiries</option>
-            {expiryOptions.map((exp) => (
-              <option key={exp} value={exp}>{exp}</option>
-            ))}
-          </select>
-        )}
-
-        {/* Status indicators */}
-        <div className="flex items-center gap-2 ml-auto">
-          {flowLoading && <span className="text-sky-400 animate-pulse">● flow</span>}
-          {chainLoading && <span className="text-amber-400 animate-pulse">● chain</span>}
-          {spot && (
-            <span className="text-slate-400">
-              Spot: <span className="text-sky-300 mono">${Number(spot).toFixed(2)}</span>
-            </span>
+        <div className="flex-1 p-2 overflow-auto">
+          {loading && !chain && (
+            <div className="flex items-center justify-center h-full text-slate-500 text-sm">Loading chain data...</div>
           )}
-        </div>
-      </div>
-
-      {/* Error display */}
-      {(flowError || chainError) && (
-        <div className="panel p-2 text-rose-400 text-[11px]">
-          {flowError && <div>Flow: {flowError}</div>}
-          {chainError && <div>Chain: {chainError}</div>}
-        </div>
-      )}
-
-      {/* Main content: Chart + Tape side by side */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
-        {/* Chart: 2 cols */}
-        <div className="lg:col-span-2">
-          <ChainChart chainData={filteredChain} spot={spot} />
-        </div>
-
-        {/* Live Tape: 1 col */}
-        <div className="panel p-2" style={{ maxHeight: 400, overflowY: "auto" }}>
-          <div className="label mb-2 flex items-center gap-2">
-            <span>Live Tape</span>
-            <span className="text-[9px] text-slate-500">({prints.length} prints)</span>
-          </div>
-          {prints.length === 0 ? (
-            <div className="text-slate-500 text-[11px] p-2">
-              {flowLoading ? "Loading…" : "No flow prints."}
-            </div>
-          ) : (
-            <div className="space-y-0">
-              {prints.slice(0, 50).map((p, i) => (
-                <TapeRow key={i} p={p} />
-              ))}
-            </div>
+          {error && (
+            <div className="flex items-center justify-center h-full text-rose-400 text-sm">{error}</div>
           )}
+          <div ref={chartRef} className="w-full" style={{ minHeight: 400 }}></div>
         </div>
-      </div>
 
-      {/* Classification legend */}
-      <div className="flex flex-wrap items-center gap-3 text-[10px] text-slate-500">
-        <span>Legend:</span>
-        {Object.entries(CLASS_COLORS).map(([cls, color]) => (
-          <span key={cls} className="flex items-center gap-1">
-            <span className="inline-block w-2 h-2 rounded" style={{ background: color }} />
-            {cls}
-          </span>
-        ))}
-        <span className="flex items-center gap-1">
-          <span className="inline-block w-2 h-0.5 bg-sky-400" />
-          Spot price
-        </span>
+        {/* Legend */}
+        <div className="flex items-center gap-4 px-3 py-1.5 border-t border-slate-800 text-[9px] text-slate-500">
+          <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-sm bg-emerald-500/70"></span> Call OI</span>
+          <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-sm bg-rose-500/70"></span> Put OI</span>
+          <span className="flex items-center gap-1"><span className="w-3 h-0.5 bg-amber-400"></span> Delta</span>
+          <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full border border-sky-400"></span> Spot</span>
+          <span className="ml-auto text-slate-600">CVForge cvserver · {chain?.chain?.length || 0} expirations</span>
+        </div>
       </div>
     </div>
   );

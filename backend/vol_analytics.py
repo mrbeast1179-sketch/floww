@@ -33,7 +33,7 @@ def calc_iv_surface_data(spot: float, contracts: list[dict[str, Any]]) -> dict[s
     for c in contracts:
         iv = c.get("iv", 0)
         T = c.get("T", 0)
-        if iv <= 0 or iv > 3.0 or T <= 0:
+        if not iv or iv <= 0 or iv > 3.0 or T <= 0:
             continue
         moneyness = c["strike"] / spot
         points.append([moneyness, T])
@@ -112,7 +112,7 @@ def calc_skew_metrics(spot: float, contracts: list[dict[str, Any]]) -> dict[str,
     put_ivs = defaultdict(list)
     for c in contracts:
         iv = c.get("iv", 0)
-        if iv <= 0 or iv > 3.0:
+        if not iv or iv <= 0 or iv > 3.0:
             continue
         if c["type"] == "call":
             call_ivs[c["strike"]].append(iv)
