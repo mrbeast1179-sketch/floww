@@ -1548,6 +1548,7 @@ async def build_heatmap(ticker: str, max_expiries: int = 4, with_taps: bool = Tr
         # First get spot price from a quick chain fetch (just 1 expiry, minimal fields)
         from services.cvserver_client import fetch_chain_from_cvserver, fetch_chain_for_heatmap, CVSERVER_API_KEY
         if CVSERVER_API_KEY:
+            log.info(f"build_heatmap: using screen API for index {ticker}")
             try:
                 spot_raw = await asyncio.wait_for(
                     fetch_chain_from_cvserver(ticker, max_expiries=1),
@@ -1561,9 +1562,9 @@ async def build_heatmap(ticker: str, max_expiries: int = 4, with_taps: bool = Tr
                         _BUILD_HEATMAP_CACHE[cache_key] = (time.time(), heatmap_data)
                         return heatmap_data
             except asyncio.TimeoutError:
-                log.warning(f"cvserver timeout for {ticker}, falling back to yfinance")
+                log.warning(f"cvserver timeout for index {ticker}, falling back to yfinance")
             except Exception as e:
-                log.warning(f"cvserver failed for {ticker}: {e}")
+                log.warning(f"cvserver failed for index {ticker}: {e}")
 
     raw = await fetch_spot_and_chains_merged(ticker, max_expiries)
     spot = raw["spot"]
