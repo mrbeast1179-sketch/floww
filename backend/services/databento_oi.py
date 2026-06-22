@@ -179,7 +179,7 @@ def get_oi(
                         ):
                             return _clamp_oi(data.get("oi", 0))
                     except Exception as e:
-                        logger.warning(
+                        log.warning(
                             f"databento_oi: top-mover-loop: {e}",
                             exc_info=True,
                         )

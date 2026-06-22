@@ -286,6 +286,13 @@ async def fetch_chain_from_cvserver(
 
         parsed = _parse_chain_response(raw, cv_symbol)
 
+        # Limit to nearest N expiries to avoid OOM on large chains (e.g. SPX has 32+ expiries)
+        if max_expiries and len(parsed["expiries"]) > max_expiries:
+            sorted_expiries = sorted(parsed["expiries"])
+            kept = set(sorted_expiries[:max_expiries])
+            parsed["contracts"] = [c for c in parsed["contracts"] if c.get("expiry") in kept]
+            parsed["expiries"] = sorted(kept)
+
         if not parsed["contracts"]:
             logger.warning(f"cvserver: no contracts parsed for {symbol}")
             return None

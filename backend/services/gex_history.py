@@ -277,7 +277,7 @@ def calc_gex_timeframes(
             d1 = (log(spot / strike) + (_RISK_FREE + 0.5 * iv * iv) * T) / (iv * sqrt(T))
             return float(_norm.pdf(d1)) / (spot * iv * sqrt(T))
         except Exception as e:
-            logger.warning(
+            log.warning(
                 f"gex_history: series-fallback: {e}",
                 exc_info=True,
             )
