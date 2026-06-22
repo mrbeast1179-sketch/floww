@@ -60,29 +60,30 @@ A future Task‑10‑extension audit could expand the matrix to ~25 dimensions, 
 
 ## Hot‑spot deep‑dives
 
-### Hot‑spot #1 — `routes/ml_api.py` (5 silent `except Exception: pass`)
+### Hot‑spot #1 — `routes/ml_api.py` (5 silent `except Exception: pass`) — FIXED in `5f0dec5`
 
 The five lines confirmed by multi‑line ripgrep (`except Exception:` followed by `pass` on the next non‑blank line) — the original single‑line grep incorrectly returned 0 hits; the multi‑line variant verifies the citations are accurate:
 
-| Line | Region | Likely context |
-|------|--------|---------------|
-| `ml_api.py:378` | inside a route or scheduler handler | needs full file read to confirm interactional vs. background |
-| `ml_api.py:513` | same | same |
-| `ml_api.py:525` | same | same |
-| `ml_api.py:534` | same | same |
-| `ml_api.py:546` | same | same |
+| Site | Function | Enclosing shape | Audit grade (final) | Fix shape | Error‑key injected | Commit |
+|------|----------|-----------------|---------------------|-----------|--------------------|--------|
+| `ml_api.py:378` | `async def get_ensemble` | statistical‑detector section (single try) | REPRODUCIBLE (interactive handler) | logger.error + splat‑injected `statistical_error` key in return dict (only present when stat‑detector failed) | `statistical_error` | `5f0dec5` |
+| `ml_api.py:513` | `async def ml_briefing` | GEX fallback (nested‑in‑except — the inner `except Exception: pass` inside the outer `except DegenerateModelError as e`) | REPRODUCIBLE (interactive handler) | logger.error + `result["prediction_fallback_error"] = ...` | `prediction_fallback_error` | `5f0dec5` |
+| `ml_api.py:525` | `async def ml_briefing` | section 2 (model info) | REPRODUCIBLE (interactive handler) | logger.error + `result["model_error"] = ...` | `model_error` | `5f0dec5` |
+| `ml_api.py:534` | `async def ml_briefing` | section 3 (drift/regime) | REPRODUCIBLE (interactive handler) | logger.error + `result["drift_error"] = ...` | `drift_error` | `5f0dec5` |
+| `ml_api.py:546` | `async def ml_briefing` | section 4 (rolling accuracy) | REPRODUCIBLE (interactive handler) | logger.error + `result["rolling_accuracy_error"] = ...` | `rolling_accuracy_error` | `5f0dec5` |
 
-This is **the loudest silent‑failure concentration in the audit.** `ml_api.py`'s 916‑line footprint + 44 route handlers + 20 `HTTPException` references already show it's the ML‑surface's main exposure window. A handful of `except Exception: pass` in the ML surface means a model error during a request can disappear into a 200 OK with whatever the function was holding before the exception.
+This was the loudest silent‑failure concentration in the audit.  §Per‑site grading was the missing piece for `5f0dec5`'s design decision: every one of the 5 sites turned out to be REPRODUCIBLE per this commit‑era recon (every site lives inside `async def` interactive request handlers, including the nested‑in‑except path at L513).
 
-**Per plan §10 rubric**: 5 distinct silent‑exception points where missing per‑file context blocks definitive grading at audit‑time. The fix‑loop will verify each against a running server (interactive request vs. background loop). If even 1 of the 5 is inside an interactive‑request handler (vs. a defensive loop‑keep‑alive), the fix is unavoidable — the 5 hits would be a single‑commit refactor. Per‑instance decision:
+**Design choice diverged from the audit's originally‑stated recommendation.** The original recommendation assumed fail‑fast semantics (HTTPException(500)).  But `ml_briefing`'s envelope is **5 INDEPENDENT SECTIONS** assembled into one JSON response.  Forcing HTTPException(500) on any single section failure would discard the entire briefing envelope (all 5 sections) and lose the data from the OTHER 4 sections that may have succeeded.  This contradicts the partial‑data design intent of the briefing endpoint (`MlDashboard` front‑end surface, per the function docstring).
 
-1. **Inside a background loop / retry scheduler** → grade DEFENSIBLE; document.
-2. **Inside an interactive request handler** → grade REPRODUCIBLE; failing‑test → minimal‑fix pattern (1‑line replacement of `pass` with `raise HTTPException(status_code=500, detail=str(e))` plus a log record).
+The Decision Queue #1 commit (`5f0dec5`) therefore applied the **`routes/admin.py` Decision Queue #4 precedent (commit `72b00c8`)** instead of the gemini‑style `JSONResponse(503)`: preserve HTTP 200 + partial data BUT eliminate silent‑swallow via `logger.error(...)` + a per‑section `<section>_error` key in the response body.  See the §Decision queue row #1 entry below for the post‑fix‑loop credit.
 
-**Next‑step fix plan (NOT included in this commit):**
-- Failing test: `tests/services/test_ml_api_silent_error.py` — hit each of the 5 lines with a contrived input that triggers the except, assert response is **500 NOT 200** and the body contains `{"error": …}`.
-- Minimal fix: per‑line change of `except Exception:\n    pass` to `except Exception as exc:\n    raise HTTPException(status_code=500, detail=f"{func_name}: {exc}")`.
-- One pathspec commit per fix group (or all‑5 in one if the lines cluster under the same root cause).
+**Section error keys are namespaced per‑section** so monitoring agents can attribute a failure to the specific section via response shape WITHOUT log access: monitoring agent sees HTTP 200 + presence of e.g. `drift_error` = drift section degraded; the other 4 sections can be normal or independently failed.
+
+**TDD discipline:** 6 tests in `backend/tests/services/test_ml_api_silent_error_observability.py` (5 per‑section failure‑mode tests + 1 happy‑path control) lock the observability contract per‑section.
+
+**Fix‑loop verified (test red‑then‑green, ruff, py_compile, CR SHIP):** see commit `5f0dec5` git log entry.
+
 
 ### Hot‑spot #2 — `routes/gemini.py` (8 silent error returns)
 
