@@ -44,28 +44,20 @@ function estPrice(strike, iv, expiry) {
   return Math.max(0.05, strike * ivv * Math.sqrt(dte / 365) * 0.4);
 }
 
-// Per-print conviction proxy (0-100) from classification + premium + vol/oi.
+// Conviction from the row's own attributes — log-scaled so big premium / vol-oi
+// SPREAD across the range instead of all saturating at the same total. Returns
+// the 0-100 score plus the 4 components (used by the gauge + radar so they agree).
 function rowConviction(p) {
   const cls = String(p.classification || "regular").toLowerCase();
-  const pat = cls === "block" ? 22 : cls === "sweep" ? 20 : cls === "unusual" ? 15 : 8;
+  const pat = cls === "sweep" ? 24 : cls === "unusual" ? 18 : cls === "block" ? 14 : 8;     // 8-24 pattern
   const prem = Number(p.premium) || 0;
-  const premPts = prem >= 2e6 ? 22 : prem >= 1e6 ? 18 : prem >= 5e5 ? 13 : prem >= 1e5 ? 8 : 3;
+  const size = Math.min(30, Math.log10(Math.max(1e4, prem) / 1e4) * 9);                      // 0-30 size (log)
   const voi = Number(p.vol_oi_ratio) || 0;
-  const stat = Math.min(25, voi * 6);
-  const ctx = 14; // refined for the selected signal with regime confidence
-  return Math.round(Math.min(100, pat + premPts + stat + ctx));
-}
-
-// Rich conviction for the SELECTED signal using ticker-level microstructure.
-function richConviction(p, micro) {
-  const cls = String(p.classification || "regular").toLowerCase();
-  const pat = Math.min(25, (cls === "block" ? 20 : cls === "sweep" ? 22 : cls === "unusual" ? 15 : 8)
-    + ((Number(p.premium) || 0) >= 1e6 ? 4 : 0));
-  const stat = Math.min(25, (micro.vpin ?? 0.4) * 25);                 // toxicity
-  const ctx = Math.min(25, (micro.regimeConf ?? 0.5) * 25);           // regime confidence
-  const imp = Math.min(25, (micro.lambdaR2 ?? 0.4) * 25);             // Kyle-λ fit
-  return { stat: +stat.toFixed(1), pat: +pat.toFixed(1), ctx: +ctx.toFixed(1), imp: +imp.toFixed(1),
-           conv: Math.round(stat + pat + ctx + imp) };
+  const stat = Math.min(26, Math.log10(Math.max(1, voi) + 1) * 14);                          // 0-26 unusualness (log)
+  const dte = Number(dteOf(p.expiration)) || 0;
+  const urg = dte <= 1 ? 14 : dte <= 7 ? 9 : dte <= 30 ? 5 : 2;                              // 2-14 urgency
+  const conv = Math.round(Math.max(20, Math.min(99, pat + size + stat + urg)));
+  return { pat: +pat.toFixed(1), size: +size.toFixed(1), stat: +stat.toFixed(1), urg: +urg.toFixed(1), conv };
 }
 
 // ---------- component ----------
@@ -139,7 +131,9 @@ export default function FlowseekerProBlademap({ active = true }) {
                 volume: vol, oi, vol_oi_ratio: voi, iv: iv < 1 ? iv * 100 : iv,
                 premium: Math.round(vol * mid * 100),
               };
-              p._conv = rowConviction(p);
+              const cd = rowConviction(p);
+              p._conv = cd.conv;
+              p._cd = cd;
               rows.push(p);
             }
           }
@@ -215,8 +209,7 @@ export default function FlowseekerProBlademap({ active = true }) {
   const P = useCallback(() => window.Plotly, []);
   function drawGauge(p) {
     if (!P() || !gaugeRef.current || !p) return;
-    const rich = richConviction(p, microRef.current);
-    const c = rich.conv;
+    const c = p._conv != null ? p._conv : (p._cd ? p._cd.conv : 50);
     const col = c >= 85 ? PL.green : c >= 70 ? PL.blue : c >= 55 ? PL.amber : PL.red;
     P().react(gaugeRef.current, [{
       type: "indicator", mode: "gauge+number", value: c,
@@ -231,14 +224,14 @@ export default function FlowseekerProBlademap({ active = true }) {
   }
   function drawRadar(p) {
     if (!P() || !radarRef.current || !p) return;
-    const d = richConviction(p, microRef.current);
-    const cats = ["Stat Anomaly", "Pattern", "Context", "Impact"];
+    const d = p._cd || { stat: 0, pat: 0, size: 0, urg: 0 };
+    const cats = ["Unusualness", "Pattern", "Size", "Urgency"];
     P().react(radarRef.current, [{
-      type: "scatterpolar", r: [d.stat, d.pat, d.ctx, d.imp, d.stat],
+      type: "scatterpolar", r: [d.stat, d.pat, d.size, d.urg, d.stat],
       theta: cats.concat([cats[0]]), fill: "toself", fillcolor: "rgba(41,197,224,0.18)",
       line: { color: PL.blue, width: 2 }, marker: { color: PL.blue, size: 4 },
     }], { paper_bgcolor: PL.paper, polar: { bgcolor: "rgba(0,0,0,0)",
-        radialaxis: { range: [0, 26], tickfont: { color: PL.muted, size: 8 }, gridcolor: PL.grid, linecolor: PL.axis },
+        radialaxis: { range: [0, 30], tickfont: { color: PL.muted, size: 8 }, gridcolor: PL.grid, linecolor: PL.axis },
         angularaxis: { tickfont: { color: PL.text, size: 9 }, gridcolor: PL.grid, linecolor: PL.axis } },
       margin: { l: 34, r: 34, t: 12, b: 12 }, height: 190, showlegend: false, font: { family: PL.font } },
     { displayModeBar: false, responsive: true });
@@ -392,18 +385,17 @@ export default function FlowseekerProBlademap({ active = true }) {
               <div className="fsb-flow-wrap">
                 <table className="fsb-table">
                   <thead><tr>
-                    <th>Time</th><th>Ticker</th><th>Type</th><th>Side</th><th className="num">Strike</th>
-                    <th>DTE</th><th className="num">Premium</th><th className="num">V/OI</th><th className="num">Conv</th>
+                    <th>Ticker</th><th>Type</th><th>Side</th><th className="num">Strike</th>
+                    <th>DTE</th><th className="num">Day $</th><th className="num">V/OI</th><th className="num">Conv</th>
                   </tr></thead>
                   <tbody>
-                    {filtered.length === 0 && <tr><td colSpan={9} className="fsb-muted" style={{ padding: 14, lineHeight: 1.7 }}>Loading unusual options activity from <b style={{ color: "var(--fsb-blue)" }}>cvforge</b> (ranked by volume-vs-open-interest)…</td></tr>}
+                    {filtered.length === 0 && <tr><td colSpan={8} className="fsb-muted" style={{ padding: 14, lineHeight: 1.7 }}>Loading unusual options activity from <b style={{ color: "var(--fsb-blue)" }}>cvforge</b> (ranked by volume-vs-open-interest)…</td></tr>}
                     {filtered.slice(0, 80).map((p, i) => {
                       const conv = p._conv;
                       return (
                         <tr key={`${p.ticker}-${p.timestamp}-${i}`} className={selected === p ? "selected" : ""}
                             tabIndex={0} onClick={() => selectSignal(p)}
                             onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); selectSignal(p); } }}>
-                          <td>{fmtTime(p.timestamp)}</td>
                           <td className="tk">{p.ticker}</td>
                           <td className={`fsb-type-${typeOf(p).toLowerCase()}`}>{typeOf(p)}</td>
                           <td className={sideOf(p) === "CALL" ? "fsb-side-call" : "fsb-side-put"}>{sideOf(p)}</td>
