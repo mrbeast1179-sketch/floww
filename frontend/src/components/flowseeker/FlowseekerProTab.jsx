@@ -202,27 +202,45 @@ export default function FlowseekerProTab({ active = true }) {
           </div>
 
           {/* Alerts panel */}
-          <div className="w-64 flex-shrink-0 border-l border-slate-800 bg-[#0d0f14] overflow-y-auto">
+          <div className="w-72 flex-shrink-0 border-l border-slate-800 bg-[#0d0f14] overflow-y-auto">
             <div className="px-2 py-1.5 border-b border-slate-800 text-[10px] uppercase tracking-widest text-slate-500 font-bold flex items-center justify-between">
-              <span>Live Alerts</span>
-              <span className="text-[9px] text-slate-600 normal-case">{alerts.length}</span>
+              <span>🔔 Live Alerts</span>
+              <span className="text-[9px] text-slate-600 normal-case font-normal">{alerts.length}</span>
             </div>
             {alerts.length === 0 ? (
-              <div className="p-3 text-[10px] text-slate-600 text-center">No large trades detected</div>
+              <div className="p-3 text-[10px] text-slate-600 text-center">No large trades detected.<br/><span className="text-slate-700">Monitoring for sweeps, blocks, unusual flow...</span></div>
             ) : (
-              <div className="divide-y divide-slate-800/50">
-                {alerts.slice(0, 30).map((a, i) => (
-                  <div key={i} className="px-2 py-1.5 hover:bg-slate-800/30 transition-colors">
+              <div className="divide-y divide-slate-800/30">
+                {alerts.slice(0, 50).map((a, i) => (
+                  <div key={i} className="px-2 py-2 hover:bg-slate-800/30 transition-colors cursor-pointer">
                     <div className="flex items-center gap-1.5">
-                      <span className="w-1.5 h-1.5 rounded-full" style={{ background: CLASS_COLORS[a.classification] || "#64748b" }} />
-                      <span className="text-[10px] font-medium text-slate-300">{a.type}</span>
-                      <span className="text-[10px] text-slate-500">{a.strike.toFixed(0)}</span>
-                      <span className="text-[10px] text-slate-600">{a.expiration?.slice(5)}</span>
+                      <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: CLASS_COLORS[a.classification] || "#64748b" }} />
+                      <span className="text-[10px] font-semibold text-slate-200">{a.classification.toUpperCase()}</span>
+                      <span className="text-[10px] text-slate-400">{a.option_type}</span>
+                      <span className="text-[10px] font-mono text-slate-300">{a.strike.toFixed(0)}</span>
+                      <span className="text-[9px] text-slate-500">{a.expiration?.slice(5)}</span>
+                      {a.tier <= 2 && <span className="text-[8px] px-1 py-0 rounded bg-amber-500/20 text-amber-400">T{a.tier}</span>}
                     </div>
-                    <div className="flex items-center gap-2 mt-0.5 text-[9px] text-slate-500">
-                      <span>{a.size.toFixed(0)}x @ ${a.price.toFixed(2)}</span>
-                      <span className="text-slate-600">${(a.premium / 1000).toFixed(0)}k</span>
+                    <div className="flex items-center gap-2 mt-1 text-[9px]">
+                      <span className="text-slate-400">{a.size.toFixed(0)}x @ ${a.price.toFixed(2)}</span>
+                      <span className="text-slate-500">${(a.premium / 1000).toFixed(0)}k</span>
+                      <span className={`px-1 py-0 rounded text-[8px] ${
+                        a.sentiment === "BULLISH" ? "bg-emerald-500/20 text-emerald-400" :
+                        a.sentiment === "BEARISH" ? "bg-rose-500/20 text-rose-400" :
+                        "bg-slate-700 text-slate-400"
+                      }`}>{a.sentiment}</span>
+                      <span className={`text-[8px] ${
+                        a.confidence === "HIGH" ? "text-emerald-400" :
+                        a.confidence === "MEDIUM" ? "text-amber-400" : "text-slate-500"
+                      }`}>{a.confidence_score}</span>
                     </div>
+                    {a.confidence_factors?.length > 0 && (
+                      <div className="mt-1 text-[8px] text-slate-600 leading-tight">
+                        {a.confidence_factors.slice(0, 2).map((f, j) => (
+                          <div key={j}>• {f}</div>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>

@@ -1,0 +1,9 @@
+style(frontend): heatseeker layout adjustments
+
+Per-file pathspec commit for Freebuff anti-skip gate cleanup
+of pre-existing dirty work on frontend/src/App.css.
+
+Content:
+- heatseeker-main: explicit display flex + flex-direction column
+- desktop heatseeker-layout grid: 3 cols to 2 cols (260px 1fr)
+- container class: add height 100%

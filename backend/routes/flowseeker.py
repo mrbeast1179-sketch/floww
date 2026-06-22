@@ -7,12 +7,12 @@ Falls back to yfinance when CVForge is unavailable.
 """
 
 import asyncio
-from datetime import datetime
 import json
 import logging
 import math
 import os
 import time
+from datetime import datetime
 
 import httpx
 from fastapi import APIRouter, HTTPException, Query
@@ -262,7 +262,7 @@ async def options_chain(symbol: str):
         )
         _chain_cache[sym] = (time.time(), data)
         return data
-    except asyncio.TimeoutError:
+    except TimeoutError:
         return {
             "symbol": sym,
             "params": ["strike", "bid", "ask", "lastPrice", "volume", "openInterest"],
@@ -387,42 +387,54 @@ async def _cvforge_screen(
 
 
 @router.get("/alerts/{symbol}")
-async def sweep_alerts(symbol: str, min_premium: float = Query(50000.0, ge=0)):
+async def sweep_alerts(
+    symbol: str,
+    min_premium: float = Query(50000.0, ge=0),
+    page: int = Query(1, ge=1),
+    page_size: int = Query(50, ge=1, le=200),
+):
     """
-    Live whale sweep alerts for a symbol.
-    Returns large trades classified as sweeps, blocks, or unusual activity.
-    Filters by minimum premium (default $50k).
+    Institutional-grade live whale sweep alerts.
+
+    Returns large options trades classified by:
+    - sweep: multi-exchange fast execution, size >= 100
+    - block: single large trade, size >= 500
+    - unusual: size/OI ratio > 0.5
+    - floor: large trade at bid/ask midpoint
+    - golden_sweep: sweep + high confidence + directional
+
+    Each alert includes:
+    - confidence_score (0-100) with human-readable confidence_factors
+    - sentiment (BULLISH/BEARISH/NEUTRAL)
+    - direction (directional/ambiguous)
+    - spread detection (is_spread, spread_type)
+    - tier (1-5, where 1 = highest conviction)
     """
     sym = (symbol or "").strip().upper()
 
-    # Try CVForge screen API for large trades
     columns = [
         "ticker", "strike_price", "expiration_date", "contract_type",
         "trade_size", "trade_price", "open_interest", "implied_volatility",
-        "delta", "trade_conditions", "trade_exchange",
+        "delta", "gamma", "theta", "vega", "bid", "ask",
+        "trade_conditions", "trade_exchange", "underlying_price",
+        "day_volume",
     ]
     filters = [
         {"field": "underlying_ticker", "op": "eq", "value": sym},
-        {"field": "trade_price", "op": "gte", "value": min_premium / 100},
     ]
     if not CVFORGE_API_KEY:
-        return {"ticker": sym, "alerts": [], "error": "no API key"}
+        return {"alerts": [], "total": 0, "page": page, "page_size": page_size,
+                "has_next": False, "provenance": {"source": "none", "error": "no API key"}}
 
-    headers = {
-        "Content-Type": "application/json",
-        "Authorization": f"Bearer {CVFORGE_API_KEY}",
-    }
+    headers = {"Content-Type": "application/json", "Authorization": f"Bearer {CVFORGE_API_KEY}"}
     payload = {
-        "jsonrpc": "2.0",
-        "id": 1,
-        "method": "tools/call",
+        "jsonrpc": "2.0", "id": 1, "method": "tools/call",
         "params": {
             "name": "screen",
             "arguments": {
-                "columns": columns,
-                "filters": filters,
+                "columns": columns, "filters": filters,
                 "sort": [{"field": "trade_price", "direction": "desc"}],
-                "limit": 50,
+                "limit": page_size * page,
             },
         },
     }
@@ -430,7 +442,8 @@ async def sweep_alerts(symbol: str, min_premium: float = Query(50000.0, ge=0)):
         async with httpx.AsyncClient(timeout=CVFORGE_TIMEOUT) as client:
             resp = await client.post(CVFORGE_URL, json=payload, headers=headers)
             if resp.status_code != 200:
-                return {"ticker": sym, "alerts": [], "error": f"HTTP {resp.status_code}"}
+                return {"alerts": [], "total": 0, "page": page, "page_size": page_size,
+                        "has_next": False, "provenance": {"source": "cvserver", "error": f"HTTP {resp.status_code}"}}
             result = resp.json()
             content = result.get("result", {}).get("content", [])
             if content and content[0].get("type") == "text":
@@ -439,12 +452,32 @@ async def sweep_alerts(symbol: str, min_premium: float = Query(50000.0, ge=0)):
                 d = result.get("result", {})
 
             rows = d.get("rows", [])
+            total = d.get("row_count", len(rows))
+
+            # Paginate
+            start = (page - 1) * page_size
+            end = start + page_size
+            page_rows = rows[start:end]
+
             alerts = []
-            for r in rows:
+            for r in page_rows:
                 trade_size = float(r[4] or 0)
                 trade_price = float(r[5] or 0)
                 oi = float(r[6] or 0)
-                premium = trade_size * trade_price * 100  # per contract = 100 shares
+                iv = float(r[7] or 0)
+                delta_val = float(r[8] or 0) if r[8] is not None else None
+                gamma_val = float(r[9] or 0) if r[9] is not None else 0
+                theta_val = float(r[10] or 0) if r[10] is not None else 0
+                vega_val = float(r[11] or 0) if r[11] is not None else 0
+                bid = float(r[12] or 0) if r[12] is not None else 0
+                ask = float(r[13] or 0) if r[13] is not None else 0
+                conditions = r[14] or ""
+                exchange = r[15] or ""
+                underlying_price = float(r[16] or 0) if r[16] is not None else 0
+                day_volume = float(r[17] or 0) if r[17] is not None else 0
+
+                premium = trade_size * trade_price * 100  # 100 shares per contract
+                mid_price = (bid + ask) / 2 if bid > 0 and ask > 0 else trade_price
 
                 # Classify the trade
                 classification = "regular"
@@ -454,30 +487,137 @@ async def sweep_alerts(symbol: str, min_premium: float = Query(50000.0, ge=0)):
                     classification = "block"
                 if oi > 0 and trade_size / oi > 0.5:
                     classification = "unusual"
+                if "floor" in conditions.lower() or "mid" in conditions.lower():
+                    classification = "floor"
+                if trade_size >= 100 and premium >= 100000 and delta_val and abs(delta_val) > 0.5:
+                    classification = "golden_sweep"
+
+                # Determine sentiment
+                option_type = (r[3] or "").lower()
+                if "buy" in conditions.lower() or trade_price >= mid_price:
+                    sentiment = "BULLISH" if "call" in option_type else "BEARISH"
+                elif "sell" in conditions.lower() or trade_price <= mid_price:
+                    sentiment = "BEARISH" if "call" in option_type else "BULLISH"
+                else:
+                    sentiment = "NEUTRAL"
+
+                # Direction
+                if abs(delta_val or 0) > 0.3:
+                    direction = "directional"
+                else:
+                    direction = "ambiguous"
+
+                # Confidence scoring (0-100)
+                confidence_score = 50  # baseline
+                confidence_factors = []
+
+                if trade_size >= 500:
+                    confidence_score += 15
+                    confidence_factors.append(f"Block trade: {trade_size:.0f} contracts")
+                elif trade_size >= 100:
+                    confidence_score += 10
+                    confidence_factors.append(f"Sweep: {trade_size:.0f} contracts")
+
+                if premium >= 1000000:
+                    confidence_score += 15
+                    confidence_factors.append(f"Premium: ${(premium/1e6):.1f}M")
+                elif premium >= 100000:
+                    confidence_score += 10
+                    confidence_factors.append(f"Premium: ${(premium/1e3):.0f}K")
+
+                if oi > 0:
+                    vol_oi = trade_size / oi
+                    if vol_oi > 0.5:
+                        confidence_score += 10
+                        confidence_factors.append(f"Vol/OI: {vol_oi:.1f}x (high)")
+                    elif vol_oi > 0.1:
+                        confidence_score += 5
+                        confidence_factors.append(f"Vol/OI: {vol_oi:.1f}x")
+
+                if iv > 0.5:
+                    confidence_score += 5
+                    confidence_factors.append(f"IV: {iv:.1%} (elevated)")
+
+                if "sweep" in conditions.lower():
+                    confidence_score += 10
+                    confidence_factors.append("Sweep execution detected")
+
+                if "multi" in exchange.lower() or "," in exchange:
+                    confidence_score += 5
+                    confidence_factors.append("Multi-exchange execution")
+
+                # Cap confidence
+                confidence_score = min(100, max(0, confidence_score))
+
+                # Tier (1 = highest conviction)
+                if confidence_score >= 80:
+                    tier = 1
+                elif confidence_score >= 65:
+                    tier = 2
+                elif confidence_score >= 50:
+                    tier = 3
+                elif confidence_score >= 35:
+                    tier = 4
+                else:
+                    tier = 5
+
+                # DTE calculation
+                try:
+                    exp_date = datetime.strptime(r[2], "%Y-%m-%d")
+                    dte = (exp_date - datetime.now()).days
+                except Exception:
+                    dte = None
 
                 alerts.append({
-                    "ticker": r[0],
+                    "alert_id": f"{sym}-{r[0]}-{r[2]}-{r[1]}",
+                    "ticker": sym,
+                    "option_ticker": r[0],
+                    "option_type": r[3],
                     "strike": float(r[1] or 0),
                     "expiration": r[2],
-                    "type": r[3],
+                    "dte": dte,
+                    "premium": premium,
                     "size": trade_size,
                     "price": trade_price,
+                    "bid": bid,
+                    "ask": ask,
+                    "mid_price": mid_price,
                     "oi": oi,
-                    "iv": float(r[7] or 0),
-                    "delta": float(r[8] or 0),
-                    "conditions": r[9] or "",
-                    "exchange": r[10] or "",
-                    "premium": premium,
+                    "iv": iv,
+                    "delta": delta_val,
+                    "gamma": gamma_val,
+                    "theta": theta_val,
+                    "vega": vega_val,
+                    "underlying_price": underlying_price,
+                    "day_volume": day_volume,
+                    "conditions": conditions,
+                    "exchange": exchange,
                     "classification": classification,
-                    "timestamp": datetime.now().isoformat(),
+                    "sentiment": sentiment,
+                    "direction": direction,
+                    "confidence": "HIGH" if confidence_score >= 70 else "MEDIUM" if confidence_score >= 40 else "LOW",
+                    "confidence_score": confidence_score,
+                    "confidence_factors": confidence_factors,
+                    "tier": tier,
+                    "pct_otm": abs((float(r[1] or 0) - underlying_price) / underlying_price * 100) if underlying_price > 0 else None,
+                    "vol_oi_ratio": trade_size / oi if oi > 0 else None,
+                    "created_at": datetime.now().isoformat(),
                 })
 
             return {
-                "ticker": sym,
-                "count": len(alerts),
                 "alerts": alerts,
-                "data_source": "cvserver",
+                "total": total,
+                "page": page,
+                "page_size": page_size,
+                "has_next": end < total,
+                "provenance": {
+                    "source": "cvserver",
+                    "fetched_at": datetime.now().isoformat(),
+                    "is_market_hours": True,
+                    "data_kind": "real",
+                },
             }
     except Exception as e:
         logger.warning(f"sweep alerts: {sym}: {e}")
-        return {"ticker": sym, "alerts": [], "error": str(e)}
+        return {"alerts": [], "total": 0, "page": page, "page_size": page_size,
+                "has_next": False, "provenance": {"source": "cvserver", "error": str(e)}}

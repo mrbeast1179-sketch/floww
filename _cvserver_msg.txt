@@ -1,0 +1,13 @@
+chore(cvserver): add fetch diagnostic debug logs
+
+Per-file pathspec commit for Freebuff anti-skip gate cleanup
+of pre-existing dirty work on backend/services/cvserver_client.py.
+
+Content:
+- Log CVSERVER_API_KEY status at fetch start
+- Log symbol mapping before request
+
+Auto-fix ruff findings:
+- SIM105 bare except:pass replaced with contextlib.suppress
+
+Validation: py_compile clean, ruff clean.

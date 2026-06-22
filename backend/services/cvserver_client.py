@@ -249,6 +249,8 @@ async def fetch_chain_from_cvserver(
         logger.debug("cvserver: no API key configured, skipping")
         return None
 
+    logger.debug(f"cvserver: fetching {symbol}, key={'set' if CVSERVER_API_KEY else 'EMPTY'}")
+
     # Check cache
     cache_key = f"cvserver:{symbol}:{max_expiries}"
     if cache_key in _cache:
@@ -269,6 +271,7 @@ async def fetch_chain_from_cvserver(
         "^VIX": "I:VIX",
     }
     cv_symbol = _symbol_map.get(symbol.upper(), symbol.upper())
+    logger.debug(f"cvserver: {symbol} → {cv_symbol}")
 
     try:
         raw = await _cvserver_call_async("tools/call", {
