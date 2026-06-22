@@ -416,8 +416,17 @@ def compute_gex_grid(spot: float, contracts: list[dict[str, Any]], ticker: str =
     charm_grid: dict[str, dict[float, float]] = {}
     strike_totals: dict[float, float] = {}
     for c in contracts:
-        gamma = bs_gamma(spot, c["strike"], c["T"], c["iv"], q=q)
-        charm = bs_charm(spot, c["strike"], c["T"], c["iv"], q=q, kind=c["type"])
+        oi = c.get("oi", 0) or 0
+        if oi <= 0:
+            continue
+        iv = c.get("iv")
+        if iv is None or (isinstance(iv, float) and math.isnan(iv)):
+            continue
+        T = c.get("T", 0) or 0
+        if T <= 0:
+            continue
+        gamma = bs_gamma(spot, c["strike"], T, iv, q=q)
+        charm = bs_charm(spot, c["strike"], T, iv, q=q, kind=c["type"])
         if gamma <= 0:
             continue
         gex_unit = dollar_gex_per_contract(gamma, c["oi"], spot)
@@ -914,12 +923,18 @@ def compute_gex_by_strike(spot: float, contracts: list[dict[str, Any]], ticker: 
         oi = c.get("oi", 0) or 0
         if oi <= 0 or (isinstance(oi, float) and math.isnan(oi)):
             continue
-        gamma = bs_gamma(spot, c["strike"], c["T"], c["iv"], q=q)
-        vanna = bs_vanna(spot, c["strike"], c["T"], c["iv"], q=q)
-        vega_val = bs_vega(spot, c["strike"], c["T"], c["iv"], q=q)
-        charm = bs_charm(spot, c["strike"], c["T"], c["iv"], q=q, kind=c["type"])
-        vomma = bs_vomma(spot, c["strike"], c["T"], c["iv"], q=q)
-        zomma = bs_zomma(spot, c["strike"], c["T"], c["iv"], q=q)
+        iv = c.get("iv")
+        if iv is None or (isinstance(iv, float) and math.isnan(iv)):
+            continue
+        T = c.get("T", 0) or 0
+        if T <= 0:
+            continue
+        gamma = bs_gamma(spot, c["strike"], T, iv, q=q)
+        vanna = bs_vanna(spot, c["strike"], T, iv, q=q)
+        vega_val = bs_vega(spot, c["strike"], T, iv, q=q)
+        charm = bs_charm(spot, c["strike"], T, iv, q=q, kind=c["type"])
+        vomma = bs_vomma(spot, c["strike"], T, iv, q=q)
+        zomma = bs_zomma(spot, c["strike"], T, iv, q=q)
         if gamma <= 0 and abs(vanna) <= 0:
             continue
         gex_unit = dollar_gex_per_contract(gamma, oi, spot)
