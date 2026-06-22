@@ -475,6 +475,24 @@ function GridView({ rows, expiries, gridData, gridMaxAbs, spotIdx, flipStrike })
     return <div className="trinity-no-data">No grid data available</div>;
   }
 
+  // Compute POC (point of control): highest abs GEX across all cells
+  let pocStrike = null;
+  let pocExp = null;
+  let pocAbs = 0;
+  for (const exp of expiries) {
+    const strikes = gridData[exp] || {};
+    for (const [sStr, cell] of Object.entries(strikes)) {
+      const v = Math.abs(cell?.gex || 0);
+      if (v > pocAbs) {
+        pocAbs = v;
+        pocStrike = Number(sStr);
+        pocExp = exp;
+      }
+    }
+  }
+  // Normalize POC color intensity relative to gridMaxAbs
+  const pocNorm = Math.min(1, pocAbs / gridMaxAbs);
+
   return (
     <div className="trinity-grid-scroll">
       <table className="trinity-grid-table">
@@ -490,10 +508,12 @@ function GridView({ rows, expiries, gridData, gridMaxAbs, spotIdx, flipStrike })
           {rows.map((row, i) => {
             const isCurrent = i === spotIdx;
             const isFlip = flipStrike != null && Math.abs(row.strike - flipStrike) <= (rows[0]?.strike - rows[1]?.strike || 5) / 2;
+            const isKing = row.strike === kingStrike; // kingStrike not available here, won't apply king grid row
+            const isPocRow = pocStrike != null && Math.abs(row.strike - pocStrike) < 0.5;
             return (
               <tr
                 key={row.strike}
-                className={`trinity-grid-row${isCurrent ? " trinity-row-current" : ""}${isFlip ? " trinity-row-flip" : ""}`}
+                className={`trinity-grid-row${isCurrent ? " trinity-row-current" : ""}${isFlip ? " trinity-row-flip" : ""}${isPocRow ? " trinity-row-king-grid" : ""}`}
               >
                 <td className={`trinity-grid-price${isCurrent ? " trinity-price-current" : ""}`}>
                   {isCurrent && <span className="trinity-price-arrow" />}
@@ -502,11 +522,17 @@ function GridView({ rows, expiries, gridData, gridMaxAbs, spotIdx, flipStrike })
                 {expiries.map(exp => {
                   const cellVal = gridData[exp]?.[row.strike]?.gex || 0;
                   const cc = heatColor(cellVal, gridMaxAbs);
+                  const isPocCell = isPocRow && exp === pocExp;
                   return (
                     <td
                       key={exp}
-                      className={`trinity-grid-cell${cc.star ? " trinity-grid-star" : ""}${cc.extreme ? " trinity-grid-extreme" : ""}`}
-                      style={{ background: cc.bg, color: cc.text }}
+                      className={`trinity-grid-cell${cc.star ? " trinity-grid-star" : ""}${cc.extreme ? " trinity-grid-extreme" : ""}${isPocCell ? " trinity-grid-poc" : ""}`}
+                      style={{
+                        background: isPocCell
+                          ? `rgba(251,191,36,${0.25 + 0.65 * pocNorm})`
+                          : cc.bg,
+                        color: isPocCell ? "#0b1121" : cc.text,
+                      }}
                       title={`${fmt(row.strike, 0)} @ ${exp}: ${fmtGex(cellVal)}`}
                     >
                       {cc.star && <span className="trinity-grid-star-icon">★</span>}{fmtGex(cellVal)}
@@ -538,6 +564,22 @@ function DOMView({ rows, domCols, spotIdx, kingStrike, flipStrike, tags }) {
     return result;
   }, [rows, domCols]);
 
+  // POC
+  let pocField = null;
+  let pocAbs = 0;
+  let pocRowIdx = -1;
+  let pocColKey = null;
+  rows.forEach((r, i) => {
+    for (const col of domCols) {
+      const v = Math.abs(r[col.field] || 0);
+      if (v > pocAbs) {
+        pocAbs = v;
+        pocRowIdx = i;
+        pocColKey = col.key;
+      }
+    }
+  });
+
   return (
     <div className="trinity-dom-scroll">
       <table className="trinity-dom-table">
@@ -555,10 +597,11 @@ function DOMView({ rows, domCols, spotIdx, kingStrike, flipStrike, tags }) {
             const isCurrent = i === spotIdx;
             const isKing = row.strike === kingStrike;
             const isFlip = flipStrike != null && Math.abs(row.strike - flipStrike) <= (rows[0]?.strike - rows[1]?.strike || 5) / 2;
+            const isPocRow = i === pocRowIdx;
             return (
               <tr
                 key={row.strike}
-                className={`trinity-dom-row${isCurrent ? " trinity-row-current" : ""}${isKing ? " trinity-row-king" : ""}${isFlip ? " trinity-row-flip" : ""}`}
+                className={`trinity-dom-row${isCurrent ? " trinity-row-current" : ""}${isKing ? " trinity-row-king" : ""}${isFlip ? " trinity-row-flip" : ""}${isPocRow ? " trinity-row-king-grid" : ""}`}
               >
                 <td className={`trinity-dom-price${isCurrent ? " trinity-price-current" : ""}`}>
                   {isCurrent && <span className="trinity-price-arrow" />}
@@ -568,11 +611,15 @@ function DOMView({ rows, domCols, spotIdx, kingStrike, flipStrike, tags }) {
                 {domCols.map(col => {
                   const val = row[col.field] || 0;
                   const cc = heatColor(val, colMaxAbs[col.field]);
+                  const isPocCell = pocColKey === col.key && isPocRow;
                   return (
                     <td
                       key={col.field}
-                      className={`trinity-dom-cell${cc.star ? " trinity-grid-star" : ""}${cc.extreme ? " trinity-grid-extreme" : ""}`}
-                      style={{ background: cc.bg, color: cc.text }}
+                      className={`trinity-dom-cell${cc.star ? " trinity-grid-star" : ""}${cc.extreme ? " trinity-grid-extreme" : ""}${isPocCell ? " trinity-grid-poc" : ""}`}
+                      style={{
+                        background: isPocCell ? "rgba(251,191,36,0.35)" : cc.bg,
+                        color: isPocCell ? "#0b1121" : cc.text,
+                      }}
                       title={`${col.label}: ${fmtGex(val)}`}
                     >
                       {cc.star && <span className="trinity-grid-star-icon">★</span>}{fmtGex(val)}
@@ -669,25 +716,41 @@ function ChainView({ rows, spotIdx, kingStrike, flipStrike }) {
 
 // ── Bars View ──────────────────────────────────────────────────────
 function BarsView({ rows, maxAbs, spotIdx, kingStrike, tags }) {
+  // Find POC in bars view
+  let pocIdx = -1;
+  let pocAbs = 0;
+  rows.forEach((r, i) => {
+    const v = Math.abs(r.gex || 0);
+    if (v > pocAbs) { pocAbs = v; pocIdx = i; }
+  });
+  const pocNorm = Math.min(1, pocAbs / Math.max(maxAbs, 1));
+
   return (
     <div className="trinity-bars-scroll">
       {rows.map((row, i) => {
         const isCurrent = i === spotIdx;
         const isKing = row.strike === kingStrike;
+        const isPoc = i === pocIdx && !isKing;
         const gex = row.gex || 0;
         const absGex = Math.abs(gex);
         const pct = maxAbs > 0 ? (absGex / maxAbs) * 100 : 0;
         const isNeg = gex < 0;
-        const barColor = isKing
-          ? "linear-gradient(90deg, rgba(251,191,36,0.9), rgba(253,224,71,0.95))"
-          : isNeg
-            ? "linear-gradient(90deg, rgba(168,85,247,0.6), rgba(168,85,247,0.3))"
-            : "linear-gradient(90deg, rgba(45,212,191,0.6), rgba(45,212,191,0.3))";
+
+        let barColor;
+        if (isKing) {
+          barColor = "linear-gradient(90deg, rgba(251,191,36,0.95), rgba(253,224,71,0.95))";
+        } else if (isPoc) {
+          barColor = `linear-gradient(90deg, rgba(251,191,36,${0.5 + 0.4 * pocNorm}), rgba(251,191,36,${0.25 + 0.3 * pocNorm}))`;
+        } else if (isNeg) {
+          barColor = "linear-gradient(90deg, rgba(168,85,247,0.6), rgba(168,85,247,0.3))";
+        } else {
+          barColor = "linear-gradient(90deg, rgba(45,212,191,0.6), rgba(45,212,191,0.3))";
+        }
 
         return (
           <div
             key={row.strike}
-            className={`trinity-bar-row${isCurrent ? " trinity-row-current" : ""}${isKing ? " trinity-row-king-bar" : ""}`}
+            className={`trinity-bar-row${isCurrent ? " trinity-row-current" : ""}${isKing ? " trinity-row-king-bar" : ""}${isPoc ? " trinity-row-poc-bar" : ""}`}
           >
             <span className={`trinity-bar-price${isCurrent ? " trinity-price-current" : ""}`}>
               {isCurrent && <span className="trinity-price-arrow" />}
@@ -700,7 +763,7 @@ function BarsView({ rows, maxAbs, spotIdx, kingStrike, tags }) {
                 style={{ width: `${Math.min(100, pct)}%`, background: barColor }}
               />
             </div>
-            <span className="trinity-bar-value" style={{ color: isKing ? "#fbbf24" : isNeg ? "#c4b5fd" : "#6ee7b7" }}>
+            <span className="trinity-bar-value" style={{ color: isKing ? "#fbbf24" : isPoc ? "#fbbf24" : isNeg ? "#c4b5fd" : "#6ee7b7" }}>
               {fmtGex(gex)}
             </span>
           </div>

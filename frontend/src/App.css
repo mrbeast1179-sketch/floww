@@ -1337,6 +1337,13 @@
 .trinity-bar-king {
   animation: trinity-bar-glow 2s ease-in-out infinite;
 }
+.trinity-row-poc-bar .trinity-bar-fill {
+  animation: trinity-poc-glow 2s ease-in-out infinite;
+}
+@keyframes trinity-poc-glow {
+  0%, 100% { box-shadow: 0 0 4px rgba(251,191,36,0.4); }
+  50% { box-shadow: 0 0 14px rgba(251,191,36,0.85); }
+}
 @keyframes trinity-bar-glow {
   0%, 100% { box-shadow: 0 0 4px rgba(251,191,36,0.4); }
   50% { box-shadow: 0 0 12px rgba(251,191,36,0.8); }
