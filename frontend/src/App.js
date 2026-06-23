@@ -505,7 +505,7 @@ export default function App() {
   const [err, setErr] = useState(null);
   const [showLeftSidebar, setShowLeftSidebar] = useState(false);
   const [showRightSidebar, setShowRightSidebar] = useState(false);
-  const [view, setView] = useState("grid");
+  const [view, setView] = useState("skylit");
   const [viewMode, setViewMode] = useState("gex");
   const [mode, setMode] = useState("day");
   const [filters, setFilters] = useState({ side: "all", lifecycle: "all", magMin: 0 });
