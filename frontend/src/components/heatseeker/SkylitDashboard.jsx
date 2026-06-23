@@ -44,12 +44,18 @@ function SkylitDashboard({
   loading = false,
 }) {
   const [visibleCols, setVisibleCols] = useState(["call_gex", "gex", "put_gex"]);
+  const [tradeMode, setTradeMode] = useState(false);
+  const [selectedCell, setSelectedCell] = useState(null);
 
   const handleCellClick = useCallback(
     (strike, colKey, value) => {
-      if (onCellClick) onCellClick(strike, colKey, value);
+      if (tradeMode && onCellClick) {
+        onCellClick(strike, colKey, value);
+      } else {
+        setSelectedCell({ strike, colKey, value });
+      }
     },
-    [onCellClick]
+    [tradeMode, onCellClick]
   );
 
   const handleStrikeClick = useCallback(
@@ -93,25 +99,39 @@ function SkylitDashboard({
         onRefresh={onRefresh}
       />
 
-      {/* 2.5 Column Toggle Bar */}
+      {/* 2.5 Column Toggle Bar + Trade Mode */}
       <div className="skylit-col-bar">
-        {colGroups.map(g => (
-          <button
-            key={g.label}
-            className={`skylit-col-btn${visibleCols.some(c => g.cols.includes(c)) ? " active" : ""}`}
-            onClick={() => {
-              // Toggle: if all cols in group are visible, remove them; else add them
-              const allVisible = g.cols.every(c => visibleCols.includes(c));
-              if (allVisible) {
-                setVisibleCols(prev => prev.filter(c => !g.cols.includes(c)));
-              } else {
-                setVisibleCols(prev => [...new Set([...prev, ...g.cols])]);
-              }
-            }}
-          >
-            {g.label}
-          </button>
-        ))}
+        <div className="skylit-col-group">
+          {colGroups.map(g => (
+            <button
+              key={g.label}
+              className={`skylit-col-btn${visibleCols.some(c => g.cols.includes(c)) ? " active" : ""}`}
+              onClick={() => {
+                const allVisible = g.cols.every(c => visibleCols.includes(c));
+                if (allVisible) {
+                  setVisibleCols(prev => prev.filter(c => !g.cols.includes(c)));
+                } else {
+                  setVisibleCols(prev => [...new Set([...prev, ...g.cols])]);
+                }
+              }}
+            >
+              {g.label}
+            </button>
+          ))}
+        </div>
+        <div className="skylit-col-spacer" />
+        <button
+          className={`skylit-trade-mode-btn${tradeMode ? " active" : ""}`}
+          onClick={() => setTradeMode(!tradeMode)}
+          title="Trade Mode: click any cell to open Quick Trade"
+        >
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <path d="M12 2L2 7l10 5 10-5-10-5z" />
+            <path d="M2 17l10 5 10-5" />
+            <path d="M2 12l10 5 10-5" />
+          </svg>
+          Trade
+        </button>
       </div>
 
       {/* 3. Main Content Area */}
