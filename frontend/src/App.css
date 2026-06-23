@@ -1072,6 +1072,9 @@
   0%, 100% { opacity: 1; box-shadow: 0 0 0 0 rgba(25,210,124,0.6); }
   50% { opacity: 0.6; box-shadow: 0 0 0 3px rgba(25,210,124,0); }
 }
+
+/* ── Skylit live pill ── */
+.skylit-live-pill {
   font-size: 9px;
   font-weight: 700;
   text-transform: uppercase;
