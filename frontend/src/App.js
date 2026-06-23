@@ -43,6 +43,7 @@ import { TradeAnalytics } from "./components/TradeAnalytics";
 import { SocialFlowPanel } from "./components/SocialFlowPanel";
 import SwarmFrame from "./components/SwarmFrame";
 import TurboQuantPanel from "./components/TurboQuantPanel";
+import SkylitDashboard from "./components/heatseeker/SkylitDashboard";
 import FlowseekerProBlademap from "./components/flowseeker/FlowseekerProBlademap";
 import AlertOverlay from "./components/AlertOverlay";
 import PWAInstallBanner from "./components/PWAInstallBanner";
@@ -734,10 +735,10 @@ export default function App() {
           </div>
         )}
 
-        {/* Single Ticker Heatseeker */}
+        {/* Single Ticker Heatseeker — Skylit Edition with Left Sidebar */}
         {page === "heatseeker" && (
           <div className="legacy-theme heatseeker-layout">
-            {/* Left Sidebar - Filters & Summary */}
+            {/* Left Sidebar - Filters & Summary (PRESERVED) */}
             <aside className={`heatseeker-sidebar-left ${showLeftSidebar ? 'open' : ''}`}>
               <div className="p-2 space-y-2">
                 {/* Ticker Summary */}
@@ -852,47 +853,33 @@ export default function App() {
               </div>
             </aside>
 
-            {/* Main Content - DOM Heatmap */}
-            <main className="heatseeker-main">
-              <div className="flex-1 flex flex-col overflow-hidden" style={{ background: "#0a0e1a" }}>
-                {/* Ticker info bar */}
-                <div className="dom-top-bar">
-                  <div className="dom-ticker-info">
-                    <span className="dom-ticker-label">{ticker.replace("^", "")}</span>
-                    <span className={`dom-regime ${data?.nodes?.regime === "positive" ? "dom-regime-pos" : data?.nodes?.regime === "negative" ? "dom-regime-neg" : "dom-regime-neu"}`}>
-                      {data?.nodes?.regime || "—"} γ
-                    </span>
-                    <span className="dom-spot-price">${fmt(livespot?.spot ?? data?.spot, 2)}</span>
-                    <span className="dom-live-dot">● live</span>
-                    <div className="dom-tags-inline">
-                      <span className="tag king">KING</span>
-                      <span className="tag floor">FLR</span>
-                      <span className="tag ceiling">CEIL</span>
-                      <span className="tag gate">GATE</span>
-                      <span className="tag air">AIR</span>
-                    </div>
-                  </div>
-                </div>
-                <div className="flex-1 overflow-hidden">
-                  <ErrorBoundary>
-                    {view === "multi" ? (
-                      <MultiTickerHeatmap tickers={tickers} />
-                    ) : view === "profile" ? (
-                      <VolumeProfileGrid data={displayData} spot={livespot?.spot ?? displayData?.spot} />
-                    ) : displayData ? (
-                      view === "chain"
-                        ? <GexStrikeTable rows={displayData?.strikes || []} spot={livespot?.spot ?? displayData?.spot} />
-                        : view === "grid"
-                        ? <DomHeatmap data={displayData} spot={livespot?.spot ?? displayData?.spot} ticker={ticker} />
-                        : <BarHeatmap data={displayData} filters={filters} compact={false} viewMode={viewMode} />
-                    ) : (
-                      <div className="text-slate-500 text-xs p-6 text-center">Loading…</div>
-                    )}
-                  </ErrorBoundary>
-                </div>
-              </div>
+            {/* Main Content — Skylit Dashboard */}
+            <main className="heatseeker-main" style={{ display: "flex", flexDirection: "column", flex: 1, minHeight: 0, overflow: "hidden" }}>
+              <SkylitDashboard
+                ticker={ticker}
+                spot={livespot?.spot ?? data?.spot}
+                change={livespot?.change ?? data?.change}
+                changePct={livespot?.change_pct ?? data?.change_pct}
+                data={displayData}
+                viewMode={viewMode}
+                onViewModeChange={setViewMode}
+                timeframe={mode === "scalp" ? "1m" : mode === "swing" ? "1h" : "5m"}
+                onTimeframeChange={(tf) => {
+                  if (tf === "1m") setMode("scalp");
+                  else if (tf === "1h") setMode("swing");
+                  else setMode("day");
+                }}
+                expiries={expiries}
+                onExpiriesChange={setExpiries}
+                onTickerChange={setTicker}
+                onRefresh={() => { setErr(null); fetchData(); }}
+                onCellClick={(strike, expiry, value) => setDrilldown({ strike, expiry, value })}
+                onStrikeClick={(strike) => setDrilldown({ strike })}
+                isLive={!!livespot}
+                regime={data?.nodes?.regime}
+                loading={loading && !data}
+              />
             </main>
-
           </div>
         )}
 
@@ -910,7 +897,7 @@ export default function App() {
           </div>
         )}
 
-        {/* Skylit — GEX Grid + Analytics Column */}
+        {/* Skylit — GEX Grid + Analytics Column (legacy skylit page) */}
         {page === "skylit" && (
           <div className="legacy-theme skylit-dashboard">
             <ErrorBoundary>

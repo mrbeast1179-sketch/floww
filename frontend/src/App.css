@@ -1717,6 +1717,416 @@
   color: #4a5568;
   font-size: 8px;
   font-weight: 700;
+  padding: 3px 7px;
+  border-radius: 3px;
+  cursor: pointer;
+  transition: all 150ms ease;
+}
+.trinity-dte-btn:hover { color: #94a3b8; background: rgba(255,255,255,0.04); }
+.trinity-dte-active {
+  color: #fbbf24;
+  background: rgba(251,191,36,0.12);
+  border: 1px solid rgba(251,191,36,0.25);
+}
+
+/* ── Loading / Error states ── */
+.trinity-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  height: 100%;
+  color: #4a5568;
+  font-size: 12px;
+}
+.trinity-loading-spinner {
+  width: 24px;
+  height: 24px;
+  border: 2px solid rgba(255,255,255,0.06);
+  border-top-color: #fbbf24;
+  border-radius: 50%;
+  animation: trinity-spin 0.8s linear infinite;
+}
+@keyframes trinity-spin { to { transform: rotate(360deg); } }
+.trinity-error {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px;
+  color: #f87171;
+  font-size: 12px;
+  justify-content: center;
+}
+.trinity-error button {
+  background: rgba(248,113,113,0.12);
+  border: 1px solid rgba(248,113,113,0.3);
+  color: #f87171;
+  padding: 4px 12px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 11px;
+}
+
+/* ── Panel header enhancements ── */
+.trinity-panel-change {
+  font-family: "JetBrains Mono", monospace;
+  font-size: 10px;
+  font-weight: 600;
+  margin-left: 4px;
+}
+.trinity-king-dist {
+  font-family: "JetBrains Mono", monospace;
+  font-size: 9px;
+  font-weight: 600;
+  margin-left: 4px;
+}
+
+/* ── Timeline bar ── */
+.trinity-timeline {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+  border-top: 1px solid rgba(255,255,255,0.04);
+  flex-shrink: 0;
+  background: rgba(10,14,26,0.8);
+}
+.trinity-timeline-label {
+  font-size: 8px;
+  color: #4a5568;
+  white-space: nowrap;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.trinity-timeline-track {
+  flex: 1;
+  height: 6px;
+  background: rgba(255,255,255,0.04);
+  border-radius: 3px;
+  position: relative;
+  overflow: hidden;
+}
+.trinity-timeline-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #22d3ee, #fbbf24);
+  border-radius: 3px;
+  transition: width 1s ease;
+}
+.trinity-timeline-now {
+  position: absolute;
+  top: -2px;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+.trinity-timeline-now::before {
+  content: "";
+  width: 1px;
+  height: 10px;
+  background: #fbbf24;
+  position: absolute;
+  top: -4px;
+}
+.trinity-timeline-now-label {
+  font-size: 7px;
+  color: #fbbf24;
+  font-weight: 700;
+  white-space: nowrap;
+  margin-top: 8px;
+}
+
+/* ── Badges for list/bars view ── */
+.trinity-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 0 3px;
+  border-radius: 2px;
+  font-size: 7px;
+  font-weight: 700;
+  font-family: "JetBrains Mono", monospace;
+  margin-left: 3px;
+  flex-shrink: 0;
+}
+.trinity-badge-yellow { background: rgba(251,191,36,0.2); color: #fbbf24; }
+.trinity-badge-green { background: rgba(45,212,191,0.18); color: #34d399; }
+.trinity-badge-purple { background: rgba(168,85,247,0.18); color: #c4b5fd; }
+.trinity-badge-blue { background: rgba(59,130,246,0.18); color: #93c5fd; }
+.trinity-badge-red { background: rgba(248,113,113,0.18); color: #f87171; }
+
+/* ── Row enhancements ── */
+.trinity-row-oi {
+  font-family: "JetBrains Mono", monospace;
+  font-size: 7px;
+  color: #64748b;
+  margin-left: 4px;
+  flex-shrink: 0;
+}
+.trinity-row-iv {
+  font-family: "JetBrains Mono", monospace;
+  font-size: 7px;
+  color: #818cf8;
+  margin-left: 4px;
+  flex-shrink: 0;
+}
+.trinity-dom-oi {
+  color: #64748b !important;
+  font-size: 7px !important;
+}
+.trinity-dom-iv {
+  color: #818cf8 !important;
+  font-size: 7px !important;
+}
+
+/* ── Row cursor for clickable rows ── */
+.trinity-dom-row,
+.trinity-chain-row,
+.trinity-bar-row,
+.trinity-row,
+.trinity-grid-row {
+  cursor: pointer;
+  transition: filter 100ms ease;
+}
+.trinity-dom-row:hover,
+.trinity-chain-row:hover,
+.trinity-bar-row:hover,
+.trinity-row:hover,
+.trinity-grid-row:hover {
+  filter: brightness(1.2);
+}
+
+/* ── List view scroll ── */
+.trinity-list-scroll {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  min-height: 0;
+  padding: 0 2px;
+}
+
+/* ── Chain table enhancements ── */
+.trinity-chain-oi { color: #64748b !important; }
+.trinity-chain-iv { color: #818cf8 !important; }
+
+/* ===== FLOWSEEKER PRO TAB — Skylit reference style ===== */
+.flowseeker-layout {
+  display: flex;
+  flex-direction: row;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  background: #0a0e1a;
+}
+
+.flowseeker-sidebar {
+  display: none;
+  width: 224px;
+  flex-shrink: 0;
+  border-right: 1px solid rgba(255,255,255,0.04);
+  background: rgba(255,255,255,0.01);
+  padding: 12px;
+  overflow-y: auto;
+  min-height: 0;
+  gap: 8px;
+  flex-direction: column;
+}
+@media (min-width: 768px) {
+  .flowseeker-sidebar { display: flex; }
+}
+
+.flowseeker-panel {
+  background: rgba(255,255,255,0.02);
+  border: 1px solid rgba(255,255,255,0.04);
+  border-radius: 8px;
+  padding: 10px;
+}
+.flowseeker-panel:hover {
+  border-color: rgba(94,234,212,0.25);
+}
+
+.flowseeker-label {
+  font-size: 11px !important;
+  font-weight: 600 !important;
+  letter-spacing: 0.06em !important;
+  color: #e2e8f0 !important;
+  margin-bottom: 8px !important;
+  display: flex !important;
+  align-items: center !important;
+  gap: 6px !important;
+}
+.flowseeker-label::before {
+  content: '' !important;
+  display: inline-block !important;
+  width: 3px !important;
+  height: 12px !important;
+  border-radius: 2px !important;
+  background: linear-gradient(180deg, #38bdf8, #0ea5e9) !important;
+  flex-shrink: 0 !important;
+}
+
+.flowseeker-input {
+  width: 100%;
+  background: rgba(255,255,255,0.03);
+  border: 1px solid rgba(255,255,255,0.06);
+  border-radius: 6px;
+  padding: 6px 8px;
+  font-size: 12px;
+  color: #e2e8f0;
+  outline: none;
+  font-family: "JetBrains Mono", monospace;
+  transition: border-color 150ms ease;
+}
+.flowseeker-input:focus {
+  border-color: rgba(94,234,212,0.4);
+}
+
+.flowseeker-btn {
+  font-size: 10px;
+  padding: 4px 8px;
+  border-radius: 6px;
+  border: 1px solid rgba(255,255,255,0.06);
+  background: rgba(255,255,255,0.03);
+  color: #64748b;
+  cursor: pointer;
+  transition: all 150ms ease;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.flowseeker-btn:hover {
+  background: rgba(255,255,255,0.06);
+  color: #94a3b8;
+  border-color: rgba(255,255,255,0.1);
+}
+
+.flowseeker-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  background: rgba(255,255,255,0.03);
+  border: 1px solid rgba(255,255,255,0.06);
+  color: #94a3b8;
+  white-space: nowrap;
+  font-family: "JetBrains Mono", monospace;
+}
+.flowseeker-chip.active {
+  color: #5eead4;
+  background: rgba(94,234,212,0.1);
+  border-color: rgba(94,234,212,0.3);
+}
+.flowseeker-chip-sky { color: #38bdf8; background: rgba(56,189,248,0.10); border-color: rgba(56,189,248,0.25); }
+.flowseeker-chip-pos { color: #34d399; background: rgba(52,211,153,0.10); border-color: rgba(52,211,153,0.25); }
+.flowseeker-chip-neg { color: #fb7185; background: rgba(248,113,113,0.10); border-color: rgba(248,113,113,0.25); }
+.flowseeker-chip-gold { color: #facc15; background: rgba(250,204,21,0.10); border-color: rgba(250,204,21,0.25); }
+
+.flowseeker-topbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border-bottom: 1px solid rgba(255,255,255,0.04);
+  flex-shrink: 0;
+  background: rgba(15,23,42,0.4);
+  flex-wrap: wrap;
+}
+
+.flowseeker-context {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border-bottom: 1px solid rgba(255,255,255,0.04);
+  flex-shrink: 0;
+  background: rgba(15,23,42,0.3);
+  flex-wrap: wrap;
+}
+
+.flowseeker-live-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 10px;
+  font-weight: 700;
+  color: #34d399;
+  padding: 2px 8px;
+  border-radius: 4px;
+  background: rgba(52,211,153,0.1);
+  border: 1px solid rgba(52,211,153,0.25);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.flowseeker-alerts-panel {
+  display: flex;
+  flex-direction: column;
+  background: rgba(255,255,255,0.01);
+  border-left: 1px solid rgba(255,255,255,0.04);
+  min-height: 0;
+  overflow: hidden;
+}
+
+.flowseeker-main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+  background: #0a0e1a;
+}
+
+.blademap-alert-card {
+  border: 1px solid rgba(255,255,255,0.06);
+  border-radius: 8px;
+  overflow: hidden;
+  background: #0c0e14;
+  cursor: pointer;
+  transition: all 150ms ease;
+}
+.blademap-alert-card.expanded {
+  box-shadow: 0 0 0 1px rgba(56,189,248,0.4);
+}
+.blademap-alert-card:hover {
+  border-color: rgba(94,234,212,0.3);
+  background: rgba(255,255,255,0.02);
+}
+
+/* Reuse existing trinity-live-dot keyframes for Flowseeker */
+.flowseeker-live-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #34d399;
+  display: inline-block;
+  animation: trinity-live-pulse 2s ease-in-out infinite;
+}
+
+.flowseeker-grid-cols-2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+}
+.flowseeker-grid-cols-2 > div {
+  min-width: 0;
+}
+.trinity-dte-toggle {
+  display: flex;
+  gap: 1px;
+  background: rgba(255,255,255,0.03);
+  border: 1px solid rgba(255,255,255,0.06);
+  border-radius: 4px;
+  padding: 2px;
+}
+.trinity-dte-btn {
+  background: none;
+  border: none;
+  color: #4a5568;
+  font-size: 8px;
+  font-weight: 700;
   padding: 3px 8px;
   border-radius: 3px;
   cursor: pointer;
@@ -1855,4 +2265,717 @@ button, select, input {
 .gex-row-extreme { background: rgba(168,85,247,0.22) !important; }
 .gex-row-high { background: rgba(30,58,138,0.35) !important; }
 .gex-row-low { background: rgba(148,163,184,0.08) !important; }
+
+/* ============================================================
+   SKYLIT FULL DASHBOARD — Institutional Trading UI
+   Matches Skylit reference screenshots
+   ============================================================ */
+
+/* ── Full Dashboard Container ── */
+.skylit-full-dashboard {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  background: #0a0e1a;
+  font-family: "Inter", system-ui, sans-serif;
+  color: #c9d1d9;
+  overflow: hidden;
+}
+
+/* ── 1. Ticker Bar ── */
+.skylit-ticker-bar {
+  flex-shrink: 0;
+  background: #0d1117;
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+  overflow: hidden;
+}
+
+.skylit-ticker-scroll {
+  overflow-x: auto;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.skylit-ticker-scroll::-webkit-scrollbar { display: none; }
+
+.skylit-ticker-inner {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 12px;
+  white-space: nowrap;
+}
+
+.skylit-ticker-count {
+  font-size: 10px;
+  color: #475569;
+  font-weight: 500;
+  margin-right: 4px;
+  flex-shrink: 0;
+}
+
+.skylit-ticker-sep {
+  color: #1e293b;
+  margin-right: 4px;
+  flex-shrink: 0;
+}
+
+.skylit-ticker-btn {
+  flex-shrink: 0;
+  padding: 3px 10px;
+  font-size: 11px;
+  font-weight: 500;
+  font-family: "JetBrains Mono", ui-monospace, monospace;
+  color: #94a3b8;
+  background: rgba(255,255,255,0.03);
+  border: 1px solid rgba(255,255,255,0.06);
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 120ms ease;
+}
+
+.skylit-ticker-btn:hover {
+  color: #e2e8f0;
+  background: rgba(255,255,255,0.08);
+  border-color: rgba(255,255,255,0.12);
+}
+
+.skylit-ticker-btn.active {
+  color: #fbbf24;
+  background: rgba(251,191,36,0.1);
+  border-color: rgba(251,191,36,0.25);
+  font-weight: 600;
+}
+
+/* ── 2. Control Bar ── */
+.skylit-control-bar {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 12px;
+  background: #0d1117;
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+  gap: 12px;
+  min-height: 38px;
+}
+
+.skylit-control-left {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.skylit-mode-btn {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 10px;
+  font-size: 11px;
+  font-weight: 600;
+  font-family: "JetBrains Mono", ui-monospace, monospace;
+  color: #64748b;
+  background: transparent;
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 120ms ease;
+}
+
+.skylit-mode-btn:hover {
+  color: #e2e8f0;
+  border-color: rgba(255,255,255,0.15);
+}
+
+.skylit-mode-btn.active {
+  color: #fbbf24;
+  background: rgba(251,191,36,0.1);
+  border-color: rgba(251,191,36,0.3);
+}
+
+.skylit-mode-btn svg {
+  flex-shrink: 0;
+}
+
+.skylit-info-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  color: #475569;
+  background: transparent;
+  border: 1px solid rgba(255,255,255,0.06);
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 120ms ease;
+}
+
+.skylit-info-btn:hover {
+  color: #94a3b8;
+  border-color: rgba(255,255,255,0.12);
+}
+
+/* Center: Ticker + Price */
+.skylit-control-center {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  justify-content: center;
+  min-width: 0;
+}
+
+.skylit-nav-arrow {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  color: #475569;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: color 120ms;
+}
+
+.skylit-nav-arrow:hover { color: #94a3b8; }
+
+.skylit-ticker-display {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.skylit-ticker-name {
+  font-size: 15px;
+  font-weight: 700;
+  font-family: "JetBrains Mono", ui-monospace, monospace;
+  color: #f1f5f9;
+  letter-spacing: 0.02em;
+}
+
+.skylit-live-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #34d399;
+  animation: skylit-pulse 2s ease-in-out infinite;
+  flex-shrink: 0;
+}
+
+@keyframes skylit-pulse {
+  0%, 100% { opacity: 1; box-shadow: 0 0 4px rgba(52,211,153,0.4); }
+  50% { opacity: 0.5; box-shadow: 0 0 8px rgba(52,211,153,0.6); }
+}
+
+.skylit-price-display {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.skylit-spot-price {
+  font-size: 15px;
+  font-weight: 700;
+  font-family: "JetBrains Mono", ui-monospace, monospace;
+  color: #f1f5f9;
+}
+
+.skylit-price-change {
+  font-size: 11px;
+  font-weight: 600;
+  font-family: "JetBrains Mono", ui-monospace, monospace;
+}
+
+.skylit-control-sep {
+  width: 1px;
+  height: 18px;
+  background: rgba(255,255,255,0.08);
+  flex-shrink: 0;
+}
+
+.skylit-tf-dropdown {
+  flex-shrink: 0;
+}
+
+.skylit-tf-select {
+  appearance: none;
+  -webkit-appearance: none;
+  padding: 3px 20px 3px 8px;
+  font-size: 10px;
+  font-weight: 600;
+  font-family: "JetBrains Mono", ui-monospace, monospace;
+  color: #94a3b8;
+  background: rgba(255,255,255,0.04) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='8' viewBox='0 0 24 24' fill='none' stroke='%2364748b' stroke-width='3'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E") no-repeat right 6px center;
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 4px;
+  cursor: pointer;
+  outline: none;
+}
+
+.skylit-tf-select:hover {
+  color: #e2e8f0;
+  border-color: rgba(255,255,255,0.15);
+}
+
+/* Right: Actions */
+.skylit-control-right {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.skylit-live-time {
+  font-size: 10px;
+  font-weight: 600;
+  font-family: "JetBrains Mono", ui-monospace, monospace;
+  color: #475569;
+  margin-right: 4px;
+}
+
+.skylit-action-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  color: #475569;
+  background: transparent;
+  border: 1px solid rgba(255,255,255,0.06);
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 120ms ease;
+}
+
+.skylit-action-btn:hover {
+  color: #94a3b8;
+  background: rgba(255,255,255,0.04);
+  border-color: rgba(255,255,255,0.12);
+}
+
+/* ── 3. Main Area ── */
+.skylit-main-area {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.skylit-heatmap-area {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  position: relative;
+}
+
+.skylit-sidebar-area {
+  width: 200px;
+  flex-shrink: 0;
+  border-left: 1px solid rgba(255,255,255,0.06);
+  overflow-y: auto;
+  background: #0d1117;
+}
+
+/* ── Loading Overlay ── */
+.skylit-loading-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  background: rgba(10,14,26,0.85);
+  backdrop-filter: blur(4px);
+  font-size: 12px;
+  color: #64748b;
+}
+
+.skylit-loading-spinner {
+  width: 24px;
+  height: 24px;
+  border: 2px solid rgba(255,255,255,0.1);
+  border-top-color: #38bdf8;
+  border-radius: 50%;
+  animation: skylit-spin 0.8s linear infinite;
+}
+
+@keyframes skylit-spin {
+  to { transform: rotate(360deg); }
+}
+
+/* ── Heatmap Grid ── */
+.skylit-heatmap-wrapper {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.skylit-heatmap-container {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: auto;
+  min-height: 0;
+  background: #0a0e1a;
+}
+
+.skylit-heatmap-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  color: #475569;
+  font-size: 12px;
+}
+
+.skylit-heatmap-table {
+  width: 100%;
+  border-collapse: collapse;
+  border-spacing: 0;
+  font-size: 10px;
+  font-family: "JetBrains Mono", ui-monospace, Consolas, monospace;
+  font-variant-numeric: tabular-nums;
+}
+
+.skylit-heatmap-table thead {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+}
+
+.skylit-heatmap-table th {
+  padding: 4px 6px;
+  font-size: 9px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #64748b;
+  background: #0d1117;
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+  white-space: nowrap;
+}
+
+.skylit-th-strike {
+  position: sticky;
+  left: 0;
+  z-index: 10;
+  text-align: left;
+  min-width: 60px;
+  background: #0d1117 !important;
+}
+
+.skylit-th-expiry {
+  text-align: center;
+  min-width: 56px;
+}
+
+.skylit-heatmap-row {
+  transition: background 60ms ease;
+}
+
+.skylit-heatmap-row:hover {
+  filter: brightness(1.15);
+}
+
+/* Current price row */
+.skylit-atm-row {
+  position: relative;
+}
+
+.skylit-atm-row .skylit-strike-cell {
+  background: rgba(255,255,255,0.06) !important;
+  color: #ffffff !important;
+  font-weight: 700;
+  position: relative;
+}
+
+.skylit-atm-pointer {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  background: #ffffff;
+  border-radius: 0 2px 2px 0;
+}
+
+.skylit-atm-strike {
+  background: rgba(255,255,255,0.06) !important;
+  color: #ffffff !important;
+  font-weight: 700;
+}
+
+.skylit-atm-row .skylit-data-cell {
+  color: #ffffff !important;
+}
+
+/* Strike cell */
+.skylit-strike-cell {
+  position: sticky;
+  left: 0;
+  z-index: 3;
+  background: #0a0e1a;
+  color: #94a3b8;
+  font-size: 10px;
+  font-weight: 500;
+  padding: 2px 6px 2px 10px;
+  text-align: left;
+  white-space: nowrap;
+  width: 60px;
+  cursor: pointer;
+  border: none;
+  transition: background 60ms;
+}
+
+.skylit-strike-cell:hover {
+  background: rgba(255,255,255,0.04) !important;
+  color: #e2e8f0;
+}
+
+.skylit-strike-value {
+  display: inline-block;
+}
+
+/* Data cells */
+.skylit-data-cell {
+  padding: 2px 4px;
+  text-align: right;
+  white-space: nowrap;
+  font-size: 10px;
+  font-weight: 400;
+  cursor: default;
+  border: none;
+  line-height: 1.4;
+  transition: box-shadow 60ms;
+}
+
+.skylit-data-cell:hover {
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,0.2);
+}
+
+.skylit-star-cell {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 2px;
+}
+
+/* ── Metrics Sidebar ── */
+.skylit-metrics-sidebar {
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.skylit-regime-badge {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 8px;
+  border-radius: 6px;
+  border: 1px solid;
+  background: rgba(255,255,255,0.02);
+}
+
+.skylit-regime-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.skylit-regime-label {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.skylit-metrics-section {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.skylit-section-title {
+  font-size: 9px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #475569;
+  margin-bottom: 4px;
+  padding-bottom: 3px;
+  border-bottom: 1px solid rgba(255,255,255,0.04);
+}
+
+.skylit-metric-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 3px 0;
+}
+
+.skylit-metric-label {
+  font-size: 9px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #64748b;
+}
+
+.skylit-metric-value {
+  font-size: 11px;
+  font-weight: 700;
+  font-family: "JetBrains Mono", ui-monospace, monospace;
+}
+
+.skylit-metric-sub {
+  font-size: 8px;
+  color: #475569;
+  margin-left: 4px;
+}
+
+.skylit-spot-box {
+  margin-top: auto;
+  padding: 8px;
+  background: rgba(255,255,255,0.03);
+  border: 1px solid rgba(255,255,255,0.06);
+  border-radius: 6px;
+  text-align: center;
+}
+
+.skylit-spot-label {
+  font-size: 8px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: #475569;
+  margin-bottom: 2px;
+}
+
+.skylit-spot-value {
+  font-size: 18px;
+  font-weight: 700;
+  font-family: "JetBrains Mono", ui-monospace, monospace;
+  color: #f1f5f9;
+}
+
+/* ── 4. Bottom Bar ── */
+.skylit-bottom-bar {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 4px 12px;
+  background: #0d1117;
+  border-top: 1px solid rgba(255,255,255,0.06);
+  min-height: 28px;
+}
+
+.skylit-bottom-ticker {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.skylit-bottom-ticker-name {
+  font-size: 11px;
+  font-weight: 700;
+  font-family: "JetBrains Mono", ui-monospace, monospace;
+  color: #94a3b8;
+}
+
+.skylit-bottom-spot {
+  font-size: 11px;
+  font-weight: 600;
+  font-family: "JetBrains Mono", ui-monospace, monospace;
+  color: #e2e8f0;
+}
+
+.skylit-bottom-change {
+  font-size: 10px;
+  font-weight: 600;
+  font-family: "JetBrains Mono", ui-monospace, monospace;
+}
+
+.skylit-bottom-tabs {
+  display: flex;
+  gap: 2px;
+}
+
+.skylit-bottom-tab {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 10px;
+  font-size: 10px;
+  font-weight: 600;
+  font-family: "JetBrains Mono", ui-monospace, monospace;
+  color: #475569;
+  background: transparent;
+  border: 1px solid rgba(255,255,255,0.06);
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 120ms ease;
+}
+
+.skylit-bottom-tab:hover {
+  color: #94a3b8;
+  border-color: rgba(255,255,255,0.12);
+}
+
+.skylit-bottom-tab.active {
+  color: #fbbf24;
+  background: rgba(251,191,36,0.08);
+  border-color: rgba(251,191,36,0.2);
+}
+
+/* ── Responsive ── */
+@media (max-width: 1024px) {
+  .skylit-sidebar-area {
+    width: 160px;
+  }
+}
+
+@media (max-width: 768px) {
+  .skylit-sidebar-area {
+    display: none;
+  }
+
+  .skylit-control-center {
+    gap: 4px;
+  }
+
+  .skylit-ticker-name {
+    font-size: 13px;
+  }
+
+  .skylit-spot-price {
+    font-size: 13px;
+  }
+
+  .skylit-price-change {
+    display: none;
+  }
+
+  .skylit-ticker-btn {
+    padding: 2px 6px;
+    font-size: 10px;
+  }
+}
+
+/* ── Skylit Dashboard in legacy theme context ── */
+.legacy-theme .skylit-full-dashboard {
+  background: #0a0e1a;
+}
 
