@@ -828,6 +828,9 @@ export default function App() {
                     <button onClick={() => setView("multi")} className={`btn flex-1 ${view === "multi" ? "active" : ""}`}>Multi</button>
                     <button onClick={() => setView("profile")} className={`btn flex-1 ${view === "profile" ? "active" : ""}`}>Profile</button>
                   </div>
+                  <div className="flex gap-1 mb-2">
+                    <button onClick={() => setView("skylit")} className={`btn flex-1 ${view === "skylit" ? "active" : ""}`}>Skylit</button>
+                  </div>
                   <div className="text-slate-500 mb-1 text-[10px]">Mode</div>
                   <div className="flex gap-1 mb-2">
                     {["day", "swing", "scalp"].map(m => (
@@ -864,8 +867,49 @@ export default function App() {
               </div>
             </aside>
 
-            {/* Main Content — Skylit Dashboard */}
-            <main className="heatseeker-main" style={{ display: "flex", flexDirection: "column", flex: 1, minHeight: 0, overflow: "hidden" }}>
+            {/* Main Content — View Modes (RESTORED) */}
+            <main className="heatseeker-main">
+              <div className="flex-1 flex flex-col overflow-hidden" style={{ background: "#0a0e1a" }}>
+                {/* Ticker info bar */}
+                <div className="dom-top-bar">
+                  <div className="dom-ticker-info">
+                    <span className="dom-ticker-label">{ticker.replace("^", "")}</span>
+                    <span className={`dom-regime ${data?.nodes?.regime === "positive" ? "dom-regime-pos" : data?.nodes?.regime === "negative" ? "dom-regime-neg" : "dom-regime-neu"}`}>
+                      {data?.nodes?.regime || "—"} γ
+                    </span>
+                    <span className="dom-spot-price">${fmt(livespot?.spot ?? data?.spot, 2)}</span>
+                    <span className="dom-live-dot">● live</span>
+                    <div className="dom-tags-inline">
+                      <span className="tag king">KING</span>
+                      <span className="tag floor">FLR</span>
+                      <span className="tag ceiling">CEIL</span>
+                      <span className="tag gate">GATE</span>
+                      <span className="tag air">AIR</span>
+                    </div>
+                  </div>
+                </div>
+                <div className="flex-1 overflow-hidden">
+                  <ErrorBoundary>
+                    {view === "multi" ? (
+                      <MultiTickerHeatmap tickers={tickers} />
+                    ) : view === "profile" ? (
+                      <VolumeProfileGrid data={displayData} spot={livespot?.spot ?? displayData?.spot} />
+                    ) : displayData ? (
+                      view === "chain"
+                        ? <GexStrikeTable rows={displayData?.strikes || []} spot={livespot?.spot ?? displayData?.spot} />
+                        : view === "grid"
+                        ? <DomHeatmap data={displayData} spot={livespot?.spot ?? displayData?.spot} ticker={ticker} />
+                        : <BarHeatmap data={displayData} filters={filters} compact={false} viewMode={viewMode} />
+                    ) : (
+                      <div className="text-slate-500 text-xs p-6 text-center">Loading…</div>
+                    )}
+                  </ErrorBoundary>
+                </div>
+              </div>
+            </main>
+
+            {/* Skylit Dashboard Overlay (new UI) */}
+            <div className="skylit-dashboard-overlay" style={{ display: view === "skylit" ? "flex" : "none" }}>
               <SkylitDashboard
                 ticker={ticker}
                 spot={livespot?.spot ?? data?.spot}
@@ -885,7 +929,6 @@ export default function App() {
                 onTickerChange={setTicker}
                 onRefresh={() => { setErr(null); fetchData(); }}
                 onCellClick={(strike, colKey, value) => {
-                  // Open quick trade panel on cell click (trade mode)
                   const row = displayData?.strikes?.find(s => s.strike === strike);
                   setTradeSelection({
                     ticker,
@@ -911,7 +954,7 @@ export default function App() {
                 regime={data?.nodes?.regime}
                 loading={loading && !data}
               />
-            </main>
+            </div>
           </div>
         )}
 
