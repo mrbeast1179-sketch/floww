@@ -13,6 +13,7 @@ import GexStrikeTable from "./components/heatseeker/GexStrikeTable";
 import BarHeatmap from "./components/BarHeatmap";
 import PatternCard from "./components/PatternCard";
 import TrinityView from "./components/TrinityView";
+import QuickTradePanel from "./components/QuickTradePanel";
 import {
   FlipZonesPanel, StackedNodesPanel, TugOfWarPanel, ScenarioPanel,
   RiskDashboardPanel, OpportunitiesPanel, ImpliedMovePanel, VolAnalyticsPanel,
@@ -518,6 +519,7 @@ export default function App() {
   const wsGex = useWebSocketGex((page === "heatseeker" || page === "skylit") ? ticker : null);
   const { theme, toggleTheme } = useTheme();
   const [ensembleData, setEnsembleData] = useState(null);
+  const [tradeSelection, setTradeSelection] = useState(null);
   // Use auth context for user info
   const userEmail = user?.email || null;
   const userTier = user?.tier || null;
@@ -730,8 +732,17 @@ export default function App() {
 
         {/* Trinity View */}
         {page === "trinity" && (
-          <div className="legacy-theme p-4 flex-1 overflow-auto">
-            <TrinityView onFocusTicker={handleFocusTicker} />
+          <div className="legacy-theme p-4 flex-1 overflow-auto" style={{ position: "relative" }}>
+            <TrinityView onFocusTicker={handleFocusTicker} onTradeSelect={setTradeSelection} />
+            <QuickTradePanel
+              selection={tradeSelection}
+              onClose={() => setTradeSelection(null)}
+              onSubmit={(trade) => {
+                console.log("[Trinity] Trade submitted:", trade);
+                setTradeSelection(null);
+                // TODO: send to backend / journal
+              }}
+            />
           </div>
         )}
 
@@ -873,8 +884,24 @@ export default function App() {
                 onExpiriesChange={setExpiries}
                 onTickerChange={setTicker}
                 onRefresh={() => { setErr(null); fetchData(); }}
-                onCellClick={(strike, expiry, value) => setDrilldown({ strike, expiry, value })}
-                onStrikeClick={(strike) => setDrilldown({ strike })}
+                onCellClick={(strike, expiry, value) => {
+                  // Open quick trade panel on cell click
+                  setTradeSelection({
+                    ticker,
+                    strike,
+                    expiry,
+                    spot: livespot?.spot ?? data?.spot,
+                    gex: value,
+                    iv: data?.iv,
+                    delta: data?.delta,
+                    oi: data?.oi,
+                  });
+                }}
+                onStrikeClick={(strike) => setTradeSelection({
+                  ticker,
+                  strike,
+                  spot: livespot?.spot ?? data?.spot,
+                })}
                 isLive={!!livespot}
                 regime={data?.nodes?.regime}
                 loading={loading && !data}
@@ -973,6 +1000,19 @@ export default function App() {
 
         {/* Drilldown Modal */}
         {drilldown && <Drilldown {...drilldown} onClose={() => setDrilldown(null)} />}
+
+        {/* Quick Trade Panel */}
+        {tradeSelection && page === "heatseeker" && (
+          <QuickTradePanel
+            selection={tradeSelection}
+            onClose={() => setTradeSelection(null)}
+            onSubmit={(trade) => {
+              console.log("Trade submitted:", trade);
+              // TODO: wire to paper trading API
+              setTradeSelection(null);
+            }}
+          />
+        )}
 
         {/* Footer */}
         <footer className="border-t border-slate-800 px-4 py-2 text-[10px] text-slate-600 flex justify-between flex-shrink-0">
