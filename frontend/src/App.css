@@ -3027,7 +3027,7 @@ button, select, input {
   filter: brightness(1.15);
 }
 
-/* Current price row — white bg + black text per Skylit reference */
+/* Current price row — white bg + black text for strike cell only */
 .skylit-atm-row {
   position: relative;
 }
@@ -3039,8 +3039,10 @@ button, select, input {
   position: relative;
 }
 
+/* Data cells in ATM row: keep original text color for readability */
 .skylit-atm-row .skylit-data-cell {
-  color: #000000 !important;
+  /* No color override — let heatmap cell colors show through */
+  font-weight: 600;
 }
 
 .skylit-atm-pointer {

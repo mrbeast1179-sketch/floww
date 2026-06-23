@@ -100,6 +100,7 @@ function SkylitHeatmapGrid({
   spot = null,
   viewMode = "gex",
   visibleColumns,
+  selectedCell,
   onCellClick,
   onStrikeClick,
 }) {
