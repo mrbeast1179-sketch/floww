@@ -242,6 +242,29 @@ function ConfluenceBar({ data, viewMode, onViewModeChange, gexVexMode, onGexVexC
   );
 }
 
+// ── Mini Sparkline ────────────────────────────────────────────────────
+function MiniSparkline({ data, spot }) {
+  // Generate 20 bars from the strikes data around spot
+  if (!data?.strikes?.length || !spot) return null;
+  const strikes = data.strikes;
+  const spotIdx = strikes.reduce((best, s, i) => 
+    Math.abs(s.strike - spot) < Math.abs(strikes[best].strike - spot) ? i : best, 0);
+  const start = Math.max(0, spotIdx - 10);
+  const end = Math.min(strikes.length, spotIdx + 10);
+  const window = strikes.slice(start, end);
+  const maxGex = Math.max(...window.map(s => Math.abs(s.gex || 0)), 1);
+  
+  return (
+    <span className="trinity-panel-sparkline">
+      {window.map((s, i) => {
+        const h = Math.max(2, Math.round((Math.abs(s.gex || 0) / maxGex) * 12));
+        const isNeg = (s.gex || 0) < 0;
+        return <span key={i} className={`trinity-sparkline-bar${isNeg ? " neg" : ""}`} style={{ height: `${h}px` }} />;
+      })}
+    </span>
+  );
+}
+
 function TimelineBar() {
   const now = new Date();
   const marketOpen = new Date(); marketOpen.setHours(9, 30, 0, 0);
@@ -370,6 +393,7 @@ function TrinityPanel({ ticker, data, viewMode, gexVexMode, onFocus, onTickerCha
           {showTickerMenu && (<div className="trinity-ticker-menu">{PANEL_TICKERS.map(t=>(<button key={t} className={`trinity-ticker-option${t===ticker?" trinity-ticker-active":""}`} onClick={()=>{onTickerChange(t);setShowTickerMenu(false);}}>{t.replace("^","")}</button>))}</div>)}
         </div>
         <span className="trinity-panel-price">${fmt(spot, spot >= 1000 ? 2 : 2)}</span>
+        <MiniSparkline data={data} spot={spot} />
         {changePct != null && (<span className={`trinity-panel-change ${changePct >= 0 ? "text-emerald-400" : "text-rose-400"}`}>{changePct >= 0 ? "+" : ""}{changePct.toFixed(2)}%</span>)}
         <span className="trinity-live-dot" />
         <span className={`trinity-panel-regime ${regimeColor}`}>{regimeLabel}</span>
