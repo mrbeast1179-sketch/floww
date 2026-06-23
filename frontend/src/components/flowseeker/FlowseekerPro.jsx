@@ -102,6 +102,7 @@ function FlowScoreCircle({ score }) {
 const ROW_HEIGHT = 42;
 function Row({ index, style, data }) {
   const event = data.events[index];
+  if (!event) return null;
   const isNew = data.newIds.has(event.id);
   const isExpanded = data.expandedId === event.id;
 
@@ -165,7 +166,8 @@ export default function FlowseekerPro({ active = true }) {
   // Generate synthetic data on mount
   useEffect(() => {
     if (!active) return;
-    const initial = generateSyntheticFlowEvents({ eventCount: 300 });
+    const result = generateSyntheticFlowEvents({ eventCount: 300 });
+    const initial = Array.isArray(result) ? result : result.events || [];
     setEvents(initial);
     // Mark first 5 as "new" for animation
     initial.slice(0, 5).forEach(e => newIdsRef.current.add(e.id));
@@ -232,8 +234,13 @@ export default function FlowseekerPro({ active = true }) {
           <span style={{ width: 85 }}>Score</span>
           <span style={{ width: 40 }}></span>
         </div>
-        <List ref={listRef} height={600} rowCount={filtered.length} rowHeight={ROW_HEIGHT}
-          rowComponent={Row} rowData={listData} className="fsp-list" />
+        {filtered.length > 0 ? (
+          <List ref={listRef} height={Math.min(600, filtered.length * ROW_HEIGHT + 2)}
+            rowCount={filtered.length} rowHeight={ROW_HEIGHT}
+            rowComponent={Row} rowData={listData} className="fsp-list" />
+        ) : (
+          <div className="fsp-empty">No flows match your filters.</div>
+        )}
       </div>
     </div>
   );

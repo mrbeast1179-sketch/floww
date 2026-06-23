@@ -438,11 +438,12 @@ function generateEvent(id, baseTime) {
 
   // Premium estimate
   const premiumPerContract = Math.max(0.05, spot * iv * Math.sqrt(dte / 365) * 0.4);
-  const premium = clampedContracts * premiumPerContract;
-  const notional = premium; // notional = premium for options
+  const premium = Math.round(clampedContracts * premiumPerContract);
+  const notional = Math.round(clampedContracts * 100 * strike); // notional = contracts * 100 * strike
 
-  // OI shock
-  const oiShock = clampedContracts / Math.max(1000, clampedContracts * (0.5 + Math.random() * 2));
+  // OI shock: actual OI change (contracts * random factor)
+  const oiShock = Math.round(clampedContracts * (side === 'BUY' ? 0.5 + Math.random() * 0.5 : Math.random() * 0.3));
+  const volOiRatio = clampedContracts / Math.max(100, clampedContracts * (0.3 + Math.random()));
 
   // Direction confidence
   const directionConfidence = 0.3 + Math.random() * 0.7;
@@ -458,54 +459,62 @@ function generateEvent(id, baseTime) {
   const T = Math.max(1, dte) / 365;
   const greeks = computeGreeks(spot, strike, T, 0.05, iv, optionType);
 
-  // Flow score
+  // Flow score (oiShock as ratio for scoring)
+  const oiShockRatio = clampedContracts / Math.max(100, clampedContracts * (0.3 + Math.random()));
   const score = flowScore({
     contracts: clampedContracts,
     notional,
-    oiShock,
+    oiShock: oiShockRatio,
     flowType,
     directionConfidence,
     otmPct,
     dte
   });
 
-  // Vol/OI ratio
-  const volOiRatio = clampedContracts / Math.max(100, clampedContracts * (0.3 + Math.random()));
-
   // Delta dollar: delta * spot * contracts * 100
   const deltaDollar = greeks.delta * spot * clampedContracts * 100;
   // Gamma dollar: gamma * spot^2 * contracts * 100 / 100
   const gammaDollar = greeks.gamma * spot * spot * clampedContracts * 100 / 100;
+  // Vega dollar: vega * spot * contracts * 100
+  const vegaDollar = greeks.vega * spot * clampedContracts * 100;
+  // Mid price at execution
+  const midPrice = premiumPerContract;
+  // Previous OI estimate
+  const oiPrev = Math.round(clampedContracts / Math.max(0.01, volOiRatio));
 
   return {
     id,
     timestamp,
     ticker,
     side,
-    optionType: optionType.toUpperCase(),
-    flowType,
+    directionConfidence,
+    flow_type: flowType,
+    option_type: optionType.toUpperCase(),
     strike,
     expiry,
     dte,
-    otmPct,
+    otm_pct: +otmPct.toFixed(1),
     contracts: clampedContracts,
     premium,
     notional,
-    volOiRatio,
-    delta: greeks.delta,
-    gamma: greeks.gamma,
-    theta: greeks.theta,
-    vega: greeks.vega,
-    vanna: greeks.vanna,
-    charm: greeks.charm,
-    deltaDollar,
-    gammaDollar,
+    avg_price: midPrice,
+    bid_at_exec: midPrice * 0.99,
+    ask_at_exec: midPrice * 1.01,
+    mid_at_exec: midPrice,
+    vol_vs_oi: +volOiRatio.toFixed(2),
+    vol_vs_avg_vol: +(volOiRatio * (0.8 + Math.random() * 0.7)).toFixed(2),
+    oi_change: oiShock,
+    oi_change_pct: +((oiShock / Math.max(oiPrev, 1)) * 100).toFixed(1),
+    iv: +(iv * 100).toFixed(1),
+    greeks: { delta: greeks.delta, gamma: greeks.gamma, theta: greeks.theta, vega: greeks.vega, vanna: greeks.vanna, charm: greeks.charm },
+    total_delta: deltaDollar,
+    total_gamma: gammaDollar,
+    total_vega: vegaDollar,
+    total_notional_delta: deltaDollar * spot / 1e6,
+    flow_score: score,
+    sentiment: score >= 80 ? 'EXTREME' : score >= 60 ? 'HIGH' : score >= 40 ? 'MODERATE' : score >= 20 ? 'LOW' : 'MINIMAL',
+    sentiment_color: score >= 80 ? '#ef4444' : score >= 60 ? '#f97316' : score >= 40 ? '#eab308' : score >= 20 ? '#22c55e' : '#64748b',
     exchange,
-    iv: iv * 100,
-    spot,
-    score,
-    directionConfidence,
-    oiShock,
   };
 }
 

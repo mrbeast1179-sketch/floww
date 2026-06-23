@@ -460,3 +460,4 @@
   animation: fspSpin 0.8s linear infinite;
 }
 @keyframes fspSpin { to { transform: rotate(360deg); } }
+.fsp-empty { display: flex; align-items: center; justify-content: center; height: 200px; color: var(--text-tertiary); font-size: 14px; }
