@@ -868,7 +868,7 @@ export default function App() {
             </aside>
 
             {/* Main Content — View Modes (RESTORED) */}
-            <main className="heatseeker-main">
+            <main className="heatseeker-main" style={{ display: view === "skylit" ? "none" : "flex", flexDirection: "column", flex: 1, minHeight: 0, overflow: "hidden" }}>
               <div className="flex-1 flex flex-col overflow-hidden" style={{ background: "#0a0e1a" }}>
                 {/* Ticker info bar */}
                 <div className="dom-top-bar">
