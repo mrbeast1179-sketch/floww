@@ -114,27 +114,60 @@ export default function TrinityView({ onFocusTicker, onTradeSelect }) {
   const cacheRef = useRef({});
   const mountedRef = useRef(true);
 
+  // Progressive fetch: panel tickers first, then others
   const fetchAll = useCallback(async (isBackground = false) => {
-    const allTickers = ["^SPX", "SPY", "QQQ", "^NDX", "IWM", "DIA", "TLT"];
+    const panelTickers = ["^SPX", "SPY", "QQQ"];
+    const extraTickers = ["^NDX", "IWM", "DIA", "TLT"];
+    
     if (!isBackground) setLoading(true);
     setError(null);
+
+    // Phase 1: fetch just the 3 visible panel tickers (fast path)
     try {
-      const results = await Promise.allSettled(
-        allTickers.map(t =>
-          axios.get(`${API}/heatmap/${t}?expiries=${dteFilter}&mode=day&max_strikes=200`, { timeout: 15000 })
+      const panelResults = await Promise.allSettled(
+        panelTickers.map(t =>
+          axios.get(`${API}/data/${t}?expiries=${dteFilter}&mode=day`, { timeout: 8000 })
             .then(r => ({ ticker: t, data: r.data }))
         )
       );
       const newData = { ...cacheRef.current };
-      results.forEach(r => {
-        if (r.status === "fulfilled") newData[r.value.ticker] = r.value.data;
+      panelResults.forEach(r => {
+        if (r.status === "fulfilled" && r.value.data?.strikes?.length) {
+          newData[r.value.ticker] = r.value.data;
+        }
       });
       cacheRef.current = newData;
-      if (mountedRef.current) { setAllData(newData); setLastUpdate(new Date()); setLoading(false); }
+      if (mountedRef.current) { setAllData({ ...newData }); }
     } catch (e) {
-      if (mountedRef.current) {
-        if (Object.keys(cacheRef.current).length === 0) setError(e.message);
-        setLoading(false);
+      // ignore phase 1 errors
+    }
+
+    // Phase 2: fetch extra tickers in background (non-blocking)
+    try {
+      const extraResults = await Promise.allSettled(
+        extraTickers.map(t =>
+          axios.get(`${API}/data/${t}?expiries=${dteFilter}&mode=day`, { timeout: 30000 })
+            .then(r => ({ ticker: t, data: r.data }))
+        )
+      );
+      const newData2 = { ...cacheRef.current };
+      extraResults.forEach(r => {
+        if (r.status === "fulfilled" && r.value.data?.strikes?.length) {
+          newData2[r.value.ticker] = r.value.data;
+        }
+      });
+      cacheRef.current = newData2;
+      if (mountedRef.current) { setAllData({ ...newData2 }); }
+    } catch (e) {
+      // ignore phase 2 errors
+    }
+
+    if (mountedRef.current) {
+      setLastUpdate(new Date());
+      setLoading(false);
+      // If absolutely nothing loaded and no cache, show error
+      if (Object.keys(cacheRef.current).length === 0) {
+        setError("No data available. Backend may be degraded.");
       }
     }
   }, [dteFilter]);
