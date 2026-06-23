@@ -80,6 +80,12 @@ function fmtOi(v) {
   return v.toFixed(0);
 }
 
+// Calculate percentage of max abs value
+function pctOfMax(v, maxAbs) {
+  if (!v || !maxAbs) return 0;
+  return Math.abs(v) / maxAbs * 100;
+}
+
 const TAG_STYLES = {
   KING: { bg: "rgba(251,191,36,0.15)", border: "rgba(251,191,36,0.4)", text: "#fbbf24" },
   FLR: { bg: "rgba(52,211,153,0.12)", border: "rgba(52,211,153,0.35)", text: "#34d399" },
@@ -272,7 +278,11 @@ function TrinityPanel({ ticker, data, viewMode, gexVexMode, onFocus, onTickerCha
 
   const rows = useMemo(() => {
     if (!data?.strikes) return [];
-    return data.strikes.filter(s => s.strike != null && s.gex != null).sort((a, b) => b.strike - a.strike);
+    const sorted = data.strikes.filter(s => s.strike != null && s.gex != null).sort((a, b) => b.strike - a.strike);
+    // Mark top 3 rows by abs GEX (excluding King which already has special styling)
+    const byGex = [...sorted].sort((a, b) => Math.abs(b.gex || 0) - Math.abs(a.gex || 0));
+    const top3Strikes = new Set(byGex.slice(0, 3).map(s => s.strike));
+    return sorted.map(s => ({ ...s, _isTopGex: top3Strikes.has(s.strike) }));
   }, [data]);
 
   const expiries = useMemo(() => { if (!gridData) return []; return Object.keys(gridData).sort().slice(0, 6); }, [gridData]);
@@ -399,9 +409,9 @@ function DOMView({ rows, domCols, spotIdx, kingStrike, flipStrike, tags, maxAbs,
       {rows.map((row, i) => {
         const isC = i === spotIdx, isK = row.strike === kingStrike, isF = flipStrike != null && Math.abs(row.strike - flipStrike) <= (rows[0]?.strike - rows[1]?.strike || 5) / 2, isPR = i === pocRI;
         const rc = rowColors(row.gex, maxAbs);
-        return (<tr key={row.strike} className={`trinity-dom-row${isC?" trinity-row-current":""}${isK?" trinity-row-king":""}${isF?" trinity-row-flip":""}${isPR?" trinity-row-king-grid":""}`} style={{background:rc.bg}} onClick={()=>onRowClick&&onRowClick(row)} role="button" tabIndex={0}>
-          <td className={`trinity-dom-price${isC?" trinity-price-current":""}`}>{isC&&<span className="trinity-price-arrow" />}{isK&&<span className="trinity-king-star">★</span>}{fmt(row.strike, row.strike >= 1000 ? 0 : 1)}</td>
-          {domCols.map(c => { const val = row[c.field] || 0; const cc = rowColors(val, colMaxAbs[c.field]); const isPC = pocCK === c.key && isPR; return (<td key={c.field} className={`trinity-dom-cell${isPC?" trinity-grid-poc":""}`} style={{background:isPC?"rgba(251,191,36,0.35)":cc.bg,color:isPC?"#0b1121":cc.text}}>{fmtGex(val)}</td>); })}
+        return (<tr key={row.strike} className={`trinity-dom-row${isC?" trinity-row-current":""}${isK?" trinity-row-king":""}${isF?" trinity-row-flip":""}${isPR?" trinity-row-king-grid":""}${row._isTopGex && !isK?" trinity-row-top-gex":""}`} style={{background:rc.bg}} onClick={()=>onRowClick&&onRowClick(row)} role="button" tabIndex={0}>
+          <td className={`trinity-dom-price${isC?" trinity-price-current":""}`}>{isC&&<span className="trinity-price-arrow" />}{(isK || row._isTopGex) && <span className="trinity-king-star">★</span>}{fmt(row.strike, row.strike >= 1000 ? 0 : 1)}</td>
+          {domCols.map(c => { const val = row[c.field] || 0; const cc = rowColors(val, colMaxAbs[c.field]); const isPC = pocCK === c.key && isPR; const pct = pctOfMax(val, colMaxAbs[c.field]); return (<td key={c.field} className={`trinity-dom-cell${isPC?" trinity-grid-poc":""}`} style={{background:isPC?"rgba(251,191,36,0.35)":cc.bg,color:isPC?"#0b1121":cc.text}}>{fmtGex(val)}{pct > 40 && <span className={`trinity-cell-pct${val >= 0 ? " trinity-cell-pct-pos" : " trinity-cell-pct-neg"}`}>{val >= 0 ? "+" : ""}{pct.toFixed(0)}%</span>}</td>); })}
           <td className="trinity-dom-cell trinity-dom-oi">{fmtOi(row.total_oi)}</td>
           <td className="trinity-dom-cell trinity-dom-iv">{row.iv != null ? `${(row.iv * 100).toFixed(1)}%` : "—"}</td>
           <td className="trinity-dom-tags">{tags.map(t=>(<span key={t} className={`trinity-tag trinity-tag-${t.toLowerCase()}`}>{t}</span>))}</td>
@@ -417,7 +427,7 @@ function ChainView({ rows, spotIdx, kingStrike, flipStrike, onRowClick, ma }) {
       const isC = i === spotIdx, isK = row.strike === kingStrike, isF = flipStrike != null && Math.abs(row.strike - flipStrike) <= (rows[0]?.strike - rows[1]?.strike || 5) / 2;
       const rc = rowColors(row.gex, ma);
       return (<tr key={row.strike} className={`trinity-chain-row${isC?" trinity-row-current":""}`} style={{background:rc.bg}} onClick={()=>onRowClick&&onRowClick(row)} role="button" tabIndex={0}>
-        <td className={`trinity-chain-price${isC?" trinity-price-current":""}`}>{isC&&<span className="trinity-price-arrow" />}{isK&&<span className="trinity-king-star">★</span>}{fmt(row.strike, row.strike >= 1000 ? 0 : 1)}</td>
+        <td className={`trinity-chain-price${isC?" trinity-price-current":""}`}>{isC&&<span className="trinity-price-arrow" />}{(isK || row._isTopGex) && <span className="trinity-king-star">★</span>}{fmt(row.strike, row.strike >= 1000 ? 0 : 1)}</td>
         <td className="trinity-chain-cell" style={{color:rc.text}}>{fmtGex(row.gex)}</td>
         <td className="trinity-chain-cell" style={{color:"#6ee7b7"}}>{fmtGex(row.call_gex)}</td>
         <td className="trinity-chain-cell" style={{color:"#c4b5fd"}}>{fmtGex(row.put_gex)}</td>
@@ -460,7 +470,7 @@ function ListView({ rows, maxAbs, spotIdx, kingStrike, flipStrike, onRowClick })
       const isC = i === spotIdx, isK = row.strike === kingStrike, isF = flipStrike != null && Math.abs(row.strike - flipStrike) <= (rows[0]?.strike - rows[1]?.strike || 5) / 2;
       const gex = row.gex || 0, rc = rowColors(gex, maxAbs), pctV = maxAbs > 0 ? Math.abs(gex / maxAbs) * 100 : 0;
       return (<div key={row.strike} className={`trinity-row${isC?" trinity-row-current":""}${isK?" trinity-row-king":""}${isF?" trinity-row-flip":""}`} style={{background:rc.bg}} onClick={()=>onRowClick&&onRowClick(row)} role="button" tabIndex={0}>
-        <span className={`trinity-row-price${isC?" trinity-price-current":""}`}>{isC&&<span className="trinity-price-arrow" />}{isK&&<span className="trinity-king-star">★</span>}{fmt(row.strike, row.strike >= 1000 ? 0 : 1)}</span>
+        <span className={`trinity-row-price${isC?" trinity-price-current":""}`}>{isC&&<span className="trinity-price-arrow" />}{(isK || row._isTopGex) && <span className="trinity-king-star">★</span>}{fmt(row.strike, row.strike >= 1000 ? 0 : 1)}</span>
         <span className="trinity-row-pct">{pctV > 15 && (<span className={`trinity-pct-badge${gex>=0?" trinity-pct-pos":" trinity-pct-neg"}`}>{gex>=0?"+":""}{pctV.toFixed(0)}%</span>)}</span>
         <span className="trinity-row-value" style={{color:rc.text}}>{fmtGex(gex)}</span>
         {row.total_oi > 0 && <span className="trinity-row-oi">{fmtOi(row.total_oi)}</span>}
