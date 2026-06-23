@@ -1,17 +1,26 @@
 import React, { memo, useMemo } from "react";
 
 /**
- * SkylitHeatmapGrid — The main heatmap data grid
+ * SkylitHeatmapGrid — DOM/Level 2 style heatmap
  *
  * Matches Skylit reference:
  * - Left column: Strike prices (descending, sticky)
- * - Data columns: GEX/VEX values per expiry
- * - Color coding: cyan/teal (positive), red/purple (negative)
- * - Current price row: white left border highlight
+ * - Data columns: Call GEX, Net GEX, Put GEX, VEX, Charm (per strike)
+ * - Color coding: teal/green (positive), purple (negative)
+ * - Current price row: white background + black text
  * - POC (highest value): yellow background + star
- * - Extreme values: colored backgrounds
  * - Monospace font, tight spacing, no cell borders
+ *
+ * Data shape: data.strikes[] with { strike, call_gex, gex, put_gex, vex, charm, ... }
  */
+
+const DATA_COLUMNS = [
+  { key: "call_gex", label: "Call GEX" },
+  { key: "gex", label: "Net GEX" },
+  { key: "put_gex", label: "Put GEX" },
+  { key: "vex", label: "VEX" },
+  { key: "charm", label: "Charm" },
+];
 
 function fmtHeatmapCell(v) {
   if (v === null || v === undefined || isNaN(v) || v === 0) return "";
@@ -32,7 +41,7 @@ function heatmapColor(v, maxAbs, isPOC = false) {
   const norm = Math.min(1, Math.abs(v) / maxAbs);
   const isNeg = v < 0;
 
-  // POC (Point of Control) — highest value: bright yellow
+  // POC — highest value: bright yellow + black text
   if (isPOC) {
     return {
       bg: `rgba(241, 196, 15, ${0.75 + 0.2 * norm})`,
@@ -80,72 +89,68 @@ function SkylitHeatmapGrid({
   onCellClick,
   onStrikeClick,
 }) {
-  const { rows, maxAbs, pocCell, expiries } = useMemo(() => {
-    if (!data?.grid) return { rows: [], maxAbs: 1, pocCell: null, expiries: [] };
+  // Build rows from strikes data
+  const rows = useMemo(() => {
+    if (!data?.strikes) return [];
+    return data.strikes
+      .filter((s) => s.strike != null)
+      .sort((a, b) => b.strike - a.strike);
+  }, [data]);
 
-    const grid = data.grid;
-    const expiries = grid.expiries || [];
-    let strikes = (grid.strikes || []).slice().sort((a, b) => b - a);
+  // Determine which columns to show based on viewMode
+  const columns = useMemo(() => {
+    if (viewMode === "vex") {
+      return [
+        { key: "call_gex", label: "Call VEX" },
+        { key: "vex", label: "Net VEX" },
+        { key: "put_gex", label: "Put VEX" },
+      ];
+    }
+    if (viewMode === "charm") {
+      return [
+        { key: "charm", label: "Charm" },
+        { key: "gex", label: "Net GEX" },
+      ];
+    }
+    // Default GEX view
+    return DATA_COLUMNS;
+  }, [viewMode]);
 
-    // Get the data grid based on view mode
-    const dataGrid = viewMode === "vex" ? (grid.vex_grid || grid.grid) : grid.grid;
-
-    // Filter strikes that have data
-    strikes = strikes.filter((s) =>
-      expiries.some((e) => {
-        const g = dataGrid || {};
-        const ge = g[e];
-        if (!ge) return false;
-        const v = ge[String(s)] ?? ge[String(s.toFixed(1))] ?? ge[String(parseInt(s))] ?? 0;
-        return Math.abs(v) > 0;
-      })
-    );
-
-    // Build rows
-    const rows = strikes.map((strike) => {
-      const cells = expiries.map((e) => {
-        const g = dataGrid || {};
-        const ge = g[e];
-        if (!ge) return 0;
-        return ge[String(strike)] ?? ge[String(strike.toFixed(1))] ?? ge[String(parseInt(strike))] ?? 0;
-      });
-      return { strike, cells };
-    });
-
-    // Find max absolute value
-    let maxAbs = 1;
-    let pocVal = 0;
-    let pocRI = -1;
-    let pocCI = -1;
-
-    for (let ri = 0; ri < rows.length; ri++) {
-      for (let ci = 0; ci < rows[ri].cells.length; ci++) {
-        const v = Math.abs(rows[ri].cells[ci] || 0);
-        if (v > maxAbs) maxAbs = v;
-        if (v > pocVal) {
-          pocVal = v;
-          pocRI = ri;
-          pocCI = ci;
-        }
+  // Find max absolute value across all visible columns
+  const maxAbs = useMemo(() => {
+    let m = 1;
+    for (const row of rows) {
+      for (const col of columns) {
+        const v = Math.abs(row[col.key] || 0);
+        if (v > m) m = v;
       }
     }
+    return m;
+  }, [rows, columns]);
 
-    return {
-      rows,
-      maxAbs,
-      pocCell: { rowIdx: pocRI, colIdx: pocCI },
-      expiries,
-    };
-  }, [data, viewMode]);
+  // Find POC (point of control) — highest absolute value
+  const pocCell = useMemo(() => {
+    let maxVal = 0;
+    let pocRI = -1, pocCI = -1;
+    for (let ri = 0; ri < rows.length; ri++) {
+      for (let ci = 0; ci < columns.length; ci++) {
+        const v = Math.abs(rows[ri][columns[ci].key] || 0);
+        if (v > maxVal) { maxVal = v; pocRI = ri; pocCI = ci; }
+      }
+    }
+    return { rowIdx: pocRI, colIdx: pocCI };
+  }, [rows, columns]);
 
-  // Find current price row index
+  // Find current price row (closest strike to spot)
   const spotRowIdx = useMemo(() => {
     if (!spot || !rows.length) return -1;
-    // Find the strike closest to spot (at or below)
-    for (let i = 0; i < rows.length; i++) {
-      if (rows[i].strike <= spot) return i;
+    let bestIdx = 0;
+    let bestDist = Math.abs(rows[0].strike - spot);
+    for (let i = 1; i < rows.length; i++) {
+      const d = Math.abs(rows[i].strike - spot);
+      if (d < bestDist) { bestDist = d; bestIdx = i; }
     }
-    return -1;
+    return bestIdx;
   }, [rows, spot]);
 
   if (!rows.length) {
@@ -163,9 +168,9 @@ function SkylitHeatmapGrid({
           <thead>
             <tr>
               <th className="skylit-th-strike">Strike</th>
-              {expiries.map((e) => (
-                <th key={e} className="skylit-th-expiry">
-                  {formatExpiry(e)}
+              {columns.map((col) => (
+                <th key={col.key} className="skylit-th-expiry">
+                  {col.label}
                 </th>
               ))}
             </tr>
@@ -190,21 +195,22 @@ function SkylitHeatmapGrid({
                   </td>
 
                   {/* Data cells */}
-                  {row.cells.map((v, ci) => {
-                    const isPOC = pocCell && pocCell.rowIdx === ri && pocCell.colIdx === ci;
-                    const col = heatmapColor(v, maxAbs, isPOC);
+                  {columns.map((col, ci) => {
+                    const v = row[col.key] || 0;
+                    const isPOC = pocCell.rowIdx === ri && pocCell.colIdx === ci;
+                    const col_color = heatmapColor(v, maxAbs, isPOC);
                     return (
                       <td
-                        key={ci}
+                        key={col.key}
                         className="skylit-data-cell"
                         style={{
-                          background: col.bg,
-                          color: col.text,
+                          background: col_color.bg,
+                          color: col_color.text,
                         }}
-                        onClick={() => onCellClick && onCellClick(row.strike, expiries[ci], v)}
-                        title={`Strike ${row.strike} · ${formatExpiry(expiries[ci])} · ${viewMode.toUpperCase()} ${fmtHeatmapCell(v)}`}
+                        onClick={() => onCellClick && onCellClick(row.strike, col.key, v)}
+                        title={`Strike ${row.strike} · ${col.label} ${fmtHeatmapCell(v)}`}
                       >
-                        {col.star ? (
+                        {col_color.star ? (
                           <span className="skylit-star-cell">★{fmtHeatmapCell(v)}</span>
                         ) : (
                           fmtHeatmapCell(v)
@@ -220,15 +226,6 @@ function SkylitHeatmapGrid({
       </div>
     </div>
   );
-}
-
-function formatExpiry(e) {
-  try {
-    const [, m, d] = e.split("-");
-    return `${m}-${d}`;
-  } catch {
-    return e;
-  }
 }
 
 export default memo(SkylitHeatmapGrid);

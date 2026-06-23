@@ -2919,16 +2919,20 @@ button, select, input {
   filter: brightness(1.15);
 }
 
-/* Current price row */
+/* Current price row — white bg + black text per Skylit reference */
 .skylit-atm-row {
   position: relative;
 }
 
 .skylit-atm-row .skylit-strike-cell {
-  background: rgba(255,255,255,0.06) !important;
-  color: #ffffff !important;
+  background: #ffffff !important;
+  color: #000000 !important;
   font-weight: 700;
   position: relative;
+}
+
+.skylit-atm-row .skylit-data-cell {
+  color: #000000 !important;
 }
 
 .skylit-atm-pointer {
@@ -2942,13 +2946,9 @@ button, select, input {
 }
 
 .skylit-atm-strike {
-  background: rgba(255,255,255,0.06) !important;
-  color: #ffffff !important;
+  background: #ffffff !important;
+  color: #000000 !important;
   font-weight: 700;
-}
-
-.skylit-atm-row .skylit-data-cell {
-  color: #ffffff !important;
 }
 
 /* Strike cell */
