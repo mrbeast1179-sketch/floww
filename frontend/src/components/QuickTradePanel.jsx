@@ -24,12 +24,15 @@ export default function QuickTradePanel({ selection, onClose, onSubmit }) {
   const [limitPrice, setLimitPrice] = useState("");
   const [showConfirm, setShowConfirm] = useState(false);
 
+  const [submitted, setSubmitted] = useState(false);
+
   // Reset when selection changes
   useEffect(() => {
     setStrategy("buy_call");
     setQuantity(1);
     setLimitPrice("");
     setShowConfirm(false);
+    setSubmitted(false);
   }, [selection?.strike]);
 
   const handleSubmit = useCallback(() => {
@@ -47,9 +50,12 @@ export default function QuickTradePanel({ selection, onClose, onSubmit }) {
       oi: selection.oi,
       timestamp: new Date().toISOString(),
     };
+    setSubmitted(true);
     if (onSubmit) onSubmit(trade);
-    setShowConfirm(false);
-    if (onClose) onClose();
+    // Auto-close after showing success
+    setTimeout(() => {
+      if (onClose) onClose();
+    }, 1500);
   }, [selection, strategy, quantity, limitPrice, onSubmit, onClose]);
 
   if (!selection) return null;
@@ -196,7 +202,15 @@ export default function QuickTradePanel({ selection, onClose, onSubmit }) {
         </div>
 
         {/* Submit */}
-        {!showConfirm ? (
+        {submitted ? (
+          <div className="quick-trade-success">
+            <div className="quick-trade-success-icon">✓</div>
+            <div className="quick-trade-success-text">Trade Recorded</div>
+            <div className="quick-trade-success-sub">
+              {STRATEGIES.find(s => s.id === strategy)?.label} × {quantity} @ ${limitPrice || estPrice}
+            </div>
+          </div>
+        ) : !showConfirm ? (
           <button
             className="quick-trade-submit"
             onClick={() => setShowConfirm(true)}

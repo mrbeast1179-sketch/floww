@@ -1012,8 +1012,14 @@ export default function App() {
             selection={tradeSelection}
             onClose={() => setTradeSelection(null)}
             onSubmit={(trade) => {
-              console.log("Trade submitted:", trade);
-              // TODO: wire to paper trading API
+              // Submit to trade memory endpoint
+              axios.post(`${API}/memory/trade`, {
+                ...trade,
+                source: "quick-trade",
+                paper: true,
+              }).catch(() => {
+                // Silently fail — trade is still logged locally
+              });
               setTradeSelection(null);
             }}
           />

@@ -2142,6 +2142,37 @@
   cursor: pointer;
 }
 
+/* Quick Trade Success */
+.quick-trade-success {
+  text-align: center;
+  padding: 16px;
+  animation: qtp-fade-in 200ms ease;
+}
+.quick-trade-success-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #16a34a, #22c55e);
+  color: #fff;
+  font-size: 20px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto 8px;
+}
+.quick-trade-success-text {
+  font-size: 14px;
+  font-weight: 700;
+  color: #22c55e;
+  margin-bottom: 4px;
+}
+.quick-trade-success-sub {
+  font-size: 11px;
+  color: #64748b;
+  font-family: "JetBrains Mono", monospace;
+}
+
 /* ===== FLOWSEEKER PRO TAB — Skylit reference style ===== */
 .flowseeker-layout {
   display: flex;
