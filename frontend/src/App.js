@@ -106,12 +106,12 @@ function Movers({ onPick }) {
   return (
     <div className="panel p-3" data-testid="movers-panel">
       <div className="label mb-2">Top Movers (prev session %)</div>
-      <div className="flex flex-col gap-1 text-[11px]">
+      <div className="flex flex-col gap-1 text-[12px]">
         {rows.length === 0 && <div className="text-slate-500">…</div>}
         {rows.map((r, i) => (
           <div key={i} className="flex justify-between bar-row cursor-pointer" onClick={() => onPick && onPick(r.ticker)}>
-            <span className="mono text-amber-300">{r.ticker}</span>
-            <span className={pctClass(r.change)}>{r.change > 0 ? "+" : ""}{r.change}%</span>
+            <span className="mono text-amber-300 font-medium">{r.ticker}</span>
+            <span className={`${pctClass(r.change)} font-medium`}>{r.change > 0 ? "+" : ""}{r.change}%</span>
           </div>
         ))}
       </div>
