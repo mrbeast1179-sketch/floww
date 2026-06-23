@@ -46,6 +46,7 @@ import SwarmFrame from "./components/SwarmFrame";
 import TurboQuantPanel from "./components/TurboQuantPanel";
 import SkylitDashboard from "./components/heatseeker/SkylitDashboard";
 import FlowseekerProBlademap from "./components/flowseeker/FlowseekerProBlademap";
+import FlowseekerPro from "./components/flowseeker/FlowseekerPro";
 import AlertOverlay from "./components/AlertOverlay";
 import PWAInstallBanner from "./components/PWAInstallBanner";
 import AppShell from "./shell/AppShell";
@@ -1041,7 +1042,7 @@ export default function App() {
         {page === "flowseeker-pro" && (
           <div className="flex-1 overflow-auto">
             <ErrorBoundary>
-              <FlowseekerProBlademap active={page === "flowseeker-pro"} />
+              <FlowseekerPro active={page === "flowseeker-pro"} />
             </ErrorBoundary>
           </div>
         )}
