@@ -818,19 +818,6 @@ export default function App() {
 
                 {/* Filters */}
                 <div className="panel p-3">
-                  <div className="label mb-2">View</div>
-                  <div className="flex gap-1 mb-2">
-                    <button onClick={() => setView("grid")} className={`btn flex-1 ${view === "grid" ? "active" : ""}`}>2D Grid</button>
-                    <button onClick={() => setView("bar")} className={`btn flex-1 ${view === "bar" ? "active" : ""}`}>Bars</button>
-                    <button onClick={() => setView("chain")} className={`btn flex-1 ${view === "chain" ? "active" : ""}`}>Chain</button>
-                  </div>
-                  <div className="flex gap-1 mb-2">
-                    <button onClick={() => setView("multi")} className={`btn flex-1 ${view === "multi" ? "active" : ""}`}>Multi</button>
-                    <button onClick={() => setView("profile")} className={`btn flex-1 ${view === "profile" ? "active" : ""}`}>Profile</button>
-                  </div>
-                  <div className="flex gap-1 mb-2">
-                    <button onClick={() => setView("skylit")} className={`btn flex-1 ${view === "skylit" ? "active" : ""}`}>Skylit</button>
-                  </div>
                   <div className="text-slate-500 mb-1 text-[10px]">Mode</div>
                   <div className="flex gap-1 mb-2">
                     {["day", "swing", "scalp"].map(m => (
@@ -867,49 +854,8 @@ export default function App() {
               </div>
             </aside>
 
-            {/* Main Content — View Modes (RESTORED) */}
-            <main className="heatseeker-main" style={{ display: view === "skylit" ? "none" : "flex", flexDirection: "column", flex: 1, minHeight: 0, overflow: "hidden" }}>
-              <div className="flex-1 flex flex-col overflow-hidden" style={{ background: "#0a0e1a" }}>
-                {/* Ticker info bar */}
-                <div className="dom-top-bar">
-                  <div className="dom-ticker-info">
-                    <span className="dom-ticker-label">{ticker.replace("^", "")}</span>
-                    <span className={`dom-regime ${data?.nodes?.regime === "positive" ? "dom-regime-pos" : data?.nodes?.regime === "negative" ? "dom-regime-neg" : "dom-regime-neu"}`}>
-                      {data?.nodes?.regime || "—"} γ
-                    </span>
-                    <span className="dom-spot-price">${fmt(livespot?.spot ?? data?.spot, 2)}</span>
-                    <span className="dom-live-dot">● live</span>
-                    <div className="dom-tags-inline">
-                      <span className="tag king">KING</span>
-                      <span className="tag floor">FLR</span>
-                      <span className="tag ceiling">CEIL</span>
-                      <span className="tag gate">GATE</span>
-                      <span className="tag air">AIR</span>
-                    </div>
-                  </div>
-                </div>
-                <div className="flex-1 overflow-hidden">
-                  <ErrorBoundary>
-                    {view === "multi" ? (
-                      <MultiTickerHeatmap tickers={tickers} />
-                    ) : view === "profile" ? (
-                      <VolumeProfileGrid data={displayData} spot={livespot?.spot ?? displayData?.spot} />
-                    ) : displayData ? (
-                      view === "chain"
-                        ? <GexStrikeTable rows={displayData?.strikes || []} spot={livespot?.spot ?? displayData?.spot} />
-                        : view === "grid"
-                        ? <DomHeatmap data={displayData} spot={livespot?.spot ?? displayData?.spot} ticker={ticker} />
-                        : <BarHeatmap data={displayData} filters={filters} compact={false} viewMode={viewMode} />
-                    ) : (
-                      <div className="text-slate-500 text-xs p-6 text-center">Loading…</div>
-                    )}
-                  </ErrorBoundary>
-                </div>
-              </div>
-            </main>
-
-            {/* Skylit Dashboard Overlay (new UI) */}
-            <div className="skylit-dashboard-overlay" style={{ display: view === "skylit" ? "flex" : "none" }}>
+            {/* Main Content — Skylit Dashboard (PERMANENT) */}
+            <main className="heatseeker-main" style={{ display: "flex", flexDirection: "column", flex: 1, minHeight: 0, overflow: "hidden" }}>
               <SkylitDashboard
                 ticker={ticker}
                 spot={livespot?.spot ?? data?.spot}
@@ -931,30 +877,20 @@ export default function App() {
                 onCellClick={(strike, colKey, value) => {
                   const row = displayData?.strikes?.find(s => s.strike === strike);
                   setTradeSelection({
-                    ticker,
-                    strike,
-                    expiry: colKey,
-                    spot: livespot?.spot ?? data?.spot,
-                    gex: value,
-                    iv: row?.iv ?? data?.iv,
-                    delta: row?.delta ?? data?.delta,
+                    ticker, strike, expiry: colKey,
+                    spot: livespot?.spot ?? data?.spot, gex: value,
+                    iv: row?.iv ?? data?.iv, delta: row?.delta ?? data?.delta,
                     oi: row?.total_oi ?? row?.oi ?? data?.oi,
-                    call_gex: row?.call_gex,
-                    put_gex: row?.put_gex,
-                    vex: row?.vex,
-                    charm: row?.charm,
+                    call_gex: row?.call_gex, put_gex: row?.put_gex,
+                    vex: row?.vex, charm: row?.charm,
                   });
                 }}
-                onStrikeClick={(strike) => setTradeSelection({
-                  ticker,
-                  strike,
-                  spot: livespot?.spot ?? data?.spot,
-                })}
+                onStrikeClick={(strike) => setTradeSelection({ ticker, strike, spot: livespot?.spot ?? data?.spot })}
                 isLive={!!livespot}
                 regime={data?.nodes?.regime}
                 loading={loading && !data}
               />
-            </div>
+            </main>
           </div>
         )}
 

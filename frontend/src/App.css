@@ -2600,6 +2600,7 @@ button, select, input {
   font-family: "Inter", system-ui, sans-serif;
   color: #c9d1d9;
   overflow: hidden;
+  width: 100%;
 }
 
 /* ── 1. Ticker Bar ── */
