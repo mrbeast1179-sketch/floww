@@ -320,7 +320,8 @@ export default function FlowseekerProBlademap({ active = true }) {
   const typeOf = (p) => String(p.classification || "reg").toUpperCase();
 
   // ---------- render ----------
-  const TABS = [["flow", "FlowSeeker Pro"], ["vol", "Vol Surface"], ["gamma", "Gamma Profile"], ["scanner", "Scanner"], ["academy", "Academy"]];
+  // Focused on institutional smart order flow — dropped Vol Surface (synthetic) + Academy (education).
+  const TABS = [["flow", "Smart Order Flow"], ["gamma", "Dealer Positioning"], ["scanner", "Scanner"]];
   return (
     <div className="fsb-root">
       <div className="fsb-topbar">
