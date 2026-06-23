@@ -28,12 +28,16 @@ const DATA_COLUMNS = [
   { key: "zomma", label: "Zomma", group: "vega" },
 ];
 
-// Default visible columns per view mode
-const DEFAULT_VISIBLE = {
-  gex: ["call_gex", "gex", "put_gex"],
-  vex: ["vex", "call_gex", "put_gex"],
-  charm: ["charm", "gex"],
+// Base columns per view mode — CALL / NET / PUT of that greek. The strike data
+// carries every per-side field (call_vex, put_charm, …), so each mode is real.
+const VIEW_COLUMNS = {
+  gex:    [{ key: "call_gex", label: "Call GEX" },    { key: "gex", label: "Net GEX" },     { key: "put_gex", label: "Put GEX" }],
+  vex:    [{ key: "call_vex", label: "Call VEX" },    { key: "vex", label: "Net VEX" },     { key: "put_vex", label: "Put VEX" }],
+  charm:  [{ key: "call_charm", label: "Call Charm" },{ key: "charm", label: "Net Charm" }, { key: "put_charm", label: "Put Charm" }],
+  skylit: [{ key: "call_gex", label: "Call GEX" },    { key: "gex", label: "Net GEX" },     { key: "put_gex", label: "Put GEX" }],
 };
+// Column-toggle extras appended after the view-mode base.
+const EXTRA_KEYS = ["call_oi", "put_oi", "total_oi", "vega", "vomma", "zomma"];
 
 function fmtHeatmapCell(v) {
   if (v === null || v === undefined || isNaN(v) || v === 0) return "";
@@ -112,13 +116,15 @@ function SkylitHeatmapGrid({
       .sort((a, b) => b.strike - a.strike);
   }, [data]);
 
-  // Determine which columns to show
+  // viewMode is authoritative for the base columns (GEX/VEX/CHARM each show their
+  // OWN greek). The column-toggle bar's OI/Vega/Vomma/Zomma chips append as extras.
   const columns = useMemo(() => {
-    if (visibleColumns) {
-      return DATA_COLUMNS.filter(c => visibleColumns.includes(c.key));
-    }
-    const defaultKeys = DEFAULT_VISIBLE[viewMode] || DEFAULT_VISIBLE.gex;
-    return DATA_COLUMNS.filter(c => defaultKeys.includes(c.key));
+    const base = VIEW_COLUMNS[viewMode] || VIEW_COLUMNS.gex;
+    const extras = (visibleColumns || [])
+      .filter((k) => EXTRA_KEYS.includes(k))
+      .map((k) => DATA_COLUMNS.find((c) => c.key === k))
+      .filter(Boolean);
+    return [...base, ...extras];
   }, [viewMode, visibleColumns]);
 
   // Find max absolute value across all visible columns
