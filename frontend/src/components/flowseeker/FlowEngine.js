@@ -603,3 +603,21 @@ export function scoreColor(score) {
   if (score >= 40) return "#eab308"; // yellow
   return "#ef4444"; // red
 }
+
+// v0.8.4 — alias + sentiment helper for FlowseekerPro.jsx
+export const fmtMoney = formatMoney;
+
+export function sentimentLabel(score) {
+  const s = Number(score) || 0;
+  if (s >= 80) return { label: "EXTREME", color: "#ef4444" };
+  if (s >= 60) return { label: "HIGH", color: "#f97316" };
+  if (s >= 40) return { label: "MODERATE", color: "#eab308" };
+  if (s >= 20) return { label: "LOW", color: "#22c55e" };
+  return { label: "MINIMAL", color: "#64748b" };
+}
+
+// DTE Calculator
+export function dteOf(expiry) {
+  try { return Math.max(0, Math.round((new Date(expiry) - Date.now()) / 86400000)); }
+  catch { return 0; }
+}

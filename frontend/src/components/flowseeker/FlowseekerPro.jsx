@@ -6,8 +6,8 @@
  * 17-column table with virtual scrolling, row expansion, real-time updates
  */
 import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react';
-import { FixedSizeList as List } from 'react-window';
-import { generateSyntheticFlowEvents, fmtMoney, fmtTime, fmtDate, dteOf, sentimentLabel } from './FlowEngine';
+import { List } from 'react-window';
+import { syntheticDataGenerator as generateSyntheticFlowEvents, formatMoney as fmtMoney, formatTime as fmtTime, formatExpiry as fmtDate, dteOf, sentimentLabel } from './FlowEngine';
 import './FlowseekerPro.css';
 
 // ── Filter Bar ───────────────────────────────────────────────────────
@@ -165,7 +165,7 @@ export default function FlowseekerPro({ active = true }) {
   // Generate synthetic data on mount
   useEffect(() => {
     if (!active) return;
-    const initial = generateSyntheticFlowEvents(300);
+    const initial = generateSyntheticFlowEvents({ eventCount: 300 });
     setEvents(initial);
     // Mark first 5 as "new" for animation
     initial.slice(0, 5).forEach(e => newIdsRef.current.add(e.id));
@@ -232,10 +232,8 @@ export default function FlowseekerPro({ active = true }) {
           <span style={{ width: 85 }}>Score</span>
           <span style={{ width: 40 }}></span>
         </div>
-        <List ref={listRef} height={600} itemCount={filtered.length} itemSize={ROW_HEIGHT}
-          itemData={listData} className="fsp-list">
-          {Row}
-        </List>
+        <List ref={listRef} height={600} rowCount={filtered.length} rowHeight={ROW_HEIGHT}
+          rowComponent={Row} rowData={listData} className="fsp-list" />
       </div>
     </div>
   );

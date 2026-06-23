@@ -10403,6 +10403,11 @@ react-style-singleton@^2.2.2, react-style-singleton@^2.2.3:
     get-nonce "^1.0.0"
     tslib "^2.0.0"
 
+react-window@^2.2.7:
+  version "2.2.7"
+  resolved "https://registry.npmjs.org/react-window/-/react-window-2.2.7.tgz"
+  integrity sha512-SH5nvfUQwGHYyriDUAOt7wfPsfG9Qxd6OdzQxl5oQ4dsSsUicqQvjV7dR+NqZ4coY0fUn3w1jnC5PwzIUWEg5w==
+
 react@^19.0.0:
   version "19.2.6"
   resolved "https://registry.npmjs.org/react/-/react-19.2.6.tgz"
