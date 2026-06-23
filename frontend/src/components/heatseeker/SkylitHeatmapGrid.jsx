@@ -15,12 +15,25 @@ import React, { memo, useMemo } from "react";
  */
 
 const DATA_COLUMNS = [
-  { key: "call_gex", label: "Call GEX" },
-  { key: "gex", label: "Net GEX" },
-  { key: "put_gex", label: "Put GEX" },
-  { key: "vex", label: "VEX" },
-  { key: "charm", label: "Charm" },
+  { key: "call_gex", label: "Call GEX", group: "gex" },
+  { key: "gex", label: "Net GEX", group: "gex" },
+  { key: "put_gex", label: "Put GEX", group: "gex" },
+  { key: "call_oi", label: "Call OI", group: "oi" },
+  { key: "put_oi", label: "Put OI", group: "oi" },
+  { key: "total_oi", label: "Total OI", group: "oi" },
+  { key: "vex", label: "VEX", group: "vex" },
+  { key: "vega", label: "Vega", group: "vega" },
+  { key: "charm", label: "Charm", group: "charm" },
+  { key: "vomma", label: "Vomma", group: "vega" },
+  { key: "zomma", label: "Zomma", group: "vega" },
 ];
+
+// Default visible columns per view mode
+const DEFAULT_VISIBLE = {
+  gex: ["call_gex", "gex", "put_gex"],
+  vex: ["vex", "call_gex", "put_gex"],
+  charm: ["charm", "gex"],
+};
 
 function fmtHeatmapCell(v) {
   if (v === null || v === undefined || isNaN(v) || v === 0) return "";
@@ -86,6 +99,7 @@ function SkylitHeatmapGrid({
   data,
   spot = null,
   viewMode = "gex",
+  visibleColumns,
   onCellClick,
   onStrikeClick,
 }) {
@@ -97,24 +111,14 @@ function SkylitHeatmapGrid({
       .sort((a, b) => b.strike - a.strike);
   }, [data]);
 
-  // Determine which columns to show based on viewMode
+  // Determine which columns to show
   const columns = useMemo(() => {
-    if (viewMode === "vex") {
-      return [
-        { key: "call_gex", label: "Call VEX" },
-        { key: "vex", label: "Net VEX" },
-        { key: "put_gex", label: "Put VEX" },
-      ];
+    if (visibleColumns) {
+      return DATA_COLUMNS.filter(c => visibleColumns.includes(c.key));
     }
-    if (viewMode === "charm") {
-      return [
-        { key: "charm", label: "Charm" },
-        { key: "gex", label: "Net GEX" },
-      ];
-    }
-    // Default GEX view
-    return DATA_COLUMNS;
-  }, [viewMode]);
+    const defaultKeys = DEFAULT_VISIBLE[viewMode] || DEFAULT_VISIBLE.gex;
+    return DATA_COLUMNS.filter(c => defaultKeys.includes(c.key));
+  }, [viewMode, visibleColumns]);
 
   // Find max absolute value across all visible columns
   const maxAbs = useMemo(() => {

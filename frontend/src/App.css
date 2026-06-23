@@ -2870,6 +2870,45 @@ button, select, input {
   font-size: 12px;
 }
 
+/* ── Column Toggle Bar ── */
+.skylit-col-bar {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 12px;
+  background: #0d1117;
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.skylit-col-bar::-webkit-scrollbar { display: none; }
+
+.skylit-col-btn {
+  flex-shrink: 0;
+  padding: 3px 10px;
+  font-size: 10px;
+  font-weight: 600;
+  font-family: "JetBrains Mono", ui-monospace, monospace;
+  color: #64748b;
+  background: transparent;
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 120ms ease;
+}
+
+.skylit-col-btn:hover {
+  color: #e2e8f0;
+  border-color: rgba(255,255,255,0.15);
+}
+
+.skylit-col-btn.active {
+  color: #fbbf24;
+  background: rgba(251,191,36,0.1);
+  border-color: rgba(251,191,36,0.25);
+}
+
 .skylit-heatmap-table {
   width: 100%;
   border-collapse: collapse;

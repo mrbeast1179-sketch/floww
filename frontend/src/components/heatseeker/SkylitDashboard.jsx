@@ -43,9 +43,11 @@ function SkylitDashboard({
   regime = null,
   loading = false,
 }) {
+  const [visibleCols, setVisibleCols] = useState(["call_gex", "gex", "put_gex"]);
+
   const handleCellClick = useCallback(
-    (strike, expiry, value) => {
-      if (onCellClick) onCellClick(strike, expiry, value);
+    (strike, colKey, value) => {
+      if (onCellClick) onCellClick(strike, colKey, value);
     },
     [onCellClick]
   );
@@ -56,6 +58,15 @@ function SkylitDashboard({
     },
     [onStrikeClick]
   );
+
+  // Column toggle options
+  const colGroups = [
+    { label: "GEX", cols: ["call_gex", "gex", "put_gex"] },
+    { label: "OI", cols: ["call_oi", "put_oi", "total_oi"] },
+    { label: "VEX", cols: ["vex"] },
+    { label: "Vega", cols: ["vega", "vomma", "zomma"] },
+    { label: "Charm", cols: ["charm"] },
+  ];
 
   return (
     <div className="skylit-full-dashboard">
@@ -82,6 +93,27 @@ function SkylitDashboard({
         onRefresh={onRefresh}
       />
 
+      {/* 2.5 Column Toggle Bar */}
+      <div className="skylit-col-bar">
+        {colGroups.map(g => (
+          <button
+            key={g.label}
+            className={`skylit-col-btn${visibleCols.some(c => g.cols.includes(c)) ? " active" : ""}`}
+            onClick={() => {
+              // Toggle: if all cols in group are visible, remove them; else add them
+              const allVisible = g.cols.every(c => visibleCols.includes(c));
+              if (allVisible) {
+                setVisibleCols(prev => prev.filter(c => !g.cols.includes(c)));
+              } else {
+                setVisibleCols(prev => [...new Set([...prev, ...g.cols])]);
+              }
+            }}
+          >
+            {g.label}
+          </button>
+        ))}
+      </div>
+
       {/* 3. Main Content Area */}
       <div className="skylit-main-area">
         {/* Heatmap Grid */}
@@ -96,6 +128,7 @@ function SkylitDashboard({
             data={data}
             spot={spot}
             viewMode={viewMode}
+            visibleColumns={visibleCols}
             onCellClick={handleCellClick}
             onStrikeClick={handleStrikeClick}
           />
