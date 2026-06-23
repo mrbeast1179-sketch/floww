@@ -884,17 +884,22 @@ export default function App() {
                 onExpiriesChange={setExpiries}
                 onTickerChange={setTicker}
                 onRefresh={() => { setErr(null); fetchData(); }}
-                onCellClick={(strike, expiry, value) => {
-                  // Open quick trade panel on cell click
+                onCellClick={(strike, colKey, value) => {
+                  // Open quick trade panel on cell click (trade mode)
+                  const row = displayData?.strikes?.find(s => s.strike === strike);
                   setTradeSelection({
                     ticker,
                     strike,
-                    expiry,
+                    expiry: colKey,
                     spot: livespot?.spot ?? data?.spot,
                     gex: value,
-                    iv: data?.iv,
-                    delta: data?.delta,
-                    oi: data?.oi,
+                    iv: row?.iv ?? data?.iv,
+                    delta: row?.delta ?? data?.delta,
+                    oi: row?.total_oi ?? row?.oi ?? data?.oi,
+                    call_gex: row?.call_gex,
+                    put_gex: row?.put_gex,
+                    vex: row?.vex,
+                    charm: row?.charm,
                   });
                 }}
                 onStrikeClick={(strike) => setTradeSelection({

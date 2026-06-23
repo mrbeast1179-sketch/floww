@@ -54,7 +54,7 @@ export default function QuickTradePanel({ selection, onClose, onSubmit }) {
 
   if (!selection) return null;
 
-  const { ticker, strike, spot, gex, iv, delta, oi, call_gex, put_gex } = selection;
+  const { ticker, strike, spot, gex, iv, delta, oi, call_gex, put_gex, vex, charm } = selection;
   const isCall = strategy.includes("call") || strategy === "straddle" || strategy === "iron_condor";
   const isBuy = strategy.startsWith("buy");
 
@@ -62,6 +62,14 @@ export default function QuickTradePanel({ selection, onClose, onSubmit }) {
   const estPrice = iv ? (spot * iv * 0.01).toFixed(2) : "—";
   const maxRisk = isBuy ? (parseFloat(estPrice) * quantity * 100).toFixed(0) : "Unlimited";
   const maxReward = isBuy ? "Unlimited" : (parseFloat(estPrice) * quantity * 100).toFixed(0);
+
+  const fmtGex = (v) => {
+    if (v == null) return "—";
+    const a = Math.abs(v);
+    if (a >= 1e6) return (v / 1e6).toFixed(1) + "M";
+    if (a >= 1e3) return (v / 1e3).toFixed(1) + "K";
+    return v.toFixed(0);
+  };
 
   return (
     <div className="quick-trade-overlay" onClick={onClose}>
@@ -100,7 +108,27 @@ export default function QuickTradePanel({ selection, onClose, onSubmit }) {
           </div>
           <div className="quick-trade-stat">
             <span className="quick-trade-stat-label">OI</span>
-            <span className="quick-trade-stat-value text-slate-400">{oi ? (oi / 1e3).toFixed(0) + "K" : "—"}</span>
+            <span className="quick-trade-stat-value text-slate-400">{oi ? fmtGex(oi) : "—"}</span>
+          </div>
+          <div className="quick-trade-stat">
+            <span className="quick-trade-stat-label">VEX</span>
+            <span className={`quick-trade-stat-value ${vex >= 0 ? "text-emerald-400" : "text-rose-400"}`}>
+              {vex != null ? fmtGex(vex) : "—"}
+            </span>
+          </div>
+          <div className="quick-trade-stat">
+            <span className="quick-trade-stat-label">Charm</span>
+            <span className={`quick-trade-stat-value ${charm >= 0 ? "text-emerald-400" : "text-rose-400"}`}>
+              {charm != null ? fmtGex(charm) : "—"}
+            </span>
+          </div>
+          <div className="quick-trade-stat">
+            <span className="quick-trade-stat-label">Call GEX</span>
+            <span className="quick-trade-stat-value text-emerald-400">{call_gex != null ? fmtGex(call_gex) : "—"}</span>
+          </div>
+          <div className="quick-trade-stat">
+            <span className="quick-trade-stat-label">Put GEX</span>
+            <span className="quick-trade-stat-value text-rose-400">{put_gex != null ? fmtGex(put_gex) : "—"}</span>
           </div>
         </div>
 
