@@ -818,6 +818,16 @@ export default function App() {
 
                 {/* Filters */}
                 <div className="panel p-3">
+                  <div className="text-slate-500 mb-1 text-[10px]">View</div>
+                  <div className="flex gap-1 mb-2">
+                    <button onClick={() => setView("skylit")} className={`btn flex-1 ${view === "skylit" || view === "grid" ? "active" : ""}`}>2D Grid</button>
+                    <button onClick={() => setView("bar")} className={`btn flex-1 ${view === "bar" ? "active" : ""}`}>Bars</button>
+                    <button onClick={() => setView("chain")} className={`btn flex-1 ${view === "chain" ? "active" : ""}`}>Chain</button>
+                  </div>
+                  <div className="flex gap-1 mb-2">
+                    <button onClick={() => setView("multi")} className={`btn flex-1 ${view === "multi" ? "active" : ""}`}>Multi</button>
+                    <button onClick={() => setView("profile")} className={`btn flex-1 ${view === "profile" ? "active" : ""}`}>Profile</button>
+                  </div>
                   <div className="text-slate-500 mb-1 text-[10px]">Mode</div>
                   <div className="flex gap-1 mb-2">
                     {["day", "swing", "scalp"].map(m => (
@@ -854,8 +864,17 @@ export default function App() {
               </div>
             </aside>
 
-            {/* Main Content — Skylit Dashboard (PERMANENT) */}
+            {/* Main Content — view-switchable: 2D Grid (Skylit) / Bars / Chain / Multi / Profile */}
             <main className="heatseeker-main" style={{ display: "flex", flexDirection: "column", flex: 1, minHeight: 0, overflow: "hidden" }}>
+              {view === "bar" ? (
+                <BarHeatmap data={displayData} filters={filters} compact={false} viewMode={viewMode} />
+              ) : view === "chain" ? (
+                <OptionsChainTable ticker={ticker} spot={livespot?.spot ?? displayData?.spot} />
+              ) : view === "multi" ? (
+                <MultiTickerHeatmap tickers={tickers} />
+              ) : view === "profile" ? (
+                <VolumeProfileGrid data={displayData} spot={livespot?.spot ?? displayData?.spot} />
+              ) : (
               <SkylitDashboard
                 ticker={ticker}
                 spot={livespot?.spot ?? data?.spot}
@@ -890,6 +909,7 @@ export default function App() {
                 regime={data?.nodes?.regime}
                 loading={loading && !data}
               />
+              )}
             </main>
           </div>
         )}
