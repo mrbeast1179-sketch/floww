@@ -43,7 +43,7 @@ function SkylitDashboard({
   regime = null,
   loading = false,
 }) {
-  const [visibleCols, setVisibleCols] = useState(["call_gex", "gex", "put_gex"]);
+  const [visibleCols, setVisibleCols] = useState(["call_gex", "gex", "put_gex", "call_oi", "put_oi", "total_oi", "vex"]);
   const [tradeMode, setTradeMode] = useState(false);
   const [selectedCell, setSelectedCell] = useState(null);
 
