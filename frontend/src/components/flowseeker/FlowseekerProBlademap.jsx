@@ -60,9 +60,60 @@ function rowConviction(p) {
   return { pat: +pat.toFixed(1), size: +size.toFixed(1), stat: +stat.toFixed(1), urg: +urg.toFixed(1), conv };
 }
 
+// ---------- cross-symbol scanner (scenner34 BladeMap grid) ----------
+// A broader universe than the flow watchlist so the scan surfaces hot names
+// (ENPH, AMD, PLTR…) the way a market-wide screen does. Used only as the
+// fallback path — when the efficient backend /scan endpoint is deployed the
+// component prefers that (one call, the whole market).
+const SCAN_UNIVERSE = ["SPY", "QQQ", "IWM", "NVDA", "TSLA", "AAPL", "MSFT", "AMZN", "META", "GOOGL", "AMD", "PLTR", "ENPH", "NFLX", "AVGO", "MU", "COIN", "SMCI"];
+const fmtUSD = (v) => { const n = Math.abs(Number(v) || 0); if (n >= 1e9) return `$${(n / 1e9).toFixed(2)}B`; if (n >= 1e6) return `$${(n / 1e6).toFixed(1)}M`; if (n >= 1e3) return `$${(n / 1e3).toFixed(0)}k`; return `$${Math.round(n)}`; };
+const fmtK = (v) => { const n = Number(v) || 0; if (n >= 1e9) return `${(n / 1e9).toFixed(1)}B`; if (n >= 1e6) return `${(n / 1e6).toFixed(1)}M`; if (n >= 1e3) return `${(n / 1e3).toFixed(0)}k`; return String(Math.round(n)); };
+const fmtIV = (v) => (v == null ? "—" : `${(Number(v) < 1 ? Number(v) * 100 : Number(v)).toFixed(1)}%`);
+// Trading-day DTE — calendar days minus weekends.
+function bizDTE(expStr) {
+  if (!expStr) return null;
+  const end = new Date(`${expStr}T16:00:00Z`), now = Date.now();
+  if (end <= now) return 0;
+  const full = Math.min(Math.floor((end - now) / 86400000), 800); let d = 0; const cur = new Date(now);
+  for (let i = 0; i < full; i++) { cur.setUTCDate(cur.getUTCDate() + 1); const wd = cur.getUTCDay(); if (wd !== 0 && wd !== 6) d++; }
+  return d;
+}
+// Flow-type by volume magnitude + vol/OI — the only signals a print-less feed supports.
+function scanTypeOf(r) {
+  if (r.vol >= 25000) return "sweep";
+  if (r.vol >= 8000) return "block";
+  if (r.volOI >= 2) return "unusual";
+  if (r.volOI >= 1) return "split";
+  return "regular";
+}
+// Flow Score 0-100 — positioning freshness (vol/OI), size, notional, urgency, OTM lean.
+function scanScoreOf(r) {
+  const dl = Math.abs(r.delta || 0);
+  const pos = Math.min(r.volOI / 3, 1);
+  const size = Math.min(Math.log(Math.max(r.vol, 1)) / Math.log(50000), 1);
+  const notl = Math.min(Math.log(Math.max(r.notional, 1)) / Math.log(50e6), 1);
+  const urg = r.dte == null ? 0.3 : (r.dte <= 2 ? 1 : r.dte <= 7 ? 0.7 : r.dte <= 30 ? 0.4 : 0.15);
+  const otm = r.delta == null ? 0.3 : Math.max(0, Math.min((0.5 - dl) / 0.4, 1));
+  const s = pos * 0.34 + size * 0.24 + notl * 0.18 + urg * 0.14 + otm * 0.10;
+  return Math.max(0, Math.min(100, Math.round(s * 100)));
+}
+const scoreGradeOf = (s) => (s >= 80 ? "crit" : s >= 65 ? "high" : s >= 50 ? "elev" : "norm");
+// Build one scanner row from raw live fields (spot not needed — notional = vol×100×strike).
+function mkScanRow(under, type, strike, exp, vol, oi, iv, delta) {
+  const stk = Number(strike) || 0;
+  const volOI = oi > 0 ? vol / oi : (vol > 0 ? 99 : 0);
+  const r = {
+    under, type: String(type || "").toLowerCase().startsWith("c") ? "call" : "put",
+    strike: stk, exp, vol, oi, iv, delta: (delta == null ? null : Number(delta)),
+    volOI, notional: vol * 100 * stk, dte: bizDTE(exp),
+  };
+  r.score = scanScoreOf(r); r.ftype = scanTypeOf(r);
+  return r;
+}
+
 // ---------- component ----------
 export default function FlowseekerProBlademap({ active = true }) {
-  const [tab, setTab] = useState("flow");
+  const [tab, setTab] = useState("scanner");   // land on the cross-symbol scanner (the hero view)
   const [ticker, setTicker] = useState("SPY");
   const [signals, setSignals] = useState([]);     // merged feed, newest first
   const [selected, setSelected] = useState(null);
@@ -72,6 +123,14 @@ export default function FlowseekerProBlademap({ active = true }) {
   const [clock, setClock] = useState("");
   const [plotlyReady, setPlotlyReady] = useState(!!window.Plotly);
   const [volTicker, setVolTicker] = useState("SPY");
+  // cross-symbol scanner state (Scanner tab)
+  const [scan, setScan] = useState([]);
+  const [scanAt, setScanAt] = useState("");
+  const [scanSort, setScanSort] = useState({ key: "score", dir: "desc" });
+  const [scanTypeF, setScanTypeF] = useState("all");
+  const [scanMinVol, setScanMinVol] = useState(0);
+  const [scanMinScore, setScanMinScore] = useState(0);
+  const [scanQ, setScanQ] = useState("");
 
   const microRef = useRef({});            // { vpin, regimeConf, lambdaR2 } for selected ticker
   const gaugeRef = useRef(null), radarRef = useRef(null), ofiRef = useRef(null);
@@ -123,12 +182,18 @@ export default function FlowseekerProBlademap({ active = true }) {
               const iv = Number(vals[iIV]) || 0;
               const last = Number(vals[iLast]) || 0;
               const mid = last || (((Number(vals[iBid]) || 0) + (Number(vals[iAsk]) || 0)) / 2) || estPrice(strike, iv, exp.expiration);
-              const cls = voi >= 1.5 ? "sweep" : voi >= 0.8 ? "unusual" : "block";
+              const premium = Math.round(vol * mid * 100);
+              const dte = dteOf(exp.expiration);
+              // No trade-level tape on cvserver (bid/ask/prints are null), so the old
+              // voi>=1.5 sweep test flagged EVERY row "sweep" (voi runs into the 1000s
+              // here). Classify by live positioning proxies instead: institutional
+              // notional = block, near-term urgency = sweep, otherwise unusual.
+              const cls = premium >= 5e7 ? "block" : dte <= 2 ? "sweep" : "unusual";
               const p = {
                 ticker, type: sideU.toLowerCase(), classification: cls,
                 strike, expiration: exp.expiration, timestamp: Date.now(),
                 volume: vol, oi, vol_oi_ratio: voi, iv: iv < 1 ? iv * 100 : iv,
-                premium: Math.round(vol * mid * 100),
+                premium,
               };
               const cd = rowConviction(p);
               p._conv = cd.conv;
@@ -145,6 +210,60 @@ export default function FlowseekerProBlademap({ active = true }) {
     const id = setInterval(poll, 15000);
     return () => { cancelled = true; ctrl.abort(); clearInterval(id); };
   }, [active, ticker]);
+
+  // ---- cross-symbol market scan (Scanner tab, scenner34 grid) ----
+  // Prefer the efficient backend /scan endpoint (ONE market-wide cvforge screen);
+  // if it isn't deployed yet, fall back to looping the live per-ticker /chain over
+  // a universe. Both are 100% live cvserver day-volume-vs-OI — no synthetic data.
+  useEffect(() => {
+    if (!active) return;
+    let cancelled = false;
+    const ctrl = new AbortController();
+    const run = async () => {
+      // Path A: market-wide backend endpoint (columns: underlying,ticker,type,
+      // strike,exp,day_volume,oi,iv,delta,spot).
+      try {
+        const d = await getJSON(`${API}/scan?limit=300`, ctrl.signal);
+        if (!cancelled && d && Array.isArray(d.rows) && d.rows.length) {
+          const rows = d.rows.map((r) =>
+            mkScanRow(r[0], r[2], r[3], r[4], Number(r[5]) || 0, Number(r[6]) || 0, r[7], r[8]));
+          setScan(rows); setScanAt(new Date().toLocaleTimeString());
+          return;
+        }
+      } catch { /* endpoint not deployed — fall through to the chain loop */ }
+      // Path B: loop the live per-ticker chain over the universe and merge.
+      try {
+        const results = await Promise.all(SCAN_UNIVERSE.map((t) =>
+          getJSON(`${API}/chain/${t}?fields=oi,volume,iv,delta`, ctrl.signal)
+            .then((d) => ({ t, d })).catch(() => null)));
+        if (cancelled) return;
+        const rows = [];
+        for (const res of results) {
+          if (!res || !res.d) continue;
+          const params = res.d.params || [];
+          const vi = (name) => { const i = params.indexOf(name); return i > 0 ? i - 1 : -1; };
+          const iVol = vi("volume"), iOI = vi("openInterest"), iIV = vi("impliedVolatility"), iDelta = vi("delta");
+          for (const exp of (res.d.chain || [])) {
+            for (const s of (exp.strikes || [])) {
+              const strike = s[0];
+              for (const [sideU, vals] of [["call", s[1] || []], ["put", s[2] || []]]) {
+                const vol = Number(vals[iVol]) || 0;
+                if (vol < 1000) continue;   // notable activity only
+                rows.push(mkScanRow(res.t, sideU, strike, exp.expiration, vol,
+                  Number(vals[iOI]) || 0, Number(vals[iIV]) || 0,
+                  iDelta >= 0 ? Number(vals[iDelta]) : null));
+              }
+            }
+          }
+        }
+        rows.sort((a, b) => b.vol - a.vol);
+        setScan(rows.slice(0, 300)); setScanAt(new Date().toLocaleTimeString());
+      } catch { /* keep last data on a transient hiccup */ }
+    };
+    run();
+    const id = setInterval(run, 20000);
+    return () => { cancelled = true; ctrl.abort(); clearInterval(id); };
+  }, [active]);
 
   // ---- per-ticker microstructure (regime pill + selected conviction inputs) ----
   useEffect(() => {
@@ -195,6 +314,51 @@ export default function FlowseekerProBlademap({ active = true }) {
       default: return true;
     }
   }), [signals, filter]);
+
+  // scanner: filter + sort + KPI rollup
+  const scanRows = useMemo(() => {
+    const q = (scanQ || "").trim().toUpperCase();
+    const rows = scan.filter((r) => {
+      if (scanTypeF !== "all" && r.type !== scanTypeF) return false;
+      if (scanMinVol && r.vol < scanMinVol) return false;
+      if (scanMinScore && r.score < scanMinScore) return false;
+      if (q && !(r.under || "").toUpperCase().includes(q)) return false;
+      return true;
+    });
+    const k = scanSort.key, dir = scanSort.dir === "desc" ? -1 : 1;
+    rows.sort((a, b) => {
+      let av = a[k], bv = b[k];
+      if (typeof av === "string" || typeof bv === "string") return String(av).localeCompare(String(bv)) * dir;
+      av = av == null ? -Infinity : av; bv = bv == null ? -Infinity : bv;
+      return (av < bv ? -1 : av > bv ? 1 : 0) * dir;
+    });
+    return rows;
+  }, [scan, scanTypeF, scanMinVol, scanMinScore, scanQ, scanSort]);
+
+  const scanStats = useMemo(() => {
+    let notl = 0, cv = 0, pv = 0, unusual = 0; const cnt = {};
+    for (const r of scanRows) {
+      notl += r.notional;
+      if (r.type === "call") cv += r.vol; else pv += r.vol;
+      if (r.volOI >= 2) unusual++;
+      cnt[r.under] = (cnt[r.under] || 0) + 1;
+    }
+    let top = "—", best = 0;
+    for (const u of Object.keys(cnt)) if (cnt[u] > best) { best = cnt[u]; top = u; }
+    const tv = cv + pv, cpct = tv > 0 ? Math.round((cv / tv) * 100) : 0;
+    return { notl, cpct, tv, unusual, top, best };
+  }, [scanRows]);
+
+  const sortScan = (k) => setScanSort((s) => (s.key === k
+    ? { key: k, dir: s.dir === "desc" ? "asc" : "desc" }
+    : { key: k, dir: (k === "under" || k === "type" || k === "ftype") ? "asc" : "desc" }));
+
+  const SCAN_COLS = [
+    ["score", "Score", false], ["under", "Ticker", true], ["type", "C/P", true],
+    ["strike", "Strike", false], ["dte", "DTE", false], ["vol", "Volume", false],
+    ["oi", "OI", false], ["volOI", "Vol/OI", false], ["notional", "Notional", false],
+    ["iv", "IV", false], ["ftype", "Flow", true], ["lean", "Lean", true],
+  ];
 
   function selectSignal(p) {
     setSelected(p);
@@ -438,11 +602,13 @@ export default function FlowseekerProBlademap({ active = true }) {
                   <div className="fsb-rationale">
                     <div style={{ marginBottom: 6 }}><strong>{typeOf(selected)} {sideOf(selected)} · {fmtMoney(selected.premium)}</strong> on {selected.ticker}</div>
                     <ul>
-                      <li>Classification: {String(selected.classification || "regular")}</li>
-                      <li>Vol/OI ratio: {Number(selected.vol_oi_ratio || 0).toFixed(1)}× (unusual-activity proxy)</li>
-                      <li>Toxicity (VPIN): {microRef.current.vpin != null ? microRef.current.vpin.toFixed(2) : "—"} · Kyle-λ fit R²: {microRef.current.lambdaR2 != null ? microRef.current.lambdaR2.toFixed(2) : "—"}</li>
+                      <li>Classification: {String(selected.classification || "unusual")} — volume/OI positioning proxy (cvserver has no trade-level tape)</li>
+                      <li>Vol/OI ratio: {Number(selected.vol_oi_ratio || 0).toFixed(1)}× · est. notional {fmtMoney(selected.premium)}</li>
+                      {selected._cd && (
+                        <li>Conviction {selected._conv}/99 = pattern {selected._cd.pat} + size {selected._cd.size} + unusualness {selected._cd.stat} + urgency {selected._cd.urg}</li>
+                      )}
                     </ul>
-                    <div className="fsb-muted fsb-small" style={{ marginTop: 6 }}>Regime: {regime.label}. Conviction blends VPIN toxicity, Kyle-λ price impact, regime confidence, and flow pattern.</div>
+                    <div className="fsb-muted fsb-small" style={{ marginTop: 6 }}>Regime: {regime.label}. VPIN toxicity &amp; Kyle-λ price-impact need a trade-level order-flow feed (not available on cvserver) — they populate when a print feed is connected.</div>
                   </div>
                   <div className="fsb-actions">
                     <div className="fsb-panel-h" style={{ marginBottom: 6 }}>Context</div>
@@ -483,26 +649,70 @@ export default function FlowseekerProBlademap({ active = true }) {
           </div>
         </div>
 
-        {/* SCANNER VIEW */}
+        {/* SCANNER VIEW — cross-symbol BladeMap scanner (scenner34 grid) */}
         <div className={`fsb-view${tab === "scanner" ? " active" : ""}`} style={{ gridTemplateColumns: "1fr" }}>
-          <div className="fsb-panel">
-            <div className="fsb-panel-h"><span>Ticker Scanner</span><span className="fsb-muted fsb-small">live · top conviction · {ticker} (cvforge unusual-activity)</span></div>
-            <div className="fsb-flow-wrap">
-              <table className="fsb-table">
-                <thead><tr><th>Ticker</th><th>Type</th><th>Side</th><th className="num">Strike</th><th>DTE</th><th className="num">Day $</th><th className="num">Conv</th></tr></thead>
-                <tbody>
-                  {signals.slice().sort((a, b) => b._conv - a._conv).slice(0, 40).map((p, i) => (
-                    <tr key={`sc-${i}`} onClick={() => { setTab("flow"); selectSignal(p); }}>
-                      <td className="tk">{p.ticker}</td>
-                      <td className={`fsb-type-${typeOf(p).toLowerCase()}`}>{typeOf(p)}</td>
-                      <td className={sideOf(p) === "CALL" ? "fsb-side-call" : "fsb-side-put"}>{sideOf(p)}</td>
-                      <td className="num">{Number(p.strike).toFixed(0)}</td><td>{dteOf(p.expiration)}d</td>
-                      <td className="num">{fmtMoney(p.premium)}</td>
-                      <td className="num"><span className={`fsb-conv-bar${p._conv >= 80 ? "" : p._conv >= 65 ? " mid" : " low"}`} style={{ width: Math.max(8, p._conv) * 0.6 }} />{p._conv}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+          <div className="fsb-scanwrap">
+            <div className="fsb-scanbar">
+              {[
+                ["Contracts", `${scanRows.length} / ${scan.length}`, "b"],
+                ["Notional Σ", fmtUSD(scanStats.notl), ""],
+                ["Call/Put Vol", scanStats.tv > 0 ? `${scanStats.cpct}% / ${100 - scanStats.cpct}%` : "—", scanStats.cpct >= 50 ? "g" : "r"],
+                ["Unusual (≥2×)", String(scanStats.unusual), "y"],
+                ["Top Name", scanStats.top + (scanStats.best ? ` ·${scanStats.best}` : ""), ""],
+                ["Updated", scanAt || "—", ""],
+              ].map(([l, v, c]) => (
+                <div key={l} className="fsb-skpi"><div className="fsb-skl">{l}</div><div className={`fsb-skv ${c}`}>{v}</div></div>
+              ))}
+            </div>
+            <div className="fsb-scanctrl">
+              <select value={scanTypeF} onChange={(e) => setScanTypeF(e.target.value)}>
+                <option value="all">All Types</option><option value="call">Calls</option><option value="put">Puts</option>
+              </select>
+              <input type="number" min="0" step="1000" placeholder="Min Vol" value={scanMinVol || ""} onChange={(e) => setScanMinVol(parseFloat(e.target.value) || 0)} />
+              <input type="number" min="0" max="100" step="5" placeholder="Min Score" value={scanMinScore || ""} onChange={(e) => setScanMinScore(parseFloat(e.target.value) || 0)} />
+              <input placeholder="Ticker…" value={scanQ} onChange={(e) => setScanQ((e.target.value || "").toUpperCase())} />
+              <span className="fsb-scannote">Live cross-symbol flow · cvforge day-volume vs OI. No per-trade tape on this feed — Flow-type = volume-magnitude class; Lean = contract-type bias.</span>
+            </div>
+            <div className="fsb-scantable">
+              {scan.length === 0 ? (
+                <div className="fsb-muted" style={{ padding: 16 }}>Scanning market flow across {SCAN_UNIVERSE.length} symbols…</div>
+              ) : scanRows.length === 0 ? (
+                <div className="fsb-muted" style={{ padding: 16 }}>No contracts pass these filters.</div>
+              ) : (
+                <table className="fsb-stab">
+                  <thead><tr>
+                    {SCAN_COLS.map(([k, t, l]) => (
+                      <th key={k} className={`${l ? "l" : ""}${k === scanSort.key ? " on" : ""}`} onClick={() => sortScan(k)}>
+                        {t}{k === scanSort.key ? (scanSort.dir === "desc" ? " ▾" : " ▴") : ""}
+                      </th>
+                    ))}
+                  </tr></thead>
+                  <tbody>
+                    {scanRows.slice(0, 200).map((r, i) => {
+                      const isCall = r.type === "call";
+                      const otm = r.delta == null ? "" : (Math.abs(r.delta) < 0.45 ? "OTM" : "ITM");
+                      return (
+                        <tr key={`${r.under}-${r.strike}-${r.type}-${r.exp}-${i}`}
+                            className={r.under === ticker ? "sel" : ""}
+                            onClick={() => { setTicker(r.under); setTab("flow"); }}>
+                          <td><span className={`fsb-sc ${scoreGradeOf(r.score)}`}>{r.score}</span></td>
+                          <td className="l"><span className="tk">{r.under}</span> <span className="fsb-sub">{(r.exp || "").slice(5)}</span></td>
+                          <td className={`l ${isCall ? "fsb-tcall" : "fsb-tput"}`}>{isCall ? "CALL" : "PUT"}</td>
+                          <td>{r.strike % 1 === 0 ? r.strike.toFixed(0) : r.strike.toFixed(1)}</td>
+                          <td>{r.dte == null ? "—" : `${r.dte}d`}</td>
+                          <td>{fmtK(r.vol)}</td>
+                          <td>{fmtK(r.oi)}</td>
+                          <td>{r.volOI >= 99 ? "99+" : `${r.volOI.toFixed(1)}x`}</td>
+                          <td>{fmtUSD(r.notional)}</td>
+                          <td>{fmtIV(r.iv)}</td>
+                          <td className="l"><span className={`fsb-flt ${r.ftype}`}>{r.ftype.toUpperCase()}</span></td>
+                          <td className="l"><span className={`fsb-lean ${isCall ? "bull" : "bear"}`}>{isCall ? "▲ BULL" : "▼ BEAR"}</span>{otm ? <span className="fsb-sub"> {otm}</span> : null}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              )}
             </div>
           </div>
         </div>
@@ -526,7 +736,7 @@ export default function FlowseekerProBlademap({ active = true }) {
       </div>
 
       <div className="fsb-foot">
-        <span>Live cvforge data · GEX/OFI/VPIN/Kyle-λ/regime from the decoder backend. Vol surface simulated.</span>
+        <span>Live cvforge data · GEX/OFI/regime from the decoder backend. VPIN/Kyle-λ need a trade-level feed (n/a on cvserver). Vol surface simulated.</span>
         <span>FlowSeeker Pro · Blademap layout</span>
       </div>
     </div>

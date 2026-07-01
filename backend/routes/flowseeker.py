@@ -384,6 +384,64 @@ async def _cvforge_screen(
     return None
 
 
+# ── Market-wide cross-symbol scan (BladeMap scanner grid) ──
+# Powers the FlowSeeker Pro tab: ONE cvforge screen across ALL underlyings
+# ranked by day_volume, so the hottest flow in the whole market surfaces
+# (SPY, NVDA, TSLA, ENPH… whatever is active — not a fixed watchlist).
+# Returns raw {columns, rows}; the frontend computes Flow Score / flow-type /
+# lean exactly like the scenner34 build. Only live cvserver fields are used
+# (day_volume vs OI) — there is no per-trade tape on this feed.
+@router.get("/scan")
+async def market_scan(
+    min_volume: int = Query(1000, ge=0),
+    limit: int = Query(300, ge=1, le=1000),
+):
+    """Cross-symbol options flow scan (day_volume vs OI). Returns {columns, rows, count}."""
+    columns = [
+        "underlying_ticker", "ticker", "contract_type", "strike_price",
+        "expiration_date", "day_volume", "open_interest",
+        "implied_volatility", "delta", "underlying_price",
+    ]
+    if not CVFORGE_API_KEY:
+        raise HTTPException(503, "cvserver API key not configured")
+    headers = {
+        "Content-Type": "application/json",
+        "Authorization": f"Bearer {CVFORGE_API_KEY}",
+    }
+    payload = {
+        "jsonrpc": "2.0",
+        "id": 1,
+        "method": "tools/call",
+        "params": {
+            "name": "screen",
+            "arguments": {
+                "columns": columns,
+                "filters": [{"field": "day_volume", "op": "gt", "value": min_volume}],
+                "sort": [{"field": "day_volume", "direction": "desc"}],
+                "limit": limit,
+            },
+        },
+    }
+    try:
+        async with httpx.AsyncClient(timeout=CVFORGE_TIMEOUT) as client:
+            resp = await client.post(CVFORGE_URL, json=payload, headers=headers)
+            if resp.status_code != 200:
+                raise HTTPException(502, f"cvserver returned {resp.status_code}")
+            result = resp.json()
+            content = result.get("result", {}).get("content", [])
+            if content and content[0].get("type") == "text":
+                d = json.loads(content[0]["text"])
+            else:
+                d = result.get("result", {})
+            rows = d.get("rows", [])
+            return {"columns": columns, "rows": rows, "count": len(rows)}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.warning(f"cvforge scan failed: {e}")
+        raise HTTPException(502, f"scan failed: {e}")
+
+
 @router.get("/alerts/{symbol}")
 async def unusual_activity_alerts(
     symbol: str,
