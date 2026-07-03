@@ -200,8 +200,8 @@ async def chain(
     spot = raw["spot"]
     rows = []
     for c in contracts:
-        gamma = c.get("gamma", 0)
-        oi = c.get("oi", c.get("open_interest", 0))
+        gamma = c.get("gamma", 0) or 0
+        oi = c.get("oi", c.get("open_interest", 0)) or 0
         gex = gamma * oi * 100 * spot * (1 if c["type"] == "call" else -1)
         # Compute T (time to expiry in years) from expiry date string
         expiry_str = c.get("expiry", "")
@@ -213,10 +213,16 @@ async def chain(
             except (ValueError, TypeError):
                 T = 0.0
         strike = c["strike"]
-        iv = c.get("iv", 0)
+        iv = c.get("iv", 0) or 0
         q = DIV_YIELD.get(t, 0.0)
-        vanna = bs_vanna(spot, strike, T, iv, q=q) if spot > 0 and iv > 0 and T > 0 else 0
-        charm = bs_charm(spot, strike, T, iv, q=q, kind=c["type"]) if spot > 0 and iv > 0 and T > 0 else 0
+        try:
+            vanna = bs_vanna(spot, strike, T, iv, q=q) if spot > 0 and iv > 0 and T > 0 else 0
+        except Exception:
+            vanna = 0
+        try:
+            charm = bs_charm(spot, strike, T, iv, q=q, kind=c["type"]) if spot > 0 and iv > 0 and T > 0 else 0
+        except Exception:
+            charm = 0
         moneyness_pct = ((spot - strike) / spot * 100) if spot > 0 else 0
         dte_val = max(1, int(T * 365.25)) if T > 0 else 0
         rows.append({

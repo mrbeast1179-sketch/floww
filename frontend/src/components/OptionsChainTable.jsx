@@ -163,9 +163,9 @@ export default function OptionsChainTable({ ticker, spot }) {
                     <td className="text-right px-1 py-0.5 mono">{r.strike.toFixed(r.strike < 10 ? 2 : 0)}</td>
                     <td className="text-right px-1 py-0.5 text-slate-400">{r.expiry?.slice(5)}</td>
                     <td className="text-right px-1 py-0.5 text-slate-400">{r.dte ?? "—"}</td>
-                    <td className="text-right px-1 py-0.5 mono">{(r.iv * 100).toFixed(1)}%</td>
-                    <td className="text-right px-1 py-0.5 mono">{r.delta.toFixed(2)}</td>
-                    <td className="text-right px-1 py-0.5 mono">{r.gamma.toFixed(4)}</td>
+                    <td className="text-right px-1 py-0.5 mono">{r.iv != null ? (r.iv * 100).toFixed(1) + "%" : "—"}</td>
+                    <td className="text-right px-1 py-0.5 mono">{r.delta != null ? r.delta.toFixed(2) : "—"}</td>
+                    <td className="text-right px-1 py-0.5 mono">{r.gamma != null ? r.gamma.toFixed(4) : "—"}</td>
                     <td className="text-right px-1 py-0.5">{r.oi >= 1000 ? (r.oi / 1000).toFixed(1) + "K" : r.oi}</td>
                     <td className="text-right px-1 py-0.5">{r.volume >= 1000 ? (r.volume / 1000).toFixed(1) + "K" : r.volume}</td>
                     <td className={`text-right px-1 py-0.5 mono ${gexClass}`}>{fmtAbs(r.gex)}</td>

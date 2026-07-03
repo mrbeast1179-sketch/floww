@@ -79,12 +79,19 @@ FIELD_MAP = {
     "underlying_price": "underlying_price",
 }
 
-# Default fields to request from cvserver
-# Keep minimal — each field adds to payload size and parse time
-# For heatmap/GEX we need: expiry, type, strike, iv, oi, underlying_price
+# Default fields to request from cvserver.
+# cvforge-maximization (2026-06-25): we now also pull cvforge's NATIVE greeks
+# (delta/gamma/theta/vega), day_volume, and the underlying day-change fields so
+# GEX, marks, and the Trinity header chips can use cvforge data directly instead
+# of Black-Scholes re-computation / yfinance / blank fields. Trade-level flow
+# (bid/ask/trade_*) is structurally null in this snapshot feed — those stay 0 and
+# will be sourced from the Schwab tape later. Each field adds payload/parse cost;
+# keep this list to what an actual consumer reads.
 DEFAULT_FIELDS = [
     "expiration_date", "strike_price", "contract_type",
     "implied_volatility", "open_interest", "underlying_price",
+    "delta", "gamma", "theta", "vega", "day_volume",
+    "day_change_percent", "day_previous_close",
 ]
 
 # In-memory cache: symbol -> (timestamp, data)

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # launch_decoder.sh
 # One-shot launcher for the Confluence Decoder PWA on macOS.
-# Starts (or reuses) backend + React, then opens the installed Chrome PWA.
+# Starts: MongoDB → FastAPI backend (:8000) → React dev server (:3000) → PWA
 #
 # Usage:
 #   ./scripts/launch_decoder.sh           # smart-start (reuses running services)
@@ -73,8 +73,20 @@ kill_port() {
   fi
 }
 
+# ── 0. MongoDB ───────────────────────────────────────────────────────────────
+echo "[0/4] MongoDB"
+if pgrep -x mongod > /dev/null 2>&1; then
+  echo "  already running ✓"
+else
+  echo "  starting mongod..."
+  mongod --dbpath /opt/homebrew/var/mongodb --logpath /tmp/mongodb.log --fork 2>/dev/null || \
+  mongod --dbpath ~/data/db --logpath /tmp/mongodb.log --fork 2>/dev/null || \
+  echo "  WARN: could not start MongoDB (may need manual start)"
+  sleep 2
+fi
+
 # ── 1. Backend (FastAPI on 8000) ─────────────────────────────────────────────
-echo "[1/3] Backend (port $BACKEND_PORT)"
+echo "[1/4] Backend (port $BACKEND_PORT)"
 if [[ "$RESTART" == "--restart" ]] && port_listening $BACKEND_PORT; then
   kill_port $BACKEND_PORT
 fi
@@ -94,7 +106,7 @@ else
 fi
 
 # ── 2. React (CRA dev server on 3000) ────────────────────────────────────────
-echo "[2/3] React (port $REACT_PORT)"
+echo "[2/4] React (port $REACT_PORT)"
 if [[ "$RESTART" == "--restart" ]] && port_listening $REACT_PORT; then
   kill_port $REACT_PORT
 fi
@@ -112,7 +124,7 @@ else
 fi
 
 # ── 3. Launch the PWA (NOT a Chrome tab) ─────────────────────────────────────
-echo "[3/3] PWA"
+echo "[3/4] PWA"
 # `open -a` launches the .app bundle — Chrome's PWA wrapper opens a borderless
 # window pointed at the URL baked into the bundle (http://localhost:3000/).
 # Using `open URL` here instead would route through the default URL handler

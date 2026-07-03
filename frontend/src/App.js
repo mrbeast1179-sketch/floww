@@ -13,6 +13,7 @@ import GexStrikeTable from "./components/heatseeker/GexStrikeTable";
 import BarHeatmap from "./components/BarHeatmap";
 import PatternCard from "./components/PatternCard";
 import TrinityView from "./components/TrinityView";
+import TrinityVolatility from "./components/TrinityVolatility";
 import QuickTradePanel from "./components/QuickTradePanel";
 import {
   FlipZonesPanel, StackedNodesPanel, TugOfWarPanel, ScenarioPanel,
@@ -58,7 +59,7 @@ import ErrorBoundary from "./components/ErrorBoundary";
 import { RetryButton, ErrorState } from "./components/RetryButton";
 
 
-const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
+const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || "http://localhost:8000";
 const API = `${BACKEND_URL}/api`;
 
 // ============ Velocity Gauge ============
@@ -336,7 +337,7 @@ function FlowAlertsPage({ ticker, token }) {
         // Local backend only (AlphaPod egress removed per Freebuff security policy)
         const base = API;
         const headers = token ? { Authorization: `Bearer ${token}` } : {};
-        const res = await axios.get(`${base}/api/alerts?page=1&page_size=50${ticker && ticker !== "SPY" ? `&ticker=${ticker}` : ""}`, { headers });
+        const res = await axios.get(`${base}/alerts?page=1&page_size=50${ticker && ticker !== "SPY" ? `&ticker=${ticker}` : ""}`, { headers });
         if (mounted) setAlerts(res.data.alerts || res.data || []);
       } catch (e) { /* noop */ }
       if (mounted) setLoading(false);
@@ -350,6 +351,12 @@ function FlowAlertsPage({ ticker, token }) {
     const optType = a.option_type || a.type;
     if (filter === "calls" && optType !== "call" && optType !== "CALL") return false;
     if (filter === "puts" && optType !== "put" && optType !== "PUT") return false;
+    if (filter === "bullish" && !["call","CALL"].includes(optType)) return false;
+    if (filter === "bearish" && !["put","PUT"].includes(optType)) return false;
+    if (filter === "500k" && (a.premium || 0) < 500000) return false;
+    if (filter === "1m" && (a.premium || 0) < 1000000) return false;
+    if (filter === "sweep" && (a.execution || a.exec_type || a.exec || "").toLowerCase() !== "sweep") return false;
+    if (filter === "high" && (a.confidence || a.conf || "").toLowerCase() !== "high") return false;
     if (search && !a.ticker?.toLowerCase().includes(search.toLowerCase())) return false;
     return true;
   });
@@ -510,6 +517,7 @@ export default function App() {
   const [mode, setMode] = useState("day");
   const [filters, setFilters] = useState({ side: "all", lifecycle: "all", magMin: 0 });
   const [expiries, setExpiries] = useState(4);
+  const [trinityTab, setTrinityTab] = useState("gex");
   const [dte, setDte] = useState(null);
   const [drilldown, setDrilldown] = useState(null);
   const [tickers, setTickers] = useState(null);
@@ -733,7 +741,26 @@ export default function App() {
         {/* Trinity View */}
         {page === "trinity" && (
           <div className="legacy-theme p-4 flex-1 overflow-auto" style={{ position: "relative" }}>
-            <TrinityView onFocusTicker={handleFocusTicker} onTradeSelect={setTradeSelection} />
+            {/* Sub-tab toggle */}
+            <div className="flex gap-2 mb-3">
+              <button
+                onClick={() => setTrinityTab("gex")}
+                className={`tv-subtab ${trinityTab === "gex" ? "on" : ""}`}
+              >
+                △ GEX Heatmap
+              </button>
+              <button
+                onClick={() => setTrinityTab("vol")}
+                className={`tv-subtab ${trinityTab === "vol" ? "on" : ""}`}
+              >
+                ◈ Volatility (Skew / Term / RR)
+              </button>
+            </div>
+            {trinityTab === "gex" ? (
+              <TrinityView onFocusTicker={handleFocusTicker} onTradeSelect={setTradeSelection} />
+            ) : (
+              <TrinityVolatility ticker={ticker.startsWith("^") ? ticker.slice(1) : ticker} expiries={8} />
+            )}
             <QuickTradePanel
               selection={tradeSelection}
               onClose={() => setTradeSelection(null)}
@@ -866,7 +893,7 @@ export default function App() {
 
             {/* Main Content — view-switchable: 2D Grid (Skylit) / Bars / Chain / Multi / Profile */}
             <main className="heatseeker-main" style={{ display: "flex", flexDirection: "column", flex: 1, minHeight: 0, overflow: "hidden" }}>
-              {view === "bar" ? (
+{view === "bar" ? (
                 <BarHeatmap data={displayData} filters={filters} compact={false} viewMode={viewMode} />
               ) : view === "chain" ? (
                 <OptionsChainTable ticker={ticker} spot={livespot?.spot ?? displayData?.spot} />
@@ -874,41 +901,77 @@ export default function App() {
                 <MultiTickerHeatmap tickers={tickers} />
               ) : view === "profile" ? (
                 <VolumeProfileGrid data={displayData} spot={livespot?.spot ?? displayData?.spot} />
+              ) : view === "skylit" || view === "grid" ? (
+                <SkylitDashboard
+                  ticker={ticker}
+                  spot={livespot?.spot ?? data?.spot}
+                  change={livespot?.change ?? data?.change}
+                  changePct={livespot?.change_pct ?? data?.change_pct}
+                  data={displayData}
+                  viewMode={viewMode}
+                  onViewModeChange={setViewMode}
+                  timeframe={mode === "scalp" ? "1m" : mode === "swing" ? "1h" : "5m"}
+                  onTimeframeChange={(tf) => {
+                    if (tf === "1m") setMode("scalp");
+                    else if (tf === "1h") setMode("swing");
+                    else setMode("day");
+                  }}
+                  expiries={expiries}
+                  onExpiriesChange={setExpiries}
+                  onTickerChange={setTicker}
+                  onRefresh={() => { setErr(null); fetchData(); }}
+                  onCellClick={(strike, colKey, value) => {
+                    const row = displayData?.strikes?.find(s => s.strike === strike);
+                    setTradeSelection({
+                      ticker, strike, expiry: colKey,
+                      spot: livespot?.spot ?? data?.spot, gex: value,
+                      iv: row?.iv ?? data?.iv, delta: row?.delta ?? data?.delta,
+                      oi: row?.total_oi ?? row?.oi ?? data?.oi,
+                      call_gex: row?.call_gex, put_gex: row?.put_gex,
+                      vex: row?.vex, charm: row?.charm,
+                    });
+                  }}
+                  onStrikeClick={(strike) => setTradeSelection({ ticker, strike, spot: livespot?.spot ?? data?.spot })}
+                  isLive={!!livespot}
+                  regime={data?.nodes?.regime}
+                  loading={loading && !data}
+                />
               ) : (
-              <SkylitDashboard
-                ticker={ticker}
-                spot={livespot?.spot ?? data?.spot}
-                change={livespot?.change ?? data?.change}
-                changePct={livespot?.change_pct ?? data?.change_pct}
-                data={displayData}
-                viewMode={viewMode}
-                onViewModeChange={setViewMode}
-                timeframe={mode === "scalp" ? "1m" : mode === "swing" ? "1h" : "5m"}
-                onTimeframeChange={(tf) => {
-                  if (tf === "1m") setMode("scalp");
-                  else if (tf === "1h") setMode("swing");
-                  else setMode("day");
-                }}
-                expiries={expiries}
-                onExpiriesChange={setExpiries}
-                onTickerChange={setTicker}
-                onRefresh={() => { setErr(null); fetchData(); }}
-                onCellClick={(strike, colKey, value) => {
-                  const row = displayData?.strikes?.find(s => s.strike === strike);
-                  setTradeSelection({
-                    ticker, strike, expiry: colKey,
-                    spot: livespot?.spot ?? data?.spot, gex: value,
-                    iv: row?.iv ?? data?.iv, delta: row?.delta ?? data?.delta,
-                    oi: row?.total_oi ?? row?.oi ?? data?.oi,
-                    call_gex: row?.call_gex, put_gex: row?.put_gex,
-                    vex: row?.vex, charm: row?.charm,
-                  });
-                }}
-                onStrikeClick={(strike) => setTradeSelection({ ticker, strike, spot: livespot?.spot ?? data?.spot })}
-                isLive={!!livespot}
-                regime={data?.nodes?.regime}
-                loading={loading && !data}
-              />
+                <SkylitDashboard
+                  ticker={ticker}
+                  spot={livespot?.spot ?? data?.spot}
+                  change={livespot?.change ?? data?.change}
+                  changePct={livespot?.change_pct ?? data?.change_pct}
+                  data={displayData}
+                  viewMode={viewMode}
+                  onViewModeChange={setViewMode}
+                  timeframe={mode === "scalp" ? "1m" : mode === "swing" ? "1h" : "5m"}
+                  onTimeframeChange={(tf) => {
+                    if (tf === "1m") setMode("scalp");
+                    else if (tf === "1h") setMode("swing");
+                    else setMode("day");
+                  }}
+                  expiries={expiries}
+                  onExpiriesChange={setExpiries}
+                  onTickerChange={setTicker}
+                  onRefresh={() => { setErr(null); fetchData(); }}
+                  onCellClick={(strike, colKey, value) => {
+                    const row = displayData?.strikes?.find(s => s.strike === strike);
+                    setTradeSelection({
+                      ticker, strike, expiry: colKey,
+                      spot: livespot?.spot ?? data?.spot, gex: value,
+                      iv: row?.iv ?? data?.iv, delta: row?.delta ?? data?.delta,
+                      oi: row?.total_oi ?? row?.oi ?? data?.oi,
+                      call_gex: row?.call_gex, put_gex: row?.put_gex,
+                      vex: row?.vex, charm: row?.charm,
+                    });
+                  }}
+                  onStrikeClick={(strike) => setTradeSelection({ ticker, strike, spot: livespot?.spot ?? data?.spot })}
+                  isLive={!!livespot}
+                  regime={data?.nodes?.regime}
+                  loading={loading && !data}
+                />
+              )}
               )}
             </main>
           </div>

@@ -107,6 +107,19 @@ async def _logged_task(coro, name: str):
 app = FastAPI(title="Confluence Decoder")
 app.add_middleware(CorrelationIdMiddleware)
 
+# ----------------------------- Safe Float Helper -----------------------------
+def safe_float(v, default=0.0):
+    """Safely convert a value to float, handling None and NaN."""
+    if v is None:
+        return default
+    try:
+        f = float(v)
+        if math.isnan(f) or math.isinf(f):
+            return default
+        return f
+    except (TypeError, ValueError):
+        return default
+
 # ----------------------------- Rate Limiting -----------------------------
 from collections import defaultdict
 
@@ -891,7 +904,9 @@ async def fetch_spot_and_chains_merged(ticker: str, max_expiries: int = 4) -> di
     today = datetime.now(UTC).date()
     iv_lists: dict[str, list] = {}
     for c in yf_data["contracts"]:
-        iv_lists.setdefault(c["expiry"], []).append(c["iv"])
+        iv = c.get("iv")
+        if iv is not None and iv == iv:  # skip None and NaN
+            iv_lists.setdefault(c["expiry"], []).append(iv)
     iv_avg_by_expiry: dict[str, float] = {e: (sum(vs) / len(vs)) for e, vs in iv_lists.items() if vs}
 
     for (strike, expiry, typ), oi in dbn_map.items():
@@ -924,21 +939,27 @@ def compute_gex_by_strike(spot: float, contracts: list[dict[str, Any]], ticker: 
     q = DIV_YIELD.get(ticker, 0.0)
     agg: dict[float, dict[str, float]] = {}
     for c in contracts:
-        oi = c.get("oi", 0) or 0
-        if oi <= 0 or (isinstance(oi, float) and math.isnan(oi)):
+        oi = safe_float(c.get("oi"))
+        if oi <= 0:
             continue
-        iv = c.get("iv")
-        if iv is None or (isinstance(iv, float) and math.isnan(iv)):
+        iv = safe_float(c.get("iv"))
+        if iv <= 0:
             continue
-        T = c.get("T", 0) or 0
+        T = safe_float(c.get("T"))
         if T <= 0:
             continue
-        gamma = bs_gamma(spot, c["strike"], T, iv, q=q)
-        vanna = bs_vanna(spot, c["strike"], T, iv, q=q)
-        vega_val = bs_vega(spot, c["strike"], T, iv, q=q)
-        charm = bs_charm(spot, c["strike"], T, iv, q=q, kind=c["type"])
-        vomma = bs_vomma(spot, c["strike"], T, iv, q=q)
-        zomma = bs_zomma(spot, c["strike"], T, iv, q=q)
+        strike = safe_float(c.get("strike"))
+        if strike <= 0:
+            continue
+        try:
+            gamma = float(bs_gamma(spot, strike, T, iv, q=q) or 0)
+            vanna = float(bs_vanna(spot, strike, T, iv, q=q) or 0)
+            vega_val = float(bs_vega(spot, strike, T, iv, q=q) or 0)
+            charm = float(bs_charm(spot, strike, T, iv, q=q, kind=c["type"]) or 0)
+            vomma = float(bs_vomma(spot, strike, T, iv, q=q) or 0)
+            zomma = float(bs_zomma(spot, strike, T, iv, q=q) or 0)
+        except (TypeError, ValueError):
+            continue
         if gamma <= 0 and abs(vanna) <= 0:
             continue
         gex_unit = dollar_gex_per_contract(gamma, oi, spot)
