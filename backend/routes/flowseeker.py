@@ -391,12 +391,48 @@ async def _cvforge_screen(
 # Returns raw {columns, rows}; the frontend computes Flow Score / flow-type /
 # lean exactly like the scenner34 build. Only live cvserver fields are used
 # (day_volume vs OI) — there is no per-trade tape on this feed.
+# ── /scan cache + 429 backoff ──
+_scan_cache: dict[str, dict] = {}                # "min_volume:limit" → {ts, data, asof}
+_SCAN_TTL = 60                                   # seconds
+_scan_backoff = {"until": 0.0, "delay": 30.0}    # exponential, capped at 600s
+
+
+def _cached_regimes() -> dict[str, str]:
+    """Per-ticker gamma regime from the heatmap cache — cache-only, no fetches."""
+    try:
+        import server  # deferred: circular import
+
+        out: dict[str, str] = {}
+        now = time.time()
+        for key, entry in list(getattr(server, "_BUILD_HEATMAP_CACHE", {}).items()):
+            if now - entry.get("ts", 0) > 900:
+                continue
+            reg = ((entry.get("data") or {}).get("nodes") or {}).get("regime")
+            if reg:
+                out[key.split(":", 1)[0]] = reg
+        return out
+    except Exception:
+        return {}
+
+
+def _scan_payload(rows: list, stale: bool, asof: str, columns: list) -> dict:
+    return {
+        "columns": columns, "rows": rows, "count": len(rows),
+        "source": "cvserver-screen", "stale": stale, "asof": asof,
+        "regimes": _cached_regimes(),
+    }
+
+
 @router.get("/scan")
 async def market_scan(
     min_volume: int = Query(1000, ge=0),
     limit: int = Query(300, ge=1, le=1000),
 ):
-    """Cross-symbol options flow scan (day_volume vs OI). Returns {columns, rows, count}."""
+    """
+    Cross-symbol options flow scan (day_volume vs OI).
+    60s-cached; on upstream 429 backs off exponentially and serves the last
+    good result marked stale=true rather than collapsing to a client fallback.
+    """
     columns = [
         "underlying_ticker", "ticker", "contract_type", "strike_price",
         "expiration_date", "day_volume", "open_interest",
@@ -404,6 +440,22 @@ async def market_scan(
     ]
     if not CVFORGE_API_KEY:
         raise HTTPException(503, "cvserver API key not configured")
+
+    cache_key = f"{min_volume}:{limit}"
+    now = time.time()
+    cached = _scan_cache.get(cache_key)
+    if cached and now - cached["ts"] < _SCAN_TTL:
+        return _scan_payload(cached["data"], False, cached["asof"], columns)
+
+    def _stale_or(status: int, detail: str):
+        best = cached or (max(_scan_cache.values(), key=lambda e: e["ts"]) if _scan_cache else None)
+        if best:
+            return _scan_payload(best["data"], True, best["asof"], columns)
+        raise HTTPException(status, detail)
+
+    if now < _scan_backoff["until"]:
+        return _stale_or(503, f"cvserver rate-limited; retrying after {int(_scan_backoff['until'] - now)}s")
+
     headers = {
         "Content-Type": "application/json",
         "Authorization": f"Bearer {CVFORGE_API_KEY}",
@@ -425,8 +477,13 @@ async def market_scan(
     try:
         async with httpx.AsyncClient(timeout=CVFORGE_TIMEOUT) as client:
             resp = await client.post(CVFORGE_URL, json=payload, headers=headers)
+            if resp.status_code == 429:
+                _scan_backoff["until"] = now + _scan_backoff["delay"]
+                _scan_backoff["delay"] = min(_scan_backoff["delay"] * 2, 600.0)
+                logger.warning("cvforge scan 429 — backing off %ss", int(_scan_backoff["delay"]))
+                return _stale_or(503, "cvserver rate-limited (429), no cached scan yet")
             if resp.status_code != 200:
-                raise HTTPException(502, f"cvserver returned {resp.status_code}")
+                return _stale_or(502, f"cvserver returned {resp.status_code}")
             result = resp.json()
             content = result.get("result", {}).get("content", [])
             if content and content[0].get("type") == "text":
@@ -434,12 +491,15 @@ async def market_scan(
             else:
                 d = result.get("result", {})
             rows = d.get("rows", [])
-            return {"columns": columns, "rows": rows, "count": len(rows)}
+            _scan_backoff["delay"] = 30.0
+            asof = datetime.now().isoformat()
+            _scan_cache[cache_key] = {"ts": now, "data": rows, "asof": asof}
+            return _scan_payload(rows, False, asof, columns)
     except HTTPException:
         raise
     except Exception as e:
         logger.warning(f"cvforge scan failed: {e}")
-        raise HTTPException(502, f"scan failed: {e}")
+        return _stale_or(502, f"scan failed: {e}")
 
 
 @router.get("/alerts/{symbol}")
