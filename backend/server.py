@@ -423,10 +423,11 @@ def cache_set(key: str, data: Any):
 def compute_gex_grid(spot: float, contracts: list[dict[str, Any]], ticker: str = "") -> dict[str, Any]:
     """2D grid: GEX per (strike, expiry). Skylit-style heatmap layout."""
     if spot <= 0 or not contracts:
-        return {"expiries": [], "strikes": [], "grid": {}, "charm_grid": {}}
+        return {"expiries": [], "strikes": [], "grid": {}, "charm_grid": {}, "vex_grid": {}}
     q = DIV_YIELD.get(ticker, 0.0)
     grid: dict[str, dict[float, float]] = {}
     charm_grid: dict[str, dict[float, float]] = {}
+    vex_grid: dict[str, dict[float, float]] = {}
     strike_totals: dict[float, float] = {}
     for c in contracts:
         oi = c.get("oi", 0) or 0
@@ -440,17 +441,22 @@ def compute_gex_grid(spot: float, contracts: list[dict[str, Any]], ticker: str =
             continue
         gamma = bs_gamma(spot, c["strike"], T, iv, q=q)
         charm = bs_charm(spot, c["strike"], T, iv, q=q, kind=c["type"])
+        vanna = bs_vanna(spot, c["strike"], T, iv, q=q)
         if gamma <= 0:
             continue
         gex_unit = dollar_gex_per_contract(gamma, c["oi"], spot)
         charm_unit = dollar_charm_per_contract(charm, c["oi"], spot)
+        vex_unit = dollar_vex_per_contract(vanna, c["oi"], spot)
         sign = 1.0 if c["type"] == "call" else -1.0
         cell = sign * gex_unit
         charm_cell = sign * charm_unit
+        vex_cell = sign * vex_unit
         d = grid.setdefault(c["expiry"], {})
         d[c["strike"]] = d.get(c["strike"], 0.0) + cell
         dc = charm_grid.setdefault(c["expiry"], {})
         dc[c["strike"]] = dc.get(c["strike"], 0.0) + charm_cell
+        dv = vex_grid.setdefault(c["expiry"], {})
+        dv[c["strike"]] = dv.get(c["strike"], 0.0) + vex_cell
         strike_totals[c["strike"]] = strike_totals.get(c["strike"], 0.0) + cell
 
     expiries = sorted(grid.keys())
@@ -464,6 +470,7 @@ def compute_gex_grid(spot: float, contracts: list[dict[str, Any]], ticker: str =
         "strikes": strikes,
         "grid": {e: {_k(k): v for k, v in grid[e].items()} for e in expiries},
         "charm_grid": {e: {_k(k): v for k, v in charm_grid[e].items()} for e in expiries},
+        "vex_grid": {e: {_k(k): v for k, v in vex_grid[e].items()} for e in expiries},
         "strike_totals": [{"strike": k, "gex": v} for k, v in sorted(strike_totals.items())],
     }
 # Import from shared module to avoid circular imports with portfolio.py

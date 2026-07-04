@@ -1,24 +1,25 @@
 import React, { memo, useEffect, useMemo, useRef } from "react";
 
 /**
- * SkylitHeatmapGrid — Trinity/Skylit single-bar heatmap
+ * SkylitHeatmapGrid — Skylit heatseeker matrix
  *
- * Matches the Skylit TRINITY panel reference:
- * - Left rail: strike prices (descending, sticky); spot row gets a white
- *   chip with a notch pointing at the row
- * - One full-width bar per strike, colored on a viridis scale over the
- *   SIGNED metric value (deep purple = most negative … yellow = max)
- * - Value right-aligned inside the bar ("$5,621.1K"), king row bold + ★
- * - % change badge vs the previous data refresh, left inside the bar
- * - Right rail: KING / FLR / CEIL / GK / AIR markers (same sources as the
- *   metrics sidebar, so grid and sidebar always agree)
- * - Bottom min→max viridis legend
+ * Matches the Skylit reference exactly: a 2D matrix of
+ *   STRIKE rows (descending, sticky left rail) × EXPIRATION-DATE columns.
+ * Each cell is the GEX / VEX / CHARM at that (strike, expiry), colored on a
+ * viridis scale over the signed value across the whole matrix.
  *
- * Data shape: data.strikes[] ({ strike, gex, vex, charm, … }) plus
- * data.nodes ({ king, floors, ceilings, gatekeepers, air_pockets }).
+ * - Strike rail: sticky; the row closest to spot gets a white chip + notch
+ * - King cell (max |value| in the matrix): bordered + ★
+ * - % badge per cell: change vs the previous data refresh (asof-guarded)
+ * - Column headers: expiry dates (MM-DD, full date in the title tooltip)
+ * - Bottom legend: min → max viridis gradient
+ *
+ * Data source: data.grid = { expiries[], strikes[], grid, vex_grid,
+ * charm_grid } where grid[expiry][strikeKey] is the value. strikeKey is the
+ * integer string when whole, else the float string (backend _k()).
  */
 
-const METRIC_BY_VIEW = { gex: "gex", vex: "vex", charm: "charm", skylit: "gex" };
+const GRID_BY_VIEW = { gex: "grid", vex: "vex_grid", charm: "charm_grid", skylit: "grid" };
 
 // Viridis stops, most-negative → max
 const VIRIDIS = [
@@ -36,21 +37,27 @@ function viridis(t) {
 }
 
 function fmtK(v) {
-  if (v === null || v === undefined || isNaN(v) || v === 0) return "";
+  if (v === null || v === undefined || isNaN(v)) return "";
   const sign = v < 0 ? "-" : "";
   const a = Math.abs(v);
+  if (a < 50) return `${sign}$0.0K`;
   if (a >= 1e9) {
     return `${sign}$${(a / 1e6).toLocaleString("en-US", { minimumFractionDigits: 1, maximumFractionDigits: 1 })}M`;
   }
   return `${sign}$${(a / 1e3).toLocaleString("en-US", { minimumFractionDigits: 1, maximumFractionDigits: 1 })}K`;
 }
 
+function strikeKey(s) {
+  return Number.isInteger(s) ? String(s) : String(s);
+}
 function fmtStrike(s) {
   return s >= 1000 ? s.toFixed(0) : s.toFixed(1);
 }
-
-// Marker priority when a strike earns more than one
-const MARKER_ORDER = ["KING", "FLR", "CEIL", "GK", "AIR"];
+function fmtExpiry(e) {
+  // "2026-07-06" → "07-06"
+  const m = /^\d{4}-(\d{2})-(\d{2})$/.exec(e);
+  return m ? `${m[1]}-${m[2]}` : e;
+}
 
 function SkylitHeatmapGrid({
   data,
@@ -60,110 +67,98 @@ function SkylitHeatmapGrid({
   onCellClick,
   onStrikeClick,
 }) {
-  const metricKey = METRIC_BY_VIEW[viewMode] || "gex";
+  const gridKey = GRID_BY_VIEW[viewMode] || "grid";
 
-  const rows = useMemo(() => {
-    if (!data?.strikes) return [];
-    return data.strikes
-      .filter((s) => s.strike != null)
-      .sort((a, b) => b.strike - a.strike);
-  }, [data]);
+  const g = data?.grid || null;
+  const expiries = useMemo(() => (g?.expiries ? [...g.expiries] : []), [g]);
+  const matrix = useMemo(() => (g?.[gridKey] || {}), [g, gridKey]);
 
-  // Signed min/max over the visible metric for the viridis scale
+  // Strikes descending. Prefer grid.strikes; fall back to data.strikes.
+  const strikes = useMemo(() => {
+    const src = g?.strikes?.length ? g.strikes : (data?.strikes || []).map((s) => s.strike);
+    return [...new Set(src)].filter((s) => s != null).sort((a, b) => b - a);
+  }, [g, data]);
+
+  const cellVal = (expiry, strike) => {
+    const col = matrix[expiry];
+    if (!col) return null;
+    const v = col[strikeKey(strike)];
+    return v === undefined ? null : v;
+  };
+
+  // Signed min/max across the whole matrix for the viridis scale
   const [minV, maxV] = useMemo(() => {
     let lo = 0, hi = 0;
-    for (const row of rows) {
-      const v = row[metricKey] || 0;
-      if (v < lo) lo = v;
-      if (v > hi) hi = v;
+    for (const e of expiries) {
+      const col = matrix[e] || {};
+      for (const k in col) {
+        const v = col[k];
+        if (v < lo) lo = v;
+        if (v > hi) hi = v;
+      }
     }
     return [lo, hi];
-  }, [rows, metricKey]);
+  }, [expiries, matrix]);
 
-  // King row for THIS metric: max |value| → bold + ★
-  const starStrike = useMemo(() => {
+  // King cell: max |value| across the matrix
+  const king = useMemo(() => {
     let best = null, bestAbs = 0;
-    for (const row of rows) {
-      const a = Math.abs(row[metricKey] || 0);
-      if (a > bestAbs) { bestAbs = a; best = row.strike; }
+    for (const e of expiries) {
+      const col = matrix[e] || {};
+      for (const k in col) {
+        const a = Math.abs(col[k]);
+        if (a > bestAbs) { bestAbs = a; best = { expiry: e, strikeKey: k }; }
+      }
     }
     return best;
-  }, [rows, metricKey]);
+  }, [expiries, matrix]);
 
   // Spot row (closest strike to spot)
   const spotStrike = useMemo(() => {
-    if (spot == null || !rows.length) return null;
-    let best = rows[0].strike, bestDist = Math.abs(rows[0].strike - spot);
-    for (let i = 1; i < rows.length; i++) {
-      const d = Math.abs(rows[i].strike - spot);
-      if (d < bestDist) { bestDist = d; best = rows[i].strike; }
+    if (spot == null || !strikes.length) return null;
+    let best = strikes[0], bestDist = Math.abs(strikes[0] - spot);
+    for (let i = 1; i < strikes.length; i++) {
+      const d = Math.abs(strikes[i] - spot);
+      if (d < bestDist) { bestDist = d; best = strikes[i]; }
     }
     return best;
-  }, [rows, spot]);
+  }, [strikes, spot]);
 
-  // Side markers — same sources as SkylitMetricsSidebar so they agree
-  const markers = useMemo(() => {
-    const m = new Map();
-    const nodes = data?.nodes || {};
-    const add = (strike, tag) => {
-      if (strike == null) return;
-      const k = Number(strike.strike ?? strike);
-      if (isNaN(k)) return;
-      const arr = m.get(k) || [];
-      if (!arr.includes(tag)) arr.push(tag);
-      m.set(k, arr);
-    };
-    add(nodes.king, "KING");
-    (nodes.floors || []).forEach((f) => add(f, "FLR"));
-    (nodes.ceilings || []).forEach((c) => add(c, "CEIL"));
-    (nodes.gatekeepers || []).forEach((g) => add(g, "GK"));
-    for (const row of data?.strikes || []) {
-      for (const ap of nodes.air_pockets || []) {
-        if (ap?.low != null && ap?.high != null && row.strike >= ap.low && row.strike <= ap.high) {
-          add(row.strike, "AIR");
+  // % change vs previous refresh, per (expiry, strike). asof-guarded so a
+  // repeated cached payload doesn't wipe the snapshot.
+  const prevRef = useRef({ key: null, asof: null, matrix: null });
+  const snapKey = `${ticker}|${gridKey}`;
+  const badges = useMemo(() => {
+    const out = {};
+    const prev = prevRef.current;
+    if (prev.key !== snapKey || !prev.matrix || !data?.asof || prev.asof === data.asof) {
+      return out;
+    }
+    for (const e of expiries) {
+      const col = matrix[e] || {};
+      const pcol = prev.matrix[e] || {};
+      for (const k in col) {
+        const p = pcol[k];
+        if (p != null && p !== 0) {
+          const pct = Math.round(((col[k] - p) / Math.abs(p)) * 100);
+          if (pct !== 0) out[`${e}|${k}`] = Math.max(-999, Math.min(999, pct));
         }
       }
     }
-    for (const [k, arr] of m) {
-      arr.sort((a, b) => MARKER_ORDER.indexOf(a) - MARKER_ORDER.indexOf(b));
-      m.set(k, arr);
-    }
-    return m;
-  }, [data]);
-
-  // % change vs the previous data refresh (guarded by asof so identical
-  // cached payloads don't wipe the snapshot)
-  const prevRef = useRef({ key: null, asof: null, values: null });
-  const snapKey = `${ticker}|${metricKey}`;
-  const badges = useMemo(() => {
-    const out = new Map();
-    const prev = prevRef.current;
-    if (prev.key !== snapKey || !prev.values || !data?.asof || prev.asof === data.asof) {
-      return out;
-    }
-    for (const row of rows) {
-      const p = prev.values.get(row.strike);
-      const v = row[metricKey] || 0;
-      if (p != null && p !== 0) {
-        const pct = Math.round(((v - p) / Math.abs(p)) * 100);
-        if (pct !== 0) out.set(row.strike, Math.max(-999, Math.min(999, pct)));
-      }
-    }
     return out;
-  }, [rows, metricKey, snapKey, data]);
+  }, [expiries, matrix, snapKey, data]);
 
   useEffect(() => {
     if (!data?.asof) return;
     const prev = prevRef.current;
     if (prev.key === snapKey && prev.asof === data.asof) return;
-    prevRef.current = {
-      key: snapKey,
-      asof: data.asof,
-      values: new Map(rows.map((r) => [r.strike, r[metricKey] || 0])),
-    };
-  }, [rows, metricKey, snapKey, data]);
+    // Deep-copy just the value maps we need
+    const snap = {};
+    for (const e of expiries) snap[e] = { ...(matrix[e] || {}) };
+    prevRef.current = { key: snapKey, asof: data.asof, matrix: snap };
+  }, [expiries, matrix, snapKey, data]);
 
-  if (!rows.length) {
+  if (!expiries.length || !strikes.length) {
     return (
       <div className="skylit-heatmap-empty">
         <span>No heatmap data available</span>
@@ -177,52 +172,60 @@ function SkylitHeatmapGrid({
     <div className="skylit-heatmap-wrapper">
       <div className="skylit-heatmap-container">
         <table className="trin-grid-table">
+          <thead>
+            <tr>
+              <th className="trin-th-strike">Strike</th>
+              {expiries.map((e) => (
+                <th key={e} className="trin-th-exp" title={e}>{fmtExpiry(e)}</th>
+              ))}
+            </tr>
+          </thead>
           <tbody>
-            {rows.map((row) => {
-              const v = row[metricKey] || 0;
-              const t = range > 0 ? (v - minV) / range : 0.5;
-              const bright = t > 0.55;
-              const isStar = row.strike === starStrike && v !== 0;
-              const isSpot = row.strike === spotStrike;
-              const pct = badges.get(row.strike);
-              const marks = markers.get(row.strike);
+            {strikes.map((strike) => {
+              const isSpot = strike === spotStrike;
+              const sk = strikeKey(strike);
               return (
-                <tr key={row.strike} className="trin-row">
+                <tr key={strike} className="trin-row">
                   <td
                     className="trin-strike-cell"
-                    onClick={() => onStrikeClick && onStrikeClick(row.strike)}
+                    onClick={() => onStrikeClick && onStrikeClick(strike)}
                   >
                     {isSpot ? (
-                      <span className="trin-spot-chip">{fmtStrike(row.strike)}</span>
+                      <span className="trin-spot-chip">{fmtStrike(strike)}</span>
                     ) : (
-                      <span className="trin-strike">{fmtStrike(row.strike)}</span>
+                      <span className="trin-strike">{fmtStrike(strike)}</span>
                     )}
                   </td>
-                  <td
-                    className="trin-bar-cell"
-                    style={{ background: viridis(t), color: bright ? "#000" : "#fff" }}
-                    onClick={() => onCellClick && onCellClick(row.strike, metricKey, v)}
-                    title={`Strike ${row.strike} · ${metricKey.toUpperCase()} ${fmtK(v) || "$0"}`}
-                  >
-                    <div className="trin-bar-inner">
-                      {pct != null && (
-                        <span className={`trin-pct ${pct > 0 ? "up" : "down"}`}>
-                          {pct > 0 ? "+" : ""}{pct}%
+                  {expiries.map((e) => {
+                    const v = cellVal(e, strike);
+                    const has = v != null;
+                    const t = has && range > 0 ? (v - minV) / range : 0.5;
+                    const bright = has && t > 0.55;
+                    const isKing = king && king.expiry === e && king.strikeKey === sk;
+                    const pct = badges[`${e}|${sk}`];
+                    return (
+                      <td
+                        key={e}
+                        className={`trin-cell${isKing ? " trin-king" : ""}`}
+                        style={{
+                          background: has ? viridis(t) : "rgba(13,17,23,0.85)",
+                          color: has ? (bright ? "#000" : "#fff") : "#3a4566",
+                        }}
+                        onClick={() => onCellClick && onCellClick(strike, gridKey, v)}
+                        title={`${strike} · ${e} · ${fmtK(v) || "$0"}`}
+                      >
+                        {pct != null && (
+                          <span className={`trin-pct ${pct > 0 ? "up" : "down"}`}>
+                            {pct > 0 ? "+" : ""}{pct}%
+                          </span>
+                        )}
+                        <span className={isKing ? "trin-val-bold" : undefined}>
+                          {fmtK(v)}
+                          {isKing && <span className="trin-star">★</span>}
                         </span>
-                      )}
-                      <span className={`trin-val${isStar || isSpot ? " trin-val-bold" : ""}`}>
-                        {fmtK(v)}
-                        {isStar && <span className="trin-star">★</span>}
-                      </span>
-                    </div>
-                  </td>
-                  <td className="trin-mark-cell">
-                    {marks && (
-                      <span className={`trin-badge trin-badge-${marks[0].toLowerCase()}`}>
-                        {marks[0]}
-                      </span>
-                    )}
-                  </td>
+                      </td>
+                    );
+                  })}
                 </tr>
               );
             })}
