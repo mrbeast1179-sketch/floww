@@ -70,6 +70,21 @@ const SCAN_UNIVERSE = ["SPY", "QQQ", "IWM", "NVDA", "TSLA", "AAPL", "MSFT", "AMZ
 // (scanner math — bizDTE/scanTypeOf/scanScoreOf/estimateDelta/approxSpot/mkScanRow
 // and the fmt* helpers — lives in ./scanLogic.js, tested in scanLogic.test.js)
 
+const PREFS_KEY = "fsb-scan-prefs-v1";
+function loadScanPrefs() {
+  try { return JSON.parse(localStorage.getItem(PREFS_KEY)) || {}; } catch { return {}; }
+}
+
+// Mark rows unseen in the previous refresh (drives the NEW flash + alerts).
+function markNew(rows, prevKeysRef) {
+  const keys = new Set(rows.map((r) => `${r.under}|${r.type}|${r.strike}|${r.exp}`));
+  if (prevKeysRef.current) {
+    for (const r of rows) r._new = !prevKeysRef.current.has(`${r.under}|${r.type}|${r.strike}|${r.exp}`);
+  }
+  prevKeysRef.current = keys;
+  return rows;
+}
+
 // ---------- component ----------
 export default function FlowseekerProBlademap({ active = true }) {
   const [tab, setTab] = useState("scanner");   // land on the cross-symbol scanner (the hero view)
@@ -82,14 +97,26 @@ export default function FlowseekerProBlademap({ active = true }) {
   const [clock, setClock] = useState("");
   const [plotlyReady, setPlotlyReady] = useState(!!window.Plotly);
   const [volTicker, setVolTicker] = useState("SPY");
-  // cross-symbol scanner state (Scanner tab)
+  // cross-symbol scanner state (Scanner tab) — filters/sort/universe persist in localStorage
+  const prefs = useMemo(loadScanPrefs, []);
   const [scan, setScan] = useState([]);
   const [scanAt, setScanAt] = useState("");
-  const [scanSort, setScanSort] = useState({ key: "score", dir: "desc" });
-  const [scanTypeF, setScanTypeF] = useState("all");
-  const [scanMinVol, setScanMinVol] = useState(0);
-  const [scanMinScore, setScanMinScore] = useState(0);
+  const [scanSort, setScanSort] = useState(prefs.scanSort || { key: "score", dir: "desc" });
+  const [scanTypeF, setScanTypeF] = useState(prefs.scanTypeF || "all");
+  const [scanMinVol, setScanMinVol] = useState(prefs.scanMinVol || 0);
+  const [scanMinScore, setScanMinScore] = useState(prefs.scanMinScore || 0);
   const [scanQ, setScanQ] = useState("");
+  const [scanMeta, setScanMeta] = useState({ mode: null, stale: false, symbols: 0 });
+  const [universe, setUniverse] = useState(prefs.universe || SCAN_UNIVERSE);
+  const [universeOnly, setUniverseOnly] = useState(!!prefs.universeOnly);
+  const [alertScore, setAlertScore] = useState(prefs.alertScore ?? 85);
+  const prevKeysRef = useRef(null);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(PREFS_KEY, JSON.stringify({ scanTypeF, scanMinVol, scanMinScore, scanSort, universe, universeOnly, alertScore }));
+    } catch { /* private mode — prefs just don't persist */ }
+  }, [scanTypeF, scanMinVol, scanMinScore, scanSort, universe, universeOnly, alertScore]);
 
   const microRef = useRef({});            // { vpin, regimeConf, lambdaR2 } for selected ticker
   const gaugeRef = useRef(null), radarRef = useRef(null), ofiRef = useRef(null);
@@ -175,24 +202,29 @@ export default function FlowseekerProBlademap({ active = true }) {
   // if it isn't deployed yet, fall back to looping the live per-ticker /chain over
   // a universe. Both are 100% live cvserver day-volume-vs-OI — no synthetic data.
   useEffect(() => {
-    if (!active) return;
+    if (!active || tab !== "scanner") return;   // poll only while the Scanner tab is visible
     let cancelled = false;
     const ctrl = new AbortController();
     const run = async () => {
       // Path A: market-wide backend endpoint (columns: underlying,ticker,type,
-      // strike,exp,day_volume,oi,iv,delta,spot).
+      // strike,exp,day_volume,oi,iv,delta,spot) + per-ticker regimes map.
       try {
         const d = await getJSON(`${API}/scan?limit=300`, ctrl.signal);
         if (!cancelled && d && Array.isArray(d.rows) && d.rows.length) {
+          const regimes = d.regimes || {};
           const rows = d.rows.map((r) =>
-            mkScanRow(r[0], r[2], r[3], r[4], Number(r[5]) || 0, Number(r[6]) || 0, r[7], r[8]));
-          setScan(rows); setScanAt(new Date().toLocaleTimeString());
+            mkScanRow(r[0], r[2], r[3], r[4], Number(r[5]) || 0, Number(r[6]) || 0,
+              r[7], r[8], Number(r[9]) || null, regimes[r[0]] || null));
+          setScan(markNew(rows, prevKeysRef));
+          setScanMeta({ mode: "market", stale: !!d.stale, symbols: new Set(rows.map((x) => x.under)).size });
+          setScanAt(new Date().toLocaleTimeString());
           return;
         }
-      } catch { /* endpoint not deployed — fall through to the chain loop */ }
+      } catch { /* endpoint down — fall through to the chain loop */ }
       // Path B: loop the live per-ticker chain over the universe and merge.
+      // Spot isn't in the chain payload — median strike ≈ spot for delta estimates.
       try {
-        const results = await Promise.all(SCAN_UNIVERSE.map((t) =>
+        const results = await Promise.all(universe.map((t) =>
           getJSON(`${API}/chain/${t}?fields=oi,volume,iv,delta`, ctrl.signal)
             .then((d) => ({ t, d })).catch(() => null)));
         if (cancelled) return;
@@ -202,6 +234,9 @@ export default function FlowseekerProBlademap({ active = true }) {
           const params = res.d.params || [];
           const vi = (name) => { const i = params.indexOf(name); return i > 0 ? i - 1 : -1; };
           const iVol = vi("volume"), iOI = vi("openInterest"), iIV = vi("impliedVolatility"), iDelta = vi("delta");
+          const allStrikes = [];
+          for (const exp of (res.d.chain || [])) for (const s of (exp.strikes || [])) allStrikes.push(s[0]);
+          const spotEst = approxSpot(allStrikes);
           for (const exp of (res.d.chain || [])) {
             for (const s of (exp.strikes || [])) {
               const strike = s[0];
@@ -210,19 +245,21 @@ export default function FlowseekerProBlademap({ active = true }) {
                 if (vol < 1000) continue;   // notable activity only
                 rows.push(mkScanRow(res.t, sideU, strike, exp.expiration, vol,
                   Number(vals[iOI]) || 0, Number(vals[iIV]) || 0,
-                  iDelta >= 0 ? Number(vals[iDelta]) : null));
+                  iDelta >= 0 ? Number(vals[iDelta]) : null, spotEst, null));
               }
             }
           }
         }
         rows.sort((a, b) => b.vol - a.vol);
-        setScan(rows.slice(0, 300)); setScanAt(new Date().toLocaleTimeString());
+        setScan(markNew(rows.slice(0, 300), prevKeysRef));
+        setScanMeta({ mode: "fallback", stale: false, symbols: universe.length });
+        setScanAt(new Date().toLocaleTimeString());
       } catch { /* keep last data on a transient hiccup */ }
     };
     run();
     const id = setInterval(run, 20000);
     return () => { cancelled = true; ctrl.abort(); clearInterval(id); };
-  }, [active]);
+  }, [active, tab, universe]);
 
   // ---- per-ticker microstructure (regime pill + selected conviction inputs) ----
   useEffect(() => {
@@ -278,6 +315,7 @@ export default function FlowseekerProBlademap({ active = true }) {
   const scanRows = useMemo(() => {
     const q = (scanQ || "").trim().toUpperCase();
     const rows = scan.filter((r) => {
+      if (universeOnly && !universe.includes(r.under)) return false;
       if (scanTypeF !== "all" && r.type !== scanTypeF) return false;
       if (scanMinVol && r.vol < scanMinVol) return false;
       if (scanMinScore && r.score < scanMinScore) return false;
@@ -292,7 +330,7 @@ export default function FlowseekerProBlademap({ active = true }) {
       return (av < bv ? -1 : av > bv ? 1 : 0) * dir;
     });
     return rows;
-  }, [scan, scanTypeF, scanMinVol, scanMinScore, scanQ, scanSort]);
+  }, [scan, scanTypeF, scanMinVol, scanMinScore, scanQ, scanSort, universe, universeOnly]);
 
   const scanStats = useMemo(() => {
     let notl = 0, cv = 0, pv = 0, unusual = 0; const cnt = {};
