@@ -333,18 +333,19 @@ export default function FlowseekerProBlademap({ active = true }) {
   }, [scan, scanTypeF, scanMinVol, scanMinScore, scanQ, scanSort, universe, universeOnly]);
 
   const scanStats = useMemo(() => {
-    let notl = 0, cv = 0, pv = 0, unusual = 0; const cnt = {};
+    let notl = 0, cv = 0, pv = 0, unusual = 0, alerts = 0; const cnt = {};
     for (const r of scanRows) {
       notl += r.notional;
       if (r.type === "call") cv += r.vol; else pv += r.vol;
       if (r.volOI >= 2) unusual++;
+      if (r._new && r.score >= alertScore) alerts++;
       cnt[r.under] = (cnt[r.under] || 0) + 1;
     }
     let top = "—", best = 0;
     for (const u of Object.keys(cnt)) if (cnt[u] > best) { best = cnt[u]; top = u; }
     const tv = cv + pv, cpct = tv > 0 ? Math.round((cv / tv) * 100) : 0;
-    return { notl, cpct, tv, unusual, top, best };
-  }, [scanRows]);
+    return { notl, cpct, tv, unusual, alerts, top, best };
+  }, [scanRows, alertScore]);
 
   const sortScan = (k) => setScanSort((s) => (s.key === k
     ? { key: k, dir: s.dir === "desc" ? "asc" : "desc" }
@@ -651,12 +652,14 @@ export default function FlowseekerProBlademap({ active = true }) {
           <div className="fsb-scanwrap">
             <div className="fsb-scanbar">
               {[
-                ["Contracts", `${scanRows.length} / ${scan.length}`, "b"],
+                ["Source", scanMeta.mode === "market" ? `LIVE · mkt-wide ·${scanMeta.symbols}` : scanMeta.mode === "fallback" ? `FALLBACK ·${scanMeta.symbols} sym` : "—",
+                  scanMeta.stale ? "y" : scanMeta.mode === "market" ? "g" : scanMeta.mode ? "y" : ""],
+                ["Contracts", `${scanRows.length} / ${scan.length}${scanRows.length > 200 ? " ·top200" : ""}`, "b"],
                 ["Notional Σ", fmtUSD(scanStats.notl), ""],
                 ["Call/Put Vol", scanStats.tv > 0 ? `${scanStats.cpct}% / ${100 - scanStats.cpct}%` : "—", scanStats.cpct >= 50 ? "g" : "r"],
                 ["Unusual (≥2×)", String(scanStats.unusual), "y"],
-                ["Top Name", scanStats.top + (scanStats.best ? ` ·${scanStats.best}` : ""), ""],
-                ["Updated", scanAt || "—", ""],
+                ["⚡ Alerts", String(scanStats.alerts), scanStats.alerts ? "r" : ""],
+                ["Updated", (scanMeta.stale ? "STALE · " : "") + (scanAt || "—"), scanMeta.stale ? "y" : ""],
               ].map(([l, v, c]) => (
                 <div key={l} className="fsb-skpi"><div className="fsb-skl">{l}</div><div className={`fsb-skv ${c}`}>{v}</div></div>
               ))}
@@ -668,6 +671,22 @@ export default function FlowseekerProBlademap({ active = true }) {
               <input type="number" min="0" step="1000" placeholder="Min Vol" value={scanMinVol || ""} onChange={(e) => setScanMinVol(parseFloat(e.target.value) || 0)} />
               <input type="number" min="0" max="100" step="5" placeholder="Min Score" value={scanMinScore || ""} onChange={(e) => setScanMinScore(parseFloat(e.target.value) || 0)} />
               <input placeholder="Ticker…" value={scanQ} onChange={(e) => setScanQ((e.target.value || "").toUpperCase())} />
+              <span className="fsb-presets">
+                {[["Top Score", { key: "score", dir: "desc" }], ["Big Money", { key: "notional", dir: "desc" }],
+                  ["Unusual", { key: "volOI", dir: "desc" }], ["Short Fuse", { key: "dte", dir: "asc" }]].map(([l, s]) => (
+                  <button key={l} className={`fsb-preset${scanSort.key === s.key && scanSort.dir === s.dir ? " on" : ""}`}
+                    onClick={() => setScanSort(s)}>{l}</button>
+                ))}
+              </span>
+              <label className="fsb-uonly" title="Filter the scan to your universe list">
+                <input type="checkbox" checked={universeOnly} onChange={(e) => setUniverseOnly(e.target.checked)} /> My universe
+              </label>
+              <input className="fsb-univ" defaultValue={universe.join(",")} placeholder="Universe…"
+                title="Comma-separated tickers — used by the fallback scan and the 'My universe' filter"
+                onBlur={(e) => { const u = (e.target.value || "").toUpperCase().split(/[,\s]+/).filter(Boolean); if (u.length) setUniverse(u); }} />
+              <input className="fsb-alertn" type="number" min="50" max="100" value={alertScore}
+                title="Alert when a NEW contract scores ≥ this"
+                onChange={(e) => setAlertScore(Math.max(50, Math.min(100, parseInt(e.target.value, 10) || 85)))} />
               <span className="fsb-scannote">Live cross-symbol flow · cvforge day-volume vs OI. No per-trade tape on this feed — Flow-type = volume-magnitude class; Lean = contract-type bias.</span>
             </div>
             <div className="fsb-scantable">
@@ -690,10 +709,10 @@ export default function FlowseekerProBlademap({ active = true }) {
                       const otm = r.delta == null ? "" : (Math.abs(r.delta) < 0.45 ? "OTM" : "ITM");
                       return (
                         <tr key={`${r.under}-${r.strike}-${r.type}-${r.exp}-${i}`}
-                            className={r.under === ticker ? "sel" : ""}
+                            className={`${r.under === ticker ? "sel " : ""}${r._new ? "new " : ""}${r._new && r.score >= alertScore ? "alert" : ""}`.trim()}
                             onClick={() => { setTicker(r.under); setTab("flow"); }}>
-                          <td><span className={`fsb-sc ${scoreGradeOf(r.score)}`}>{r.score}</span></td>
-                          <td className="l"><span className="tk">{r.under}</span> <span className="fsb-sub">{(r.exp || "").slice(5)}</span></td>
+                          <td><span className={`fsb-sc ${scoreGradeOf(r.score)}`} title={r._parts ? `vol/OI ${r._parts.pos} · size ${r._parts.size} · notional ${r._parts.notl} · urgency ${r._parts.urg} · OTM ${r._parts.otm}${r._parts.nudge ? ` · γ-nudge +${r._parts.nudge}` : ""}` : ""}>{r.score}</span></td>
+                          <td className="l"><span className="tk">{r.under}</span>{r.regime ? <sup className={`fsb-gtag ${r.regime === "positive" ? "gp" : "gn"}`}>{r.regime === "positive" ? "γ+" : "γ−"}</sup> : null} <span className="fsb-sub">{(r.exp || "").slice(5)}</span></td>
                           <td className={`l ${isCall ? "fsb-tcall" : "fsb-tput"}`}>{isCall ? "CALL" : "PUT"}</td>
                           <td>{r.strike % 1 === 0 ? r.strike.toFixed(0) : r.strike.toFixed(1)}</td>
                           <td>{r.dte == null ? "—" : `${r.dte}d`}</td>
@@ -703,7 +722,7 @@ export default function FlowseekerProBlademap({ active = true }) {
                           <td>{fmtUSD(r.notional)}</td>
                           <td>{fmtIV(r.iv)}</td>
                           <td className="l"><span className={`fsb-flt ${r.ftype}`}>{r.ftype.toUpperCase()}</span></td>
-                          <td className="l"><span className={`fsb-lean ${isCall ? "bull" : "bear"}`}>{isCall ? "▲ BULL" : "▼ BEAR"}</span>{otm ? <span className="fsb-sub"> {otm}</span> : null}</td>
+                          <td className="l"><span className={`fsb-lean ${isCall ? "bull" : "bear"}`}>{isCall ? "▲ BULL" : "▼ BEAR"}</span>{otm ? <span className="fsb-sub"> {r.deltaEst ? "~" : ""}{otm}</span> : null}</td>
                         </tr>
                       );
                     })}

@@ -250,3 +250,17 @@
 .fsb-flt.regular { background: rgba(120,130,150,0.12); color: #98a1b3; }
 .fsb-lean { font-weight: 700; font-size: 10px; }
 .fsb-lean.bull { color: var(--fsb-green); } .fsb-lean.bear { color: var(--fsb-red); }
+
+/* ── Scanner upgrade: presets, universe, alerts, tags ── */
+.fsb-presets { display: inline-flex; gap: 4px; }
+.fsb-preset { background: #131722; border: 1px solid #2a2e39; color: #9aa0ae; font-size: 10px; padding: 3px 8px; border-radius: 4px; cursor: pointer; }
+.fsb-preset.on, .fsb-preset:hover { color: #e6e8ee; border-color: #29c5e0; }
+.fsb-uonly { font-size: 10px; color: #9aa0ae; display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
+.fsb-univ { min-width: 180px; }
+.fsb-alertn { width: 56px; }
+.fsb-gtag { font-size: 8px; margin-left: 2px; }
+.fsb-gtag.gp { color: #19d27c; }
+.fsb-gtag.gn { color: #ff4d5e; }
+.fsb-stab tr.new td { animation: fsbNewRow 1.6s ease-out 1; }
+.fsb-stab tr.alert td:first-child { box-shadow: inset 3px 0 0 #f5b042; }
+@keyframes fsbNewRow { from { background: rgba(41, 197, 224, 0.16); } to { background: transparent; } }
