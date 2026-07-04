@@ -43,7 +43,6 @@ function SkylitDashboard({
   regime = null,
   loading = false,
 }) {
-  const [visibleCols, setVisibleCols] = useState(["call_gex", "gex", "put_gex", "call_oi", "put_oi", "total_oi", "vex"]);
   const [tradeMode, setTradeMode] = useState(false);
   const [selectedCell, setSelectedCell] = useState(null);
 
@@ -64,15 +63,6 @@ function SkylitDashboard({
     },
     [onStrikeClick]
   );
-
-  // Column toggle options
-  const colGroups = [
-    { label: "GEX", cols: ["call_gex", "gex", "put_gex"] },
-    { label: "OI", cols: ["call_oi", "put_oi", "total_oi"] },
-    { label: "VEX", cols: ["vex"] },
-    { label: "Vega", cols: ["vega", "vomma", "zomma"] },
-    { label: "Charm", cols: ["charm"] },
-  ];
 
   return (
     <div className="skylit-full-dashboard">
@@ -99,26 +89,8 @@ function SkylitDashboard({
         onRefresh={onRefresh}
       />
 
-      {/* 2.5 Column Toggle Bar + Trade Mode */}
+      {/* 2.5 Trade Mode bar */}
       <div className="skylit-col-bar">
-        <div className="skylit-col-group">
-          {colGroups.map(g => (
-            <button
-              key={g.label}
-              className={`skylit-col-btn${visibleCols.some(c => g.cols.includes(c)) ? " active" : ""}`}
-              onClick={() => {
-                const allVisible = g.cols.every(c => visibleCols.includes(c));
-                if (allVisible) {
-                  setVisibleCols(prev => prev.filter(c => !g.cols.includes(c)));
-                } else {
-                  setVisibleCols(prev => [...new Set([...prev, ...g.cols])]);
-                }
-              }}
-            >
-              {g.label}
-            </button>
-          ))}
-        </div>
         <div className="skylit-col-spacer" />
         <button
           className={`skylit-trade-mode-btn${tradeMode ? " active" : ""}`}
@@ -147,8 +119,8 @@ function SkylitDashboard({
           <SkylitHeatmapGrid
             data={data}
             spot={spot}
+            ticker={ticker}
             viewMode={viewMode}
-            visibleColumns={visibleCols}
             onCellClick={handleCellClick}
             onStrikeClick={handleStrikeClick}
           />

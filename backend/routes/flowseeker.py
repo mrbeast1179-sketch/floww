@@ -685,3 +685,111 @@ async def unusual_activity_alerts(
         logger.warning("unusual activity alerts: %s: %s" % (sym, e))
         return {"alerts": [], "total": 0, "page": page, "page_size": page_size,
                 "has_next": False, "error": str(e)}
+
+
+# ── Regime (GEX-derived, TV-enriched) ──
+# The Blademap pill polls this every 6s and reads current_state / confidence /
+# is_warming. current_state strings must respect the frontend classifier:
+# "trend"/"bull" → green, "mean"/"bear"/"rever" → red, anything else → chop.
+_TV_DEMO_TICKERS = {"AAPL", "AMZN", "GM", "KO", "MCD", "META", "VIX", "XOM"}
+_tv_signal_cache: dict[str, tuple[float, dict | None]] = {}
+_TV_CACHE_TTL = 60
+
+
+async def _fetch_tv_signal(sym: str) -> dict | None:
+    """Optional trading-volatility enrichment. Never raises, never blocks >2.5s."""
+    key = os.environ.get("TRADING_VOLATILITY_API_KEY", "")
+    if not key and sym not in _TV_DEMO_TICKERS:
+        return None
+    cached = _tv_signal_cache.get(sym)
+    if cached and time.time() - cached[0] < _TV_CACHE_TTL:
+        return cached[1]
+    result = None
+    try:
+        headers = {"Authorization": "Bearer %s" % key} if key else {}
+        async with httpx.AsyncClient(timeout=2.5) as client:
+            resp = await client.get(
+                "https://stocks.tradingvolatility.net/api/v2/signals",
+                params={"ticker": sym}, headers=headers,
+            )
+            if resp.status_code == 200:
+                result = resp.json()
+    except Exception as e:
+        logger.debug("tv signal unavailable for %s: %s" % (sym, e))
+    _tv_signal_cache[sym] = (time.time(), result)
+    return result
+
+
+@router.get("/regime/{ticker}")
+async def regime(ticker: str):
+    """
+    Live market regime for the Blademap pill, derived from the same GEX
+    structure the heatmap already computes (60s-cached build_heatmap — the
+    argument tuple matches the frontend's own /api/heatmap call, so at the 6s
+    poll this is a cache hit, no extra chain fetches).
+    """
+    sym = (ticker or "").strip().upper()
+    if not sym:
+        raise HTTPException(400, "ticker required")
+    try:
+        from server import build_heatmap  # deferred: avoids circular import
+
+        hm = await build_heatmap(sym, 6, True, "day", None, False, 80)
+        gf = (hm or {}).get("gamma_flip") or {}
+        mr = (hm or {}).get("market_regime") or {}
+        gex_regime = gf.get("regime")
+        spot = gf.get("spot") or (hm or {}).get("spot")
+        flip = gf.get("gamma_flip")
+        dist = gf.get("dist_to_flip")
+        total_gex = gf.get("total_gex")
+        vol_env = mr.get("regime")
+
+        dist_pct = None
+        if dist is not None and spot:
+            dist_pct = dist / spot * 100.0
+        elif flip is not None and spot:
+            dist_pct = (spot - flip) / spot * 100.0
+
+        if gex_regime == "negative_gamma":
+            state = "TRENDING_BEAR"
+        elif gex_regime == "positive_gamma":
+            if (
+                dist_pct is not None and dist_pct >= 1.5
+                and (total_gex or 0) > 0
+                and vol_env in ("calm", "normal", None)
+            ):
+                state = "TRENDING_BULL"
+            elif dist_pct is not None and abs(dist_pct) >= 0.5:
+                state = "MEAN_REVERTING"
+            else:
+                state = "RANGING"
+        else:
+            # No usable chain/GEX data — stay alive but honest.
+            return {
+                "ticker": sym, "current_state": "RANGING", "confidence": 0.0,
+                "is_warming": True, "gex_regime": gex_regime,
+                "asof": (hm or {}).get("asof"),
+            }
+
+        confidence = min(abs(dist_pct) / 5.0, 1.0) if dist_pct is not None else 0.0
+        out = {
+            "ticker": sym,
+            "current_state": state,
+            "confidence": round(confidence, 3),
+            "is_warming": False,
+            "gex_regime": gex_regime,
+            "gamma_flip": flip,
+            "dist_to_flip_pct": round(dist_pct, 3) if dist_pct is not None else None,
+            "total_gex": total_gex,
+            "vol_env": vol_env,
+            "atm_iv": mr.get("atm_iv"),
+            "asof": (hm or {}).get("asof"),
+        }
+        tv = await _fetch_tv_signal(sym)
+        if tv:
+            out["tv_signal"] = tv
+        return out
+    except Exception as e:
+        logger.warning("regime failed for %s: %s" % (sym, e))
+        return {"ticker": sym, "current_state": "RANGING", "confidence": 0.0,
+                "is_warming": True, "error": str(e)}

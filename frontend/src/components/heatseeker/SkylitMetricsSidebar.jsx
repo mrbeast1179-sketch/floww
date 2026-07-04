@@ -47,9 +47,15 @@ function SkylitMetricsSidebar({
   const kingNode = nodes.king;
   const floors = nodes.floors || [];
   const ceilings = nodes.ceilings || [];
-  const netGex = data?.net_gex_total;
-  const totalAbsGex = data?.total_abs_gex;
-  const flipPoint = data?.flip_zones?.[0]?.price;
+  // net GEX lives on nodes.total_gex; |GEX| is summed client-side because the
+  // heatmap payload never exports total_abs_gex; flip point from gamma_flip
+  const netGex = data?.net_gex_total ?? nodes?.total_gex;
+  const totalAbsGex =
+    data?.total_abs_gex ??
+    (data?.strikes?.length
+      ? data.strikes.reduce((acc, s) => acc + Math.abs(s.gex || 0), 0)
+      : null);
+  const flipPoint = data?.flip_zones?.[0]?.price ?? data?.gamma_flip?.gamma_flip;
   const polarityLevel = nodes?.polarity_level;
   const gatekeeperCount = nodes?.gatekeepers?.length || 0;
 
