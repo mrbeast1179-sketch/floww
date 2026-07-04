@@ -972,7 +972,6 @@ export default function App() {
                   loading={loading && !data}
                 />
               )}
-              )}
             </main>
           </div>
         )}

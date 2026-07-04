@@ -7,6 +7,9 @@ import pytest
 
 import routes.flowseeker as fs
 
+# The real function, captured before the autouse fixture stubs the module attr.
+_REAL_CACHED_REGIMES = fs._cached_regimes
+
 
 class FakeResp:
     def __init__(self, status_code=200, rows=None):
@@ -44,6 +47,10 @@ class FakeClient:
 def reset(monkeypatch):
     monkeypatch.setattr(fs, "CVFORGE_API_KEY", "test-key")
     monkeypatch.setattr(fs.httpx, "AsyncClient", FakeClient)
+    # Stub the regimes lookup: its deferred `import server` drags the whole app
+    # (and its background fetchers, which would hit the patched httpx and
+    # pollute FakeClient.calls) into the test process. Tested directly below.
+    monkeypatch.setattr(fs, "_cached_regimes", lambda: {})
     fs._scan_cache.clear()
     fs._scan_backoff.update({"until": 0.0, "delay": 30.0})
     FakeClient.calls = 0
@@ -53,12 +60,14 @@ def reset(monkeypatch):
     fs._scan_backoff.update({"until": 0.0, "delay": 30.0})
 
 
-def run(coro):
-    return asyncio.run(coro)
+def scan(**kw):
+    # force=False must be explicit: in direct (non-HTTP) calls the unresolved
+    # Query(False) default object is truthy and would bypass cache + backoff.
+    return asyncio.run(fs.market_scan(min_volume=1000, limit=300, force=False, **kw))
 
 
 def test_success_returns_rows_with_source_and_asof():
-    out = run(fs.market_scan(min_volume=1000, limit=300))
+    out = scan()
     assert out["count"] == 1
     assert out["source"] == "cvserver-screen"
     assert out["stale"] is False
@@ -67,22 +76,31 @@ def test_success_returns_rows_with_source_and_asof():
 
 
 def test_second_call_within_ttl_hits_cache():
-    run(fs.market_scan(min_volume=1000, limit=300))
-    run(fs.market_scan(min_volume=1000, limit=300))
+    scan()
+    out = scan()
     assert FakeClient.calls == 1
+    assert out["source"] == "cvserver-cached"
+
+
+def test_force_true_bypasses_cache():
+    scan()
+    asyncio.run(fs.market_scan(min_volume=1000, limit=300, force=True))
+    assert FakeClient.calls == 2
 
 
 def test_429_with_warm_cache_serves_stale_and_backs_off():
-    run(fs.market_scan(min_volume=1000, limit=300))
+    scan()
     fs._scan_cache["1000:300"]["ts"] = time.time() - 999   # expire the entry
     FakeClient.status = 429
-    out = run(fs.market_scan(min_volume=1000, limit=300))
+    out = scan()
     assert out["stale"] is True
+    assert out["source"] == "cvserver-stale"
     assert out["count"] == 1
     assert fs._scan_backoff["until"] > time.time()
     calls_after_429 = FakeClient.calls
-    out2 = run(fs.market_scan(min_volume=1000, limit=300))  # inside backoff window
+    out2 = scan()                                           # inside backoff window
     assert out2["stale"] is True
+    assert out2["retry_after_seconds"] is not None
     assert FakeClient.calls == calls_after_429               # upstream NOT re-hit
 
 
@@ -90,7 +108,7 @@ def test_429_with_no_cache_returns_503():
     from fastapi import HTTPException
     FakeClient.status = 429
     with pytest.raises(HTTPException) as e:
-        run(fs.market_scan(min_volume=1000, limit=300))
+        scan()
     assert e.value.status_code == 503
 
 
@@ -100,5 +118,22 @@ def test_backoff_delay_doubles_and_caps():
     for _ in range(8):
         fs._scan_backoff["until"] = 0.0                      # force upstream attempt
         with pytest.raises(HTTPException):
-            run(fs.market_scan(min_volume=1000, limit=300))
+            scan()
     assert fs._scan_backoff["delay"] == 600.0
+
+
+def test_cached_regimes_reads_heatmap_cache(monkeypatch):
+    """_cached_regimes maps ticker → nodes.regime from fresh server cache entries."""
+    import sys
+    import types
+
+    fake_server = types.ModuleType("server")
+    fake_server._BUILD_HEATMAP_CACHE = {
+        "SPY:6:day:None:False:80": {"ts": time.time(), "data": {"nodes": {"regime": "negative"}}},
+        "QQQ:4:day:None:False:80": {"ts": time.time(), "data": {"nodes": {"regime": "positive"}}},
+        "IWM:6:day:None:False:80": {"ts": time.time() - 9999, "data": {"nodes": {"regime": "positive"}}},  # stale
+        "TSLA:6:day:None:False:80": {"ts": time.time(), "data": {"error": "no chain"}},                     # no nodes
+    }
+    monkeypatch.setitem(sys.modules, "server", fake_server)
+    out = _REAL_CACHED_REGIMES()
+    assert out == {"SPY": "negative", "QQQ": "positive"}

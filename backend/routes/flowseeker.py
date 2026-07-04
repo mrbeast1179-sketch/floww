@@ -394,7 +394,9 @@ async def _cvforge_screen(
 # ── /scan cache + 429 backoff ──
 _scan_cache: dict[str, dict] = {}                # "min_volume:limit" → {ts, data, asof}
 _SCAN_TTL = 60                                   # seconds
+_STALE_TTL = 300                                 # serve stale up to 5min on upstream failure
 _scan_backoff = {"until": 0.0, "delay": 30.0}    # exponential, capped at 600s
+_last_force_refresh = 0.0                         # debounce force refresh
 
 
 def _cached_regimes() -> dict[str, str]:
@@ -415,10 +417,17 @@ def _cached_regimes() -> dict[str, str]:
         return {}
 
 
-def _scan_payload(rows: list, stale: bool, asof: str, columns: list) -> dict:
+def _scan_payload(rows: list, stale: bool, asof: str, columns: list, cache_age: float = 0, retry_after: float | None = None) -> dict:
+    source = "cvserver-screen"
+    if stale:
+        source = "cvserver-stale"
+    elif cache_age > 0 and cache_age < 60:
+        source = "cvserver-cached"
     return {
         "columns": columns, "rows": rows, "count": len(rows),
-        "source": "cvserver-screen", "stale": stale, "asof": asof,
+        "source": source, "stale": stale, "asof": asof,
+        "cache_age_seconds": round(cache_age) if cache_age else None,
+        "retry_after_seconds": round(retry_after) if retry_after else None,
         "regimes": _cached_regimes(),
     }
 
@@ -427,11 +436,13 @@ def _scan_payload(rows: list, stale: bool, asof: str, columns: list) -> dict:
 async def market_scan(
     min_volume: int = Query(1000, ge=0),
     limit: int = Query(300, ge=1, le=1000),
+    force: bool = Query(False),
 ):
     """
     Cross-symbol options flow scan (day_volume vs OI).
     60s-cached; on upstream 429 backs off exponentially and serves the last
     good result marked stale=true rather than collapsing to a client fallback.
+    Use ?force=true to bypass cache and backoff (debounced server-side).
     """
     columns = [
         "underlying_ticker", "ticker", "contract_type", "strike_price",
@@ -444,17 +455,23 @@ async def market_scan(
     cache_key = f"{min_volume}:{limit}"
     now = time.time()
     cached = _scan_cache.get(cache_key)
-    if cached and now - cached["ts"] < _SCAN_TTL:
-        return _scan_payload(cached["data"], False, cached["asof"], columns)
+    
+    # Serve fresh cache hit
+    if cached and not force and now - cached["ts"] < _SCAN_TTL:
+        cache_age = now - cached["ts"]
+        return _scan_payload(cached["data"], False, cached["asof"], columns, cache_age=cache_age)
 
-    def _stale_or(status: int, detail: str):
+    def _stale_or(status: int, detail: str, retry_after: float | None = None):
         best = cached or (max(_scan_cache.values(), key=lambda e: e["ts"]) if _scan_cache else None)
         if best:
-            return _scan_payload(best["data"], True, best["asof"], columns)
+            cache_age = now - best["ts"]
+            return _scan_payload(best["data"], True, best["asof"], columns, cache_age=cache_age, retry_after=retry_after)
         raise HTTPException(status, detail)
 
-    if now < _scan_backoff["until"]:
-        return _stale_or(503, f"cvserver rate-limited; retrying after {int(_scan_backoff['until'] - now)}s")
+    # Respect backoff unless force=true
+    if not force and now < _scan_backoff["until"]:
+        retry_after = _scan_backoff["until"] - now
+        return _stale_or(503, f"cvserver rate-limited; retrying after {int(retry_after)}s", retry_after=retry_after)
 
     headers = {
         "Content-Type": "application/json",
@@ -481,7 +498,8 @@ async def market_scan(
                 _scan_backoff["until"] = now + _scan_backoff["delay"]
                 _scan_backoff["delay"] = min(_scan_backoff["delay"] * 2, 600.0)
                 logger.warning("cvforge scan 429 — backing off %ss", int(_scan_backoff["delay"]))
-                return _stale_or(503, "cvserver rate-limited (429), no cached scan yet")
+                retry_after = _scan_backoff["until"] - now
+                return _stale_or(503, "cvserver rate-limited (429), no cached scan yet", retry_after=retry_after)
             if resp.status_code != 200:
                 return _stale_or(502, f"cvserver returned {resp.status_code}")
             result = resp.json()
@@ -494,12 +512,77 @@ async def market_scan(
             _scan_backoff["delay"] = 30.0
             asof = datetime.now().isoformat()
             _scan_cache[cache_key] = {"ts": now, "data": rows, "asof": asof}
-            return _scan_payload(rows, False, asof, columns)
+            return _scan_payload(rows, False, asof, columns, cache_age=0)
     except HTTPException:
         raise
     except Exception as e:
         logger.warning(f"cvforge scan failed: {e}")
         return _stale_or(502, f"scan failed: {e}")
+
+
+@router.post("/scan/refresh")
+async def force_refresh_scan(
+    min_volume: int = Query(1000, ge=0),
+    limit: int = Query(300, ge=1, le=1000),
+):
+    """
+    Force refresh the market scan — bypasses cache and backoff.
+    Debounced: ignores if last force refresh was < 10s ago.
+    """
+    global _last_force_refresh, _scan_backoff
+    now = time.time()
+    if now - _last_force_refresh < 10.0:
+        return {"status": "debounced", "retry_after_seconds": int(10 - (now - _last_force_refresh))}
+    _last_force_refresh = now
+    _scan_backoff = {"until": 0.0, "delay": 30.0}  # reset backoff on force
+
+    columns = [
+        "underlying_ticker", "ticker", "contract_type", "strike_price",
+        "expiration_date", "day_volume", "open_interest",
+        "implied_volatility", "delta", "underlying_price",
+    ]
+    if not CVFORGE_API_KEY:
+        raise HTTPException(503, "cvserver API key not configured")
+
+    cache_key = f"{min_volume}:{limit}"
+    headers = {
+        "Content-Type": "application/json",
+        "Authorization": f"Bearer {CVFORGE_API_KEY}",
+    }
+    payload = {
+        "jsonrpc": "2.0",
+        "id": 1,
+        "method": "tools/call",
+        "params": {
+            "name": "screen",
+            "arguments": {
+                "columns": columns,
+                "filters": [{"field": "day_volume", "op": "gt", "value": min_volume}],
+                "sort": [{"field": "day_volume", "direction": "desc"}],
+                "limit": limit,
+            },
+        },
+    }
+    try:
+        async with httpx.AsyncClient(timeout=CVFORGE_TIMEOUT) as client:
+            resp = await client.post(CVFORGE_URL, json=payload, headers=headers)
+            if resp.status_code != 200:
+                raise HTTPException(502, f"cvserver returned {resp.status_code}")
+            result = resp.json()
+            content = result.get("result", {}).get("content", [])
+            if content and content[0].get("type") == "text":
+                d = json.loads(content[0]["text"])
+            else:
+                d = result.get("result", {})
+            rows = d.get("rows", [])
+            asof = datetime.now().isoformat()
+            _scan_cache[cache_key] = {"ts": now, "data": rows, "asof": asof}
+            return _scan_payload(rows, False, asof, columns, cache_age=0)
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.warning(f"cvforge force-refresh failed: {e}")
+        raise HTTPException(502, f"force refresh failed: {e}")
 
 
 @router.get("/alerts/{symbol}")
