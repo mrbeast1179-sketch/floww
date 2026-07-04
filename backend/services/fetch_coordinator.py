@@ -78,15 +78,18 @@ class FetchCoordinator:
             logger.debug("Waiting on lock for %s", key)
             self._coalesced_count[key] = self._coalesced_count.get(key, 0) + 1
             try:
-                async with asyncio.timeout(LOCK_TIMEOUT_SECONDS):
-                    async with lock:
-                        # The fetch already completed while we waited
-                        existing = self._inflight.get(key)
-                        if existing and existing.done():
-                            return existing.result()
-            except TimeoutError:
+                # asyncio.timeout() is 3.11+ only; use wait_for on lock.acquire() for compat
+                await asyncio.wait_for(lock.acquire(), timeout=LOCK_TIMEOUT_SECONDS)
+            except asyncio.TimeoutError:
                 logger.warning("Lock wait timed out for %s", key)
                 return _error_response("lock_timeout", "Timed out waiting for fetch")
+            try:
+                # The fetch already completed while we waited
+                existing = self._inflight.get(key)
+                if existing and existing.done():
+                    return existing.result()
+            finally:
+                lock.release()
 
         # We have the lock — perform the fetch
         logger.info("Initiating external fetch for %s", key)

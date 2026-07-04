@@ -191,6 +191,7 @@ async def train_with_walkforward_cv(
     best_scaler = None
     best_accuracy = 0
 
+    n_splits = len(splits)
     for _i, (X_train, y_train, X_test, y_test) in enumerate(splits):
         scaler = StandardScaler()
         X_train_scaled = scaler.fit_transform(X_train)
@@ -208,7 +209,10 @@ async def train_with_walkforward_cv(
         acc = accuracy_score(y_test, y_pred)
         accuracies.append(acc)
 
-        if acc > best_accuracy:
+        # For time series walk-forward CV, the LAST fold is the proper holdout:
+        # it represents the most future data, matching the production evaluation
+        # scenario. Picking the best-performing fold instead is data snooping.
+        if _i == n_splits - 1:
             best_accuracy = acc
             best_model = model
             best_scaler = scaler

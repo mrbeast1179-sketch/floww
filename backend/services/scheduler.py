@@ -15,7 +15,17 @@ import signal
 from datetime import UTC, datetime
 
 from services.yfinance_fetcher import fetch_and_store, get_duckdb_conn
-from services.yoptions_fetcher import fetch_all_chains
+
+try:
+    from services.yoptions_fetcher import fetch_all_chains
+except ImportError as _yopt_err:
+    # tenacity (or yoptions) not installed — disable options polling gracefully
+    logger.warning(
+        "yoptions_fetcher import failed (%s); options fetch will be skipped.", _yopt_err
+    )
+    import pandas as _pd
+    def fetch_all_chains(*_args, **_kwargs):  # type: ignore[misc]
+        return _pd.DataFrame()
 
 logger = logging.getLogger(__name__)
 
@@ -90,7 +100,7 @@ class PollingScheduler:
     async def _fetch_options(self):
         """Fetch options chains in thread pool."""
         try:
-            loop = asyncio.get_event_loop()
+            loop = asyncio.get_running_loop()
             df = await loop.run_in_executor(None, fetch_all_chains)
             if not df.empty:
                 logger.info(f"Options fetch: {len(df)} rows")
@@ -102,7 +112,7 @@ class PollingScheduler:
     async def _fetch_underlying(self):
         """Fetch underlying data in thread pool."""
         try:
-            loop = asyncio.get_event_loop()
+            loop = asyncio.get_running_loop()
             results = await loop.run_in_executor(
                 None, fetch_and_store, None, self._conn
             )
@@ -129,7 +139,7 @@ async def run_scheduler(interval: int = DEFAULT_INTERVAL):
     """Convenience function to run the scheduler."""
     scheduler = PollingScheduler(interval=interval)
 
-    loop = asyncio.get_event_loop()
+    loop = asyncio.get_running_loop()
     for sig in (signal.SIGINT, signal.SIGTERM):
         with contextlib.suppress(NotImplementedError):  # Windows doesn't support add_signal_handler
             loop.add_signal_handler(sig, scheduler.stop)

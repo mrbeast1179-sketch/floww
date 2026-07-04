@@ -76,7 +76,7 @@ def _get_cors_origin_for_handlers() -> str:
 
 
 MONGO_URL = os.getenv("MONGO_URL", "mongodb://localhost:27017")  # defence-in-depth env-default (P1 entry #3 in docs/superpowers/plans/2026-06-20-freebuff-decoder-hardening-60h.md)
-DB_NAME = os.environ["DB_NAME"]
+DB_NAME = os.environ.get("DB_NAME", "floww")
 POLYGON_API_KEY = os.environ.get("POLYGON_API_KEY", "")
 
 client = AsyncIOMotorClient(MONGO_URL, serverSelectionTimeoutMS=5000, connectTimeoutMS=5000)
@@ -537,7 +537,7 @@ def detect_opportunities(strikes: list[dict[str, Any]], nodes: dict[str, Any],
     king = nodes.get("king")
     if not king:
         return opportunities
-    abs(king.get("gex", 0)) or 1.0
+    king_gex_abs = abs(king.get("gex", 0)) or 1.0  # noqa: F841  used for future concentration calc
     total_gex = nodes.get("total_gex", 0)
     polarity = nodes.get("polarity_level", spot)
     regime = nodes.get("regime", "neutral")
@@ -1594,7 +1594,7 @@ async def _build_heatmap_impl(ticker: str, max_expiries: int = 4, with_taps: boo
                     heatmap_data = await fetch_chain_for_heatmap(ticker, spot, max_strikes)
                     if heatmap_data and heatmap_data.get("contracts"):
                         heatmap_data["data_source"] = "cvserver"
-                        _BUILD_HEATMAP_CACHE[cache_key] = (time.time(), heatmap_data)
+                        _BUILD_HEATMAP_CACHE[cache_key] = {"ts": time.time(), "data": heatmap_data}
                         return heatmap_data
             except asyncio.TimeoutError:
                 log.warning(f"cvserver timeout for index {ticker}, falling back to yfinance")

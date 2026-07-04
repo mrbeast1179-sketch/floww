@@ -199,6 +199,71 @@ class RetrainOrchestrator:
 
         return features
 
+    async def spawn_retrain(self, ticker: str, reason: str = "drift") -> dict[str, Any]:
+        """Spawn an async background retraining job for ticker.
+
+        Records the job in ``ml_retrain`` collection and launches a task
+        via ``asyncio.create_task``. Returns immediately with the new
+        retrain_id so the caller can track progress.
+        """
+        import asyncio
+        import uuid
+
+        retrain_id = str(uuid.uuid4())[:8]
+        doc: dict[str, Any] = {
+            "retrain_id": retrain_id,
+            "ticker": ticker,
+            "reason": reason,
+            "status": "pending",
+            "created_at": datetime.now(UTC).isoformat(),
+        }
+        await self.retrain_col.insert_one(doc)
+
+        # Fire-and-forget — errors are caught inside _run_retrain_job
+        asyncio.create_task(self._run_retrain_job(retrain_id, ticker, reason))
+
+        log.info(f"Spawned retrain job {retrain_id} for {ticker} (reason: {reason})")
+        return {"retrain_id": retrain_id, "status": "pending", "ticker": ticker}
+
+    async def _run_retrain_job(self, retrain_id: str, ticker: str, reason: str) -> None:
+        """Execute the retrain job in the background."""
+        import asyncio
+
+        try:
+            await self.retrain_col.update_one(
+                {"retrain_id": retrain_id},
+                {"$set": {"status": "running", "started_at": datetime.now(UTC).isoformat()}},
+            )
+
+            df = await self._build_features_for_ticker(ticker)
+            if df is None or len(df) < 60:
+                await self._update_retrain(
+                    retrain_id, "failed", {"error": "insufficient training data"}
+                )
+                return
+
+            # Run training in thread pool to avoid blocking the event loop
+            loop = asyncio.get_event_loop()
+            try:
+                from ml_training import train_model
+                result = await loop.run_in_executor(None, train_model, ticker)
+            except Exception as train_exc:
+                await self._update_retrain(
+                    retrain_id, "failed", {"error": str(train_exc)}
+                )
+                log.error(f"Retrain job {retrain_id} training failed for {ticker}: {train_exc}")
+                return
+
+            await self._update_retrain(retrain_id, "completed", result or {})
+            log.info(f"Retrain job {retrain_id} completed for {ticker}")
+
+        except Exception as e:
+            log.error(f"Retrain job {retrain_id} unexpected failure for {ticker}: {e}")
+            try:
+                await self._update_retrain(retrain_id, "failed", {"error": str(e)})
+            except Exception:
+                pass
+
     async def _update_retrain(self, retrain_id: str, status: str, result: dict) -> None:
         """Update retrain document with status and result."""
         await self.retrain_col.update_one(

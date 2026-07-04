@@ -64,6 +64,30 @@ def is_public_path(path: str) -> bool:
     return any(path.startswith(public_path) for public_path in PUBLIC_PATHS)
 
 
+async def require_api_key(request: Request):
+    """Verify API key for ALL HTTP methods (use on sensitive GET routes).
+
+    Unlike verify_api_key, this does NOT skip non-mutating methods.
+    Add as Depends(require_api_key) on GET routes that expose sensitive data.
+    """
+    api_key = request.headers.get("X-API-Key", "")
+    expected_key = get_api_key()
+    if not expected_key:
+        logger.critical(
+            "API_SECRET_KEY not set — sensitive route is DISABLED. "
+            "Set API_SECRET_KEY in environment to enable."
+        )
+        raise HTTPException(
+            status_code=503,
+            detail="Authentication not configured. Set API_SECRET_KEY.",
+        )
+    if api_key != expected_key:
+        client_host = request.client.host if request.client else "unknown"
+        logger.warning(f"Invalid API key from {client_host} for {request.url.path}")
+        raise HTTPException(status_code=401, detail="Invalid or missing API key")
+    return True
+
+
 async def verify_api_key(request: Request):
     """Verify the API key for protected routes."""
     # Only protect mutating methods

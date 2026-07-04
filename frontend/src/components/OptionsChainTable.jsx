@@ -24,22 +24,34 @@ export default function OptionsChainTable({ ticker, spot }) {
   const [side, setSide] = useState("all"); // all, calls, puts
   const [dteMax, setDteMax] = useState(null);
 
-  const fetchChain = useCallback(async () => {
-    setLoading(true);
-    try {
-      const params = new URLSearchParams({
-        min_oi: minOi, sort_by: sortBy, sort_dir: sortDir,
-        moneyness: moneyness === "all" ? "" : moneyness,
-      });
-      if (expiry) params.set("expiry", expiry);
-      if (dteMax !== null) params.set("dte_max", String(dteMax));
-      const res = await axios.get(`${API}/chain/${ticker}?${params}`);
-      setChain(res.data);
-    } catch (e) { /* noop */ }
-    setLoading(false);
-  }, [ticker, expiry, dteMax, moneyness, minOi, sortBy, sortDir]);
+  useEffect(() => {
+    let mounted = true;
+    const controller = new AbortController();
 
-  useEffect(() => { fetchChain(); }, [fetchChain]);
+    const fetchChain = async () => {
+      setLoading(true);
+      try {
+        const params = new URLSearchParams({
+          min_oi: minOi, sort_by: sortBy, sort_dir: sortDir,
+          moneyness: moneyness === "all" ? "" : moneyness,
+        });
+        if (expiry) params.set("expiry", expiry);
+        if (dteMax !== null) params.set("dte_max", String(dteMax));
+        const res = await axios.get(`${API}/chain/${ticker}?${params}`, { signal: controller.signal });
+        if (mounted) setChain(res.data);
+      } catch (err) {
+        if (err.name === "AbortError" || err.code === "ERR_CANCELED") return;
+        if (mounted) console.error("Chain fetch failed:", err);
+      }
+      if (mounted) setLoading(false);
+    };
+
+    fetchChain();
+    return () => {
+      mounted = false;
+      controller.abort();
+    };
+  }, [ticker, expiry, dteMax, moneyness, minOi, sortBy, sortDir]);
 
   const filtered = useMemo(() => {
     if (!chain?.rows) return [];

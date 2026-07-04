@@ -52,7 +52,16 @@ def fetch_live_chain(ticker: str, max_expiries: int = 2) -> dict[str, Any] | Non
             if len(selected) >= max_expiries:
                 break
 
-        spot = None
+        # Fetch real spot price from market data (not from option chain approximation)
+        spot: float | None = None
+        try:
+            raw = t.fast_info.last_price or t.fast_info.previous_close or 0
+            candidate = float(raw)
+            if candidate > 0:
+                spot = candidate
+        except Exception:
+            pass
+
         contracts = []
         for exp_str in selected:
             try:
@@ -64,11 +73,9 @@ def fetch_live_chain(ticker: str, max_expiries: int = 2) -> dict[str, Any] | Non
                 )
                 continue
 
+            # Fallback: use median strike as proxy if fast_info returned nothing
             if spot is None and not chain.calls.empty:
-                mid = (float(chain.calls.iloc[0].get("bid", 0) or 0) +
-                       float(chain.calls.iloc[0].get("ask", 0) or 0)) / 2
-                strike = float(chain.calls.iloc[0].get("strike", 0) or 0)
-                spot = strike + mid if mid > 0 else float(chain.calls["strike"].median())
+                spot = float(chain.calls["strike"].median())
 
             for _, row in chain.calls.iterrows():
                 contracts.append({
@@ -421,5 +428,6 @@ def compute_features_for_inference(
 async def compute_features_async(ticker: str, price_days: int = 60) -> dict[str, Any] | None:
     """Async wrapper that runs yfinance calls in thread pool."""
     import asyncio
-    loop = asyncio.get_event_loop()
+    # get_running_loop() is the correct call inside async functions (3.10+ preferred; 3.12+ only)
+    loop = asyncio.get_running_loop()
     return await loop.run_in_executor(None, compute_features_for_inference, ticker, price_days)

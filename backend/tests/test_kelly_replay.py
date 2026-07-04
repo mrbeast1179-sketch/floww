@@ -49,16 +49,16 @@ class TestScalePnlLinear:
         assert scale_pnl_linear(100.0, 0.04, 0.02) == 200.0
 
     def test_hand_pin_half_kelly_calibration_anchor(self):
-        """$100 under baseline 2% scaled by half-Kelly 0.1386 → $693."""
+        """$100 under baseline 2% scaled by half-Kelly 0.13864 → $693.18."""
         scaled = scale_pnl_linear(100.0, half_kelly(0.55, 1.65), 0.02)
-        assert scaled == pytest.approx(693.00, abs=1e-2)
+        assert scaled == pytest.approx(693.18, abs=0.02)
 
     def test_hand_pin_quarter_kelly_calibration_anchor(self):
-        """$100 under baseline 2% × quarter-Kelly (0.0693/0.02=3.4646) → $346.46."""
+        """$100 under baseline 2% × quarter-Kelly (0.06932/0.02=3.4659) → $346.59."""
         from domain.position_sizing import quarter_kelly
 
         scaled = scale_pnl_linear(100.0, quarter_kelly(0.55, 1.65), 0.02)
-        assert scaled == pytest.approx(346.46, abs=1e-2)
+        assert scaled == pytest.approx(346.59, abs=0.02)
 
     def test_hand_pin_naive_1pct(self):
         """$100 under baseline 2% × (0.01/0.02=0.5) → $50."""
@@ -74,10 +74,10 @@ class TestScalePnlLinear:
         assert scale_pnl_linear(100.0, 0.05, -0.02) == 100.0
 
     def test_negative_pnl_scales_correctly(self):
-        """$-100 under 2% × 6.93 = $-693 under half-Kelly (sign preserved).
+        """$-100 under 2% × 6.9318 = $-693.18 under half-Kelly (sign preserved).
         This is the case for losing strategies — Kelly scales losses too."""
         scaled = scale_pnl_linear(-100.0, half_kelly(0.55, 1.65), 0.02)
-        assert scaled == pytest.approx(-693.00, abs=1e-2)
+        assert scaled == pytest.approx(-693.18, abs=0.02)
 
 
 # ----------------------------------------------------------------------- #
@@ -208,7 +208,7 @@ class TestReplayRecordScaling:
         assert out["pnl_naive_1pct"] == pytest.approx(50.0, abs=1e-9)
 
     def test_theoretical_half_kelly_scales_by_anchor(self):
-        """Anchor policy 0.1386 over baseline 0.02 = 6.93× multiplier."""
+        """Anchor policy 0.13864 over baseline 0.02 = 6.9318× multiplier → $693.18."""
         record = {
             "symbol": "X",
             "name": "STRAT",
@@ -217,7 +217,7 @@ class TestReplayRecordScaling:
             "total_pnl": 100.0,
         }
         out = replay_record(record)
-        assert out["pnl_theoretical_half_kelly"] == pytest.approx(693.0, abs=1e-1)
+        assert out["pnl_theoretical_half_kelly"] == pytest.approx(693.18, abs=0.02)
 
 
 # ----------------------------------------------------------------------- #
@@ -375,7 +375,9 @@ class TestReplayAllConsistency:
 
 class TestReplayMonotonicity:
     def test_total_pnl_under_higher_pct_proportionally_larger(self):
-        """Sums scale linearly with policy pct at fixed baseline."""
+        """pnl_naive_2pct is always the raw total_pnl (identity at 2% baseline).
+        Changing baseline_pct does not change this column — it is the anchor.
+        Other policy columns (naive_1pct, theoretical_*) scale relative to baseline."""
         record_template = {
             "symbol": "X",
             "name": "STRAT",
@@ -389,8 +391,12 @@ class TestReplayMonotonicity:
         payload_2pct = replay_all(records_a, baseline_pct=0.02)
         payload_4pct = replay_all(records_b, baseline_pct=0.04)
 
-        # Since baseline_pct changed, naive_2pct column in payload_a maps to 0.02,
-        # but in payload_b maps to 0.04. Comparing totals:
+        # pnl_naive_2pct == raw total_pnl regardless of baseline (it's the identity anchor)
         naive_a = payload_2pct["aggregates"]["pnl_naive_2pct"]["total_pnl"]
         naive_b = payload_4pct["aggregates"]["pnl_naive_2pct"]["total_pnl"]
-        assert naive_b == pytest.approx(2.0 * naive_a, abs=1e-6)
+        assert naive_b == pytest.approx(naive_a, abs=1e-6)
+
+        # naive_1pct scales by (0.01/baseline_pct): at 4% baseline → 0.25×
+        naive1_a = payload_2pct["aggregates"]["pnl_naive_1pct"]["total_pnl"]
+        naive1_b = payload_4pct["aggregates"]["pnl_naive_1pct"]["total_pnl"]
+        assert naive1_b == pytest.approx(0.5 * naive1_a, abs=1e-6)

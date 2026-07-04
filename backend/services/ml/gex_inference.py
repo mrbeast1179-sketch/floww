@@ -39,7 +39,16 @@ def fetch_options_chain(ticker: str, max_expiries: int = 2) -> dict[str, Any] | 
         exp_dates = sorted(all_expirations,
                           key=lambda e: abs((pd.Timestamp(e) - target_ts).days))[:max_expiries]
 
-        spot = None
+        # Fetch real spot price from market data (not from option chain heuristics)
+        spot: float | None = None
+        try:
+            raw = t.fast_info.last_price or t.fast_info.previous_close or 0
+            candidate = float(raw)
+            if candidate > 0:
+                spot = candidate
+        except Exception:
+            pass
+
         contracts = []
 
         for exp_str in exp_dates:
@@ -48,11 +57,9 @@ def fetch_options_chain(ticker: str, max_expiries: int = 2) -> dict[str, Any] | 
             except Exception:
                 continue
 
+            # Fallback: use median strike as proxy if fast_info returned nothing
             if spot is None and not chain.calls.empty:
-                spot = float(chain.calls.iloc[0].get("lastPrice", 0) +
-                             chain.calls.iloc[0].get("strike", 0)) / 2
-                if spot <= 0:
-                    spot = float(chain.calls["strike"].median())
+                spot = float(chain.calls["strike"].median())
 
             for _, row in chain.calls.iterrows():
                 contracts.append({
@@ -148,6 +155,11 @@ def compute_gex_features(chain: dict[str, Any]) -> dict[str, float]:
     avg_put_iv = float(np.mean([c["iv"] for c in puts if c["iv"] > 0])) if puts else 0.2
     avg_iv = (avg_call_iv + avg_put_iv) / 2.0
 
+    # gex_concentration: how polarised call vs put GEX is (0 = balanced, 1 = fully one-sided)
+    gex_concentration = abs(total_call_gex - abs(total_put_gex)) / (
+        abs(total_call_gex) + abs(total_put_gex) + 1e-9
+    )
+
     features = {
         "call_gex": total_call_gex,
         "put_gex": total_put_gex,
@@ -157,6 +169,7 @@ def compute_gex_features(chain: dict[str, Any]) -> dict[str, float]:
         "gamma_flip": gamma_flip,
         "dist_to_flip": (spot - gamma_flip) / spot,
         "gex_n_strikes": float(len(strikes_sorted)),
+        "gex_concentration": gex_concentration,
         "put_call_ratio": put_call_ratio,
         "total_dex": total_dex_val,
         "total_vega": total_vega_val,
@@ -177,6 +190,7 @@ def _empty_gex_features(features: dict[str, float]) -> dict[str, float]:
         "call_gex": 0.0, "put_gex": 0.0,
         "net_call_gex": 0.0, "net_put_gex": 0.0, "net_gex": 0.0,
         "gamma_flip": 0.0, "dist_to_flip": 0.0, "gex_n_strikes": 0.0,
+        "gex_concentration": 0.0,
         "put_call_ratio": 1.0,
         "total_dex": 0.0, "total_vega": 0.0, "total_vex": 0.0,
         "realized_vol_t1": 0.0, "realized_vol_t3": 0.0,

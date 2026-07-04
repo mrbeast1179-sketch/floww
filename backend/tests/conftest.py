@@ -41,7 +41,8 @@ async def _reset_event_loop_and_motor(aclient, monkeypatch):
     from motor.motor_asyncio import AsyncIOMotorClient
 
     # Set API_SECRET_KEY for tests so auth doesn't block mutating routes
-    os.environ.setdefault("API_SECRET_KEY", "test-secret-key")
+    # Force-override so .env value (dev-local-testing-key) doesn't win over test key
+    os.environ["API_SECRET_KEY"] = "test-secret-key"
 
     # Defence-in-depth default for the live-Schwab env gate in
     # services/order_router.py — legacy order_router health tests below

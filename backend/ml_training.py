@@ -128,10 +128,12 @@ async def train_regime_prediction_model(
     if len(X) == 0:
         return {"status": "error", "message": "No training data generated"}
 
-    # Split train/test
+    # Split train/test with 5-bar embargo to prevent feature-smoothing
+    # look-ahead bias from bleeding across the boundary.
     split_idx = int(len(X) * 0.8)
-    X_train, X_test = X[:split_idx], X[split_idx:]
-    y_train, y_test = y[:split_idx], y[split_idx:]
+    embargo_end_idx = min(split_idx + 5, len(X))
+    X_train, X_test = X[:split_idx], X[embargo_end_idx:]
+    y_train, y_test = y[:split_idx], y[embargo_end_idx:]
 
     # Train model
     from sklearn.ensemble import GradientBoostingClassifier

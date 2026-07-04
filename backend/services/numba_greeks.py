@@ -179,9 +179,10 @@ def bs_vega_vec(
 ) -> np.ndarray:
     """Vectorized Black-Scholes vega for an array of options.
 
-    Vega measures sensitivity to a 1 percentage point change in volatility.
-    It is the same for calls and puts. The raw value is divided by 100 to
-    represent the change per 1 vol point.
+    Vega measures sensitivity to a 1-unit change in implied volatility (raw
+    Black-Scholes convention: same units as bs_greeks.bs_vega). It is the
+    same for calls and puts. Downstream callers that need "per 1% vol move"
+    should multiply by DOLLAR_MOVE_CONVENTION (0.01) via dollar_vega_per_contract.
 
     Args:
         S: Spot price (scalar).
@@ -192,7 +193,7 @@ def bs_vega_vec(
         r: Risk-free rate (default 0.05).
 
     Returns:
-        Array of vega values (per 1 vol point). Elements where S<=0, K<=0,
+        Array of vega values (raw, per 1-unit vol). Elements where S<=0, K<=0,
         T<=0, or sigma<=0 are set to 0.0.
     """
     n = K.shape[0]
@@ -202,7 +203,7 @@ def bs_vega_vec(
             out[i] = 0.0
             continue
         d1, _d2 = _d1d2(S, K[i], T[i], sigma[i], r, q)
-        out[i] = S * math.exp(-q * T[i]) * _norm_pdf(d1) * math.sqrt(T[i]) / 100.0
+        out[i] = S * math.exp(-q * T[i]) * _norm_pdf(d1) * math.sqrt(T[i])
     return out
 
 
@@ -326,7 +327,7 @@ def bs_vomma_vec(
             out[i] = 0.0
             continue
         d1, d2 = _d1d2(S, K[i], T[i], sigma[i], r, q)
-        vega_i = S * math.exp(-q * T[i]) * _norm_pdf(d1) * math.sqrt(T[i]) / 100.0
+        vega_i = S * math.exp(-q * T[i]) * _norm_pdf(d1) * math.sqrt(T[i])
         out[i] = vega_i * d1 * d2 / sigma[i]
     return out
 

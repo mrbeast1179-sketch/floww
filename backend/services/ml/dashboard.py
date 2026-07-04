@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import logging
 import os
+from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
@@ -259,6 +260,7 @@ class ModelDashboard:
         self._client.close()
 
 
+@dataclass
 class ModelHealth:
     """Health status for a single model."""
     ticker: str

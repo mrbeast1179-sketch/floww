@@ -416,10 +416,10 @@ function FlowAlertsPage({ ticker, token }) {
             <button className={`fa-chip ${filter === "puts" ? "active" : ""}`} onClick={() => setFilter("puts")}>Puts</button>
             <button className={`fa-chip ${filter === "bullish" ? "active" : ""}`} onClick={() => setFilter("bullish")}>Bullish</button>
             <button className={`fa-chip ${filter === "bearish" ? "active" : ""}`} onClick={() => setFilter("bearish")}>Bearish</button>
-            <button className={`fa-chip`} onClick={() => setFilter("all")}>≥ $500K</button>
-            <button className={`fa-chip`} onClick={() => setFilter("all")}>≥ $1M</button>
-            <button className={`fa-chip`} onClick={() => setFilter("all")}>Sweep Only</button>
-            <button className={`fa-chip`} onClick={() => setFilter("all")}>HIGH Conf</button>
+            <button className={`fa-chip ${filter === "500k" ? "active" : ""}`} onClick={() => setFilter("500k")}>≥ $500K</button>
+            <button className={`fa-chip ${filter === "1m" ? "active" : ""}`} onClick={() => setFilter("1m")}>≥ $1M</button>
+            <button className={`fa-chip ${filter === "sweep" ? "active" : ""}`} onClick={() => setFilter("sweep")}>Sweep Only</button>
+            <button className={`fa-chip ${filter === "high" ? "active" : ""}`} onClick={() => setFilter("high")}>HIGH Conf</button>
             <button className={`fa-chip`} onClick={() => setFilter("all")}>Reset</button>
           </div>
         </div>

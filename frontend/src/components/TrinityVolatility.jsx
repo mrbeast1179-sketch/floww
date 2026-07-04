@@ -15,6 +15,19 @@ import React, { useState, useEffect, useRef, useCallback } from "react";
 import axios from "axios";
 import "./TrinityVolatility.css";
 
+class ErrorBoundary extends React.Component {
+  constructor(props) { super(props); this.state = { hasError: false, error: null }; }
+  static getDerivedStateFromError(error) { return { hasError: true, error }; }
+  render() {
+    if (this.state.hasError) return (
+      <div style={{color:'#ff6b6b', padding:'20px', fontFamily:'monospace'}}>
+        Trinity component error: {this.state.error?.message}
+      </div>
+    );
+    return this.props.children;
+  }
+}
+
 const API = process.env.REACT_APP_BACKEND_URL
   ? `${process.env.REACT_APP_BACKEND_URL}/api`
   : "/api";
@@ -87,6 +100,7 @@ export default function TrinityVolatility({ ticker = "SPY", expiries = 8 }) {
       setSpot(r.data.spot || 0);
       setExpiryList(r.data.expiries || []);
       setRows(r.data.rows);
+      setSelExpIdx(0);
       setLoading(false);
     } catch (e) {
       if (myId !== reqSeqRef.current) return;
@@ -133,7 +147,7 @@ export default function TrinityVolatility({ ticker = "SPY", expiries = 8 }) {
       const near = r2.filter((r) => r.strike >= lo && r.strike <= hi);
       if (!near.length) continue;
       const ivs = near.map((r) => {
-        const iv = r.type === "call" ? r.iv : r.iv;
+        const iv = r.type === "call" ? r.call_iv ?? r.iv : r.put_iv ?? r.iv;
         return iv != null ? iv * 100 : null;
       });
       out.push({ exp: e2, color: j === 1 ? C.faint1 : C.faint2, ivs });
@@ -259,6 +273,15 @@ export default function TrinityVolatility({ ticker = "SPY", expiries = 8 }) {
     drawRR();
   }, [plotlyReady, drawSkew, drawTerm, drawRR]);
 
+  // Purge Plotly instances on unmount to prevent memory leaks
+  useEffect(() => {
+    return () => {
+      [skewRef, termRef, rrRef].forEach(ref => {
+        if (ref.current && window.Plotly) window.Plotly.purge(ref.current);
+      });
+    };
+  }, []);
+
   // ---- render ----
   if (loading) {
     return <div className="tv-root"><div className="tv-loading">Loading {ticker} volatility…</div></div>;
@@ -268,6 +291,7 @@ export default function TrinityVolatility({ ticker = "SPY", expiries = 8 }) {
   }
 
   return (
+    <ErrorBoundary>
     <div className="tv-root">
       <div className="tv-header">
         <span className="tv-title">△ Trinity Volatility</span>
@@ -310,5 +334,6 @@ export default function TrinityVolatility({ ticker = "SPY", expiries = 8 }) {
         </div>
       </div>
     </div>
+    </ErrorBoundary>
   );
 }

@@ -34,7 +34,7 @@ router = APIRouter()
 
 
 @router.get("/errors/summary")
-async def errors_summary():
+async def errors_summary(_: bool = Depends(_require_admin_auth)):
     from server import db
     cutoff = __import__("datetime").datetime.now(__import__("datetime").timezone.utc) - __import__("datetime").timedelta(hours=24)
     errors = db.errors.find({"ts": {"$gte": cutoff}}, {"_id": 0}).sort("ts", -1).limit(100)

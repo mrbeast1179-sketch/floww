@@ -112,20 +112,22 @@ class DuckDBEngine:
     def _create_base_tables(self):
         self._conn.execute("""
             CREATE TABLE IF NOT EXISTS ticks (
-                timestamp    TIMESTAMP,
-                symbol       VARCHAR,
-                bid          DOUBLE,
-                ask          DOUBLE,
-                last         DOUBLE,
-                volume       BIGINT,
-                oi           BIGINT,
-                delta_val    DOUBLE,
-                gamma_val    DOUBLE,
-                theta_val    DOUBLE,
-                vega_val     DOUBLE,
-                vanna_val    DOUBLE,
-                charm_val    DOUBLE,
-                vomma_val    DOUBLE
+                timestamp     TIMESTAMP,
+                symbol        VARCHAR,
+                bid           DOUBLE,
+                ask           DOUBLE,
+                last          DOUBLE,
+                volume        BIGINT,
+                oi            BIGINT,
+                delta_val     DOUBLE,
+                gamma_val     DOUBLE,
+                theta_val     DOUBLE,
+                vega_val      DOUBLE,
+                vanna_val     DOUBLE,
+                charm_val     DOUBLE,
+                vomma_val     DOUBLE,
+                data_source   VARCHAR DEFAULT 'Yahoo',
+                delay_seconds INTEGER DEFAULT 0
             )
         """)
         self._conn.execute("""
@@ -292,23 +294,25 @@ class DuckDBEngine:
         async with self._lock:
             buf = self._tick_buffer
             self._tick_buffer = []
-        obs_metrics.duckdb_batch_size.observe(len(buf))
-        obs_metrics.duckdb_queue_depth.set(
-            len(self._tick_buffer) + len(self._lob_buffer) + len(self._flow_buffer)
-        )
-        try:
-            await _execute_with_timeout(
-                self._conn,
-                lambda: self._conn.executemany(
-                    """INSERT INTO ticks VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
-                    buf,
-                ),
-                operation="tick flush",
+            if not buf:
+                return
+            obs_metrics.duckdb_batch_size.observe(len(buf))
+            obs_metrics.duckdb_queue_depth.set(
+                len(self._tick_buffer) + len(self._lob_buffer) + len(self._flow_buffer)
             )
-        except TimeoutError:
-            logger.error(f"DuckDB tick flush timeout - {len(buf)} rows dropped")
-        except Exception as e:
-            logger.error(f"DuckDB tick flush error: {e}")
+            try:
+                await _execute_with_timeout(
+                    self._conn,
+                    lambda: self._conn.executemany(
+                        """INSERT INTO ticks VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                        buf,
+                    ),
+                    operation="tick flush",
+                )
+            except TimeoutError:
+                logger.error(f"DuckDB tick flush timeout - {len(buf)} rows dropped")
+            except Exception as e:
+                logger.error(f"DuckDB tick flush error: {e}")
 
     @retry_on_failure(max_retries=3, base_delay=0.1)
     async def _flush_lob(self):
@@ -317,23 +321,25 @@ class DuckDBEngine:
         async with self._lock:
             buf = self._lob_buffer
             self._lob_buffer = []
-        obs_metrics.duckdb_batch_size.observe(len(buf))
-        obs_metrics.duckdb_queue_depth.set(
-            len(self._tick_buffer) + len(self._lob_buffer) + len(self._flow_buffer)
-        )
-        try:
-            await _execute_with_timeout(
-                self._conn,
-                lambda: self._conn.executemany(
-                    """INSERT INTO lob_snapshots VALUES (?,?,?,?,?,?,?)""",
-                    buf,
-                ),
-                operation="LOB flush",
+            if not buf:
+                return
+            obs_metrics.duckdb_batch_size.observe(len(buf))
+            obs_metrics.duckdb_queue_depth.set(
+                len(self._tick_buffer) + len(self._lob_buffer) + len(self._flow_buffer)
             )
-        except TimeoutError:
-            logger.error(f"DuckDB LOB flush timeout - {len(buf)} rows dropped")
-        except Exception as e:
-            logger.error(f"DuckDB LOB flush error: {e}")
+            try:
+                await _execute_with_timeout(
+                    self._conn,
+                    lambda: self._conn.executemany(
+                        """INSERT INTO lob_snapshots VALUES (?,?,?,?,?,?,?)""",
+                        buf,
+                    ),
+                    operation="LOB flush",
+                )
+            except TimeoutError:
+                logger.error(f"DuckDB LOB flush timeout - {len(buf)} rows dropped")
+            except Exception as e:
+                logger.error(f"DuckDB LOB flush error: {e}")
 
     @retry_on_failure(max_retries=3, base_delay=0.1)
     async def _flush_flow(self):
@@ -342,23 +348,25 @@ class DuckDBEngine:
         async with self._lock:
             buf = self._flow_buffer
             self._flow_buffer = []
-        obs_metrics.duckdb_batch_size.observe(len(buf))
-        obs_metrics.duckdb_queue_depth.set(
-            len(self._tick_buffer) + len(self._lob_buffer) + len(self._flow_buffer)
-        )
-        try:
-            await _execute_with_timeout(
-                self._conn,
-                lambda: self._conn.executemany(
-                    """INSERT INTO flow_prints VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
-                    buf,
-                ),
-                operation="flow flush",
+            if not buf:
+                return
+            obs_metrics.duckdb_batch_size.observe(len(buf))
+            obs_metrics.duckdb_queue_depth.set(
+                len(self._tick_buffer) + len(self._lob_buffer) + len(self._flow_buffer)
             )
-        except TimeoutError:
-            logger.error(f"DuckDB flow flush timeout - {len(buf)} rows dropped")
-        except Exception as e:
-            logger.error(f"DuckDB flow flush error: {e}")
+            try:
+                await _execute_with_timeout(
+                    self._conn,
+                    lambda: self._conn.executemany(
+                        """INSERT INTO flow_prints VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                        buf,
+                    ),
+                    operation="flow flush",
+                )
+            except TimeoutError:
+                logger.error(f"DuckDB flow flush timeout - {len(buf)} rows dropped")
+            except Exception as e:
+                logger.error(f"DuckDB flow flush error: {e}")
 
     def query(self, sql: str, params: list | None = None) -> list[dict[str, Any]]:
         """Synchronous query returning list of dicts. Non-blocking wrapper available as query_async."""

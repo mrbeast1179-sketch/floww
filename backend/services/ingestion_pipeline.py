@@ -237,30 +237,31 @@ class IngestionPipeline:
 
     async def _insert_chains(self, chains: list):
         """Bulk INSERT chain data into DuckDB chains table."""
-        # Note: chains table may not exist in current schema; insert into ticks as fallback
         rows = []
         for c in chains:
             rows.append((
-                c.get("timestamp", datetime.now(UTC).isoformat()),
-                c.get("symbol", ""),
-                c.get("bid", 0.0),
-                c.get("ask", 0.0),
-                c.get("last", 0.0),
-                c.get("volume", 0),
-                c.get("oi", 0),
-                c.get("delta", 0.0),
-                c.get("gamma", 0.0),
-                c.get("theta", 0.0),
-                c.get("vega", 0.0),
-                c.get("vanna", 0.0),
-                c.get("charm", 0.0),
-                c.get("vomma", 0.0),
-                c.get("data_source", "Yahoo"),
-                c.get("delay_seconds", 0),
+                c.get("timestamp", datetime.now(UTC).isoformat()),  # timestamp
+                c.get("symbol", ""),                                  # symbol
+                c.get("ticker", c.get("symbol", "")),                # ticker
+                float(c.get("strike", 0.0)),                         # strike
+                c.get("expiry", ""),                                  # expiry
+                c.get("type", "call"),                               # type
+                float(c.get("bid", 0.0)),                            # bid
+                float(c.get("ask", 0.0)),                            # ask
+                float(c.get("last", 0.0)),                           # last
+                int(c.get("volume", 0)),                             # volume
+                int(c.get("oi", c.get("open_interest", 0))),         # open_interest
+                float(c.get("iv", 0.0)),                             # iv
+                float(c.get("delta", 0.0)),                          # delta_val
+                float(c.get("gamma", 0.0)),                          # gamma_val
+                float(c.get("theta", 0.0)),                          # theta_val
+                float(c.get("vega", 0.0)),                           # vega_val
+                c.get("data_source", "Yahoo"),                        # data_source
+                int(c.get("delay_seconds", 0)),                      # delay_seconds
             ))
         await asyncio.to_thread(
             lambda: self.db.conn.executemany(
-                "INSERT INTO ticks VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                "INSERT INTO chains VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
                 rows,
             )
         )

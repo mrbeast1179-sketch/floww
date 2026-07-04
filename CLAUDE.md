@@ -29,6 +29,8 @@
 
 **PWA launch:** `open -a "$HOME/Applications/Chrome Apps.localized/Confluence Decoder.app"` (alias `decoder` in `~/.zshrc`). **Never** `open <URL>` — that spawns a Chrome tab, not the PWA. The PWA expects React on :3000 + backend on :8000 already running.
 
+**Auto-startup (2026-06-27):** LaunchAgent `~/Library/LaunchAgents/com.confluence-decoder.plist` starts MongoDB → FastAPI :8000 → React :3000 → PWA on login. Script: `~/.hermes/scripts/confluence-decoder-start.sh`. Manual: `decoder` (alias). Stop: `scripts/stop_decoder.sh`.
+
 ---
 
 ## Forbidden files (architect-frozen)

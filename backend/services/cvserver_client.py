@@ -98,9 +98,43 @@ DEFAULT_FIELDS = [
 _cache: dict[str, tuple[float, dict]] = {}
 CACHE_TTL = 60  # seconds
 
+# Module-level shared HTTP client — avoids creating a new TCP connection per call.
+# Initialised lazily on first use; replaced on timeout/error if needed.
+_http_client: httpx.Client | None = None
+
+
+def _get_http_client() -> httpx.Client:
+    """Return the module-level shared httpx.Client, creating it if needed."""
+    global _http_client
+    if _http_client is None or _http_client.is_closed:
+        _http_client = httpx.Client(
+            timeout=CVSERVER_TIMEOUT,
+            limits=httpx.Limits(max_connections=10, max_keepalive_connections=5),
+        )
+    return _http_client
+
+
+async def startup() -> None:
+    """Initialise the shared HTTP client. Call from FastAPI startup handler."""
+    global _http_client
+    _http_client = httpx.Client(
+        timeout=CVSERVER_TIMEOUT,
+        limits=httpx.Limits(max_connections=10, max_keepalive_connections=5),
+    )
+    logger.info("cvserver_client: HTTP connection pool initialised")
+
+
+async def shutdown() -> None:
+    """Close the shared HTTP client. Call from FastAPI shutdown handler."""
+    global _http_client
+    if _http_client is not None and not _http_client.is_closed:
+        _http_client.close()
+        _http_client = None
+    logger.info("cvserver_client: HTTP connection pool closed")
+
 
 def _cvserver_call(method: str, arguments: dict) -> dict:
-    """Synchronous JSON-RPC call to cvserver MCP endpoint."""
+    """Synchronous JSON-RPC call to cvserver MCP endpoint (uses shared connection pool)."""
     headers = {
         "Content-Type": "application/json",
     }
@@ -114,10 +148,10 @@ def _cvserver_call(method: str, arguments: dict) -> dict:
         "params": arguments,
     }
 
-    with httpx.Client(timeout=CVSERVER_TIMEOUT) as client:
-        resp = client.post(CVSERVER_URL, json=payload, headers=headers)
-        resp.raise_for_status()
-        result = resp.json()
+    client = _get_http_client()
+    resp = client.post(CVSERVER_URL, json=payload, headers=headers)
+    resp.raise_for_status()
+    result = resp.json()
 
     if "error" in result:
         raise RuntimeError(f"cvserver error: {result['error']}")
@@ -132,8 +166,8 @@ def _cvserver_call(method: str, arguments: dict) -> dict:
 
 
 async def _cvserver_call_async(method: str, arguments: dict) -> dict:
-    """Async wrapper for _cvserver_call."""
-    loop = asyncio.get_event_loop()
+    """Async wrapper for _cvserver_call (runs sync client in thread pool)."""
+    loop = asyncio.get_running_loop()
     return await loop.run_in_executor(None, _cvserver_call, method, arguments)
 
 

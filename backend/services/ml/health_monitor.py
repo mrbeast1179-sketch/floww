@@ -107,12 +107,12 @@ async def assess_model_health(db, ticker: str) -> dict[str, Any]:
             since = (now - timedelta(days=window_days)).isoformat()
             cursor = db["ml_predictions"].find({
                 "ticker": ticker,
-                "timestamp": {"$gte": since},
-                "outcome": {"$exists": True, "$ne": None},
+                "ts": {"$gte": since},
+                "realized_outcome": {"$exists": True, "$ne": None},
             })
             docs = await cursor.to_list(length=1000)
             if len(docs) >= 10:
-                correct = sum(1 for d in docs if d.get("prediction") == d.get("outcome"))
+                correct = sum(1 for d in docs if d.get("prediction") == d.get("realized_outcome"))
                 acc = correct / len(docs)
                 result[f"{key}_accuracy"] = round(acc, 4)
                 result[f"{key}_n"] = len(docs)
@@ -127,10 +127,10 @@ async def assess_model_health(db, ticker: str) -> dict[str, Any]:
     try:
         latest = await db["ml_predictions"].find_one(
             {"ticker": ticker},
-            sort=[("timestamp", -1)],
+            sort=[("ts", -1)],
         )
-        if latest and "timestamp" in latest:
-            ts = latest["timestamp"]
+        if latest and "ts" in latest:
+            ts = latest["ts"]
             if isinstance(ts, str):
                 ts = datetime.fromisoformat(ts.replace("Z", "+00:00"))
             age_hours = (now - ts).total_seconds() / 3600
@@ -240,7 +240,7 @@ async def _compute_feature_drift(db, ticker: str, model_doc: dict) -> dict[str, 
         cursor = db["ml_predictions"].find(
             {"ticker": ticker, "feature_snapshot": {"$exists": True}},
             {"feature_snapshot": 1, "_id": 0},
-        ).sort("timestamp", -1).limit(100)
+        ).sort("ts", -1).limit(100)
         recent_docs = await cursor.to_list(length=100)
         if not recent_docs:
             return {}

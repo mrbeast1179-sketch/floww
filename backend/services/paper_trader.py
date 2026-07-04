@@ -418,11 +418,13 @@ class PaperTrader:
             return
         try:
             import asyncio
-            loop = asyncio.get_event_loop()
-            if loop.is_running():
+            try:
+                # Prefer get_running_loop() — avoids DeprecationWarning in 3.10+ / error in 3.12+
+                asyncio.get_running_loop()
                 asyncio.create_task(_log_failed_insert(self.mongo.insert_one(order), "order"))
-            else:
-                loop.run_until_complete(self.mongo.insert_one(order))
+            except RuntimeError:
+                # No running event loop — sync context; use asyncio.run()
+                asyncio.run(_log_failed_insert(self.mongo.insert_one(order), "order"))
         except Exception as e:
             logger.warning(f"Failed to persist order to MongoDB: {e}")
 
@@ -432,13 +434,15 @@ class PaperTrader:
             return
         try:
             import asyncio
-            loop = asyncio.get_event_loop()
             doc = trade.to_dict()
             doc["logged_at"] = datetime.now(UTC).isoformat()
-            if loop.is_running():
+            try:
+                # Prefer get_running_loop() — avoids DeprecationWarning in 3.10+ / error in 3.12+
+                asyncio.get_running_loop()
                 asyncio.create_task(_log_failed_insert(self.mongo.insert_one(doc), "trade"))
-            else:
-                loop.run_until_complete(self.mongo.insert_one(doc))
+            except RuntimeError:
+                # No running event loop — sync context; use asyncio.run()
+                asyncio.run(_log_failed_insert(self.mongo.insert_one(doc), "trade"))
         except Exception as e:
             logger.warning(f"Failed to persist trade to MongoDB: {e}")
 

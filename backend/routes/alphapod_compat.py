@@ -27,7 +27,9 @@ from __future__ import annotations
 from datetime import UTC, date, datetime, timedelta
 from typing import Any
 
-from fastapi import APIRouter, Query
+import os
+
+from fastapi import APIRouter, HTTPException, Query
 
 router = APIRouter(prefix="/api", tags=["alphapod-compat"])
 
@@ -323,8 +325,11 @@ async def dev_token(body: dict[str, Any]) -> dict[str, Any]:
             "iss": "floww-dev",
         }).encode()
     ).rstrip(b"=").decode()
+    secret = os.environ.get("JWT_SECRET_KEY", "").encode()
+    if not secret:
+        raise HTTPException(status_code=503, detail="JWT secret not configured — set JWT_SECRET_KEY in environment")
     sig = base64.urlsafe_b64encode(
-        hmac.new(b"floww-dev-secret", f"{header}.{payload}".encode(), hashlib.sha256).digest()
+        hmac.new(secret, f"{header}.{payload}".encode(), hashlib.sha256).digest()
     ).rstrip(b"=").decode()
 
     access_token = f"{header}.{payload}.{sig}"

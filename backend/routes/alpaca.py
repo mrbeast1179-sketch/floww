@@ -2,7 +2,9 @@
 
 import logging
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends, Request
+
+from auth import require_api_key
 
 logger = logging.getLogger(__name__)
 
@@ -10,7 +12,7 @@ router = APIRouter(prefix="/api/alpaca", tags=["alpaca"])
 
 
 @router.get("/account")
-async def get_account():
+async def get_account(_: bool = Depends(require_api_key)):
     """Get Alpaca account info."""
     try:
         from alpaca_client import AlpacaClient
@@ -24,7 +26,7 @@ async def get_account():
 
 
 @router.get("/positions")
-async def get_positions():
+async def get_positions(_: bool = Depends(require_api_key)):
     """Get all open positions."""
     try:
         from alpaca_client import AlpacaClient
@@ -36,7 +38,7 @@ async def get_positions():
 
 
 @router.get("/orders")
-async def get_orders(status: str = "open", limit: int = 50):
+async def get_orders(status: str = "open", limit: int = 50, _: bool = Depends(require_api_key)):
     """Get orders."""
     try:
         from alpaca_client import AlpacaClient
