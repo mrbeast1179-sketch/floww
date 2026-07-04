@@ -63,6 +63,47 @@ export function scanScoreOf(r, regime = null) {
   return Math.max(0, Math.min(100, Math.round(s)));
 }
 
+// Premium spent estimate (institutions read premium, not contract notional).
+// BS-lite ATM price ≈ strike·iv·√(dte/365)·0.4, discounted toward deep OTM by
+// |delta| when known, floored at $0.05/contract. Always labeled ~ in the UI —
+// there is no quote feed on this data.
+export function estPremium(r) {
+  const iv = r.iv == null ? null : (Number(r.iv) > 1 ? Number(r.iv) / 100 : Number(r.iv));
+  if (!iv || !r.strike) return null;
+  const dte = Math.max(1, r.dte ?? 5);
+  let px = r.strike * iv * Math.sqrt(dte / 365) * 0.4;
+  if (r.delta != null) px *= Math.min(1, 0.3 + Math.abs(r.delta) * 1.4);
+  px = Math.max(0.05, px);
+  return (r.vol || 0) * 100 * px;
+}
+
+// Alert engine — pure. Evaluates NEW rows against the enabled rules; a row
+// fires at most one alert (first matching rule wins, in priority order).
+export function evalAlerts(rows, opts = {}) {
+  const {
+    minScore = 85,
+    whalePremium = 10e6,
+    zeroDteScore = 70,
+    enabled = { score: true, whale: true, zerodte: true },
+  } = opts;
+  const out = [];
+  for (const r of rows || []) {
+    if (!r._new) continue;
+    let rule = null;
+    if (enabled.score && r.score >= minScore) rule = "SCORE";
+    else if (enabled.whale && r.premium != null && r.premium >= whalePremium) rule = "WHALE";
+    else if (enabled.zerodte && r.dte != null && r.dte <= 1 && r.score >= zeroDteScore) rule = "0DTE";
+    if (!rule) continue;
+    out.push({
+      key: `${r.under}|${r.type}|${r.strike}|${r.exp}`,
+      rule, under: r.under, type: r.type, strike: r.strike, exp: r.exp,
+      score: r.score, premium: r.premium, notional: r.notional,
+      volOI: r.volOI, dte: r.dte,
+    });
+  }
+  return out;
+}
+
 // Build one scanner row. spot enables delta estimation when the feed omits
 // delta; regime (from the backend heatmap cache) feeds the score nudge.
 export function mkScanRow(under, type, strike, exp, vol, oi, iv, delta, spot = null, regime = null) {
@@ -78,6 +119,7 @@ export function mkScanRow(under, type, strike, exp, vol, oi, iv, delta, spot = n
     spot, regime,
     volOI, notional: vol * 100 * stk, dte: bizDTE(exp),
   };
+  r.premium = estPremium(r);
   r.score = scanScoreOf(r, regime); r.ftype = scanTypeOf(r);
   return r;
 }

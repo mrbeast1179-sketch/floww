@@ -1,6 +1,6 @@
 import {
   bizDTE, scanTypeOf, scanScoreOf, estimateDelta, approxSpot, mkScanRow,
-  fmtUSD, fmtK, fmtIV, scoreGradeOf,
+  fmtUSD, fmtK, fmtIV, scoreGradeOf, estPremium, evalAlerts,
 } from "./scanLogic";
 
 describe("estimateDelta", () => {
@@ -89,6 +89,64 @@ describe("formatters", () => {
     expect(fmtIV(0.42)).toBe("42.0%");
     expect(scoreGradeOf(85)).toBe("crit");
     expect(scoreGradeOf(40)).toBe("norm");
+  });
+});
+
+describe("estPremium", () => {
+  it("null without iv or strike", () => {
+    expect(estPremium({ iv: null, strike: 100, vol: 10, dte: 5 })).toBeNull();
+    expect(estPremium({ iv: 0.3, strike: 0, vol: 10, dte: 5 })).toBeNull();
+  });
+  it("scales with volume and iv, handles pct-style iv", () => {
+    const base = { strike: 100, vol: 1000, dte: 5, delta: 0.5 };
+    const p1 = estPremium({ ...base, iv: 0.2 });
+    const p2 = estPremium({ ...base, iv: 0.4 });
+    const p2pct = estPremium({ ...base, iv: 40 });   // 40 ≡ 40%
+    expect(p2).toBeGreaterThan(p1);
+    expect(p2pct).toBeCloseTo(p2, 5);
+    expect(estPremium({ ...base, iv: 0.2, vol: 2000 })).toBeCloseTo(p1 * 2, 5);
+  });
+  it("discounts deep OTM via delta, never below the floor price", () => {
+    const atm = estPremium({ strike: 100, vol: 100, dte: 5, iv: 0.3, delta: 0.5 });
+    const otm = estPremium({ strike: 100, vol: 100, dte: 5, iv: 0.3, delta: 0.05 });
+    expect(otm).toBeLessThan(atm);
+    expect(estPremium({ strike: 1, vol: 100, dte: 1, iv: 0.01, delta: 0.02 })).toBeGreaterThanOrEqual(100 * 100 * 0.05);
+  });
+});
+
+describe("evalAlerts", () => {
+  const mk = (over) => ({
+    under: "SPY", type: "call", strike: 745, exp: "2099-01-08",
+    score: 90, premium: 2e6, notional: 5e7, volOI: 3, dte: 5, _new: true, ...over,
+  });
+  it("only fires on _new rows", () => {
+    expect(evalAlerts([mk({ _new: false })])).toEqual([]);
+    expect(evalAlerts([mk()])).toHaveLength(1);
+  });
+  it("SCORE rule respects minScore", () => {
+    const hits = evalAlerts([mk({ score: 84 }), mk({ score: 85, strike: 750 })], { minScore: 85 });
+    expect(hits).toHaveLength(1);
+    expect(hits[0].rule).toBe("SCORE");
+    expect(hits[0].strike).toBe(750);
+  });
+  it("WHALE fires on premium threshold when score is quiet", () => {
+    const hits = evalAlerts([mk({ score: 40, premium: 12e6 })], { minScore: 85, whalePremium: 10e6 });
+    expect(hits).toHaveLength(1);
+    expect(hits[0].rule).toBe("WHALE");
+  });
+  it("0DTE fires on short-dated near-threshold flow", () => {
+    const hits = evalAlerts([mk({ score: 72, premium: 1e5, dte: 0 })], { minScore: 85, zeroDteScore: 70 });
+    expect(hits).toHaveLength(1);
+    expect(hits[0].rule).toBe("0DTE");
+  });
+  it("disabled rules are skipped and each row alerts at most once", () => {
+    const rows = [mk({ score: 99, premium: 99e6, dte: 0 })];
+    expect(evalAlerts(rows, { enabled: { score: false, whale: false, zerodte: false } })).toEqual([]);
+    expect(evalAlerts(rows)).toHaveLength(1);   // matches SCORE first, not three times
+  });
+  it("carries a stable contract key", () => {
+    const [hit] = evalAlerts([mk()]);
+    expect(hit.key).toBe("SPY|call|745|2099-01-08");
   });
 });
 

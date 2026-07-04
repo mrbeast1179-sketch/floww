@@ -11,7 +11,7 @@
  */
 import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { BACKEND_URL } from "../../config/api";
-import { approxSpot, mkScanRow, fmtUSD, fmtK, fmtIV, scoreGradeOf } from "./scanLogic";
+import { approxSpot, mkScanRow, evalAlerts, fmtUSD, fmtK, fmtIV, scoreGradeOf } from "./scanLogic";
 import "./FlowseekerProBlademap.css";
 
 const API = `${BACKEND_URL}/api/flowseeker`;
@@ -71,8 +71,12 @@ const SCAN_UNIVERSE = ["SPY", "QQQ", "IWM", "NVDA", "TSLA", "AAPL", "MSFT", "AMZ
 // and the fmt* helpers — lives in ./scanLogic.js, tested in scanLogic.test.js)
 
 const PREFS_KEY = "fsb-scan-prefs-v1";
+const ALERTS_KEY = "fsb-scan-alerts-v1";
 function loadScanPrefs() {
   try { return JSON.parse(localStorage.getItem(PREFS_KEY)) || {}; } catch { return {}; }
+}
+function loadAlertLog() {
+  try { return JSON.parse(localStorage.getItem(ALERTS_KEY)) || []; } catch { return []; }
 }
 
 // Mark rows unseen in the previous refresh (drives the NEW flash + alerts).
@@ -110,13 +114,36 @@ export default function FlowseekerProBlademap({ active = true }) {
   const [universe, setUniverse] = useState(prefs.universe || SCAN_UNIVERSE);
   const [universeOnly, setUniverseOnly] = useState(!!prefs.universeOnly);
   const [alertScore, setAlertScore] = useState(prefs.alertScore ?? 85);
+  const [alertRules, setAlertRules] = useState(prefs.alertRules || { score: true, whale: true, zerodte: true });
+  const [alertLog, setAlertLog] = useState(loadAlertLog);
+  const [alertsOpen, setAlertsOpen] = useState(false);
   const prevKeysRef = useRef(null);
+  // Poll effect reads alert config via ref so rule tweaks don't re-arm the interval.
+  const alertCfgRef = useRef({});
+  useEffect(() => { alertCfgRef.current = { minScore: alertScore, enabled: alertRules }; }, [alertScore, alertRules]);
 
   useEffect(() => {
     try {
-      localStorage.setItem(PREFS_KEY, JSON.stringify({ scanTypeF, scanMinVol, scanMinScore, scanSort, universe, universeOnly, alertScore }));
+      localStorage.setItem(PREFS_KEY, JSON.stringify({ scanTypeF, scanMinVol, scanMinScore, scanSort, universe, universeOnly, alertScore, alertRules }));
     } catch { /* private mode — prefs just don't persist */ }
-  }, [scanTypeF, scanMinVol, scanMinScore, scanSort, universe, universeOnly, alertScore]);
+  }, [scanTypeF, scanMinVol, scanMinScore, scanSort, universe, universeOnly, alertScore, alertRules]);
+
+  // Append newly triggered alerts to the persistent log (dedupe per contract
+  // within 30min so a hot name doesn't spam every refresh; cap at 100).
+  const ingestAlerts = useCallback((rows) => {
+    const hits = evalAlerts(rows, alertCfgRef.current);
+    if (!hits.length) return;
+    setAlertLog((prev) => {
+      const cutoff = Date.now() - 30 * 60e3;
+      const recent = new Set(prev.filter((a) => a.t >= cutoff).map((a) => a.key));
+      const fresh = hits.filter((h) => !recent.has(h.key))
+        .map((h) => ({ ...h, t: Date.now(), time: new Date().toLocaleTimeString() }));
+      if (!fresh.length) return prev;
+      const next = [...fresh, ...prev].slice(0, 100);
+      try { localStorage.setItem(ALERTS_KEY, JSON.stringify(next)); } catch { /* private mode */ }
+      return next;
+    });
+  }, []);
 
   const microRef = useRef({});            // { vpin, regimeConf, lambdaR2 } for selected ticker
   const gaugeRef = useRef(null), radarRef = useRef(null), ofiRef = useRef(null);
@@ -215,7 +242,9 @@ export default function FlowseekerProBlademap({ active = true }) {
           const rows = d.rows.map((r) =>
             mkScanRow(r[0], r[2], r[3], r[4], Number(r[5]) || 0, Number(r[6]) || 0,
               r[7], r[8], Number(r[9]) || null, regimes[r[0]] || null));
-          setScan(markNew(rows, prevKeysRef));
+          const marked = markNew(rows, prevKeysRef);
+          ingestAlerts(marked);
+          setScan(marked);
           setScanMeta({ mode: "market", stale: !!d.stale, symbols: new Set(rows.map((x) => x.under)).size });
           setScanAt(new Date().toLocaleTimeString());
           return;
@@ -251,7 +280,9 @@ export default function FlowseekerProBlademap({ active = true }) {
           }
         }
         rows.sort((a, b) => b.vol - a.vol);
-        setScan(markNew(rows.slice(0, 300), prevKeysRef));
+        const marked = markNew(rows.slice(0, 300), prevKeysRef);
+        ingestAlerts(marked);
+        setScan(marked);
         setScanMeta({ mode: "fallback", stale: false, symbols: universe.length });
         setScanAt(new Date().toLocaleTimeString());
       } catch { /* keep last data on a transient hiccup */ }
@@ -354,7 +385,8 @@ export default function FlowseekerProBlademap({ active = true }) {
   const SCAN_COLS = [
     ["score", "Score", false], ["under", "Ticker", true], ["type", "C/P", true],
     ["strike", "Strike", false], ["dte", "DTE", false], ["vol", "Volume", false],
-    ["oi", "OI", false], ["volOI", "Vol/OI", false], ["notional", "Notional", false],
+    ["oi", "OI", false], ["volOI", "Vol/OI", false], ["premium", "Prem~", false],
+    ["notional", "Notional", false],
     ["iv", "IV", false], ["ftype", "Flow", true], ["lean", "Lean", true],
   ];
 
@@ -658,10 +690,14 @@ export default function FlowseekerProBlademap({ active = true }) {
                 ["Notional Σ", fmtUSD(scanStats.notl), ""],
                 ["Call/Put Vol", scanStats.tv > 0 ? `${scanStats.cpct}% / ${100 - scanStats.cpct}%` : "—", scanStats.cpct >= 50 ? "g" : "r"],
                 ["Unusual (≥2×)", String(scanStats.unusual), "y"],
-                ["⚡ Alerts", String(scanStats.alerts), scanStats.alerts ? "r" : ""],
+                ["⚡ Alerts", `${scanStats.alerts} · log ${alertLog.length}`, scanStats.alerts ? "r" : ""],
                 ["Updated", (scanMeta.stale ? "STALE · " : "") + (scanAt || "—"), scanMeta.stale ? "y" : ""],
               ].map(([l, v, c]) => (
-                <div key={l} className="fsb-skpi"><div className="fsb-skl">{l}</div><div className={`fsb-skv ${c}`}>{v}</div></div>
+                <div key={l} className={`fsb-skpi${l === "⚡ Alerts" ? " fsb-skpi-click" : ""}`}
+                  onClick={l === "⚡ Alerts" ? () => setAlertsOpen((o) => !o) : undefined}
+                  title={l === "⚡ Alerts" ? "Open the alert log" : undefined}>
+                  <div className="fsb-skl">{l}</div><div className={`fsb-skv ${c}`}>{v}</div>
+                </div>
               ))}
             </div>
             <div className="fsb-scanctrl">
@@ -689,6 +725,48 @@ export default function FlowseekerProBlademap({ active = true }) {
                 onChange={(e) => setAlertScore(Math.max(50, Math.min(100, parseInt(e.target.value, 10) || 85)))} />
               <span className="fsb-scannote">Live cross-symbol flow · cvforge day-volume vs OI. No per-trade tape on this feed — Flow-type = volume-magnitude class; Lean = contract-type bias.</span>
             </div>
+            {alertsOpen && (
+              <div className="fsb-alertlog">
+                <div className="fsb-alertlog-h">
+                  <span>Alert Log · {alertLog.length}</span>
+                  <span className="fsb-rulechips">
+                    {[["score", `SCORE≥${alertScore}`], ["whale", "WHALE ≥$10M~"], ["zerodte", "0DTE HOT"]].map(([k, lbl]) => (
+                      <button key={k} className={`fsb-rulechip${alertRules[k] ? " on" : ""}`}
+                        title="Toggle this alert rule"
+                        onClick={() => setAlertRules((r) => ({ ...r, [k]: !r[k] }))}>{lbl}</button>
+                    ))}
+                  </span>
+                  <button className="fsb-alertclear"
+                    onClick={() => { setAlertLog([]); try { localStorage.removeItem(ALERTS_KEY); } catch { /* noop */ } }}>
+                    Clear
+                  </button>
+                </div>
+                {alertLog.length === 0 ? (
+                  <div className="fsb-muted" style={{ padding: 10 }}>
+                    No alerts yet — NEW contracts crossing an enabled rule log here (deduped 30min per contract, kept across reloads).
+                  </div>
+                ) : (
+                  <table className="fsb-alerttab">
+                    <tbody>
+                      {alertLog.slice(0, 50).map((a, i) => (
+                        <tr key={`${a.key}-${a.t}-${i}`} onClick={() => { setTicker(a.under); setTab("flow"); }}>
+                          <td className="fsb-sub">{a.time}</td>
+                          <td><span className={`fsb-rulebadge r-${a.rule.toLowerCase()}`}>{a.rule}</span></td>
+                          <td className="l">
+                            <span className="tk">{a.under}</span>{" "}
+                            <span className={a.type === "call" ? "fsb-tcall" : "fsb-tput"}>{a.type === "call" ? "CALL" : "PUT"}</span>{" "}
+                            {a.strike} <span className="fsb-sub">{(a.exp || "").slice(5)}</span>
+                          </td>
+                          <td>{a.score}</td>
+                          <td>{a.premium != null ? `~${fmtUSD(a.premium)}` : "—"}</td>
+                          <td>{a.dte == null ? "—" : `${a.dte}d`}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+              </div>
+            )}
             <div className="fsb-scantable">
               {scan.length === 0 ? (
                 <div className="fsb-muted" style={{ padding: 16 }}>Scanning market flow across {SCAN_UNIVERSE.length} symbols…</div>
@@ -719,6 +797,7 @@ export default function FlowseekerProBlademap({ active = true }) {
                           <td>{fmtK(r.vol)}</td>
                           <td>{fmtK(r.oi)}</td>
                           <td>{r.volOI >= 99 ? "99+" : `${r.volOI.toFixed(1)}x`}</td>
+                          <td title="Estimated premium spent — no quote feed on cvserver, BS-lite estimate">{r.premium != null ? `~${fmtUSD(r.premium)}` : "—"}</td>
                           <td>{fmtUSD(r.notional)}</td>
                           <td>{fmtIV(r.iv)}</td>
                           <td className="l"><span className={`fsb-flt ${r.ftype}`}>{r.ftype.toUpperCase()}</span></td>

@@ -264,3 +264,23 @@
 .fsb-stab tr.new td { animation: fsbNewRow 1.6s ease-out 1; }
 .fsb-stab tr.alert td:first-child { box-shadow: inset 3px 0 0 #f5b042; }
 @keyframes fsbNewRow { from { background: rgba(41, 197, 224, 0.16); } to { background: transparent; } }
+
+/* ── Alert center + institutional polish ── */
+.fsb-skpi-click { cursor: pointer; }
+.fsb-skpi-click:hover { border-color: #29c5e0; }
+.fsb-alertlog { background: #0d1117; border: 1px solid #2a2e39; border-radius: 8px; margin: 6px 0; max-height: 240px; overflow: auto; }
+.fsb-alertlog-h { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-bottom: 1px solid #1c2230; font-size: 11px; color: #e6e8ee; position: sticky; top: 0; background: #0d1117; z-index: 2; }
+.fsb-rulechips { display: inline-flex; gap: 4px; margin-left: auto; }
+.fsb-rulechip { background: #131722; border: 1px solid #2a2e39; color: #6c7382; font-size: 9px; padding: 2px 7px; border-radius: 10px; cursor: pointer; }
+.fsb-rulechip.on { color: #e6e8ee; border-color: #f5b042; }
+.fsb-alertclear { background: none; border: 1px solid #2a2e39; color: #9aa0ae; font-size: 9px; padding: 2px 8px; border-radius: 4px; cursor: pointer; }
+.fsb-alertclear:hover { color: #ff4d5e; border-color: #ff4d5e; }
+.fsb-alerttab { width: 100%; border-collapse: collapse; font-size: 10.5px; }
+.fsb-alerttab td { padding: 4px 10px; border-bottom: 1px solid #141a26; white-space: nowrap; }
+.fsb-alerttab tr { cursor: pointer; }
+.fsb-alerttab tr:hover td { background: #131722; }
+.fsb-rulebadge { font-size: 8px; font-weight: 800; letter-spacing: 0.5px; padding: 1px 5px; border-radius: 3px; }
+.fsb-rulebadge.r-score { background: rgba(245, 176, 66, 0.15); color: #f5b042; border: 1px solid rgba(245, 176, 66, 0.4); }
+.fsb-rulebadge.r-whale { background: rgba(162, 103, 255, 0.15); color: #a267ff; border: 1px solid rgba(162, 103, 255, 0.4); }
+.fsb-rulebadge.r-0dte { background: rgba(255, 77, 94, 0.15); color: #ff4d5e; border: 1px solid rgba(255, 77, 94, 0.4); }
+.fsb-stab thead th { position: sticky; top: 0; background: #10141f; z-index: 1; }
