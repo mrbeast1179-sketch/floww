@@ -104,6 +104,28 @@ export function evalAlerts(rows, opts = {}) {
   return out;
 }
 
+// Per-ticker premium concentration — where the money is. Sorted by total
+// estimated premium desc, top-N, with call/put split for a skew read.
+export function tickerRollup(rows, top = 8) {
+  const m = new Map();
+  for (const r of rows || []) {
+    const e = m.get(r.under) || {
+      under: r.under, prem: 0, callPrem: 0, putPrem: 0,
+      count: 0, maxScore: 0, regime: null,
+    };
+    const p = r.premium || 0;
+    e.prem += p;
+    if (r.type === "call") e.callPrem += p; else e.putPrem += p;
+    e.count++;
+    if ((r.score || 0) > e.maxScore) e.maxScore = r.score;
+    if (r.regime) e.regime = r.regime;
+    m.set(r.under, e);
+  }
+  const arr = [...m.values()].sort((a, b) => b.prem - a.prem).slice(0, top);
+  for (const e of arr) e.callPct = e.prem > 0 ? Math.round((e.callPrem / e.prem) * 100) : 50;
+  return arr;
+}
+
 // Build one scanner row. spot enables delta estimation when the feed omits
 // delta; regime (from the backend heatmap cache) feeds the score nudge.
 export function mkScanRow(under, type, strike, exp, vol, oi, iv, delta, spot = null, regime = null) {

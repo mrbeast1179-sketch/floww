@@ -1,6 +1,6 @@
 import {
   bizDTE, scanTypeOf, scanScoreOf, estimateDelta, approxSpot, mkScanRow,
-  fmtUSD, fmtK, fmtIV, scoreGradeOf, estPremium, evalAlerts,
+  fmtUSD, fmtK, fmtIV, scoreGradeOf, estPremium, evalAlerts, tickerRollup,
 } from "./scanLogic";
 
 describe("estimateDelta", () => {
@@ -147,6 +147,33 @@ describe("evalAlerts", () => {
   it("carries a stable contract key", () => {
     const [hit] = evalAlerts([mk()]);
     expect(hit.key).toBe("SPY|call|745|2099-01-08");
+  });
+});
+
+describe("tickerRollup", () => {
+  const row = (under, type, premium, score = 50, regime = null) => ({ under, type, premium, score, regime });
+  it("aggregates premium per ticker, sorted desc, top-N", () => {
+    const out = tickerRollup([
+      row("SPY", "call", 5e6), row("SPY", "put", 3e6),
+      row("QQQ", "call", 20e6), row("NVDA", "put", 1e6),
+    ], 2);
+    expect(out.map((e) => e.under)).toEqual(["QQQ", "SPY"]);
+    expect(out[1].prem).toBe(8e6);
+  });
+  it("computes call% split and carries max score + regime", () => {
+    const [spy] = tickerRollup([
+      row("SPY", "call", 6e6, 91, "negative"), row("SPY", "put", 2e6, 55),
+    ]);
+    expect(spy.callPct).toBe(75);
+    expect(spy.maxScore).toBe(91);
+    expect(spy.regime).toBe("negative");
+    expect(spy.count).toBe(2);
+  });
+  it("handles null premiums and empty input", () => {
+    expect(tickerRollup([])).toEqual([]);
+    const [t] = tickerRollup([row("TSLA", "call", null)]);
+    expect(t.prem).toBe(0);
+    expect(t.callPct).toBe(50);
   });
 });
 

@@ -11,7 +11,7 @@
  */
 import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { BACKEND_URL } from "../../config/api";
-import { approxSpot, mkScanRow, evalAlerts, fmtUSD, fmtK, fmtIV, scoreGradeOf } from "./scanLogic";
+import { approxSpot, mkScanRow, evalAlerts, tickerRollup, fmtUSD, fmtK, fmtIV, scoreGradeOf } from "./scanLogic";
 import "./FlowseekerProBlademap.css";
 
 const API = `${BACKEND_URL}/api/flowseeker`;
@@ -117,16 +117,40 @@ export default function FlowseekerProBlademap({ active = true }) {
   const [alertRules, setAlertRules] = useState(prefs.alertRules || { score: true, whale: true, zerodte: true });
   const [alertLog, setAlertLog] = useState(loadAlertLog);
   const [alertsOpen, setAlertsOpen] = useState(false);
+  const [notify, setNotify] = useState(!!prefs.notify);
+  const [forcing, setForcing] = useState(false);
+  const [refreshTick, setRefreshTick] = useState(0);
   const prevKeysRef = useRef(null);
+  const notifyRef = useRef(false);
+  useEffect(() => { notifyRef.current = notify; }, [notify]);
   // Poll effect reads alert config via ref so rule tweaks don't re-arm the interval.
   const alertCfgRef = useRef({});
   useEffect(() => { alertCfgRef.current = { minScore: alertScore, enabled: alertRules }; }, [alertScore, alertRules]);
 
   useEffect(() => {
     try {
-      localStorage.setItem(PREFS_KEY, JSON.stringify({ scanTypeF, scanMinVol, scanMinScore, scanSort, universe, universeOnly, alertScore, alertRules }));
+      localStorage.setItem(PREFS_KEY, JSON.stringify({ scanTypeF, scanMinVol, scanMinScore, scanSort, universe, universeOnly, alertScore, alertRules, notify }));
     } catch { /* private mode — prefs just don't persist */ }
-  }, [scanTypeF, scanMinVol, scanMinScore, scanSort, universe, universeOnly, alertScore, alertRules]);
+  }, [scanTypeF, scanMinVol, scanMinScore, scanSort, universe, universeOnly, alertScore, alertRules, notify]);
+
+  // Force refresh via the backend's debounced /scan/refresh, then re-poll.
+  const forceRefresh = useCallback(async () => {
+    setForcing(true);
+    try { await fetch(`${API}/scan/refresh?limit=300`, { method: "POST" }); } catch { /* GET below will serve cache */ }
+    setForcing(false);
+    setRefreshTick((t) => t + 1);
+  }, []);
+
+  // Browser notifications — opt-in, permission-gated.
+  const toggleNotify = useCallback(async () => {
+    if (!notify) {
+      if (!("Notification" in window)) return;
+      let perm = Notification.permission;
+      if (perm === "default") perm = await Notification.requestPermission();
+      if (perm !== "granted") return;
+    }
+    setNotify((n) => !n);
+  }, [notify]);
 
   // Append newly triggered alerts to the persistent log (dedupe per contract
   // within 30min so a hot name doesn't spam every refresh; cap at 100).
@@ -139,6 +163,13 @@ export default function FlowseekerProBlademap({ active = true }) {
       const fresh = hits.filter((h) => !recent.has(h.key))
         .map((h) => ({ ...h, t: Date.now(), time: new Date().toLocaleTimeString() }));
       if (!fresh.length) return prev;
+      if (notifyRef.current && document.hidden && "Notification" in window && Notification.permission === "granted") {
+        try {
+          new Notification(`⚡ ${fresh.length} flow alert${fresh.length > 1 ? "s" : ""}`, {
+            body: fresh.slice(0, 3).map((h) => `${h.rule} ${h.under} ${h.type === "call" ? "C" : "P"}${h.strike}`).join(" · "),
+          });
+        } catch { /* notification constructor can throw on some platforms */ }
+      }
       const next = [...fresh, ...prev].slice(0, 100);
       try { localStorage.setItem(ALERTS_KEY, JSON.stringify(next)); } catch { /* private mode */ }
       return next;
@@ -290,7 +321,7 @@ export default function FlowseekerProBlademap({ active = true }) {
     run();
     const id = setInterval(run, 20000);
     return () => { cancelled = true; ctrl.abort(); clearInterval(id); };
-  }, [active, tab, universe]);
+  }, [active, tab, universe, refreshTick]);
 
   // ---- per-ticker microstructure (regime pill + selected conviction inputs) ----
   useEffect(() => {
@@ -381,6 +412,10 @@ export default function FlowseekerProBlademap({ active = true }) {
   const sortScan = (k) => setScanSort((s) => (s.key === k
     ? { key: k, dir: s.dir === "desc" ? "asc" : "desc" }
     : { key: k, dir: (k === "under" || k === "type" || k === "ftype") ? "asc" : "desc" }));
+
+  // Premium concentration across the FULL scan (not the filtered view) so the
+  // chips stay stable while a chip-click filters the table below them.
+  const rollup = useMemo(() => tickerRollup(scan, 8), [scan]);
 
   const SCAN_COLS = [
     ["score", "Score", false], ["under", "Ticker", true], ["type", "C/P", true],
@@ -700,6 +735,23 @@ export default function FlowseekerProBlademap({ active = true }) {
                 </div>
               ))}
             </div>
+            {rollup.length > 0 && (
+              <div className="fsb-rollup">
+                <span className="fsb-rollup-label">PREM~ FLOW</span>
+                {rollup.map((e) => (
+                  <button key={e.under} className={`fsb-rollchip${scanQ === e.under ? " on" : ""}`}
+                    title={`${e.under}: ~${fmtUSD(e.prem)} est premium · ${e.count} contracts · ${e.callPct}% calls / ${100 - e.callPct}% puts · top score ${e.maxScore}`}
+                    onClick={() => setScanQ(scanQ === e.under ? "" : e.under)}>
+                    <span className="fsb-rollchip-t">
+                      {e.under}
+                      {e.regime ? <sup className={`fsb-gtag ${e.regime === "positive" ? "gp" : "gn"}`}>{e.regime === "positive" ? "γ+" : "γ−"}</sup> : null}
+                    </span>
+                    <span className="fsb-rollchip-p">~{fmtUSD(e.prem)}</span>
+                    <span className="fsb-rollbar"><span className="fsb-rollbar-c" style={{ width: `${e.callPct}%` }} /></span>
+                  </button>
+                ))}
+              </div>
+            )}
             <div className="fsb-scanctrl">
               <select value={scanTypeF} onChange={(e) => setScanTypeF(e.target.value)}>
                 <option value="all">All Types</option><option value="call">Calls</option><option value="put">Puts</option>
@@ -713,6 +765,9 @@ export default function FlowseekerProBlademap({ active = true }) {
                   <button key={l} className={`fsb-preset${scanSort.key === s.key && scanSort.dir === s.dir ? " on" : ""}`}
                     onClick={() => setScanSort(s)}>{l}</button>
                 ))}
+                <button className="fsb-preset fsb-force" disabled={forcing}
+                  title="Force refresh — bypasses cache & backoff (server-debounced 10s)"
+                  onClick={forceRefresh}>{forcing ? "…" : "⟳ Force"}</button>
               </span>
               <label className="fsb-uonly" title="Filter the scan to your universe list">
                 <input type="checkbox" checked={universeOnly} onChange={(e) => setUniverseOnly(e.target.checked)} /> My universe
@@ -730,6 +785,9 @@ export default function FlowseekerProBlademap({ active = true }) {
                 <div className="fsb-alertlog-h">
                   <span>Alert Log · {alertLog.length}</span>
                   <span className="fsb-rulechips">
+                    <button className={`fsb-rulechip${notify ? " on" : ""}`}
+                      title="Browser notification when alerts fire while this tab is hidden"
+                      onClick={toggleNotify}>🔔 Notify</button>
                     {[["score", `SCORE≥${alertScore}`], ["whale", "WHALE ≥$10M~"], ["zerodte", "0DTE HOT"]].map(([k, lbl]) => (
                       <button key={k} className={`fsb-rulechip${alertRules[k] ? " on" : ""}`}
                         title="Toggle this alert rule"

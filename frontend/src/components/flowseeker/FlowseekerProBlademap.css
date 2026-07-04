@@ -284,3 +284,16 @@
 .fsb-rulebadge.r-whale { background: rgba(162, 103, 255, 0.15); color: #a267ff; border: 1px solid rgba(162, 103, 255, 0.4); }
 .fsb-rulebadge.r-0dte { background: rgba(255, 77, 94, 0.15); color: #ff4d5e; border: 1px solid rgba(255, 77, 94, 0.4); }
 .fsb-stab thead th { position: sticky; top: 0; background: #10141f; z-index: 1; }
+
+/* ── Premium concentration rollup chips ── */
+.fsb-rollup { display: flex; align-items: center; gap: 6px; padding: 6px 0; overflow-x: auto; }
+.fsb-rollup-label { font-size: 8.5px; font-weight: 800; letter-spacing: 1px; color: #6c7382; white-space: nowrap; }
+.fsb-rollchip { display: flex; flex-direction: column; gap: 2px; background: #131722; border: 1px solid #2a2e39; border-radius: 6px; padding: 4px 8px; cursor: pointer; min-width: 76px; }
+.fsb-rollchip:hover, .fsb-rollchip.on { border-color: #29c5e0; }
+.fsb-rollchip.on { background: #16202e; }
+.fsb-rollchip-t { font-size: 10px; font-weight: 700; color: #e6e8ee; text-align: left; }
+.fsb-rollchip-p { font-size: 9.5px; color: #9aa0ae; text-align: left; }
+.fsb-rollbar { display: block; height: 3px; border-radius: 2px; background: #ff4d5e; overflow: hidden; }
+.fsb-rollbar-c { display: block; height: 100%; background: #19d27c; }
+.fsb-force { color: #29c5e0; }
+.fsb-force:disabled { opacity: 0.5; cursor: wait; }
