@@ -417,6 +417,74 @@ def _cached_regimes() -> dict[str, str]:
         return {}
 
 
+# ── Volume baseline store (σ-spike detection) ──
+# Each successful upstream scan upserts today's per-ticker MAX cumulative
+# volume (day_volume is cumulative, so $max converges to the EOD total). The
+# baseline is mean/std of PRIOR days' EOD volumes; /scan exposes it as
+# "baselines" once a ticker has ≥2 prior days. Cf. OptionScannerTWS: 4-5σ
+# volume spikes with little price movement often precede underlying moves.
+_baselines_cache = {"ts": 0.0, "data": {}}
+
+
+async def _record_scan_baseline(rows: list) -> None:
+    """Fire-and-forget — never raises into the scan path."""
+    try:
+        from server import db  # deferred: circular import
+
+        today = datetime.now().strftime("%Y-%m-%d")
+        per: dict[str, dict] = {}
+        for r in rows:
+            t = r[0]
+            e = per.setdefault(t, {"call_vol": 0, "put_vol": 0, "contracts": 0})
+            vol = int(r[5] or 0)
+            if str(r[2] or "").lower().startswith("c"):
+                e["call_vol"] += vol
+            else:
+                e["put_vol"] += vol
+            e["contracts"] += 1
+        for t, e in per.items():
+            await db.flow_scan_daily.update_one(
+                {"ticker": t, "date": today},
+                {"$max": {"total_vol": e["call_vol"] + e["put_vol"],
+                          "call_vol": e["call_vol"], "put_vol": e["put_vol"]},
+                 "$set": {"updated_at": time.time()}},
+                upsert=True,
+            )
+    except Exception as e:
+        logger.debug("scan baseline record skipped: %s" % e)
+
+
+async def _volume_baselines() -> dict[str, dict]:
+    """{ticker: {avg, std, days}} over prior days' EOD volumes. 60s cached."""
+    nowt = time.time()
+    if nowt - _baselines_cache["ts"] < 60:
+        return _baselines_cache["data"]
+    out: dict[str, dict] = {}
+    try:
+        from server import db  # deferred: circular import
+
+        today = datetime.now().strftime("%Y-%m-%d")
+        agg: dict[str, list] = {}
+        async for doc in db.flow_scan_daily.find(
+            {"date": {"$ne": today}}, {"ticker": 1, "total_vol": 1}
+        ).limit(20000):
+            agg.setdefault(doc["ticker"], []).append(doc.get("total_vol") or 0)
+        for t, vols in agg.items():
+            if len(vols) < 2:
+                continue
+            n = len(vols)
+            avg = sum(vols) / n
+            var = sum((v - avg) ** 2 for v in vols) / (n - 1)
+            std = var ** 0.5
+            if std > 0:
+                out[t] = {"avg": round(avg), "std": round(std), "days": n}
+    except Exception as e:
+        logger.debug("volume baselines unavailable: %s" % e)
+    _baselines_cache["ts"] = nowt
+    _baselines_cache["data"] = out
+    return out
+
+
 def _scan_payload(rows: list, stale: bool, asof: str, columns: list, cache_age: float = 0, retry_after: float | None = None) -> dict:
     source = "cvserver-screen"
     if stale:
@@ -477,6 +545,7 @@ async def market_scan(
     now = time.time()
     hit = _fresh(now)
     if hit:
+        hit["baselines"] = await _volume_baselines()
         return hit
     limited = _backing_off(now)
     if limited:
@@ -534,7 +603,10 @@ async def market_scan(
                 _scan_backoff["until"] = 0.0
                 asof = datetime.now().isoformat()
                 _scan_cache[cache_key] = {"ts": now, "data": rows, "asof": asof}
-                return _scan_payload(rows, False, asof, columns, cache_age=0)
+                asyncio.get_running_loop().create_task(_record_scan_baseline(rows))
+                out = _scan_payload(rows, False, asof, columns, cache_age=0)
+                out["baselines"] = await _volume_baselines()
+                return out
         except HTTPException:
             raise
         except Exception as e:

@@ -11,7 +11,7 @@
  */
 import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { BACKEND_URL } from "../../config/api";
-import { approxSpot, mkScanRow, evalAlerts, tickerRollup, fmtUSD, fmtK, fmtIV, scoreGradeOf } from "./scanLogic";
+import { approxSpot, mkScanRow, evalAlerts, tickerRollup, volSigma, fmtUSD, fmtK, fmtIV, scoreGradeOf } from "./scanLogic";
 import "./FlowseekerProBlademap.css";
 
 const API = `${BACKEND_URL}/api/flowseeker`;
@@ -115,6 +115,7 @@ export default function FlowseekerProBlademap({ active = true }) {
   const [scanMinScore, setScanMinScore] = useState(prefs.scanMinScore || 0);
   const [scanQ, setScanQ] = useState("");
   const [scanMeta, setScanMeta] = useState({ mode: null, stale: false, symbols: 0 });
+  const [baselines, setBaselines] = useState({});   // {ticker: {avg, std, days}} from /scan
   const [universe, setUniverse] = useState(prefs.universe || SCAN_UNIVERSE);
   const [universeOnly, setUniverseOnly] = useState(!!prefs.universeOnly);
   const [alertScore, setAlertScore] = useState(prefs.alertScore ?? 85);
@@ -316,6 +317,7 @@ export default function FlowseekerProBlademap({ active = true }) {
           ingestAlerts(marked);
           setScan(marked);
           const nSyms = new Set(rows.map((x) => x.under)).size;
+          if (d.baselines) setBaselines(d.baselines);
           setScanMeta({ mode: "market", stale: !!d.stale, symbols: nSyms });
           noteSourceFlip("market", nSyms);
           setScanAt(new Date().toLocaleTimeString());
@@ -801,6 +803,7 @@ export default function FlowseekerProBlademap({ active = true }) {
                     </span>
                     <span className="fsb-rollchip-p">~{fmtUSD(e.prem)}
                       {e.pcr != null ? <span className={`fsb-pcr${e.pcr <= 0.5 ? " bull" : e.pcr >= 1.5 ? " bear" : ""}`}> PCR {e.pcr.toFixed(2)}</span> : null}
+                      {(() => { const s = volSigma(e.callVol + e.putVol, baselines[e.under]); return s != null && s >= 2 ? <span className="fsb-sigma" title={`Today's scan volume is ${s}σ above this ticker's ${baselines[e.under].days}-day baseline`}> {s}σ</span> : null; })()}
                     </span>
                     <span className="fsb-rollbar"><span className="fsb-rollbar-c" style={{ width: `${e.callPct}%` }} /></span>
                   </button>

@@ -1,7 +1,7 @@
 import {
   bizDTE, scanTypeOf, scanScoreOf, estimateDelta, approxSpot, mkScanRow,
   fmtUSD, fmtK, fmtIV, scoreGradeOf, estPremium, evalAlerts, tickerRollup,
-  archetypeOf,
+  archetypeOf, volSigma,
 } from "./scanLogic";
 
 describe("estimateDelta", () => {
@@ -173,6 +173,19 @@ describe("evalAlerts", () => {
   it("carries a stable contract key", () => {
     const [hit] = evalAlerts([mk()]);
     expect(hit.key).toBe("SPY|call|745|2099-01-08");
+  });
+});
+
+describe("volSigma", () => {
+  it("z-scores today's volume against the baseline", () => {
+    expect(volSigma(150000, { avg: 100000, std: 20000, days: 5 })).toBeCloseTo(2.5);
+    expect(volSigma(80000, { avg: 100000, std: 20000, days: 5 })).toBeCloseTo(-1.0);
+  });
+  it("null without a usable baseline", () => {
+    expect(volSigma(150000, null)).toBeNull();
+    expect(volSigma(150000, { avg: 100000, std: 0, days: 5 })).toBeNull();
+    expect(volSigma(150000, { avg: 100000, std: 20000, days: 1 })).toBeNull();
+    expect(volSigma(null, { avg: 100000, std: 20000, days: 5 })).toBeNull();
   });
 });
 

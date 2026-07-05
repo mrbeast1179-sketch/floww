@@ -124,6 +124,15 @@ export function evalAlerts(rows, opts = {}) {
   return out;
 }
 
+// σ-spike: today's cumulative options volume vs the ticker's baseline of
+// prior days' end-of-day volumes (OptionScannerTWS-style anomaly detection —
+// their signal was 4-5σ spikes preceding underlying moves). Needs ≥2 days of
+// baseline history and a nonzero std; the backend accumulates the baselines.
+export function volSigma(totalVol, baseline) {
+  if (totalVol == null || !baseline || !baseline.std || (baseline.days || 0) < 2) return null;
+  return +(((totalVol - baseline.avg) / baseline.std).toFixed(1));
+}
+
 // Institutional flow archetype from real fields only (no tape). First match
 // wins: WHALE (premium size), LOTTO (deep-OTM short-dated), HEDGE (mid-delta
 // long-dated puts — protective duration), FRESH (volume ≥ 3× open interest,

@@ -310,3 +310,6 @@
 .fsb-pcr { font-size: 8.5px; color: #6c7382; margin-left: 4px; }
 .fsb-pcr.bull { color: #19d27c; font-weight: 700; }
 .fsb-pcr.bear { color: #ff4d5e; font-weight: 700; }
+
+/* ── σ-spike tag (volume vs prior-day baseline) ── */
+.fsb-sigma { font-size: 8.5px; font-weight: 800; color: #f5b042; margin-left: 4px; }

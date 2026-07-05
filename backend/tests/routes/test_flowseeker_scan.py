@@ -52,6 +52,17 @@ def reset(monkeypatch):
     # pollute FakeClient.calls) into the test process. Tested directly below.
     monkeypatch.setattr(fs, "_cached_regimes", lambda: {})
     monkeypatch.setattr(fs, "_last_force_refresh", 0.0)
+
+    async def _no_baselines():
+        return {}
+
+    async def _no_record(rows):
+        return None
+
+    # Stubbed for the same reason as _cached_regimes: their deferred
+    # `import server` drags the whole app into the test process.
+    monkeypatch.setattr(fs, "_volume_baselines", _no_baselines)
+    monkeypatch.setattr(fs, "_record_scan_baseline", _no_record)
     fs._scan_cache.clear()
     fs._scan_backoff.update({"until": 0.0, "delay": 30.0})
     FakeClient.calls = 0
