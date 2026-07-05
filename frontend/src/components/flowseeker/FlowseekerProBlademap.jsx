@@ -80,12 +80,16 @@ function loadAlertLog() {
 }
 
 // Mark rows unseen in the previous refresh (drives the NEW flash + alerts).
-function markNew(rows, prevKeysRef) {
-  const keys = new Set(rows.map((r) => `${r.under}|${r.type}|${r.strike}|${r.exp}`));
-  if (prevKeysRef.current) {
-    for (const r of rows) r._new = !prevKeysRef.current.has(`${r.under}|${r.type}|${r.strike}|${r.exp}`);
+// Baseline is per-source-mode: an A<->B path flip resets the baseline instead
+// of mass-flagging the other universe's rows as NEW (alert/notification flood).
+function markNew(rows, prevKeysRef, mode) {
+  const keyOf = (r) => `${r.under}|${r.type}|${r.strike}|${r.exp}`;
+  const keys = new Set(rows.map(keyOf));
+  const prev = prevKeysRef.current;
+  if (prev && prev.mode === mode) {
+    for (const r of rows) r._new = !prev.keys.has(keyOf(r));
   }
-  prevKeysRef.current = keys;
+  prevKeysRef.current = { mode, keys };
   return rows;
 }
 
@@ -123,6 +127,8 @@ export default function FlowseekerProBlademap({ active = true }) {
   const prevKeysRef = useRef(null);
   const notifyRef = useRef(false);
   useEffect(() => { notifyRef.current = notify; }, [notify]);
+  const hadDataRef = useRef(false);
+  useEffect(() => { hadDataRef.current = scan.length > 0; }, [scan]);
   // Poll effect reads alert config via ref so rule tweaks don't re-arm the interval.
   const alertCfgRef = useRef({});
   useEffect(() => { alertCfgRef.current = { minScore: alertScore, enabled: alertRules }; }, [alertScore, alertRules]);
@@ -262,25 +268,43 @@ export default function FlowseekerProBlademap({ active = true }) {
   useEffect(() => {
     if (!active || tab !== "scanner") return;   // poll only while the Scanner tab is visible
     let cancelled = false;
+    let inFlight = false;                        // a slow poll must not overlap a newer one
     const ctrl = new AbortController();
     const run = async () => {
+      if (inFlight) return;
+      inFlight = true;
+      try { await runOnce(); } finally { inFlight = false; }
+    };
+    const runOnce = async () => {
       // Path A: market-wide backend endpoint (columns: underlying,ticker,type,
       // strike,exp,day_volume,oi,iv,delta,spot) + per-ticker regimes map.
       try {
         const d = await getJSON(`${API}/scan?limit=300`, ctrl.signal);
-        if (!cancelled && d && Array.isArray(d.rows) && d.rows.length) {
+        if (cancelled) return;
+        if (d && Array.isArray(d.rows)) {
           const regimes = d.regimes || {};
           const rows = d.rows.map((r) =>
             mkScanRow(r[0], r[2], r[3], r[4], Number(r[5]) || 0, Number(r[6]) || 0,
               r[7], r[8], Number(r[9]) || null, regimes[r[0]] || null));
-          const marked = markNew(rows, prevKeysRef);
+          const marked = markNew(rows, prevKeysRef, "market");
           ingestAlerts(marked);
           setScan(marked);
           setScanMeta({ mode: "market", stale: !!d.stale, symbols: new Set(rows.map((x) => x.under)).size });
           setScanAt(new Date().toLocaleTimeString());
+          return;   // a 200 with rows[] is authoritative — even when empty
+        }
+      } catch (e) {
+        if (cancelled || e?.name === "AbortError") return;
+        // Backend answered 502/503 (upstream rate-limited): if we already have
+        // data, keep it stale-marked instead of fanning the 18-symbol chain
+        // loop out against the very upstream that is 429ing. On a cold start
+        // (nothing to show) still fall through so the scanner isn't blank.
+        if (/HTTP 50[23]/.test(String(e?.message)) && hadDataRef.current) {
+          setScanMeta((m) => ({ ...m, stale: true }));
           return;
         }
-      } catch { /* endpoint down — fall through to the chain loop */ }
+        /* endpoint missing/unreachable — fall through to the chain loop */
+      }
       // Path B: loop the live per-ticker chain over the universe and merge.
       // Spot isn't in the chain payload — median strike ≈ spot for delta estimates.
       try {
@@ -311,7 +335,7 @@ export default function FlowseekerProBlademap({ active = true }) {
           }
         }
         rows.sort((a, b) => b.vol - a.vol);
-        const marked = markNew(rows.slice(0, 300), prevKeysRef);
+        const marked = markNew(rows.slice(0, 300), prevKeysRef, "fallback");
         ingestAlerts(marked);
         setScan(marked);
         setScanMeta({ mode: "fallback", stale: false, symbols: universe.length });

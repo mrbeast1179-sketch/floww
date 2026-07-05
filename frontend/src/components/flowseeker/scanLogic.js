@@ -2,15 +2,28 @@
 
 export const fmtUSD = (v) => { const n = Math.abs(Number(v) || 0); if (n >= 1e9) return `$${(n / 1e9).toFixed(2)}B`; if (n >= 1e6) return `$${(n / 1e6).toFixed(1)}M`; if (n >= 1e3) return `$${(n / 1e3).toFixed(0)}k`; return `$${Math.round(n)}`; };
 export const fmtK = (v) => { const n = Number(v) || 0; if (n >= 1e9) return `${(n / 1e9).toFixed(1)}B`; if (n >= 1e6) return `${(n / 1e6).toFixed(1)}M`; if (n >= 1e3) return `${(n / 1e3).toFixed(0)}k`; return String(Math.round(n)); };
-export const fmtIV = (v) => (v == null ? "—" : `${(Number(v) < 1 ? Number(v) * 100 : Number(v)).toFixed(1)}%`);
+// IV unit heuristic: decimal IVs legitimately exceed 1 on hot names (1.5 =
+// 150%), while pct-style feeds send 20–200 — treat < 3 as decimal, ≥ 3 as pct.
+const normIV = (v) => (v == null ? null : (Number(v) >= 3 ? Number(v) / 100 : Number(v)));
+export const fmtIV = (v) => (v == null ? "—" : `${(normIV(v) * 100).toFixed(1)}%`);
 
-// Trading-day DTE — calendar days minus weekends.
+// Trading-day DTE — weekdays strictly after today (UTC date) through the
+// expiry date. Date-boundary based: a Monday expiry reads 1 all weekend and a
+// contract expiring today reads 0 regardless of time of day.
 export function bizDTE(expStr) {
   if (!expStr) return null;
-  const end = new Date(`${expStr}T16:00:00Z`), now = Date.now();
-  if (end <= now) return 0;
-  const full = Math.min(Math.floor((end - now) / 86400000), 800); let d = 0; const cur = new Date(now);
-  for (let i = 0; i < full; i++) { cur.setUTCDate(cur.getUTCDate() + 1); const wd = cur.getUTCDay(); if (wd !== 0 && wd !== 6) d++; }
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(expStr));
+  if (!m) return null;
+  const end = Date.UTC(+m[1], +m[2] - 1, +m[3]);
+  const t0 = new Date();
+  const today = Date.UTC(t0.getUTCFullYear(), t0.getUTCMonth(), t0.getUTCDate());
+  if (end <= today) return 0;
+  let d = 0;
+  const cap = Math.min(end, today + 800 * 86400000);
+  for (let t = today + 86400000; t <= cap; t += 86400000) {
+    const wd = new Date(t).getUTCDay();
+    if (wd !== 0 && wd !== 6) d++;
+  }
   return d;
 }
 
@@ -68,7 +81,7 @@ export function scanScoreOf(r, regime = null) {
 // |delta| when known, floored at $0.05/contract. Always labeled ~ in the UI —
 // there is no quote feed on this data.
 export function estPremium(r) {
-  const iv = r.iv == null ? null : (Number(r.iv) > 1 ? Number(r.iv) / 100 : Number(r.iv));
+  const iv = normIV(r.iv);
   if (!iv || !r.strike) return null;
   const dte = Math.max(1, r.dte ?? 5);
   let px = r.strike * iv * Math.sqrt(dte / 365) * 0.4;

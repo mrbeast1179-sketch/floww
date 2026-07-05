@@ -20,6 +20,20 @@ describe("estimateDelta", () => {
   });
 });
 
+describe("IV unit heuristic (decimal IVs above 100% are real)", () => {
+  it("fmtIV treats <3 as decimal, ≥3 as pct", () => {
+    expect(fmtIV(1.5)).toBe("150.0%");
+    expect(fmtIV(0.42)).toBe("42.0%");
+    expect(fmtIV(42)).toBe("42.0%");
+  });
+  it("estPremium has no /100 cliff at iv=1.5 (meme-stock IV)", () => {
+    const base = { strike: 100, vol: 1000, dte: 5, delta: 0.5 };
+    const p075 = estPremium({ ...base, iv: 0.75 });
+    const p150 = estPremium({ ...base, iv: 1.5 });
+    expect(p150).toBeCloseTo(p075 * 2, 5);   // linear in iv — not divided by 100
+  });
+});
+
 describe("approxSpot", () => {
   it("is the median strike", () => {
     expect(approxSpot([110, 90, 100])).toBe(100);
@@ -181,6 +195,17 @@ describe("bizDTE", () => {
   it("expired → 0, null → null", () => {
     expect(bizDTE("2000-01-01")).toBe(0);
     expect(bizDTE(null)).toBeNull();
+  });
+  it("expiring today → 0 regardless of time of day (date-boundary based)", () => {
+    const t = new Date();
+    const today = `${t.getUTCFullYear()}-${String(t.getUTCMonth() + 1).padStart(2, "0")}-${String(t.getUTCDate()).padStart(2, "0")}`;
+    expect(bizDTE(today)).toBe(0);
+  });
+  it("tomorrow is at most 1 trading day away", () => {
+    const t = new Date(Date.now() + 86400000);
+    const tomorrow = `${t.getUTCFullYear()}-${String(t.getUTCMonth() + 1).padStart(2, "0")}-${String(t.getUTCDate()).padStart(2, "0")}`;
+    const d = bizDTE(tomorrow);
+    expect(d === 0 || d === 1).toBe(true);   // 0 if tomorrow is a weekend day
   });
   it("counts only weekdays", () => {
     const d = new Date();

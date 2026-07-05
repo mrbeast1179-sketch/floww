@@ -51,6 +51,7 @@ def reset(monkeypatch):
     # (and its background fetchers, which would hit the patched httpx and
     # pollute FakeClient.calls) into the test process. Tested directly below.
     monkeypatch.setattr(fs, "_cached_regimes", lambda: {})
+    monkeypatch.setattr(fs, "_last_force_refresh", 0.0)
     fs._scan_cache.clear()
     fs._scan_backoff.update({"until": 0.0, "delay": 30.0})
     FakeClient.calls = 0
@@ -120,6 +121,36 @@ def test_backoff_delay_doubles_and_caps():
         with pytest.raises(HTTPException):
             scan()
     assert fs._scan_backoff["delay"] == 600.0
+
+
+def test_concurrent_misses_single_flight_upstream():
+    async def two():
+        return await asyncio.gather(
+            fs.market_scan(min_volume=1000, limit=300, force=False),
+            fs.market_scan(min_volume=1000, limit=300, force=False),
+        )
+    a, b = asyncio.run(two())
+    assert FakeClient.calls == 1          # second request served by the lock re-check
+    assert a["count"] == 1 and b["count"] == 1
+
+
+def test_force_refresh_429_sets_backoff_and_does_not_clear_it():
+    from fastapi import HTTPException
+    fs._scan_backoff.update({"until": time.time() + 120, "delay": 60.0})
+    FakeClient.status = 429
+    with pytest.raises(HTTPException) as e:
+        asyncio.run(fs.force_refresh_scan(min_volume=1000, limit=300))
+    assert e.value.status_code == 503
+    assert fs._scan_backoff["until"] > time.time()   # still backing off
+    assert fs._scan_backoff["delay"] == 120.0        # doubled, not reset
+
+
+def test_force_refresh_success_clears_backoff():
+    fs._scan_backoff.update({"until": time.time() + 120, "delay": 240.0})
+    out = asyncio.run(fs.force_refresh_scan(min_volume=1000, limit=300))
+    assert out["count"] == 1
+    assert fs._scan_backoff["until"] == 0.0
+    assert fs._scan_backoff["delay"] == 30.0
 
 
 def test_cached_regimes_reads_heatmap_cache(monkeypatch):
