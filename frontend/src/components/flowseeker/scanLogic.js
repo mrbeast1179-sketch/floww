@@ -72,7 +72,14 @@ export function scanScoreOf(r, regime = null) {
   if (regime === "negative" && r.dte != null && r.dte <= 7) nudge = 5;
   else if (regime === "positive" && r.volOI >= 2) nudge = 3;
   s += nudge;
-  r._parts = { pos: +(pos * 34).toFixed(1), size: +(size * 24).toFixed(1), notl: +(notl * 18).toFixed(1), urg: +(urg * 14).toFixed(1), otm: +(otm * 10).toFixed(1), nudge };
+  // Informed-positioning band: 7-90 DTE + vol≥3×OI + ≥$25k premium is where
+  // directional bets live (shorter = gamma noise, longer = hedges) — the
+  // standard UOA filter conjunction; cf. Pan & Poteshman (RFS 2006) on option
+  // volume carrying multi-day directional information.
+  let band = 0;
+  if (r.dte != null && r.dte >= 7 && r.dte <= 90 && (r.volOI || 0) >= 3 && (r.premium || 0) >= 25e3) band = 4;
+  s += band;
+  r._parts = { pos: +(pos * 34).toFixed(1), size: +(size * 24).toFixed(1), notl: +(notl * 18).toFixed(1), urg: +(urg * 14).toFixed(1), otm: +(otm * 10).toFixed(1), nudge, band };
   return Math.max(0, Math.min(100, Math.round(s)));
 }
 
@@ -126,7 +133,9 @@ export function archetypeOf(r) {
   const dl = r.delta == null ? null : Math.abs(r.delta);
   if (dl != null && dl <= 0.15 && r.dte != null && r.dte <= 2) return "LOTTO";
   if (r.type === "put" && dl != null && dl >= 0.25 && dl <= 0.6 && r.dte != null && r.dte >= 30) return "HEDGE";
-  if ((r.volOI || 0) >= 3) return "FRESH";
+  // $25k premium floor cuts retail noise (a few cheap OTM contracts spike
+  // vol/OI without being a signal); when no estimate exists, don't assume small.
+  if ((r.volOI || 0) >= 3 && (r.premium == null || r.premium >= 25e3)) return "FRESH";
   return null;
 }
 
@@ -137,18 +146,24 @@ export function tickerRollup(rows, top = 8) {
   for (const r of rows || []) {
     const e = m.get(r.under) || {
       under: r.under, prem: 0, callPrem: 0, putPrem: 0,
-      count: 0, maxScore: 0, regime: null,
+      callVol: 0, putVol: 0, count: 0, maxScore: 0, regime: null,
     };
     const p = r.premium || 0;
     e.prem += p;
-    if (r.type === "call") e.callPrem += p; else e.putPrem += p;
+    if (r.type === "call") { e.callPrem += p; e.callVol += r.vol || 0; }
+    else { e.putPrem += p; e.putVol += r.vol || 0; }
     e.count++;
     if ((r.score || 0) > e.maxScore) e.maxScore = r.score;
     if (r.regime) e.regime = r.regime;
     m.set(r.under, e);
   }
   const arr = [...m.values()].sort((a, b) => b.prem - a.prem).slice(0, top);
-  for (const e of arr) e.callPct = e.prem > 0 ? Math.round((e.callPrem / e.prem) * 100) : 50;
+  for (const e of arr) {
+    e.callPct = e.prem > 0 ? Math.round((e.callPrem / e.prem) * 100) : 50;
+    // Volume-based put/call ratio — Pan & Poteshman (RFS 2006): low P/C
+    // predicts outperformance (~40bps next day, >1% next week in their data).
+    e.pcr = e.callVol > 0 ? +(e.putVol / e.callVol).toFixed(2) : null;
+  }
   return arr;
 }
 

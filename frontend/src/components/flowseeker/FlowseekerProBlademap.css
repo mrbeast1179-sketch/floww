@@ -305,3 +305,8 @@
 .fsb-arch.a-hedge { background: rgba(41, 197, 224, 0.12); color: #29c5e0; border: 1px solid rgba(41, 197, 224, 0.35); }
 .fsb-arch.a-fresh { background: rgba(25, 210, 124, 0.12); color: #19d27c; border: 1px solid rgba(25, 210, 124, 0.35); }
 .fsb-rulebadge.r-source { background: rgba(41, 197, 224, 0.12); color: #29c5e0; border: 1px solid rgba(41, 197, 224, 0.4); }
+
+/* ── Volume PCR (Pan-Poteshman) on rollup chips ── */
+.fsb-pcr { font-size: 8.5px; color: #6c7382; margin-left: 4px; }
+.fsb-pcr.bull { color: #19d27c; font-weight: 700; }
+.fsb-pcr.bear { color: #ff4d5e; font-weight: 700; }

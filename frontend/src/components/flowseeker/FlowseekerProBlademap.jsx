@@ -793,13 +793,15 @@ export default function FlowseekerProBlademap({ active = true }) {
                 <span className="fsb-rollup-label">PREM~ FLOW</span>
                 {rollup.map((e) => (
                   <button key={e.under} className={`fsb-rollchip${scanQ === e.under ? " on" : ""}`}
-                    title={`${e.under}: ~${fmtUSD(e.prem)} est premium · ${e.count} contracts · ${e.callPct}% calls / ${100 - e.callPct}% puts · top score ${e.maxScore}`}
+                    title={`${e.under}: ~${fmtUSD(e.prem)} est premium · ${e.count} contracts · ${e.callPct}% calls / ${100 - e.callPct}% puts · vol PCR ${e.pcr ?? "—"} (Pan-Poteshman: low P/C historically precedes outperformance) · top score ${e.maxScore}`}
                     onClick={() => setScanQ(scanQ === e.under ? "" : e.under)}>
                     <span className="fsb-rollchip-t">
                       {e.under}
                       {e.regime ? <sup className={`fsb-gtag ${e.regime === "positive" ? "gp" : "gn"}`}>{e.regime === "positive" ? "γ+" : "γ−"}</sup> : null}
                     </span>
-                    <span className="fsb-rollchip-p">~{fmtUSD(e.prem)}</span>
+                    <span className="fsb-rollchip-p">~{fmtUSD(e.prem)}
+                      {e.pcr != null ? <span className={`fsb-pcr${e.pcr <= 0.5 ? " bull" : e.pcr >= 1.5 ? " bear" : ""}`}> PCR {e.pcr.toFixed(2)}</span> : null}
+                    </span>
                     <span className="fsb-rollbar"><span className="fsb-rollbar-c" style={{ width: `${e.callPct}%` }} /></span>
                   </button>
                 ))}

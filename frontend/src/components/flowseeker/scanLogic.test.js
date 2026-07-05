@@ -70,6 +70,17 @@ describe("scanScoreOf regime nudge", () => {
     expect(r._parts.nudge).toBe(5);
     expect(r._parts.pos).toBeGreaterThan(0);
   });
+  it("informed-positioning band (7-90 DTE, vol≥3×OI, ≥$25k) adds +4", () => {
+    const inBand = { volOI: 3.5, vol: 5000, notional: 5e6, premium: 1e5, dte: 30, delta: 0.3 };
+    scanScoreOf(inBand);
+    expect(inBand._parts.band).toBe(4);
+    const noFloor = { ...inBand, premium: 5e3 };
+    scanScoreOf(noFloor);
+    expect(noFloor._parts.band).toBe(0);
+    const tooShort = { ...inBand, dte: 3 };
+    scanScoreOf(tooShort);
+    expect(tooShort._parts.band).toBe(0);
+  });
 });
 
 describe("mkScanRow", () => {
@@ -177,8 +188,10 @@ describe("archetypeOf", () => {
     expect(archetypeOf({ premium: 1e5, delta: -0.4, dte: 45, volOI: 1, type: "put" })).toBe("HEDGE");
     expect(archetypeOf({ premium: 1e5, delta: 0.4, dte: 45, volOI: 1, type: "call" })).toBeNull();
   });
-  it("FRESH on vol/OI ≥ 3", () => {
+  it("FRESH on vol/OI ≥ 3 with the $25k retail-noise premium floor", () => {
     expect(archetypeOf({ premium: 1e5, delta: 0.5, dte: 10, volOI: 3.5, type: "call" })).toBe("FRESH");
+    expect(archetypeOf({ premium: 5e3, delta: 0.5, dte: 10, volOI: 3.5, type: "call" })).toBeNull();
+    expect(archetypeOf({ premium: null, delta: 0.5, dte: 10, volOI: 3.5, type: "call" })).toBe("FRESH"); // no estimate ≠ small
   });
   it("null when nothing distinctive; tolerates missing fields", () => {
     expect(archetypeOf({ premium: 1e5, delta: 0.5, dte: 10, volOI: 1, type: "call" })).toBeNull();
@@ -208,6 +221,13 @@ describe("tickerRollup", () => {
     expect(spy.maxScore).toBe(91);
     expect(spy.regime).toBe("negative");
     expect(spy.count).toBe(2);
+  });
+  it("computes volume-based PCR (Pan-Poteshman) per ticker", () => {
+    const r = (type, vol) => ({ under: "SPY", type, premium: 1e5, score: 50, regime: null, vol });
+    const [spy] = tickerRollup([r("call", 4000), r("put", 1000), r("put", 1000)]);
+    expect(spy.pcr).toBeCloseTo(0.5);
+    const [noCalls] = tickerRollup([r("put", 1000)]);
+    expect(noCalls.pcr).toBeNull();
   });
   it("handles null premiums and empty input", () => {
     expect(tickerRollup([])).toEqual([]);
