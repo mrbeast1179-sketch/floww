@@ -297,3 +297,11 @@
 .fsb-rollbar-c { display: block; height: 100%; background: #19d27c; }
 .fsb-force { color: #29c5e0; }
 .fsb-force:disabled { opacity: 0.5; cursor: wait; }
+
+/* ── Flow archetypes + source-transition alerts ── */
+.fsb-arch { font-size: 8px; font-weight: 800; letter-spacing: 0.5px; padding: 1px 4px; border-radius: 3px; margin-left: 4px; }
+.fsb-arch.a-whale { background: rgba(162, 103, 255, 0.15); color: #a267ff; border: 1px solid rgba(162, 103, 255, 0.4); }
+.fsb-arch.a-lotto { background: rgba(255, 77, 94, 0.12); color: #ff8a94; border: 1px solid rgba(255, 77, 94, 0.35); }
+.fsb-arch.a-hedge { background: rgba(41, 197, 224, 0.12); color: #29c5e0; border: 1px solid rgba(41, 197, 224, 0.35); }
+.fsb-arch.a-fresh { background: rgba(25, 210, 124, 0.12); color: #19d27c; border: 1px solid rgba(25, 210, 124, 0.35); }
+.fsb-rulebadge.r-source { background: rgba(41, 197, 224, 0.12); color: #29c5e0; border: 1px solid rgba(41, 197, 224, 0.4); }

@@ -1,6 +1,7 @@
 import {
   bizDTE, scanTypeOf, scanScoreOf, estimateDelta, approxSpot, mkScanRow,
   fmtUSD, fmtK, fmtIV, scoreGradeOf, estPremium, evalAlerts, tickerRollup,
+  archetypeOf,
 } from "./scanLogic";
 
 describe("estimateDelta", () => {
@@ -161,6 +162,31 @@ describe("evalAlerts", () => {
   it("carries a stable contract key", () => {
     const [hit] = evalAlerts([mk()]);
     expect(hit.key).toBe("SPY|call|745|2099-01-08");
+  });
+});
+
+describe("archetypeOf", () => {
+  it("WHALE on ≥$10M estimated premium (first match wins)", () => {
+    expect(archetypeOf({ premium: 12e6, delta: 0.1, dte: 1, volOI: 5, type: "call" })).toBe("WHALE");
+  });
+  it("LOTTO on deep-OTM short-dated", () => {
+    expect(archetypeOf({ premium: 1e5, delta: 0.08, dte: 1, volOI: 1, type: "call" })).toBe("LOTTO");
+    expect(archetypeOf({ premium: 1e5, delta: -0.12, dte: 2, volOI: 1, type: "put" })).toBe("LOTTO");
+  });
+  it("HEDGE on mid-delta long-dated puts", () => {
+    expect(archetypeOf({ premium: 1e5, delta: -0.4, dte: 45, volOI: 1, type: "put" })).toBe("HEDGE");
+    expect(archetypeOf({ premium: 1e5, delta: 0.4, dte: 45, volOI: 1, type: "call" })).toBeNull();
+  });
+  it("FRESH on vol/OI ≥ 3", () => {
+    expect(archetypeOf({ premium: 1e5, delta: 0.5, dte: 10, volOI: 3.5, type: "call" })).toBe("FRESH");
+  });
+  it("null when nothing distinctive; tolerates missing fields", () => {
+    expect(archetypeOf({ premium: 1e5, delta: 0.5, dte: 10, volOI: 1, type: "call" })).toBeNull();
+    expect(archetypeOf({ volOI: 1, type: "call" })).toBeNull();
+  });
+  it("mkScanRow attaches arch", () => {
+    const r = mkScanRow("SPY", "call", 745, "2099-01-08", 60000, 4000, 0.9, 0.5, 744, null);
+    expect(r.arch).toBe("WHALE");
   });
 });
 

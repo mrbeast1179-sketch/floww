@@ -117,6 +117,19 @@ export function evalAlerts(rows, opts = {}) {
   return out;
 }
 
+// Institutional flow archetype from real fields only (no tape). First match
+// wins: WHALE (premium size), LOTTO (deep-OTM short-dated), HEDGE (mid-delta
+// long-dated puts — protective duration), FRESH (volume ≥ 3× open interest,
+// new positioning). null when nothing distinctive.
+export function archetypeOf(r) {
+  if (r.premium != null && r.premium >= 10e6) return "WHALE";
+  const dl = r.delta == null ? null : Math.abs(r.delta);
+  if (dl != null && dl <= 0.15 && r.dte != null && r.dte <= 2) return "LOTTO";
+  if (r.type === "put" && dl != null && dl >= 0.25 && dl <= 0.6 && r.dte != null && r.dte >= 30) return "HEDGE";
+  if ((r.volOI || 0) >= 3) return "FRESH";
+  return null;
+}
+
 // Per-ticker premium concentration — where the money is. Sorted by total
 // estimated premium desc, top-N, with call/put split for a skew read.
 export function tickerRollup(rows, top = 8) {
@@ -156,5 +169,6 @@ export function mkScanRow(under, type, strike, exp, vol, oi, iv, delta, spot = n
   };
   r.premium = estPremium(r);
   r.score = scanScoreOf(r, regime); r.ftype = scanTypeOf(r);
+  r.arch = archetypeOf(r);
   return r;
 }

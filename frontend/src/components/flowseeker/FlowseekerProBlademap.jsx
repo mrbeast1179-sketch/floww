@@ -129,6 +129,32 @@ export default function FlowseekerProBlademap({ active = true }) {
   useEffect(() => { notifyRef.current = notify; }, [notify]);
   const hadDataRef = useRef(false);
   useEffect(() => { hadDataRef.current = scan.length > 0; }, [scan]);
+
+  // Log (and optionally notify) when the scan source flips market↔fallback —
+  // a coverage change from 700+ symbols to 18 is something a desk wants to know.
+  const lastModeRef = useRef(null);
+  const noteSourceFlip = useCallback((mode, symbols) => {
+    const prev = lastModeRef.current;
+    lastModeRef.current = mode;
+    if (prev == null || prev === mode) return;
+    const entry = {
+      key: `src|${mode}`, rule: "SOURCE",
+      under: mode === "market" ? "LIVE" : "FALLBACK",
+      type: "", strike: "", exp: "", score: null, premium: null, dte: null,
+      label: mode === "market"
+        ? `Recovered to market-wide coverage (${symbols} symbols)`
+        : `Degraded to ${symbols}-symbol fallback scan`,
+      t: Date.now(), time: new Date().toLocaleTimeString(),
+    };
+    setAlertLog((prevLog) => {
+      const next = [entry, ...prevLog].slice(0, 100);
+      try { localStorage.setItem(ALERTS_KEY, JSON.stringify(next)); } catch { /* private mode */ }
+      return next;
+    });
+    if (notifyRef.current && document.hidden && "Notification" in window && Notification.permission === "granted") {
+      try { new Notification("Scanner source changed", { body: entry.label }); } catch { /* platform quirk */ }
+    }
+  }, []);
   // Poll effect reads alert config via ref so rule tweaks don't re-arm the interval.
   const alertCfgRef = useRef({});
   useEffect(() => { alertCfgRef.current = { minScore: alertScore, enabled: alertRules }; }, [alertScore, alertRules]);
@@ -289,7 +315,9 @@ export default function FlowseekerProBlademap({ active = true }) {
           const marked = markNew(rows, prevKeysRef, "market");
           ingestAlerts(marked);
           setScan(marked);
-          setScanMeta({ mode: "market", stale: !!d.stale, symbols: new Set(rows.map((x) => x.under)).size });
+          const nSyms = new Set(rows.map((x) => x.under)).size;
+          setScanMeta({ mode: "market", stale: !!d.stale, symbols: nSyms });
+          noteSourceFlip("market", nSyms);
           setScanAt(new Date().toLocaleTimeString());
           return;   // a 200 with rows[] is authoritative — even when empty
         }
@@ -339,6 +367,7 @@ export default function FlowseekerProBlademap({ active = true }) {
         ingestAlerts(marked);
         setScan(marked);
         setScanMeta({ mode: "fallback", stale: false, symbols: universe.length });
+        noteSourceFlip("fallback", universe.length);
         setScanAt(new Date().toLocaleTimeString());
       } catch { /* keep last data on a transient hiccup */ }
     };
@@ -831,17 +860,24 @@ export default function FlowseekerProBlademap({ active = true }) {
                   <table className="fsb-alerttab">
                     <tbody>
                       {alertLog.slice(0, 50).map((a, i) => (
-                        <tr key={`${a.key}-${a.t}-${i}`} onClick={() => { setTicker(a.under); setTab("flow"); }}>
+                        <tr key={`${a.key}-${a.t}-${i}`}
+                            onClick={a.rule === "SOURCE" ? undefined : () => { setTicker(a.under); setTab("flow"); }}>
                           <td className="fsb-sub">{a.time}</td>
                           <td><span className={`fsb-rulebadge r-${a.rule.toLowerCase()}`}>{a.rule}</span></td>
-                          <td className="l">
-                            <span className="tk">{a.under}</span>{" "}
-                            <span className={a.type === "call" ? "fsb-tcall" : "fsb-tput"}>{a.type === "call" ? "CALL" : "PUT"}</span>{" "}
-                            {a.strike} <span className="fsb-sub">{(a.exp || "").slice(5)}</span>
-                          </td>
-                          <td>{a.score}</td>
-                          <td>{a.premium != null ? `~${fmtUSD(a.premium)}` : "—"}</td>
-                          <td>{a.dte == null ? "—" : `${a.dte}d`}</td>
+                          {a.rule === "SOURCE" ? (
+                            <td className="l fsb-sub" colSpan={4}>{a.label}</td>
+                          ) : (
+                            <>
+                              <td className="l">
+                                <span className="tk">{a.under}</span>{" "}
+                                <span className={a.type === "call" ? "fsb-tcall" : "fsb-tput"}>{a.type === "call" ? "CALL" : "PUT"}</span>{" "}
+                                {a.strike} <span className="fsb-sub">{(a.exp || "").slice(5)}</span>
+                              </td>
+                              <td>{a.score}</td>
+                              <td>{a.premium != null ? `~${fmtUSD(a.premium)}` : "—"}</td>
+                              <td>{a.dte == null ? "—" : `${a.dte}d`}</td>
+                            </>
+                          )}
                         </tr>
                       ))}
                     </tbody>
@@ -882,7 +918,15 @@ export default function FlowseekerProBlademap({ active = true }) {
                           <td title="Estimated premium spent — no quote feed on cvserver, BS-lite estimate">{r.premium != null ? `~${fmtUSD(r.premium)}` : "—"}</td>
                           <td>{fmtUSD(r.notional)}</td>
                           <td>{fmtIV(r.iv)}</td>
-                          <td className="l"><span className={`fsb-flt ${r.ftype}`}>{r.ftype.toUpperCase()}</span></td>
+                          <td className="l">
+                            <span className={`fsb-flt ${r.ftype}`}>{r.ftype.toUpperCase()}</span>
+                            {r.arch ? <span className={`fsb-arch a-${r.arch.toLowerCase()}`} title={
+                              r.arch === "WHALE" ? "≥$10M estimated premium" :
+                              r.arch === "LOTTO" ? "deep-OTM, ≤2 DTE" :
+                              r.arch === "HEDGE" ? "mid-delta long-dated put — protective duration" :
+                              "volume ≥ 3× open interest — fresh positioning"
+                            }>{r.arch}</span> : null}
+                          </td>
                           <td className="l"><span className={`fsb-lean ${isCall ? "bull" : "bear"}`}>{isCall ? "▲ BULL" : "▼ BEAR"}</span>{otm ? <span className="fsb-sub"> {r.deltaEst ? "~" : ""}{otm}</span> : null}</td>
                         </tr>
                       );
