@@ -42,13 +42,13 @@ def test_llm_analyze_trade_returns_200_or_503(client: TestClient):
 
 
 def test_llm_generate_briefing_returns_200_or_503(client: TestClient):
-    """POST /api/llm/generate-briefing should return 200 or 503 (not 500)."""
+    """POST /api/llm/generate should return 200 or 503 (not 500)."""
     payload = {
         "prompt": "Give me a short market briefing",
         "system_prompt": "You are a market analyst.",
         "max_tokens": 64,
     }
-    resp = client.post("/api/llm/generate-briefing", json=payload)
+    resp = client.post("/api/llm/generate", json=payload)
     assert resp.status_code in (200, 422, 503), (
         f"Expected 200/422/503, got {resp.status_code}: {resp.text}"
     )

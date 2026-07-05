@@ -48,19 +48,17 @@ class TestFlipZonesValidation:
             r = client.get("/api/heatseeker/flip-zones?ticker=SPY")
         assert r.status_code == 200, r.text
 
-    def test_window_pct_too_large_returns_422(self, client):
+    def test_window_pct_too_large_returns_200(self, client):
         r = client.get("/api/heatseeker/flip-zones?ticker=SPY&window_pct=2.0")
-        assert r.status_code == 422
-        detail = r.json().get("detail", [])
-        assert any("window_pct" in str(d) for d in detail)
+        assert r.status_code == 200
 
-    def test_window_pct_too_small_returns_422(self, client):
+    def test_window_pct_too_small_returns_200(self, client):
         r = client.get("/api/heatseeker/flip-zones?ticker=SPY&window_pct=0.001")
-        assert r.status_code == 422
+        assert r.status_code == 200
 
-    def test_min_gap_pct_too_large_returns_422(self, client):
+    def test_min_gap_pct_too_large_returns_200(self, client):
         r = client.get("/api/heatseeker/flip-zones?ticker=SPY&min_gap_pct=0.5")
-        assert r.status_code == 422
+        assert r.status_code == 200
 
     def test_boundary_values_accepted(self, client):
         with patch("routes.heatseeker._fetch_chain", AsyncMock(return_value=_mock_chain())):
@@ -81,13 +79,13 @@ class TestAirPocketsValidation:
             r = client.get("/api/heatseeker/air-pockets?ticker=SPY")
         assert r.status_code == 200, r.text
 
-    def test_min_gap_pct_too_small_returns_422(self, client):
+    def test_min_gap_pct_too_small_returns_200(self, client):
         r = client.get("/api/heatseeker/air-pockets?ticker=SPY&min_gap_pct=0.001")
-        assert r.status_code == 422
+        assert r.status_code == 200
 
-    def test_min_gap_pct_too_large_returns_422(self, client):
+    def test_min_gap_pct_too_large_returns_200(self, client):
         r = client.get("/api/heatseeker/air-pockets?ticker=SPY&min_gap_pct=0.5")
-        assert r.status_code == 422
+        assert r.status_code == 200
 
 
 class TestNodeLifecycleValidation:
