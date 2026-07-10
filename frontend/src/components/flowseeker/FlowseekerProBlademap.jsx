@@ -11,7 +11,7 @@
  */
 import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { BACKEND_URL } from "../../config/api";
-import { approxSpot, mkScanRow, evalAlerts, tickerRollup, volSigma, fmtUSD, fmtK, fmtIV, scoreGradeOf } from "./scanLogic";
+import { approxSpot, mkScanRow, evalAlerts, tickerRollup, volSigma, annotateFirstSeen, sessionDay, fmtClock, fmtAge, fmtUSD, fmtK, fmtIV, scoreGradeOf } from "./scanLogic";
 import "./FlowseekerProBlademap.css";
 
 const API = `${BACKEND_URL}/api/flowseeker`;
@@ -72,11 +72,23 @@ const SCAN_UNIVERSE = ["SPY", "QQQ", "IWM", "NVDA", "TSLA", "AAPL", "MSFT", "AMZ
 
 const PREFS_KEY = "fsb-scan-prefs-v1";
 const ALERTS_KEY = "fsb-scan-alerts-v1";
+const FIRSTSEEN_KEY = "fsb-scan-firstseen-v1";
 function loadScanPrefs() {
   try { return JSON.parse(localStorage.getItem(PREFS_KEY)) || {}; } catch { return {}; }
 }
+// The tape is "today's alerts" — drop anything from a prior session on load.
 function loadAlertLog() {
-  try { return JSON.parse(localStorage.getItem(ALERTS_KEY)) || []; } catch { return []; }
+  try {
+    const all = JSON.parse(localStorage.getItem(ALERTS_KEY)) || [];
+    const today = sessionDay();
+    return all.filter((a) => !a.day || a.day === today);
+  } catch { return []; }
+}
+function loadFirstSeen() {
+  try {
+    const s = JSON.parse(localStorage.getItem(FIRSTSEEN_KEY));
+    return s && s.day === sessionDay() ? s : { day: sessionDay(), map: {} };
+  } catch { return { day: sessionDay(), map: {} }; }
 }
 
 // Mark rows unseen in the previous refresh (drives the NEW flash + alerts).
@@ -122,10 +134,12 @@ export default function FlowseekerProBlademap({ active = true }) {
   const [alertRules, setAlertRules] = useState(prefs.alertRules || { score: true, whale: true, zerodte: true });
   const [alertLog, setAlertLog] = useState(loadAlertLog);
   const [alertsOpen, setAlertsOpen] = useState(false);
+  const [alertOrder, setAlertOrder] = useState("new");   // tape order: newest | oldest first
   const [notify, setNotify] = useState(!!prefs.notify);
   const [forcing, setForcing] = useState(false);
   const [refreshTick, setRefreshTick] = useState(0);
   const prevKeysRef = useRef(null);
+  const firstSeenRef = useRef(loadFirstSeen());   // { day, map:{contractKey: firstSeenMs} }
   const notifyRef = useRef(false);
   useEffect(() => { notifyRef.current = notify; }, [notify]);
   const hadDataRef = useRef(false);
@@ -145,7 +159,8 @@ export default function FlowseekerProBlademap({ active = true }) {
       label: mode === "market"
         ? `Recovered to market-wide coverage (${symbols} symbols)`
         : `Degraded to ${symbols}-symbol fallback scan`,
-      t: Date.now(), time: new Date().toLocaleTimeString(),
+      src: mode, day: sessionDay(),
+      t: Date.now(), time: fmtClock(Date.now(), true),
     };
     setAlertLog((prevLog) => {
       const next = [entry, ...prevLog].slice(0, 100);
@@ -187,14 +202,16 @@ export default function FlowseekerProBlademap({ active = true }) {
 
   // Append newly triggered alerts to the persistent log (dedupe per contract
   // within 30min so a hot name doesn't spam every refresh; cap at 100).
-  const ingestAlerts = useCallback((rows) => {
+  const ingestAlerts = useCallback((rows, mode) => {
     const hits = evalAlerts(rows, alertCfgRef.current);
     if (!hits.length) return;
     setAlertLog((prev) => {
       const cutoff = Date.now() - 30 * 60e3;
       const recent = new Set(prev.filter((a) => a.t >= cutoff).map((a) => a.key));
+      const now = Date.now();
       const fresh = hits.filter((h) => !recent.has(h.key))
-        .map((h) => ({ ...h, t: Date.now(), time: new Date().toLocaleTimeString() }));
+        .map((h) => ({ ...h, t: now, time: fmtClock(now, true), src: mode, day: sessionDay(),
+          firstSeen: rows.find((r) => `${r.under}|${r.type}|${r.strike}|${r.exp}` === h.key)?.firstSeen }));
       if (!fresh.length) return prev;
       if (notifyRef.current && document.hidden && "Notification" in window && Notification.permission === "granted") {
         try {
@@ -314,7 +331,9 @@ export default function FlowseekerProBlademap({ active = true }) {
             mkScanRow(r[0], r[2], r[3], r[4], Number(r[5]) || 0, Number(r[6]) || 0,
               r[7], r[8], Number(r[9]) || null, regimes[r[0]] || null));
           const marked = markNew(rows, prevKeysRef, "market");
-          ingestAlerts(marked);
+          firstSeenRef.current = annotateFirstSeen(marked, firstSeenRef.current).seen;
+          try { localStorage.setItem(FIRSTSEEN_KEY, JSON.stringify(firstSeenRef.current)); } catch { /* private mode */ }
+          ingestAlerts(marked, "market");
           setScan(marked);
           const nSyms = new Set(rows.map((x) => x.under)).size;
           if (d.baselines) setBaselines(d.baselines);
@@ -366,7 +385,9 @@ export default function FlowseekerProBlademap({ active = true }) {
         }
         rows.sort((a, b) => b.vol - a.vol);
         const marked = markNew(rows.slice(0, 300), prevKeysRef, "fallback");
-        ingestAlerts(marked);
+        firstSeenRef.current = annotateFirstSeen(marked, firstSeenRef.current).seen;
+        try { localStorage.setItem(FIRSTSEEN_KEY, JSON.stringify(firstSeenRef.current)); } catch { /* private mode */ }
+        ingestAlerts(marked, "fallback");
         setScan(marked);
         setScanMeta({ mode: "fallback", stale: false, symbols: universe.length });
         noteSourceFlip("fallback", universe.length);
@@ -472,8 +493,21 @@ export default function FlowseekerProBlademap({ active = true }) {
   // chips stay stable while a chip-click filters the table below them.
   const rollup = useMemo(() => tickerRollup(scan, 8), [scan]);
 
+  // Alert tape summary: per-rule counts + session window (log is newest-first).
+  const alertSummary = useMemo(() => {
+    const c = { SCORE: 0, WHALE: 0, "0DTE": 0, SOURCE: 0 };
+    for (const a of alertLog) c[a.rule] = (c[a.rule] || 0) + 1;
+    const newest = alertLog.length ? alertLog[0].time : null;
+    const oldest = alertLog.length ? alertLog[alertLog.length - 1].time : null;
+    return { c, newest, oldest };
+  }, [alertLog]);
+  const shownAlerts = useMemo(() => {
+    const a = alertOrder === "old" ? [...alertLog].reverse() : alertLog;
+    return a.slice(0, 60);
+  }, [alertLog, alertOrder]);
+
   const SCAN_COLS = [
-    ["score", "Score", false], ["under", "Ticker", true], ["type", "C/P", true],
+    ["firstSeen", "Seen", false], ["score", "Score", false], ["under", "Ticker", true], ["type", "C/P", true],
     ["strike", "Strike", false], ["dte", "DTE", false], ["vol", "Volume", false],
     ["oi", "OI", false], ["volOI", "Vol/OI", false], ["premium", "Prem~", false],
     ["notional", "Notional", false],
@@ -819,7 +853,8 @@ export default function FlowseekerProBlademap({ active = true }) {
               <input placeholder="Ticker…" value={scanQ} onChange={(e) => setScanQ((e.target.value || "").toUpperCase())} />
               <span className="fsb-presets">
                 {[["Top Score", { key: "score", dir: "desc" }], ["Big Money", { key: "notional", dir: "desc" }],
-                  ["Unusual", { key: "volOI", dir: "desc" }], ["Short Fuse", { key: "dte", dir: "asc" }]].map(([l, s]) => (
+                  ["Unusual", { key: "volOI", dir: "desc" }], ["Short Fuse", { key: "dte", dir: "asc" }],
+                  ["New Arrivals", { key: "firstSeen", dir: "desc" }]].map(([l, s]) => (
                   <button key={l} className={`fsb-preset${scanSort.key === s.key && scanSort.dir === s.dir ? " on" : ""}`}
                     onClick={() => setScanSort(s)}>{l}</button>
                 ))}
@@ -841,7 +876,17 @@ export default function FlowseekerProBlademap({ active = true }) {
             {alertsOpen && (
               <div className="fsb-alertlog">
                 <div className="fsb-alertlog-h">
-                  <span>Alert Log · {alertLog.length}</span>
+                  <span>Alert Tape · {alertLog.length}</span>
+                  {alertLog.length > 0 && (
+                    <span className="fsb-alertsummary">
+                      {alertSummary.oldest === alertSummary.newest
+                        ? alertSummary.newest
+                        : `${alertSummary.oldest} → ${alertSummary.newest}`}
+                      {["SCORE", "WHALE", "0DTE", "SOURCE"].filter((k) => alertSummary.c[k]).map((k) => (
+                        <span key={k} className={`fsb-sumtag r-${k.toLowerCase()}`}>{k} {alertSummary.c[k]}</span>
+                      ))}
+                    </span>
+                  )}
                   <span className="fsb-rulechips">
                     <button className={`fsb-rulechip${notify ? " on" : ""}`}
                       title="Browser notification when alerts fire while this tab is hidden"
@@ -851,6 +896,10 @@ export default function FlowseekerProBlademap({ active = true }) {
                         title="Toggle this alert rule"
                         onClick={() => setAlertRules((r) => ({ ...r, [k]: !r[k] }))}>{lbl}</button>
                     ))}
+                    <button className="fsb-rulechip" title="Toggle newest-first / oldest-first"
+                      onClick={() => setAlertOrder((o) => (o === "new" ? "old" : "new"))}>
+                      {alertOrder === "new" ? "⇊ Newest" : "⇈ Oldest"}
+                    </button>
                   </span>
                   <button className="fsb-alertclear"
                     onClick={() => { setAlertLog([]); try { localStorage.removeItem(ALERTS_KEY); } catch { /* noop */ } }}>
@@ -859,15 +908,18 @@ export default function FlowseekerProBlademap({ active = true }) {
                 </div>
                 {alertLog.length === 0 ? (
                   <div className="fsb-muted" style={{ padding: 10 }}>
-                    No alerts yet — NEW contracts crossing an enabled rule log here (deduped 30min per contract, kept across reloads).
+                    No alerts yet — NEW contracts crossing an enabled rule log here with the time they arrived and their source (deduped 30min per contract; resets each session).
                   </div>
                 ) : (
                   <table className="fsb-alerttab">
                     <tbody>
-                      {alertLog.slice(0, 50).map((a, i) => (
+                      {shownAlerts.map((a, i) => (
                         <tr key={`${a.key}-${a.t}-${i}`}
                             onClick={a.rule === "SOURCE" ? undefined : () => { setTicker(a.under); setTab("flow"); }}>
-                          <td className="fsb-sub">{a.time}</td>
+                          <td title={a.src === "fallback" ? "18-symbol fallback scan" : a.src === "market" ? "market-wide scan" : ""}>
+                            <span className={`fsb-srcdot ${a.src || ""}`} />
+                          </td>
+                          <td className="fsb-sub" title={`${fmtAge(a.t)} ago`}>{a.time}</td>
                           <td><span className={`fsb-rulebadge r-${a.rule.toLowerCase()}`}>{a.rule}</span></td>
                           {a.rule === "SOURCE" ? (
                             <td className="l fsb-sub" colSpan={4}>{a.label}</td>
@@ -880,7 +932,7 @@ export default function FlowseekerProBlademap({ active = true }) {
                               </td>
                               <td>{a.score}</td>
                               <td>{a.premium != null ? `~${fmtUSD(a.premium)}` : "—"}</td>
-                              <td>{a.dte == null ? "—" : `${a.dte}d`}</td>
+                              <td className="fsb-sub">{fmtAge(a.t)}</td>
                             </>
                           )}
                         </tr>
@@ -912,6 +964,10 @@ export default function FlowseekerProBlademap({ active = true }) {
                         <tr key={`${r.under}-${r.strike}-${r.type}-${r.exp}-${i}`}
                             className={`${r.under === ticker ? "sel " : ""}${r._new ? "new " : ""}${r._new && r.score >= alertScore ? "alert" : ""}`.trim()}
                             onClick={() => { setTicker(r.under); setTab("flow"); }}>
+                          <td className="fsb-seen" title={r.firstSeen ? `First seen ${fmtClock(r.firstSeen, true)} · ${fmtAge(r.firstSeen)} ago this session` : ""}>
+                            {r._new ? <span className="fsb-newdot" title="New this refresh" /> : null}
+                            <span className="fsb-sub">{fmtClock(r.firstSeen)}</span>
+                          </td>
                           <td><span className={`fsb-sc ${scoreGradeOf(r.score)}`} title={r._parts ? `vol/OI ${r._parts.pos} · size ${r._parts.size} · notional ${r._parts.notl} · urgency ${r._parts.urg} · OTM ${r._parts.otm}${r._parts.nudge ? ` · γ-nudge +${r._parts.nudge}` : ""}` : ""}>{r.score}</span></td>
                           <td className="l"><span className="tk">{r.under}</span>{r.regime ? <sup className={`fsb-gtag ${r.regime === "positive" ? "gp" : "gn"}`}>{r.regime === "positive" ? "γ+" : "γ−"}</sup> : null} <span className="fsb-sub">{(r.exp || "").slice(5)}</span></td>
                           <td className={`l ${isCall ? "fsb-tcall" : "fsb-tput"}`}>{isCall ? "CALL" : "PUT"}</td>

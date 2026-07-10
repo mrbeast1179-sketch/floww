@@ -313,3 +313,16 @@
 
 /* ── σ-spike tag (volume vs prior-day baseline) ── */
 .fsb-sigma { font-size: 8.5px; font-weight: 800; color: #f5b042; margin-left: 4px; }
+
+/* ── Arrival timestamps + sourced alert tape ── */
+.fsb-seen { white-space: nowrap; }
+.fsb-newdot { display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: #29c5e0; margin-right: 4px; vertical-align: middle; box-shadow: 0 0 4px #29c5e0; }
+.fsb-srcdot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: #4a5160; vertical-align: middle; }
+.fsb-srcdot.market { background: #19d27c; }
+.fsb-srcdot.fallback { background: #f5b042; }
+.fsb-alertsummary { display: inline-flex; align-items: center; gap: 6px; font-size: 9.5px; color: #6c7382; margin-left: 8px; }
+.fsb-sumtag { font-size: 8.5px; font-weight: 800; letter-spacing: 0.4px; padding: 1px 5px; border-radius: 3px; }
+.fsb-sumtag.r-score { background: rgba(245, 176, 66, 0.15); color: #f5b042; }
+.fsb-sumtag.r-whale { background: rgba(162, 103, 255, 0.15); color: #a267ff; }
+.fsb-sumtag.r-0dte { background: rgba(255, 77, 94, 0.15); color: #ff4d5e; }
+.fsb-sumtag.r-source { background: rgba(41, 197, 224, 0.12); color: #29c5e0; }

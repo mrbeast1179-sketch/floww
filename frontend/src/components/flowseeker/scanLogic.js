@@ -2,6 +2,46 @@
 
 export const fmtUSD = (v) => { const n = Math.abs(Number(v) || 0); if (n >= 1e9) return `$${(n / 1e9).toFixed(2)}B`; if (n >= 1e6) return `$${(n / 1e6).toFixed(1)}M`; if (n >= 1e3) return `$${(n / 1e3).toFixed(0)}k`; return `$${Math.round(n)}`; };
 export const fmtK = (v) => { const n = Number(v) || 0; if (n >= 1e9) return `${(n / 1e9).toFixed(1)}B`; if (n >= 1e6) return `${(n / 1e6).toFixed(1)}M`; if (n >= 1e3) return `${(n / 1e3).toFixed(0)}k`; return String(Math.round(n)); };
+// Local trading-day key (America/Eastern for a Philly desk) — first-seen and
+// the alert tape reset at local midnight so each session starts clean.
+export function sessionDay(now = Date.now()) {
+  const d = new Date(now);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+// Wall-clock formatter. withSeconds for the alert tape (precise arrivals),
+// HH:MM for the scanner's Seen column.
+export function fmtClock(ms, withSeconds = false) {
+  if (ms == null) return "—";
+  return new Date(ms).toLocaleTimeString([], withSeconds
+    ? { hour: "2-digit", minute: "2-digit", second: "2-digit" }
+    : { hour: "2-digit", minute: "2-digit" });
+}
+
+// Compact elapsed age: 45s / 12m / 3h.
+export function fmtAge(ms, now = Date.now()) {
+  if (ms == null) return "—";
+  const s = Math.max(0, Math.round((now - ms) / 1000));
+  if (s < 60) return `${s}s`;
+  const m = Math.round(s / 60);
+  if (m < 60) return `${m}m`;
+  return `${Math.round(m / 60)}h`;
+}
+
+// Annotate each row with the timestamp its contract was FIRST seen this
+// session (answers "what came in when"). seen = { day, map:{key:ms} } persists
+// in the caller; the map resets when the local day rolls. Returns { rows, seen }.
+export function annotateFirstSeen(rows, seen, now = Date.now()) {
+  const day = sessionDay(now);
+  const map = (seen && seen.day === day && seen.map) ? { ...seen.map } : {};
+  for (const r of rows || []) {
+    const key = `${r.under}|${r.type}|${r.strike}|${r.exp}`;
+    if (map[key] == null) map[key] = now;
+    r.firstSeen = map[key];
+  }
+  return { rows: rows || [], seen: { day, map } };
+}
+
 // IV unit heuristic: decimal IVs legitimately exceed 1 on hot names (1.5 =
 // 150%), while pct-style feeds send 20–200 — treat < 3 as decimal, ≥ 3 as pct.
 const normIV = (v) => (v == null ? null : (Number(v) >= 3 ? Number(v) / 100 : Number(v)));

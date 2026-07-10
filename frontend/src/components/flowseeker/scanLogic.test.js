@@ -1,7 +1,7 @@
 import {
   bizDTE, scanTypeOf, scanScoreOf, estimateDelta, approxSpot, mkScanRow,
   fmtUSD, fmtK, fmtIV, scoreGradeOf, estPremium, evalAlerts, tickerRollup,
-  archetypeOf, volSigma,
+  archetypeOf, volSigma, annotateFirstSeen, sessionDay, fmtClock, fmtAge,
 } from "./scanLogic";
 
 describe("estimateDelta", () => {
@@ -173,6 +173,54 @@ describe("evalAlerts", () => {
   it("carries a stable contract key", () => {
     const [hit] = evalAlerts([mk()]);
     expect(hit.key).toBe("SPY|call|745|2099-01-08");
+  });
+});
+
+describe("annotateFirstSeen", () => {
+  it("stamps the first sighting and preserves it across refreshes same session", () => {
+    const t1 = new Date(2026, 6, 6, 10, 0, 0).getTime();
+    const t2 = new Date(2026, 6, 6, 10, 5, 0).getTime();
+    const rows1 = [{ under: "SPY", type: "call", strike: 745, exp: "2099-01-08" }];
+    const { seen } = annotateFirstSeen(rows1, null, t1);
+    expect(rows1[0].firstSeen).toBe(t1);
+    const rows2 = [{ under: "SPY", type: "call", strike: 745, exp: "2099-01-08" }];
+    annotateFirstSeen(rows2, seen, t2);
+    expect(rows2[0].firstSeen).toBe(t1);   // preserved, not re-stamped
+  });
+  it("resets the map when the trading day rolls", () => {
+    const t1 = new Date(2026, 6, 6, 10, 0, 0).getTime();
+    const t2 = new Date(2026, 6, 7, 10, 0, 0).getTime();
+    const rows1 = [{ under: "SPY", type: "call", strike: 745, exp: "2099-01-08" }];
+    const { seen } = annotateFirstSeen(rows1, null, t1);
+    expect(seen.day).toBe("2026-07-06");
+    const rows2 = [{ under: "SPY", type: "call", strike: 745, exp: "2099-01-08" }];
+    const out = annotateFirstSeen(rows2, seen, t2);
+    expect(out.seen.day).toBe("2026-07-07");
+    expect(rows2[0].firstSeen).toBe(t2);   // fresh session → fresh stamp
+  });
+  it("new contracts get the current time; tolerates empty input", () => {
+    const now = new Date(2026, 6, 6, 11, 0, 0).getTime();
+    expect(annotateFirstSeen([], null, now).rows).toEqual([]);
+    const rows = [{ under: "AAPL", type: "put", strike: 200, exp: "2099-02-01" }];
+    const { seen } = annotateFirstSeen(rows, { day: sessionDay(now), map: {} }, now);
+    expect(rows[0].firstSeen).toBe(now);
+    expect(seen.map["AAPL|put|200|2099-02-01"]).toBe(now);
+  });
+});
+
+describe("fmtClock / fmtAge", () => {
+  it("fmtClock returns — for null and a time string otherwise", () => {
+    expect(fmtClock(null)).toBe("—");
+    const s = fmtClock(new Date(2026, 6, 6, 13, 5, 0).getTime());
+    expect(typeof s).toBe("string");
+    expect(s.length).toBeGreaterThan(3);
+  });
+  it("fmtAge buckets seconds / minutes / hours", () => {
+    const now = 10_000_000;
+    expect(fmtAge(now - 5000, now)).toBe("5s");
+    expect(fmtAge(now - 120000, now)).toBe("2m");
+    expect(fmtAge(now - 7200000, now)).toBe("2h");
+    expect(fmtAge(null, now)).toBe("—");
   });
 });
 
