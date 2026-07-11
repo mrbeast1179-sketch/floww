@@ -339,3 +339,8 @@
 
 /* ── prior-day tag on tape rows (tape keeps today + yesterday) ── */
 .fsb-daytag { font-size: 8px; font-weight: 800; letter-spacing: 0.4px; color: #6c7382; border: 1px solid #2a3140; border-radius: 3px; padding: 0 3px; margin-right: 4px; vertical-align: middle; }
+
+/* ── ΔOI next-day open-interest change (FRESH confirmation) ── */
+/* scoped to beat `.fsb-stab tbody td`'s color (higher specificity) */
+.fsb-stab tbody td.fsb-oiup { color: #19d27c; font-weight: 700; }
+.fsb-stab tbody td.fsb-oidn { color: #ff4d5e; font-weight: 700; }

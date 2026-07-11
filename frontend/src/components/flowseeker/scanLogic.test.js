@@ -2,7 +2,7 @@ import {
   bizDTE, scanTypeOf, scanScoreOf, estimateDelta, approxSpot, mkScanRow,
   fmtUSD, fmtK, fmtIV, scoreGradeOf, estPremium, evalAlerts, tickerRollup,
   archetypeOf, volSigma, annotateFirstSeen, sessionDay, fmtClock, fmtAge,
-  awaySummary, scanRowsToCSV,
+  awaySummary, scanRowsToCSV, oiChange,
 } from "./scanLogic";
 
 describe("estimateDelta", () => {
@@ -192,6 +192,18 @@ describe("evalAlerts allowlist", () => {
   });
 });
 
+describe("oiChange", () => {
+  it("returns fractional pct and absolute delta vs prior-day OI", () => {
+    expect(oiChange(14200, 10000)).toEqual({ abs: 4200, pct: 0.42 });
+    expect(oiChange(6000, 10000)).toEqual({ abs: -4000, pct: -0.4 });
+  });
+  it("null when there is no prior record or prior OI was zero", () => {
+    expect(oiChange(10000, null)).toBeNull();
+    expect(oiChange(10000, 0)).toBeNull();
+    expect(oiChange(null, 10000)).toBeNull();
+  });
+});
+
 describe("awaySummary", () => {
   const H = 3600e3;
   const now = 100 * H;
@@ -226,7 +238,7 @@ describe("scanRowsToCSV", () => {
     const csv = scanRowsToCSV([{ firstSeen: Date.UTC(2026, 6, 10, 14, 30), score: 95, under: "SPY", type: "call", strike: 750, exp: "2026-07-10", dte: 0, vol: 1000, oi: 500, volOI: 2, premium: 12345, notional: 1e6, iv: 0.22, ftype: "SWEEP", arch: "WHALE", lean: "BULL", regime: "positive" }]);
     const lines = csv.split("\n");
     expect(lines).toHaveLength(2);
-    expect(lines[0]).toBe("seen,score,ticker,type,strike,expiry,dte,volume,oi,vol_oi,premium_est,notional,iv,flow,archetype,lean,regime");
+    expect(lines[0]).toBe("seen,score,ticker,type,strike,expiry,dte,volume,oi,oi_chg_pct,vol_oi,premium_est,notional,iv,flow,archetype,lean,regime");
     expect(lines[1]).toContain("2026-07-10T14:30:00.000Z,95,SPY,call,750");
   });
   it("escapes commas/quotes and blanks nulls", () => {

@@ -34,15 +34,12 @@ needs jargon decoded.
 | 2 | ☾ "While you were away" banner — gap length, per-rule alert counts, top-3 new contracts (clickable); tape now keeps today + yesterday with a `prev` day-tag | F1 |
 | 3 | ⤓ CSV export of the filtered view + ⧉ Copy (TSV) of the alert tape — for the DVT journal | F7 |
 | 4 | Tab-gated heavy polls: chain feed (15s) + vpin/lambda/ofi/heatmap (6s!) no longer fire while on the Scanner tab; regime pill kept | live-audit |
+| 5 | **ΔOI column (F2)** — per-contract OI persisted daily; /scan joins prior-day OI; ΔOI% cell (green up / red down) with FRESH-held/faded tooltip. Self-builds — deltas appear next session. | F2 |
 
-All scanLogic additions (`evalAlerts allow`, `awaySummary`, `scanRowsToCSV`) are Jest-tested (51 tests).
+All scanLogic additions (`evalAlerts allow`, `awaySummary`, `scanRowsToCSV`, `oiChange`) are Jest-tested (53 tests); backend gains `_prev_contract_oi` + per-contract OI collector (`flow_scan_contract_oi`), 11 backend scan tests pass.
 
 ## Backlog (needs backend work — "next")
 
-- **ΔOI column (F2, impact 5):** persist per-contract `{ticker, contract_key, date, oi}` in
-  `_record_scan_baseline` (top-300/day); join yesterday's OI into /scan like
-  regimes/baselines; "FRESH → CONFIRMED" tooltip when OI holds next day. The one real
-  "was it opening flow?" check a print-less feed can do.
 - **Volume/PCR history + streaks (F5, impact 4):** `GET /scan/history/{ticker}` reading
   `flow_scan_daily` (call/put/total vol per day already stored, currently collapsed to
   avg/std one step before the UI); rollup-chip sparkline + "3d unusual" streak tag.

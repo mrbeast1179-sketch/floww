@@ -16,6 +16,7 @@ from datetime import datetime
 
 import httpx
 from fastapi import APIRouter, HTTPException, Query
+from pymongo import UpdateOne
 
 from services.flowseeker import contract_drilldown, fetch_live_flow
 
@@ -424,6 +425,11 @@ def _cached_regimes() -> dict[str, str]:
 # "baselines" once a ticker has ≥2 prior days. Cf. OptionScannerTWS: 4-5σ
 # volume spikes with little price movement often precede underlying moves.
 _baselines_cache = {"ts": 0.0, "data": {}}
+# Per-contract prior-day open interest — next-day OI change is the one
+# "was this real opening flow?" confirmation a print-less feed can give:
+# a FRESH (vol≥3×OI) contract whose OI then RISES held as new positioning;
+# one whose OI falls back was intraday churn. Keyed by OCC contract ticker.
+_contract_oi_cache = {"ts": 0.0, "data": {}}
 
 
 async def _record_scan_baseline(rows: list) -> None:
@@ -433,6 +439,8 @@ async def _record_scan_baseline(rows: list) -> None:
 
         today = datetime.now().strftime("%Y-%m-%d")
         per: dict[str, dict] = {}
+        oi_ops: list = []
+        seen_contracts: set = set()
         for r in rows:
             t = r[0]
             e = per.setdefault(t, {"call_vol": 0, "put_vol": 0, "contracts": 0})
@@ -442,6 +450,18 @@ async def _record_scan_baseline(rows: list) -> None:
             else:
                 e["put_vol"] += vol
             e["contracts"] += 1
+            # Per-contract OI (static intraday, so $max == the value). One doc
+            # per contract per day; the OCC ticker r[1] is the exact join key.
+            ckey = r[1]
+            oi = int(r[6] or 0)
+            if ckey and ckey not in seen_contracts:
+                seen_contracts.add(ckey)
+                oi_ops.append(UpdateOne(
+                    {"ticker": ckey, "date": today},
+                    {"$max": {"oi": oi},
+                     "$set": {"under": t, "updated_at": time.time()}},
+                    upsert=True,
+                ))
         for t, e in per.items():
             await db.flow_scan_daily.update_one(
                 {"ticker": t, "date": today},
@@ -450,8 +470,38 @@ async def _record_scan_baseline(rows: list) -> None:
                  "$set": {"updated_at": time.time()}},
                 upsert=True,
             )
+        if oi_ops:
+            await db.flow_scan_contract_oi.bulk_write(oi_ops, ordered=False)
     except Exception as e:
         logger.debug("scan baseline record skipped: %s" % e)
+
+
+async def _prev_contract_oi() -> dict[str, int]:
+    """{contract_ticker: oi} from the most recent PRIOR scan day. 60s cached.
+    A single prior date (the last day we scanned) keeps this to two indexed
+    queries — exactly the 'vs last session' read a daily checker wants."""
+    nowt = time.time()
+    if nowt - _contract_oi_cache["ts"] < 60:
+        return _contract_oi_cache["data"]
+    out: dict[str, int] = {}
+    try:
+        from server import db  # deferred: circular import
+
+        today = datetime.now().strftime("%Y-%m-%d")
+        prior = await db.flow_scan_contract_oi.find(
+            {"date": {"$lt": today}}, {"date": 1}
+        ).sort("date", -1).limit(1).to_list(1)
+        if prior:
+            pdate = prior[0]["date"]
+            async for doc in db.flow_scan_contract_oi.find(
+                {"date": pdate}, {"ticker": 1, "oi": 1}
+            ).limit(20000):
+                out[doc["ticker"]] = doc.get("oi") or 0
+    except Exception as e:
+        logger.debug("prev contract OI unavailable: %s" % e)
+    _contract_oi_cache["ts"] = nowt
+    _contract_oi_cache["data"] = out
+    return out
 
 
 async def _volume_baselines() -> dict[str, dict]:
@@ -546,6 +596,7 @@ async def market_scan(
     hit = _fresh(now)
     if hit:
         hit["baselines"] = await _volume_baselines()
+        hit["prev_oi"] = await _prev_contract_oi()
         return hit
     limited = _backing_off(now)
     if limited:
@@ -606,6 +657,7 @@ async def market_scan(
                 asyncio.get_running_loop().create_task(_record_scan_baseline(rows))
                 out = _scan_payload(rows, False, asof, columns, cache_age=0)
                 out["baselines"] = await _volume_baselines()
+                out["prev_oi"] = await _prev_contract_oi()
                 return out
         except HTTPException:
             raise

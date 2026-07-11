@@ -11,7 +11,7 @@
  */
 import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { BACKEND_URL } from "../../config/api";
-import { approxSpot, mkScanRow, evalAlerts, tickerRollup, volSigma, annotateFirstSeen, sessionDay, fmtClock, fmtAge, awaySummary, scanRowsToCSV, fmtUSD, fmtK, fmtIV, scoreGradeOf } from "./scanLogic";
+import { approxSpot, mkScanRow, evalAlerts, tickerRollup, volSigma, annotateFirstSeen, sessionDay, fmtClock, fmtAge, awaySummary, scanRowsToCSV, oiChange, fmtUSD, fmtK, fmtIV, scoreGradeOf } from "./scanLogic";
 import "./FlowseekerProBlademap.css";
 
 const API = `${BACKEND_URL}/api/flowseeker`;
@@ -370,9 +370,15 @@ export default function FlowseekerProBlademap({ active = true }) {
         if (cancelled) return;
         if (d && Array.isArray(d.rows)) {
           const regimes = d.regimes || {};
-          const rows = d.rows.map((r) =>
-            mkScanRow(r[0], r[2], r[3], r[4], Number(r[5]) || 0, Number(r[6]) || 0,
-              r[7], r[8], Number(r[9]) || null, regimes[r[0]] || null));
+          const prevOI = d.prev_oi || {};
+          const rows = d.rows.map((r) => {
+            const row = mkScanRow(r[0], r[2], r[3], r[4], Number(r[5]) || 0, Number(r[6]) || 0,
+              r[7], r[8], Number(r[9]) || null, regimes[r[0]] || null);
+            // Join yesterday's OI for this exact contract (OCC ticker r[1]).
+            row.oiChg = oiChange(row.oi, prevOI[r[1]]);
+            row.oiChgPct = row.oiChg ? row.oiChg.pct : null;   // sortable scalar
+            return row;
+          });
           const marked = markNew(rows, prevKeysRef, "market");
           firstSeenRef.current = annotateFirstSeen(marked, firstSeenRef.current).seen;
           try { localStorage.setItem(FIRSTSEEN_KEY, JSON.stringify(firstSeenRef.current)); } catch { /* private mode */ }
@@ -558,7 +564,7 @@ export default function FlowseekerProBlademap({ active = true }) {
   const SCAN_COLS = [
     ["firstSeen", "Seen", false], ["score", "Score", false], ["under", "Ticker", true], ["type", "C/P", true],
     ["strike", "Strike", false], ["dte", "DTE", false], ["vol", "Volume", false],
-    ["oi", "OI", false], ["volOI", "Vol/OI", false], ["premium", "Prem~", false],
+    ["oi", "OI", false], ["oiChgPct", "ΔOI", false], ["volOI", "Vol/OI", false], ["premium", "Prem~", false],
     ["notional", "Notional", false],
     ["iv", "IV", false], ["ftype", "Flow", true], ["lean", "Lean", true],
   ];
@@ -1065,6 +1071,14 @@ export default function FlowseekerProBlademap({ active = true }) {
                           <td>{r.dte == null ? "—" : `${r.dte}d`}</td>
                           <td>{fmtK(r.vol)}</td>
                           <td>{fmtK(r.oi)}</td>
+                          <td className={r.oiChg ? (r.oiChg.pct >= 0 ? "fsb-oiup" : "fsb-oidn") : ""}
+                              title={r.oiChg
+                                ? `Open interest ${r.oiChg.abs >= 0 ? "+" : ""}${fmtK(r.oiChg.abs)} vs last session (${fmtK(r.oi - r.oiChg.abs)} → ${fmtK(r.oi)})${r.arch === "FRESH" ? (r.oiChg.pct >= 0.1 ? " — FRESH held: new positioning stuck" : r.oiChg.pct <= -0.1 ? " — FRESH faded: intraday churn, OI fell back" : "") : ""}`
+                                : "No prior-day record for this contract yet — ΔOI appears next session"}>
+                            {r.oiChg
+                              ? `${r.oiChg.pct >= 0 ? "+" : ""}${(r.oiChg.pct * 100).toFixed(0)}%`
+                              : <span className="fsb-sub">—</span>}
+                          </td>
                           <td>{r.volOI >= 99 ? "99+" : `${r.volOI.toFixed(1)}x`}</td>
                           <td title="Estimated premium spent — no quote feed on cvserver, BS-lite estimate">{r.premium != null ? `~${fmtUSD(r.premium)}` : "—"}</td>
                           <td>{fmtUSD(r.notional)}</td>

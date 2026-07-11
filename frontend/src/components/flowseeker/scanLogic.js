@@ -178,6 +178,17 @@ export function volSigma(totalVol, baseline) {
   return +(((totalVol - baseline.avg) / baseline.std).toFixed(1));
 }
 
+// Next-day open-interest change for one contract — the print-less feed's only
+// "was this opening flow?" confirmation. Returns null when there's no prior-day
+// record (nothing to compare) or prior OI was 0. { abs, pct } otherwise:
+// pct is fractional (0.42 = +42%). A FRESH contract whose OI rose held as new
+// positioning; one whose OI fell was intraday churn.
+export function oiChange(oi, prevOI) {
+  if (prevOI == null || prevOI <= 0 || oi == null) return null;
+  const abs = oi - prevOI;
+  return { abs, pct: abs / prevOI };
+}
+
 // "While you were away" digest — pure. Everything that happened since sinceMs:
 // alert counts by rule from the persisted tape, plus the top new contracts
 // (first seen after sinceMs) by score. Null when the gap is too short to
@@ -203,6 +214,7 @@ const CSV_COLS = [
   ["firstSeen", "seen", (v) => (v == null ? "" : new Date(v).toISOString())],
   ["score", "score"], ["under", "ticker"], ["type", "type"], ["strike", "strike"],
   ["exp", "expiry"], ["dte", "dte"], ["vol", "volume"], ["oi", "oi"],
+  ["oiChgPct", "oi_chg_pct", (v) => (v == null ? "" : v.toFixed(4))],
   ["volOI", "vol_oi"], ["premium", "premium_est"], ["notional", "notional"],
   ["iv", "iv"], ["ftype", "flow"], ["arch", "archetype"], ["lean", "lean"], ["regime", "regime"],
 ];

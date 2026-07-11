@@ -7,8 +7,9 @@ import pytest
 
 import routes.flowseeker as fs
 
-# The real function, captured before the autouse fixture stubs the module attr.
+# The real functions, captured before the autouse fixture stubs the module attrs.
 _REAL_CACHED_REGIMES = fs._cached_regimes
+_REAL_RECORD_BASELINE = fs._record_scan_baseline
 
 
 class FakeResp:
@@ -59,10 +60,14 @@ def reset(monkeypatch):
     async def _no_record(rows):
         return None
 
+    async def _no_prev_oi():
+        return {}
+
     # Stubbed for the same reason as _cached_regimes: their deferred
     # `import server` drags the whole app into the test process.
     monkeypatch.setattr(fs, "_volume_baselines", _no_baselines)
     monkeypatch.setattr(fs, "_record_scan_baseline", _no_record)
+    monkeypatch.setattr(fs, "_prev_contract_oi", _no_prev_oi)
     fs._scan_cache.clear()
     fs._scan_backoff.update({"until": 0.0, "delay": 30.0})
     FakeClient.calls = 0
@@ -85,6 +90,41 @@ def test_success_returns_rows_with_source_and_asof():
     assert out["stale"] is False
     assert out["asof"]
     assert isinstance(out["regimes"], dict)
+    assert out["prev_oi"] == {}          # stubbed; real path serves a {ckey: oi} map
+
+
+def test_records_per_contract_oi(monkeypatch):
+    """_record_scan_baseline bulk-upserts one prior-day OI doc per contract."""
+    captured = {}
+
+    class FakeColl:
+        async def update_one(self, *a, **k):
+            return None
+
+        async def bulk_write(self, ops, ordered=True):
+            captured["ops"] = ops
+            return None
+
+    class FakeDB:
+        flow_scan_daily = FakeColl()
+        flow_scan_contract_oi = FakeColl()
+
+    import sys
+    import types
+    fake_server = types.ModuleType("server")
+    fake_server.db = FakeDB()
+    monkeypatch.setitem(sys.modules, "server", fake_server)
+
+    rows = [
+        ["SPY", "SPY260706C00745000", "call", 745, "2026-07-06", 50000, 10000, 0.2, 0.5, 744.5],
+        ["SPY", "SPY260706C00745000", "call", 745, "2026-07-06", 60000, 10000, 0.2, 0.5, 744.5],  # dup key
+        ["QQQ", "QQQ260706P00500000", "put", 500, "2026-07-06", 8000, 2000, 0.3, -0.4, 501.0],
+    ]
+    asyncio.run(_REAL_RECORD_BASELINE(rows))
+    ops = captured["ops"]
+    assert len(ops) == 2   # deduped per contract ticker
+    keys = {op._filter["ticker"] for op in ops}
+    assert keys == {"SPY260706C00745000", "QQQ260706P00500000"}
 
 
 def test_second_call_within_ttl_hits_cache():
