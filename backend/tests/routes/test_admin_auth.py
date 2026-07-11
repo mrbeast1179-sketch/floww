@@ -52,3 +52,23 @@ class TestAdminRoutesRequireAuth:
         headers = {"X-API-Key": "wrong-key"}
         r = client.get(path, headers=headers) if path in ROUTES_GET else client.post(path, json={}, headers=headers)
         assert r.status_code == 401, f"{path} should be 401 with wrong key, got {r.status_code}"
+
+
+class TestAuthErrorCarriesCorsHeaders:
+    """A 401 from auth_middleware must carry Access-Control-Allow-Origin, else a
+    cross-origin browser sees an opaque CORS failure instead of the real 401 —
+    the same reason the rate-limit middleware and the exception handlers echo it.
+    """
+
+    def test_401_on_mutating_route_has_cors_header(self):
+        r = client.post(
+            "/api/admin/trading/circuit-breaker/reset",
+            json={},
+            headers={"X-API-Key": "wrong-key", "Origin": "http://localhost:3000"},
+        )
+        assert r.status_code == 401
+        header_keys = {k.lower() for k in r.headers}
+        assert "access-control-allow-origin" in header_keys, (
+            "auth 401 lacks Access-Control-Allow-Origin — a cross-origin browser "
+            "sees an opaque CORS error instead of the 401"
+        )

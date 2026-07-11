@@ -2715,7 +2715,18 @@ async def auth_middleware(request: Request, call_next):
         await verify_api_key(request)
     except HTTPException as e:
         from fastapi.responses import JSONResponse
-        return JSONResponse(status_code=e.status_code, content={"detail": e.detail})
+        # This early-return is OUTER to CORSMiddleware (auth is registered after
+        # it), so it bypasses CORS. Echo the headers ourselves — otherwise a
+        # cross-origin browser sees an opaque CORS error instead of the 401.
+        return JSONResponse(
+            status_code=e.status_code,
+            content={"detail": e.detail},
+            headers={
+                "Access-Control-Allow-Origin": _get_cors_origin_for_handlers(),
+                "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+                "Access-Control-Allow-Headers": "Content-Type, Authorization, X-API-Key",
+            },
+        )
     response = await call_next(request)
     return response
 
