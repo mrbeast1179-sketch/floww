@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback } from "react";
+import { isTradeClosed, tradePnl, tradeOutcome } from "./tradeMath";
 
 const API = "http://localhost:8000/api";
 
@@ -103,9 +104,8 @@ function TradeCard({ trade, onEdit, onDelete, onClose }) {
 
   const entry = parseFloat(trade.entry_price) || 0;
   const exit = parseFloat(trade.exit_price) || 0;
-  const qty = parseInt(trade.quantity) || 1;
-  const isClosed = exit > 0;
-  const pnl = isClosed ? (exit - entry) * qty * 100 * (trade.action === "buy" ? 1 : -1) : null;
+  const isClosed = isTradeClosed(trade);
+  const pnl = isClosed ? tradePnl(trade) : null;
   const pnlPct = isClosed && entry > 0 ? ((exit - entry) / entry * 100 * (trade.action === "buy" ? 1 : -1)) : null;
 
   return (
@@ -220,32 +220,26 @@ export default function TradeJournal({ ticker }) {
 
   // Computed data
   const { openTrades, closedTrades, stats, dailyPnl, tickerList } = useMemo(() => {
-    const open = trades.filter(t => !t.exit_price || parseFloat(t.exit_price) === 0);
-    const closed = trades.filter(t => t.exit_price && parseFloat(t.exit_price) > 0);
+    // Closed = has an exit date OR any exit price (incl. "0" total loss). The
+    // old exit_price>0 test dropped total-loss closes into "open", erasing the
+    // loss from every stat below.
+    const open = trades.filter(t => !isTradeClosed(t));
+    const closed = trades.filter(isTradeClosed);
 
-    const totalPnl = closed.reduce((sum, t) => {
-      const entry = parseFloat(t.entry_price) || 0;
-      const exit = parseFloat(t.exit_price) || 0;
-      const qty = parseInt(t.quantity) || 1;
-      return sum + (exit - entry) * qty * 100 * (t.action === "buy" ? 1 : -1);
-    }, 0);
+    const totalPnl = closed.reduce((sum, t) => sum + tradePnl(t), 0);
 
-    const wins = closed.filter(t => {
-      const entry = parseFloat(t.entry_price) || 0;
-      const exit = parseFloat(t.exit_price) || 0;
-      return t.action === "buy" ? exit > entry : exit < entry;
-    });
+    const wins = closed.filter(t => tradeOutcome(t) === "win");
+    const losses = closed.filter(t => tradeOutcome(t) === "loss");  // scratch excluded from both
 
-    const winRate = closed.length > 0 ? (wins.length / closed.length * 100) : 0;
-    const avgWin = wins.length > 0 ? wins.reduce((s, t) => s + (parseFloat(t.exit_price) - parseFloat(t.entry_price)) * parseInt(t.quantity) * 100 * (t.action === "buy" ? 1 : -1), 0) / wins.length : 0;
-    const losses = closed.filter(t => !wins.includes(t));
-    const avgLoss = losses.length > 0 ? losses.reduce((s, t) => s + (parseFloat(t.exit_price) - parseFloat(t.entry_price)) * parseInt(t.quantity) * 100 * (t.action === "buy" ? 1 : -1), 0) / losses.length : 0;
+    const decided = wins.length + losses.length;
+    const winRate = decided > 0 ? (wins.length / decided * 100) : 0;
+    const avgWin = wins.length > 0 ? wins.reduce((s, t) => s + tradePnl(t), 0) / wins.length : 0;
+    const avgLoss = losses.length > 0 ? losses.reduce((s, t) => s + tradePnl(t), 0) / losses.length : 0;
 
     const daily = {};
     closed.forEach(t => {
       const date = t.exit_date || t.entry_date || "unknown";
-      const pnl = (parseFloat(t.exit_price) - parseFloat(t.entry_price)) * parseInt(t.quantity) * 100 * (t.action === "buy" ? 1 : -1);
-      daily[date] = (daily[date] || 0) + pnl;
+      daily[date] = (daily[date] || 0) + tradePnl(t);
     });
     const dailyPnl = Object.entries(daily).sort((a, b) => b[0].localeCompare(a[0])).slice(0, 14).reverse();
 
@@ -265,8 +259,8 @@ export default function TradeJournal({ ticker }) {
     let list = filterStatus === "open" ? openTrades : filterStatus === "closed" ? closedTrades : trades;
     if (filterTicker) list = list.filter(t => t.ticker === filterTicker);
     if (sortBy === "pnl") list = [...list].sort((a, b) => {
-      const pnlA = a.exit_price ? (parseFloat(a.exit_price) - parseFloat(a.entry_price)) * parseInt(a.quantity) * 100 * (a.action === "buy" ? 1 : -1) : 0;
-      const pnlB = b.exit_price ? (parseFloat(b.exit_price) - parseFloat(b.entry_price)) * parseInt(b.quantity) * 100 * (b.action === "buy" ? 1 : -1) : 0;
+      const pnlA = isTradeClosed(a) ? tradePnl(a) : 0;
+      const pnlB = isTradeClosed(b) ? tradePnl(b) : 0;
       return pnlB - pnlA;
     });
     return list;
@@ -346,7 +340,7 @@ export default function TradeJournal({ ticker }) {
           <button onClick={() => {
             const csv = ["ticker,type,action,strike,expiry,qty,entry_price,exit_price,entry_date,exit_date,pnl,notes",
               ...trades.map(t => {
-                const pnl = t.exit_price ? ((parseFloat(t.exit_price) - parseFloat(t.entry_price)) * parseInt(t.quantity) * 100 * (t.action === "buy" ? 1 : -1)).toFixed(2) : "";
+                const pnl = isTradeClosed(t) ? tradePnl(t).toFixed(2) : "";
                 return [t.ticker, t.type, t.action, t.strike, t.expiry, t.quantity, t.entry_price, t.exit_price, t.entry_date, t.exit_date, pnl, `"${(t.notes||"").replace(/"/g,'""')}"`].join(",");
               })
             ].join("\n");

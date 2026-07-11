@@ -99,7 +99,15 @@ export function useMarketData(endpoint, options = {}) {
 
   const mountedRef = useRef(true);
   const abortRef = useRef(null);
-  const cacheKey = useRef(`${endpoint}?${JSON.stringify(query)}`).current;
+  // Plain derived value — NOT useRef().current, whose initializer only runs on
+  // the first render and froze cacheKey to the mount-time endpoint. When the
+  // ticker changed (same hook instance, no key={ticker} on the chart), the
+  // stale key made fetches read/write the wrong ticker's IndexedDB entry.
+  const cacheKey = `${endpoint}?${JSON.stringify(query)}`;
+  // Mirror `data` in a ref so the error-fallback closure sees the CURRENT value
+  // (fetchFromNetwork's deps exclude `data`, so `data` inside it is stale).
+  const dataRef = useRef(null);
+  useEffect(() => { dataRef.current = data; }, [data]);
 
   // ── Fetch from network ────────────────────────────────────────────
 
@@ -150,7 +158,7 @@ export function useMarketData(endpoint, options = {}) {
 
       // On network error: fall back to whatever cache we have
       const cached = await cacheGet(cacheKey);
-      if (cached && !data) {
+      if (cached && !dataRef.current) {
         // Only use cache if we don't already have data displayed
         setData(cached.data);
         const age = Date.now() - cached.ts;

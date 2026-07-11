@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { fmt } from "../lib/helpers";
+import { strategyRiskReward } from "./tradeMath";
 
 /**
  * Quick Trade Panel — slide-up panel for rapid trade entry from Trinity
@@ -65,9 +66,12 @@ export default function QuickTradePanel({ selection, onClose, onSubmit }) {
   const isBuy = strategy.startsWith("buy");
 
   // Estimate price based on IV (simplified)
-  const estPrice = iv ? (spot * iv * 0.01).toFixed(2) : "—";
-  const maxRisk = isBuy ? (parseFloat(estPrice) * quantity * 100).toFixed(0) : "Unlimited";
-  const maxReward = isBuy ? "Unlimited" : (parseFloat(estPrice) * quantity * 100).toFixed(0);
+  const estNum = iv ? spot * iv * 0.01 : NaN;
+  const estPrice = Number.isFinite(estNum) ? estNum.toFixed(2) : "—";
+  // Per-strategy risk/reward (returns formatted strings incl. "—"/"Unlimited"),
+  // not a naive buy→defined / else→Unlimited split that mislabeled straddles
+  // and iron condors and rendered "$NaN" when IV was missing.
+  const { maxRisk, maxReward } = strategyRiskReward(strategy, estNum, quantity, strike);
 
   const fmtGex = (v) => {
     if (v == null) return "—";
@@ -187,11 +191,11 @@ export default function QuickTradePanel({ selection, onClose, onSubmit }) {
           </div>
           <div className="quick-trade-risk-row">
             <span>Max Risk</span>
-            <span className="text-rose-400">${maxRisk}</span>
+            <span className="text-rose-400">{maxRisk}</span>
           </div>
           <div className="quick-trade-risk-row">
             <span>Max Reward</span>
-            <span className="text-emerald-400">${maxReward}</span>
+            <span className="text-emerald-400">{maxReward}</span>
           </div>
           <div className="quick-trade-risk-row">
             <span>Notional</span>
