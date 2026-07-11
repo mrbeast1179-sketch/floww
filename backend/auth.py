@@ -5,6 +5,7 @@ Usage: Add X-API-Key header to requests.
 The API key is stored in the .env file as API_SECRET_KEY.
 """
 
+import hmac
 import logging
 import os
 
@@ -81,7 +82,8 @@ async def require_api_key(request: Request):
             status_code=503,
             detail="Authentication not configured. Set API_SECRET_KEY.",
         )
-    if api_key != expected_key:
+    # Constant-time compare — plain != leaks length/prefix via timing.
+    if not hmac.compare_digest(api_key, expected_key):
         client_host = request.client.host if request.client else "unknown"
         logger.warning(f"Invalid API key from {client_host} for {request.url.path}")
         raise HTTPException(status_code=401, detail="Invalid or missing API key")
@@ -114,7 +116,8 @@ async def verify_api_key(request: Request):
             detail="Authentication not configured. Set API_SECRET_KEY."
         )
 
-    if api_key != expected_key:
+    # Constant-time compare — plain != leaks length/prefix via timing.
+    if not hmac.compare_digest(api_key, expected_key):
         client_host = request.client.host if request.client else "unknown"
         logger.warning(f"Invalid API key from {client_host} for {request.url.path}")
         raise HTTPException(status_code=401, detail="Invalid or missing API key")
@@ -134,7 +137,8 @@ async def verify_ws_token(websocket: WebSocket) -> bool:
         return True
 
     token = websocket.query_params.get("token", "")
-    if token != expected:
+    # Constant-time compare — plain != leaks length/prefix via timing.
+    if not hmac.compare_digest(token, expected):
         logger.warning(f"Invalid WS token from {websocket.client.host if websocket.client else 'unknown'}")
         return False
     return True

@@ -892,8 +892,7 @@ def _build_replay_controls(
     replay_status: Optional[Dict] = None, dark: bool = True,
 ) -> html.Div:
     """Build replay mode controls."""
-    tpl = "plotly_dark" if dark else "plotly_white"
-    bg = BG_CARD if dark else BG_CARD_LIGHT
+    plot = BG_PLOT if dark else BG_PLOT_LIGHT
     text_color = TEXT if dark else TEXT_LIGHT
     dim = TEXT_DIM if dark else TEXT_DIM_LIGHT
 
@@ -904,7 +903,7 @@ def _build_replay_controls(
         html.Div([
             html.Label("Start:", style={"color": dim, "marginRight": "8px"}),
             dcc.Input(id="replay-start", type="text", placeholder="2026-05-20T09:30:00",
-                      style={"width": "180px", "backgroundColor": plot, "color": text_color, "border": "11px solid #333"}),
+                      style={"width": "180px", "backgroundColor": plot, "color": text_color, "border": "1px solid #333"}),
             html.Label("End:", style={"color": dim, "marginLeft": "12px", "marginRight": "8px"}),
             dcc.Input(id="replay-end", type="text", placeholder="2026-05-20T10:30:00",
                       style={"width": "180px", "backgroundColor": plot, "color": text_color, "border": "1px solid #333"}),
@@ -941,7 +940,6 @@ def _build_replay_controls(
 def _build_agent_hub(archetypes: Optional[List[Dict]] = None, dark: bool = True) -> html.Div:
     """Build Agent Hub tab content."""
     bg = BG_CARD if dark else BG_CARD_LIGHT
-    plot = BG_PLOT if dark else BG_PLOT_LIGHT
     text_color = TEXT if dark else TEXT_LIGHT
     dim = TEXT_DIM if dark else TEXT_DIM_LIGHT
 
@@ -1327,8 +1325,8 @@ T: Toggle theme  M: Mute alerts  ?: Show this help
                 spot = chain_data.get("spot", 0) if isinstance(chain_data, dict) else 0
                 contracts = chain_data.get("contracts", []) if isinstance(chain_data, dict) else []
 
-                # Read toggle state from store (with I-8 NaN guard)
-                toggle_state = _sanitize_state_dict({})  # default; actual state read via callback
+                # Toggle state is read via callback, not here (this default was
+                # never consumed — removed to satisfy the unused-var check).
 
                 # Extract expiry dates from chain data for the dropdown
                 expiry_dates = []

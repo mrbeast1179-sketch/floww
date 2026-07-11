@@ -26,6 +26,11 @@ export default function FlowTicker({ ticker }) {
     tradesRef.current = [];
     setStats({ totalNotional: 0, sweepCount: 0, blockCount: 0, unusualCount: 0, msgCount: 0 });
 
+    // Close any live stream first — clicking Connect while already connected
+    // (or on a ticker change) would otherwise orphan the previous EventSource,
+    // which stays open server-side for max_seconds.
+    if (esRef.current) esRef.current.close();
+
     const url = `${API}/flow/${ticker}?max_seconds=300&enforce_window=false`;
     const es = new EventSource(url);
     esRef.current = es;
@@ -126,6 +131,7 @@ export default function FlowTicker({ ticker }) {
   useEffect(() => {
     return () => {
       if (esRef.current) esRef.current.close();
+      if (rafRef.current) cancelAnimationFrame(rafRef.current);
     };
   }, []);
 

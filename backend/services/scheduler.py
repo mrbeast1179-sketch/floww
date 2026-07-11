@@ -16,6 +16,8 @@ from datetime import UTC, datetime
 
 from services.yfinance_fetcher import fetch_and_store, get_duckdb_conn
 
+logger = logging.getLogger(__name__)
+
 try:
     from services.yoptions_fetcher import fetch_all_chains
 except ImportError as _yopt_err:
@@ -26,8 +28,6 @@ except ImportError as _yopt_err:
     import pandas as _pd
     def fetch_all_chains(*_args, **_kwargs):  # type: ignore[misc]
         return _pd.DataFrame()
-
-logger = logging.getLogger(__name__)
 
 DEFAULT_INTERVAL = 60  # seconds
 

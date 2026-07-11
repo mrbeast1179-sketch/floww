@@ -317,7 +317,7 @@ def train_ticker(ticker, period="5y"):
     mp = od/f"{fn}.joblib"; sp = od/f"{fn}_scaler.joblib"; mnp = od/f"{fn}_manifest.json"
     joblib.dump(ens, mp); joblib.dump(scaler, sp)
     manifest = {"ticker": ticker, "model_type": "ensemble_v5",
-                "n_samples": len(X_full), "n_train": len(X_tr), "n_val": len(X_val), "n_test": len(X_te),
+                "n_samples": len(X_full), "n_train": len(X_tr), "n_val": len(_X_val), "n_test": len(X_te),
                 "n_features": len(sel_names), "feature_names": sel_names,
                 "test_accuracy": te_acc, "test_precision": te_prec, "test_recall": te_rec, "test_f1": te_f1,
                 "walk_forward_mean": cv["mean_test"], "walk_forward_std": cv["std_test"],
