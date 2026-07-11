@@ -417,8 +417,8 @@ class KnowledgeGraph:
     def get_stats(self) -> dict[str, int]:
         """Return node/edge counts."""
         return {
-            "papers": self.get_paper_count(),
-            "repos": self.get_repo_count(),
+            "papers": self.conn.execute("SELECT COUNT(*) FROM papers").fetchone()[0],
+            "repos": self.conn.execute("SELECT COUNT(*) FROM repos").fetchone()[0],
             "functions": self.conn.execute("SELECT COUNT(*) FROM code_functions").fetchone()[0],
             "services": self.conn.execute("SELECT COUNT(*) FROM services").fetchone()[0],
             "concepts": self.conn.execute("SELECT COUNT(*) FROM concepts").fetchone()[0],

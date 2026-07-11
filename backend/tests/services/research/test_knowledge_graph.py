@@ -592,13 +592,25 @@ class TestComputePaperSimilarity:
 
 class TestGetStats:
     def test_empty_graph_stats(self):
-        # get_stats calls get_paper_count() and get_repo_count() which don't exist
-        # This is a known bug — mark xfail
-        pytest.xfail("BUG: get_stats() calls undefined get_paper_count()/get_repo_count() — AttributeError")
+        # Fixed: get_stats now counts papers/repos via inline SELECT COUNT(*),
+        # not the undefined get_paper_count()/get_repo_count() helpers.
+        kg = make_kg()
+        stats = kg.get_stats()
+        assert stats["papers"] == 0
+        assert stats["repos"] == 0
+        assert stats["functions"] == 0
+        assert stats["concepts"] == 0
 
-    def test_stats_with_data_skipped_due_to_bug(self):
-        """Would test stats with data, but get_stats is broken."""
-        pytest.xfail("BUG: get_stats() calls undefined get_paper_count()/get_repo_count()")
+    def test_stats_with_data(self):
+        kg = make_kg()
+        kg.upsert_paper({"id": "arxiv:2301.00001", "title": "GEX", "source": "arxiv"})
+        kg.upsert_paper({"id": "arxiv:2301.00002", "title": "Charm", "source": "arxiv"})
+        kg.upsert_repo({"id": "owner/repo", "stars": 10})
+        kg.upsert_concept("c1", "gamma exposure", category="options")
+        stats = kg.get_stats()
+        assert stats["papers"] == 2
+        assert stats["repos"] == 1
+        assert stats["concepts"] == 1
 
 
 class TestGetConceptSummary:
