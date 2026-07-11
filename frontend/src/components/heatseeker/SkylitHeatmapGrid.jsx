@@ -1,4 +1,4 @@
-import React, { memo, useEffect, useMemo, useRef } from "react";
+import React, { memo, useEffect, useMemo, useRef, useState } from "react";
 
 /**
  * SkylitHeatmapGrid — Skylit heatseeker matrix
@@ -124,35 +124,34 @@ function SkylitHeatmapGrid({
     return best;
   }, [strikes, spot]);
 
-  // % change vs previous refresh, per (expiry, strike). asof-guarded so a
-  // repeated cached payload doesn't wipe the snapshot.
+  // % change vs previous refresh, per (expiry, strike). Computed in the effect
+  // (once per new asof) and HELD in state — computing it in a useMemo raced the
+  // snapshot update, so badges flashed for one render then recomputed to empty.
   const prevRef = useRef({ key: null, asof: null, matrix: null });
   const snapKey = `${ticker}|${gridKey}`;
-  const badges = useMemo(() => {
-    const out = {};
-    const prev = prevRef.current;
-    if (prev.key !== snapKey || !prev.matrix || !data?.asof || prev.asof === data.asof) {
-      return out;
-    }
-    for (const e of expiries) {
-      const col = matrix[e] || {};
-      const pcol = prev.matrix[e] || {};
-      for (const k in col) {
-        const p = pcol[k];
-        if (p != null && p !== 0) {
-          const pct = Math.round(((col[k] - p) / Math.abs(p)) * 100);
-          if (pct !== 0) out[`${e}|${k}`] = Math.max(-999, Math.min(999, pct));
-        }
-      }
-    }
-    return out;
-  }, [expiries, matrix, snapKey, data]);
+  const [badges, setBadges] = useState({});
 
   useEffect(() => {
     if (!data?.asof) return;
     const prev = prevRef.current;
-    if (prev.key === snapKey && prev.asof === data.asof) return;
-    // Deep-copy just the value maps we need
+    if (prev.key === snapKey && prev.asof === data.asof) return;   // same payload — keep badges
+    // Compute % change vs the previous snapshot of THIS ticker/view only.
+    const out = {};
+    if (prev.key === snapKey && prev.matrix) {
+      for (const e of expiries) {
+        const col = matrix[e] || {};
+        const pcol = prev.matrix[e] || {};
+        for (const k in col) {
+          const p = pcol[k];
+          if (p != null && p !== 0) {
+            const pct = Math.round(((col[k] - p) / Math.abs(p)) * 100);
+            if (pct !== 0) out[`${e}|${k}`] = Math.max(-999, Math.min(999, pct));
+          }
+        }
+      }
+    }
+    setBadges(out);
+    // Snapshot the current matrix for the next refresh's comparison.
     const snap = {};
     for (const e of expiries) snap[e] = { ...(matrix[e] || {}) };
     prevRef.current = { key: snapKey, asof: data.asof, matrix: snap };
@@ -211,7 +210,7 @@ function SkylitHeatmapGrid({
                           background: has ? viridis(t) : "rgba(13,17,23,0.85)",
                           color: has ? (bright ? "#000" : "#fff") : "#3a4566",
                         }}
-                        onClick={() => onCellClick && onCellClick(strike, gridKey, v)}
+                        onClick={() => onCellClick && onCellClick(strike, e, v)}
                         title={`${strike} · ${e} · ${fmtK(v) || "$0"}`}
                       >
                         {pct != null && (

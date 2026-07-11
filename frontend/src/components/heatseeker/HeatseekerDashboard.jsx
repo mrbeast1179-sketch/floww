@@ -206,6 +206,7 @@ function HeroSection({ ticker, spot, data, dataAge, dataFallback }) {
 export default function HeatseekerDashboard({
   ticker = "SPY",
   spot = null,
+  data = null,
   isOffline = false,
   dataAge = null,
   dataFallback = false,
@@ -231,10 +232,10 @@ export default function HeatseekerDashboard({
       <OfflineBanner isOffline={isOffline} />
 
       {/* Hero section */}
-      <HeroSection ticker={normalizedTicker} spot={spot} dataAge={dataAge} dataFallback={dataFallback} />
+      <HeroSection ticker={normalizedTicker} spot={spot} data={data} dataAge={dataAge} dataFallback={dataFallback} />
 
       {/* Gamma regime banner */}
-      <GammaRegimeBanner data={{ spot }} />
+      <GammaRegimeBanner data={{ ...(data || {}), spot: spot ?? data?.spot }} />
 
       {/* ── Row 1: Pattern indicators ──────────────────────────────── */}
       <div>

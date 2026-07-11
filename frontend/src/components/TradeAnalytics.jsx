@@ -1,7 +1,10 @@
 // @ts-nocheck
 import React, { useState, useEffect, useMemo } from "react";
+import { tradePnl, isTradeClosed, tradeOutcome } from "./tradeMath";
 
-const STORAGE_KEY = "floww_trades";
+// Must match the key TradeJournal writes ("floww_trades_v2"); the old
+// "floww_trades" was never written, so this panel was permanently empty.
+const STORAGE_KEY = "floww_trades_v2";
 
 function loadTrades() {
   try {
@@ -24,21 +27,26 @@ export function TradeAnalytics({ ticker }) {
   }, [trades, ticker]);
 
   const stats = useMemo(() => {
-    if (filtered.length === 0) return null;
+    // Only closed trades have realized P&L; records store entry/exit fields,
+    // not a precomputed `pnl` — derive it with the shared tradeMath helpers.
+    const closed = filtered.filter(isTradeClosed);
+    if (closed.length === 0) return null;
 
-    const wins = filtered.filter(t => (t.pnl || 0) > 0);
-    const losses = filtered.filter(t => (t.pnl || 0) < 0);
-    const totalPnl = filtered.reduce((sum, t) => sum + (t.pnl || 0), 0);
-    const avgWin = wins.length > 0 ? wins.reduce((sum, t) => sum + t.pnl, 0) / wins.length : 0;
-    const avgLoss = losses.length > 0 ? losses.reduce((sum, t) => sum + t.pnl, 0) / losses.length : 0;
-    const winRate = filtered.length > 0 ? (wins.length / filtered.length) * 100 : 0;
+    const wins = closed.filter(t => tradeOutcome(t) === "win");
+    const losses = closed.filter(t => tradeOutcome(t) === "loss");
+    const totalPnl = closed.reduce((sum, t) => sum + tradePnl(t), 0);
+    const avgWin = wins.length > 0 ? wins.reduce((sum, t) => sum + tradePnl(t), 0) / wins.length : 0;
+    const avgLoss = losses.length > 0 ? losses.reduce((sum, t) => sum + tradePnl(t), 0) / losses.length : 0;
+    // Win rate over DECIDED trades (win+loss); scratches excluded.
+    const decided = wins.length + losses.length;
+    const winRate = decided > 0 ? (wins.length / decided) * 100 : 0;
     const profitFactor = Math.abs(avgLoss) > 0 ? Math.abs(avgWin * wins.length) / Math.abs(avgLoss * losses.length) : (wins.length > 0 ? Infinity : 0);
 
-    // Daily P&L
+    // Daily P&L keyed by exit date (when the trade was realized).
     const dailyPnl = {};
-    filtered.forEach(t => {
-      const date = t.date ? t.date.slice(0, 10) : "unknown";
-      dailyPnl[date] = (dailyPnl[date] || 0) + (t.pnl || 0);
+    closed.forEach(t => {
+      const date = t.exit_date ? String(t.exit_date).slice(0, 10) : (t.entry_date ? String(t.entry_date).slice(0, 10) : "unknown");
+      dailyPnl[date] = (dailyPnl[date] || 0) + tradePnl(t);
     });
 
     const dailyEntries = Object.entries(dailyPnl)
@@ -48,7 +56,7 @@ export function TradeAnalytics({ ticker }) {
     const maxDaily = Math.max(...dailyEntries.map(e => Math.abs(e[1])), 1);
 
     return {
-      totalTrades: filtered.length,
+      totalTrades: closed.length,
       wins: wins.length,
       losses: losses.length,
       totalPnl,

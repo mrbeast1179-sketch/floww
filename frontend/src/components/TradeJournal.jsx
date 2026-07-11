@@ -122,7 +122,7 @@ function TradeCard({ trade, onEdit, onDelete, onClose }) {
             <span className="text-xs font-medium text-slate-200">{trade.ticker}</span>
             <span className="text-[10px] text-slate-500 mono">{trade.strike}</span>
             {trade.expiry && <span className="text-[10px] text-slate-600">{trade.expiry}</span>}
-            <span className="text-[10px] text-slate-600">x{qty}</span>
+            <span className="text-[10px] text-slate-600">x{trade.quantity}</span>
           </div>
           <div className="flex items-center gap-2">
             {pnl !== null && (

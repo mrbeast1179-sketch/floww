@@ -219,7 +219,7 @@ export function TradeEntry({ ticker, spot }) {
           const debit = parseFloat(formData.debit) || 0;
           const ls = parseFloat(formData.long_strike) || 0;
           const ss = parseFloat(formData.short_strike) || 0;
-          const width = ss - ls;
+          const width = Math.max(0, ss - ls);   // inverted strikes = invalid spread, not negative profit
           maxProfit = (width - debit) * c * 100;
           maxRisk = debit * c * 100;
           breakeven = `${((ls + debit))?.toFixed(1) ?? "—"}`;
@@ -227,7 +227,7 @@ export function TradeEntry({ ticker, spot }) {
           const debit = parseFloat(formData.debit) || 0;
           const ls = parseFloat(formData.long_strike) || 0;
           const ss = parseFloat(formData.short_strike) || 0;
-          const width = ls - ss;
+          const width = Math.max(0, ls - ss);   // inverted strikes = invalid spread, not negative profit
           maxProfit = (width - debit) * c * 100;
           maxRisk = debit * c * 100;
           breakeven = `${((ls - debit))?.toFixed(1) ?? "—"}`;
@@ -253,8 +253,8 @@ export function TradeEntry({ ticker, spot }) {
               </div>
               <div className="flex justify-between">
                 <span className="text-slate-500">Max Profit</span>
-                <span className="mono text-emerald-400">
-                  {typeof maxProfit === "number" ? `+$${(maxProfit)?.toFixed(0) ?? "—"}` : maxProfit || "—"}
+                <span className={`mono ${typeof maxProfit === "number" && maxProfit < 0 ? "text-rose-400" : "text-emerald-400"}`}>
+                  {typeof maxProfit === "number" ? `${maxProfit >= 0 ? "+" : "−"}$${Math.abs(maxProfit).toFixed(0)}` : maxProfit || "—"}
                 </span>
               </div>
               <div className="flex justify-between">

@@ -10,7 +10,7 @@
 import React, { useMemo, memo } from "react";
 import Plot from "react-plotly.js";
 import { useMarketData } from "../hooks/useMarketData";
-import { autoDecimate, isWebGLAvailable } from "../utils/dataDecimator";
+import { decimateLTTB, isWebGLAvailable } from "../utils/dataDecimator";
 import { ErrorState } from "./RetryButton";
 
 var VannaChart = memo(function VannaChart({ ticker = "SPY", spot: spotPrice }) {
@@ -57,7 +57,7 @@ var VannaChart = memo(function VannaChart({ ticker = "SPY", spot: spotPrice }) {
       var points = filteredStrikes.map(function (s, idx) {
         return { x: s, y: filteredVanna[idx] };
       });
-      var decimated = autoDecimate(points, 200);
+      var decimated = decimateLTTB(points, 200);
       plotStrikes = decimated.map(function (d) { return d.x; });
       plotVanna = decimated.map(function (d) { return d.y; });
     }

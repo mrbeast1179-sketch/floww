@@ -16,14 +16,19 @@ const SIGNAL_LABELS = {
 function Toast({ alert, onDismiss, onClick }) {
   const [exiting, setExiting] = useState(false);
   const timerRef = useRef(null);
+  // Keep the latest onDismiss without making it a timer dependency — the parent
+  // passes a fresh arrow each render, which would otherwise reset the 8s timer
+  // on every re-render (so toasts never auto-dismissed under signal flow).
+  const onDismissRef = useRef(onDismiss);
+  useEffect(() => { onDismissRef.current = onDismiss; });
 
   useEffect(() => {
     timerRef.current = setTimeout(() => {
       setExiting(true);
-      setTimeout(onDismiss, 300);
+      setTimeout(() => onDismissRef.current?.(), 300);
     }, 8000);
     return () => clearTimeout(timerRef.current);
-  }, [onDismiss]);
+  }, []);   // start once on mount; never reset
 
   const handleClick = () => {
     clearTimeout(timerRef.current);
@@ -136,14 +141,18 @@ export default function AlertOverlay({ onSignalClick, maxVisible = 3 }) {
 
   // Lifted to component scope: both useEffects below reference connect.
   const connect = useCallback(() => {
+    // Don't open a second socket if one is already connecting/open — the
+    // visibilitychange handler and the backoff timer can both re-enter here.
+    if (wsRef.current && wsRef.current.readyState <= WebSocket.OPEN) return;
     try {
       // BACKEND_URL imported from config/api.js
       const WS_URL = BACKEND_URL.replace('http', 'ws');
       const ws = new WebSocket(`${WS_URL}/ws/signals`);
+      wsRef.current = ws;   // track immediately (CONNECTING) so re-entrant connect() bails
 
       ws.onopen = () => {
         if (!mountedRef.current) { ws.close(); return; }
-        wsRef.current = ws;
+        reconnectRef.current = null;   // successful open — reset backoff attempts
       };
 
       ws.onmessage = (e) => {

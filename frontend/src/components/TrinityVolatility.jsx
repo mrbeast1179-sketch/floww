@@ -135,21 +135,25 @@ export default function TrinityVolatility({ ticker = "SPY", expiries = 8 }) {
     };
   })();
 
-  // Next 2 expiries for faint context smiles
+  // Next 2 expiries for faint context smiles. IVs MUST align to
+  // skewData.strikes (the selected expiry's sorted unique strikes) or every
+  // point is plotted against an unrelated strike. Build a strike→IV map
+  // (avg of call/put present) and index it by the same strike axis.
   const faintSmiles = (() => {
     const out = [];
+    if (!skewData) return out;
     for (let j = 1; j <= 2; j++) {
       const e2 = expiryList[selExpIdx + j];
       if (!e2) break;
       const r2 = rows.filter((r) => r.expiry === e2 && r.iv != null);
       if (!r2.length) continue;
-      const lo = spot * 0.85, hi = spot * 1.15;
-      const near = r2.filter((r) => r.strike >= lo && r.strike <= hi);
-      if (!near.length) continue;
-      const ivs = near.map((r) => {
-        const iv = r.type === "call" ? r.call_iv ?? r.iv : r.put_iv ?? r.iv;
-        return iv != null ? iv * 100 : null;
-      });
+      const ivByStrike = {};
+      for (const r of r2) {
+        const prev = ivByStrike[r.strike];
+        ivByStrike[r.strike] = prev == null ? r.iv : (prev + r.iv) / 2;
+      }
+      const ivs = skewData.strikes.map((s) => (ivByStrike[s] != null ? ivByStrike[s] * 100 : null));
+      if (!ivs.some((v) => v != null)) continue;
       out.push({ exp: e2, color: j === 1 ? C.faint1 : C.faint2, ivs });
     }
     return out;
@@ -202,7 +206,7 @@ export default function TrinityVolatility({ ticker = "SPY", expiries = 8 }) {
     // Faint context smiles
     faintSmiles.forEach((sm, i) => {
       traces.push({
-        x: skewData.strikes.slice(0, sm.ivs.length),
+        x: skewData.strikes,
         y: sm.ivs,
         type: "scatter", mode: "lines",
         name: sm.exp.slice(5),

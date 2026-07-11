@@ -997,6 +997,7 @@ export default function App() {
               <HeatseekerDashboard
                 ticker={ticker}
                 spot={livespot?.spot ?? data?.spot}
+                data={displayData}
                 isOffline={data?.data_fallback === true}
                 dataAge={data?.stale_age_s != null ? data.stale_age_s * 1000 : null}
                 dataFallback={data?.data_fallback === true}
