@@ -101,7 +101,16 @@ class Position:
         """Calculate current Greeks given new spot and IV."""
         T = max(self.T - (datetime.now(UTC) - self.entry_date).days / 365.0, 0.001)
         if T <= 0.001:
-            return {"delta": 0, "gamma": 0, "vega": 0, "theta": 0, "vanna": 0, "charm": 0, "vomma": 0, "zomma": 0, "price": 0}
+            # At/after expiry there's no time value left — mark to INTRINSIC value,
+            # not 0. Returning 0 reported every expiring ITM position as a total
+            # loss (e.g. a deep-ITM call bought at 5.00 shown as -100% PnL).
+            if self.option_type == "call":
+                intrinsic = max(spot - self.strike, 0.0)
+                term_delta = 1.0 if spot > self.strike else 0.0
+            else:
+                intrinsic = max(self.strike - spot, 0.0)
+                term_delta = -1.0 if spot < self.strike else 0.0
+            return {"delta": term_delta, "gamma": 0, "vega": 0, "theta": 0, "vanna": 0, "charm": 0, "vomma": 0, "zomma": 0, "price": intrinsic}
 
         S = spot
         K = self.strike

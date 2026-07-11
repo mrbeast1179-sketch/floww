@@ -7,6 +7,7 @@ Confluence Decoder - Skylit-style Heatseeker GEX Analytics
 - Node hierarchy, patterns, velocity, rolling, trinity
 """
 import asyncio
+import itertools
 import logging
 import math
 import os
@@ -2364,6 +2365,7 @@ async def _scheduler_loop():
 
 _alert_rules: list[dict[str, Any]] = []
 _alert_history: list[dict[str, Any]] = []
+_alert_id_seq = itertools.count(1)  # monotonic — never rewinds on delete
 
 
 class AlertRule(BaseModel):
@@ -2380,7 +2382,10 @@ class AlertRule(BaseModel):
 async def create_alert(rule: AlertRule):
     """Create a new GEX alert rule."""
     rule_dict = rule.dict()
-    rule_dict["id"] = str(len(_alert_rules) + 1)
+    # Monotonic id — len(_alert_rules)+1 collided after any delete (deleting the
+    # middle rule then creating one reused a live id → wrong-target deletes and
+    # double-counted triggers).
+    rule_dict["id"] = str(next(_alert_id_seq))
     rule_dict["created_at"] = datetime.now(UTC).isoformat()
     rule_dict["active"] = True
     rule_dict["trigger_count"] = 0
