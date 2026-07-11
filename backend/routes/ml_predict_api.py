@@ -37,6 +37,10 @@ router = APIRouter(prefix="/api/ml", tags=["ml-predict"])
 _pred_cache: dict[str, dict] = {}
 _pred_cache_ttl_sec = 60  # Cache predictions for 60 seconds
 
+# The inference model is 3-class: 0=DOWN, 1=HOLD, 2=UP (probabilities index the
+# same way). Treating it as binary mislabels HOLD as UP and real UP as DOWN.
+_PRED_LABELS = {0: "DOWN", 1: "HOLD", 2: "UP"}
+
 
 def _get_cached_prediction(ticker: str) -> dict | None:
     """Get cached prediction if fresh enough."""
@@ -202,11 +206,12 @@ async def ensemble_prediction(
         try:
             pred = await inference_engine.predict(ticker)
             results[ticker] = {
-                "prediction": "UP" if pred.prediction == 1 else "DOWN",
+                "prediction": _PRED_LABELS.get(pred.prediction, "HOLD"),
                 "confidence": round(pred.confidence, 4),
                 "probabilities": {
-                    "down": round(pred.probabilities[0], 4),
-                    "up": round(pred.probabilities[1], 4),
+                    "down": round(pred.probabilities[0], 4) if len(pred.probabilities) > 0 else 0.33,
+                    "hold": round(pred.probabilities[1], 4) if len(pred.probabilities) > 1 else 0.34,
+                    "up": round(pred.probabilities[2], 4) if len(pred.probabilities) > 2 else 0.33,
                 },
                 "model_id": pred.model_id,
                 "data_age_sec": round(pred.data_age_sec, 1),
@@ -219,7 +224,9 @@ async def ensemble_prediction(
     # Compute ensemble signal
     n_models = len(results)
     n_bullish = sum(1 for r in results.values() if r["prediction"] == "UP")
-    n_bearish = n_models - n_bullish
+    n_bearish = sum(1 for r in results.values() if r["prediction"] == "DOWN")
+    # HOLD predictions are neither bullish nor bearish (was: n_models - n_bullish,
+    # which wrongly counted every HOLD as bearish).
 
     if n_models == 0:
         ensemble_signal = "NO_DATA"

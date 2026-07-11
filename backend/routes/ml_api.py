@@ -286,21 +286,25 @@ async def get_regime(ticker: str) -> dict[str, Any]:
     anomaly_score = 0.0
     try:
         feature_names = model_doc.get("metrics_summary", {}).get("feature_names", list(features_df.columns))
-        available = [f for f in feature_names if f in features_df.columns]
-        if available and len(available) >= 10:
-            X = features_df[available].iloc[-1:].values.astype(float)
-            X = np.nan_to_num(X, nan=0.0)
+        present = [f for f in feature_names if f in features_df.columns]
+        if feature_names and len(present) >= 10:
+            # Reindex to the EXACT trained feature order (missing cols → 0.0) so the
+            # width always matches the scaler — inference.py does the same. The old
+            # code passed only the present columns, then on a scaler width-mismatch
+            # fed a raw, misaligned first-N slice into predict_proba.
+            row = features_df.reindex(columns=feature_names).iloc[-1:]
+            X = np.nan_to_num(row.values.astype(float), nan=0.0)
+            X_s = X
             if scaler is not None:
                 try:
                     X_s = scaler.transform(X)
                 except Exception:
-                    X_s = X[:, :scaler.n_features_in_]
-            else:
-                X_s = X
-            anomaly_score = float(model.predict_proba(X_s)[0][1]) if hasattr(model, "predict_proba") else 0.0
-            # Threshold: calm=0.99 quantile → high bar, urgent=0.90 → lower bar
-            threshold_map = {"calm": 0.70, "active": 0.55, "urgent": 0.45}
-            is_anomaly = anomaly_score > threshold_map.get(regime, 0.55)
+                    X_s = None   # genuine failure — skip the score, don't feed a misaligned slice
+            if X_s is not None:
+                anomaly_score = float(model.predict_proba(X_s)[0][1]) if hasattr(model, "predict_proba") else 0.0
+                # Threshold: calm=0.99 quantile → high bar, urgent=0.90 → lower bar
+                threshold_map = {"calm": 0.70, "active": 0.55, "urgent": 0.45}
+                is_anomaly = anomaly_score > threshold_map.get(regime, 0.55)
     except Exception as e:
         logger.warning(f"Regime anomaly score failed for {ticker}: {e}")
 
@@ -734,11 +738,11 @@ async def get_calibration(ticker: str, window: int = Query(default=30, ge=7, le=
 
     # Bin predictions by confidence
     bins = {
-        "0.50-0.60": {"predicted": [], "actual": []},
-        "0.60-0.70": {"predicted": [], "actual": []},
-        "0.70-0.80": {"predicted": [], "actual": []},
-        "0.80-0.90": {"predicted": [], "actual": []},
-        "0.90-1.00": {"predicted": [], "actual": []},
+        "0.50-0.60": {"predicted": [], "actual": [], "confidence": []},
+        "0.60-0.70": {"predicted": [], "actual": [], "confidence": []},
+        "0.70-0.80": {"predicted": [], "actual": [], "confidence": []},
+        "0.80-0.90": {"predicted": [], "actual": [], "confidence": []},
+        "0.90-1.00": {"predicted": [], "actual": [], "confidence": []},
     }
 
     for r in recent:
@@ -763,14 +767,21 @@ async def get_calibration(ticker: str, window: int = Query(default=30, ge=7, le=
 
         bins[bin_key]["predicted"].append(pred)
         bins[bin_key]["actual"].append(actual)
+        bins[bin_key]["confidence"].append(conf)
 
     calibration = []
     for bin_key, data in bins.items():
         n = len(data["predicted"])
         if n == 0:
             continue
-        correct = sum(1 for p, a in zip(data["predicted"], data["actual"], strict=False) if p == a)
-        avg_conf = sum(data["predicted"]) / n if n > 0 else 0
+        # prediction is 3-class (0=DOWN,1=HOLD,2=UP); actual is binary up/down.
+        # Score direction: UP↔up, DOWN↔down (HOLD counts as not-correct here).
+        correct = sum(
+            1 for p, a in zip(data["predicted"], data["actual"], strict=False)
+            if (p == 2 and a == 1) or (p == 0 and a == 0)
+        )
+        # mean_confidence must average the CONFIDENCE values, not the class labels.
+        avg_conf = sum(data["confidence"]) / n if n > 0 else 0
         calibration.append({
             "bin": bin_key,
             "n_samples": n,

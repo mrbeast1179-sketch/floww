@@ -144,6 +144,8 @@ class DatabentoCache:
     def __init__(self, mongo_db: Any) -> None:
         self.col = mongo_db.databento_oi
         self._mem: dict[str, dict[str, Any]] = {}
+        self._neg: dict[str, datetime] = {}   # key → time of last empty fetch
+        self._neg_ttl_s = 600                  # re-check a "no data" key at most every 10 min
 
     async def ensure_index(self) -> None:
         with contextlib.suppress(Exception):
@@ -153,6 +155,12 @@ class DatabentoCache:
         key = f"{parent}:{day.isoformat()}"
         if key in self._mem:
             return self._mem[key]
+        # Negative cache: a recent empty fetch means "no data" — skip the
+        # expensive re-fetch for a cooldown so repeated requests don't each
+        # trigger the databento get_range calls that returned nothing.
+        neg = self._neg.get(key)
+        if neg is not None and (datetime.now(UTC) - neg).total_seconds() < self._neg_ttl_s:
+            return {}
         doc = await self.col.find_one({"parent": parent, "day": day.isoformat()}, {"_id": 0})
         if doc and doc.get("contracts"):
             contracts: dict[str, Any] = doc["contracts"]
@@ -162,7 +170,9 @@ class DatabentoCache:
         log.info(f"databento: fetching OI {parent} {day} (cache miss)")
         contracts = await asyncio.to_thread(_fetch_oi_sync, parent, day)
         if not contracts:
+            self._neg[key] = datetime.now(UTC)
             return {}
+        self._neg.pop(key, None)   # got data — clear any negative mark
         await self.col.update_one(
             {"parent": parent, "day": day.isoformat()},
             {"$set": {"parent": parent, "day": day.isoformat(),

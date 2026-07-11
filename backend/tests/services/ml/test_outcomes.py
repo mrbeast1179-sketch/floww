@@ -161,8 +161,12 @@ class TestComputeRollingAccuracy:
     @pytest.mark.asyncio
     async def test_with_outcomes(self):
         col = MagicMock()
+        # Accuracy is directional: n_correct over n_directional (UP/DOWN calls
+        # that resolved), not over all outcomes — HOLD can't be scored against a
+        # binary up/down realized outcome.
         col.aggregate.return_value.to_list = AsyncMock(
-            return_value=[{"n_total": 100, "n_with_outcome": 80, "n_correct": 55, "avg_return": 0.15}]
+            return_value=[{"n_total": 100, "n_with_outcome": 80, "n_directional": 70,
+                           "n_correct": 55, "avg_return": 0.15}]
         )
         db = MagicMock()
         db.__getitem__ = lambda self, key: col
@@ -170,7 +174,8 @@ class TestComputeRollingAccuracy:
         result = await compute_rolling_accuracy(db, "SPY")
         assert result["n_predictions"] == 100
         assert result["n_with_outcomes"] == 80
-        assert result["accuracy"] == 0.6875
+        assert result["n_directional"] == 70
+        assert result["accuracy"] == round(55 / 70, 4)
 
     @pytest.mark.asyncio
     async def test_aggregation_error(self):

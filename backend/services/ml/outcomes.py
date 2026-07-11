@@ -231,7 +231,22 @@ async def compute_rolling_accuracy(db: Any, ticker: str, window_days: int = 30) 
             "_id": None,
             "n_total": {"$sum": 1},
             "n_with_outcome": {"$sum": {"$cond": [{"$ne": ["$realized_outcome", None]}, 1, 0]}},
-            "n_correct": {"$sum": {"$cond": [{"$eq": ["$prediction", "$realized_outcome"]}, 1, 0]}},
+            # prediction is 3-class int (0=DOWN, 1=HOLD, 2=UP); realized_outcome
+            # is binary (1=up, 0=down). Directional accuracy scores UP↔up and
+            # DOWN↔down over the DIRECTIONAL predictions only — HOLD makes no
+            # directional call and there is no flat realized class. (The old
+            # prediction==realized_outcome test never matched UP=2 and counted
+            # HOLD=1 as an "up" hit.)
+            "n_directional": {"$sum": {"$cond": [
+                {"$and": [
+                    {"$ne": ["$realized_outcome", None]},
+                    {"$in": ["$prediction", [0, 2]]},
+                ]}, 1, 0]}},
+            "n_correct": {"$sum": {"$cond": [
+                {"$or": [
+                    {"$and": [{"$eq": ["$prediction", 2]}, {"$eq": ["$realized_outcome", 1]}]},
+                    {"$and": [{"$eq": ["$prediction", 0]}, {"$eq": ["$realized_outcome", 0]}]},
+                ]}, 1, 0]}},
             "avg_return": {"$avg": "$realized_return_pct"},
         }},
     ]
@@ -253,13 +268,16 @@ async def compute_rolling_accuracy(db: Any, ticker: str, window_days: int = 30) 
 
     r = result[0]
     n_outcomes = r.get("n_with_outcome", 0)
-    accuracy = r.get("n_correct", 0) / n_outcomes if n_outcomes > 0 else None
+    n_directional = r.get("n_directional", 0)
+    # Directional accuracy is over UP/DOWN calls that resolved; HOLD is excluded.
+    accuracy = r.get("n_correct", 0) / n_directional if n_directional > 0 else None
 
     return {
         "ticker": ticker,
         "window_days": window_days,
         "n_predictions": r.get("n_total", 0),
         "n_with_outcomes": n_outcomes,
+        "n_directional": n_directional,
         "accuracy": round(accuracy, 4) if accuracy is not None else None,
         "avg_return_pct": round(r.get("avg_return", 0.0) or 0.0, 4),
     }

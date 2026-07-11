@@ -43,6 +43,11 @@ async def _duckdb_fallback(ticker: str) -> dict[str, Any] | None:
         ts = row.get("timestamp")
         if isinstance(ts, str):
             ts = datetime.fromisoformat(ts.replace("Z", "+00:00"))
+        # DuckDB TIMESTAMP columns come back as NAIVE datetimes; subtracting them
+        # from a tz-aware now() raises TypeError, which the broad except below
+        # swallowed → the fallback silently returned None even with cached data.
+        if ts is not None and getattr(ts, "tzinfo", None) is None:
+            ts = ts.replace(tzinfo=UTC)
         age_s = (datetime.now(UTC) - ts).total_seconds() if ts else None
         return {
             "ticker": row.get("symbol", ticker),

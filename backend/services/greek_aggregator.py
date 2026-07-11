@@ -157,10 +157,10 @@ class GreekAggregator:
 
         # Step 3: Vanna / Charm exposure
         vanna_exp = self._compute_vanna_exposure(
-            cleaned["vanna"], OI, cleaned["delta"]
+            cleaned["vanna"], OI, cleaned["delta"], self.spot
         )
         charm_exp = self._compute_charm_exposure(
-            cleaned["charm"], OI, cleaned["delta"]
+            cleaned["charm"], OI, cleaned["delta"], self.spot
         )
 
         return GreekSnapshot(
@@ -275,21 +275,21 @@ class GreekAggregator:
 
     @staticmethod
     def _compute_vanna_exposure(
-        vanna: np.ndarray, oi: np.ndarray, delta: np.ndarray
+        vanna: np.ndarray, oi: np.ndarray, delta: np.ndarray, spot: float
     ) -> np.ndarray:
         """Vanna exposure = vanna * OI * spot * 0.01.
 
         Represents the dollar impact of a 1 vol point change on delta
         positioning across all open contracts.
         """
-        return vanna * oi * 0.01
+        return vanna * oi * spot * 0.01
 
     @staticmethod
     def _compute_charm_exposure(
-        charm: np.ndarray, oi: np.ndarray, delta: np.ndarray
+        charm: np.ndarray, oi: np.ndarray, delta: np.ndarray, spot: float
     ) -> np.ndarray:
         """Charm exposure = charm * OI * spot * 0.01.
 
         Represents the daily delta decay across all open contracts.
         """
-        return charm * oi * 0.01
+        return charm * oi * spot * 0.01
