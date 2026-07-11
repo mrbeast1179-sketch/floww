@@ -11,7 +11,7 @@
  */
 import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { BACKEND_URL } from "../../config/api";
-import { approxSpot, mkScanRow, evalAlerts, tickerRollup, volSigma, annotateFirstSeen, sessionDay, fmtClock, fmtAge, fmtUSD, fmtK, fmtIV, scoreGradeOf } from "./scanLogic";
+import { approxSpot, mkScanRow, evalAlerts, tickerRollup, volSigma, annotateFirstSeen, sessionDay, fmtClock, fmtAge, awaySummary, scanRowsToCSV, fmtUSD, fmtK, fmtIV, scoreGradeOf } from "./scanLogic";
 import "./FlowseekerProBlademap.css";
 
 const API = `${BACKEND_URL}/api/flowseeker`;
@@ -73,15 +73,17 @@ const SCAN_UNIVERSE = ["SPY", "QQQ", "IWM", "NVDA", "TSLA", "AAPL", "MSFT", "AMZ
 const PREFS_KEY = "fsb-scan-prefs-v1";
 const ALERTS_KEY = "fsb-scan-alerts-v1";
 const FIRSTSEEN_KEY = "fsb-scan-firstseen-v1";
+const LASTSEEN_KEY = "fsb-scan-lastseen-v1";
 function loadScanPrefs() {
   try { return JSON.parse(localStorage.getItem(PREFS_KEY)) || {}; } catch { return {}; }
 }
-// The tape is "today's alerts" — drop anything from a prior session on load.
+// The tape keeps today + yesterday — a 12-hour Dow night shift must not erase
+// the session before Nav ever sees it. Older days drop on load.
 function loadAlertLog() {
   try {
     const all = JSON.parse(localStorage.getItem(ALERTS_KEY)) || [];
-    const today = sessionDay();
-    return all.filter((a) => !a.day || a.day === today);
+    const keep = new Set([sessionDay(), sessionDay(Date.now() - 86400e3)]);
+    return all.filter((a) => !a.day || keep.has(a.day));
   } catch { return []; }
 }
 function loadFirstSeen() {
@@ -90,6 +92,12 @@ function loadFirstSeen() {
     return s && s.day === sessionDay() ? s : { day: sessionDay(), map: {} };
   } catch { return { day: sessionDay(), map: {} }; }
 }
+// Snapshot the previous visit's last-seen stamp ONCE per page load. Mount
+// effects overwrite the key immediately, and StrictMode's dev double-mount
+// (or any page-switch remount) would otherwise read its own stamp and always
+// see a zero gap — killing the away digest.
+const AWAY_FROM = (() => { try { return Number(localStorage.getItem(LASTSEEN_KEY)) || null; } catch { return null; } })();
+let awayShownThisLoad = false;   // one digest per page load, not per remount
 
 // Mark rows unseen in the previous refresh (drives the NEW flash + alerts).
 // Baseline is per-source-mode: an A<->B path flip resets the baseline instead
@@ -135,6 +143,8 @@ export default function FlowseekerProBlademap({ active = true }) {
   const [alertLog, setAlertLog] = useState(loadAlertLog);
   const [alertsOpen, setAlertsOpen] = useState(false);
   const [alertOrder, setAlertOrder] = useState("new");   // tape order: newest | oldest first
+  const [alertUnivOnly, setAlertUnivOnly] = useState(prefs.alertUnivOnly ?? true);   // scope alerts to My Universe
+  const [away, setAway] = useState(null);                 // "while you were away" digest, null = hidden
   const [notify, setNotify] = useState(!!prefs.notify);
   const [forcing, setForcing] = useState(false);
   const [refreshTick, setRefreshTick] = useState(0);
@@ -173,13 +183,43 @@ export default function FlowseekerProBlademap({ active = true }) {
   }, []);
   // Poll effect reads alert config via ref so rule tweaks don't re-arm the interval.
   const alertCfgRef = useRef({});
-  useEffect(() => { alertCfgRef.current = { minScore: alertScore, enabled: alertRules }; }, [alertScore, alertRules]);
+  useEffect(() => {
+    alertCfgRef.current = { minScore: alertScore, enabled: alertRules, allow: alertUnivOnly ? universe : null };
+  }, [alertScore, alertRules, alertUnivOnly, universe]);
 
   useEffect(() => {
     try {
-      localStorage.setItem(PREFS_KEY, JSON.stringify({ scanTypeF, scanMinVol, scanMinScore, scanSort, universe, universeOnly, alertScore, alertRules, notify }));
+      localStorage.setItem(PREFS_KEY, JSON.stringify({ scanTypeF, scanMinVol, scanMinScore, scanSort, universe, universeOnly, alertScore, alertRules, notify, alertUnivOnly }));
     } catch { /* private mode — prefs just don't persist */ }
-  }, [scanTypeF, scanMinVol, scanMinScore, scanSort, universe, universeOnly, alertScore, alertRules, notify]);
+  }, [scanTypeF, scanMinVol, scanMinScore, scanSort, universe, universeOnly, alertScore, alertRules, notify, alertUnivOnly]);
+
+  // "While you were away" — keep the last-seen stamp current while visible
+  // (the previous visit's value was snapshotted at module load, see AWAY_FROM).
+  useEffect(() => {
+    const stamp = () => { try { localStorage.setItem(LASTSEEN_KEY, String(Date.now())); } catch { /* private mode */ } };
+    stamp();
+    const id = setInterval(() => { if (!document.hidden) stamp(); }, 60e3);
+    document.addEventListener("visibilitychange", stamp);
+    window.addEventListener("beforeunload", stamp);
+    return () => { clearInterval(id); document.removeEventListener("visibilitychange", stamp); window.removeEventListener("beforeunload", stamp); };
+  }, []);
+  // Build the digest once, when the first scan of this page load lands.
+  useEffect(() => {
+    if (!scan.length || awayShownThisLoad) return;
+    awayShownThisLoad = true;
+    setAway(awaySummary(alertLog, scan, AWAY_FROM));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [scan]);
+
+  // CSV of the CURRENT filtered/sorted view — lands scanner rows in the DVT journal.
+  const exportCSV = useCallback((rows) => {
+    const blob = new Blob([scanRowsToCSV(rows)], { type: "text/csv" });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = `flowseeker-scan-${sessionDay()}.csv`;
+    a.click();
+    URL.revokeObjectURL(a.href);
+  }, []);
 
   // Force refresh via the backend's debounced /scan/refresh, then re-poll.
   const forceRefresh = useCallback(async () => {
@@ -252,7 +292,10 @@ export default function FlowseekerProBlademap({ active = true }) {
   // surface the most unusual activity by volume-vs-open-interest each refresh.
   // 100% cvserver data — the same source that powers GEX/regime here.
   useEffect(() => {
-    if (!active) return;
+    // Feeds the Smart Order Flow tab only — pausing it on the Scanner tab keeps
+    // the browser's 6-per-host connection budget free for /scan (chain calls
+    // run seconds-slow off-hours and starve the scanner's fetch queue).
+    if (!active || tab === "scanner") return;
     let cancelled = false;
     const ctrl = new AbortController();
     const poll = async () => {
@@ -303,7 +346,7 @@ export default function FlowseekerProBlademap({ active = true }) {
     poll();
     const id = setInterval(poll, 15000);
     return () => { cancelled = true; ctrl.abort(); clearInterval(id); };
-  }, [active, ticker]);
+  }, [active, ticker, tab]);
 
   // ---- cross-symbol market scan (Scanner tab, scenner34 grid) ----
   // Prefer the efficient backend /scan endpoint (ONE market-wide cvforge screen);
@@ -405,12 +448,16 @@ export default function FlowseekerProBlademap({ active = true }) {
     let cancelled = false;
     const ctrl = new AbortController();
     const load = async () => {
+      // On the Scanner tab only the header regime pill is visible — skip the
+      // heavy chart feeds (heatmap especially) so they don't crowd /scan out
+      // of the browser's per-host connection budget every 6s.
+      const chartsVisible = tab !== "scanner";
       const [reg, vpin, lam, ofi, heat] = await Promise.all([
         getJSON(`${API}/regime/${ticker}`, ctrl.signal).catch(() => null),
-        getJSON(`${API}/vpin/${ticker}`, ctrl.signal).catch(() => null),
-        getJSON(`${API}/lambda/${ticker}`, ctrl.signal).catch(() => null),
-        getJSON(`${API}/ofi/${ticker}`, ctrl.signal).catch(() => null),
-        getJSON(`${BACKEND_URL}/api/heatmap/${ticker}?expiries=6&mode=day`, ctrl.signal).catch(() => null),
+        chartsVisible ? getJSON(`${API}/vpin/${ticker}`, ctrl.signal).catch(() => null) : null,
+        chartsVisible ? getJSON(`${API}/lambda/${ticker}`, ctrl.signal).catch(() => null) : null,
+        chartsVisible ? getJSON(`${API}/ofi/${ticker}`, ctrl.signal).catch(() => null) : null,
+        chartsVisible ? getJSON(`${BACKEND_URL}/api/heatmap/${ticker}?expiries=6&mode=day`, ctrl.signal).catch(() => null) : null,
       ]);
       if (cancelled) return;
       microRef.current = {
@@ -420,15 +467,17 @@ export default function FlowseekerProBlademap({ active = true }) {
       const cls = st.includes("trend") || st.includes("bull") ? "up"
         : st.includes("mean") || st.includes("bear") || st.includes("rever") ? "down" : "chop";
       setRegime({ label: reg?.current_state ? `${reg.current_state}${reg.is_warming ? " (warming)" : ""}` : "—", cls });
-      ofiDataRef.current = ofi;
-      gexDataRef.current = heat;
-      drawOFI(); drawGEX();
+      if (chartsVisible) {
+        ofiDataRef.current = ofi;
+        gexDataRef.current = heat;
+        drawOFI(); drawGEX();
+      }
     };
     load();
     const id = setInterval(load, 6000);
     return () => { cancelled = true; ctrl.abort(); clearInterval(id); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ticker, active, plotlyReady]);
+  }, [ticker, active, tab, plotlyReady]);
 
   // auto-select first signal only (don't steal user clicks)
   useEffect(() => {
@@ -861,6 +910,9 @@ export default function FlowseekerProBlademap({ active = true }) {
                 <button className="fsb-preset fsb-force" disabled={forcing}
                   title="Force refresh — bypasses cache & backoff (server-debounced 10s)"
                   onClick={forceRefresh}>{forcing ? "…" : "⟳ Force"}</button>
+                <button className="fsb-preset" disabled={!scanRows.length}
+                  title="Download the current filtered view as CSV (premium column is an estimate)"
+                  onClick={() => exportCSV(scanRows)}>⤓ CSV</button>
               </span>
               <label className="fsb-uonly" title="Filter the scan to your universe list">
                 <input type="checkbox" checked={universeOnly} onChange={(e) => setUniverseOnly(e.target.checked)} /> My universe
@@ -873,6 +925,31 @@ export default function FlowseekerProBlademap({ active = true }) {
                 onChange={(e) => setAlertScore(Math.max(50, Math.min(100, parseInt(e.target.value, 10) || 85)))} />
               <span className="fsb-scannote">Live cross-symbol flow · cvforge day-volume vs OI. No per-trade tape on this feed — Flow-type = volume-magnitude class; Lean = contract-type bias.</span>
             </div>
+            {away && (
+              <div className="fsb-away">
+                <span className="fsb-away-t">☾ While you were away · {fmtAge(Date.now() - away.gapMs)}</span>
+                {away.nAlerts > 0 && (
+                  <span className="fsb-alertsummary">
+                    {["SCORE", "WHALE", "0DTE", "SOURCE"].filter((k) => away.counts[k]).map((k) => (
+                      <span key={k} className={`fsb-sumtag r-${k.toLowerCase()}`}>{k} {away.counts[k]}</span>
+                    ))}
+                  </span>
+                )}
+                {away.topNew.length > 0 && (
+                  <span className="fsb-away-new">
+                    top new:{" "}
+                    {away.topNew.map((r) => (
+                      <button key={`${r.under}${r.strike}${r.type}${r.exp}`} className="fsb-awaychip"
+                        title={`Score ${r.score} · first seen ${fmtClock(r.firstSeen)} — click to filter`}
+                        onClick={() => setScanQ(r.under)}>
+                        {r.under} {r.type === "call" ? "C" : "P"}{r.strike} <b>{r.score}</b>
+                      </button>
+                    ))}
+                  </span>
+                )}
+                <button className="fsb-away-x" title="Dismiss" onClick={() => setAway(null)}>✕</button>
+              </div>
+            )}
             {alertsOpen && (
               <div className="fsb-alertlog">
                 <div className="fsb-alertlog-h">
@@ -891,6 +968,9 @@ export default function FlowseekerProBlademap({ active = true }) {
                     <button className={`fsb-rulechip${notify ? " on" : ""}`}
                       title="Browser notification when alerts fire while this tab is hidden"
                       onClick={toggleNotify}>🔔 Notify</button>
+                    <button className={`fsb-rulechip${alertUnivOnly ? " on" : ""}`}
+                      title="Scope alerts + notifications to My Universe tickers only — off = whole market (700+ symbols)"
+                      onClick={() => setAlertUnivOnly((v) => !v)}>🎯 UNIV</button>
                     {[["score", `SCORE≥${alertScore}`], ["whale", "WHALE ≥$10M~"], ["zerodte", "0DTE HOT"]].map(([k, lbl]) => (
                       <button key={k} className={`fsb-rulechip${alertRules[k] ? " on" : ""}`}
                         title="Toggle this alert rule"
@@ -901,6 +981,14 @@ export default function FlowseekerProBlademap({ active = true }) {
                       {alertOrder === "new" ? "⇊ Newest" : "⇈ Oldest"}
                     </button>
                   </span>
+                  <button className="fsb-alertclear" disabled={!alertLog.length}
+                    title="Copy the tape to the clipboard (tab-separated — pastes into Sheets/journal)"
+                    onClick={() => {
+                      const tsv = alertLog.map((a) => [a.day || "", a.time, a.rule, a.under, a.type, a.strike, a.exp, a.score ?? "", a.premium ?? "", a.label || ""].join("\t")).join("\n");
+                      try { navigator.clipboard.writeText(tsv); } catch { /* clipboard blocked */ }
+                    }}>
+                    ⧉ Copy
+                  </button>
                   <button className="fsb-alertclear"
                     onClick={() => { setAlertLog([]); try { localStorage.removeItem(ALERTS_KEY); } catch { /* noop */ } }}>
                     Clear
@@ -908,7 +996,7 @@ export default function FlowseekerProBlademap({ active = true }) {
                 </div>
                 {alertLog.length === 0 ? (
                   <div className="fsb-muted" style={{ padding: 10 }}>
-                    No alerts yet — NEW contracts crossing an enabled rule log here with the time they arrived and their source (deduped 30min per contract; resets each session).
+                    No alerts yet — NEW contracts crossing an enabled rule log here with the time they arrived and their source (deduped 30min per contract; tape keeps today + yesterday). 🎯 UNIV scopes alerts to your universe.
                   </div>
                 ) : (
                   <table className="fsb-alerttab">
@@ -919,7 +1007,9 @@ export default function FlowseekerProBlademap({ active = true }) {
                           <td title={a.src === "fallback" ? "18-symbol fallback scan" : a.src === "market" ? "market-wide scan" : ""}>
                             <span className={`fsb-srcdot ${a.src || ""}`} />
                           </td>
-                          <td className="fsb-sub" title={`${fmtAge(a.t)} ago`}>{a.time}</td>
+                          <td className="fsb-sub" title={`${fmtAge(a.t)} ago`}>
+                            {a.day && a.day !== sessionDay() ? <span className="fsb-daytag">prev</span> : null}{a.time}
+                          </td>
                           <td><span className={`fsb-rulebadge r-${a.rule.toLowerCase()}`}>{a.rule}</span></td>
                           {a.rule === "SOURCE" ? (
                             <td className="l fsb-sub" colSpan={4}>{a.label}</td>

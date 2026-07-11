@@ -326,3 +326,16 @@
 .fsb-sumtag.r-whale { background: rgba(162, 103, 255, 0.15); color: #a267ff; }
 .fsb-sumtag.r-0dte { background: rgba(255, 77, 94, 0.15); color: #ff4d5e; }
 .fsb-sumtag.r-source { background: rgba(41, 197, 224, 0.12); color: #29c5e0; }
+
+/* ── "While you were away" catch-up digest ── */
+.fsb-away { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin: 6px 0 2px; padding: 7px 12px; background: linear-gradient(90deg, rgba(41, 197, 224, 0.10), rgba(41, 197, 224, 0.02)); border: 1px solid rgba(41, 197, 224, 0.25); border-radius: 6px; font-size: 11px; }
+.fsb-away-t { color: #29c5e0; font-weight: 700; letter-spacing: 0.3px; white-space: nowrap; }
+.fsb-away-new { color: #6c7382; display: inline-flex; align-items: center; gap: 6px; }
+.fsb-awaychip { background: rgba(41, 197, 224, 0.08); border: 1px solid #2a3140; border-radius: 4px; color: #cdd2dd; font-size: 10.5px; padding: 2px 7px; cursor: pointer; }
+.fsb-awaychip:hover { border-color: #29c5e0; }
+.fsb-awaychip b { color: #f5b042; margin-left: 2px; }
+.fsb-away-x { margin-left: auto; background: none; border: none; color: #6c7382; cursor: pointer; font-size: 12px; padding: 0 2px; }
+.fsb-away-x:hover { color: #e6e8ee; }
+
+/* ── prior-day tag on tape rows (tape keeps today + yesterday) ── */
+.fsb-daytag { font-size: 8px; font-weight: 800; letter-spacing: 0.4px; color: #6c7382; border: 1px solid #2a3140; border-radius: 3px; padding: 0 3px; margin-right: 4px; vertical-align: middle; }

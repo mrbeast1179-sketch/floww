@@ -2,6 +2,7 @@ import {
   bizDTE, scanTypeOf, scanScoreOf, estimateDelta, approxSpot, mkScanRow,
   fmtUSD, fmtK, fmtIV, scoreGradeOf, estPremium, evalAlerts, tickerRollup,
   archetypeOf, volSigma, annotateFirstSeen, sessionDay, fmtClock, fmtAge,
+  awaySummary, scanRowsToCSV,
 } from "./scanLogic";
 
 describe("estimateDelta", () => {
@@ -173,6 +174,66 @@ describe("evalAlerts", () => {
   it("carries a stable contract key", () => {
     const [hit] = evalAlerts([mk()]);
     expect(hit.key).toBe("SPY|call|745|2099-01-08");
+  });
+});
+
+describe("evalAlerts allowlist", () => {
+  const rows = [
+    { _new: true, under: "SPY", type: "call", strike: 750, exp: "2099-01-08", score: 95, premium: 1e6, dte: 5 },
+    { _new: true, under: "ZZTOP", type: "put", strike: 10, exp: "2099-01-08", score: 99, premium: 1e6, dte: 5 },
+  ];
+  it("scopes alerts to the allowlist when provided", () => {
+    const hits = evalAlerts(rows, { allow: ["SPY", "QQQ"] });
+    expect(hits.map((h) => h.under)).toEqual(["SPY"]);
+  });
+  it("empty or missing allowlist means market-wide (back-compat)", () => {
+    expect(evalAlerts(rows, { allow: [] })).toHaveLength(2);
+    expect(evalAlerts(rows, {})).toHaveLength(2);
+  });
+});
+
+describe("awaySummary", () => {
+  const H = 3600e3;
+  const now = 100 * H;
+  const log = [
+    { rule: "SCORE", t: now - 1 * H },
+    { rule: "WHALE", t: now - 2 * H },
+    { rule: "SCORE", t: now - 50 * H },   // before the away window
+  ];
+  const rows = [
+    { under: "NVDA", score: 100, firstSeen: now - 1 * H },
+    { under: "SPY", score: 90, firstSeen: now - 30 * H },   // seen before window
+    { under: "TSLA", score: 96, firstSeen: now - 2 * H },
+    { under: "QQQ", score: 97, firstSeen: now - 3 * H },
+    { under: "AMD", score: 80, firstSeen: now - 1 * H },
+  ];
+  it("counts only alerts after sinceMs and returns top-3 new rows by score", () => {
+    const s = awaySummary(log, rows, now - 4 * H, now);
+    expect(s.nAlerts).toBe(2);
+    expect(s.counts).toEqual({ SCORE: 1, WHALE: 1 });
+    expect(s.topNew.map((r) => r.under)).toEqual(["NVDA", "QQQ", "TSLA"]);
+    expect(s.gapMs).toBe(4 * H);
+  });
+  it("null when the gap is under the threshold or there is nothing to report", () => {
+    expect(awaySummary(log, rows, now - 10 * 60e3, now)).toBeNull();       // 10min < 30min
+    expect(awaySummary([], [], now - 4 * H, now)).toBeNull();              // nothing happened
+    expect(awaySummary(log, rows, null, now)).toBeNull();                  // first ever visit
+  });
+});
+
+describe("scanRowsToCSV", () => {
+  it("emits a header plus one line per row and ISO first-seen", () => {
+    const csv = scanRowsToCSV([{ firstSeen: Date.UTC(2026, 6, 10, 14, 30), score: 95, under: "SPY", type: "call", strike: 750, exp: "2026-07-10", dte: 0, vol: 1000, oi: 500, volOI: 2, premium: 12345, notional: 1e6, iv: 0.22, ftype: "SWEEP", arch: "WHALE", lean: "BULL", regime: "positive" }]);
+    const lines = csv.split("\n");
+    expect(lines).toHaveLength(2);
+    expect(lines[0]).toBe("seen,score,ticker,type,strike,expiry,dte,volume,oi,vol_oi,premium_est,notional,iv,flow,archetype,lean,regime");
+    expect(lines[1]).toContain("2026-07-10T14:30:00.000Z,95,SPY,call,750");
+  });
+  it("escapes commas/quotes and blanks nulls", () => {
+    const csv = scanRowsToCSV([{ under: 'A"B', ftype: "x,y", score: null }]);
+    expect(csv.split("\n")[1]).toContain('"A""B"');
+    expect(csv.split("\n")[1]).toContain('"x,y"');
+    expect(csv.split("\n")[1].startsWith(",")).toBe(true);   // null firstSeen → empty
   });
 });
 

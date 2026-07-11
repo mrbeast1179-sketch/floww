@@ -139,16 +139,21 @@ export function estPremium(r) {
 
 // Alert engine — pure. Evaluates NEW rows against the enabled rules; a row
 // fires at most one alert (first matching rule wins, in priority order).
+// opts.allow: optional ticker allowlist (array) — scopes alerting to the
+// user's universe so market-wide scans don't ping for 700 random symbols.
 export function evalAlerts(rows, opts = {}) {
   const {
     minScore = 85,
     whalePremium = 10e6,
     zeroDteScore = 70,
     enabled = { score: true, whale: true, zerodte: true },
+    allow = null,
   } = opts;
+  const allowSet = allow && allow.length ? new Set(allow) : null;
   const out = [];
   for (const r of rows || []) {
     if (!r._new) continue;
+    if (allowSet && !allowSet.has(r.under)) continue;
     let rule = null;
     if (enabled.score && r.score >= minScore) rule = "SCORE";
     else if (enabled.whale && r.premium != null && r.premium >= whalePremium) rule = "WHALE";
@@ -171,6 +176,45 @@ export function evalAlerts(rows, opts = {}) {
 export function volSigma(totalVol, baseline) {
   if (totalVol == null || !baseline || !baseline.std || (baseline.days || 0) < 2) return null;
   return +(((totalVol - baseline.avg) / baseline.std).toFixed(1));
+}
+
+// "While you were away" digest — pure. Everything that happened since sinceMs:
+// alert counts by rule from the persisted tape, plus the top new contracts
+// (first seen after sinceMs) by score. Null when the gap is too short to
+// matter or there is nothing to report.
+export function awaySummary(alertLog, rows, sinceMs, now = Date.now(), minGapMs = 30 * 60e3) {
+  if (sinceMs == null || now - sinceMs < minGapMs) return null;
+  const counts = {};
+  let nAlerts = 0;
+  for (const a of alertLog || []) {
+    if (a.t > sinceMs) { counts[a.rule] = (counts[a.rule] || 0) + 1; nAlerts++; }
+  }
+  const topNew = (rows || [])
+    .filter((r) => r.firstSeen != null && r.firstSeen > sinceMs)
+    .sort((a, b) => (b.score || 0) - (a.score || 0))
+    .slice(0, 3);
+  if (!nAlerts && !topNew.length) return null;
+  return { gapMs: now - sinceMs, counts, nAlerts, topNew };
+}
+
+// CSV for the current scanner view (premium is an estimate — header says so).
+// Pure string builder so the export is Jest-testable.
+const CSV_COLS = [
+  ["firstSeen", "seen", (v) => (v == null ? "" : new Date(v).toISOString())],
+  ["score", "score"], ["under", "ticker"], ["type", "type"], ["strike", "strike"],
+  ["exp", "expiry"], ["dte", "dte"], ["vol", "volume"], ["oi", "oi"],
+  ["volOI", "vol_oi"], ["premium", "premium_est"], ["notional", "notional"],
+  ["iv", "iv"], ["ftype", "flow"], ["arch", "archetype"], ["lean", "lean"], ["regime", "regime"],
+];
+const csvCell = (v) => {
+  const s = v == null ? "" : String(v);
+  return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+};
+export function scanRowsToCSV(rows) {
+  const head = CSV_COLS.map(([, label]) => label).join(",");
+  const body = (rows || []).map((r) =>
+    CSV_COLS.map(([key, , fmt]) => csvCell(fmt ? fmt(r[key]) : r[key])).join(","));
+  return [head, ...body].join("\n");
 }
 
 // Institutional flow archetype from real fields only (no tape). First match

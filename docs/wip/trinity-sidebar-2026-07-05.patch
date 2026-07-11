@@ -1,0 +1,211 @@
+diff --git a/frontend/src/App.js b/frontend/src/App.js
+index 198250e..f341c45 100644
+--- a/frontend/src/App.js
++++ b/frontend/src/App.js
+@@ -740,90 +740,128 @@ export default function App() {
+ 
+         {/* Trinity View */}
+         {page === "trinity" && (
+-          <div className="legacy-theme p-4 flex-1 overflow-auto" style={{ position: "relative" }}>
+-            {/* Sub-tab toggle */}
+-            <div className="flex gap-2 mb-3">
+-              <button
+-                onClick={() => setTrinityTab("gex")}
+-                className={`tv-subtab ${trinityTab === "gex" ? "on" : ""}`}
+-              >
+-                △ GEX Heatmap
+-              </button>
+-              <button
+-                onClick={() => setTrinityTab("vol")}
+-                className={`tv-subtab ${trinityTab === "vol" ? "on" : ""}`}
+-              >
+-                ◈ Volatility (Skew / Term / RR)
+-              </button>
++  <div className="legacy-theme heatseeker-layout">
++    {/* Left Sidebar - Filters & Summary (copied from heatseeker) */}
++    <aside className={`heatseeker-sidebar-left ${showLeftSidebar ? 'open' : ''}`}>
++      <div className="p-2 space-y-2">
++        {/* Ticker Summary */}
++        <div className="panel p-3">
++          <div className="flex justify-between items-baseline mb-2">
++            <div className="text-[13px] font-bold tracking-wider">{ticker.replace("^", "")}</div>
++            <div className={`text-[10px] uppercase tracking-widest ${regimeColor(data?.nodes?.regime)}`}>{data?.nodes?.regime || "—"} γ</div>
++          </div>
++          <div className="text-[22px] mono font-bold mt-0.5 flex items-center gap-2" data-testid="spot-price">
++            <span>${fmt(livespot?.spot ?? data?.spot, 2)}</span>
++            {livespot && (
++              <span className="text-[9px] uppercase tracking-widest text-teal-400 flash-pulse">● live</span>
++            )}
++          </div>
++          <div className="text-[10px] text-slate-500 mt-1">
++            {data?.expiries_used?.length ? `${data.expiries_used.length} exp · ${data.expiries_used[0]} → ${data.expiries_used.slice(-1)[0]}` : ""}
++          </div>
++          {err && (
++            <ErrorState
++              error={err}
++              onRetry={() => { setErr(null); fetchData(); }}
++              title="Data load failed"
++            />
++          )}
++          {loading && !data && (
++            <div className="text-sky-400 text-[11px] mt-2 bg-sky-500/10 rounded px-2 py-1.5 flex items-center gap-2 border border-sky-500/20">
++              <span className="inline-block w-2 h-2 bg-sky-400 rounded-full animate-pulse" />
++              Loading market data…
+             </div>
+-            {trinityTab === "gex" ? (
+-              <TrinityView onFocusTicker={handleFocusTicker} onTradeSelect={setTradeSelection} />
++          )}
++          <div className="dotted-divider my-3" />
++          <div className="grid grid-cols-2 gap-2 text-[11px]">
++            <div><div className="label">King</div><div className="mono text-amber-300">{fmt(data?.nodes?.king?.strike, 0)}</div></div>
++            <div><div className="label">|GEX|</div><div className="mono">{fmtAbs(data?.nodes?.king?.gex)}</div></div>
++            <div><div className="label">Top Floor</div><div className="mono text-emerald-400">{fmt(data?.nodes?.floors?.[0]?.strike, 0) || "—"}</div></div>
++            <div><div className="label">Top Ceiling</div><div className="mono text-rose-400">{fmt(data?.nodes?.ceilings?.[0]?.strike, 0) || "—"}</div></div>
++            <div><div className="label">Polarity</div><div className="mono text-sky-300">{data?.nodes?.polarity_level ? fmt(data.nodes.polarity_level, 1) : "—"}</div></div>
++            <div><div className="label">Gatekeepers</div><div className="mono">{data?.nodes?.gatekeepers?.length || 0}</div></div>
++          </div>
++
++          {/* Live GEX WebSocket indicator */}
++          <div className="dotted-divider my-2" />
++          <div className="flex items-center justify-between text-[9px]">
++            {wsGex.connected ? (
++              <span className="text-teal-400 font-bold flash-pulse">● LIVE GEX</span>
++            ) : wsGex.reconnectAttempt > 0 ? (
++              <span className="text-amber-400">⟳ Reconnecting ({wsGex.reconnectAttempt})</span>
+             ) : (
+-              <TrinityVolatility ticker={ticker.startsWith("^") ? ticker.slice(1) : ticker} expiries={8} />
++              <span className="text-slate-500">○ Disconnected</span>
+             )}
+-            <QuickTradePanel
+-              selection={tradeSelection}
+-              onClose={() => setTradeSelection(null)}
+-              onSubmit={(trade) => {
+-                console.log("[Trinity] Trade submitted:", trade);
+-                setTradeSelection(null);
+-                // TODO: send to backend / journal
+-              }}
+-            />
+           </div>
+-        )}
++          {wsGex.connected && wsGex.data && (
++            <>
++              <div className="flex items-center justify-between text-[9px]">
++                <span className="text-slate-500">{new Date(wsGex.data.asof).toLocaleTimeString()}</span>
++              </div>
++              <div className="grid grid-cols-2 gap-x-3 gap-y-0.5 text-[9px] mt-1">
++                <div className="flex justify-between"><span className="text-slate-500">Spot</span><span className="mono text-slate-300">${fmt(wsGex.data.spot, 2)}</span></div>
++                <div className="flex justify-between"><span className="text-slate-500">Total GEX</span><span className={`mono ${wsGex.data.total_gex > 0 ? "text-emerald-400" : "text-rose-400"}`}>{wsGex.data.total_gex > 0 ? "+" : ""}{fmtAbs(wsGex.data.total_gex)}</span></div>
++                <div className="flex justify-between"><span className="text-slate-500">King</span><span className="mono text-amber-300">{wsGex.data.king ? fmt(wsGex.data.king.strike, 0) : "—"}</span></div>
++                <div className="flex justify-between"><span className="text-slate-500">Regime</span><span className={`mono ${regimeColor(wsGex.data.regime)}`}>{wsGex.data.regime || "—"}</span></div>
++              </div>
++            </>
++          )}
++        </div>
+ 
+-        {/* Single Ticker Heatseeker — Skylit Edition with Left Sidebar */}
+-        {page === "heatseeker" && (
+-          <div className="legacy-theme heatseeker-layout">
+-            {/* Left Sidebar - Filters & Summary (PRESERVED) */}
+-            <aside className={`heatseeker-sidebar-left ${showLeftSidebar ? 'open' : ''}`}>
+-              <div className="p-2 space-y-2">
+-                {/* Ticker Summary */}
+-                <div className="panel p-3">
+-                  <div className="flex justify-between items-baseline mb-2">
+-                    <div className="text-[13px] font-bold tracking-wider">{ticker.replace("^", "")}</div>
+-                    <div className={`text-[10px] uppercase tracking-widest ${regimeColor(data?.nodes?.regime)}`}>{data?.nodes?.regime || "—"} γ</div>
+-                  </div>
+-                  <div className="text-[22px] mono font-bold mt-0.5 flex items-center gap-2" data-testid="spot-price">
+-                    <span>${fmt(livespot?.spot ?? data?.spot, 2)}</span>
+-                    {livespot && (
+-                      <span className="text-[9px] uppercase tracking-widest text-teal-400 flash-pulse">● live</span>
+-                    )}
+-                  </div>
+-                  <div className="text-[10px] text-slate-500 mt-1">
+-                    {data?.expiries_used?.length ? `${data.expiries_used.length} exp · ${data.expiries_used[0]} → ${data.expiries_used.slice(-1)[0]}` : ""}
+-                  </div>
+-                  {err && (
+-                    <ErrorState
+-                      error={err}
+-                      onRetry={() => { setErr(null); fetchData(); }}
+-                      title="Data load failed"
+-                    />
+-                  )}
+-                  {loading && !data && (
+-                    <div className="text-sky-400 text-[11px] mt-2 bg-sky-500/10 rounded px-2 py-1.5 flex items-center gap-2 border border-sky-500/20">
+-                      <span className="inline-block w-2 h-2 bg-sky-400 rounded-full animate-pulse" />
+-                      Loading market data…
+-                    </div>
+-                  )}
+-                  <div className="dotted-divider my-3" />
+-                  <div className="grid grid-cols-2 gap-2 text-[11px]">
+-                    <div><div className="label">King</div><div className="mono text-amber-300">{fmt(data?.nodes?.king?.strike, 0)}</div></div>
+-                    <div><div className="label">|GEX|</div><div className="mono">{fmtAbs(data?.nodes?.king?.gex)}</div></div>
+-                    <div><div className="label">Top Floor</div><div className="mono text-emerald-400">{fmt(data?.nodes?.floors?.[0]?.strike, 0) || "—"}</div></div>
+-                    <div><div className="label">Top Ceiling</div><div className="mono text-rose-400">{fmt(data?.nodes?.ceilings?.[0]?.strike, 0) || "—"}</div></div>
+-                    <div><div className="label">Polarity</div><div className="mono text-sky-300">{data?.nodes?.polarity_level ? fmt(data.nodes.polarity_level, 1) : "—"}</div></div>
+-                    <div><div className="label">Gatekeepers</div><div className="mono">{data?.nodes?.gatekeepers?.length || 0}</div></div>
+-                  </div>
++        {/* Filters */}
++        <div className="panel p-3">
++          <div className="text-slate-500 mb-1 text-[10px]">View</div>
++          <div className="flex gap-1 mb-2">
++            <button onClick={() => setView("skylit")} className={`btn flex-1 ${view === "skylit" || view === "grid" ? "active" : ""}`}>2D Grid</button>
++            <button onClick={() => setView("bar")} className={`btn flex-1 ${view === "bar" ? "active" : ""}`}>Bars</button>
++            <button onClick={() => setView("chain")} className={`btn flex-1 ${view === "chain" ? "active" : ""}`}>Chain</button>
++          </div>
++          <div className="flex gap-1 mb-2">
++            <button onClick={() => setView("multi")} className={`btn flex-1 ${view === "multi" ? "active" : ""}`}>Multi</button>
++            <button onClick={() => setView("profile")} className={`btn flex-1 ${view === "profile" ? "active" : ""}`}>Profile</button>
++          </div>
++          <div className="text-slate-500 mb-1 text-[10px]">Mode</div>
++          <div className="flex gap-1 mb-2">
++            {["day", "swing", "scalp"].map(m => (
++              <button key={m} onClick={() => setMode(m)} className={`btn flex-1 ${mode === m ? "active" : ""}`}>{m.toUpperCase()}</button>
++            ))}
++          </div>
++          <div className="flex gap-1 mb-2">
++            {["gex", "vex", "charm"].map(m => (
++              <button key={m} onClick={() => setViewMode(m)} className={`btn flex-1 ${viewMode === m ? "active" : ""}`}>{m.toUpperCase()}</button>
++            ))}
++          </div>
++          <div className="text-slate-500 mb-1 text-[10px]">DTE</div>
++          <div className="flex gap-1 mb-2">
++            {[{l:"0DTE",v:0},{l:"1DTE",v:1},{l:"Week",v:7},{l:"All",v:null}].map(({l,v}) => (
++              <button key={l} onClick={() => setDte(v)} className={`btn flex-1 ${dte === v ? "active" : ""}`}>{l}</button>
++            ))}
++          </div>
++          <div className="text-slate-500 mb-1 text-[10px]">Expiries</div>
++          <div className="flex gap-1">
++            [2,4,6,8,12].map(n => (
++              <button key={n} onClick={() => setExpiries(n)} className={`btn flex-1 ${expiries === n ? "active" : ""}`}>{n}</button>
++            ))
++          </div>
++        </div>
+ 
+-                  {/* Live GEX WebSocket indicator */}
+-                  <div className="dotted-divider my-2" />
+-                  <div className="flex items-center justify-between text-[9px]">
+-                    {wsGex.connected ? (
+-                      <span className="text-teal-400 font-bold flash-pulse">● LIVE GEX</span>
+-                    ) : wsGex.reconnectAttempt > 0 ? (
+-                      <span className="text-amber-400">⟳ Reconnecting ({wsGex.reconnectAttempt})</span>
++        <Movers onPick={(t) => setTicker(t)} />
++        <HistoryPanel ticker={ticker} />
++        <SettingsPanel
++          refreshMs={refreshMs}
++          onRefreshMsChange={setRefreshMs}
++          defaultTicker={ticker}
++          onDefaultTickerChange={setTicker}
++        />
++      </div>
++    </aside>
++
++    {/* Main Content */}
++    <main className="heatseeker-main" style={{ display: "flex", flexDirection: "column", flex: 1, minHeight: 0, overflow: "hidden" }}>
++      <TrinityView onFocusTicker={handleFocusTicker} onTradeSelect={setTradeSelection} />
++    </main>
++  </div>
++)}</span>
+                     ) : (
+                       <span className="text-slate-500">○ Disconnected</span>
+                     )}
