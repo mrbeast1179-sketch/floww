@@ -229,7 +229,7 @@ class IngestionPipeline:
                 t.get("delay_seconds", 0),
             ))
         await asyncio.to_thread(
-            lambda: self.db.conn.executemany(
+            lambda: self.db.execute_write(
                 "INSERT INTO ticks VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
                 rows,
             )
@@ -260,7 +260,7 @@ class IngestionPipeline:
                 int(c.get("delay_seconds", 0)),                      # delay_seconds
             ))
         await asyncio.to_thread(
-            lambda: self.db.conn.executemany(
+            lambda: self.db.execute_write(
                 "INSERT INTO chains VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
                 rows,
             )
@@ -280,7 +280,7 @@ class IngestionPipeline:
                 lob.get("level", 0),
             ))
         await asyncio.to_thread(
-            lambda: self.db.conn.executemany(
+            lambda: self.db.execute_write(
                 "INSERT INTO lob_snapshots VALUES (?,?,?,?,?,?,?)",
                 rows,
             )
@@ -303,7 +303,7 @@ class IngestionPipeline:
                 d.get("ask_price", 0.0),
             ))
         await asyncio.to_thread(
-            lambda: self.db.conn.executemany(
+            lambda: self.db.execute_write(
                 "INSERT INTO lob_depth VALUES (?,?,?,?,?,?,?,?,?,?)",
                 rows,
             )

@@ -17,6 +17,7 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import logging
+import threading
 from datetime import UTC, datetime
 from functools import wraps
 from typing import Any
@@ -93,6 +94,12 @@ class DuckDBEngine:
     def __init__(self, db_path: str = ":memory:"):
         self._conn = duckdb.connect(db_path)
         self._lock = asyncio.Lock()
+        # DuckDB connections are NOT thread-safe (threadsafety==1). The async
+        # flush loop, the ingestion pipeline, and synchronous readers (e.g. the
+        # vpin history route) all touch this one connection from different OS
+        # threads. This lock serializes EVERY raw connection access — reads and
+        # writes — so two threads never share the connection's pending result.
+        self._conn_lock = threading.Lock()
         self._tick_buffer: list[tuple] = []
         self._lob_buffer: list[tuple] = []
         self._flow_buffer: list[tuple] = []
@@ -303,7 +310,7 @@ class DuckDBEngine:
             try:
                 await _execute_with_timeout(
                     self._conn,
-                    lambda: self._conn.executemany(
+                    lambda: self.execute_write(
                         """INSERT INTO ticks VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
                         buf,
                     ),
@@ -330,7 +337,7 @@ class DuckDBEngine:
             try:
                 await _execute_with_timeout(
                     self._conn,
-                    lambda: self._conn.executemany(
+                    lambda: self.execute_write(
                         """INSERT INTO lob_snapshots VALUES (?,?,?,?,?,?,?)""",
                         buf,
                     ),
@@ -357,7 +364,7 @@ class DuckDBEngine:
             try:
                 await _execute_with_timeout(
                     self._conn,
-                    lambda: self._conn.executemany(
+                    lambda: self.execute_write(
                         """INSERT INTO flow_prints VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
                         buf,
                     ),
@@ -368,10 +375,22 @@ class DuckDBEngine:
             except Exception as e:
                 logger.error(f"DuckDB flow flush error: {e}")
 
+    def execute_write(self, sql: str, params_seq: list | None = None) -> None:
+        """Serialized write against the shared connection. Pass a sequence of
+        row tuples for executemany, or None for a parameterless statement.
+        All concurrent writers (ingestion pipeline, flush loop) MUST go through
+        this so writes never race a read on the same connection."""
+        with self._conn_lock:
+            if params_seq is None:
+                self._conn.execute(sql)
+            else:
+                self._conn.executemany(sql, params_seq)
+
     def query(self, sql: str, params: list | None = None) -> list[dict[str, Any]]:
         """Synchronous query returning list of dicts. Non-blocking wrapper available as query_async."""
         try:
-            result = self._conn.execute(sql, params or []).fetchdf()
+            with self._conn_lock:
+                result = self._conn.execute(sql, params or []).fetchdf()
             return result.replace({np.nan: None}).to_dict("records")
         except Exception as e:
             logger.error(f"DuckDB query error: {e}")
@@ -397,7 +416,8 @@ class DuckDBEngine:
             asyncio.TimeoutError: If query exceeds timeout.
         """
         def _do_query():
-            return self._conn.execute(sql, params or []).fetchdf()
+            with self._conn_lock:
+                return self._conn.execute(sql, params or []).fetchdf()
 
         try:
             df = await _execute_with_timeout(

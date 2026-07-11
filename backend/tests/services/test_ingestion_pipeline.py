@@ -189,8 +189,8 @@ class TestPipelineEndToEnd:
         await asyncio.sleep(0.2)
         await pipeline.stop()
 
-        result = db.query("SELECT COUNT(*) as cnt FROM ticks")
-        assert result[0]["cnt"] > 0, "Expected chain data in ticks table"
+        result = db.query("SELECT COUNT(*) as cnt FROM chains")
+        assert result[0]["cnt"] > 0, "Expected chain data in chains table"
 
     @pytest.mark.asyncio
     async def test_lob_lands_in_duckdb(self, pipeline, mock_feed, db):
