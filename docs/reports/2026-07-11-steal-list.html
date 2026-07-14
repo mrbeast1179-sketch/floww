@@ -1,0 +1,324 @@
+<title>floww · Steal List</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  :root{
+    --ground:#0d1117; --surface:#161b22; --raised:#1c2230; --hair:#262c36;
+    --ink:#e6e8ee; --ink-2:#aeb6c4; --muted:#6c7382;
+    --accent:#29c5e0;
+    --qw:#19d27c;      /* quick-win  */
+    --hi:#f5b042;      /* high-impact */
+    --amb:#a267ff;     /* ambitious  */
+    --sig:#29c5e0;     /* signal layer */
+    --miss:#ff6b7a;    /* status: missing */
+    --part:#f5b042;    /* status: partial */
+    --shadow:0 1px 0 rgba(255,255,255,.02), 0 8px 24px -12px rgba(0,0,0,.6);
+    --mono:ui-monospace,"SF Mono",SFMono-Regular,Menlo,Consolas,monospace;
+    --sans:system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  }
+  @media (prefers-color-scheme:light){
+    :root{
+      --ground:#eef1f5; --surface:#ffffff; --raised:#f6f8fb; --hair:#dbe1ea;
+      --ink:#12161d; --ink-2:#3a4454; --muted:#5a6472;
+      --accent:#0e8fb0;
+      --qw:#12a866; --hi:#b9791a; --amb:#7c3fd6; --sig:#0e8fb0;
+      --miss:#c62a3c; --part:#b9791a;
+      --shadow:0 1px 0 rgba(255,255,255,.6), 0 10px 26px -14px rgba(20,30,50,.28);
+    }
+  }
+  :root[data-theme="dark"]{
+    --ground:#0d1117; --surface:#161b22; --raised:#1c2230; --hair:#262c36;
+    --ink:#e6e8ee; --ink-2:#aeb6c4; --muted:#6c7382; --accent:#29c5e0;
+    --qw:#19d27c; --hi:#f5b042; --amb:#a267ff; --sig:#29c5e0; --miss:#ff6b7a; --part:#f5b042;
+    --shadow:0 1px 0 rgba(255,255,255,.02), 0 8px 24px -12px rgba(0,0,0,.6);
+  }
+  :root[data-theme="light"]{
+    --ground:#eef1f5; --surface:#ffffff; --raised:#f6f8fb; --hair:#dbe1ea;
+    --ink:#12161d; --ink-2:#3a4454; --muted:#5a6472; --accent:#0e8fb0;
+    --qw:#12a866; --hi:#b9791a; --amb:#7c3fd6; --sig:#0e8fb0; --miss:#c62a3c; --part:#b9791a;
+    --shadow:0 1px 0 rgba(255,255,255,.6), 0 10px 26px -14px rgba(20,30,50,.28);
+  }
+
+  *{box-sizing:border-box}
+  html{-webkit-text-size-adjust:100%}
+  body{
+    margin:0; background:var(--ground); color:var(--ink);
+    font-family:var(--sans); line-height:1.5;
+    -webkit-font-smoothing:antialiased; text-rendering:optimizeLegibility;
+  }
+  .wrap{max-width:1120px; margin:0 auto; padding:clamp(20px,4vw,52px) clamp(16px,3vw,36px) 72px}
+  a{color:var(--accent)}
+
+  /* ── header ── */
+  .eyebrow{font-family:var(--mono); font-size:11px; letter-spacing:.22em; text-transform:uppercase; color:var(--muted)}
+  h1{font-size:clamp(30px,5.4vw,52px); line-height:1.02; letter-spacing:-.02em; margin:.28em 0 .1em; text-wrap:balance; font-weight:760}
+  h1 .fx{color:var(--accent)}
+  .thesis{max-width:60ch; color:var(--ink-2); font-size:clamp(15px,1.7vw,18px); margin:.2em 0 0}
+  .thesis b{color:var(--ink); font-weight:640}
+
+  .stats{display:flex; flex-wrap:wrap; gap:10px; margin-top:22px}
+  .stat{background:var(--surface); border:1px solid var(--hair); border-radius:11px; padding:11px 15px; display:flex; flex-direction:column; gap:2px; min-width:120px}
+  .stat .n{font-family:var(--mono); font-size:22px; font-weight:680; letter-spacing:-.01em; font-variant-numeric:tabular-nums}
+  .stat .k{font-size:11px; color:var(--muted); letter-spacing:.04em; text-transform:uppercase}
+  .stat.accent .n{color:var(--accent)}
+
+  /* ── section headings ── */
+  .sec{margin-top:clamp(38px,6vw,64px)}
+  .sec-h{display:flex; align-items:baseline; gap:12px; border-bottom:1px solid var(--hair); padding-bottom:9px; margin-bottom:20px}
+  .sec-h h2{font-size:19px; letter-spacing:-.01em; margin:0; font-weight:680}
+  .sec-h .lead{font-size:13px; color:var(--muted); margin-left:auto; text-align:right}
+
+  /* ── matrix ── */
+  .matrix-card{background:var(--surface); border:1px solid var(--hair); border-radius:16px; padding:18px 18px 8px; box-shadow:var(--shadow)}
+  .matrix-scroll{overflow-x:auto}
+  svg.matrix{display:block; width:100%; min-width:620px; height:auto}
+  .legend{display:flex; flex-wrap:wrap; gap:16px; padding:6px 4px 12px; font-size:12.5px; color:var(--ink-2)}
+  .legend .li{display:inline-flex; align-items:center; gap:7px}
+  .legend .dot{width:11px; height:11px; border-radius:50%}
+  .legend .muted{color:var(--muted)}
+
+  /* ── theme strip ── */
+  .themes{display:grid; grid-template-columns:repeat(auto-fit,minmax(230px,1fr)); gap:12px}
+  .theme{background:var(--surface); border:1px solid var(--hair); border-left:3px solid var(--accent); border-radius:0 11px 11px 0; padding:14px 16px}
+  .theme h3{margin:0 0 5px; font-size:14px; letter-spacing:-.01em}
+  .theme p{margin:0; font-size:13px; color:var(--ink-2); line-height:1.5}
+
+  /* ── cards ── */
+  .grid{display:grid; grid-template-columns:repeat(auto-fill,minmax(340px,1fr)); gap:14px}
+  .card{background:var(--surface); border:1px solid var(--hair); border-radius:14px; padding:16px 17px 15px; box-shadow:var(--shadow); display:flex; flex-direction:column; gap:9px; position:relative; overflow:hidden}
+  .card::before{content:""; position:absolute; left:0; top:0; bottom:0; width:3px; background:var(--b)}
+  .card.qw{--b:var(--qw)} .card.hi{--b:var(--hi)} .card.amb{--b:var(--amb)} .card.sig{--b:var(--sig)}
+  .c-top{display:flex; align-items:flex-start; gap:11px}
+  .rank{font-family:var(--mono); font-size:12px; font-weight:700; color:var(--ground); background:var(--b); border-radius:7px; min-width:26px; height:26px; display:grid; place-items:center; flex:none; font-variant-numeric:tabular-nums}
+  .rank.na{background:var(--hair); color:var(--muted)}
+  .c-title{font-size:15px; font-weight:660; letter-spacing:-.01em; line-height:1.28; margin:1px 0 0}
+  .ve{margin-left:auto; display:flex; gap:5px; flex:none; padding-top:2px}
+  .chip{font-family:var(--mono); font-size:10.5px; letter-spacing:.02em; padding:3px 6px; border-radius:6px; border:1px solid var(--hair); color:var(--ink-2); white-space:nowrap; font-variant-numeric:tabular-nums}
+  .chip b{color:var(--ink)}
+  .desc{font-size:13px; color:var(--ink-2); line-height:1.5; margin:0}
+  .meta{display:flex; flex-direction:column; gap:5px; margin-top:2px}
+  .meta .row{display:flex; gap:8px; font-size:11.5px; align-items:baseline}
+  .meta .lab{font-family:var(--mono); font-size:9.5px; letter-spacing:.1em; text-transform:uppercase; color:var(--muted); flex:none; width:74px; padding-top:1px}
+  .meta code{font-family:var(--mono); font-size:11.5px; color:var(--ink); background:var(--raised); border:1px solid var(--hair); border-radius:5px; padding:1px 5px; word-break:break-word}
+  .meta .val{font-size:12px; color:var(--ink-2)}
+  .status{display:inline-flex; align-items:center; gap:6px; font-family:var(--mono); font-size:10px; letter-spacing:.06em; text-transform:uppercase; padding:2px 8px; border-radius:20px; align-self:flex-start; font-weight:600}
+  .status.miss{color:var(--miss); background:color-mix(in srgb,var(--miss) 14%,transparent); border:1px solid color-mix(in srgb,var(--miss) 34%,transparent)}
+  .status.part{color:var(--part); background:color-mix(in srgb,var(--part) 14%,transparent); border:1px solid color-mix(in srgb,var(--part) 34%,transparent)}
+  .status .g{width:6px; height:6px; border-radius:50%; background:currentColor}
+
+  /* ── ship-first callout ── */
+  .ship{margin-top:26px; background:linear-gradient(180deg,color-mix(in srgb,var(--accent) 9%,var(--surface)),var(--surface)); border:1px solid color-mix(in srgb,var(--accent) 34%,var(--hair)); border-radius:16px; padding:20px 22px}
+  .ship h2{margin:0 0 3px; font-size:17px; letter-spacing:-.01em}
+  .ship p.sub{margin:0 0 15px; color:var(--ink-2); font-size:13px}
+  .ship-grid{display:grid; grid-template-columns:repeat(auto-fit,minmax(240px,1fr)); gap:12px}
+  .ship-item{background:var(--surface); border:1px solid var(--hair); border-radius:11px; padding:13px 14px}
+  .ship-item .n{font-family:var(--mono); font-size:11px; color:var(--accent); letter-spacing:.08em; text-transform:uppercase}
+  .ship-item h4{margin:5px 0 4px; font-size:14px; letter-spacing:-.01em}
+  .ship-item p{margin:0; font-size:12.5px; color:var(--ink-2); line-height:1.45}
+
+  footer{margin-top:52px; border-top:1px solid var(--hair); padding-top:18px; color:var(--muted); font-size:12px; line-height:1.6}
+  footer code{font-family:var(--mono); color:var(--ink-2)}
+
+  @media (max-width:560px){ .meta .lab{width:100%} .meta .row{flex-wrap:wrap} }
+  @media (prefers-reduced-motion:no-preference){ .card,.stat,.theme{transition:border-color .16s ease, transform .16s ease} .card:hover{border-color:color-mix(in srgb,var(--b) 55%,var(--hair)); transform:translateY(-1px)} }
+</style>
+
+<div class="wrap">
+  <header>
+    <div class="eyebrow">floww · reference-repo mining · verified 2026-07-11</div>
+    <h1>The <span class="fx">Steal List</span></h1>
+    <p class="thesis">22 capabilities floww doesn't have yet — mined from the <b>26 reference repos already sitting in <code style="font-family:var(--mono);font-size:.85em">data/github-repos/cloned</code></b> plus fresh web discovery, then <b>checked against floww's real code</b> so nothing here is a rebuild of something you already shipped. Every item names the repo &amp; file to lift from and where it lands. Ranked by value ÷ effort.</p>
+    <div class="stats">
+      <div class="stat accent"><span class="n">22</span><span class="k">features found</span></div>
+      <div class="stat"><span class="n">7</span><span class="k">quick wins</span></div>
+      <div class="stat"><span class="n">3</span><span class="k">grounded-out</span></div>
+      <div class="stat"><span class="n">26</span><span class="k">repos mined</span></div>
+      <div class="stat"><span class="n">100%</span><span class="k">free-data feasible</span></div>
+    </div>
+  </header>
+
+  <section class="sec">
+    <div class="sec-h"><h2>Impact vs effort</h2><span class="lead">top-left = ship first · each dot is a roadmap item</span></div>
+    <div class="matrix-card">
+      <div class="matrix-scroll"><svg class="matrix" viewBox="0 0 760 440" role="img" aria-label="Scatter plot of roadmap items by value and effort"></svg></div>
+      <div class="legend">
+        <span class="li"><span class="dot" style="background:var(--qw)"></span>Quick win</span>
+        <span class="li"><span class="dot" style="background:var(--hi)"></span>High impact</span>
+        <span class="li"><span class="dot" style="background:var(--amb)"></span>Ambitious</span>
+        <span class="li"><span class="dot" style="background:var(--sig)"></span>Signal / sentiment</span>
+        <span class="li muted">number = rank · shaded corner = do-first zone</span>
+      </div>
+    </div>
+  </section>
+
+  <section class="sec">
+    <div class="sec-h"><h2>Five themes the roadmap clusters into</h2></div>
+    <div class="themes" id="themes"></div>
+  </section>
+
+  <section class="sec">
+    <div class="sec-h"><h2>Ranked roadmap</h2><span class="lead">vol · GEX · pricing · strategy</span></div>
+    <div class="grid" id="ranked"></div>
+  </section>
+
+  <section class="sec">
+    <div class="sec-h"><h2>Signal &amp; sentiment layer</h2><span class="lead">a dimension the vol/GEX items don't touch</span></div>
+    <div class="grid" id="signal"></div>
+  </section>
+
+  <section class="sec">
+    <div class="ship">
+      <h2>If you ship three this week</h2>
+      <p class="sub">All order-independent, all effort 1–2, each pays off standalone.</p>
+      <div class="ship-grid">
+        <div class="ship-item"><div class="n">Play 1 · GEX</div><h4>Dual-GEX + activity ratio</h4><p>One extra aggregation pass separates gamma dealers <em>hold</em> from what they're <em>doing</em> today. Reuses volume already in the chain payload.</p></div>
+        <div class="ship-item"><div class="n">Play 2 · your edge</div><h4>Wheel income screener</h4><p>Ranks CSPs / covered calls by annualized return on collateral — the first floww surface built for premium selling, your only journal-validated edge.</p></div>
+        <div class="ship-item"><div class="n">Play 3 · input quality</div><h4>IV-from-mid solver</h4><p>~15 lines (Newton on your existing bs_vega) replaces yfinance's stale last-price IV — quietly cleans skew, term structure, GEX and everything downstream.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <footer>
+    Generated by a multi-agent scan of floww's cloned reference repos + web discovery, synthesized by Claude Fable 5, then <b style="color:var(--ink-2)">ground-checked against the live codebase</b>. Three synthesis claims were corrected: floww already computes max pain (<code>advanced_analytics.py</code>), realized-vol estimators &amp; IV rank (<code>vol_analytics.py</code>) — those items were narrowed to their genuinely-missing parts. Full detail: <code>docs/reports/2026-07-11-steal-list-integration-roadmap.md</code>. No paid feeds, no broker execution required.
+  </footer>
+</div>
+
+<script>
+(function(){
+  var ranked = [
+    {r:1,b:"qw",v:6,e:1,t:"Dual-GEX: OI vs volume-weighted gamma + hedging-intensity ratio",st:"miss",
+     d:"Distinguishes gamma dealers structurally HOLD from what they're actively DOING today. Identical flip levels behave differently when flow fights vs confirms resting OI — floww's OI-only GEX can't see it.",
+     src:"iAmGiG_gex-llm-patterns · gex_calculator.py:271",into:"gex_aggregator.py compute() → emit gex_volume + activity_ratio badge on dealer panel"},
+    {r:2,b:"qw",v:5,e:1,t:"0DTE/1DTE exposure weighted by same-day volume, not stale OI",st:"miss",
+     d:"0DTE dominates SPX/SPY/QQQ dealer gamma but day-of OI hasn't printed yet, so floww mis-weights the bucket driving most intraday hedging. One branch improves heatmap, flip and King node.",
+     src:"aaguiar10_gflows · calc.py:339",into:"branch T≤1/252 → use volume (fillna OI) as per-contract weight"},
+    {r:3,b:"qw",v:7,e:2,t:"Wheel / premium-selling income screener",st:"miss",
+     d:"Ranks CSPs + covered calls by annualized return on collateral & breakeven. Directly serves premium selling — your only validated edge — which nothing in floww ranks for today.",
+     src:"fanzhenya_options_lab · find_best_put_to_sell",into:"new screeners/wheel_income.py → /api/screener/income, sortable in scanner UI"},
+    {r:4,b:"hi",v:9,e:3,t:"Risk-neutral density (Breeden–Litzenberger implied PDF)",st:"miss",
+     d:"Adds price-space probability: “the market prices a 12% chance of SPY < 580 by Friday.” The single most legible output for a retail trader, and nothing in GEX/Trinity expresses it. Feeds the strike cone (#10).",
+     src:"PavanAnanthSharma/Breeden-Litzenberger",into:"analytics/risk_neutral_density.py → /api/rnd/{sym}/{exp}; PDF/CDF panel by the Trinity smiles"},
+    {r:5,b:"qw",v:6,e:2,t:"IV inversion solver — clean IV from bid/ask mids",st:"miss",
+     d:"floww's whole vol stack trusts yfinance's stale, last-price impliedVolatility. ~15 lines (Newton via existing bs_vega) cleans the input to skew, term structure, RR, GEX and the RND above. Stage 1 of the SVI surface (#16).",
+     src:"MattL922_implied-volatility (→ Newton on bs_vega)",into:"implied_vol_from_price() in bs_greeks.py; 'clean IV' toggle in vol_analytics"},
+    {r:6,b:"hi",v:8,e:3,t:"Spot-shifted exposure PROFILE engine + true flip points",st:"miss",
+     d:"Upgrades flip from 'strike where per-strike GEX crosses 0' to the SqueezeMetrics true gamma-/delta-neutral spot, interpolated across 300 hypothetical spot levels. Also yields vanna-wall & charm-into-close profile curves.",
+     src:"aaguiar10_gflows · calc.py:306 (zerogamma/zerodelta)",into:"ExposureProfileService looping numba_greeks over np.linspace(.5,1.5·spot,300); Skylit profile chart"},
+    {r:7,b:"hi",v:8,e:3,t:"Vol cones + VRP tile (Yang-Zhang) — the premium-seller signal",st:"part",
+     d:"GROUNDED: floww already has Close/Parkinson/Garman-Klass realized vol AND IV rank (vol_analytics.py). Genuinely missing = Yang-Zhang estimator, realized-vol CONES (percentile bands) and the VRP tile (front IV − RV) — the actual 'is premium rich?' read.",
+     src:"jasonstrimpel/volatility-trading (cones) + EzOptions typical_ranges",into:"extend vol_analytics.py: add YZ + cone percentiles; VRP tile beside IV/GEX panels"},
+    {r:8,b:"qw",v:6,e:2,t:"30-day net-GEX regime-persistence classifier",st:"miss",
+     d:"floww labels each day long/short gamma but never says whether the regime is a durable, tradable backdrop or transitional chop. Pure post-processing (sign-persistence %, flip count, conviction) over a series floww already builds.",
+     src:"iAmGiG_gex-llm-patterns · regime_classifier.py:110",into:"feed gex_history per-day totals → regime badge (persistent/transitional) on the panel"},
+    {r:9,b:"qw",v:4,e:2,t:"Max-pain DRIFT tracking into expiry",st:"part",
+     d:"GROUNDED: floww already computes base max pain (advanced_analytics.py:684). Genuinely new = snapshotting it daily and tracking its DRIFT toward spot into expiry — a testable pin signal for 0DTE/weekly names.",
+     src:"ZubZubZuberi/MaxPainHistory (drift study)",into:"snapshot existing max_pain daily → DuckDB floww_* table; overlay drift line on Skylit heatmap"},
+    {r:10,b:"qw",v:5,e:2,t:"16Δ / 30Δ expected-range strike cone",st:"miss",
+     d:"Converts floww's existing prob-above distribution into the concrete output premium sellers act on: the actual strikes at P=16/84% and 30/70%. The last mile from curve to strike selection; pairs with the wheel screener + RND.",
+     src:"EzOptions · find_probability_strikes:2948",into:"helper over existing prob distribution (server.py:496) → tiles + cone lines on implied-move panel"},
+    {r:11,b:"hi",v:9,e:4,t:"Multi-leg strategy builder — payoff, breakevens, PoP, tail risk",st:"miss",
+     d:"The biggest hole: floww has per-position greeks but no way to assemble an iron condor/vertical/calendar and see its payoff, breakevens, probability of profit or VaR. Turns the whole GEX/vol read into 'build a trade and see its odds.'",
+     src:"rgaveiga/optionlab (engine) + harryho71 UI blueprint",into:"POST /strategy/evaluate from the DuckDB chain snapshot; new Strategy Builder tab"},
+    {r:12,b:"hi",v:8,e:4,t:"Whole-book scenario stress grid (spot × IV × time)",st:"miss",
+     d:"Answers 'what happens to my book if spot drops 5% and IV pops 20% over 3 days' — impossible today with only point-in-time portfolio greeks. Pure recompute over the position store with floww's own BS pricer.",
+     src:"George-Dros_Options_Portfolio · functions.py:457",into:"POST /portfolio/scenario shock grid; Plotly surface / spot-vs-time heatmap"},
+    {r:13,b:"hi",v:7,e:4,t:"Earnings-volatility screener (IV30/RV30 + term slope)",st:"miss",
+     d:"floww has zero earnings handling. Codifies sell-rich-pre-earnings-IV with concrete thresholds (ADV≥1.5M, IV30/RV30≥1.25, slope≤−0.004). Mostly wiring once #7's RV service exists.",
+     src:"Acelogic/Earnings-Volatility-Calculator",into:"screener job on yfinance earnings dates → straddle/calendar ideas into the Flowseeker feed"},
+    {r:14,b:"hi",v:8,e:5,t:"OCC cleared volume by account type — who traded",st:"miss",
+     d:"The only genuinely NEW free data source in the batch: Customer vs Firm vs Market-Maker volume — 'WHO traded', which yfinance aggregate volume/OI can never reveal. Tempered by T+1 daily granularity + unofficial endpoint.",
+     src:"EzOptions · download_volume_csv:4010 (OCC volume-query)",into:"httpx service → /api/occ-volume/{ticker}, cached daily; 'Who Traded' panel by Flowseeker"},
+    {r:15,b:"amb",v:6,e:4,t:"Historical options-strategy backtester (optopsy)",st:"miss",
+     d:"Turns floww's cached daily chains into a strategy lab — 'how would selling 30Δ SPY put spreads have done since I started caching.' Value ramps with snapshot depth, so start the adapter now and let history accrue.",
+     src:"michaelchu/optopsy",into:"backtest/optopsy_adapter.py mapping DuckDB chain snapshots → optopsy schema; Backtest tab"},
+    {r:16,b:"amb",v:8,e:6,t:"Arbitrage-free SVI vol surface + no-arb violation feed",st:"miss",
+     d:"Capstone data-quality layer: a Gatheral 5-param SVI fit gives a smooth surface valid at ANY strike/expiry (needed to price off-grid legs for the strategy builder) and de-noises GEX/flip/King/RND. Butterfly/parity violations double as a mispricing feed.",
+     src:"XanderRobbins/Arbitrage-Free-Volatility-Surface",into:"analytics/vol_surface_svi.py; persist 5 SVI params/expiry; serve interpolated IV everywhere"}
+  ];
+  var signal = [
+    {b:"sig",v:4,e:2,t:"Free Yahoo-Finance news feed",st:"miss",d:"floww has NO market-news source at all (its only scraper pulls research papers). A zero-cost headline + article-body poller gives a catalyst stream to pair with GEX and flow.",src:"shirosaidev_stocksight · NewsHeadlineListener:265",into:"services/news_feed.py; scheduler poll → DuckDB → /api/news"},
+    {b:"sig",v:4,e:1,t:"VADER + TextBlob sentiment with agreement gate",st:"miss",d:"floww's social_flow_pipeline DECLARES avg_vader/avg_textblob fields but ships no code to compute them. The agreement gate (label only when both models agree) cuts false positives on noisy finance text.",src:"shirosaidev_stocksight · sentiment_analysis:467",into:"services/sentiment.py::score_text; fills the empty /api/social/sentiment stub; new ML feature"},
+    {b:"sig",v:4,e:2,t:"Opportunity / regime trade-idea engine",st:"miss",d:"A per-ticker DIRECTIONAL trade-idea layer floww lacks — maps trend × realized-vol into a 6-cell regime grid, scores 0–10, arbitrates with gamma sign + IV rank → {regime, direction, trade type, invalidation}. All inputs floww already computes.",src:"jwolberg_options-scanner (design spec)",into:"/opportunities endpoint over existing signals; Skylit 'Trade Ideas' card; reuse tradeMath.js"},
+    {b:"sig",v:4,e:3,t:"Signal → forward-move event study",st:"miss",d:"A generic 'did this signal actually move the stock?' loop — attaches an empirical forward-return distribution to ANY event (sentiment spike, WHALE sweep, gamma-flip cross), unlike floww's prediction-only next-day tracker.",src:"jasti_Stock-Predictor · main.py:74",into:"services/event_study.py; on any alert, sample spot at +5m/+30m/+1d → DuckDB; hit-rate per signal"},
+    {b:"sig",v:3,e:1,t:"OI-weighted chain-consensus price per expiry",st:"miss",d:"A per-expiry OI-weighted 'expected price' the chain is positioned around — distinct from the gamma-based King node. Tracks positioning-consensus drift day over day.",src:"czong_option_chain_unusual_activity · main-yahoo:22",into:"pure fn in options-math module over the chain floww already fetches; dotted overlay on Heatseeker matrix"},
+    {b:"sig",v:3,e:2,t:"Finviz insider-trading corroboration",st:"miss",d:"Corporate insider transactions floww has zero coverage of. Cross-referencing a Flowseeker unusual-flow alert against a same-week insider BUY on the same name is a genuinely new corroboration lens.",src:"Buzzfund_UnusualOptions · insider.py:12",into:"fetch module + /insider/{ticker}; 'insider' badge in the scanner. Soft/optional signal"}
+  ];
+  var themes = [
+    {n:"Buy the realized side",p:"floww is entirely implied/positioning-side today. The biggest value cluster — RV cones, VRP, typical ranges, earnings & wheel screeners — benchmarks implied against realized: is this premium rich? That's precisely the premium-selling edge your journal already validated."},
+    {n:"From read to trade: the last mile",p:"floww tells you what dealers are doing but not what YOU should structure. The strategy builder, strike cone, wheel screener and scenario grid convert existing analytics into concrete strikes, structures, odds and book-level risk."},
+    {n:"Fix the inputs before adding outputs",p:"Everything downstream — GEX, flip, King node, RND, PoP — inherits yfinance's noisy last-price IVs and stale 0DTE OI. Three cheap items (IV-from-mid solver, 0DTE volume-for-OI, SVI surface) quietly improve every existing panel with zero new UI."},
+    {n:"Positioning as a movie, not a snapshot",p:"Today's GEX is point-in-time, current-spot, OI-only. The profile engine (exposure vs hypothetical spot), dual-GEX activity ratio, regime-persistence classifier, max-pain drift and OCC account-type data each add a missing dimension: price, activity, time and actor."},
+    {n:"Ship in dependency order",p:"Three chains: (a) IV solver → RND → SVI; (b) RV cones → VRP → earnings screener; (c) strategy payoff → scenario grid → backtester. The quick wins (#1–3, 5, 8–10) are order-independent and land in any single session."}
+  ];
+
+  // ── themes ──
+  document.getElementById('themes').innerHTML = themes.map(function(t){
+    return '<div class="theme"><h3>'+t.n+'</h3><p>'+t.p+'</p></div>';
+  }).join('');
+
+  // ── cards ──
+  function statusPill(st){
+    if(st==="part") return '<span class="status part"><span class="g"></span>Partial · upgrade</span>';
+    return '<span class="status miss"><span class="g"></span>Missing in floww</span>';
+  }
+  function card(it, showRank){
+    var srcParts = it.src.split(" · ");
+    var rankEl = showRank ? '<span class="rank">'+it.r+'</span>' : '<span class="rank na">◆</span>';
+    return '<article class="card '+it.b+'">'
+      +'<div class="c-top">'+rankEl
+        +'<div><div class="c-title">'+it.t+'</div></div>'
+        +'<div class="ve"><span class="chip">V<b> '+it.v+'</b></span><span class="chip">E<b> '+it.e+'</b></span></div>'
+      +'</div>'
+      + statusPill(it.st)
+      +'<p class="desc">'+it.d+'</p>'
+      +'<div class="meta">'
+        +'<div class="row"><span class="lab">Steal from</span><code>'+it.src+'</code></div>'
+        +'<div class="row"><span class="lab">Lands in</span><span class="val">'+it.into+'</span></div>'
+      +'</div>'
+    +'</article>';
+  }
+  document.getElementById('ranked').innerHTML = ranked.map(function(it){return card(it,true);}).join('');
+  document.getElementById('signal').innerHTML = signal.map(function(it){return card(it,false);}).join('');
+
+  // ── impact/effort matrix ──
+  var svg = document.querySelector('svg.matrix');
+  var W=760,H=440, padL=58,padR=26,padT=26,padB=48;
+  var pw=W-padL-padR, ph=H-padT-padB;
+  var eMin=0.5,eMax=6.5, vMin=2.5,vMax=9.5;
+  function X(e){return padL+(e-eMin)/(eMax-eMin)*pw;}
+  function Y(v){return padT+(vMax-v)/(vMax-vMin)*ph;}
+  var NS="http://www.w3.org/2000/svg";
+  function add(n,a,txt){var x=document.createElementNS(NS,n);for(var k in a)x.setAttribute(k,a[k]);if(txt!=null)x.textContent=txt;svg.appendChild(x);return x;}
+
+  // do-first shaded zone: low effort (≤2.5), high value (≥6.5)
+  add("rect",{x:X(0.5),y:Y(9.5),width:X(2.5)-X(0.5),height:Y(6.5)-Y(9.5),fill:"var(--accent)","fill-opacity":".07",rx:6});
+  add("text",{x:X(0.62),y:Y(9.28),fill:"var(--accent)","font-size":"10.5","font-family":"var(--mono)","letter-spacing":".12em"},"DO FIRST");
+
+  // grid
+  for(var e=1;e<=6;e++){ add("line",{x1:X(e),y1:padT,x2:X(e),y2:padT+ph,stroke:"var(--hair)","stroke-width":e===1?0:1,"stroke-opacity":".55"});
+    add("text",{x:X(e),y:H-padB+18,fill:"var(--muted)","font-size":"11","text-anchor":"middle","font-family":"var(--mono)"},e); }
+  for(var v=3;v<=9;v++){ add("line",{x1:padL,y1:Y(v),x2:padL+pw,y2:Y(v),stroke:"var(--hair)","stroke-width":1,"stroke-opacity":".45"});
+    add("text",{x:padL-12,y:Y(v)+4,fill:"var(--muted)","font-size":"11","text-anchor":"end","font-family":"var(--mono)"},v); }
+  // axis labels
+  add("text",{x:padL+pw/2,y:H-8,fill:"var(--ink-2)","font-size":"11","text-anchor":"middle","font-family":"var(--mono)","letter-spacing":".14em"},"EFFORT  (hours → weeks)");
+  var yl=add("text",{x:16,y:padT+ph/2,fill:"var(--ink-2)","font-size":"11","text-anchor":"middle","font-family":"var(--mono)","letter-spacing":".14em"},"VALUE");
+  yl.setAttribute("transform","rotate(-90 16 "+(padT+ph/2)+")");
+
+  var bucketVar={qw:"--qw",hi:"--hi",amb:"--amb",sig:"--sig"};
+  // combine ranked + signal (signal gets no number → small diamond marker w/ 'S')
+  var pts=[];
+  ranked.forEach(function(it){pts.push({e:it.e,v:it.v,b:it.b,lab:String(it.r)});});
+  signal.forEach(function(it){pts.push({e:it.e,v:it.v,b:it.b,lab:"·"});});
+  // resolve coincident points by nudging around a small circle
+  var seen={};
+  pts.forEach(function(p){
+    var key=p.e+"|"+p.v; var k=seen[key]||0; seen[key]=k+1;
+    var ang=k*2.2, rad=k?11:0;
+    p.x=X(p.e)+Math.cos(ang)*rad; p.y=Y(p.v)+Math.sin(ang)*rad;
+  });
+  pts.forEach(function(p){
+    var c="var("+bucketVar[p.b]+")";
+    add("circle",{cx:p.x,cy:p.y,r:13,fill:c,"fill-opacity":".9",stroke:"var(--surface)","stroke-width":2});
+    add("text",{x:p.x,y:p.y+4,fill:"var(--ground)","font-size":p.lab==="·"?"16":"11.5","text-anchor":"middle","font-family":"var(--mono)","font-weight":"700"},p.lab);
+  });
+})();
+</script>
