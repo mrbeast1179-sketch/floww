@@ -680,12 +680,14 @@ def risk_neutral_density_endpoint(
     ticker: str,
     expiry_index: int = Query(
         1, ge=0, le=20,
-        description="Listed-expiry index (0=0DTE, 1=1DTE, ...). "
-                    "Default 1 skips the 0DTE front expiry because "
-                    "T=0 makes the Breeden-Litzenberger 2nd derivative "
-                    "degenerate. Valid: 0 = 0DTE (degenerate PDF), "
-                    "1 = first non-0DTE (most common default), "
-                    "2+ = progressively longer-dated expiries.",
+        description="Listed-expiry index forwarded verbatim to _load_chain. "
+                    "Default 1 maps to the first non-0DTE expiry (yfinance "
+                    "lists today's 0DTE first for liquid names). "
+                    "0 = today's 0DTE (T=0 makes BL degenerate; the engine "
+                    "returns an explicit warning rather than crashing). "
+                    "2+ = progressively longer-dated expiries (recommended "
+                    "for the most stable PDFs — 1DTE chain prices still "
+                    "show BL-degenerate artifacts from near-zero time-value).",
     ),
 ):
     """Breeden–Litzenberger risk-neutral density at one option expiry.
@@ -705,21 +707,18 @@ def risk_neutral_density_endpoint(
     Defensive degrade: any upstream failure returns a well-formed empty
     dict so the dashboard never breaks on a cold cache.
 
-    Routing hygiene: ``expiry_index`` is forwarded DIRECTLY to
-    ``_load_chain`` (no ``min_dte=1`` override). That override creates a
-    silent bug — ``_load_chain(min_dte=1)`` always picks ``cap=1`` which
-    discards the user's index. We instead pre-shift the user's index so
-    the natural default of 1 maps to "second listed expiry" (the first
-    non-0DTE row), and users who explicitly request ``expiry_index=0``
-    get the 0DTE chain (degenerate PDF — they get what they asked for).
+    Routing hygiene: ``expiry_index`` flows through to ``_load_chain``
+    verbatim. The upstream prior bug was a forced ``min_dte=1`` override
+    that silently set ``cap=1`` and discarded the user's index — that
+    is now removed, and the documented Query contract (0 = 0DTE, 1 =
+    first non-0DTE, 2+ longer-dated) is honored as-is.
     """
     try:
         from services.risk_neutral_density import compute_rnd_pdf
-        # pre-shift so default 1 maps to "skip 0DTE" without forcing the
-        # min_dte override on _load_chain (which would silently discard
-        # the user's expiry_index argument). User-supplied values flow
-        # through unchanged.
-        effective_index = max(1, int(expiry_index)) if int(expiry_index) >= 0 else 1
+        # Pass expiry_index verbatim. Query ge=0 already validates the
+        # range, so a single cast suffices. Default of 1 exercises the
+        # most useful path (first non-0DTE member of ``yt.options``).
+        effective_index = int(expiry_index)
         spot, calls, _puts, chosen_expiry = _load_chain(
             ticker.upper(), expiry_index=effective_index, min_dte=0,
         )

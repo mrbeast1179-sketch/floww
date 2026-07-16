@@ -147,12 +147,14 @@ def test_filter_restricts_strikes_to_around_spot():
         f"expected 5 strikes to survive pruning ([70, 130] window); "
         f"got {out['n_strikes_used']}"
     )
-    # Grid spans the kept-strike range [70, 130].
-    assert 70.0 <= out["x_grid"][0] <= 70.001, (
+    # Grid spans the kept-strike range [70, 130]. _linspace(70, 130, 200)
+    # is exact on these integerish endpoints, but we use a tight pytest.approx
+    # tolerance to defend against any future linspace implementation drift.
+    assert out["x_grid"][0] == pytest.approx(70.0, abs=1e-9), (
         f"x_grid[0] should be the lowest kept strike (70.0); "
         f"got {out['x_grid'][0]}"
     )
-    assert 129.99 <= out["x_grid"][-1] <= 130.0, (
+    assert out["x_grid"][-1] == pytest.approx(130.0, abs=1e-9), (
         f"x_grid[-1] should be the highest kept strike (130.0); "
         f"got {out['x_grid'][-1]}"
     )

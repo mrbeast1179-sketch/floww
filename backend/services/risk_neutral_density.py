@@ -211,7 +211,9 @@ def compute_rnd_pdf(
     # increasing x. yfinance comes pre-sorted but hand-crafted chains
     # and negative-strike + positive mixed chains (test fixtures) need
     # a defensive sort here so the integration step is feed-clean.
-    cleaned.sort(key=lambda p: p[0])
+    # Tuple lex order is already K-major since p = (K, P), so the bare
+    # .sort() suffices without a key function.
+    cleaned.sort()
 
     n = len(cleaned)
     method = "cubic_spline_2nd_derivative"
