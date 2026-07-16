@@ -144,6 +144,17 @@ import ReverseRugIndicator from "./ReverseRugIndicator";
 import RainbowRoadIndicator from "./RainbowRoadIndicator";
 import VelocityModeBadge from "./VelocityModeBadge";
 import TrinityConfluenceMeter from "./TrinityConfluenceMeter";
+// Steal-list top-3 (served by backend/routes/steal_three.py at :8000).
+import DualGEXBadge from "./DualGEXBadge";
+import IVMidBadge from "./IVMidBadge";
+import WheelIncomeScreenerPanel from "./WheelIncomeScreenerPanel";
+import MaxPainBadge from "./MaxPainBadge";
+// Historical steal-list signals (steal-list #6/#9/#10/#20 — backend
+// services landed in routes/steal_three.py).
+import ConfluenceVelocityRow from "./ConfluenceVelocityRow";
+// Steal-list #10 + #8 — Row 4 mount ("Expected Moves / Trade Ideas").
+import StrikeConeBadge from "./StrikeConeBadge";
+import OpportunityBadge from "./OpportunityBadge";
 import RollingFloorsCeilingsPanelBase from "./RollingFloorsCeilingsPanel";
 import NodeClassificationPanelBase from "./NodeClassificationPanel";
 import StackedNodesPanelBase from "./StackedNodesPanel";
@@ -257,16 +268,58 @@ export default function HeatseekerDashboard({
         </div>
       </div>
 
-      {/* ── Row 3: Velocity + Trinity ───────────────────────────────── */}
+      {/* ── Row 3: Confluence & Velocity ───────────────────────────── */}
+      {/* Compound Row 3: real-time steal-list signals (#1/#5/#3) sit on
+          top per temporal order (now → past), then the historical
+          VelocityModeBadge + TrinityConfluenceMeter follow below. */}
       <div>
         <SectionHeader title="Confluence & Velocity" />
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-          <VelocityModeBadge ticker={normalizedTicker} />
-          <TrinityConfluenceMeter />
+        <div className="space-y-4">
+          {/* Steal-list sub-section: real-time flow */}
+          <div className="space-y-3">
+            <div className="text-[9px] uppercase tracking-widest text-slate-500 font-bold">
+              ◆ Steal-list signals · #1 Dual-GEX · #5 IV-Mid · #3 Wheel income
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <DualGEXBadge ticker={normalizedTicker} />
+              <IVMidBadge ticker={normalizedTicker} width={6} />
+            </div>
+            <WheelIncomeScreenerPanel ticker={normalizedTicker} />
+          </div>
+
+          {/* NEW: Historical steal-list signals (#6/#9/#10/#20) */}
+          <div className="space-y-3">
+            <div className="text-[9px] uppercase tracking-widest text-emerald-400 font-bold">
+              ★ Historical signals · consensus drift · max-pain drift (#9) · strike cone (#10) · insider · OCC (#14)
+            </div>
+            <ConfluenceVelocityRow ticker={normalizedTicker} />
+          </div>
+
+          {/* Existing velocity + confluence */}
+          <div className="space-y-3">
+            <div className="text-[9px] uppercase tracking-widest text-slate-500 font-bold">
+              ◆ Velocity mode + Trinity confluence
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <VelocityModeBadge ticker={normalizedTicker} />
+              <TrinityConfluenceMeter />
+            </div>
+            {/* NEW: Max-Pain pin magnet beneath the Trinity grid (steal-list #9 base) */}
+            <MaxPainBadge ticker={normalizedTicker} />
+          </div>
         </div>
       </div>
 
-      {/* ── Row 4: Wave 3 panels (lazy-loaded) ──────────────────────── */}
+      {/* ── Row 4: Expected Moves / Trade Ideas ──────────────────────── */}
+      <div>
+        <SectionHeader title="Expected Moves / Trade Ideas" />
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <StrikeConeBadge ticker={normalizedTicker} expiries={1} />
+          <OpportunityBadge ticker={normalizedTicker} />
+        </div>
+      </div>
+
+      {/* ── Row 5: Wave 3 panels (lazy-loaded) ──────────────────────── */}
       <LazyRow>
         <SectionHeader title="Advanced Structure" />
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
