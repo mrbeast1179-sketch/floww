@@ -2984,6 +2984,15 @@ from routes.gemini import router as gemini_router
 
 app.include_router(gemini_router, tags=["ai"])
 
+# ============ Steal-list top-3 router ============
+# Dual-GEX (#1), Wheel income screener (#3), IV-from-mid solver (#5).
+# Same routes also live standalone on :8001 via services/steal_three_server.py
+# for offline dev / quick iteration; both mount the same APIRouter from
+# backend/routes/steal_three.py so :8000 and :8001 stay API-identical.
+from routes.steal_three import router as steal_three_router
+
+app.include_router(steal_three_router, tags=["steal-three"])
+
 from routes.heatseeker import router as heatseeker_router
 
 app.include_router(heatseeker_router, tags=["heatseeker"])

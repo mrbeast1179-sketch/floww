@@ -41,12 +41,13 @@ from services.consensus_pricing import (
     compute_consensus_per_expiry,
     compute_overall_consensus,
 )
-from services.sentiment import VADER_AVAILABLE, TEXTBLOB_AVAILABLE, clean_text, clean_text_sentiment, score_text
+
 # NOTE: aggregate_sentiment will be re-imported when the deferred social_flow_pipeline wiring
 # lands (per the .md PARTIAL block).
 from services.gex_dual import DualGexCalculator
 from services.max_pain import compute_max_pain_per_expiry, compute_overall_max_pain
 from services.screeners.wheel_income import rank_calls_to_sell, rank_puts_to_sell
+from services.sentiment import TEXTBLOB_AVAILABLE, VADER_AVAILABLE, clean_text, clean_text_sentiment, score_text
 
 logger = logging.getLogger(__name__)
 
@@ -65,7 +66,11 @@ router = APIRouter()
 # Helpers (kept identical to the prior sidecar implementation).
 # ----------------------------------------------------------------------
 
-def _load_chain(ticker: str, expiry_index: int = 0) -> tuple[float, list[dict], list[dict], str | None]:
+def _load_chain(
+    ticker: str,
+    expiry_index: int = 0,
+    min_dte: int = 0,
+) -> tuple[float, list[dict], list[dict], str | None]:
     """Fetch spot + nearest-listed-expiry chain via yfinance.
 
     Returns (spot, calls_list, puts_list, expiry_str). Offers a single
@@ -80,7 +85,14 @@ def _load_chain(ticker: str, expiry_index: int = 0) -> tuple[float, list[dict], 
     expiry_attr = getattr(yt, "options", None) or []
     if not expiry_attr:
         raise HTTPException(status_code=404, detail=f"No options chain available for {ticker}")
-    chosen_expiry = str(expiry_attr[expiry_index])
+    if min_dte > 0:
+        # Skip expiries closer than min_dte (e.g. the 0DTE front expiry,
+        # where T=0 makes a Black-Scholes IV solve impossible). Falls back
+        # to expiry_index if nothing qualifies (deep-illiquid names).
+        picks = _select_expiries_in_window(expiry_attr, min_dte, 36500, cap=1)
+        chosen_expiry = picks[0] if picks else str(expiry_attr[expiry_index])
+    else:
+        chosen_expiry = str(expiry_attr[expiry_index])
     chain = yt.option_chain(chosen_expiry)
     calls = chain.calls.fillna(0).to_dict(orient="records") if chain.calls is not None else []
     puts = chain.puts.fillna(0).to_dict(orient="records") if chain.puts is not None else []
@@ -101,16 +113,20 @@ def _t_years_from_dte(dte_days: int) -> float:
 @router.get("/api/dual_gex/{ticker}")
 def dual_gex(ticker: str) -> dict[str, Any]:
     spot, calls, puts, _expiry = _load_chain(ticker)
-    contracts = list(calls) + list(puts)
     # The yfinance row only carries OI; per-strike gamma floww already
     # computes elsewhere. Here we treat gamma=1 so the *ratio* stays
     # meaningful (it'll be 1.0 by construction when volume == OI) and the
     # caller can later wire in the greeks pipeline for production parity.
+    # Bare yfinance rows also carry no type/option_type column — the side
+    # exists only in the calls-vs-puts split, so stamp it here or
+    # GexAggregator._resolve raises KeyError (live 500, 2026-07-15).
     augmented: list[dict] = []
-    for c in contracts:
-        aug = dict(c)
-        aug.setdefault("gamma", 1.0)
-        augmented.append(aug)
+    for side, rows in (("call", calls), ("put", puts)):
+        for c in rows:
+            aug = dict(c)
+            aug.setdefault("type", side)
+            aug.setdefault("gamma", 1.0)
+            augmented.append(aug)
 
     result = DualGexCalculator.compute(spot, augmented)
     result["ticker"] = ticker.upper()
@@ -132,7 +148,9 @@ def iv_mid(
     ticker: str,
     width: int = Query(6, ge=1, le=20, description="Strikes on either side of ATM"),
 ) -> dict[str, Any]:
-    spot, calls, puts, expiry = _load_chain(ticker)
+    # min_dte=1: never solve on the 0DTE front expiry — T=0 makes the
+    # Black-Scholes inversion impossible (every row came back INVALID).
+    spot, calls, puts, expiry = _load_chain(ticker, min_dte=1)
     # Estimate step size from sorted strike series (yfinance returns strikes ascending).
     if calls:
         center = min(calls, key=lambda c: abs(c["strike"] - spot))["strike"]
@@ -199,9 +217,12 @@ def _iv_row(row: dict, spot: float, T: float, kind: str) -> dict[str, Any]:
     if raw_iv <= 0 or raw_iv > 3.0:
         raw_iv = 0.0
 
-    solved_iv = implied_vol_from_price(
+    # float() casts: the Newton solve returns np.float64 when it actually
+    # runs (T>0); numpy scalars leak numpy.bool into the == comparison below
+    # and Pydantic cannot serialize them (live 500, 2026-07-15).
+    solved_iv = float(implied_vol_from_price(
         mid, spot, K, T, kind=kind, q=_DIV_YIELD, r=_RISK_FREE
-    ) if mid > 0 else 0.0
+    )) if mid > 0 else 0.0
 
     # Round-trip sanity: plug solved sigma back into bs_*_price.
     if solved_iv > 0:
@@ -209,7 +230,7 @@ def _iv_row(row: dict, spot: float, T: float, kind: str) -> dict[str, Any]:
             rt_price = bs_call_price(spot, K, T, solved_iv, r=_RISK_FREE, q=_DIV_YIELD)
         else:
             rt_price = bs_put_price(spot, K, T, solved_iv, r=_RISK_FREE, q=_DIV_YIELD)
-        rt_diff = abs(rt_price - mid)
+        rt_diff = float(abs(rt_price - mid))
     else:
         rt_diff = 0.0
 
@@ -230,6 +251,78 @@ def _iv_row(row: dict, spot: float, T: float, kind: str) -> dict[str, Any]:
 # ----------------------------------------------------------------------
 # Rank #3 — Wheel income screener (CSP + covered call ranked by ARR).
 # ----------------------------------------------------------------------
+def _select_expiries_in_window(
+    expiry_strs,
+    min_dte: int,
+    max_dte: int,
+    cap: int = 8,
+    today=None,
+) -> list[str]:
+    """Pick listed expiries whose DTE falls inside [min_dte, max_dte].
+
+    Pure logic (injectable ``today`` for tests). Malformed expiry strings
+    are skipped. Capped so liquid names (30+ listed expiries) don't blow
+    the network budget the way max_pain's loader also guards against.
+    """
+    if today is None:
+        today = datetime.now(UTC).date()
+    picked: list[str] = []
+    for exp in expiry_strs:
+        try:
+            dte = (datetime.strptime(str(exp), "%Y-%m-%d").date() - today).days
+        except ValueError:
+            continue
+        if min_dte <= dte <= max_dte:
+            picked.append(str(exp))
+        if len(picked) >= cap:
+            break
+    return picked
+
+
+def _load_chain_window(
+    symbol: str,
+    min_dte: int,
+    max_dte: int,
+    cap: int = 8,
+) -> tuple[float, list[dict], list[dict]]:
+    """Side-preserving multi-expiry loader for the income screener.
+
+    Unlike ``_load_chain`` (front expiry only — today's 0DTE, which the
+    screener's min_dte filter then rejects wholesale) this fetches every
+    listed expiry inside the [min_dte, max_dte] window, capped. Returns
+    (spot, calls, puts) with ``expiry`` stamped on each row.
+    """
+    yt = yf.Ticker(symbol.upper())
+    hist = yt.history(period="5d")
+    if hist is None or len(hist) == 0:
+        raise HTTPException(status_code=404, detail=f"No price history for {symbol}")
+    spot = float(hist["Close"].iloc[-1])
+    expiry_attr = getattr(yt, "options", None) or []
+    if not expiry_attr:
+        raise HTTPException(status_code=404, detail=f"No options chain available for {symbol}")
+
+    calls: list[dict] = []
+    puts: list[dict] = []
+    for exp_str in _select_expiries_in_window(expiry_attr, min_dte, max_dte, cap):
+        try:
+            chain = yt.option_chain(exp_str)
+        except Exception as exc:  # noqa: BLE001 — best-effort per-expiry fetch
+            logger.warning(
+                "income-screener: skipping expiry=%s for symbol=%s (%s)",
+                exp_str, symbol.upper(), exc.__class__.__name__,
+            )
+            continue
+        cs = chain.calls.fillna(0).to_dict(orient="records") if chain.calls is not None else []
+        ps = chain.puts.fillna(0).to_dict(orient="records") if chain.puts is not None else []
+        for c in cs:
+            c.setdefault("expiry", exp_str)
+        for p in ps:
+            p.setdefault("expiry", exp_str)
+        calls.extend(cs)
+        puts.extend(ps)
+    return spot, calls, puts
+
+
 @router.get("/api/screener/income")
 def screener_income(
     symbol: str = Query(..., min_length=1, max_length=10),
@@ -242,7 +335,7 @@ def screener_income(
 ) -> dict[str, Any]:
     if max_dte < min_dte:
         raise HTTPException(status_code=400, detail="max_dte must be >= min_dte")
-    spot, calls, puts, _expiry = _load_chain(symbol)
+    spot, calls, puts = _load_chain_window(symbol, min_dte, max_dte)
 
     def _keep(c: dict) -> bool:
         exp = c.get("expiry")
@@ -427,7 +520,7 @@ def sentiment_route(
 def sentiment_mod_attr() -> bool:
     """Tiny shim to avoid circular import — module-level VADER_AVAILABLE AND
     TEXTBLOB_AVAILABLE flag inspection happens inside services.sentiment."""
-    from services.sentiment import VADER_AVAILABLE, TEXTBLOB_AVAILABLE
+    from services.sentiment import TEXTBLOB_AVAILABLE, VADER_AVAILABLE
     return VADER_AVAILABLE and TEXTBLOB_AVAILABLE
 
 
@@ -568,6 +661,109 @@ def strike_cone_endpoint(
 
 
 # ---------------------------------------------------------------------------
+# Steal-list #4 — Risk-Neutral Density (Breeden-Litzenberger implied PDF)
+# GET /api/rnd/{ticker}?expiry_index=N
+# Translates the chain (call surface for a single expiry) into the
+# risk-neutral probability density f_Q(K) = exp(rT) * d²C/dK² via the
+# Breeden-Litzenberger formula (1978). Returns the PDF, CDF, expected
+# price (= E[S_T] under Q), median, mode, and tail probabilities at the
+# canonical spot-relative thresholds (95 / 98 / 102 / 105 %).
+#
+# Pure-logic service owns the math; this layer owns external I/O + chain
+# fetching + defensive degrade. Default expiry_index=1 skips 0DTE because
+# T=0 makes the 2nd derivative degenerate (same guard as strike_cone
+# which uses min_dte=1). Cleanup matches the canonical steal-three
+# pattern: try/except never 500s.
+# ---------------------------------------------------------------------------
+@router.get("/api/rnd/{ticker}")
+def risk_neutral_density_endpoint(
+    ticker: str,
+    expiry_index: int = Query(
+        1, ge=0, le=20,
+        description="Listed-expiry index (0=0DTE, 1=1DTE, ...). "
+                    "Default 1 skips the 0DTE front expiry because "
+                    "T=0 makes the Breeden-Litzenberger 2nd derivative "
+                    "degenerate. Valid: 0 = 0DTE (degenerate PDF), "
+                    "1 = first non-0DTE (most common default), "
+                    "2+ = progressively longer-dated expiries.",
+    ),
+):
+    """Breeden–Litzenberger risk-neutral density at one option expiry.
+
+    Reads the chain via ``_load_chain`` (which returns spot + calls + puts
+    + chosen_expiry in a single structured tuple, the same helper strike_cone
+    uses for its IV inputs). Filters to calls-only (the BL formula is
+    call-side) and forwards to ``services.risk_neutral_density.compute_rnd_pdf``
+    for the math.
+
+    The route returns the full documented schema:
+    {ticker, expiry, spot, T_years, r, n_strikes_used, n_grid_points,
+     x_grid, pdf, cdf, expected_price, expected_move_pct, median, mode,
+     tail_probs={p_below_95|98pct_spot, p_above_102|105pct_spot},
+     warnings, method=cubic_spline_2nd_derivative|central_diff}.
+
+    Defensive degrade: any upstream failure returns a well-formed empty
+    dict so the dashboard never breaks on a cold cache.
+
+    Routing hygiene: ``expiry_index`` is forwarded DIRECTLY to
+    ``_load_chain`` (no ``min_dte=1`` override). That override creates a
+    silent bug — ``_load_chain(min_dte=1)`` always picks ``cap=1`` which
+    discards the user's index. We instead pre-shift the user's index so
+    the natural default of 1 maps to "second listed expiry" (the first
+    non-0DTE row), and users who explicitly request ``expiry_index=0``
+    get the 0DTE chain (degenerate PDF — they get what they asked for).
+    """
+    try:
+        from services.risk_neutral_density import compute_rnd_pdf
+        # pre-shift so default 1 maps to "skip 0DTE" without forcing the
+        # min_dte override on _load_chain (which would silently discard
+        # the user's expiry_index argument). User-supplied values flow
+        # through unchanged.
+        effective_index = max(1, int(expiry_index)) if int(expiry_index) >= 0 else 1
+        spot, calls, _puts, chosen_expiry = _load_chain(
+            ticker.upper(), expiry_index=effective_index, min_dte=0,
+        )
+        # Compute T (years to expiry). Default to 1/52 (1 week) if we
+        # can't parse the ISO date — that's a sensible minimum-spread
+        # assumption for the "to expiry" metric on a chosen chain.
+        T = 1.0 / 52.0
+        if chosen_expiry:
+            try:
+                dte = (
+                    datetime.strptime(str(chosen_expiry), "%Y-%m-%d").date()
+                    - datetime.now(UTC).date()
+                ).days
+                T = max(int(dte), 0) / 365.0
+            except ValueError:
+                pass
+        out = compute_rnd_pdf(
+            chain_calls=calls,
+            spot=float(spot) if spot is not None else 0.0,
+            T=T,
+            r=_RISK_FREE,
+            expiry=str(chosen_expiry) if chosen_expiry else None,
+        )
+        return {"ticker": ticker.upper(), **out}
+    except Exception as exc:    # pragma: no cover (defensive degrade)
+        return {
+            "ticker": ticker.upper(),
+            "expiry": None,
+            "spot": None,
+            "T_years": None,
+            "r": None,
+            "n_strikes_used": 0,
+            "n_grid_points": 0,
+            "x_grid": [], "pdf": [], "cdf": [],
+            "expected_price": None, "expected_move_pct": None,
+            "median": None, "mode": None,
+            "tail_probs": {},
+            "warnings": [f"engine exception: {exc}"],
+            "method": "cubic_spline_2nd_derivative",
+        }
+
+
+
+# ---------------------------------------------------------------------------
 # Steal-list #9 deferred completion — Max-Pain Drift tracking
 # GET /api/max_pain_drift/{ticker}?days=30
 # Initialises the max_pain_daily DuckDB table on first hit (idempotent
@@ -594,6 +790,12 @@ def max_pain_drift_endpoint(
          every minute for the live drift readout.
     """
     try:
+        from server import (
+            compute_max_pain_per_expiry,
+            compute_overall_max_pain,
+            fetch_spot_and_chains,
+        )
+        from services.duckdb_engine import db as duckdb_engine
         from services.max_pain_drift import (
             accumulate_today,
             accumulate_today_per_expiry,
@@ -601,12 +803,6 @@ def max_pain_drift_endpoint(
             init_max_pain_daily_table,
             read_recent_drift,
         )
-        from server import (
-            compute_max_pain_per_expiry,
-            compute_overall_max_pain,
-            fetch_spot_and_chains,
-        )
-        from services.duckdb_engine import db as duckdb_engine
 
         # Idempotent table init — every request repays this cost microscopically
         # but guarantees first-hit + crash-during-cron robustness.
@@ -695,13 +891,13 @@ def consensus_drift_endpoint(
          every minute for the live drift readout.
     """
     try:
+        from server import fetch_spot_and_chains
         from services.consensus_pricing_daily import (
             accumulate_today,
             compute_consensus_drift,
             init_consensus_daily_table,
             read_recent_drift,
         )
-        from server import fetch_spot_and_chains
         from services.duckdb_engine import db as duckdb_engine
 
         # Idempotent table init — every request repays this cost microscopically
@@ -800,6 +996,7 @@ def news_history_endpoint(
     Mirrors /api/max_pain_drift + /api/insider shape.
     """
     try:
+        from services.duckdb_engine import db as duckdb_engine
         from services.news_feed import (
             accumulate_today,
             compute_news_summary,
@@ -807,7 +1004,6 @@ def news_history_endpoint(
             init_news_daily_table,
             read_recent_news,
         )
-        from services.duckdb_engine import db as duckdb_engine
 
         try:
             init_news_daily_table(duckdb_engine)
@@ -872,12 +1068,12 @@ def news_ticker_endpoint(
     (standard cron pattern, mirrors /api/occ_volume shape).
     """
     try:
+        from services.duckdb_engine import db as duckdb_engine
         from services.news_feed import (
             accumulate_today,
             fetch_ticker_news,
             init_news_daily_table,
         )
-        from services.duckdb_engine import db as duckdb_engine
 
         if accumulate:
             try:
@@ -938,13 +1134,13 @@ def insider_top_endpoint(
     (?or=-10&tv=100000&tc=7&o=-transactionValue).
     """
     try:
+        from services.duckdb_engine import db as duckdb_engine
         from services.insider_scraper import (
             accumulate_today,
             compute_insider_summary,
             fetch_top_insider,
             init_insider_daily_table,
         )
-        from services.duckdb_engine import db as duckdb_engine
 
         try:
             init_insider_daily_table(duckdb_engine)
@@ -999,13 +1195,13 @@ def insider_latest_endpoint(
 ):
     """Finviz market-wide latest insider trades."""
     try:
+        from services.duckdb_engine import db as duckdb_engine
         from services.insider_scraper import (
             accumulate_today,
             compute_insider_summary,
             fetch_latest_insider,
             init_insider_daily_table,
         )
-        from services.duckdb_engine import db as duckdb_engine
 
         try:
             init_insider_daily_table(duckdb_engine)
@@ -1065,13 +1261,13 @@ def insider_ticker_endpoint(
     repeatedly.
     """
     try:
+        from services.duckdb_engine import db as duckdb_engine
         from services.insider_scraper import (
             accumulate_today,
             compute_insider_summary,
             fetch_ticker_insider,
             init_insider_daily_table,
         )
-        from services.duckdb_engine import db as duckdb_engine
 
         # Catch-all guard: if ticker is "top" or "latest", this endpoint
         # was wrongly matched (route-order bug). Defensive fast-return
@@ -1162,6 +1358,10 @@ def occ_volume_endpoint(
     #   2. Frontend polls /api/occ_volume/SPY?accumulate=false&days=14
     #      on a 24 h cadence for the live "Who traded" readout.
     try:
+        from datetime import date as _date
+        from datetime import timedelta as _td
+
+        from services.duckdb_engine import db as duckdb_engine
         from services.occ_scraper import (
             accumulate_today,
             compute_occ_summary,
@@ -1169,8 +1369,6 @@ def occ_volume_endpoint(
             init_occ_daily_table,
             read_recent_occ,
         )
-        from services.duckdb_engine import db as duckdb_engine
-        from datetime import date as _date, timedelta as _td
 
         # Idempotent table init.
         try:
