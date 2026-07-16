@@ -1,3 +1,15 @@
+/**
+ * frontend/serve.js — Node-based static file server for frontend/build/ +
+ * reverse-proxy /api/* and /ws/* to backend :8000.
+ *
+ * Two startup options for the prebuilt bundle:
+ *   1. Node (this file):       node frontend/serve.js
+ *   2. Python dev fallback:    python3 frontend/static_proxy.py
+ *
+ * The Python fallback (frontend/static_proxy.py) is the drop-in replacement
+ * if the Node path ever fails — see README "Frontend" section for the
+ * ajv-keywords recovery steps.
+ */
 const http = require('http');
 const fs = require('fs');
 const path = require('path');

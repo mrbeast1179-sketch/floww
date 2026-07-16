@@ -57,7 +57,24 @@ npm start
 
 # Production build
 npm run build
-node serve.js
+
+# Serve the prebuilt bundle on :3000 (proxies /api/* + /ws/* to :8000)
+#
+# Two startup options — both render the prebuilt bundle in frontend/build/:
+#
+#   1. Node (permanent, this repo's preferred path)
+#      node frontend/serve.js
+#      Requires the ajv-keywords/ajv v8 compatibility pin in
+#      frontend/package.json (ajv-keywords@5.1.0 + ajv@^8.17.0).
+#      If a future `npm install` breaks ajv-keywords, recover with:
+#          rm -rf frontend/node_modules/ajv-keywords \
+#                 frontend/node_modules/.package-lock.json
+#          (cd frontend && npm rebuild ajv-keywords)
+#
+#   2. Python (documented dev fallback — no Node toolchain needed)
+#      python3 frontend/static_proxy.py
+#      Sidesteps the ajv-keywords/ajv v8 incompatibility entirely.
+#      ~90 LOC, mirrors frontend/serve.js line-for-line.
 ```
 
 ### Docker
