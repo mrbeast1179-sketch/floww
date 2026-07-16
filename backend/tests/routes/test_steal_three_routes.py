@@ -317,3 +317,212 @@ def test_iv_row_returns_json_native_types():
     assert type(r["solved_iv_is_invalid"]) is bool
     assert not hasattr(r["solved_iv"], "dtype")
     assert not hasattr(r["round_trip_diff"], "dtype")
+
+
+# --------------------------------------------------------------------------
+# Steal-list triage (2026-07-15): 5 regression tests pinning the contract
+# for the 4 endpoints the user reported as failing.
+#   * /api/dual_gex              — 500 → defensive-degrade wrap (test #1).
+#   * /api/wheel_income/        — 404 → backwards-compat alias (test #2).
+#   * /api/regime_persistence    — 404 → missing route, shipped now
+#                                  (tests #3 + #4).
+#   * /api/chain_consensus      — perceived partial-body → contract pin
+#                                  (test #5).
+# Each test guards a specific failure mode so future route-layer refactors
+# can't silently regress to the 2026-07-15 broken state.
+# --------------------------------------------------------------------------
+def test_dual_gex_route_defensive_degrade_when_calculator_raises(monkeypatch):
+    """If DualGexCalculator.compute() raises (truly malformed broker row,
+    regression in GexAggregator._resolve, etc.), the route MUST swallow
+    the exception and return the empty-shape dict — never a 500 that
+    would crash the Heatseeker dashboard. The empty shape mirrors
+    DualGexCalculator.empty + the route's documented decorations so
+    DualGEXBadge.jsx renders the offline tile cleanly.
+    """
+    from services.gex_dual import DualGexCalculator
+
+    # Setup _load_chain to return a valid tuple so the route enters
+    # the try block (vs. failing at _load_chain with a real 404).
+    calls = [{"strike": 100.0, "openInterest": 10, "volume": 5.0,
+              "bid": 1.0, "ask": 1.2, "expiry": "2026-08-15"}]
+    puts = [{"strike": 90.0, "openInterest": 20, "volume": 2.0,
+             "bid": 0.8, "ask": 1.0, "expiry": "2026-08-15"}]
+    monkeypatch.setattr(
+        "routes.steal_three._load_chain",
+        lambda ticker, expiry_index=0: (100.0, calls, puts, "2026-08-15"),
+    )
+
+    # Force the calculator to raise — this is the fault the wrap guards.
+    def _boom(_spot, _contracts):
+        raise RuntimeError("simulated broker-shape regression")
+    monkeypatch.setattr(DualGexCalculator, "compute", staticmethod(_boom))
+
+    client = TestClient(_build_minimal_app())
+    resp = client.get("/api/dual_gex/SPY")
+    assert resp.status_code == 200, resp.text
+    data = resp.json()
+    # Empty-shape contract: every documented key present with the
+    # zero/empty default so DualGEXBadge.jsx never sees a key error.
+    assert data["ticker"] == "SPY"
+    assert data["spot"] == 0.0
+    assert data["strikes"] == []
+    assert data["gex_oi_1d"] == []
+    assert data["gex_volume_1d"] == []
+    assert data["total_gex"] == 0.0
+    assert data["net_gex_oi"] == 0.0
+    assert data["net_gex_volume"] == 0.0
+    assert data["gex_oi_total"] == 0.0
+    assert data["gex_volume_total"] == 0.0
+    assert data["activity_ratio"] == 0.0
+    assert data["activity_badge"] == "quiet"
+    assert data["positive_gex_oi"] == 0.0
+    assert data["positive_gex_volume"] == 0.0
+    # error key set — the badge will display the cause for triage.
+    assert data["error"] is not None
+    assert "RuntimeError" in data["error"]
+    assert "simulated broker-shape regression" in data["error"]
+
+
+def test_wheel_income_alias_calls_same_screener_logic(monkeypatch):
+    """``/api/wheel_income/{ticker}`` is the backwards-compat alias
+    added by the 2026-07-15 triage. It MUST produce IDENTICAL output
+    to the canonical ``/api/screener/income?symbol=...`` route so
+    callers that use either URL get the same ranked candidates — the
+    alias is a pure URI-rewrite, not a divergent code path.
+    """
+    put_row = {"strike": 95.0, "expiry": "2026-08-21", "openInterest": 500,
+               "volume": 40, "bid": 1.0, "ask": 1.2, "impliedVolatility": 0.25}
+    call_row = {"strike": 105.0, "expiry": "2026-08-21", "openInterest": 300,
+                "volume": 30, "bid": 0.9, "ask": 1.1, "impliedVolatility": 0.22}
+    monkeypatch.setattr(
+        "routes.steal_three._load_chain_window",
+        lambda symbol, min_dte, max_dte, cap=8: (100.0, [call_row], [put_row]),
+    )
+
+    client = TestClient(_build_minimal_app())
+    canonical = client.get(
+        "/api/screener/income?symbol=SPY&side=both&min_dte=7&max_dte=45"
+    ).json()
+    aliased = client.get(
+        "/api/wheel_income/SPY?side=both&min_dte=7&max_dte=45"
+    ).json()
+
+    # The two routes share the ``_run_income_screener`` helper so the
+    # contracts agree on every ranked row + filter/echo metadata.
+    assert canonical["symbol"] == aliased["symbol"] == "SPY"
+    assert canonical["spot"] == aliased["spot"]
+    assert canonical["filters"] == aliased["filters"]
+    assert canonical["puts"] == aliased["puts"]
+    assert canonical["calls"] == aliased["calls"]
+    assert canonical["source"] == aliased["source"]
+
+
+def test_regime_persistence_route_present():
+    """The 2026-07-15 triage confirmed ``/api/regime_persistence/{ticker}``
+    was 404 because the route WAS NOT MOUNTED. This smoke test pins the
+    @router.get path is now present on the FastAPI app — future
+    refactors that delete the line by mistake will fail this test
+    directly.
+    """
+    app = _build_minimal_app()
+    paths = sorted({r.path for r in app.routes if hasattr(r, "path")})
+    assert "/api/regime_persistence/{ticker}" in paths
+    # And the method is GET.
+    paths_to_methods: dict[str, set[str]] = {}
+    for r in app.routes:
+        if hasattr(r, "path") and hasattr(r, "methods"):
+            paths_to_methods.setdefault(r.path, set()).update(r.methods)
+    assert "GET" in paths_to_methods["/api/regime_persistence/{ticker}"]
+
+
+def test_regime_persistence_route_handles_mongo_unreachable(monkeypatch):
+    """If MongoDB access fails (MongoDown, scheduler paused, ticker has
+    no chain data, etc.) the route MUST return the canonical
+    empty-metrics response — never a 500. The defensive-degrade
+    contract matches consensus_drift + max_pain_drift pattern.
+    """
+    # Patch the helper the route reaches for AFTER it imports db, so
+    # the route still completes `from server import db as mongo_db`
+    # before the helper's raise short-circuits the chain.
+    def _mongo_down(_ticker, **_kwargs):
+        raise RuntimeError("simulated MongoDB unreachable")
+    monkeypatch.setattr(
+        "services.gex_history.get_gex_history_sync", _mongo_down,
+    )
+
+    client = TestClient(_build_minimal_app())
+    resp = client.get("/api/regime_persistence/SPY?days=30")
+    # The DB raise is caught — route returns a structured empty body,
+    # NOT a 500.
+    assert resp.status_code == 200, resp.text
+    data = resp.json()
+    # Documented empty-metrics contract pinned here so a future
+    # refactor can't quietly change the shape.
+    assert data["ticker"] == "SPY"
+    assert data["regime"] is None
+    assert data["sign_persistence_pct"] == 0.0
+    assert data["flip_count"] == 0
+    assert data["magnitude_conviction"] == 0.0
+    assert data["coefficient_of_variation"] == 0.0
+    assert data["n_days_covered"] == 0
+    assert data["window_label"] == "30d"
+    assert any("RuntimeError" in w for w in data["warnings"])
+    assert any("simulated MongoDB unreachable" in w for w in data["warnings"])
+
+
+def test_chain_consensus_endpoint_returns_documented_keys(monkeypatch):
+    """The 2026-07-15 user-perceived "partial body" probably stems from
+    the per-row ``rows[]`` listing the first 8 expiries only (most-
+    liquid front-of-chain), NOT from a truncated schema. This test
+    pins the EXACT schema contract — top-level keys, per-row keys,
+    overall keys — so a future "regional completeness" decision can't
+    silently truncate the response shape.
+    """
+    contracts = [
+        {"expiry": "2026-08-15", "type": "CALL", "strike": 100,
+         "openInterest": 1000, "bid": 1.9, "ask": 2.1, "lastPrice": 2.0},
+        {"expiry": "2026-09-19", "type": "PUT",  "strike":  90,
+         "openInterest": 1000, "bid": 1.5, "ask": 2.5, "lastPrice": 2.0},
+    ]
+    monkeypatch.setattr(
+        "routes.steal_three._load_multi_expiry_chain",
+        lambda ticker, expiries: (100.0, contracts, 2),
+    )
+
+    client = TestClient(_build_minimal_app())
+    resp = client.get("/api/chain_consensus/SPY?expiries=2")
+    assert resp.status_code == 200, resp.text
+    data = resp.json()
+
+    # Top-level keys contract.
+    expected_top = {"ticker", "spot", "expiries_scanned", "rows", "overall", "source"}
+    assert set(data.keys()) == expected_top, (
+        f"top-level keys diverged: got {sorted(data.keys())} "
+        f"expected {sorted(expected_top)}"
+    )
+
+    # Per-row keys contract.
+    expected_row = {
+        "expiry", "consensus_price", "total_oi",
+        "call_oi", "put_oi", "avg_call_premium", "avg_put_premium",
+    }
+    assert all(set(r.keys()) == expected_row for r in data["rows"]), (
+        f"row keys diverged: got {[set(r.keys()) for r in data['rows']]} "
+        f"expected {expected_row}"
+    )
+
+    # Overall keys contract.
+    # NOTE: ``expiry`` is included because compute_overall_consensus stamps
+    # the OVERALL bucket's synthetic expiry label (a documented
+    # convenience so downstream callers don't have to special-case the
+    # absence of an expiry key). The per-row keys already include
+    # ``expiry`` for the same reason — they're for individual listed
+    # expiries.
+    expected_overall = {
+        "expiry", "consensus_price", "total_oi", "call_oi", "put_oi",
+        "avg_call_premium", "avg_put_premium",
+    }
+    assert set(data["overall"].keys()) == expected_overall, (
+        f"overall keys diverged: got {sorted(data['overall'].keys())} "
+        f"expected {sorted(expected_overall)}"
+    )

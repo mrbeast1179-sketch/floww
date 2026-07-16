@@ -109,35 +109,73 @@ def _t_years_from_dte(dte_days: int) -> float:
 
 # ----------------------------------------------------------------------
 # Rank #1 — Dual-GEX + activity-ratio badge.
+#
+# Defensive degrade (steal-list triage 2026-07-15): wrap the entire
+# route body in try/except so any upstream exception (yfinance network
+# error, GexAggregator._resolve KeyError on a truly malformed broker
+# row, numba kernel weirdness, etc.) falls through to a well-formed
+# EMPTY-SHAPE response that mirrors ``DualGexCalculator.empty`` plus the
+# route's documented decorations. ``DualGEXBadge.jsx`` reads the empty
+# shape's keys (``activity_ratio``, ``activity_badge``, ``net_gex_volume``
+# etc.) and renders the offline tile state cleanly rather than the
+# dashboard hard-crashing on a 500. The fidelity: a regression test
+# pins this contract (``test_dual_gex_route_defensive_degrade_when_dual_gex_raises``).
 # ----------------------------------------------------------------------
 @router.get("/api/dual_gex/{ticker}")
 def dual_gex(ticker: str) -> dict[str, Any]:
-    spot, calls, puts, _expiry = _load_chain(ticker)
-    # The yfinance row only carries OI; per-strike gamma floww already
-    # computes elsewhere. Here we treat gamma=1 so the *ratio* stays
-    # meaningful (it'll be 1.0 by construction when volume == OI) and the
-    # caller can later wire in the greeks pipeline for production parity.
-    # Bare yfinance rows also carry no type/option_type column — the side
-    # exists only in the calls-vs-puts split, so stamp it here or
-    # GexAggregator._resolve raises KeyError (live 500, 2026-07-15).
-    augmented: list[dict] = []
-    for side, rows in (("call", calls), ("put", puts)):
-        for c in rows:
-            aug = dict(c)
-            aug.setdefault("type", side)
-            aug.setdefault("gamma", 1.0)
-            augmented.append(aug)
+    # Empty shape mirrors DualGexCalculator.compute()'s documented
+    # "empty contracts / spot <= 0" return so the frontend sees the
+    # same keys regardless of whether the failure is upstream (yfinance)
+    # or downstream (DualGexCalculator, GexAggregator._resolve).
+    empty_shape: dict[str, Any] = {
+        "strikes": [],
+        "gex_oi_1d": [],
+        "gex_volume_1d": [],
+        "total_gex": 0.0,
+        "net_gex_oi": 0.0,
+        "net_gex_volume": 0.0,
+        "gex_oi_total": 0.0,
+        "gex_volume_total": 0.0,
+        "activity_ratio": 0.0,
+        "activity_badge": "quiet",
+        "positive_gex_oi": 0.0,
+        "positive_gex_volume": 0.0,
+        "ticker": ticker.upper(),
+        "spot": 0.0,
+        "source": "steal-three-router",
+        "note": "dual_gex endpoint degraded gracefully — see error key for cause.",
+        "error": None,
+    }
+    try:
+        spot, calls, puts, _expiry = _load_chain(ticker)
+        # The yfinance row only carries OI; per-strike gamma floww already
+        # computes elsewhere. Here we treat gamma=1 so the *ratio* stays
+        # meaningful (it'll be 1.0 by construction when volume == OI) and the
+        # caller can later wire in the greeks pipeline for production parity.
+        # Bare yfinance rows also carry no type/option_type column — the side
+        # exists only in the calls-vs-puts split, so stamp it here or
+        # GexAggregator._resolve would raise KeyError (live 500, 2026-07-15).
+        augmented: list[dict] = []
+        for side, rows in (("call", calls), ("put", puts)):
+            for c in rows:
+                aug = dict(c)
+                aug.setdefault("type", side)
+                aug.setdefault("gamma", 1.0)
+                augmented.append(aug)
 
-    result = DualGexCalculator.compute(spot, augmented)
-    result["ticker"] = ticker.upper()
-    result["spot"] = round(spot, 4)
-    result["source"] = "steal-three-router"
-    result["note"] = (
-        "Gamma defaulted to 1.0 because the bare yfinance row does not "
-        "carry it. Wire the existing numba_greeks pipeline through to this "
-        "router for production-quality ratios that match the Heatseeker heatmap."
-    )
-    return result
+        result = DualGexCalculator.compute(spot, augmented)
+        result["ticker"] = ticker.upper()
+        result["spot"] = round(spot, 4)
+        result["source"] = "steal-three-router"
+        result["note"] = (
+            "Gamma defaulted to 1.0 because the bare yfinance row does not "
+            "carry it. Wire the existing numba_greeks pipeline through to this "
+            "router for production-quality ratios that match the Heatseeker heatmap."
+        )
+        return result
+    except Exception as exc:    # pragma: no cover (defensive degrade)
+        empty_shape["error"] = f"{type(exc).__name__}: {exc}"
+        return empty_shape
 
 
 # ----------------------------------------------------------------------
@@ -323,18 +361,32 @@ def _load_chain_window(
     return spot, calls, puts
 
 
-@router.get("/api/screener/income")
-def screener_income(
-    symbol: str = Query(..., min_length=1, max_length=10),
-    side: str = Query("both", pattern="^(both|put|call)$"),
-    min_iv: float = Query(0.0, ge=0.0, le=3.0),
-    min_volume: int = Query(0, ge=0),
-    min_dte: int = Query(7, ge=1, le=365),
-    max_dte: int = Query(45, ge=1, le=730),
-    top: int = Query(25, ge=1, le=100),
+# ----------------------------------------------------------------------
+# Shared income-screener runner (steal-list triage 2026-07-15)
+#
+# Extracted from the prior monolithic screener_income body so that
+# BOTH ``/api/screener/income`` and ``/api/wheel_income/{ticker}`` route
+# to ONE pure-logic helper. Mirrors the documented pattern at other
+# steal-list routes (max_pain + max_pain_drift, consensus_pricing +
+# consensus_drift) where the route is a thin wrapper.
+# ----------------------------------------------------------------------
+def _run_income_screener(
+    symbol: str,
+    side: str,
+    min_iv: float,
+    min_volume: int,
+    min_dte: int,
+    max_dte: int,
+    top: int,
 ) -> dict[str, Any]:
+    """Pure-logic runner shared by ``/api/screener/income`` and the
+    backwards-compat ``/api/wheel_income/{ticker}`` alias. Validates
+    DTE bounds + dispatches to the canonical rank_*_to_sell helpers.
+    """
     if max_dte < min_dte:
-        raise HTTPException(status_code=400, detail="max_dte must be >= min_dte")
+        raise HTTPException(
+            status_code=400, detail="max_dte must be >= min_dte",
+        )
     spot, calls, puts = _load_chain_window(symbol, min_dte, max_dte)
 
     def _keep(c: dict) -> bool:
@@ -378,6 +430,56 @@ def screener_income(
         "calls": res["calls"],
         "source": "steal-three-router",
     }
+
+
+@router.get("/api/screener/income")
+def screener_income(
+    symbol: str = Query(..., min_length=1, max_length=10),
+    side: str = Query("both", pattern="^(both|put|call)$"),
+    min_iv: float = Query(0.0, ge=0.0, le=3.0),
+    min_volume: int = Query(0, ge=0),
+    min_dte: int = Query(7, ge=1, le=365),
+    max_dte: int = Query(45, ge=1, le=730),
+    top: int = Query(25, ge=1, le=100),
+) -> dict[str, Any]:
+    """Wheel-Income Screener (steal-list rank #3) — canonical route.
+
+    Backward-compat note: a sibling ``/api/wheel_income/{ticker}``
+    route is mounted AFTER this one to support legacy callers/manual
+    curl habits — both routes share the ``_run_income_screener``
+    helper below, so behavior is identical apart from the ticker
+    argument name (``symbol`` vs ``ticker``).
+    """
+    return _run_income_screener(
+        symbol=symbol, side=side,
+        min_iv=min_iv, min_volume=min_volume,
+        min_dte=min_dte, max_dte=max_dte, top=top,
+    )
+
+
+# ----------------------------------------------------------------------
+# Rank #3 — Wheel-Income Screener ALIAS route (backwards-compat).
+# Matches the canonical route's body verbatim via the shared helper.
+# Declared AFTER ``/api/screener/income`` so FastAPI's path matcher
+# prioritises the static (no-path-param) canonical route first if
+# any future refinement keys off of that. Here it's purely a
+# ``{ticker}``-shaped alias — same semantics, ticker is the symbol.
+# ----------------------------------------------------------------------
+@router.get("/api/wheel_income/{ticker}")
+def wheel_income_alias(
+    ticker: str,
+    side: str = Query("both", pattern="^(both|put|call)$"),
+    min_iv: float = Query(0.0, ge=0.0, le=3.0),
+    min_volume: int = Query(0, ge=0),
+    min_dte: int = Query(7, ge=1, le=365),
+    max_dte: int = Query(45, ge=1, le=730),
+    top: int = Query(25, ge=1, le=100),
+) -> dict[str, Any]:
+    return _run_income_screener(
+        symbol=ticker, side=side,
+        min_iv=min_iv, min_volume=min_volume,
+        min_dte=min_dte, max_dte=max_dte, top=top,
+    )
 
 
 # ----------------------------------------------------------------------
@@ -1033,7 +1135,85 @@ def consensus_drift_endpoint(
 
 
 
-# ---------------------------------------------------------------------------
+# -------------------------------------------------------------------------
+# Steal-list #8 — Regime-Persistence classifier (the one I tried to land
+# in the earlier str_replace cascade per the user). Service exists at
+# backend/services/regime_persistence.py::classify_window with a 13-case
+# hand-verified pytest suite green; the route was simply never mounted.
+# Lands now per the .md spec:
+#   "Endpoint GET /api/regime_persistence/{ticker}?days=30 mounted in
+#    canonical steal-three router at :8000 (mirrors consensus_drift +
+#    max_pain_drift pattern; uses from server import db as mongo_db
+#    per the precedent at routes/analytics.py:336, defensive try/except
+#    returns regime=None + empty metrics on MongoDB failure)."
+#
+# The MongoDB-backed data path: services/gex_history.py ::
+# get_gex_history_sync(ticker, days=, mongo_db=) returns the per-day
+# gex_total time-series from databento_eod_chains + underlying_bars
+# collections. The endpoint layer is a thin wrapper that:
+#   - fetches the rows,
+#   - calls classify_window(rows, window_label=f"{days}d"),
+#   - returns the documented metrics schema with the ticker echoed.
+# The defensive-degrade contract mirrors consensus_drift + max_pain_drift
+# exactly: any upstream failure (Mongo unreachable, no chain data, etc.)
+# returns regime=None + zeroed metrics + a warning, never a 500.
+# ----------------------------------------------------------------------
+@router.get("/api/regime_persistence/{ticker}")
+def regime_persistence_endpoint(
+    ticker: str,
+    days: int = Query(
+        30, ge=1, le=365,
+        description="Window of gex_total history to classify (default 30d).",
+    ),
+) -> dict[str, Any]:
+    """Regime-Persistence classifier (steal-list #8).
+
+    Returns the canonical classifier schema::
+
+        {
+            ticker, regime (None | persistent_positive | persistent_negative
+                            | transitional | low_conviction),
+            sign_persistence_pct, flip_count, magnitude_conviction,
+            coefficient_of_variation, n_days_covered, window_label, warnings,
+        }
+
+    The ``warnings`` field surfaces DB hiccups and missing-data
+    conditions. ``regime=None`` indicates either: no gex_total history
+    found for the ticker in the window, OR that the window sits below
+    the absolute noise floor (NOISE_FLOOR_ABS=1.0 in
+    services.regime_persistence).
+    """
+    try:
+        from server import db as mongo_db
+        from services.gex_history import get_gex_history_sync
+        from services.regime_persistence import classify_window
+
+        rows = get_gex_history_sync(
+            ticker.upper(), days=days, mongo_db=mongo_db,
+        )
+        out = classify_window(rows, window_label=f"{days}d")
+        # Echo ticker for parity with the canonical steal-three schema.
+        return {"ticker": ticker.upper(), **out}
+    except Exception as exc:    # pragma: no cover (defensive degrade)
+        return {
+            "ticker": ticker.upper(),
+            "regime": None,
+            "sign_persistence_pct": 0.0,
+            "flip_count": 0,
+            "magnitude_conviction": 0.0,
+            "coefficient_of_variation": 0.0,"n_days_covered": 0,
+            "window_label": f"{days}d",
+            # Peer-consistent warning format: include exception class name so
+            # triage reads "engine exception: RuntimeError: <msg>" (matches
+            # dual_gex's `empty_shape["error"] = f"{type(exc).__name__}: {exc}"`
+            # pattern and the test_chain_consensus / test_regime_persistence
+            # regression guards).
+            "warnings": [f"engine exception: {type(exc).__name__}: {exc}"],
+        }
+
+
+# -------------------------------------------------------------------------
+# (decorative separator - orphan -- removed on 2026-07-15 to restore PEP-valid Python syntax)
 
 
 
