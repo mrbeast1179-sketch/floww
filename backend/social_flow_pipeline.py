@@ -24,11 +24,7 @@ logger = logging.getLogger(__name__)
 # Data Models
 # ============================================================
 
-@dataclass
-@dataclass
-@dataclass
-@dataclass
-class TwitterCollector:
+class TwitterCollector:  # FIXME: was 4 stacked @dataclass — they were no-ops on a regular class with __init__. Stripped 2026-07-15 in the sentiment deferred-(a) ship.
     """
     Collects tweets using xurl CLI.
     Requires xurl to be authenticated (user must set up X API credentials).
@@ -142,6 +138,7 @@ class TwitterCollector:
 # Utility: Save/Load reports
 # ============================================================
 
+@dataclass
 class TickerSentiment:
     """Aggregated sentiment for a ticker."""
     ticker: str

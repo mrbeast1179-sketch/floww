@@ -10,6 +10,12 @@ from datetime import datetime
 
 from fastapi import APIRouter
 
+# Steal-list deferred (a) ship 2026-07-15: surface the library-availability flags
+# so the cached route can report a graceful `aggregate_sentiment_available`
+# verdict when at least one of VADER / TextBlob is installed. The single-library
+# fallback policy lives in services.sentiment._label_from_agreement().
+from services.sentiment import TEXTBLOB_AVAILABLE, VADER_AVAILABLE
+
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/social", tags=["social"])
@@ -19,19 +25,55 @@ DATA_DIR = os.path.join(os.path.dirname(__file__), "..", "data", "social-reports
 os.makedirs(DATA_DIR, exist_ok=True)
 
 
+def _aggregate_sentiment_available() -> bool:
+    """True iff at least one of VADER / TextBlob is importable.
+
+    One-line helper so the route handler stays clean; both flags are
+    bound at routes.social_flow module-load time so this cannot raise.
+    """
+    return bool(VADER_AVAILABLE or TEXTBLOB_AVAILABLE)
+
+
 @router.get("/sentiment/{ticker}")
 async def get_sentiment(ticker: str):
-    """Get social sentiment for a ticker."""
+    """Get social sentiment for a ticker.
+
+    Steal-list deferred (a) ship 2026-07-15: now reports
+    ``aggregate_sentiment_available`` (true iff at least one VADER / TextBlob
+    library is importable) and ``stale_as_of`` (the on-disk mtime if the
+    cache file lacks a ``generated_at``). When the cache file exists we
+    pass the cached ``sentiment`` dict through verbatim — we CANNOT
+    re-score without the raw tweet corpus that produced it, so the cache
+    shape is the canonical "as-of" snapshot.
+    """
     report_path = os.path.join(DATA_DIR, f"{ticker.upper()}_sentiment.json")
+    agg_available = _aggregate_sentiment_available()
 
     if os.path.exists(report_path):
         with open(report_path) as f:
             data = json.load(f)
-        return {"ticker": ticker.upper(), "cached": True, **data}
+        # Prefer the report's own timestamp; fall back to file mtime so the
+        # field is always populated when reports come from older versions
+        # of save_report() that didn't include generated_at.
+        stale_as_of = (
+            data.pop("generated_at", None)
+            or datetime.fromtimestamp(os.path.getmtime(report_path)).isoformat()
+        )
+        # Spread data FIRST, then overwrite with our explicit metadata keys
+        # so a future cached file that happened to include either of these
+        # keys can never override the route's authoritative answer.
+        return {
+            **data,
+            "ticker": ticker.upper(),
+            "cached": True,
+            "aggregate_sentiment_available": agg_available,
+            "stale_as_of": stale_as_of,
+        }
 
     return {
         "ticker": ticker.upper(),
         "cached": False,
+        "aggregate_sentiment_available": agg_available,
         "message": "No sentiment data available yet. Run the social flow pipeline first.",
         "sentiment": None,
     }
