@@ -38,7 +38,7 @@ in so unit tests can inject a fake DB.
 from __future__ import annotations
 
 import logging
-from datetime import UTC, date, datetime
+from datetime import UTC, date, datetime, timedelta
 from typing import Any
 
 import numpy as np
@@ -342,4 +342,58 @@ __all__ = [
     "compute_gex_total_for_chain",
     "build_gex_history",
     "calc_gex_timeframes",
+    "get_gex_history_sync",
 ]
+
+
+def get_gex_history_sync(
+    ticker: str,
+    *,
+    days: int,
+    mongo_db: Any,
+) -> list[dict[str, Any]]:
+    """Sync wrapper around async ``build_gex_history`` for use from sync
+    FastAPI route handlers (they run in a threadpool, not an event loop).
+
+    Returns the same shape::
+
+        [{"ts": iso, "gex_total": float, "spot": float}, ...]
+
+    Sorted chronologically ascending. ``days`` is doubled internally for
+    the start-of-window date (2x buffer for weekends + chain gaps).
+    Returns ``[]`` on any failure (defensive — never crashes the route).
+    Mirrors the precedent at routes/analytics.py:336 (``from server
+    import db as mongo_db``) and routes/steal_three.py's consensus_drift
+    route which uses ``fetch_spot_and_chains`` to wrap yfinance sync.
+    """
+    try:
+        import asyncio
+
+        end_d = date.today()
+        start_d = end_d - timedelta(days=max(1, days) * 2)
+        try:
+            return asyncio.run(build_gex_history(
+                ticker=ticker,
+                start_date=start_d,
+                end_date=end_d,
+                mongo_db=mongo_db,
+            ))
+        except RuntimeError:
+            # Already inside a running event loop (rare — threadpool
+            # generally gives us a fresh one). Spin up a private loop.
+            loop = asyncio.new_event_loop()
+            try:
+                return loop.run_until_complete(build_gex_history(
+                    ticker=ticker,
+                    start_date=start_d,
+                    end_date=end_d,
+                    mongo_db=mongo_db,
+                ))
+            finally:
+                loop.close()
+    except Exception as exc:
+        log.warning(
+            f"gex_history.get_gex_history_sync({ticker}): "
+            f"{type(exc).__name__}: {exc}"
+        )
+        return []

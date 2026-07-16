@@ -46,10 +46,38 @@ Signed identically to GEX. VEX measures sensitivity of gamma to changes in
 implied volatility — important for vol-of-vol and skew dynamics.
 """
 
+import os
 from typing import Any
 
 import numba
 import numpy as np
+
+# ----------------------------------------------------------------------
+# Steal-list rank #2 — Short-DTE volume substitution (aaguiar10/gflows).
+#
+# Replaces OI with SAME-DAY VOLUME for contracts with T <= 1 trading day
+# (~1/252 years). Floww's resting OI is stale on 0DTE/1DTE because day-of
+# positions haven't settled, so the intraday dealer-hedging signal is
+# systematically mis-weighted. Volume fills that gap with fillna to OI when
+# volume is missing or zero (yfinance reports 0 for thin 0DTE rows).
+#
+# Env gate: FLOWW_USE_VOL_FOR_SHORT_DTE (lazy — read on every call so tests
+# and runtime config can toggle without re-importing this module).
+# ----------------------------------------------------------------------
+_SHORT_DTE_THRESHOLD_YEARS: float = 1.0 / 252.0
+_USE_VOL_FOR_SHORT_DTE_ENV: str = "FLOWW_USE_VOL_FOR_SHORT_DTE"
+
+
+def _short_dte_volume_enabled() -> bool:
+    """Lazy reader for the FLOWW_USE_VOL_FOR_SHORT_DTE env flag.
+
+    Accepts case-insensitive truthy values: ``1`` / ``true`` / ``yes`` / ``on``.
+    Default OFF so existing callers (and the S^2 oracle test) are unaffected.
+    Lazy on purpose: monkeypatching ``os.environ`` at test-time takes effect
+    without needing to reimport this module.
+    """
+    raw = os.environ.get(_USE_VOL_FOR_SHORT_DTE_ENV, "")
+    return raw.strip().lower() in ("1", "true", "yes", "on")
 
 
 @numba.njit
@@ -196,6 +224,13 @@ class GexAggregator:
     _TYPE_KEYS = ("type", "option_type", "opt_type")
     _EXPIRY_KEYS = ("expiry", "T", "time_to_expiry", "tte", "expiration")
     _VOMMA_KEYS = ("vomma", "vomma_val", "v")
+    _VOLUME_KEYS = (
+        "volume",
+        "vol",
+        "today_volume",
+        "total_volume",
+        "day_volume",
+    )
 
     @staticmethod
     def _resolve(contract: dict, key_aliases: tuple, default: Any = None) -> Any:
@@ -286,14 +321,43 @@ class GexAggregator:
         unique_strikes = np.unique(strikes)
         unique_expiries = np.unique(expiries)
 
+        # Optional short-DTE volume substitution (steal-list #2). When the env
+        # flag is set, contracts with T <= 1/252 (0DTE / 1DTE inclusive) re-
+        # weight from resting OI to SAME-DAY VOLUME with fillna to OI per the
+        # gflows convention. Defaults to OI-everywhere so existing callers
+        # and the S^2 oracle test stay byte-identical when the flag is off.
+        effective_weights = ois
+        if _short_dte_volume_enabled():
+            vols = np.empty(n, dtype=np.float64)
+            for i, c in enumerate(contracts):
+                resolved_vol = 0.0
+                for key in self._VOLUME_KEYS:
+                    val = c.get(key)
+                    if val is None:
+                        continue
+                    try:
+                        f = float(val)
+                    except (TypeError, ValueError):
+                        continue
+                    if f >= 0.0:
+                        resolved_vol = f
+                        break
+                # fillna to OI when volume missing or zero.
+                vols[i] = resolved_vol if resolved_vol > 0.0 else ois[i]
+            effective_weights = np.where(
+                expiries <= _SHORT_DTE_THRESHOLD_YEARS, vols, ois
+            )
+
         # 2D surfaces
         gex_surface, vex_surface = compute_gex_surface(
-            spot, strikes, gammas, ois, types, expiries, vommas,
+            spot, strikes, gammas, effective_weights, types, expiries, vommas,
             unique_strikes, unique_expiries,
         )
 
         # 1D aggregation
-        gex_1d = aggregate_gex_1d(spot, strikes, gammas, ois, types, unique_strikes)
+        gex_1d = aggregate_gex_1d(
+            spot, strikes, gammas, effective_weights, types, unique_strikes,
+        )
 
         # Summary metrics
         total_gex = float(np.sum(gex_surface[gex_surface > 0]))

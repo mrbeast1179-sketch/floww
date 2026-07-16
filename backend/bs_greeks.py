@@ -240,3 +240,93 @@ def bs_put_price(S, K, T, sigma, r=0.045, q=0.0):
         return price
     except Exception as exc:
         return _mask_zero(exc)
+
+
+# ----------------------------------------------------------------------
+# Steal-list rank #5 — IV-from-mid solver (Newton-Raphson + bisection).
+# Pure addition. Steal: MattL922/implied-volatility getImpliedVolatility.
+# Lands in: services/steal_three_server.py /api/iv_mid/{ticker} in :8001.
+#           Called optionally from vol_analytics.calc_iv_surface_data via a
+#           route-level interceptor (no edit to vol_analytics itself).
+# Audit:    docs/reports/2026-07-11-steal-list-integration-roadmap.md #5.
+# ----------------------------------------------------------------------
+def implied_vol_from_price(
+    market_price: float,
+    S: float,
+    K: float,
+    T: float,
+    kind: str = "call",
+    q: float = 0.0,
+    r: float = 0.045,
+    tol: float = 1e-6,
+    max_iter: int = 50,
+) -> float:
+    """Solve bs_{call,put}_price(S, K, T, sigma) == market_price for sigma.
+
+    Method: Newton-Raphson using ``bs_vega`` as the derivative. Falls back to
+    bisection over [1e-4, 5.0] when Newton fails to bracket, oscillates,
+    or returns a non-positive vega. The bisection tail is far slower but
+    guaranteed monotone, so the caller always returns a finite sigma.
+
+    Returns ``0.0`` for guard-clause bad inputs (consistent with the
+    silent-mask convention ``bs_put_price`` / ``bs_call_price`` use). Any
+    numerical error caught by ``except`` is logged via ``_mask_zero``.
+    """
+    if S <= 0 or K <= 0 or T <= 0 or market_price <= 0:
+        return 0.0
+    px_fn = bs_call_price if kind == "call" else bs_put_price
+
+    # Intrinsic-floor guard. No Black-Scholes sigma can produce a market
+    # price strictly below the option's intrinsic value; if we see one
+    # the input is bad (stale quote, broken chain, mis-typed sign). Mask
+    # to 0.0 via the existing _mask_zero channel so callers can observe
+    # the failure rather than silently accept a tiny boundary sigma.
+    intrinsic = max(0.0, S - K) if kind == "call" else max(0.0, K - S)
+    if market_price < intrinsic - 1e-8:
+        return _mask_zero(
+            ValueError(
+                f"implied_vol_from_price: market_price={market_price} "
+                f"< intrinsic={intrinsic:.4f} ({kind})"
+            )
+        )
+
+    # Brenner-style initial guess: σ₀ ≈ √(2π/T) · time_value / S
+    if kind == "call":
+        intrinsic = max(0.0, S - K)
+    else:
+        intrinsic = max(0.0, K - S)
+    time_value = max(market_price - intrinsic, 0.01)
+    sigma = max(0.05, min(2.0, time_value / max(S * math.sqrt(T), 1e-6) * math.sqrt(2 * math.pi)))
+
+    try:
+        # Newton phase
+        for _ in range(max_iter):
+            price = px_fn(S, K, T, sigma, r=r, q=q)
+            diff = price - market_price
+            if abs(diff) < tol:
+                return round(sigma, 6)
+            vega = bs_vega(S, K, T, sigma, q=q, r=r)
+            if not vega or vega <= 1e-10:
+                break  # fall through to bisection
+            step = diff / vega
+            next_sigma = sigma - step
+            # Keep the update inside a reasonable interval to avoid runaway.
+            if next_sigma < 1e-4 or next_sigma > 5.0:
+                break
+            sigma = next_sigma
+        # Bisection fallback (guaranteed monotone in [lo, hi]).
+        lo, hi = 1e-4, 5.0
+        best = sigma
+        for _ in range(120):
+            mid_sigma = 0.5 * (lo + hi)
+            p = px_fn(S, K, T, mid_sigma, r=r, q=q)
+            if abs(p - market_price) < tol:
+                return round(mid_sigma, 6)
+            if p > market_price:
+                hi = mid_sigma
+            else:
+                lo = mid_sigma
+            best = mid_sigma
+        return round(best, 6)
+    except Exception as exc:
+        return _mask_zero(exc)
