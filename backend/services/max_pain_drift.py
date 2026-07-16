@@ -301,14 +301,36 @@ def accumulate_today_per_expiry(
     log a warning and coerce to safe defaults. The ``"_unknown"``
     sentinel + empty expiries are also dropped here so callers
     don't have to remember to filter (single place to enforce).
-    """
-    # Drop "_unknown" sentinel + empty expiries so the legacy
-    # fallback bucket never pollutes max_pain_daily.
+    """    # Drop "_unknown" sentinel + empty expiries so the legacy
+    # fallback bucket never pollutes max_pain_daily. Defensively
+    # capture non-dict rows in a single pass for a debug-time
+    # visibility emission — the empty-expiry / "_unknown" cases are
+    # by-design sentinel filtering (expected legitimate inputs being
+    # filtered) and stay silent. Single-pass filter keeps us from
+    # walking per_expiry_rows twice (once for the count, once for
+    # the type-name list inside the f-string).
+    non_dict_rows = [r for r in per_expiry_rows if not isinstance(r, dict)]
+    if non_dict_rows:
+        # Debug (NOT warning): production callers won't spam prod logs
+        # when a single malformed row passes by. A debug-time caller
+        # chasing a missing row can now see the count + ticker via
+        # PYTHONLOGLEVEL=debug or a logger filter on the
+        # ``services.max_pain_drift`` logger.
+        import logging
+        logging.debug(
+            f"accumulate_today_per_expiry({ticker}): "
+            f"silently dropped {len(non_dict_rows)} non-dict row(s) "
+            f"from per_expiry_rows "
+            f"(filtered types: {[type(r).__name__ for r in non_dict_rows]})"
+        )
     per_expiry_rows = [
         r for r in per_expiry_rows
         if isinstance(r, dict)
         and r.get("expiry") not in (None, "", "_unknown")
     ]
+
+
+
     if not per_expiry_rows:
         return 0
     warnings: list[str] = []

@@ -4,7 +4,7 @@ backend/tests/services/test_max_pain_drift.py
 Max-Pain Drift test profile (steal-list #9 deferred completion).
 ==================================================================
 
-22 hand-verified cases split between three test families:
+23 hand-verified cases split between three test families:
 
   PURE-LOGIC (compute_max_pain_drift)
   1.  test_empty_snapshots_returns_graceful_zero_response
@@ -28,11 +28,12 @@ Max-Pain Drift test profile (steal-list #9 deferred completion).
   17. test_read_recent_empty_table_returns_empty_list
   18. test_db_query_exception_returns_empty_list_with_warning_logged
 
-  PER-EXPIRY + MIGRATION + SCHEDULER (steal-list #9 PARTIAL → DONE)
+  PER-EXPIRY + MIGRATION + SCHEDULER + LOW-POLISH (steal-list #9 PARTIAL → DONE)
   19. test_accumulate_today_per_expiry_writes_n_rows_and_updates
   20. test_schema_migration_drops_legacy_table_then_recreates
   21. test_scheduler_has_max_pain_poll_method
   22. test_route_default_days_is_30
+  23. test_silently_dropped_non_dict_rows_log_debug
 """
 
 from __future__ import annotations
@@ -491,4 +492,70 @@ def test_route_default_days_is_30():
     import inspect
     from routes.steal_three import max_pain_drift_endpoint
     sig = inspect.signature(max_pain_drift_endpoint)
-    assert sig.parameters["days"].default == 30 
+    assert sig.parameters["days"].default == 30
+
+
+def test_silently_dropped_non_dict_rows_log_debug(fresh_engine, caplog):
+    """``accumulate_today_per_expiry`` defensively drops non-dict rows from
+    ``per_expiry_rows``. A debug-time caller chasing a missing write
+    could not previously see this happen — the LOW-priority polish
+    in this commit adds a ``logging.debug`` emission that names the
+    ticker, drop count, and filtered types. This test pins that
+    contract so future refactors can't silently regress it back to
+    the warn-only-on-coercion-failure behavior.
+
+    The emission sits at DEBUG (not WARNING) on the root logger —
+    caplog captures it via ``with caplog.at_level(logging.DEBUG)``.
+    Production callers won't get spammed when a single malformed row
+    passes by; the log only emerges under ``PYTHONLOGLEVEL=debug`` or
+    a logger filter targeting ``services.max_pain_drift``.
+    """
+    import logging
+    from datetime import date
+    init_max_pain_daily_table(fresh_engine)
+    today = date(2026, 7, 15)
+    per_expiry_rows = [
+        # 1 valid dict that survives the filter.
+        {"expiry": "2026-07-16", "max_pain_strike": 510.0,
+         "total_loss_at_strike": 100.0, "calls_at_strike": 5,
+         "puts_at_strike": 5},
+        # 3 non-dict rows that the defensive filter silently drops.
+        "not a dict",
+        None,
+        [1, 2, 3],
+    ]
+    with caplog.at_level(logging.DEBUG):
+        written = accumulate_today_per_expiry(
+            fresh_engine, "TEST", 500.0, per_expiry_rows, snapshot_date=today,
+        )
+    # Only 1 of the 4 rows survived — the 1 valid dict.
+    assert written == 1
+    db_rows = fresh_engine.query(
+        "SELECT expiry, max_pain_strike FROM max_pain_daily "
+        "WHERE symbol = 'TEST' ORDER BY expiry"
+    )
+    assert len(db_rows) == 1
+    assert db_rows[0]["expiry"] == "2026-07-16"
+    # The drop-count debug log MUST have fired, named the ticker,
+    # and reported the dropped count. This is the contract the
+    # user-requested polish establishes.
+    matching = [
+        r for r in caplog.records
+        if r.levelno == logging.DEBUG
+        and "non-dict row(s)" in r.getMessage()
+        and "TEST" in r.getMessage()
+    ]
+    assert len(matching) == 1, (
+        f"expected exactly one DROP-COUNT debug log naming ticker=TEST; "
+        f"got: {[r.getMessage() for r in caplog.records if r.levelno == logging.DEBUG]}"
+    )
+    msg = matching[0].getMessage()
+    assert "3" in msg, (
+        f"expected drop count '3' in debug log message; msg={msg!r}"
+    )
+    # Type names of dropped rows must be present so a debug-time
+    # operator can tell str from NoneType from list at a glance.
+    assert "str" in msg or "NoneType" in msg or "list" in msg, (
+        f"expected the filtered row type names in the debug message; "
+        f"msg={msg!r}"
+    )
