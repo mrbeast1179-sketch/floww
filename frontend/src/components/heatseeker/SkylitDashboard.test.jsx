@@ -33,6 +33,9 @@ jest.mock("./DualGEXBadge",              () => () => <div data-testid="hs-dual-g
 jest.mock("./IVMidBadge",                () => () => <div data-testid="hs-iv-mid" />);
 jest.mock("./WheelIncomeScreenerPanel",  () => () => <div data-testid="hs-wheel-income" />);
 jest.mock("./MaxPainBadge",              () => () => <div data-testid="hs-max-pain" />);
+// Per-expiry max-pain-drift multi-line chart tile (steal-list #9 rich
+// visualization; fetches /api/max_pain_drift/{ticker}/per_expiry_history).
+jest.mock("./MaxPainPerExpiryDriftTile",  () => () => <div data-testid="hs-max-pain-per-expiry-drift" />);
 
 // Import AFTER mocks are set up.
 import SkylitDashboard from "./SkylitDashboard";
@@ -55,5 +58,8 @@ describe("SkylitDashboard", () => {
     expect(screen.getByTestId("hs-iv-mid")).toBeInTheDocument();
     expect(screen.getByTestId("hs-wheel-income")).toBeInTheDocument();
     expect(screen.getByTestId("hs-max-pain")).toBeInTheDocument();
+    // Per-expiry max-pain-drift multi-line chart mounted full-width
+    // beneath the Wheel panel inside the steal-list band.
+    expect(screen.getByTestId("hs-max-pain-per-expiry-drift")).toBeInTheDocument();
   });
 });

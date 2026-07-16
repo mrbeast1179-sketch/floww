@@ -863,6 +863,92 @@ def max_pain_drift_endpoint(
 
 
 # ---------------------------------------------------------------------------
+# Steal-list #9 — Per-expiry MAX-PAIN DRIFT history (multi-line chart data).
+# GET /api/max_pain_drift/{ticker}/per_expiry_history?days=30
+#
+# Reads per-expiry rows from max_pain_daily (PK = (snapshot_date, symbol,
+# expiry)) and returns a JSON shape ready for the frontend line chart:
+# {ticker, days, expiries: [{expiry, n_points, first_strike, last_strike,
+#   drift_strike_Nd, history: [{date, strike, spot}, ...]}, ...], warnings,
+#   source}.
+#
+# The OVERALL drift scalars on `/api/max_pain_drift/{ticker}` collapse
+# the per-expiry dimension; this sibling endpoint surfaces that
+# dimension explicitly for the rich visualization (Heatseeker Row 3 +
+# Skylit steal-list band).
+#
+# Routing hygiene: declared BEFORE the `/api/max_pain_drift/{ticker}`
+# catch-all below the comment header; FastAPI's path-resolution
+# matches the longer-suffix route first regardless of declaration
+# order, but conventional ordering keeps related routes grouped.
+# ---------------------------------------------------------------------------
+@router.get("/api/max_pain_drift/{ticker}/per_expiry_history")
+def max_pain_drift_per_expiry_history_endpoint(
+    ticker: str,
+    days: int = Query(
+        30, ge=1, le=365,
+        description="Window of history to return per listed expiry. "
+                    "Default 30 matches the chart's primary visual range.",
+    ),
+):
+    """Per-expiry max-pain-strike trajectory over the last ``days`` days.
+
+    Returns a list of one entry per listed expiry, sorted ASC by ISO
+    expiry date, each containing a chronological ``history`` array of
+    {date, strike, spot} points for the rendering polyline.
+
+    Defensive degrade: any upstream failure (DB exception, missing
+    rows) returns an empty ``expiries`` array + a warning rather than
+    crashing the route \u2014 mirrors the established steal-three
+    defensive-degrade signature.
+    """
+    try:
+        from services.duckdb_engine import db as duckdb_engine
+        from services.max_pain_drift import (
+            init_max_pain_daily_table,
+            read_recent_drift_per_expiry,
+        )
+
+        # Idempotent table init (matches the parent pattern). Cost is
+        # microscopic once the table exists.
+        try:
+            init_max_pain_daily_table(duckdb_engine)
+        except Exception as table_exc:    # pragma: no cover
+            import logging
+            logging.warning(
+                f"max_pain_drift_per_expiry_history: "
+                f"init_table preflight failed: {table_exc}"
+            )
+
+        n = max(1, min(int(days or 30), 365))
+        expiries = read_recent_drift_per_expiry(
+            duckdb_engine, ticker, n_days=n,
+        )
+        warnings: list[str] = []
+        if not expiries:
+            warnings.append(
+                "no per-expiry max_pain history yet \u2014 run "
+                "POST /api/max_pain_drift/{ticker}/accumulate?accumulate=true first"
+            )
+        return {
+            "ticker": ticker.upper(),
+            "days": n,
+            "expiries": expiries,
+            "warnings": warnings,
+            "source": "steal-three-router",
+        }
+    except Exception as exc:    # pragma: no cover
+        return {
+            "ticker": ticker.upper(),
+            "days": days,
+            "expiries": [],
+            "warnings": [f"engine exception: {exc}"],
+            "source": "steal-three-router",
+        }
+
+
+
+# ---------------------------------------------------------------------------
 # Steal-list #6 deferred completion — Consensus Drift tracking
 # GET /api/consensus_drift/{ticker}?days=14&expiry=ISO&accumulate=true|false
 # Mirrors max_pain_drift endpoint shape. Reads per-expiry + overall rows

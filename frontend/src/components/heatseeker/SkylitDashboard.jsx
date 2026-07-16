@@ -8,6 +8,9 @@ import DualGEXBadge from "./DualGEXBadge";
 import IVMidBadge from "./IVMidBadge";
 import WheelIncomeScreenerPanel from "./WheelIncomeScreenerPanel";
 import MaxPainBadge from "./MaxPainBadge";
+// Per-expiry max-pain-drift multi-line chart tile (steal-list #9 rich
+// visualization — surfaced via /api/max_pain_drift/{ticker}/per_expiry_history).
+import MaxPainPerExpiryDriftTile from "./MaxPainPerExpiryDriftTile";
 
 /**
  * SkylitDashboard — Full Skylit-style trading dashboard
@@ -156,6 +159,11 @@ function SkylitDashboard({
           <MaxPainBadge ticker={ticker} />
         </div>
         <WheelIncomeScreenerPanel ticker={ticker} />
+        {/* NEW: Per-expiry max-pain-drift multi-line chart — full-width
+            beneath the Wheel panel so the multi-line visualization gets
+            the horizontal real estate it needs. Standalone fetch via
+            /api/max_pain_drift/{ticker}/per_expiry_history. */}
+        <MaxPainPerExpiryDriftTile ticker={ticker} />
       </div>
 
       {/* 4. Bottom Ticker Info Bar */}

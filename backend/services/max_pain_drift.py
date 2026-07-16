@@ -414,6 +414,130 @@ def read_recent_drift(engine, ticker: str, n_days: int = 14) -> list[dict[str, A
         return []
 
 
+def read_recent_drift_per_expiry(
+    engine, ticker: str, n_days: int = 30,
+) -> list[dict[str, Any]]:
+    """Return per-expiry max_pain_strike history grouped by ``expiry``.
+
+    Reads ``max_pain_daily`` for ``ticker`` EXCLUDING the OVERALL row
+    (``expiry == ''``) and the legacy sentinel bucket (``expiry ==
+    '_unknown'``), then groups by ``expiry`` and sorts each group ASC by
+    ``snapshot_date`` so the chart front-end can draw a polyline per
+    listed expiry.
+
+    Output schema (list[dict])::
+
+        [
+            {
+                "expiry": "2026-07-17",
+                "n_points": int,
+                "first_strike": float | None,
+                "last_strike": float | None,
+                "drift_strike_Nd": float | None,
+                "history": [
+                    {"date": date, "strike": float | None,
+                     "spot": float | None},
+                    ...
+                ],
+            },
+            ...
+        ]
+
+    Defensive semantics mirror ``read_recent_drift``: a DB exception
+    bubbles to ``[]`` + a logging.warning, never crashes the route.
+    Expiries are returned sorted ASC by ISO date string so the chart
+    can assign color indices in a deterministic forward-month order.
+    """
+    if n_days <= 0:
+        return []
+    sql = (
+        f"SELECT snapshot_date, max_pain_strike, spot, expiry "
+        f"FROM {TABLE_NAME} "
+        f"WHERE symbol = ? "
+        f"ORDER BY expiry ASC, snapshot_date ASC"
+    )
+    try:
+        # No n_days predicate in SQL for simplicity; we filter below.
+        # (DuckDB snapshot density is bounded by the cron cadence \u2014 typically
+        # one row per day per listed expiry \u2014 so a 30-day window rarely
+        # returns more than ~120 rows for liquid names.)
+        raw_rows = engine.query(sql, [ticker.upper()])
+        rows = [
+            {**r, "snapshot_date": _coerce_to_date(r.get("snapshot_date"))}
+            for r in raw_rows
+        ]
+    except Exception as exc:    # pragma: no cover (defensive degrade)
+        import logging
+        logging.warning(
+            f"read_recent_drift_per_expiry({ticker}): "
+            f"{type(exc).__name__}: {exc}"
+        )
+        return []
+
+    # Group by expiry; drop the OVERALL row (``expiry == ''``) and the
+    # legacy ``_unknown`` sentinel bucket by predicate in addition to
+    # the SQL ``WHERE``. Drop non-finite / NaN snapshot_date or strike.
+    groups: dict[str, list[dict[str, Any]]] = {}
+    for r in rows:
+        exp = str(r.get("expiry") or "")
+        if exp in ("", "_unknown"):
+            continue
+        sd = r.get("snapshot_date")
+        strike = r.get("max_pain_strike")
+        if sd is None:
+            continue
+        try:
+            strike_f = float(strike)
+        except (TypeError, ValueError):
+            continue
+        if not (strike_f == strike_f):    # NaN check (NaN != NaN)
+            continue
+        groups.setdefault(exp, []).append({
+            "date": sd,
+            "strike": strike_f,
+            "spot": r.get("spot"),
+        })
+
+    # Trim each group to the last ``n_days`` rows (ASC order \u2014 take the
+    # tail). This is the window-respecting step; the SQL filter kept
+    # ALL available history to compute first_strike / drift_strike_Nd
+    # accurately against any deeper-than-n_days baseline.
+    today = date.today()
+    cutoff = date.fromordinal(today.toordinal() - int(n_days))
+
+    out: list[dict[str, Any]] = []
+    for exp in sorted(groups.keys()):
+        historical = [pt for pt in groups[exp] if pt["date"] >= cutoff]
+        if not historical:
+            continue
+        first_strike = historical[0]["strike"]
+        last_strike = historical[-1]["strike"]
+        drift_strike_Nd: float | None = (
+            round(last_strike - first_strike, 4)
+            if (first_strike is not None and last_strike is not None)
+            else None
+        )
+        out.append({
+            "expiry": exp,
+            "n_points": len(historical),
+            "first_strike": (round(first_strike, 4)
+                             if first_strike is not None else None),
+            "last_strike": (round(last_strike, 4)
+                            if last_strike is not None else None),
+            "drift_strike_Nd": drift_strike_Nd,
+            "history": [
+                {
+                    "date": pt["date"],
+                    "strike": (round(pt["strike"], 4)
+                               if pt["strike"] is not None else None),
+                    "spot": pt["spot"],
+                }
+                for pt in historical
+            ],
+        })
+    return out
+
+
 # ─────────────────────────────────────────────────────────────────────
 # Pure-logic drift math — no I/O, fully testable.
 # ─────────────────────────────────────────────────────────────────────

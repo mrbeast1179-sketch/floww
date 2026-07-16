@@ -39,6 +39,9 @@ jest.mock("./DualGEXBadge", () => () => <div data-testid="hs-dual-gex" />);
 jest.mock("./IVMidBadge", () => () => <div data-testid="hs-iv-mid" />);
 jest.mock("./WheelIncomeScreenerPanel", () => () => <div data-testid="hs-wheel-income" />);
 jest.mock("./MaxPainBadge", () => () => <div data-testid="hs-max-pain" />);
+// Per-expiry max-pain-drift multi-line chart tile (steal-list #9 rich
+// visualization; fetches /api/max_pain_drift/{ticker}/per_expiry_history).
+jest.mock("./MaxPainPerExpiryDriftTile", () => () => <div data-testid="hs-max-pain-per-expiry-drift" />);
 // Row 4 mount — steal-list #10 (cone) + #8 (opportunity engine)
 jest.mock("./StrikeConeBadge", () => () => <div data-testid="hs-strike-cone" />);
 jest.mock("./OpportunityBadge", () => () => <div data-testid="hs-opportunity" />);
@@ -66,7 +69,7 @@ describe("HeatseekerDashboard", () => {
     expect(screen.getByText(/Wave 1 \+ 2 \+ 3/i)).toBeInTheDocument();
   });
 
-  test("mounts all 17 child panels via their test-ids", async () => {
+  test("mounts all 19 child panels via their test-ids", async () => {
     await act(async () => {
       render(<HeatseekerDashboard ticker="SPY" spot={500} />);
     });

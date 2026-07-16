@@ -4,7 +4,7 @@ backend/tests/services/test_max_pain_drift.py
 Max-Pain Drift test profile (steal-list #9 deferred completion).
 ==================================================================
 
-23 hand-verified cases split between three test families:
+28 hand-verified cases split between three test families:
 
   PURE-LOGIC (compute_max_pain_drift)
   1.  test_empty_snapshots_returns_graceful_zero_response
@@ -28,12 +28,21 @@ Max-Pain Drift test profile (steal-list #9 deferred completion).
   17. test_read_recent_empty_table_returns_empty_list
   18. test_db_query_exception_returns_empty_list_with_warning_logged
 
-  PER-EXPIRY + MIGRATION + SCHEDULER + LOW-POLISH (steal-list #9 PARTIAL → DONE)
+  PER-EXPIRY + MIGRATION + SCHEDULER + LOW-POLISH + READ-DRIFT-FILTER (steal-list #9 PARTIAL → DONE)
   19. test_accumulate_today_per_expiry_writes_n_rows_and_updates
   20. test_schema_migration_drops_legacy_table_then_recreates
   21. test_scheduler_has_max_pain_poll_method
   22. test_route_default_days_is_30
   23. test_silently_dropped_non_dict_rows_log_debug
+  24. test_read_recent_drift_per_expiry_empty_db_returns_empty_list
+  25. test_read_recent_drift_per_expiry_groups_by_expiry_and_skips_overall
+  26. test_read_recent_drift_per_expiry_respects_n_days_window
+  27. test_read_recent_drift_per_expiry_drops_nan_strike_rows
+  28. test_accumulate_today_per_expiry_drops_nan_strike_rows
+
+(Audit: bumped 23 → 28 after the per-expiry drift tile round added
+the popular filter / n_days / NaN-drift read-side semantics + the
+belt-and-suspenders write-side NaN-filter regression guard.)
 """
 
 from __future__ import annotations
@@ -49,6 +58,7 @@ from services.max_pain_drift import (
     compute_max_pain_drift,
     init_max_pain_daily_table,
     read_recent_drift,
+    read_recent_drift_per_expiry,
 )
 
 # ─────────────────────────────────────────────────────────────────────
@@ -559,3 +569,215 @@ def test_silently_dropped_non_dict_rows_log_debug(fresh_engine, caplog):
         f"expected the filtered row type names in the debug message; "
         f"msg={msg!r}"
     )
+
+
+def _seed_per_expiry_history(fresh_engine, ticker: str, days: int = 6,
+                              n_expiries: int = 3) -> list[str]:
+    """Helper: accumulate_today_per_expiry N days of history N expiries.
+    Returns the sorted list of expiry ISO dates in insertion order."""
+    from datetime import date, timedelta
+    init_max_pain_daily_table(fresh_engine)
+    today = date(2026, 7, 15)
+    expiries = [
+        "2026-07-17",  # 1DTE (today + 2)
+        "2026-07-22",  # 1-week
+        "2026-08-21",  # 1-month
+    ][:n_expiries]
+    base_strikes = (745.0, 750.0, 760.0)
+    for offset in range(days):
+        snap_date = today - timedelta(days=offset)
+        per_expiry_rows = [
+            {
+                "expiry": exp,
+                "max_pain_strike": base_strikes[i] + offset * 0.5,
+                "total_loss_at_strike": 100.0 + offset,
+                "calls_at_strike": 5 + offset,
+                "puts_at_strike": 5 + offset,
+            }
+            for i, exp in enumerate(expiries)
+        ]
+        accumulate_today_per_expiry(
+            fresh_engine, ticker, 750.0, per_expiry_rows,
+            snapshot_date=snap_date,
+        )
+    # Also seed one OVERALL row so the per-expiry filter has to skip it.
+    accumulate_today(
+        fresh_engine, ticker, 750.0,
+        {"max_pain_strike": 745.0, "total_loss_at_strike": 100.0,
+         "calls_at_strike": 5, "puts_at_strike": 5},
+        snapshot_date=today,
+    )
+    return expiries
+
+
+def test_read_recent_drift_per_expiry_empty_db_returns_empty_list(fresh_engine):
+    """No rows in max_pain_daily → empty list. No warnings."""
+    from services.max_pain_drift import read_recent_drift_per_expiry
+    init_max_pain_daily_table(fresh_engine)
+    out = read_recent_drift_per_expiry(fresh_engine, "SPY", n_days=30)
+    assert out == []
+
+
+def test_read_recent_drift_per_expiry_groups_by_expiry_and_skips_overall(fresh_engine):
+    """The OVERALL row (``expiry == ''``) is filtered out so the chart
+    only sees the per-expiry trajectories. Expiries with rows are
+    returned sorted ASC by ISO date string."""
+    expected_expiries = _seed_per_expiry_history(
+        fresh_engine, "TEST", days=6, n_expiries=3,
+    )
+    out = read_recent_drift_per_expiry(fresh_engine, "TEST", n_days=30)
+    # One entry per listed expiry, none for the OVERALL row.
+    assert [g["expiry"] for g in out] == expected_expiries
+    # Each expiry group has 6 history points (6 days seeded).
+    for g in out:
+        assert g["n_points"] == 6
+        assert len(g["history"]) == 6
+        # History sorted ASC by date.
+        dates = [pt["date"] for pt in g["history"]]
+        assert dates == sorted(dates)
+        # first_strike/last_strike/drift_strike_Nd agree with the
+        # endpoints of the seeded array (note strikes drift
+        # +0.5 per day from the base).
+        assert g["first_strike"] is not None
+        assert g["last_strike"] is not None
+        assert g["drift_strike_Nd"] is not None
+
+
+def test_read_recent_drift_per_expiry_respects_n_days_window(fresh_engine):
+    """n_days trims the per-group history to the trailing N days.
+
+    The window uses *inclusive* boundaries:
+        cutoff = date.today() - n_days
+        kept_dates = [d for d in history if d >= cutoff]
+    For n_days=4 + a 10-day seed anchored to date.today(): cutoff =
+    today-4, keeps offsets 0..4 = 5 points (today, today-1, ..., today-4).
+    The anchor is ``date.today()`` (not a hardcoded 2026-07-15) so the
+    test is portable across machines with different system clocks.
+    """
+    from datetime import date, timedelta
+    init_max_pain_daily_table(fresh_engine)
+    today = date.today()    # anchor to current date (portable)
+    # Seed 10 days of history for ONE expiry.
+    for offset in range(10):
+        snap_date = today - timedelta(days=offset)
+        accumulate_today_per_expiry(
+            fresh_engine, "TEST", 750.0,
+            [{"expiry": "2026-08-21",
+              "max_pain_strike": 750.0 + offset,
+              "total_loss_at_strike": 100.0, "calls_at_strike": 1,
+              "puts_at_strike": 1}],
+            snapshot_date=snap_date,
+        )
+    # n_days=4 keeps offsets 0..4 (inclusive boundary) = 5 points.
+    out = read_recent_drift_per_expiry(fresh_engine, "TEST", n_days=4)
+    assert len(out) == 1
+    assert out[0]["expiry"] == "2026-08-21"
+    assert out[0]["n_points"] == 5
+    # Drift uses the truncated window's endpoints (latest - oldest
+    # within the 4-day window).
+    assert out[0]["first_strike"] is not None
+    assert out[0]["last_strike"] is not None
+    # n_days=999 still bounded by the natural cutoff (returns all 10).
+    out_full = read_recent_drift_per_expiry(fresh_engine, "TEST", n_days=999)
+    assert out_full[0]["n_points"] == 10
+
+
+def test_read_recent_drift_per_expiry_drops_nan_strike_rows(fresh_engine):
+    """NaN strike rows are silently dropped by the **read-side** filter
+    (the per-expiry group keeps the finite-strike rows only).
+
+    Test approach: write 2 finite rows on distinct dates via
+    ``accumulate_today`` (already-validated path) and then inject
+    1 NaN row via direct SQL INSERT — bypassing ``_safe_float`` so
+    the NaN reaches the table. The read filter
+    ``not (strike_f == strike_f)`` is then responsible for dropping
+    the NaN row, yielding ``n_points == 2``.
+
+    This eliminates the prior entangled WRITE+READ NaN semantics by
+    isolating the read filter as the only NaN-drop mechanism.
+    """
+    from datetime import date, timedelta
+    init_max_pain_daily_table(fresh_engine)
+    today = date.today()
+    # 2 finite rows on distinct dates via accumulate_today.
+    for offset, strike in [(0, 750.0), (5, 752.0)]:
+        accumulate_today(
+            fresh_engine, "TEST", 750.0,
+            {"max_pain_strike": strike,
+             "total_loss_at_strike": 100.0, "calls_at_strike": 1,
+             "puts_at_strike": 1},
+            snapshot_date=today - timedelta(days=offset),
+            expiry="2026-08-21",
+        )
+    # Inject 1 NaN row via direct SQL — bypass _safe_float.
+    fresh_engine.execute_write(
+        "INSERT INTO max_pain_daily "
+        "(snapshot_date, symbol, spot, max_pain_strike, "
+        " total_loss_at_strike, calls_at_strike, puts_at_strike, "
+        " expiry) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+        [(today - timedelta(days=2), "TEST", 750.0,
+          float("nan"), 100.0, 1, 1, "2026-08-21")],
+    )
+    out = read_recent_drift_per_expiry(fresh_engine, "TEST", n_days=30)
+    assert len(out) == 1
+    assert out[0]["expiry"] == "2026-08-21"
+    # NaN row dropped by read-side filter; only 750.0 + 752.0 survive.
+    assert out[0]["n_points"] == 2
+
+
+def test_accumulate_today_per_expiry_drops_nan_strike_rows(fresh_engine):
+    """Write side: a NaN-strike row in ``per_expiry_rows`` MUST NOT reach
+    ``engine.execute_write`` — ``_safe_float`` returns ``None`` for
+    NaN and the row is ``continue``-skipped BEFORE tuple construction.
+
+    Belt-and-suspenders for the read-side NaN filter in
+    test_read_recent_drift_per_expiry_drops_nan_strike_rows above.
+    Without this test, a future refactor that accidentally removes
+    the ``_safe_float`` upstream of the tuple-build loop would let
+    NaN tuples reach the UPSERT, and the read filter would silently
+    hide them — undetectable without an explicit write-side assertion.
+
+    3 rows on the SAME snapshot_date with DISTINCT expiry strings so
+    UPSERT-by-PK does NOT collapse the 3 rows into 1 — the test can
+    independently observe the NaN-drop at the tuple-build stage.
+    """
+    from datetime import date
+    init_max_pain_daily_table(fresh_engine)
+    today = date.today()
+    rows = [
+        {"expiry": "2026-07-16", "max_pain_strike": 510.0,
+         "total_loss_at_strike": 100.0, "calls_at_strike": 5,
+         "puts_at_strike": 5},
+        # NaN-strike row drops at the _safe_float → continue path.
+        {"expiry": "2026-07-22", "max_pain_strike": float("nan"),
+         "total_loss_at_strike": 200.0, "calls_at_strike": 10,
+         "puts_at_strike": 10},
+        {"expiry": "2026-07-29", "max_pain_strike": 520.0,
+         "total_loss_at_strike": 300.0, "calls_at_strike": 15,
+         "puts_at_strike": 15},
+    ]
+    written = accumulate_today_per_expiry(
+        fresh_engine, "TEST", 500.0, rows, snapshot_date=today,
+    )
+    # NaN row filtered before tuple-build → written = 2 finite rows.
+    assert written == 2
+    # Belt-and-suspenders: read-back check pins BOTH the write-side
+    # return AND the storage-side observation. Reading back lets a
+    # regression where _safe_float returns the wrong thing be
+    # caught even if the return-value assertion alone would mask it.
+    db_rows = fresh_engine.query(
+        "SELECT expiry, max_pain_strike FROM max_pain_daily "
+        "WHERE symbol = 'TEST' ORDER BY expiry"
+    )
+    assert len(db_rows) == 2
+    assert db_rows[0]["expiry"] == "2026-07-16"
+    assert db_rows[1]["expiry"] == "2026-07-29"
+    # Per-row NaN check — NaN != NaN means a NaN row would fail
+    # this assertion. Catches a regression where _safe_float is
+    # bypassed AND DuckDB stores NaN as a valid DOUBLE.
+    for r in db_rows:
+        strike = r["max_pain_strike"]
+        assert strike == strike, (
+            f"row {r['expiry']} has NaN strike in DB — write filter regressed"
+        )

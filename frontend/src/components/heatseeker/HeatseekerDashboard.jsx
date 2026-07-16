@@ -149,6 +149,9 @@ import DualGEXBadge from "./DualGEXBadge";
 import IVMidBadge from "./IVMidBadge";
 import WheelIncomeScreenerPanel from "./WheelIncomeScreenerPanel";
 import MaxPainBadge from "./MaxPainBadge";
+// Per-expiry max-pain-drift multi-line chart tile (steal-list #9 rich
+// visualization — surfaced via /api/max_pain_drift/{ticker}/per_expiry_history).
+import MaxPainPerExpiryDriftTile from "./MaxPainPerExpiryDriftTile";
 // Historical steal-list signals (steal-list #6/#9/#10/#20 — backend
 // services landed in routes/steal_three.py).
 import ConfluenceVelocityRow from "./ConfluenceVelocityRow";
@@ -303,10 +306,15 @@ export default function HeatseekerDashboard({
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               <VelocityModeBadge ticker={normalizedTicker} />
               <TrinityConfluenceMeter />
+            </div>              {/* NEW: Max-Pain pin magnet beneath the Trinity grid (steal-list #9 base) */}
+              <MaxPainBadge ticker={normalizedTicker} />
+              {/* NEW: Per-expiry max-pain-drift multi-line chart — complements
+                  the OVERALL scalar readout above with one polyline per
+                  listed expiry showing strike evolution across the 30-day
+                  window. Standalone fetch via the sibling
+                  /api/max_pain_drift/{ticker}/per_expiry_history endpoint. */}
+              <MaxPainPerExpiryDriftTile ticker={normalizedTicker} />
             </div>
-            {/* NEW: Max-Pain pin magnet beneath the Trinity grid (steal-list #9 base) */}
-            <MaxPainBadge ticker={normalizedTicker} />
-          </div>
         </div>
       </div>
 
