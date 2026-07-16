@@ -1,5 +1,9 @@
+/**
+ * @jest-environment jsdom
+ */
 import React from "react";
 import { render, screen } from "@testing-library/react";
+import "@testing-library/jest-dom";
 import VelocityModeBadge from "./VelocityModeBadge";
 
 jest.mock("../../hooks/useHeatseeker", () => ({

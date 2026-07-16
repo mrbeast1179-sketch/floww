@@ -3,6 +3,11 @@ import SkylitTickerBar from "./SkylitTickerBar";
 import SkylitControlBar from "./SkylitControlBar";
 import SkylitHeatmapGrid from "./SkylitHeatmapGrid";
 import SkylitMetricsSidebar from "./SkylitMetricsSidebar";
+// Steal-list top-3 (served by backend/routes/steal_three.py at :8000).
+import DualGEXBadge from "./DualGEXBadge";
+import IVMidBadge from "./IVMidBadge";
+import WheelIncomeScreenerPanel from "./WheelIncomeScreenerPanel";
+import MaxPainBadge from "./MaxPainBadge";
 
 /**
  * SkylitDashboard — Full Skylit-style trading dashboard
@@ -135,6 +140,22 @@ function SkylitDashboard({
             regime={regime}
           />
         </div>
+      </div>
+
+      {/* 3.5 Confluence & Velocity — bottom band of steal-list signals */}
+      {/* Mirrors HeatseekerDashboard Row 3 so the steal-list top-3 appear on
+          BOTH the default Heatseeker page (this component) AND the
+          Sidebar→Skylit page (HeatseekerDashboard legacy layout). */}
+      <div className="px-3 py-3 space-y-3 border-t border-slate-800/40" data-testid="skylit-steal-list-band">
+        <div className="text-[9px] uppercase tracking-widest text-slate-500 font-bold">
+          ◆ Confluence & Velocity · #1 Dual-GEX · #5 IV-Mid · #3 Wheel income
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+          <DualGEXBadge ticker={ticker} />
+          <IVMidBadge ticker={ticker} width={6} />
+          <MaxPainBadge ticker={ticker} />
+        </div>
+        <WheelIncomeScreenerPanel ticker={ticker} />
       </div>
 
       {/* 4. Bottom Ticker Info Bar */}
