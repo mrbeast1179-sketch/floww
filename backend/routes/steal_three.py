@@ -1119,18 +1119,95 @@ def news_ticker_endpoint(
 # the per-ticker catch-all, otherwise FastAPI matches ``{ticker}="top"``
 # first. The installer enforces this order; do NOT re-order casually.
 # ---------------------------------------------------------------------------
-# Route #1: /api/insider/top   (declared first — static)
+# Route #1: /api/insider/top   (GET-only — pure-read static)
+# Refactor (RFC-7231 polish): the legacy ``accumulate=true`` query param
+# is now accepted for backward compat but *ignored* (with a deprecation
+# warning). The write-side lives at ``POST /api/insider/top/accumulate``
+# (declared immediately after this GET) which is the right verb per
+# RFC-7231 §4.2.2. GET MUST NOT have user-data side effects per §4.2.1.
 @router.get("/api/insider/top")
 def insider_top_endpoint(
     min_value: int = 100_000,
     tc: int = 7,
     limit: int = 20,
-    accumulate: bool = False,
+    accumulate: bool = Query(
+        False,
+        description="DEPRECATED, ignored. Use POST /api/insider/top/accumulate "
+                    "for the write side. Kept for backward compat only.",
+    ),
 ):
-    """Finviz top insider trades ranked by transaction value.
+    """Finviz top insider trades ranked by transaction value (PURE-READ).
 
+    GET must be safe per RFC-7231 §4.2.1 — no side effects beyond
+    retrieval. The legacy ``accumulate=true`` query param is accepted
+    for backward compat but *ignored* with a deprecation warning
+    returned in the ``warnings`` key — use
+    ``POST /api/insider/top/accumulate`` to write today's snapshot.
     Defaults mirror the upstream Buzzfund filter
     (?or=-10&tv=100000&tc=7&o=-transactionValue).
+    """
+    try:
+        from services.duckdb_engine import db as duckdb_engine
+        from services.insider_scraper import (
+            compute_insider_summary,
+            fetch_top_insider,
+        )
+
+        rows = fetch_top_insider(
+            min_value=int(min_value), days=int(tc),
+            cache_engine=duckdb_engine,
+            limit=int(limit),
+        )
+        warnings: list[str] = []
+        if accumulate:
+            warnings.append(
+                "accumulate=true deprecated; ignored on GET. "
+                "Use POST /api/insider/top/accumulate for the write side."
+            )
+        if not rows:
+            warnings.append("Finviz empty or unreachable")
+        return {
+            "rows": rows[: max(0, int(limit))],
+            "summary": compute_insider_summary(None, rows),
+            "source": "steal-three-router",
+            "warnings": warnings,
+        }
+    except Exception as exc:    # pragma: no cover
+        return {
+            "rows": [],
+            "summary": {
+                "ticker": None, "n_buys_30d": 0,
+                "n_sells_30d": 0, "total_buy_value": 0.0,
+                "total_sell_value": 0.0, "net_buy_pressure": 0.0,
+                "largest_buy_value": None, "ceo_bought_recent": False,
+                "n_rows_considered": 0, "warnings": [],
+            },
+            "source": "steal-three-router",
+            "warnings": [f"engine exception: {exc}"],
+        }
+
+
+# Route #1b: /api/insider/top/accumulate   (POST-only — write side)
+@router.post("/api/insider/top/accumulate")
+def insider_top_accumulate_endpoint(
+    min_value: int = Query(100_000, ge=0, le=10_000_000),
+    tc: int = Query(7, ge=1, le=365),
+    limit: int = Query(20, ge=1, le=200),
+):
+    """Write today's Finviz top insider snapshot into DuckDB.
+
+    POST is the right verb for write side effects per RFC-7231 §4.2.2.
+    Schedule this once per trading day from the cron — the GET endpoint
+    stays safe to poll repeatedly.
+
+    Returns ``{rows, summary, source, written_n_rows, warnings}``.
+    ``written_n_rows`` reports the count of rows that passed the
+    pre-write filter (ticker/insider_name/transaction_date present),
+    matching the contract that ``accumulate_today`` returns in
+    ``backend/services/insider_scraper.py``.
+
+    Idempotent: UPSERT by (snapshot_date, ticker, transaction_date,
+    insider_name); safe to re-fire within the same trading day.
     """
     try:
         from services.duckdb_engine import db as duckdb_engine
@@ -1145,31 +1222,101 @@ def insider_top_endpoint(
             init_insider_daily_table(duckdb_engine)
         except Exception as table_exc:    # pragma: no cover
             import logging
-            logging.warning(f"insider-top: init_table preflight: {table_exc}")
+            logging.warning(
+                f"insider-top/accumulate: init_table preflight: {table_exc}"
+            )
 
         rows = fetch_top_insider(
             min_value=int(min_value), days=int(tc),
             cache_engine=duckdb_engine,
             limit=int(limit),
         )
-        if not rows:
-            return {
-                "rows": [],
-                "summary": compute_insider_summary(None, []),
-                "source": "steal-three-router",
-                "warnings": ["Finviz empty or unreachable"],
-            }
-        if accumulate:
+        written_n_rows = 0
+        if rows:
             try:
-                accumulate_today(duckdb_engine, rows)
+                written_n_rows = accumulate_today(duckdb_engine, rows)
             except Exception as acc_exc:    # pragma: no cover
                 import logging
-                logging.warning(f"insider-top: accumulate_today: {acc_exc}")
+                logging.warning(
+                    f"insider-top/accumulate: accumulate_today: {acc_exc}"
+                )
+                return {
+                    "rows": rows[: max(0, int(limit))],
+                    "summary": compute_insider_summary(None, rows),
+                    "source": "steal-three-router",
+                    "written_n_rows": 0,
+                    "warnings": [
+                        f"accumulate failed: {acc_exc}",
+                        "Finviz rows fetched but DuckDB write did not persist.",
+                    ],
+                }
+        warnings = [] if rows else ["Finviz empty or unreachable"]
         return {
             "rows": rows[: max(0, int(limit))],
             "summary": compute_insider_summary(None, rows),
             "source": "steal-three-router",
-            "warnings": [],
+            "written_n_rows": written_n_rows,
+            "warnings": warnings,
+        }
+    except Exception as exc:    # pragma: no cover
+        return {
+            "rows": [],
+            "summary": {
+                "ticker": None, "n_buys_30d": 0,
+                "n_sells_30d": 0, "total_buy_value": 0.0,
+                "total_sell_value": 0.0, "net_buy_pressure": 0.0,
+                "largest_buy_value": None, "ceo_bought_recent": False,
+                "n_rows_considered": 0, "warnings": [],
+            },
+            "source": "steal-three-router",
+            "written_n_rows": 0,
+            "warnings": [f"engine exception: {exc}"],
+        }
+
+
+# Route #2: /api/insider/latest   (GET-only — pure-read static)
+# Refactor (RFC-7231 polish): the legacy ``accumulate=true`` query param
+# is deprecated and ignored on GET — see Route #1 /api/insider/top for
+# the full RFC-7231 §4.2.1/§4.2.2 rationale.
+@router.get("/api/insider/latest")
+def insider_latest_endpoint(
+    limit: int = 50,
+    accumulate: bool = Query(
+        False,
+        description="DEPRECATED, ignored. Use POST /api/insider/latest/accumulate "
+                    "for the write side. Kept for backward compat only.",
+    ),
+):
+    """Finviz market-wide latest insider trades (PURE-READ).
+
+    GET must be safe per RFC-7231 §4.2.1. ``accumulate=true`` is
+    deprecated and ignored; use ``POST /api/insider/latest/accumulate``
+    for the cron-write workflow.
+    """
+    try:
+        from services.duckdb_engine import db as duckdb_engine
+        from services.insider_scraper import (
+            compute_insider_summary,
+            fetch_latest_insider,
+        )
+
+        rows = fetch_latest_insider(
+            cache_engine=duckdb_engine,
+            limit=int(limit),
+        )
+        warnings: list[str] = []
+        if accumulate:
+            warnings.append(
+                "accumulate=true deprecated; ignored on GET. "
+                "Use POST /api/insider/latest/accumulate for the write side."
+            )
+        if not rows:
+            warnings.append("Finviz empty or unreachable")
+        return {
+            "rows": rows[: max(0, int(limit))],
+            "summary": compute_insider_summary(None, rows),
+            "source": "steal-three-router",
+            "warnings": warnings,
         }
     except Exception as exc:    # pragma: no cover
         return {
@@ -1186,13 +1333,18 @@ def insider_top_endpoint(
         }
 
 
-# Route #2: /api/insider/latest   (declared second — static)
-@router.get("/api/insider/latest")
-def insider_latest_endpoint(
-    limit: int = 50,
-    accumulate: bool = False,
+# Route #2b: /api/insider/latest/accumulate   (POST-only — write side)
+@router.post("/api/insider/latest/accumulate")
+def insider_latest_accumulate_endpoint(
+    limit: int = Query(50, ge=1, le=200),
 ):
-    """Finviz market-wide latest insider trades."""
+    """Write today's Finviz latest-insider snapshot into DuckDB.
+
+    POST is the right verb for write side effects per RFC-7231 §4.2.2.
+    Returns ``{rows, summary, source, written_n_rows, warnings}``.
+    Idempotent: UPSERT by (snapshot_date, ticker, transaction_date,
+    insider_name); safe to re-fire within the same trading day.
+    """
     try:
         from services.duckdb_engine import db as duckdb_engine
         from services.insider_scraper import (
@@ -1206,30 +1358,40 @@ def insider_latest_endpoint(
             init_insider_daily_table(duckdb_engine)
         except Exception as table_exc:    # pragma: no cover
             import logging
-            logging.warning(f"insider-latest: init_table preflight: {table_exc}")
+            logging.warning(
+                f"insider-latest/accumulate: init_table preflight: {table_exc}"
+            )
 
         rows = fetch_latest_insider(
             cache_engine=duckdb_engine,
             limit=int(limit),
         )
-        if not rows:
-            return {
-                "rows": [],
-                "summary": compute_insider_summary(None, []),
-                "source": "steal-three-router",
-                "warnings": ["Finviz empty or unreachable"],
-            }
-        if accumulate:
+        written_n_rows = 0
+        if rows:
             try:
-                accumulate_today(duckdb_engine, rows)
+                written_n_rows = accumulate_today(duckdb_engine, rows)
             except Exception as acc_exc:    # pragma: no cover
                 import logging
-                logging.warning(f"insider-latest: accumulate_today: {acc_exc}")
+                logging.warning(
+                    f"insider-latest/accumulate: accumulate_today: {acc_exc}"
+                )
+                return {
+                    "rows": rows[: max(0, int(limit))],
+                    "summary": compute_insider_summary(None, rows),
+                    "source": "steal-three-router",
+                    "written_n_rows": 0,
+                    "warnings": [
+                        f"accumulate failed: {acc_exc}",
+                        "Finviz rows fetched but DuckDB write did not persist.",
+                    ],
+                }
+        warnings = [] if rows else ["Finviz empty or unreachable"]
         return {
             "rows": rows[: max(0, int(limit))],
             "summary": compute_insider_summary(None, rows),
             "source": "steal-three-router",
-            "warnings": [],
+            "written_n_rows": written_n_rows,
+            "warnings": warnings,
         }
     except Exception as exc:    # pragma: no cover
         return {
@@ -1242,80 +1404,58 @@ def insider_latest_endpoint(
                 "n_rows_considered": 0, "warnings": [],
             },
             "source": "steal-three-router",
+            "written_n_rows": 0,
             "warnings": [f"engine exception: {exc}"],
         }
 
 
-# Route #3: /api/insider/{ticker}   (declared LAST — catch-all)
+# Route #3: /api/insider/{ticker}   (GET-only — pure-read catch-all)
+# Refactor (RFC-7231 polish): the legacy ``accumulate=true`` query param
+# is deprecated and ignored on GET — see Route #1 /api/insider/top for
+# the full RFC-7231 §4.2.1/§4.2.2 rationale. Declared LAST so the static
+# ``/top`` and ``/latest`` GET paths match first.
 @router.get("/api/insider/{ticker}")
 def insider_ticker_endpoint(
     ticker: str,
     limit: int = 50,
-    accumulate: bool = False,
+    accumulate: bool = Query(
+        False,
+        description="DEPRECATED, ignored. Use POST /api/insider/{ticker}/accumulate "
+                    "for the write side. Kept for backward compat only.",
+    ),
 ):
-    """Per-ticker Finviz insider trades + Flowseeker-badge summary.
+    """Per-ticker Finviz insider trades + Flowseeker-badge summary (PURE-READ).
 
-    ``accumulate=true`` writes rows to DuckDB before responding; default
-    is a pure fetch so polling endpoints don't write Amplification
-    repeatedly.
+    GET must be safe per RFC-7231 §4.2.1. ``accumulate=true`` is
+    deprecated and ignored; use ``POST /api/insider/{ticker}/accumulate``
+    for the cron-write workflow.
     """
     try:
         from services.duckdb_engine import db as duckdb_engine
         from services.insider_scraper import (
-            accumulate_today,
             compute_insider_summary,
             fetch_ticker_insider,
-            init_insider_daily_table,
         )
 
-        # Catch-all guard: if ticker is "top" or "latest", this endpoint
-        # was wrongly matched (route-order bug). Defensive fast-return
-        # so the static-route endpoint's body still fires (FastAPI
-        # resolved to this catch-all first).
         ticker_upper = ticker.upper()
-        if ticker_upper in {"TOP", "LATEST"}:
-            return {
-                "ticker": ticker_upper,
-                "rows": [],
-                "summary": compute_insider_summary(None, []),
-                "source": "steal-three-router",
-                "warnings": [
-                    f"reserved route token '{ticker_upper}' ignored "
-                    "(handled by static route)",
-                ],
-            }
-
         finviz_ticker = ticker_upper.replace(".", "-")
-
-        try:
-            init_insider_daily_table(duckdb_engine)
-        except Exception as table_exc:    # pragma: no cover
-            import logging
-            logging.warning(f"insider: init_table preflight: {table_exc}")
-
         rows = fetch_ticker_insider(finviz_ticker, cache_engine=duckdb_engine)
         for _r in rows:
             _r["ticker"] = ticker_upper
-        if not rows:
-            return {
-                "ticker": ticker_upper,
-                "rows": [],
-                "summary": compute_insider_summary(ticker_upper, []),
-                "source": "steal-three-router",
-                "warnings": ["Finviz empty or unreachable"],
-            }
+        warnings: list[str] = []
         if accumulate:
-            try:
-                accumulate_today(duckdb_engine, rows)
-            except Exception as acc_exc:    # pragma: no cover
-                import logging
-                logging.warning(f"insider: accumulate_today: {acc_exc}")
+            warnings.append(
+                "accumulate=true deprecated; ignored on GET. Use POST "
+                "/api/insider/{ticker}/accumulate for the write side."
+            )
+        if not rows:
+            warnings.append("Finviz empty or unreachable")
         return {
             "ticker": ticker_upper,
             "rows": rows[: max(0, int(limit))],
             "summary": compute_insider_summary(ticker_upper, rows),
             "source": "steal-three-router",
-            "warnings": [],
+            "warnings": warnings,
         }
     except Exception as exc:    # pragma: no cover
         return {
@@ -1329,6 +1469,89 @@ def insider_ticker_endpoint(
                 "n_rows_considered": 0, "warnings": [],
             },
             "source": "steal-three-router",
+            "warnings": [f"engine exception: {exc}"],
+        }
+
+
+# Route #3b: /api/insider/{ticker}/accumulate   (POST-only — write side)
+# Declared LAST so the static ``/top/accumulate`` and ``/latest/accumulate``
+# POST paths match first; FastAPI's path-resolution ordering handles it.
+@router.post("/api/insider/{ticker}/accumulate")
+def insider_ticker_accumulate_endpoint(
+    ticker: str,
+    limit: int = Query(50, ge=1, le=200),
+):
+    """Write today's per-ticker Finviz insider snapshot into DuckDB.
+
+    POST is the right verb for write side effects per RFC-7231 §4.2.2.
+    Returns ``{ticker, rows, summary, source, written_n_rows, warnings}``.
+    Idempotent: UPSERT by (snapshot_date, ticker, transaction_date,
+    insider_name); safe to re-fire within the same trading day.
+    """
+    try:
+        from services.duckdb_engine import db as duckdb_engine
+        from services.insider_scraper import (
+            accumulate_today,
+            compute_insider_summary,
+            fetch_ticker_insider,
+            init_insider_daily_table,
+        )
+
+        ticker_upper = ticker.upper()
+        finviz_ticker = ticker_upper.replace(".", "-")
+        try:
+            init_insider_daily_table(duckdb_engine)
+        except Exception as table_exc:    # pragma: no cover
+            import logging
+            logging.warning(
+                f"insider/{ticker}/accumulate: init_table preflight: {table_exc}"
+            )
+
+        rows = fetch_ticker_insider(finviz_ticker, cache_engine=duckdb_engine)
+        for _r in rows:
+            _r["ticker"] = ticker_upper
+        written_n_rows = 0
+        if rows:
+            try:
+                written_n_rows = accumulate_today(duckdb_engine, rows)
+            except Exception as acc_exc:    # pragma: no cover
+                import logging
+                logging.warning(
+                    f"insider/{ticker}/accumulate: accumulate_today: {acc_exc}"
+                )
+                return {
+                    "ticker": ticker_upper,
+                    "rows": rows[: max(0, int(limit))],
+                    "summary": compute_insider_summary(ticker_upper, rows),
+                    "source": "steal-three-router",
+                    "written_n_rows": 0,
+                    "warnings": [
+                        f"accumulate failed: {acc_exc}",
+                        "Finviz rows fetched but DuckDB write did not persist.",
+                    ],
+                }
+        warnings = [] if rows else ["Finviz empty or unreachable"]
+        return {
+            "ticker": ticker_upper,
+            "rows": rows[: max(0, int(limit))],
+            "summary": compute_insider_summary(ticker_upper, rows),
+            "source": "steal-three-router",
+            "written_n_rows": written_n_rows,
+            "warnings": warnings,
+        }
+    except Exception as exc:    # pragma: no cover
+        return {
+            "ticker": ticker.upper(),
+            "rows": [],
+            "summary": {
+                "ticker": ticker.upper(), "n_buys_30d": 0,
+                "n_sells_30d": 0, "total_buy_value": 0.0,
+                "total_sell_value": 0.0, "net_buy_pressure": 0.0,
+                "largest_buy_value": None, "ceo_bought_recent": False,
+                "n_rows_considered": 0, "warnings": [],
+            },
+            "source": "steal-three-router",
+            "written_n_rows": 0,
             "warnings": [f"engine exception: {exc}"],
         }
 
