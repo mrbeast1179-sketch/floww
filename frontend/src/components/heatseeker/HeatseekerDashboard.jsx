@@ -274,8 +274,16 @@ export default function HeatseekerDashboard({
       {/* ── Row 3: Confluence & Velocity ───────────────────────────── */}
       {/* Compound Row 3: real-time steal-list signals (#1/#5/#3) sit on
           top per temporal order (now → past), then the historical
-          VelocityModeBadge + TrinityConfluenceMeter follow below. */}
-      <div>
+          VelocityModeBadge + TrinityConfluenceMeter follow below.
+          Row container gets data-testid="hs-row3-confluence-velocity"
+          so visual-regression sweeps can target the row directly
+          (no screen-scraping the surrounding layout). Per-feature
+          steal-list tiles get hs-steal-<feature> wrapper testids so
+          downstream assertions can locate the tile by semantic
+          purpose (dual-gex / iv-mid / wheel-income / max-pain /
+          max-pain-per-expiry-drift) instead of relying on
+          component-internal ids that may shift between versions. */}
+      <div data-testid="hs-row3-confluence-velocity">
         <SectionHeader title="Confluence & Velocity" />
         <div className="space-y-4">
           {/* Steal-list sub-section: real-time flow */}
@@ -284,10 +292,16 @@ export default function HeatseekerDashboard({
               ◆ Steal-list signals · #1 Dual-GEX · #5 IV-Mid · #3 Wheel income
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              <DualGEXBadge ticker={normalizedTicker} />
-              <IVMidBadge ticker={normalizedTicker} width={6} />
+              <div data-testid="hs-steal-dual-gex">
+                <DualGEXBadge ticker={normalizedTicker} />
+              </div>
+              <div data-testid="hs-steal-iv-mid">
+                <IVMidBadge ticker={normalizedTicker} width={6} />
+              </div>
             </div>
-            <WheelIncomeScreenerPanel ticker={normalizedTicker} />
+            <div data-testid="hs-steal-wheel-income">
+              <WheelIncomeScreenerPanel ticker={normalizedTicker} />
+            </div>
           </div>
 
           {/* NEW: Historical steal-list signals (#6/#9/#10/#20) */}
@@ -307,13 +321,17 @@ export default function HeatseekerDashboard({
               <VelocityModeBadge ticker={normalizedTicker} />
               <TrinityConfluenceMeter />
             </div>              {/* NEW: Max-Pain pin magnet beneath the Trinity grid (steal-list #9 base) */}
-              <MaxPainBadge ticker={normalizedTicker} />
+              <div data-testid="hs-steal-max-pain">
+                <MaxPainBadge ticker={normalizedTicker} />
+              </div>
               {/* NEW: Per-expiry max-pain-drift multi-line chart — complements
                   the OVERALL scalar readout above with one polyline per
                   listed expiry showing strike evolution across the 30-day
                   window. Standalone fetch via the sibling
                   /api/max_pain_drift/{ticker}/per_expiry_history endpoint. */}
-              <MaxPainPerExpiryDriftTile ticker={normalizedTicker} />
+              <div data-testid="hs-steal-max-pain-per-expiry-drift">
+                <MaxPainPerExpiryDriftTile ticker={normalizedTicker} />
+              </div>
             </div>
         </div>
       </div>

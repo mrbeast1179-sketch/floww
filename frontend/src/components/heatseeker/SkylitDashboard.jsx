@@ -154,16 +154,26 @@ function SkylitDashboard({
           ◆ Confluence & Velocity · #1 Dual-GEX · #5 IV-Mid · #3 Wheel income
         </div>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-          <DualGEXBadge ticker={ticker} />
-          <IVMidBadge ticker={ticker} width={6} />
-          <MaxPainBadge ticker={ticker} />
+          <div data-testid="skylit-steal-dual-gex">
+            <DualGEXBadge ticker={ticker} />
+          </div>
+          <div data-testid="skylit-steal-iv-mid">
+            <IVMidBadge ticker={ticker} width={6} />
+          </div>
+          <div data-testid="skylit-steal-max-pain">
+            <MaxPainBadge ticker={ticker} />
+          </div>
         </div>
-        <WheelIncomeScreenerPanel ticker={ticker} />
+        <div data-testid="skylit-steal-wheel-income">
+          <WheelIncomeScreenerPanel ticker={ticker} />
+        </div>
         {/* NEW: Per-expiry max-pain-drift multi-line chart — full-width
             beneath the Wheel panel so the multi-line visualization gets
             the horizontal real estate it needs. Standalone fetch via
             /api/max_pain_drift/{ticker}/per_expiry_history. */}
-        <MaxPainPerExpiryDriftTile ticker={ticker} />
+        <div data-testid="skylit-steal-max-pain-per-expiry-drift">
+          <MaxPainPerExpiryDriftTile ticker={ticker} />
+        </div>
       </div>
 
       {/* 4. Bottom Ticker Info Bar */}

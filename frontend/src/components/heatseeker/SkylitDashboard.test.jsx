@@ -61,5 +61,16 @@ describe("SkylitDashboard", () => {
     // Per-expiry max-pain-drift multi-line chart mounted full-width
     // beneath the Wheel panel inside the steal-list band.
     expect(screen.getByTestId("hs-max-pain-per-expiry-drift")).toBeInTheDocument();
+    // NEW (2026-07-15): skylit-steal-<feature> wrappers — standardize
+    // on the skylit-steal-<feature> prefix so visual verifications can
+    // target tiles by semantic purpose (dual-gex / iv-mid / max-pain /
+    // wheel-income / max-pain-per-expiry-drift) without screen-scraping
+    // the surrounding skylit chrome. Count delta +5 from the prior
+    // version of this test.
+    expect(screen.getByTestId("skylit-steal-dual-gex")).toBeInTheDocument();
+    expect(screen.getByTestId("skylit-steal-iv-mid")).toBeInTheDocument();
+    expect(screen.getByTestId("skylit-steal-max-pain")).toBeInTheDocument();
+    expect(screen.getByTestId("skylit-steal-wheel-income")).toBeInTheDocument();
+    expect(screen.getByTestId("skylit-steal-max-pain-per-expiry-drift")).toBeInTheDocument();
   });
 });

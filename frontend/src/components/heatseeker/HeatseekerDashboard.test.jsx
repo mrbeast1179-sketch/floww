@@ -69,12 +69,14 @@ describe("HeatseekerDashboard", () => {
     expect(screen.getByText(/Wave 1 \+ 2 \+ 3/i)).toBeInTheDocument();
   });
 
-  test("mounts all 19 child panels via their test-ids", async () => {
+  test("mounts all 25 child panels + Row 3 container + steal-list wrappers via their test-ids", async () => {
     await act(async () => {
       render(<HeatseekerDashboard ticker="SPY" spot={500} />);
     });
     expect(screen.getByTestId("heatseeker-dashboard")).toBeInTheDocument();
     [
+      // Row 3 container — visual-regression sweep target (2026-07-15)
+      "hs-row3-confluence-velocity",
       "hs-flip-zones",
       "hs-node-lifecycle",
       "hs-air-pockets",
@@ -96,6 +98,14 @@ describe("HeatseekerDashboard", () => {
       "hs-tug-of-war",
       "hs-node-classification",
       "hs-stacked-nodes",
+      // NEW (2026-07-15): Row 3 steal-list wrappers — standardize on
+      // hs-steal-<feature> so visual verifications can target tiles
+      // by semantic purpose without screen-scraping the layout grid.
+      "hs-steal-dual-gex",
+      "hs-steal-iv-mid",
+      "hs-steal-wheel-income",
+      "hs-steal-max-pain",
+      "hs-steal-max-pain-per-expiry-drift",
     ].forEach((tid) => expect(screen.getByTestId(tid)).toBeInTheDocument());
   });
 
