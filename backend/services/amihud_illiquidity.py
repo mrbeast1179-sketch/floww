@@ -62,8 +62,7 @@ from __future__ import annotations
 
 import math
 from collections import deque
-from typing import Any, Dict, Tuple
-
+from typing import Any
 
 # ─────────────────────────────────────────────────────────────────────
 # Label band + colour palette (mirrors brand chips in FlowseekerProTab.jsx)
@@ -75,7 +74,7 @@ LABEL_LIQUID = "LIQUID"
 LABEL_NORMAL = "NORMAL"
 LABEL_ILLIQUID = "ILLIQUID"
 
-LABEL_COLORS: Dict[str, str] = {
+LABEL_COLORS: dict[str, str] = {
     LABEL_LIQUID:   "#22c55e",  # green
     LABEL_NORMAL:   "#fbbf24",  # amber
     LABEL_ILLIQUID: "#ef4444",  # red
@@ -106,7 +105,7 @@ class AmihudIlliquidity:
         self.window = int(window)
         self.history = int(history)
         # Each observation is (illiq, abs_return, dollar_volume).
-        self._obs: "deque[Tuple[float, float, float]]" = deque(maxlen=self.history)
+        self._obs: deque[tuple[float, float, float]] = deque(maxlen=self.history)
         # Stateful ``_last_spot`` mirrors the Kyle/Lambda service contract:
         # the first push seeds the spot and produces no observation; the
         # second push produces the first (r, dv) pair.
@@ -149,7 +148,7 @@ class AmihudIlliquidity:
     def n_obs(self) -> int:
         return len(self._obs)
 
-    def compute(self) -> Dict[str, Any]:
+    def compute(self) -> dict[str, Any]:
         """Rolling-mean Amihud over the LAST ``window`` observations.
 
         Returns the snake_case dict per the schema in the module docstring.

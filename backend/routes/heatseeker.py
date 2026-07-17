@@ -81,8 +81,9 @@ async def _fetch_chain(ticker: str, expiries: int) -> dict[str, Any]:
     Caches raw chain data for 30s to prevent redundant yfinance calls
     when multiple heatseeker panels request the same ticker simultaneously.
     """
-    from server import fetch_spot_and_chains_merged  # noqa: F401
     import time
+
+    from server import fetch_spot_and_chains_merged  # noqa: F401
 
     t = ticker.strip().upper()
     if t == "SPX":

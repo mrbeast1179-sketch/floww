@@ -864,7 +864,7 @@ async def fetch_spot_and_chains_merged(ticker: str, max_expiries: int = 4) -> di
             for c in cv_data["contracts"]:
                 c["oi_source"] = "cvserver"
             return cv_data
-    except asyncio.TimeoutError:
+    except TimeoutError:
         log.warning(f"cvserver timeout for {ticker}, falling back to yfinance")
     except Exception as e:
         log.warning(f"cvserver fetch failed for {ticker}: {e}")
@@ -1589,7 +1589,7 @@ async def _build_heatmap_impl(ticker: str, max_expiries: int = 4, with_taps: boo
     is_index = ticker.startswith("^") or ticker.startswith("I:")
     if is_index and not scalp:
         # First get spot price from a quick chain fetch (just 1 expiry, minimal fields)
-        from services.cvserver_client import fetch_chain_from_cvserver, fetch_chain_for_heatmap, CVSERVER_API_KEY
+        from services.cvserver_client import CVSERVER_API_KEY, fetch_chain_for_heatmap, fetch_chain_from_cvserver
         if CVSERVER_API_KEY:
             log.info(f"build_heatmap: using screen API for index {ticker}")
             try:
@@ -1604,7 +1604,7 @@ async def _build_heatmap_impl(ticker: str, max_expiries: int = 4, with_taps: boo
                         heatmap_data["data_source"] = "cvserver"
                         _BUILD_HEATMAP_CACHE[cache_key] = {"ts": time.time(), "data": heatmap_data}
                         return heatmap_data
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 log.warning(f"cvserver timeout for index {ticker}, falling back to yfinance")
             except Exception as e:
                 log.warning(f"cvserver failed for index {ticker}: {e}")
@@ -2852,7 +2852,7 @@ async def _vpin_autofeed_loop():
                     volumes = hist["Volume"].iloc[1:].values.astype(float)
                     sigma = float(np.std(price_changes)) if len(price_changes) > 1 else 0.01
 
-                    for pc, vol in zip(price_changes, volumes):
+                    for pc, vol in zip(price_changes, volumes, strict=False):
                         if vol > 0 and sigma > 0:
                             engine.update(float(pc), float(vol), sigma, dt=1.0)
 

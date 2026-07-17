@@ -22,7 +22,7 @@ Query params
 from __future__ import annotations
 
 import logging
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 from fastapi import APIRouter, Query
@@ -78,8 +78,7 @@ def exposure_profile_endpoint(
         # circular import at module-load time (routes are imported before
         # server.py finishes building `app`).
         from server import fetch_spot_and_chains
-        from services import squeeze_exposure_profile
-        from services import duckdb_engine
+        from services import duckdb_engine, squeeze_exposure_profile
 
         raw = fetch_spot_and_chains(ticker.upper(), max_expiries=4)
         spot = float(raw.get("spot", 0.0) or 0.0)
@@ -106,7 +105,7 @@ def exposure_profile_endpoint(
                     duckdb_engine_obj,
                     ticker.upper(),
                     out,
-                    snapshot_date=datetime.now(timezone.utc).date(),
+                    snapshot_date=datetime.now(UTC).date(),
                 )
             except Exception as exc:    # pragma: no cover (defensive path)
                 logger.warning(
@@ -129,7 +128,7 @@ def exposure_profile_endpoint(
             "profile": [],
             "warnings": [f"engine exception: {type(exc).__name__}: {exc}"],
             "method": "bs_reprice_then_dollar_gex",
-            "computed_at": datetime.now(timezone.utc).isoformat(),
+            "computed_at": datetime.now(UTC).isoformat(),
         }
 
 

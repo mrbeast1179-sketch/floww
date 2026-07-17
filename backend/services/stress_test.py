@@ -66,7 +66,6 @@ from __future__ import annotations
 import math
 from typing import Any
 
-
 __all__ = ["compute_stress_test_matrix", "DEFAULT_SPOT_MULTIPLIERS",
            "DEFAULT_IV_MULTIPLIERS", "DEFAULT_DAYS_DECAY", "DEFAULT_R"]
 

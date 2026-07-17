@@ -11,18 +11,25 @@ Usage:
 """
 from __future__ import annotations
 
-import argparse, json, logging, math, sys, time
+import argparse
+import json
+import logging
+import math
+import sys
+import time
 from datetime import UTC, datetime
 from pathlib import Path
 
 import numpy as np
 import pandas as pd
 import yfinance as yf
-from scipy.stats import norm, skew as sp_skew, kurtosis as sp_kurtosis
+from scipy.stats import kurtosis as sp_kurtosis
+from scipy.stats import norm
+from scipy.stats import skew as sp_skew
 from sklearn.ensemble import GradientBoostingClassifier, RandomForestClassifier, VotingClassifier
 from sklearn.linear_model import LogisticRegression
+from sklearn.metrics import accuracy_score, f1_score, precision_score, recall_score
 from sklearn.preprocessing import StandardScaler
-from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(SCRIPT_DIR.parent))

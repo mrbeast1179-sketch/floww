@@ -73,8 +73,7 @@ Usage::
 from __future__ import annotations
 
 import random
-from typing import Any, Dict, List, Optional, Tuple
-
+from typing import Any
 
 # ─────────────────────────────────────────────────────────────────────
 # Weights — MUST stay synchronised with composite_flow_score.py.
@@ -107,7 +106,7 @@ CONFIDENCE_NARROW = "NARROW"
 CONFIDENCE_MODERATE = "MODERATE"
 CONFIDENCE_WIDE = "WIDE"
 
-CONFIDENCE_COLORS: Dict[str, str] = {
+CONFIDENCE_COLORS: dict[str, str] = {
     CONFIDENCE_NARROW:  "#22c55e",   # green
     CONFIDENCE_MODERATE: "#fbbf24",  # amber
     CONFIDENCE_WIDE:    "#ef4444",   # red
@@ -146,7 +145,7 @@ def _classify_width(width: float) -> str:
     return CONFIDENCE_WIDE
 
 
-def _extract_sub_scores(snap: Dict[str, Any]) -> Tuple[float, float, float, float, float]:
+def _extract_sub_scores(snap: dict[str, Any]) -> tuple[float, float, float, float, float]:
     """Read the 5 sub-scores out of a snapshot dict. Defaults to 0.0.
 
     Steal-list deferred-(b) ship: 4-tuple widened to 5-tuple to absorb
@@ -184,10 +183,10 @@ class CompositeConfidence:
 
     @staticmethod
     def compute(
-        history: List[Dict[str, Any]],
+        history: list[dict[str, Any]],
         b_resamples: int = _DEFAULT_B_RESAMPLES,
-        rng: Optional[random.Random] = None,
-    ) -> Dict[str, Any]:
+        rng: random.Random | None = None,
+    ) -> dict[str, Any]:
         """Compute the 95% bootstrap CI of the composite score over history.
 
         ``history`` is a chronological list of snapshot dicts as produced
@@ -216,7 +215,7 @@ class CompositeConfidence:
         live_warming = bool(latest.get("is_warming", True))
 
         # 2. Filter to valid (non-warming) sub-score vectors.
-        valid: List[Dict[str, Any]] = [
+        valid: list[dict[str, Any]] = [
             s for s in history
             if isinstance(s, dict) and not bool(s.get("is_warming", True))
         ]
@@ -253,7 +252,7 @@ class CompositeConfidence:
             dir_arr.append(dirn)
             sent_arr.append(send)
 
-        means: List[float] = []
+        means: list[float] = []
         for _ in range(b):
             il = 0.0
             tx = 0.0
@@ -306,7 +305,7 @@ class CompositeConfidence:
 # Internal helper — concise warming-state response
 # ─────────────────────────────────────────────────────────────────────
 
-def _warming_response(score: float, n: int, label: str) -> Dict[str, Any]:
+def _warming_response(score: float, n: int, label: str) -> dict[str, Any]:
     """Return a warming payload — bounds collapse to the point estimate."""
     s = float(score or 0.0)
     return {

@@ -63,7 +63,7 @@ _SYMBOL_MAP = {
 }
 
 # Field name mapping: cvserver param -> our internal contract field name
-# Only map numeric fields here; string fields (expiration_date, contract_type) 
+# Only map numeric fields here; string fields (expiration_date, contract_type)
 # are set directly from the group/structural data
 FIELD_MAP = {
     "implied_volatility": "iv",
@@ -488,7 +488,7 @@ async def fetch_chain_for_heatmap(
             "data_source": "cvserver",
         }
 
-    except asyncio.TimeoutError:
+    except TimeoutError:
         logger.warning(f"cvserver screen timeout for {symbol}")
         return None
     except Exception as e:

@@ -105,7 +105,7 @@ class TestBsDeltaVecHonoursRiskFreeRate:
         that hardcodes 0.0 must be caught).  Pins the symmetry-class: ALL greek vectors
         use the real `r`, none short-circuit to 0.0.  See P2 entry #5 in
         docs/superpowers/plans/2026-06-20-freebuff-decoder-hardening-60h.md."""
-        from services.numba_greeks import bs_gamma_vec, bs_charm_vec
+        from services.numba_greeks import bs_charm_vec, bs_gamma_vec
 
         S = 100.0
         K = np.array([90.0, 100.0, 110.0])

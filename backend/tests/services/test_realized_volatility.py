@@ -31,7 +31,6 @@ from datetime import date
 
 import pytest
 
-
 # ─────────────────────────────────────────────────────────────────────
 # Helpers — DuckDB-like stub + lazy numpy (so missing numpy doesn't
 # fail the entire module import).

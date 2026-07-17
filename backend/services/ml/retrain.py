@@ -20,6 +20,7 @@ Usage:
 
 from __future__ import annotations
 
+import contextlib
 import logging
 import os
 from datetime import UTC, datetime, timedelta
@@ -259,10 +260,8 @@ class RetrainOrchestrator:
 
         except Exception as e:
             log.error(f"Retrain job {retrain_id} unexpected failure for {ticker}: {e}")
-            try:
+            with contextlib.suppress(Exception):
                 await self._update_retrain(retrain_id, "failed", {"error": str(e)})
-            except Exception:
-                pass
 
     async def _update_retrain(self, retrain_id: str, status: str, result: dict) -> None:
         """Update retrain document with status and result."""

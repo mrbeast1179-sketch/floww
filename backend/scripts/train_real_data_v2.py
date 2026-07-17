@@ -204,8 +204,8 @@ def walk_forward_cv(
     embargo: int = 5,
 ) -> dict[str, Any]:
     """Walk-forward CV with embargo. Returns per-fold metrics."""
-    from sklearn.metrics import accuracy_score
     from sklearn.base import clone
+    from sklearn.metrics import accuracy_score
 
     fold_size = len(X) // (n_splits + 1)
     scores = []
@@ -236,7 +236,7 @@ def walk_forward_cv(
 
         # Trading Sharpe: long when pred=UP, short when pred=DOWN, flat HOLD
         rets = []
-        for pred, actual in zip(test_pred, y_test):
+        for pred, actual in zip(test_pred, y_test, strict=False):
             if pred == 2:  # UP
                 rets.append(1.0 if actual == 2 else -1.0)
             elif pred == 0:  # DOWN
@@ -381,7 +381,7 @@ def train_ticker(ticker: str, quick: bool = False) -> dict[str, Any]:
 
     # Trading Sharpe on test set
     rets = []
-    for pred, actual in zip(test_pred, y_test):
+    for pred, actual in zip(test_pred, y_test, strict=False):
         if pred == 2:
             rets.append(1.0 if actual == 2 else -1.0)
         elif pred == 0:

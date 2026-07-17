@@ -62,7 +62,6 @@ import math
 
 import pytest
 
-
 # ─────────────────────────────────────────────────────────────────────
 # Helpers — local Black-Scholes reference so tests pin on a formula the
 # impl can match precisely (no coupling to the impl's exact BS impl).

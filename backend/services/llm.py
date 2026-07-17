@@ -13,9 +13,10 @@ Used for:
 - Market commentary
 """
 
-import os
 import logging
-from typing import Dict, Any
+import os
+from typing import Any
+
 from dotenv import load_dotenv
 
 logger = logging.getLogger(__name__)
@@ -191,7 +192,7 @@ async def analyze_trade_with_llm(
     net_gex: float,
     prediction: str,
     confidence: float,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Analyze a trade opportunity using LLM."""
     llm = get_llm_service()
 

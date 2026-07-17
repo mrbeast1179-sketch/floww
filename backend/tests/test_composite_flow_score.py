@@ -19,21 +19,21 @@ Or directly (no pytest install needed):
 from __future__ import annotations
 
 import sys
-import pytest
 from pathlib import Path
+
+import pytest
 
 BACKEND_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(BACKEND_ROOT))
 
 from services.composite_flow_score import (
-    CompositeFlowScore,
     LABEL_COLORS,
     LABEL_HIGH,
     LABEL_LOW,
     LABEL_MED,
     LABEL_WATCH,
+    CompositeFlowScore,
 )
-
 
 # ─────────────────────────────────────────────────────────────────────
 # Helpers — fabricate minimally-shaped sub-service dicts for tests

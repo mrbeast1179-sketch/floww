@@ -54,8 +54,8 @@ from __future__ import annotations
 
 import math
 from collections import deque
-from typing import Any, Dict, List, Sequence, Tuple
-
+from collections.abc import Sequence
+from typing import Any
 
 LOG_INF = float("-inf")
 
@@ -85,7 +85,7 @@ class GaussianHMMRegime:
     """Pure-Python 3-state (default) Gaussian HMM for regime detection."""
 
     STATE_LABELS = ["TRENDING_BULL", "RANGING", "TRENDING_BEAR"]
-    STATE_COLORS: Dict[str, str] = {
+    STATE_COLORS: dict[str, str] = {
         "TRENDING_BULL": "#22c55e",   # green
         "RANGING":       "#94a3b8",   # slate
         "TRENDING_BEAR": "#ef4444",   # red
@@ -101,15 +101,15 @@ class GaussianHMMRegime:
         self.history = max(5, int(history))
         self._obs: deque = deque(maxlen=self.history)
         # Uniform initial log-probabilities
-        self.log_pi: List[float] = [math.log(1.0 / n_states)] * n_states
-        self.log_A: List[List[float]] = [
+        self.log_pi: list[float] = [math.log(1.0 / n_states)] * n_states
+        self.log_A: list[list[float]] = [
             [math.log(1.0 / n_states) for _ in range(n_states)]
             for _ in range(n_states)
         ]
         # Per-state means + variances (init to default; ``_initialize_params``
         # refits from the buffer on first ``fit_iter`` call).
-        self.means: List[List[float]] = [[0.0] * n_features for _ in range(n_states)]
-        self.vars: List[List[float]] = [[1.0] * n_features for _ in range(n_states)]
+        self.means: list[list[float]] = [[0.0] * n_features for _ in range(n_states)]
+        self.vars: list[list[float]] = [[1.0] * n_features for _ in range(n_states)]
         self._fitted: bool = False
 
     # ── Public API ──────────────────────────────────────────────────────
@@ -142,7 +142,7 @@ class GaussianHMMRegime:
             self._m_step(log_alpha, log_beta)
         self._fitted = True
 
-    def classify(self) -> Dict[str, Any]:
+    def classify(self) -> dict[str, Any]:
         """Return current regime + smoothed path + posterior vector."""
         n_obs = len(self._obs)
         if n_obs < 5 or not self._fitted:
@@ -162,7 +162,7 @@ class GaussianHMMRegime:
             [log_alpha[n_obs - 1][i] + log_beta[n_obs - 1][i]
              for i in range(self.n_states)]
         )
-        posterior: List[float] = [
+        posterior: list[float] = [
             float(
                 math.exp(
                     log_alpha[n_obs - 1][i] + log_beta[n_obs - 1][i] - log_norm
@@ -172,7 +172,7 @@ class GaussianHMMRegime:
         ]
         current_idx = max(range(self.n_states), key=lambda i: posterior[i])
         # Smoothed path: argmax of gamma (per observation)
-        smoothed_path: List[str] = []
+        smoothed_path: list[str] = []
         for t in range(n_obs):
             ln = _logsumexp(
                 [log_alpha[t][i] + log_beta[t][i] for i in range(self.n_states)]
@@ -214,16 +214,16 @@ class GaussianHMMRegime:
                 self.means[s][k] = m
                 self.vars[s][k] = max(v, 1e-6)
 
-    def _log_emit(self, obs: Tuple[float, ...], state_i: int) -> float:
+    def _log_emit(self, obs: tuple[float, ...], state_i: int) -> float:
         s = 0.0
         for k in range(self.n_features):
             s += _log_gaussian(obs[k], self.means[state_i][k], self.vars[state_i][k])
         return s
 
-    def _forward(self) -> List[List[float]]:
+    def _forward(self) -> list[list[float]]:
         n = self.n_states
         n_obs = len(self._obs)
-        log_alpha: List[List[float]] = [[LOG_INF] * n for _ in range(n_obs)]
+        log_alpha: list[list[float]] = [[LOG_INF] * n for _ in range(n_obs)]
         for i in range(n):
             log_alpha[0][i] = self.log_pi[i] + self._log_emit(self._obs[0], i)
         for t in range(1, n_obs):
@@ -234,10 +234,10 @@ class GaussianHMMRegime:
                 )
         return log_alpha
 
-    def _backward(self) -> List[List[float]]:
+    def _backward(self) -> list[list[float]]:
         n = self.n_states
         n_obs = len(self._obs)
-        log_beta: List[List[float]] = [[LOG_INF] * n for _ in range(n_obs)]
+        log_beta: list[list[float]] = [[LOG_INF] * n for _ in range(n_obs)]
         for i in range(n):
             log_beta[n_obs - 1][i] = 0.0
         for t in range(n_obs - 2, -1, -1):
@@ -253,13 +253,13 @@ class GaussianHMMRegime:
         return log_beta
 
     def _m_step(
-        self, log_alpha: List[List[float]], log_beta: List[List[float]]
+        self, log_alpha: list[list[float]], log_beta: list[list[float]]
     ) -> None:
         """EM M-step: refresh log_pi, log_A, means, vars from gamma + xi."""
         n = self.n_states
         n_obs = len(self._obs)
         # gamma[t][i] in linear space
-        gamma: List[List[float]] = [[0.0] * n for _ in range(n_obs)]
+        gamma: list[list[float]] = [[0.0] * n for _ in range(n_obs)]
         for t in range(n_obs):
             log_norm = _logsumexp(
                 [log_alpha[t][i] + log_beta[t][i] for i in range(n)]
@@ -274,7 +274,7 @@ class GaussianHMMRegime:
         A_counts = [[0.0] * n for _ in range(n)]
         row_counts = [0.0] * n
         for t in range(n_obs - 1):
-            flat: List[float] = []
+            flat: list[float] = []
             for i in range(n):
                 for j in range(n):
                     flat.append(
@@ -314,14 +314,14 @@ class GaussianHMMRegime:
 
     def _dynamic_label_map(
         self,
-        log_alpha: List[List[float]],
-        log_beta: List[List[float]],
-    ) -> Dict[int, str]:
+        log_alpha: list[list[float]],
+        log_beta: list[list[float]],
+    ) -> dict[int, str]:
         """Sort states by per-state mean of feature[0]; map top→BULL, mid→RANGING,
         bottom→BEAR (3-state case). Returns ``state_idx → label``.
         """
         n_obs = len(self._obs)
-        state_mean_f0: List[float] = []
+        state_mean_f0: list[float] = []
         for s in range(self.n_states):
             gamma_s_total = 0.0
             weighted = 0.0
@@ -341,7 +341,7 @@ class GaussianHMMRegime:
             key=lambda i: state_mean_f0[i],
             reverse=True,
         )
-        label_by_state: Dict[int, str] = {}
+        label_by_state: dict[int, str] = {}
         if self.n_states == 3:
             label_by_state[sorted_states[0]] = "TRENDING_BULL"
             label_by_state[sorted_states[1]] = "RANGING"

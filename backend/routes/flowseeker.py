@@ -473,7 +473,7 @@ async def _record_scan_baseline(rows: list) -> None:
         if oi_ops:
             await db.flow_scan_contract_oi.bulk_write(oi_ops, ordered=False)
     except Exception as e:
-        logger.debug("scan baseline record skipped: %s" % e)
+        logger.debug(f"scan baseline record skipped: {e}")
 
 
 async def _prev_contract_oi() -> dict[str, int]:
@@ -498,7 +498,7 @@ async def _prev_contract_oi() -> dict[str, int]:
             ).limit(20000):
                 out[doc["ticker"]] = doc.get("oi") or 0
     except Exception as e:
-        logger.debug("prev contract OI unavailable: %s" % e)
+        logger.debug(f"prev contract OI unavailable: {e}")
     _contract_oi_cache["ts"] = nowt
     _contract_oi_cache["data"] = out
     return out
@@ -529,7 +529,7 @@ async def _volume_baselines() -> dict[str, dict]:
             if std > 0:
                 out[t] = {"avg": round(avg), "std": round(std), "days": n}
     except Exception as e:
-        logger.debug("volume baselines unavailable: %s" % e)
+        logger.debug(f"volume baselines unavailable: {e}")
     _baselines_cache["ts"] = nowt
     _baselines_cache["data"] = out
     return out
@@ -776,7 +776,7 @@ async def scan_history(days: int = Query(14, ge=2, le=60)):
                 "put_vol": doc.get("put_vol") or 0,
             })
     except Exception as e:
-        logger.debug("scan history unavailable: %s" % e)
+        logger.debug(f"scan history unavailable: {e}")
     payload = {"days": days, "tickers": out, "asof": datetime.now().isoformat()}
     _history_cache.update(ts=nowt, days=days, data=payload)
     return payload
@@ -902,7 +902,7 @@ async def unusual_activity_alerts(
                     near_money = [d for d in call_data if abs(d["strike"] - spot) / spot <= 0.25]
                 else:
                     near_money = call_data
-                
+
                 if not near_money:
                     continue
 
@@ -924,30 +924,30 @@ async def unusual_activity_alerts(
                         if vol_oi >= min_vol_oi_ratio and total_vol > 100:
                             alerts_for_strike.append("high_volume")
                             confidence_score += 10
-                            factors.append("Vol/OI ratio: %.1f%% (threshold: %.0f%%)" % (vol_oi * 100, min_vol_oi_ratio * 100))
-                            factors.append("Day volume: %.0f contracts" % total_vol)
+                            factors.append(f"Vol/OI ratio: {vol_oi * 100:.1f}% (threshold: {min_vol_oi_ratio * 100:.0f}%)")
+                            factors.append(f"Day volume: {total_vol:.0f} contracts")
 
                     # Check IV spike (min 500 OI)
                     if d["call_iv"] > 0 and iv_p75 > 0 and d["call_iv"] >= iv_p75 and total_oi >= 500:
                         alerts_for_strike.append("high_iv")
                         confidence_score += 10
-                        factors.append("IV: %.1f%% (75th percentile: %.1f%%)" % (d["call_iv"] * 100, iv_p75 * 100))
+                        factors.append("IV: {:.1f}% (75th percentile: {:.1f}%)".format(d["call_iv"] * 100, iv_p75 * 100))
 
                     # Check OI spike (min 500 OI, >2x average)
                     if total_oi > avg_oi * 2 and total_oi >= 500:
                         alerts_for_strike.append("oi_spike")
                         confidence_score += 10
-                        factors.append("OI: %.0f (avg: %.0f, %.1fx average)" % (total_oi, avg_oi, total_oi / max(avg_oi, 1)))
+                        factors.append(f"OI: {total_oi:.0f} (avg: {avg_oi:.0f}, {total_oi / max(avg_oi, 1):.1f}x average)")
 
                     # Check delta extreme with high OI (min 200)
                     if abs(d["call_delta"]) > 0.6 and d["call_oi"] > 200:
                         alerts_for_strike.append("delta_extreme")
                         confidence_score += 8
-                        factors.append("Deep ITM call (delta: %.2f, OI: %.0f)" % (d["call_delta"], d["call_oi"]))
+                        factors.append("Deep ITM call (delta: {:.2f}, OI: {:.0f})".format(d["call_delta"], d["call_oi"]))
                     elif abs(d["put_delta"]) > 0.6 and d["put_oi"] > 200:
                         alerts_for_strike.append("delta_extreme")
                         confidence_score += 8
-                        factors.append("Deep ITM put (delta: %.2f, OI: %.0f)" % (abs(d["put_delta"]), d["put_oi"]))
+                        factors.append("Deep ITM put (delta: {:.2f}, OI: {:.0f})".format(abs(d["put_delta"]), d["put_oi"]))
 
                     # Check premium concentration (min 500 OI)
                     call_mid = (d["call_bid"] + d["call_ask"]) / 2 if d["call_bid"] > 0 and d["call_ask"] > 0 else 0
@@ -956,7 +956,7 @@ async def unusual_activity_alerts(
                         if premium > 250_000:
                             alerts_for_strike.append("premium_concentration")
                             confidence_score += 12
-                            factors.append("Est. premium: $%.0fK concentrated at strike %.0f" % (premium / 1000, d["strike"]))
+                            factors.append("Est. premium: ${:.0f}K concentrated at strike {:.0f}".format(premium / 1000, d["strike"]))
 
                     if alerts_for_strike:
                         classification = alerts_for_strike[0]  # Primary classification
@@ -982,7 +982,7 @@ async def unusual_activity_alerts(
                             dte = None
 
                         all_alerts.append({
-                            "alert_id": "%s-%s-%s-%.0f" % (sym, expiry, classification, d["strike"]),
+                            "alert_id": "{}-{}-{}-{:.0f}".format(sym, expiry, classification, d["strike"]),
                             "ticker": sym,
                             "classification": classification,
                             "strike": d["strike"],
@@ -1022,7 +1022,7 @@ async def unusual_activity_alerts(
                 "fetched_at": datetime.now().isoformat(),
             }
     except Exception as e:
-        logger.warning("unusual activity alerts: %s: %s" % (sym, e))
+        logger.warning(f"unusual activity alerts: {sym}: {e}")
         return {"alerts": [], "total": 0, "page": page, "page_size": page_size,
                 "has_next": False, "error": str(e)}
 
@@ -1046,7 +1046,7 @@ async def _fetch_tv_signal(sym: str) -> dict | None:
         return cached[1]
     result = None
     try:
-        headers = {"Authorization": "Bearer %s" % key} if key else {}
+        headers = {"Authorization": f"Bearer {key}"} if key else {}
         async with httpx.AsyncClient(timeout=2.5) as client:
             resp = await client.get(
                 "https://stocks.tradingvolatility.net/api/v2/signals",
@@ -1055,7 +1055,7 @@ async def _fetch_tv_signal(sym: str) -> dict | None:
             if resp.status_code == 200:
                 result = resp.json()
     except Exception as e:
-        logger.debug("tv signal unavailable for %s: %s" % (sym, e))
+        logger.debug(f"tv signal unavailable for {sym}: {e}")
     _tv_signal_cache[sym] = (time.time(), result)
     return result
 
@@ -1130,6 +1130,6 @@ async def regime(ticker: str):
             out["tv_signal"] = tv
         return out
     except Exception as e:
-        logger.warning("regime failed for %s: %s" % (sym, e))
+        logger.warning(f"regime failed for {sym}: {e}")
         return {"ticker": sym, "current_state": "RANGING", "confidence": 0.0,
                 "is_warming": True, "error": str(e)}

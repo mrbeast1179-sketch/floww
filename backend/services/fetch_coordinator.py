@@ -80,7 +80,7 @@ class FetchCoordinator:
             try:
                 # asyncio.timeout() is 3.11+ only; use wait_for on lock.acquire() for compat
                 await asyncio.wait_for(lock.acquire(), timeout=LOCK_TIMEOUT_SECONDS)
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 logger.warning("Lock wait timed out for %s", key)
                 return _error_response("lock_timeout", "Timed out waiting for fetch")
             try:

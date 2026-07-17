@@ -49,7 +49,8 @@ from __future__ import annotations
 import logging
 import math
 from collections import deque
-from typing import Any, Dict, Iterable, List, Optional, Tuple
+from collections.abc import Iterable
+from typing import Any
 
 log = logging.getLogger(__name__)
 
@@ -82,13 +83,13 @@ class MultiLevelOFI:
 
     def __init__(self, levels: int = 5, history: int = 4):
         self.levels = max(1, int(levels))
-        self._snaps: deque[Dict[int, Dict[str, Tuple[float, float]]]] = deque(maxlen=max(2, history))
+        self._snaps: deque[dict[int, dict[str, tuple[float, float]]]] = deque(maxlen=max(2, history))
 
-    def push_snapshot(self, snap: Dict[int, Dict[str, Tuple[float, float]]]) -> None:
+    def push_snapshot(self, snap: dict[int, dict[str, tuple[float, float]]]) -> None:
         """Add a snapshot. Each level is ``{"bid": (price, size), "ask": (price, size)}``."""
         self._snaps.append(snap)
 
-    def compute(self) -> Dict[str, Any]:
+    def compute(self) -> dict[str, Any]:
         if len(self._snaps) < 2:
             return {
                 "of_per_level": [],
@@ -103,7 +104,7 @@ class MultiLevelOFI:
         # indexed 0..4, ``max(keys) == 4`` would yield one fewer level
         # than the snapshot actually contains.
         n_used = min(self.levels, min((len(prev) if prev else 0), (len(cur) if cur else 0)))
-        per_level: List[float] = []
+        per_level: list[float] = []
         for lvl_i in range(n_used):
             # prev_bid, prev_ask, cur_bid, cur_ask
             pb = prev.get(lvl_i, {})
@@ -143,7 +144,7 @@ class MultiLevelOFI:
         }
 
 
-def _safe_tuple(v: Any) -> Tuple[float, float]:
+def _safe_tuple(v: Any) -> tuple[float, float]:
     if v is None:
         return (0.0, 0.0)
     if isinstance(v, (list, tuple)) and len(v) >= 2:
@@ -151,7 +152,7 @@ def _safe_tuple(v: Any) -> Tuple[float, float]:
     return (0.0, 0.0)
 
 
-def _classify_imbalance(agg: float, by_level: List[float]) -> str:
+def _classify_imbalance(agg: float, by_level: list[float]) -> str:
     if agg > 0 and by_level and any(v > 0 for v in by_level):
         return "buy_pressure"
     if agg < 0 and by_level and any(v < 0 for v in by_level):
@@ -185,11 +186,11 @@ class StructuralOFI:
 
     def __init__(self, levels: int = 5, history: int = 4):
         self.levels = max(1, int(levels))
-        self._chain: deque[List[Dict[str, Any]]] = deque(maxlen=max(2, history))
+        self._chain: deque[list[dict[str, Any]]] = deque(maxlen=max(2, history))
 
     @staticmethod
-    def _flatten_chain(chain_data: Iterable[Dict[str, Any]]) -> List[Dict[str, Any]]:
-        rows: List[Dict[str, Any]] = []
+    def _flatten_chain(chain_data: Iterable[dict[str, Any]]) -> list[dict[str, Any]]:
+        rows: list[dict[str, Any]] = []
         for exp in chain_data or []:
             if not isinstance(exp, dict):
                 continue
@@ -211,12 +212,12 @@ class StructuralOFI:
                     continue
         return rows
 
-    def push_chain(self, chain_data: Iterable[Dict[str, Any]]) -> None:
+    def push_chain(self, chain_data: Iterable[dict[str, Any]]) -> None:
         rows = self._flatten_chain(chain_data)
         rows.sort(key=lambda r: r.get("strike", 0))
         self._chain.append(rows)
 
-    def compute(self) -> Dict[str, Any]:
+    def compute(self) -> dict[str, Any]:
         if len(self._chain) < 2:
             return {
                 "of_per_level": [],
@@ -234,8 +235,8 @@ class StructuralOFI:
         # pick first N strikes as "outer" levels
         levels_used = min(self.levels, len(strikes))
         chosen = strikes[:levels_used]
-        per_level: List[float] = []
-        for lvl_i, k in enumerate(chosen):
+        per_level: list[float] = []
+        for _lvl_i, k in enumerate(chosen):
             p, c = prev_by.get(k), cur_by.get(k)
             if not p or not c:
                 per_level.append(0.0)

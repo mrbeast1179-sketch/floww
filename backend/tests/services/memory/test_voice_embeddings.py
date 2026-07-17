@@ -38,18 +38,20 @@ class TestVoiceMemosDir:
         monkeypatch.setenv("VOICE_MEMOS_DIR", str(custom))
         # Re-evaluate the module-level variable by reimporting
         import importlib
+
         import services.memory.voice_embeddings as ve_reloaded
         importlib.reload(ve_reloaded)
-        assert ve_reloaded.VOICE_MEMOS_DIR == custom
+        assert custom == ve_reloaded.VOICE_MEMOS_DIR
 
     def test_env_var_raises_no_error_if_dir_missing(self):
         """VOICE_MEMOS_DIR can point to a nonexistent dir; it's just a path."""
         custom = Path("/nonexistent/voice/memos/path")
         with patch.dict(os.environ, {"VOICE_MEMOS_DIR": str(custom)}):
             import importlib
+
             import services.memory.voice_embeddings as ve2
             importlib.reload(ve2)
-            assert ve2.VOICE_MEMOS_DIR == custom
+            assert custom == ve2.VOICE_MEMOS_DIR
 
 
 class TestProcessedState:

@@ -37,7 +37,6 @@ from datetime import date, timedelta
 
 from services.strategy_builder import evaluate_strategy
 
-
 # ─────────────────────────────────────────────────────────────────────
 # Helpers
 # ─────────────────────────────────────────────────────────────────────

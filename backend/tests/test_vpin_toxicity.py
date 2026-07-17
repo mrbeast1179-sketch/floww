@@ -33,7 +33,6 @@ from services.vpin_toxicity import (
     VPINToxicity,
 )
 
-
 # ─────────────────────────────────────────────────────────────────────
 # Lifecycle / warming
 # ─────────────────────────────────────────────────────────────────────
@@ -139,7 +138,7 @@ def test_label_thresholds_match_specification():
     # to be MODERATE.  Construct a bucket pattern that yields vpin=0.30
     # exactly (e.g. 3 buckets at OF=0.5, 2 at OF=0.0 → mean=0.3).
     vpin = VPINToxicity(buckets=5, history=20)
-    for of in [0.5, 0.5, 0.5, 0.0, 0.0]:
+    for _of in [0.5, 0.5, 0.5, 0.0, 0.0]:
         # call=200, put=0 => OF=1.0; for OF=0.5 use 75/125 — wait that's
         # |75-125|/200=0.5. So construct: call=125, put=75 → OF=0.25 → that's
         # not it. Easier: |c - p|/(c+p) = 0.5 ⇒ |c-p|=c+p ⇒ one side is 0 ⇒

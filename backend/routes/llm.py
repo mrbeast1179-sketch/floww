@@ -151,8 +151,8 @@ async def turboquant_generate(request: TurboQuantGenerateRequest):
             )
 
         try:
-            from transformers import AutoModelForCausalLM, AutoTokenizer
             import torch
+            from transformers import AutoModelForCausalLM, AutoTokenizer
         except ImportError:
             raise HTTPException(503, "transformers/torch not installed")
 

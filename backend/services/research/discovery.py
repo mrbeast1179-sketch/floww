@@ -20,12 +20,12 @@ ingestion into training data. See ADR-0003.
 
 from __future__ import annotations
 
+import logging
 import re
 import time
 import urllib.parse
 import urllib.request
 import xml.etree.ElementTree as ET
-import logging
 from abc import ABC, abstractmethod
 from collections.abc import Callable, Iterable
 from dataclasses import asdict, dataclass, field

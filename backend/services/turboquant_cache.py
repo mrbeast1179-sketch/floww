@@ -21,9 +21,9 @@ Usage:
         # Use with turboquantdc's generation pipeline
 """
 
-import os
 import logging
-from typing import Any, Optional
+import os
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -75,9 +75,9 @@ class TurboQuantService:
 
     def create_cache(
         self,
-        preset: Optional[str] = None,
-        bits: Optional[int] = None,
-        fp16_window: Optional[int] = None,
+        preset: str | None = None,
+        bits: int | None = None,
+        fp16_window: int | None = None,
     ) -> Any:
         """Create a TurboQuantCache for use with HuggingFace model.generate().
 
@@ -110,7 +110,7 @@ class TurboQuantService:
 
     def create_generation_cache(
         self,
-        preset: Optional[str] = None,
+        preset: str | None = None,
         **kwargs: Any,
     ) -> Any:
         """Create a GenerationCache for turboquantdc's own generation pipeline.

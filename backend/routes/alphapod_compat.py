@@ -24,10 +24,9 @@ the AlphaPod keys (`alerts`, `page`, `page_size`, `total`) alongside the legacy
 
 from __future__ import annotations
 
+import os
 from datetime import UTC, date, datetime, timedelta
 from typing import Any
-
-import os
 
 from fastapi import APIRouter, HTTPException, Query
 

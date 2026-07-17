@@ -29,6 +29,7 @@ for _p in (str(PROJECT_ROOT), str(FLOWW_BACKEND)):
 
 
 from dvt_backtest import DVTBacktester  # noqa: E402
+
 from domain.position_sizing import delta_adjusted_max_loss_size  # noqa: E402
 
 

@@ -641,7 +641,7 @@ def accumulate_today(
     engine,
     ticker: str,
     rv_dict: dict[str, float],
-    snapshot_date: "date | None" = None,
+    snapshot_date: date | None = None,
 ) -> int:
     """UPSERT today's realised-vol rows for ``ticker`` into rv_daily.
 
@@ -692,7 +692,7 @@ def accumulate_today(
     return len(tuples)
 
 
-def _coerce_date(value: Any) -> "date | None":
+def _coerce_date(value: Any) -> date | None:
     """Defensive DATE-coercion mirroring max_pain_drift._coerce_to_date."""
     if value is None:
         return None
@@ -799,7 +799,7 @@ def accumulate_cones_today(
     engine,
     ticker: str,
     cone: dict[str, Any],
-    snapshot_date: "date | None" = None,
+    snapshot_date: date | None = None,
 ) -> int:
     """UPSERT today's cone rows for ``ticker`` into ``rv_cones_daily``.
 
@@ -924,7 +924,7 @@ def accumulate_bands_today(
     engine,
     ticker: str,
     bands: dict[str, Any],
-    snapshot_date: "date | None" = None,
+    snapshot_date: date | None = None,
 ) -> int:
     """UPSERT today's band rows for ``ticker`` into ``rv_bands_daily``.
 
@@ -1054,7 +1054,7 @@ def accumulate_vrp_today(
     ticker: str,
     front_atm_iv: float | None,
     yz_rv: float | None,
-    snapshot_date: "date | None" = None,
+    snapshot_date: date | None = None,
 ) -> int:
     """UPSERT today's VRP row for ``ticker`` into ``rv_vrp_daily``.
 

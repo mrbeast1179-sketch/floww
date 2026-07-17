@@ -115,7 +115,7 @@ def test_push_snapshot_returns_correct_log_returns():
     ]
     obs = list(rv)
     assert len(obs) == 4
-    for got, exp in zip(obs, expected):
+    for got, exp in zip(obs, expected, strict=False):
         assert math.isclose(got, exp, rel_tol=1e-9)
 
 
@@ -266,7 +266,7 @@ def test_compute_rq_non_negative_always():
     rv.push_snapshot(spot)
     import random as _r
     rng = _r.Random(7)
-    for i in range(10):
+    for _i in range(10):
         spot *= math.exp(rng.uniform(-0.005, 0.005))
         rv.push_snapshot(spot)
     out = rv.compute(annualise_factor=1.0)

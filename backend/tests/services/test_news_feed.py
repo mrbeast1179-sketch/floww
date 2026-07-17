@@ -12,6 +12,8 @@ import urllib.error
 from datetime import date, datetime, timedelta
 from unittest.mock import MagicMock, patch
 
+from bs4 import BeautifulSoup
+
 from services.news_feed import (
     _fetch_html,
     _parse_headlines,
@@ -23,8 +25,6 @@ from services.news_feed import (
     init_news_daily_table,
     read_recent_news,
 )
-from bs4 import BeautifulSoup
-
 
 # ─────────────────────────────────────────────────────────────────────
 # Helpers — keep mocks terse.

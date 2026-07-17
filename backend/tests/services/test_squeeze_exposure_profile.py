@@ -31,10 +31,10 @@ pattern (defined inline so this test file is self-contained), and the
 
 from __future__ import annotations
 
+import math
 from datetime import date
 from typing import Any
 
-import math
 import pytest
 
 from services.squeeze_exposure_profile import (
@@ -42,7 +42,6 @@ from services.squeeze_exposure_profile import (
     init_exposure_profile_table,
     persist_daily,
 )
-
 
 # ─────────────────────────────────────────────────────────────────────
 # DuckDB sidecar stub -- same pattern as test_insider_scraper.py

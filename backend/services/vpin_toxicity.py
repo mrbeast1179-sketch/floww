@@ -59,8 +59,7 @@ Usage::
 from __future__ import annotations
 
 from collections import deque
-from typing import Any, Dict
-
+from typing import Any
 
 LABEL_LOW = "LOW_TOXICITY"
 LABEL_MODERATE = "MODERATE_TOXICITY"
@@ -69,7 +68,7 @@ LABEL_EXTREME = "EXTREME_TOXICITY"
 
 # Brand colours: slate → amber → orange → red mirrors the existing OFI / HMM
 # brand chips in FlowseekerProTab.jsx.
-LABEL_COLORS: Dict[str, str] = {
+LABEL_COLORS: dict[str, str] = {
     LABEL_LOW:      "#94a3b8",
     LABEL_MODERATE: "#fbbf24",
     LABEL_HIGH:     "#fb923c",
@@ -130,7 +129,7 @@ class VPINToxicity:
             of_i = 1.0
         self._ofs.append(float(of_i))
 
-    def compute(self) -> Dict[str, Any]:
+    def compute(self) -> dict[str, Any]:
         """Return current VPIN dict per the snake_case schema above."""
         n_total = len(self._ofs)
         if n_total < self.buckets:

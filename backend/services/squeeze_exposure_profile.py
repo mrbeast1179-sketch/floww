@@ -45,7 +45,6 @@ Upstream:   aaguiar10/gflows compute_exposures + zerodelta / zerogamma
 from __future__ import annotations
 
 import logging
-import math
 from datetime import date
 from typing import Any
 
@@ -119,7 +118,7 @@ def _raw_iv_fallback(row: dict) -> float:
     """Read σ from chain-supplied impliedVolatility / iv field. Returns 0.0
     if the field is missing/unparseable. Caller treats 0.0 σ as
     "skip this contract" downstream."""
-    val = row.get("impliedVolatility", row.get("iv", None))
+    val = row.get("impliedVolatility", row.get("iv"))
     if val is None:
         return 0.0
     try:
@@ -268,7 +267,7 @@ def compute_spot_shifted_exposure_profile(
         try:
             K = float(row.get("strike", 0.0) or 0.0)
         except (TypeError, ValueError):
-            warnings.append(f"non-numeric strike on row skipped")
+            warnings.append("non-numeric strike on row skipped")
             continue
         oi = _open_interest(row)
         if K <= 0.0 or oi <= 0.0:
@@ -436,7 +435,7 @@ def persist_daily(
     engine: Any,
     ticker: str,
     profile_out: dict[str, Any],
-    snapshot_date: "date | None" = None,
+    snapshot_date: date | None = None,
 ) -> int:
     """UPSERT each shift row into floww_squeeze_exposure_daily. Returns
     the count of rows actually written. NEVER raises on malformed input

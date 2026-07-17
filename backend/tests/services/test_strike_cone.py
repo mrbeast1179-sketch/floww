@@ -57,7 +57,7 @@ def make_dist(spot: float = 100.0,
             "delta": d,
             "iv": 0.20,
         }
-        for k, pa, d in zip(strikes, prob_above_curve, delta_curve)
+        for k, pa, d in zip(strikes, prob_above_curve, delta_curve, strict=False)
     ]
 
 

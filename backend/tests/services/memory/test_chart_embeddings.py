@@ -16,6 +16,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent.parent))
 
 # Mock PIL and clip before importing chart_embeddings (heavy deps not in venv)
 import types
+
 _mock_pil = types.ModuleType("PIL")
 _mock_pil_image = types.ModuleType("PIL.Image")
 _mock_pil_image.open = MagicMock()
@@ -34,7 +35,6 @@ from services.memory.chart_embeddings import (
     index_screenshots,
     search_screenshots,
 )
-
 
 # ---------------------------------------------------------------------------
 # ChartEmbeddingIndex — pure logic (mocked CLIP)

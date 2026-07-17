@@ -28,7 +28,6 @@ import logging
 import time
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any
 
 import numpy as np
 import pandas as pd
@@ -36,6 +35,7 @@ import yfinance as yf
 
 sys_path = str(Path(__file__).resolve().parent.parent)
 import sys
+
 sys.path.insert(0, sys_path)
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
@@ -211,8 +211,8 @@ def select_features(X, y, names, max_features=30, min_var=1e-6, max_corr=0.92):
 
 def walk_forward_cv(model, X, y, n_splits=5, embargo=5):
     """Walk-forward CV with embargo. Returns accuracy + Sharpe per fold."""
-    from sklearn.metrics import accuracy_score
     from sklearn.base import clone
+    from sklearn.metrics import accuracy_score
     fold_size = len(X) // (n_splits + 1)
     accs, sharpes, gaps = [], [], []
     for fold in range(n_splits):
@@ -229,7 +229,7 @@ def walk_forward_cv(model, X, y, n_splits=5, embargo=5):
         test_acc  = accuracy_score(y_test, p_test)
         # Trading Sharpe: long on UP(2), short on DOWN(0), flat on HOLD(1)
         rets = []
-        for p, a in zip(p_test, y_test):
+        for p, a in zip(p_test, y_test, strict=False):
             if p == 2:   rets.append(1.0 if a == 2 else -1.0)
             elif p == 0: rets.append(-1.0 if a == 0 else 1.0)
             else:        rets.append(0.0)
@@ -330,7 +330,7 @@ def train(ticker: str, period: str = "5y", quick: bool = False, target_type: str
 
         # Test Sharpe
         rets = []
-        for p, a in zip(p_te, y_te):
+        for p, a in zip(p_te, y_te, strict=False):
             if p == (2 if tname == "3class" else 1):
                 rets.append(1.0 if a == p else -1.0)
             elif p == 0:

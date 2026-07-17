@@ -26,13 +26,12 @@ BACKEND_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(BACKEND_ROOT))
 
 from services.amihud_illiquidity import (
-    AmihudIlliquidity,
     LABEL_COLORS,
     LABEL_ILLIQUID,
     LABEL_LIQUID,
     LABEL_NORMAL,
+    AmihudIlliquidity,
 )
-
 
 # ─────────────────────────────────────────────────────────────────────
 # Lifecycle / warming

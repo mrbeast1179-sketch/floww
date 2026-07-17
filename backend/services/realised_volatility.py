@@ -70,8 +70,7 @@ from __future__ import annotations
 
 import math
 from collections import deque
-from typing import Any, Deque, Optional
-
+from typing import Any
 
 # ─────────────────────────────────────────────────────────────────────
 # Label band + colour palette (mirrors brand chips in FlowseekerProTab.jsx)
@@ -131,8 +130,8 @@ class RealisedVolatility:
         self.window = int(window)
         self.history = int(history)
         # Buffered log-returns; oldest at left, newest at right.
-        self._obs: Deque[float] = deque(maxlen=self.history)
-        self._last_spot: Optional[float] = None
+        self._obs: deque[float] = deque(maxlen=self.history)
+        self._last_spot: float | None = None
 
     # ── State mutators ────────────────────────────────────────────────
 
@@ -174,7 +173,7 @@ class RealisedVolatility:
         return len(self._obs) == 0
 
     @property
-    def latest_log_return(self) -> Optional[float]:
+    def latest_log_return(self) -> float | None:
         if not self._obs:
             return None
         return self._obs[-1]

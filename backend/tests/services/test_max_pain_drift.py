@@ -500,6 +500,7 @@ def test_route_default_days_is_30():
     (was 14 at PARTIAL; user spec bumped to 30).
     """
     import inspect
+
     from routes.steal_three import max_pain_drift_endpoint
     sig = inspect.signature(max_pain_drift_endpoint)
     assert sig.parameters["days"].default == 30

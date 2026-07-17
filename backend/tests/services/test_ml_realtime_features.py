@@ -441,6 +441,7 @@ class TestSentimentFeatureColumn:
         """Stub the price-history fetch so compute_features_for_inference
         sees a valid 30-row history without hitting yfinance."""
         import pandas as pd
+
         from services import ml_realtime_features as mrf
         closes = [100.0 + 0.1 * i for i in range(n)]
         df = pd.DataFrame({
@@ -464,8 +465,8 @@ class TestSentimentFeatureColumn:
         """Default precomputed_sentiment=None emits sentiment_score=0.0
         and sentiment_available=0.0 (matches 1.0/0.0 convention for ML trees).
         """
-        from services.ml_realtime_features import compute_features_for_inference
         from services import ml_realtime_features as mrf
+        from services.ml_realtime_features import compute_features_for_inference
         monkeypatch.setattr(mrf, "fetch_live_chain",
                             lambda ticker, max_expiries=2: synthetic_chain)
         self._stub_price_history(monkeypatch)
@@ -488,8 +489,8 @@ class TestSentimentFeatureColumn:
     ) -> None:
         """precomputed_sentiment with avg_vader=0.6 + avg_textblob=0.4
         propagates through to columns: 0.5 score + 1.0 available flag."""
-        from services.ml_realtime_features import compute_features_for_inference
         from services import ml_realtime_features as mrf
+        from services.ml_realtime_features import compute_features_for_inference
         monkeypatch.setattr(mrf, "fetch_live_chain",
                             lambda ticker, max_expiries=2: synthetic_chain)
         self._stub_price_history(monkeypatch)
@@ -511,8 +512,8 @@ class TestSentimentFeatureColumn:
     ) -> None:
         """Malformed precomputed_sentiment (None + wrong keys) degrades
         gracefully to 0.0 + 0.0 instead of raising."""
-        from services.ml_realtime_features import compute_features_for_inference
         from services import ml_realtime_features as mrf
+        from services.ml_realtime_features import compute_features_for_inference
         monkeypatch.setattr(mrf, "fetch_live_chain",
                             lambda ticker, max_expiries=2: synthetic_chain)
         self._stub_price_history(monkeypatch)

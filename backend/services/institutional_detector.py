@@ -32,8 +32,9 @@ from __future__ import annotations
 
 import logging
 import math
+from collections.abc import Iterable
 from datetime import datetime
-from typing import Any, Iterable
+from typing import Any
 
 log = logging.getLogger(__name__)
 
@@ -219,7 +220,7 @@ def _score_premium(premium: float) -> tuple[int, list[str]]:
     if premium <= 0:
         return 0, []
     if premium >= 1_000_000:
-        return 25, [f"$1M+ premium concentrated (25/25)"]
+        return 25, ["$1M+ premium concentrated (25/25)"]
     if premium >= 500_000:
         return 20, [f"${int(premium/1000)}K premium concentrated (20/25)"]
     if premium >= 250_000:

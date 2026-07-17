@@ -9,7 +9,6 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from services.stochastic_vol import SABRModel, SVIProfile, VolSurfaceConstructor
 
-
 # ── SABR Model ───────────────────────────────────────────────────────────
 
 
@@ -37,7 +36,7 @@ class TestSABRModel:
         """OTM calls and puts should have higher vol than ATM (vol smile)."""
         m = SABRModel(alpha=0.2, beta=0.5, rho=-0.3, nu=0.5)
         atm = m.hagan_lognormal_vol(F=100.0, K=100.0, T=1.0)
-        otm_call = m.hagan_lognormal_vol(F=100.0, K=120.0, T=1.0)
+        m.hagan_lognormal_vol(F=100.0, K=120.0, T=1.0)
         otm_put = m.hagan_lognormal_vol(F=100.0, K=80.0, T=1.0)
         # With negative rho, put wing should be higher
         assert otm_put > atm
@@ -176,7 +175,7 @@ class TestVolSurfaceConstructor:
         contracts = self._make_contracts()
         surface = vsc.build_surface(spot=100.0, contracts=contracts)
         assert len(surface["atm_term_structure"]) > 0
-        for T, iv in surface["atm_term_structure"]:
+        for _T, iv in surface["atm_term_structure"]:
             assert iv > 0
 
     def test_interpolate_iv(self):

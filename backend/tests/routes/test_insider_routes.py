@@ -35,11 +35,9 @@ import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-
 # Built once at module load (fixture-ish) — the steal-three module
 # imports yfinance at top level; that import is slow but harmless.
-from routes.steal_three import router as steal_three_router     # noqa: E402
-
+from routes.steal_three import router as steal_three_router  # noqa: E402
 
 # ----------------------------------------------------------------------
 # Test app + canned response fixtures

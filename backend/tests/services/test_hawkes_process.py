@@ -9,7 +9,6 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from services.hawkes_process import HawkesProcess
 
-
 # ── Constructor ──────────────────────────────────────────────────────────
 
 
@@ -117,7 +116,7 @@ class TestFit:
 
     def test_fit_subcritical_branching_ratio(self):
         """Fit data generated from a known subcritical process."""
-        rng = np.random.default_rng(42)
+        np.random.default_rng(42)
         hp_true = HawkesProcess(mu=2.0, alpha=0.3, beta=1.0)
         events = hp_true.simulate(T=500.0, n_events=5000)
         if len(events) < 10:

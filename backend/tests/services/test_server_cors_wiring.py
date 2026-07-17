@@ -34,9 +34,9 @@ import subprocess
 import sys
 from pathlib import Path
 
-from ._subprocess_helpers import _SUBPROCESS_MIN_ENV
-
 import pytest
+
+from ._subprocess_helpers import _SUBPROCESS_MIN_ENV
 
 SERVER_PY = Path(__file__).resolve().parents[2] / "server.py"
 

@@ -75,9 +75,9 @@ from __future__ import annotations
 
 import math
 from collections import deque
+from collections.abc import Iterable
 from datetime import datetime
-from typing import Any, Deque, Dict, Iterable, List, Optional
-
+from typing import Any
 
 # ─────────────────────────────────────────────────────────────────────
 # Constants — sized to match the 30-second polling cadence of the
@@ -94,7 +94,7 @@ DEFAULT_WINDOW_MINUTES = 120      # Default UI request: 2 hours
 # Pure helpers
 # ─────────────────────────────────────────────────────────────────────
 
-def _validate_snapshot(snap: Dict[str, Any]) -> bool:
+def _validate_snapshot(snap: dict[str, Any]) -> bool:
     """Basic structural sanity check before pushing into the buffer.
 
     The route layer calls us with the raw composite output + its own
@@ -115,9 +115,7 @@ def _validate_snapshot(snap: Dict[str, Any]) -> bool:
     except (TypeError, ValueError):
         return False
     # Reject NaN / ±Inf — both would poison downstream aggregates.
-    if math.isnan(f) or math.isinf(f):
-        return False
-    return True
+    return not (math.isnan(f) or math.isinf(f))
 
 
 def _safe_float(v: Any, default: float = 0.0, *, clamp: bool = False) -> float:
@@ -142,7 +140,7 @@ def _safe_float(v: Any, default: float = 0.0, *, clamp: bool = False) -> float:
     return f
 
 
-def _coerce_snapshot(snap: Dict[str, Any], ts_override: Optional[str] = None) -> Dict[str, Any]:
+def _coerce_snapshot(snap: dict[str, Any], ts_override: str | None = None) -> dict[str, Any]:
     """Return a sanitised, snake_case snapshot for the public payload.
 
     The route calls us with ``Fetched_at`` (camelCase) set by the
@@ -217,12 +215,12 @@ class ChainReplay:
     def __init__(self, buffer_size: int = DEFAULT_BUFFER_SIZE):
         if int(buffer_size) < 1:
             raise ValueError("buffer_size must be >= 1")
-        self._buffer: Deque[Dict[str, Any]] = deque(maxlen=int(buffer_size))
+        self._buffer: deque[dict[str, Any]] = deque(maxlen=int(buffer_size))
         self._buffer_size = int(buffer_size)
 
     # ── State mutators ────────────────────────────────────────────────
 
-    def push_snapshot(self, snap: Dict[str, Any]) -> bool:
+    def push_snapshot(self, snap: dict[str, Any]) -> bool:
         """Append a snapshot IF it passes structural validation.
 
         Returns ``True`` on append, ``False`` on either invalid input
@@ -256,7 +254,7 @@ class ChainReplay:
         return len(self._buffer) == 0
 
     @property
-    def latest(self) -> Optional[Dict[str, Any]]:
+    def latest(self) -> dict[str, Any] | None:
         if not self._buffer:
             return None
         return self._buffer[-1]
@@ -267,11 +265,11 @@ class ChainReplay:
     def __iter__(self):
         return iter(self._buffer)
 
-    def read_all(self) -> List[Dict[str, Any]]:
+    def read_all(self) -> list[dict[str, Any]]:
         """Return the entire buffer in chronological order."""
         return list(self._buffer)
 
-    def read_tail(self, last_n: int = DEFAULT_TAIL_N) -> List[Dict[str, Any]]:
+    def read_tail(self, last_n: int = DEFAULT_TAIL_N) -> list[dict[str, Any]]:
         """Return the LAST ``n`` snapshots in chronological order."""
         n = max(0, int(last_n))
         if n == 0:
@@ -282,7 +280,7 @@ class ChainReplay:
         return list(self._buffer)[-n:]
 
     def read_window(self, minutes: int = DEFAULT_WINDOW_MINUTES,
-                    now: Optional[datetime] = None) -> List[Dict[str, Any]]:
+                    now: datetime | None = None) -> list[dict[str, Any]]:
         """Return snapshots within the LAST ``minutes`` minutes.
 
         ``now`` defaults to ``datetime.now()``; injectable so tests
@@ -292,7 +290,7 @@ class ChainReplay:
             return []
         anchor = now or datetime.now()
         threshold = anchor.timestamp() - float(minutes) * 60.0
-        out: List[Dict[str, Any]] = []
+        out: list[dict[str, Any]] = []
         for snap in self._buffer:
             try:
                 dt = _iso_to_dt(snap["ts"])
@@ -303,8 +301,8 @@ class ChainReplay:
         return out
 
     def read_payload(self,
-                     last_n: Optional[int] = None,
-                     minutes: Optional[int] = None) -> Dict[str, Any]:
+                     last_n: int | None = None,
+                     minutes: int | None = None) -> dict[str, Any]:
         """Build the public /replay/{symbol} payload.
 
         ``last_n`` and ``minutes`` are mutually exclusive; pass ``None``
@@ -341,7 +339,7 @@ class ChainReplay:
         self._buffer.clear()
 
     @staticmethod
-    def summarise_iterable(snapshots: Iterable[Dict[str, Any]]) -> Dict[str, Any]:
+    def summarise_iterable(snapshots: Iterable[dict[str, Any]]) -> dict[str, Any]:
         """Return a tiny dict of summary stats over an iterator.
 
         Useful for the frontend so it doesn't have to re-compute
@@ -349,8 +347,8 @@ class ChainReplay:
         whose ``composite`` is missing / ``None`` / unparseable, so
         garbage entries don't pollute the aggregates.
         """
-        xs: List[float] = []
-        labels: List[str] = []
+        xs: list[float] = []
+        labels: list[str] = []
         for s in snapshots:
             raw = s.get("composite", None) if isinstance(s, dict) else None
             if raw is None:

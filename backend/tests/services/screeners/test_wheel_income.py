@@ -163,6 +163,7 @@ def test_rank_puts_top_limit():
 # ---------------------------------------------------------------------------
 def test_normalize_derives_dte_from_expiry_string():
     from datetime import date, timedelta
+
     from services.screeners.wheel_income import _normalize_contract, rank_puts_to_sell
 
     expiry = (date.today() + timedelta(days=37)).isoformat()

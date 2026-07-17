@@ -391,6 +391,7 @@ def test_extract_sentiment_missing_avg_returns_zero_false(stub_models):
 def test_extract_sentiment_NaN_returns_zero_false(stub_models):
     """NaN / inf → guard rejects. Regression-guard contract."""
     import math as m
+
     from services.sentiment import extract_sentiment_feature
     for bad in (m.nan, m.inf, -m.inf):
         score, avail = extract_sentiment_feature({

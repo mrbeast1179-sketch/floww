@@ -26,7 +26,6 @@ sys.path.insert(0, str(BACKEND_ROOT))
 
 from services.hmm_regime import GaussianHMMRegime
 
-
 # ─────────────────────────────────────────────────────────────────────
 # Lifecycle / observation buffer
 # ─────────────────────────────────────────────────────────────────────

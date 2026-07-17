@@ -56,8 +56,7 @@ from __future__ import annotations
 
 import math
 from collections import deque
-from typing import Any, Dict, Tuple
-
+from typing import Any
 
 # ─────────────────────────────────────────────────────────────────────
 # Label band + colour palette (mirrors brand chips in FlowseekerProTab.jsx)
@@ -67,7 +66,7 @@ LABEL_LIQUID = "LIQUID"
 LABEL_NORMAL = "NORMAL"
 LABEL_ILLIQUID = "ILLIQUID"
 
-LABEL_COLORS: Dict[str, str] = {
+LABEL_COLORS: dict[str, str] = {
     LABEL_LIQUID:   "#22c55e",  # green  — deep / liquid
     LABEL_NORMAL:   "#fbbf24",  # amber  — fair depth
     LABEL_ILLIQUID: "#ef4444",  # red    — shallow / illiquid
@@ -101,7 +100,7 @@ class KylesLambda:
         self.window = int(window)
         self.history = int(history)
         # Buffered (x, y) observations.
-        self._obs: "deque[Tuple[float, float]]" = deque(maxlen=self.history)
+        self._obs: deque[tuple[float, float]] = deque(maxlen=self.history)
         self._last_spot: float | None = None
 
     # ── State mutators ────────────────────────────────────────────────
@@ -140,7 +139,7 @@ class KylesLambda:
     def n_obs(self) -> int:
         return len(self._obs)
 
-    def compute(self) -> Dict[str, Any]:
+    def compute(self) -> dict[str, Any]:
         """OLS slope + intercept over the LAST ``window`` observations.
 
         Returns the snake_case dict per the schema in the module docstring.

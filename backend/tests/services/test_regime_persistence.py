@@ -39,7 +39,6 @@ from services.regime_persistence import (
     classify_window,
 )
 
-
 # ─────────────────────────────────────────────────────────────────────
 # Tiny helper — build a single-snapshot row matching what
 # ``gex_history.build_gex_history`` returns / ``get_gex_history_sync``

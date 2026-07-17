@@ -194,8 +194,8 @@ def select_features(X, y, feature_names, max_features=25):
 
 def walk_forward_cv(model, X, y, n_splits=8, embargo=5):
     """Walk-forward CV with embargo. Returns dict of metrics."""
-    from sklearn.metrics import accuracy_score
     from sklearn.base import clone
+    from sklearn.metrics import accuracy_score
 
     fold_size = len(X) // (n_splits + 1)
     scores, train_scores = [], []
@@ -228,7 +228,7 @@ def walk_forward_cv(model, X, y, n_splits=8, embargo=5):
 def _trading_sharpe(preds, actuals):
     """Simple trading Sharpe: go long on UP, short on DOWN, flat on HOLD."""
     rets = []
-    for p, a in zip(preds, actuals):
+    for p, a in zip(preds, actuals, strict=False):
         if p == 2:  # predicted UP
             rets.append(1.0 if a == 2 else (-1.0 if a == 0 else 0.0))
         elif p == 0:  # predicted DOWN
@@ -245,8 +245,8 @@ def train_and_save(ticker: str, period: str = "5y"):
     """Train all candidates, pick best, save production artifacts."""
     from sklearn.ensemble import GradientBoostingClassifier, RandomForestClassifier
     from sklearn.linear_model import LogisticRegression
-    from sklearn.preprocessing import StandardScaler
     from sklearn.metrics import accuracy_score
+    from sklearn.preprocessing import StandardScaler
 
     t0 = time.time()
     df = compute_features(ticker, period)

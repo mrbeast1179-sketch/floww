@@ -490,7 +490,7 @@ def read_recent_drift_per_expiry(
             strike_f = float(strike)
         except (TypeError, ValueError):
             continue
-        if not (strike_f == strike_f):    # NaN check (NaN != NaN)
+        if strike_f != strike_f:    # NaN check (NaN != NaN)
             continue
         groups.setdefault(exp, []).append({
             "date": sd,

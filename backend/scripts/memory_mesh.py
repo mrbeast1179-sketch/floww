@@ -10,14 +10,12 @@ memory_mesh.py — Triple memory mesh for Claude Code ↔ Hermes durable memory 
 - Incremental: uses stamp file to skip unmodified sources
 """
 
-import os
-import re
-import json
-import shutil
-import hashlib
 import argparse
+import json
+import re
+import shutil
+from datetime import UTC, datetime
 from pathlib import Path
-from datetime import datetime, timezone
 
 # --- Configuration (absolute paths) ---
 OBSIDIAN_VAULT = Path("/Users/nav/Documents/Obsidian Vault")
@@ -43,7 +41,7 @@ def parse_frontmatter(content):
     """Return (fm_dict, body) where fm_dict may be empty. Reconstructs full text."""
     m = re.match(r"^---\s*\n(.*?)\n---\s*\n?", content, re.DOTALL)
     if m:
-        fm_block = m.group(0)
+        m.group(0)
         try:
             import yaml
             fm = yaml.safe_load(m.group(1)) or {}
@@ -62,7 +60,7 @@ def extract_body(content):
 # We won't require pyyaml if not present: write simple manual block updates
 def build_block(name, body, extra_keys=None):
     """Build a deduped YAML-block section for Obsidian."""
-    now = datetime.now(timezone.utc).isoformat()
+    now = datetime.now(UTC).isoformat()
     keys = {
         name + "_anchor": "active",
         "last_updated": now,
@@ -77,7 +75,7 @@ def build_block(name, body, extra_keys=None):
 def replace_block(content, anchor_key, new_block):
     """Replace the block that contains anchor_key line, or append."""
     pattern = re.compile(
-        r"({}.*?\n)(.*?)(\n```|\Z)".format(re.escape(anchor_key)),
+        rf"({re.escape(anchor_key)}.*?\n)(.*?)(\n```|\Z)",
         re.DOTALL,
     )
     if pattern.search(content):
@@ -195,7 +193,7 @@ def push_obsidian_to_hermes():
         return 0
     text = src.read_text(encoding="utf-8")
     _, body = parse_frontmatter(text)
-    now = datetime.now(timezone.utc).isoformat()
+    now = datetime.now(UTC).isoformat()
     record = {
         "type": "mesh_persistent_fact",
         "source": "obsidian:claude_sync",
@@ -249,8 +247,8 @@ def modified_since(path: Path, stamp: Path) -> bool:
 
 
 def touch_stamp():
-    STAMP_FILE.write_text(str(datetime.now(timezone.utc).timestamp()), encoding="utf-8")
-    HERMES_STAMP.write_text(str(datetime.now(timezone.utc).timestamp()), encoding="utf-8")
+    STAMP_FILE.write_text(str(datetime.now(UTC).timestamp()), encoding="utf-8")
+    HERMES_STAMP.write_text(str(datetime.now(UTC).timestamp()), encoding="utf-8")
 
 
 def run_sync(dry_run=False):

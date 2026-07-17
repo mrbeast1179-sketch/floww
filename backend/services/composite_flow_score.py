@@ -71,8 +71,7 @@ Usage::
 
 from __future__ import annotations
 
-from typing import Any, Dict
-
+from typing import Any
 
 # ─────────────────────────────────────────────────────────────────────
 # Label band + colour palette (mirrors Blademap conviction palette)
@@ -83,7 +82,7 @@ LABEL_MED = "MED"
 LABEL_WATCH = "WATCH"
 LABEL_LOW = "LOW"
 
-LABEL_COLORS: Dict[str, str] = {
+LABEL_COLORS: dict[str, str] = {
     LABEL_HIGH:  "#22c55e",  # green
     LABEL_MED:   "#fbbf24",  # amber
     LABEL_WATCH: "#a3a3a3",  # slate-grey
@@ -140,7 +139,7 @@ def _norm_direction(ofi_aggr: float) -> float:
     return min(v / _OFI_ANCHOR, 1.0)
 
 
-def _dislocation(regime_out: Dict[str, Any], ofi_out: Dict[str, Any]) -> float:
+def _dislocation(regime_out: dict[str, Any], ofi_out: dict[str, Any]) -> float:
     """Combine HMM regime confidence with regime/flow disagreement.
 
     A trending regime agreeing with the flow direction scores
@@ -205,13 +204,13 @@ class CompositeFlowScore:
 
     @staticmethod
     def compute(
-        amihud_out:  Dict[str, Any],
-        kyle_out:    Dict[str, Any],
-        vpin_out:    Dict[str, Any],
-        regime_out:  Dict[str, Any],
-        ofi_out:     Dict[str, Any],
-        sentiment_out: Dict[str, Any] | None = None,
-    ) -> Dict[str, Any]:
+        amihud_out:  dict[str, Any],
+        kyle_out:    dict[str, Any],
+        vpin_out:    dict[str, Any],
+        regime_out:  dict[str, Any],
+        ofi_out:     dict[str, Any],
+        sentiment_out: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
         # 1. Strict ANY-warming across sub-services. OFI is special-cased
         # because it doesn't expose ``is_warming`` — its warming marker
         # is ``snaps_used < 2``. Sentiment is special-cased: missing

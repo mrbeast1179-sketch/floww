@@ -12,9 +12,7 @@ from __future__ import annotations
 import math
 import random
 import sys
-
-
-from typing import List, Tuple, Optional, Any, Dict
+from typing import Any, Dict, List, Optional, Tuple
 
 # ─────────────────────────────────────────────────────────────────────
 # Pure helpers
@@ -209,6 +207,7 @@ def test_compute_high_variance_history_yields_wide_band_alt():
     the bootstrap must spread the resampled means widely.
     """
     import random as _r
+
     from services.composite_confidence import CompositeConfidence
     jitter_rng = _r.Random(99)
     history = []
@@ -361,7 +360,7 @@ def test_compute_rejects_non_dict_history_entries():
 
 
 def test_classify_width_thresholds_match_spec():
-    from services.composite_confidence import _classify_width, _WIDTH_NARROW, _WIDTH_MODERATE
+    from services.composite_confidence import _WIDTH_MODERATE, _WIDTH_NARROW, _classify_width
     assert _classify_width(0.0) == "NARROW"
     assert _classify_width(_WIDTH_NARROW - 0.001) == "NARROW"
     assert _classify_width(_WIDTH_NARROW)        == "MODERATE"
@@ -372,7 +371,7 @@ def test_classify_width_thresholds_match_spec():
 
 
 def test_colour_for_known_labels_returns_palette_values():
-    from services.composite_confidence import CompositeConfidence, CONFIDENCE_COLORS
+    from services.composite_confidence import CONFIDENCE_COLORS, CompositeConfidence
     assert CompositeConfidence.colour_for("NARROW")   == CONFIDENCE_COLORS["NARROW"]
     assert CompositeConfidence.colour_for("MODERATE") == CONFIDENCE_COLORS["MODERATE"]
     assert CompositeConfidence.colour_for("WIDE")     == CONFIDENCE_COLORS["WIDE"]
@@ -423,7 +422,7 @@ def test_bounds_progress_with_extending_history():
     # Score is carried through from the live snapshot verbatim.
     assert out["score"] == 85.0
     # Bounds stay inside [0, 100] regardless of score position.
-    assert 0.0 <= out["lower"] and out["upper"] <= 100.0
+    assert out["lower"] >= 0.0 and out["upper"] <= 100.0
     # Width is positive (history is non-degenerate).
     assert out["width"] > 0.0
 
@@ -442,5 +441,5 @@ def test_bounds_clamp_into_0_100_score_range():
                  "dislocation": ill, "direction": ill, "sentiment": ill},
         ))
     out = CompositeConfidence.compute(history, rng=random.Random(99))
-    assert 0.0 <= out["lower"]
+    assert out["lower"] >= 0.0
     assert out["upper"] <= 100.0

@@ -3,12 +3,12 @@ Tests for LLM service (OpenRouter) and turboQuantDC cache service.
 """
 from __future__ import annotations
 
-import os
-import types
-import sys
 import importlib
-import pytest
+import os
+import sys
+import types
 
+import pytest
 
 # ---------------------------------------------------------------------------
 # LLM Service Tests
@@ -123,6 +123,7 @@ class TestAnalyzeTradeWithLLM:
         reset_llm_service()
 
         import asyncio
+
         from services.llm import analyze_trade_with_llm
 
         result = asyncio.run(
@@ -223,8 +224,9 @@ class TestLLMRoutes:
 
     def test_providers_endpoint(self):
         """GET /api/llm/providers should return provider list."""
-        from fastapi.testclient import TestClient
         from fastapi import FastAPI
+        from fastapi.testclient import TestClient
+
         from routes.llm import router
 
         app = FastAPI()
@@ -239,8 +241,9 @@ class TestLLMRoutes:
 
     def test_turboquant_status_endpoint(self):
         """GET /api/turboquant/status should return status."""
-        from fastapi.testclient import TestClient
         from fastapi import FastAPI
+        from fastapi.testclient import TestClient
+
         from routes.llm import router
 
         app = FastAPI()
@@ -255,8 +258,9 @@ class TestLLMRoutes:
 
     def test_turboquant_presets_endpoint(self):
         """GET /api/turboquant/presets should return presets."""
-        from fastapi.testclient import TestClient
         from fastapi import FastAPI
+        from fastapi.testclient import TestClient
+
         from routes.llm import router
 
         app = FastAPI()
