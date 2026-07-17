@@ -171,13 +171,33 @@ def _dislocation(regime_out: Dict[str, Any], ofi_out: Dict[str, Any]) -> float:
 # rolling windows).
 # ─────────────────────────────────────────────────────────────────────
 
-# Sub-score weights (sum = 1.0; illiquidity gets the largest slice
-# because market-depth collapse synchronously opens the door for tox
-# and dislocation to compound).
-_W_ILLIQUIDITY = 0.30
-_W_TOXICITY    = 0.25
+# Sub-score weights (sum = 1.0). The five-component split was reshaped
+# in the steal-list deferred-(b) ship to absorb sentiment as a 5th
+# orthogonal sub-score: illiquidity 0.30 → 0.25, toxicity 0.25 → 0.20,
+# dislocation stays 0.25, direction stays 0.20, NEW sentiment 0.10.
+# Mirror in services/composite_confidence.py:80 — update both files
+# together when these weights change.
+_W_ILLIQUIDITY = 0.25
+_W_TOXICITY    = 0.20
 _W_DISLOCATION = 0.25
 _W_DIRECTION   = 0.20
+_W_SENTIMENT   = 0.10
+
+
+def _norm_sentiment(raw_score: float) -> float:
+    """Normalise the [-1, 1] sentiment polarity to a [0, 1] sub-score.
+
+    The composite evaluates ``conviction magnitude`` (already 0..100).
+    Strong sentiment polarisation in EITHER direction translates to
+    elevated conviction — same convention as ``_norm_direction``
+    treating a +1000 or -1000 OFI aggregate as equally directional.
+
+    Returns 0.0 (not 1.0) when ``raw_score`` is exactly 0.0 (neutral).
+    """
+    s = abs(float(raw_score or 0.0))
+    if s < 0.0:
+        s = 0.0
+    return min(s, 1.0)
 
 
 class CompositeFlowScore:
@@ -190,10 +210,14 @@ class CompositeFlowScore:
         vpin_out:    Dict[str, Any],
         regime_out:  Dict[str, Any],
         ofi_out:     Dict[str, Any],
+        sentiment_out: Dict[str, Any] | None = None,
     ) -> Dict[str, Any]:
         # 1. Strict ANY-warming across sub-services. OFI is special-cased
         # because it doesn't expose ``is_warming`` — its warming marker
-        # is ``snaps_used < 2``.
+        # is ``snaps_used < 2``. Sentiment is special-cased: missing
+        # sentiment does NOT flip is_warming (social-flow payloads are
+        # inherently flaky and a near-zero sentiment is a valid input,
+        # not a "service not yet initialised" sentinel).
         amihud_warming = bool(amihud_out.get("is_warming", True))
         kyle_warming   = bool(kyle_out.get("is_warming", True))
         vpin_warming   = bool(vpin_out.get("is_warming", True))
@@ -230,12 +254,37 @@ class CompositeFlowScore:
         raw_ofi_aggr = float(ofi_out.get("of_aggregated", 0.0) or 0.0)
         direction_score   = _norm_direction(raw_ofi_aggr)
 
-        # 3. Weighted composite.
+        # 2b. Sentiment sub-score (steal-list deferred-(b) ship). Pulls
+        # through the canonical extract_sentiment_feature helper so the
+        # clamp + aggregation gate lives in ONE place. Missing/wrong-shape
+        # -> raw_score=0.0 (degrade gracefully, no warming flip).
+        sentiment_score    = 0.0
+        sentiment_available = False
+        if sentiment_out is not None:
+            try:
+                from services.sentiment import extract_sentiment_feature
+                sentiment_score, sentiment_available = (
+                    extract_sentiment_feature(sentiment_out)
+                )
+            except Exception as exc:    # pragma: no cover
+                # Defensive degrade — never let a sentiment exception
+                # bring down the composite.
+                import logging
+                logging.warning(
+                    f"composite_flow_score: sentiment extraction failed: "
+                    f"{type(exc).__name__}: {exc}"
+                )
+                sentiment_score = 0.0
+                sentiment_available = False
+        norm_sentiment = _norm_sentiment(sentiment_score)
+
+        # 3. Weighted composite (5-component split).
         composite_raw = 100.0 * (
             _W_ILLIQUIDITY * illiquidity_score
             + _W_TOXICITY    * toxicity_score
             + _W_DISLOCATION * dislocation_score
             + _W_DIRECTION   * direction_score
+            + _W_SENTIMENT   * norm_sentiment
         )
         if is_warming:
             composite_raw = 0.0
@@ -259,6 +308,7 @@ class CompositeFlowScore:
                 "toxicity":    float(round(toxicity_score, 3)),
                 "dislocation": float(round(dislocation_score, 3)),
                 "direction":   float(round(direction_score, 3)),
+                "sentiment":   float(round(norm_sentiment, 3)),
             },
             "components": {
                 "amihud_norm": float(round(norm_amihud, 3)),
@@ -267,6 +317,8 @@ class CompositeFlowScore:
                 "regime":      str(regime_out.get("current_state",
                                                    "RANGING") or "RANGING"),
                 "ofi_aggr":    float(clipped_ofi),
+                "sentiment":   float(round(sentiment_score, 4)),
+                "sentiment_available": sentiment_available,
             },
             "n_obs_min":  int(n_obs_min),
             "is_warming": bool(is_warming),

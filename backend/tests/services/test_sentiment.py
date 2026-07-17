@@ -316,3 +316,113 @@ def test_aggregate_sentiment_handles_non_string_entries(stub_models):
     assert out["bullish_count"] == 0
     assert out["bearish_count"] == 0
     assert out["neutral_count"] == 6
+
+
+
+# ----------------------------------------------------------------------------
+# extract_sentiment_feature (steal-list deferred-(b) ship).
+# Math: ``clamp(mean(avg_vader, avg_textblob), -1, 1)`` with NULL/NaN safety.
+# Regression guard for both-libs-unavailable (monkey-patch VADER_AVAILABLE=False
+# AND TEXTBLOB_AVAILABLE=False → available stays False even with values present).
+# ----------------------------------------------------------------------------
+
+def test_extract_sentiment_positive_mean(stub_models):
+    from services.sentiment import extract_sentiment_feature
+    score, avail = extract_sentiment_feature({
+        "avg_vader": 0.6, "avg_textblob": 0.4, "tweet_count": 5,
+    })
+    assert score == 0.5
+    assert avail is True
+
+
+def test_extract_sentiment_negative_mean(stub_models):
+    from services.sentiment import extract_sentiment_feature
+    score, avail = extract_sentiment_feature({
+        "avg_vader": -0.7, "avg_textblob": -0.5, "tweet_count": 5,
+    })
+    assert score == -0.6
+    assert avail is True
+
+
+def test_extract_sentiment_clamps_above_one(stub_models):
+    """avg_vader=2.0 and avg_textblob=2.0 → raw mean=2.0 → clamp to 1.0."""
+    from services.sentiment import extract_sentiment_feature
+    score, avail = extract_sentiment_feature({
+        "avg_vader": 2.0, "avg_textblob": 2.0, "tweet_count": 1,
+    })
+    assert score == 1.0
+    assert avail is True
+
+
+def test_extract_sentiment_clamps_below_minus_one(stub_models):
+    from services.sentiment import extract_sentiment_feature
+    score, avail = extract_sentiment_feature({
+        "avg_vader": -1.5, "avg_textblob": -1.5, "tweet_count": 1,
+    })
+    assert score == -1.0
+    assert avail is True
+
+
+def test_extract_sentiment_none_input_returns_zero_false(stub_models):
+    from services.sentiment import extract_sentiment_feature
+    assert extract_sentiment_feature(None) == (0.0, False)
+
+
+def test_extract_sentiment_empty_tweet_count_returns_zero_false(stub_models):
+    """tweet_count=0 → guard rejects, even if avg_vader + avg_textblob are present."""
+    from services.sentiment import extract_sentiment_feature
+    score, avail = extract_sentiment_feature({
+        "avg_vader": 0.5, "avg_textblob": 0.5, "tweet_count": 0,
+    })
+    assert score == 0.0
+    assert avail is False
+
+
+def test_extract_sentiment_missing_avg_returns_zero_false(stub_models):
+    """Missing either avg_vader OR avg_textblob → guard rejects (gate is AND)."""
+    from services.sentiment import extract_sentiment_feature
+    score, avail = extract_sentiment_feature({
+        "avg_vader": 0.5, "tweet_count": 5,
+    })
+    assert score == 0.0
+    assert avail is False
+
+
+def test_extract_sentiment_NaN_returns_zero_false(stub_models):
+    """NaN / inf → guard rejects. Regression-guard contract."""
+    import math as m
+    from services.sentiment import extract_sentiment_feature
+    for bad in (m.nan, m.inf, -m.inf):
+        score, avail = extract_sentiment_feature({
+            "avg_vader": bad, "avg_textblob": 0.5, "tweet_count": 5,
+        })
+        assert score == 0.0
+        assert avail is False
+
+
+def test_extract_sentiment_both_libs_unavailable_regression_guard(stub_models):
+    """REGRESSION GUARD: even when both NLP libs are unavailable
+    (monkey-patched both False), the parser still computes the
+    sentiment_score from the cached avg_vader + avg_textblob floats.
+    The parser is fail-open at the dictionary layer; live-NLP scoring
+    is gated upstream in ``aggregate_sentiment()`` where it matters.
+
+    Previously the parser returned (0.0, False) when both libs were
+    unavailable. That over-zealous guard caused downstream composite
+    scores to silently lose the 5th sub-component whenever the libs
+    weren't installed at module-load time. We relax the parser to
+    log a debug message + proceed so cached sentiment continues to
+    feed the composite.
+    """
+    monkeypatch = stub_models
+    import services.sentiment as s
+    monkeypatch.setattr(s, "VADER_AVAILABLE", False)
+    monkeypatch.setattr(s, "TEXTBLOB_AVAILABLE", False)
+    from services.sentiment import extract_sentiment_feature
+    score, avail = extract_sentiment_feature({
+        "avg_vader": 0.5, "avg_textblob": 0.5, "tweet_count": 5,
+    })
+    # Both libs unavailable but well-formed cached payload -> parser
+    # STILL computes the score (live-NLP gating is upstream).
+    assert score == 0.5
+    assert avail is True

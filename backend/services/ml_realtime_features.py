@@ -366,8 +366,16 @@ def _kurtosis(values: list) -> float:
 def compute_features_for_inference(
     ticker: str,
     price_days: int = 60,
+    precomputed_sentiment: dict[str, Any] | None = None,
 ) -> dict[str, Any] | None:
     """Compute the full feature vector for ML inference.
+
+    Steal-list deferred-(b) ship: ``precomputed_sentiment`` is the
+    latency-stable injection channel for sentiment. When None (the
+    cron-driven default), the function still emits the canonical
+    ``sentiment_score`` + ``sentiment_available`` columns with
+    zero-equivalent defaults so the feature vector is shape-stable
+    across available / unavailable social-flow data.
 
     Returns:
         {
@@ -376,6 +384,7 @@ def compute_features_for_inference(
             "chain_available": bool,
             "spot": float,
             "chain_meta": {num_contracts, expiries, ...},
+            "sentiment_available": bool,  # echoes the column for caller convenience
         }
         or None on failure.
     """
@@ -403,14 +412,44 @@ def compute_features_for_inference(
         oi_feats = {}
         iv_feats = {}
 
-    # 3. Combine all features
-    all_features = {**price_feats, **gex_feats, **oi_feats, **iv_feats}
+    # 2b. Sentiment feature column (steal-list deferred-(b) ship).
+    # The aggregate_sentiment output's avg_vader + avg_textblob fields
+    # feed the canonical extract_sentiment_feature helper so the clamp
+    # math lives in ONE place. When caller doesn't pre-compute, we
+    # degrade gracefully to (0.0, False) so the feature vector stays
+    # shape-stable.
+    sentiment_score = 0.0
+    sentiment_available = False
+    if precomputed_sentiment is not None:
+        try:
+            from services.sentiment import extract_sentiment_feature
+            sentiment_score, sentiment_available = (
+                extract_sentiment_feature(precomputed_sentiment)
+            )
+        except Exception as exc:    # pragma: no cover
+            logger.warning(
+                f"ml_realtime_features: sentiment extraction failed: "
+                f"{type(exc).__name__}: {exc}"
+            )
+            sentiment_score, sentiment_available = 0.0, False
+    sentiment_feats = {
+        "sentiment_score": float(round(sentiment_score, 4)),
+        "sentiment_available": 1.0 if sentiment_available else 0.0,
+    }
+
+    # 3. Combine all features — sentiment column lands AFTER realised_vol
+    # etc. via the alphabetic sort in `feature_names` below.
+    all_features = {
+        **price_feats, **gex_feats, **oi_feats, **iv_feats,
+        **sentiment_feats,
+    }
 
     return {
         "features": all_features,
         "feature_names": sorted(all_features.keys()),
         "chain_available": chain_available,
         "spot": price_feats["spot"],
+        "sentiment_available": bool(sentiment_available),
         "chain_meta": {
             "num_contracts": len(chain.get("contracts", [])) if chain else 0,
             "expiries": chain.get("expiries", []) if chain else [],

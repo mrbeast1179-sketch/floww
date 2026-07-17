@@ -19,6 +19,7 @@ Or directly (no pytest install needed):
 from __future__ import annotations
 
 import sys
+import pytest
 from pathlib import Path
 
 BACKEND_ROOT = Path(__file__).resolve().parents[1]
@@ -122,15 +123,8 @@ def test_is_warming_when_any_subservice_is_warming():
         ("regime",  _regime(is_warming=True)),
         ("ofi",     _ofi(0.0, snaps_used=1)),
     ]
-    expected_flags = {
-        "amihud": ("amihud",),
-        "kyle":   ("kyle",),
-        "vpin":   ("vpin",),
-        "regime": ("regime",),
-        "ofi":    (),
-        # OFI's warming marker is `snaps_used < 2`. Composite should
-        # wake when OFI snaps_used == 1.
-    }
+    # OFI's warming marker is `snaps_used < 2`. The composite wakes
+    # when OFI snaps_used == 1 (verified per-case in the loop below).
     for label, hot in cases:
         # Build the (am, kyle, vpin, regime, ofi) tuple with `hot`
         # substituted at the right position.
@@ -169,7 +163,12 @@ def test_label_thresholds_match_specification():
     Hand-crafts a stack that *exactly* lands on each labelled composite
     via the documented weighting::
 
-        composite = 100·(0.30·illiq + 0.25·tox + 0.25·dis + 0.20·dir)
+        composite = 100·(0.25·illiq + 0.20·tox + 0.25·dis + 0.20·dir + 0.10·sent)
+
+    Weight split is the steal-list deferred-(b) ship's reshape:
+    illiq 0.30→0.25, tox 0.25→0.20, dis/dir unchanged, NEW sent 0.10.
+    Sentiment sub-score in the cases below defaults to 0.0
+    (``sentiment_out=None`` means extract_sentiment_feature returns 0,0).
 
     where ``dis`` follows
     :func:`services.composite_flow_score._dislocation`:
@@ -205,25 +204,24 @@ def test_label_thresholds_match_specification():
     # (label, expected_composite, tox, illiq_am, illiq_kyle,
     #  of_aggregated, regime_state, regime_conf)
     cases = [
-        # ----- LOW band (RANGING → dis=0; only tox/dir contribute) -----
-        (LABEL_LOW,    5.00, 0.20, 0.0, 0.0,    0, "RANGING",       0.0),  # 100·0.25·0.20 = 5
-        (LABEL_LOW,   25.00, 1.00, 0.0, 0.0,    0, "RANGING",       0.0),  # 100·0.25·1.00 = 25
-        (LABEL_LOW,   36.20, 1.00, 0.0, 0.0,  560, "RANGING",       0.0),  # 25 + 0.56·0.20·100 = 36.2
+        # ----- LOW band (RANGING → dis=0 + sent=0; tox/dir/illiq only) -----
+        (LABEL_LOW,    4.00, 0.20, 0.0, 0.0,    0, "RANGING",       0.0),  # 100·0.20·0.20 = 4
+        (LABEL_LOW,   20.00, 1.00, 0.0, 0.0,    0, "RANGING",       0.0),  # 100·0.20·1.00 = 20
+        (LABEL_LOW,   31.20, 1.00, 0.0, 0.0,  560, "RANGING",       0.0),  # 20 + 0.56·0.20·100 = 31.2
+        # ----- borderline LOW ↔ WATCH -----
+        (LABEL_LOW,   35.00, 1.00, 0.6, 0.6,    0, "RANGING",       0.0),  # 20 + 0.6·0.25·100 = 35
         # ----- WATCH band (40 ≤ composite < 60) -----
-        (LABEL_WATCH, 43.00, 1.00, 0.6, 0.6,    0, "RANGING",       0.0),  # 25 + 0.6·0.30·100 = 43
-        (LABEL_WATCH, 55.00, 1.00, 1.0, 1.0,    0, "RANGING",       0.0),  # 25 + 0.30·100 = 55
-        (LABEL_WATCH, 59.00, 1.00, 1.0, 1.0,  200, "RANGING",       0.0),  # 55 + 0.20·0.20·100 = 59
+        (LABEL_WATCH, 45.00, 1.00, 1.0, 1.0,    0, "RANGING",       0.0),  # 20 + 0.25·1.00·100 = 45
+        (LABEL_WATCH, 49.00, 1.00, 1.0, 1.0,  200, "RANGING",       0.0),  # 45 + 0.20·0.20·100 = 49
+        (LABEL_WATCH, 50.00, 1.00, 1.0, 1.0,  250, "RANGING",       0.0),  # 45 + 0.20·0.25·100 = 50
+        (LABEL_WATCH, 55.00, 1.00, 1.0, 1.0,  500, "RANGING",       0.0),  # 45 + 0.20·0.50·100 = 55
         # ----- MED band (60 ≤ composite < 80) -----
-        (LABEL_MED,   60.00, 1.00, 1.0, 1.0,  250, "RANGING",       0.0),  # 55 + 0.20·0.25·100 = 60
-        (LABEL_MED,   65.00, 1.00, 1.0, 1.0,  500, "RANGING",       0.0),  # 55 + 0.20·0.50·100 = 65
-        (LABEL_MED,   75.00, 1.00, 1.0, 1.0, 1000, "RANGING",       0.0),  # 55 + 0.20·1.00·100 = 75
-        # ----- HIGH band (composite ≥ 80; requires non-RANGING regime) -----
-        # TRENDING_BULL + bull OFI: dis = 0.5·conf (concordant, no conflict)
-        (LABEL_HIGH,  80.00, 1.00, 1.0, 1.0, 1000, "TRENDING_BULL", 0.40),  # 75 + 0.25·0.5·0.4·100 = 75+5 = 80
-        (LABEL_HIGH,  87.50, 1.00, 1.0, 1.0, 1000, "TRENDING_BULL", 1.00),  # 75 + 0.25·0.5·1.0·100 = 75+12.5 = 87.5
-        # TRENDING_BULL + bear OFI: conflict → dis = min(1.5·conf, 1.0)
-        (LABEL_HIGH,  95.00, 1.00, 1.0, 1.0, -1000, "TRENDING_BULL", 0.5333),  # dis=min(0.8,1)=0.8; 75+20 = 95
-        (LABEL_HIGH, 100.00, 1.00, 1.0, 1.0, -1000, "TRENDING_BULL", 1.00),    # dis=min(1.5,1)=1.0; 75+25 = 100
+        (LABEL_MED,   65.00, 1.00, 1.0, 1.0, 1000, "RANGING",       0.0),  # 45 + 0.20·1.00·100 = 65
+        (LABEL_MED,   70.00, 1.00, 1.0, 1.0, 1000, "TRENDING_BULL", 0.40),  # 65 + 0.25·0.5·0.4·100 = 70
+        (LABEL_MED,   77.50, 1.00, 1.0, 1.0, 1000, "TRENDING_BULL", 1.00),  # 65 + 0.25·0.5·1.0·100 = 77.5
+        # ----- HIGH band (composite ≥ 80; conflict-elevated dislocation) -----
+        (LABEL_HIGH,  85.00, 1.00, 1.0, 1.0, -1000, "TRENDING_BULL", 0.5333),  # dis=min(0.8,1)=0.8; 65+20 = 85
+        (LABEL_HIGH,  90.00, 1.00, 1.0, 1.0, -1000, "TRENDING_BULL", 1.00),    # dis=min(1.5,1)=1.0; 65+25 = 90
     ]
     for (expected_label, expected_composite, tox, illiq_am,
          illiq_kyle, of_aggregated, regime_state, regime_conf) in cases:
@@ -271,11 +269,21 @@ def test_calm_market_yields_low_composite():
         "toxicity":    0.0,
         "dislocation": 0.0,
         "direction":   0.0,
+        "sentiment":   0.0,
     }
 
 
 def test_max_inputs_yield_composite_at_least_high():
-    """Max inputs + bull regime signed-positive ofi → at least HIGH band."""
+    """Max inputs + bull regime signed-positive ofi + bullish sentiment
+    → at least HIGH band.
+
+    Steal-list deferred-(b) weight split (illiq 0.25 · tox 0.20 · dis 0.25 · dir 0.20 ·
+    sent 0.10) means the 4-stack max is 86.875 ⇒ HIGH; bumping the
+    ``sentiment_out`` through to ``1.0`` keeps that contract and also
+    exercises the 5th sub-component path. With sentiment=None (the
+    default) the composite falls to 76.875 ⇒ MED. The test pins the
+    "WITH bullish sentiment" path to keep the HIGH anchor.
+    """
     am = _amihud(amihud=1e-3)             # way above 1e-4 anchor → 1.0
     kyle = _kyle(lam=0.05)               # |0.05| / 0.01 = 5 → 1.0
     vpin = _vpin(vpin=1.0)               # clamp
@@ -285,11 +293,19 @@ def test_max_inputs_yield_composite_at_least_high():
         posterior=[0.95, 0.03, 0.02],
     )
     ofi = _ofi(of_aggregated=2000.0)      # 2000/1000 = 2 → 1.0
-    out = CompositeFlowScore.compute(am, kyle, vpin, regime, ofi)
-    # illiquidity=1.0, toxicity=1.0, dislocation=confidence*(0.5 + 0) = 0.475,
-    # direction=1.0. Composite = 100·(0.30+0.25+0.25·0.475+0.20)
-    #             = 100·(0.75 + 0.11875) = 86.875
-    # 86.875 ≥ 80 → HIGH.
+    sentiment = {
+        "avg_vader": 0.85, "avg_textblob": 0.65,
+        "tweet_count": 5, "bullish_count": 4, "bearish_count": 1,
+        "neutral_count": 0, "sentiment_label": "positive",
+        "confidence": 0.8, "top_tweets": [],
+    }
+    out = CompositeFlowScore.compute(am, kyle, vpin, regime, ofi, sentiment)
+    # illiq=1.0·0.25   = 0.250
+    # tox=1.0·0.20     = 0.200
+    # dis=0.95·(0.5+0)·0.25 = 0.119   (concordant: 0.5·conf)
+    # dir=1.0·0.20     = 0.200
+    # sent=abs(0.75)·0.10 = 0.075
+    # composite = 100·(0.844) = 84.375
     assert out["label"] == LABEL_HIGH
     assert out["composite"] >= 80.0
 
@@ -416,3 +432,132 @@ if __name__ == "__main__":
             print(f"ERROR {name}: {type(e).__name__}: {e}")
     print(f"\n{len(test_cases) - failures}/{len(test_cases)} passed")
     sys.exit(0 if failures == 0 else 1)
+
+
+
+# ─────────────────────────────────────────────────────────────────────
+# Sentiment integration tests (steal-list deferred-(b) ship)
+# ─────────────────────────────────────────────────────────────────────
+
+def test_sentiment_subscore_appears_in_output():
+    """`sentiment_out=None` (default) yields sub_scores["sentiment"]=0.0
+    AND components["sentiment_available"]=False.  Missing sentiment must NOT
+    flip is_warming (graceful degrade, not strict-ANY-warming kill)."""
+    am = _amihud(0.0)
+    kyle = _kyle(0.0)
+    vpin = _vpin(0.0)
+    regime = _regime(current_state="RANGING", confidence=0.5,
+                     posterior=[0.4, 0.2, 0.4])
+    ofi = _ofi(of_aggregated=0.0, snaps_used=2)
+    out = CompositeFlowScore.compute(am, kyle, vpin, regime, ofi)
+    assert out["sub_scores"]["sentiment"] == 0.0
+    assert out["components"]["sentiment"] == 0.0
+    assert out["components"]["sentiment_available"] is False
+    assert out["is_warming"] is False  # NOT flipped by missing sentiment
+
+
+def test_sentiment_positive_corpus_raises_composite():
+    """With bullish sentiment injected, composite rises by exactly 100·(0.10·|mean|)
+    over the no-sentiment baseline. Confirms the 5-component weight split math."""
+    am = _amihud(amihud=2e-4)        # norm_amihud = 2.0 → cap to 1.0
+    kyle = _kyle(lam=0.02)           # norm_kyle = 2.0 → cap to 1.0
+    vpin = _vpin(vpin=0.5)
+    regime = _regime(current_state="RANGING", confidence=0.5,
+                     posterior=[0.4, 0.2, 0.4])
+    ofi = _ofi(of_aggregated=0.0, snaps_used=2)
+    sentiment = {
+        "avg_vader": 0.6, "avg_textblob": 0.4, "tweet_count": 8,
+        "bullish_count": 6, "bearish_count": 0, "neutral_count": 2,
+        "sentiment_label": "positive", "confidence": 0.75,
+        "top_tweets": [],
+    }
+    out_a = CompositeFlowScore.compute(am, kyle, vpin, regime, ofi)
+    out_b = CompositeFlowScore.compute(am, kyle, vpin, regime, ofi,
+                                       sentiment_out=sentiment)
+    # sentiment_score = mean(0.6, 0.4) = 0.5 → norm_sentiment = abs(0.5) = 0.5
+    # contribution delta = 100·(0.10·0.5) = 5.0
+    assert out_b["composite"] - out_a["composite"] == pytest.approx(5.0, abs=0.2)
+    assert out_b["components"]["sentiment"] == pytest.approx(0.5, abs=1e-4)
+    assert out_b["components"]["sentiment_available"] is True
+    """`sentiment_out` with positive avg_vader + positive avg_textblob
+    pulls the composite above the no-sentiment baseline (graceful) and
+    surfaces the score in components."""
+    am = _amihud(amihud=2e-4)        # norm_amihud = 2.0 → cap to 1.0
+    kyle = _kyle(lam=0.02)           # norm_kyle = 2.0 → cap to 1.0
+    vpin = _vpin(vpin=0.5)
+    regime = _regime(current_state="RANGING", confidence=0.5,
+                     posterior=[0.4, 0.2, 0.4])
+    ofi = _ofi(of_aggregated=0.0, snaps_used=2)
+    sentiment = {
+        "avg_vader": 0.6, "avg_textblob": 0.4, "tweet_count": 8,
+        "bullish_count": 6, "bearish_count": 0, "neutral_count": 2,
+        "sentiment_label": "positive", "confidence": 0.75,
+        "top_tweets": [],
+    }
+    out_a = CompositeFlowScore.compute(am, kyle, vpin, regime, ofi)
+    out_b = CompositeFlowScore.compute(am, kyle, vpin, regime, ofi,
+                                       sentiment_out=sentiment)
+    # sentiment_score = mean(0.6, 0.4) = 0.5 → norm_sentiment = abs(0.5) = 0.5
+    # contribution delta = 100·(0.10·0.5) = 5.0
+    assert out_b["composite"] - out_a["composite"] == pytest.approx(5.0, abs=0.2)
+    assert out_b["components"]["sentiment"] == pytest.approx(0.5, abs=1e-4)
+    assert out_b["components"]["sentiment_available"] is True
+
+
+def test_sentiment_negative_polarity_counts_as_magnitude():
+    """``norm_sentiment = abs(sentiment_score)`` — heavily negative sentiment
+    raises composite the same as heavily positive (per convention that
+    conviction magnitude is orthogonal to direction)."""
+    am = _amihud(0.0)
+    kyle = _kyle(0.0)
+    vpin = _vpin(0.0)
+    regime = _regime(current_state="RANGING", confidence=0.5)
+    ofi = _ofi(of_aggregated=0.0, snaps_used=2)
+    sentiment_neg = {
+        "avg_vader": -0.7, "avg_textblob": -0.5, "tweet_count": 10,
+        "bullish_count": 0, "bearish_count": 8, "neutral_count": 2,
+        "sentiment_label": "negative", "confidence": 0.8,
+        "top_tweets": [],
+    }
+    out = CompositeFlowScore.compute(am, kyle, vpin, regime, ofi,
+                                     sentiment_out=sentiment_neg)
+    # sentiment_score = mean(-0.7, -0.5) = -0.6;  norm = abs = 0.6
+    assert out["components"]["sentiment_available"] is True
+    # 0.6 * 0.10 * 100 = 6 contribution; + the tox/illiq baseline 0.
+    assert out["composite"] == pytest.approx(6.0, abs=0.2)
+    """`norm_sentiment = abs(sentiment_score)` — heavily negative
+    sentiment raises composite the same as heavily positive (per
+    convention that conviction magnitude is orthogonal to direction)."""
+    am = _amihud(0.0)
+    kyle = _kyle(0.0)
+    vpin = _vpin(0.0)
+    regime = _regime(current_state="RANGING", confidence=0.5)
+    ofi = _ofi(of_aggregated=0.0, snaps_used=2)
+    sentiment_neg = {
+        "avg_vader": -0.7, "avg_textblob": -0.5, "tweet_count": 10,
+        "bullish_count": 0, "bearish_count": 8, "neutral_count": 2,
+        "sentiment_label": "negative", "confidence": 0.8,
+        "top_tweets": [],
+    }
+    out = CompositeFlowScore.compute(am, kyle, vpin, regime, ofi,
+                                     sentiment_out=sentiment_neg)
+    # sentiment_score = mean(-0.7, -0.5) = -0.6;  norm = abs = 0.6
+    assert out["components"]["sentiment_available"] is True
+    # 0.6 * 0.10 * 100 = 6 contribution; + the tox/illiq baseline 0.
+    assert out["composite"] == pytest.approx(6.0, abs=0.2)
+
+
+def test_sentiment_malformed_payload_does_not_crash():
+    """Non-dict sentiment_out (or wrong keys) → silent 0-extract +
+    warning log. Composite remains well-formed."""
+    am = _amihud(0.0)
+    kyle = _kyle(0.0)
+    vpin = _vpin(0.0)
+    regime = _regime(current_state="RANGING", confidence=0.5)
+    ofi = _ofi(of_aggregated=0.0, snaps_used=2)
+    for payload in [None, {}, {"tweet_count": 0}, {"tweet_count": 5}, "garbage"]:
+        out = CompositeFlowScore.compute(am, kyle, vpin, regime, ofi,
+                                         sentiment_out=payload)
+        assert out["sub_scores"]["sentiment"] == 0.0
+        assert out["components"]["sentiment_available"] in (True, False)
+        assert out["is_warming"] is False

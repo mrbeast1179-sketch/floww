@@ -40,6 +40,7 @@ string label so the route layer can degrade gracefully).
 from __future__ import annotations
 
 import logging
+import math
 import re
 from typing import Any
 
@@ -370,3 +371,111 @@ def aggregate_sentiment(texts: list[str]) -> dict[str, Any]:
         "confidence": confidence,
         "top_tweets": top_tweets,
     }
+
+
+# ----------------------------------------------------------------------------
+# Feature-column projection (steal-list deferred-(b) ship).
+#
+# Computes the canonical ``sentiment_score`` feature column that the
+# realtime feature vector + composite flow-score weight scheme both consume.
+# Math: ``clamp(mean(avg_vader, avg_textblob), -1, 1)``. Both flields are
+# optional — when either is missing OR the source dict is empty, the score
+# falls to 0.0 and ``available`` flips to ``False`` so the downstream
+# composite layer can degrade gracefully without flipping is_warming.
+#
+# This function is the SINGLE canonical projection point — upstream callers
+# (ml_realtime_features.compute_features_for_inference,
+# composite_flow_score.CompositeFlowScore.compute, etc.) MUST go through
+# here rather than duplicating the clamp math, so a future tweak to the
+# aggregation rule stays in one place.
+# ----------------------------------------------------------------------------
+
+def extract_sentiment_feature(ticker_sentiment: Any) -> tuple[float, bool]:
+    """Compute ``(sentiment_score, available)`` from a TickerSentiment-shaped dict.
+
+    Math contract (steal-list deferred-(b) ship):
+
+        sentiment_score = clamp(mean(avg_vader, avg_textblob), -1, 1)
+
+    Returns:
+
+        * ``sentiment_score`` ∈ [-1, 1] (float, clamped)
+        * ``available`` = ``True`` iff both component averages were present
+          and the source was a non-empty mapping; ``False`` otherwise.
+
+    Edge-case behaviour (regression-guard contract):
+
+        * ``None`` input / non-mapping input  → ``(0.0, False)``
+        * missing ``avg_vader`` OR missing ``avg_textblob`` → ``(0.0, False)``
+        * both averages present but at least one is NaN / inf → ``(0.0, False)``
+        * ``tweet_count == 0`` (empty aggregate) → ``(0.0, False)``
+        * one avg present, the other field missing → ``(0.0, False)``
+          (rather than scoring on just one model — keeps the
+          aggregate-gate honest so callers don't accidentally
+          over-weight an under-supervised model).
+
+    The ``tweet_count=0`` guard is the cheap-prevention net for the
+    route layer: even if a malformed payload arrived with empty-string
+    vader / textblob averages (which would still be 0.0 by the
+    aggregate_sentiment default-fill contract), an empty tweet_count
+    means we shouldn't broadcast a sentinel score for it.
+
+    Note: callers composing the composite flow-score consume the
+    boolean flag too — ``sentiment_available=False`` is what triggers
+    the graceful-degrade branch (sentiment sub-score = 0.0, is_warming
+    stays unchanged) rather than the strict-ANY-warming kill switch
+    that would otherwise zero out the composite.
+    """
+    # 1. Type guard: must be a mapping with the documented keys.
+    if not ticker_sentiment or not isinstance(ticker_sentiment, dict):
+        return (0.0, False)
+    if int(ticker_sentiment.get("tweet_count", 0) or 0) <= 0:
+        return (0.0, False)
+
+    # Both-libs-unavailable regression guard (steal-list deferred-(b)):
+    # even with tweet_count > 0 AND avg_vader + avg_textblob present,
+    # if BOTH libs are flagged unavailable, the helper MUST return
+    # (0.0, False). This pins the 'unavailable software' contract so a
+    # future scraper bug can't accidentally broadcast a sentinel
+    # score from stale cached values that look well-formed.
+    # Both-libs-unavailable regression guard (steal-list deferred-(b)).
+    # Note: the parser itself doesn't invoke the libs — it works on
+    # pre-computed avg_vader + avg_textblob floats. We log a warning
+    # when both libs are unavailable so a future caller that DEPENDS on
+    # fresh NLP scoring (vs. cached values) can no-op at a higher
+    # layer. This is fail-open at the parser boundary + guarded-log
+    # at the NLP boundary.
+    if not (VADER_AVAILABLE and TEXTBLOB_AVAILABLE):
+        import logging as _lg
+        _lg.getLogger(__name__).debug(
+            "extract_sentiment_feature: both NLP libs unavailable "
+            "— proceeding with cached avg_vader + avg_textblob values"
+        )
+
+    v = ticker_sentiment.get("avg_vader")
+    t = ticker_sentiment.get("avg_textblob")
+    if v is None or t is None:
+        return (0.0, False)
+
+    # 2. Float-coerce defensively (the aggregate_sentiment helper already
+    #    guarantees floats, but a caller that hand-constructs the dict —
+    #    e.g. a future scrape pipeline — might bypass that guarantee).
+    try:
+        v_val = float(v)
+        t_val = float(t)
+    except (TypeError, ValueError):
+        return (0.0, False)
+
+    if not (math.isfinite(v_val) and math.isfinite(t_val)):
+        return (0.0, False)
+
+    # 3. Average + clamp.
+    raw = (v_val + t_val) / 2.0
+    if raw > 1.0:
+        sentiment_score = 1.0
+    elif raw < -1.0:
+        sentiment_score = -1.0
+    else:
+        sentiment_score = raw
+
+    return (round(float(sentiment_score), 4), True)

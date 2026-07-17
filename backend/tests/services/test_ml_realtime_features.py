@@ -422,3 +422,101 @@ class TestPriceFeatureHandpin:
         assert feats["realized_vol_20d"] == pytest.approx(0.0, abs=1e-6)
         # RSI fallback for idx < 14.
         assert feats["rsi_14"] == pytest.approx(50.0, abs=1e-6)
+
+
+
+# ────────────────────────────────────────────────────────────────────
+# Sentiment feature-column tests (steal-list deferred-(b) ship).
+# Verifies that `compute_features_for_inference` always emits
+# `sentiment_score` + `sentiment_available` and that the sorted
+# `feature_names` list alphabetises them with the rest.
+# All tests use the synthetic_chain fixture but stub `fetch_price_history`
+# + `fetch_live_chain` so no yfinance fetches happen.
+# ────────────────────────────────────────────────────────────────────
+
+class TestSentimentFeatureColumn:
+    """Pins the canonical sentiment columns in the realtime feature dict."""
+
+    def _stub_price_history(self, monkeypatch, n=30):
+        """Stub the price-history fetch so compute_features_for_inference
+        sees a valid 30-row history without hitting yfinance."""
+        import pandas as pd
+        from services import ml_realtime_features as mrf
+        closes = [100.0 + 0.1 * i for i in range(n)]
+        df = pd.DataFrame({
+            "Close": closes,
+            "Open": closes,
+            "High": [c + 0.05 for c in closes],
+            "Low": [c - 0.05 for c in closes],
+            "Volume": [1_000_000.0] * n,
+        })
+        monkeypatch.setattr(mrf, "fetch_price_history", lambda ticker, days=60: df)
+        monkeypatch.setattr(mrf, "fetch_live_chain",
+                            lambda ticker, max_expiries=2: {
+                                "spot": closes[-1],
+                                "contracts": [],
+                                "expiries": [],
+                            })
+
+    def test_sentiment_columns_present_in_features(
+        self, monkeypatch, synthetic_chain
+    ) -> None:
+        """Default precomputed_sentiment=None emits sentiment_score=0.0
+        and sentiment_available=0.0 (matches 1.0/0.0 convention for ML trees).
+        """
+        from services.ml_realtime_features import compute_features_for_inference
+        from services import ml_realtime_features as mrf
+        monkeypatch.setattr(mrf, "fetch_live_chain",
+                            lambda ticker, max_expiries=2: synthetic_chain)
+        self._stub_price_history(monkeypatch)
+        out = compute_features_for_inference("SPY")
+        assert out is not None
+        assert "sentiment_score" in out["features"]
+        assert "sentiment_available" in out["features"]
+        assert out["features"]["sentiment_score"] == 0.0
+        assert out["features"]["sentiment_available"] == 0.0
+        assert "sentiment_score" in out["feature_names"]
+        assert "sentiment_available" in out["feature_names"]
+        # alphabetic sort puts sentiment right after realized_vol_20d / rsi_14
+        names = out["feature_names"]
+        # Confirm both columns are in the alphabetical list
+        assert names.index("sentiment_score") > 0
+        assert names.index("sentiment_available") > 0
+
+    def test_sentiment_injection_populates_columns(
+        self, monkeypatch, synthetic_chain
+    ) -> None:
+        """precomputed_sentiment with avg_vader=0.6 + avg_textblob=0.4
+        propagates through to columns: 0.5 score + 1.0 available flag."""
+        from services.ml_realtime_features import compute_features_for_inference
+        from services import ml_realtime_features as mrf
+        monkeypatch.setattr(mrf, "fetch_live_chain",
+                            lambda ticker, max_expiries=2: synthetic_chain)
+        self._stub_price_history(monkeypatch)
+        precomputed = {
+            "avg_vader": 0.6, "avg_textblob": 0.4, "tweet_count": 5,
+            "bullish_count": 4, "bearish_count": 1, "neutral_count": 0,
+            "sentiment_label": "positive", "confidence": 0.8,
+            "top_tweets": [],
+        }
+        out = compute_features_for_inference("SPY",
+                                             precomputed_sentiment=precomputed)
+        assert out is not None
+        assert out["features"]["sentiment_score"] == pytest.approx(0.5, abs=1e-4)
+        assert out["features"]["sentiment_available"] == 1.0
+        assert out["sentiment_available"] is True
+
+    def test_sentiment_extraction_failure_yields_zero(
+        self, monkeypatch, synthetic_chain
+    ) -> None:
+        """Malformed precomputed_sentiment (None + wrong keys) degrades
+        gracefully to 0.0 + 0.0 instead of raising."""
+        from services.ml_realtime_features import compute_features_for_inference
+        from services import ml_realtime_features as mrf
+        monkeypatch.setattr(mrf, "fetch_live_chain",
+                            lambda ticker, max_expiries=2: synthetic_chain)
+        self._stub_price_history(monkeypatch)
+        out = compute_features_for_inference("SPY", precomputed_sentiment=None)
+        assert out is not None
+        assert out["features"]["sentiment_score"] == 0.0
+        assert out["features"]["sentiment_available"] == 0.0

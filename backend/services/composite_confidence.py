@@ -80,13 +80,17 @@ from typing import Any, Dict, List, Optional, Tuple
 # Weights — MUST stay synchronised with composite_flow_score.py.
 # These are duplicated here (rather than imported) so the bootstrap
 # service has no internal coupling to the synthesiser. If the
-# published weights ever change, update both files.
+# published weights ever change, update both files. Rescaled to the
+# 5-component split in the steal-list deferred-(b) ship:
+#   illiq 0.30 → 0.25 · tox 0.25 → 0.20 · dis unchanged 0.25 ·
+#   dir unchanged 0.20 · NEW sentiment 0.10.
 # ─────────────────────────────────────────────────────────────────────
 
-_W_ILLIQUIDITY = 0.30
-_W_TOXICITY    = 0.25
+_W_ILLIQUIDITY = 0.25
+_W_TOXICITY    = 0.20
 _W_DISLOCATION = 0.25
 _W_DIRECTION   = 0.20
+_W_SENTIMENT   = 0.10
 
 # Bootstrap configuration ─
 _DEFAULT_B_RESAMPLES = 100          # 100 resamples × N history = ~6400 ops
@@ -142,24 +146,32 @@ def _classify_width(width: float) -> str:
     return CONFIDENCE_WIDE
 
 
-def _extract_sub_scores(snap: Dict[str, Any]) -> Tuple[float, float, float, float]:
-    """Read the 4 sub-scores out of a snapshot dict. Defaults to 0.0."""
+def _extract_sub_scores(snap: Dict[str, Any]) -> Tuple[float, float, float, float, float]:
+    """Read the 5 sub-scores out of a snapshot dict. Defaults to 0.0.
+
+    Steal-list deferred-(b) ship: 4-tuple widened to 5-tuple to absorb
+    sentiment. If the legacy 4-tuple shape is encountered (older snapshots
+    in chain_replay), sentiment defaults to 0.0 — that sub-score is
+    silently absent from older history entries, NOT a hard-mismatch.
+    """
     sub = (snap.get("sub_scores") or {}) if isinstance(snap, dict) else {}
     return (
         _coerce_float(sub.get("illiquidity", 0.0)),
         _coerce_float(sub.get("toxicity",    0.0)),
         _coerce_float(sub.get("dislocation", 0.0)),
         _coerce_float(sub.get("direction",   0.0)),
+        _coerce_float(sub.get("sentiment",   0.0)),
     )
 
 
-def _weight_aggregate(ill: float, tox: float, dis: float, dirn: float) -> float:
-    """Apply published composite weights to four sub-scores."""
+def _weight_aggregate(ill: float, tox: float, dis: float, dirn: float, sent: float) -> float:
+    """Apply published composite weights to five sub-scores."""
     return 100.0 * (
         _W_ILLIQUIDITY * ill
         + _W_TOXICITY    * tox
         + _W_DISLOCATION * dis
         + _W_DIRECTION   * dirn
+        + _W_SENTIMENT   * sent
     )
 
 
@@ -230,15 +242,16 @@ class CompositeConfidence:
         b = max(1, int(b_resamples))
         local_rng = rng if rng is not None else random
 
-        # Slight optimisation: pre-extract the 4 sub-score vectors out
+        # Slight optimisation: pre-extract the 5 sub-score vectors out
         # of history to make the inner resample loop pure-Python fast.
-        ill_arr, tox_arr, dis_arr, dir_arr = [], [], [], []
+        ill_arr, tox_arr, dis_arr, dir_arr, sent_arr = [], [], [], [], []
         for s in valid:
-            ill, tox, dis, dirn = _extract_sub_scores(s)
+            ill, tox, dis, dirn, send = _extract_sub_scores(s)
             ill_arr.append(ill)
             tox_arr.append(tox)
             dis_arr.append(dis)
             dir_arr.append(dirn)
+            sent_arr.append(send)
 
         means: List[float] = []
         for _ in range(b):
@@ -246,6 +259,7 @@ class CompositeConfidence:
             tx = 0.0
             di = 0.0
             dr = 0.0
+            se = 0.0
             # Resample N indices with replacement.
             for _i in range(n):
                 j = local_rng.randrange(n)
@@ -253,7 +267,8 @@ class CompositeConfidence:
                 tx += tox_arr[j]
                 di += dis_arr[j]
                 dr += dir_arr[j]
-            means.append(_weight_aggregate(il / n, tx / n, di / n, dr / n))
+                se += sent_arr[j]
+            means.append(_weight_aggregate(il / n, tx / n, di / n, dr / n, se / n))
 
         means.sort()
         # Percentile bounds — clamp indices into [0, b - 1].

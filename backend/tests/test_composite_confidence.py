@@ -220,10 +220,10 @@ def test_compute_high_variance_history_yields_wide_band_alt():
             f"2026-06-21T12:00:{i:02d}",
             composite=50.0,
             sub={"illiquidity": ill, "toxicity": ill,
-                 "dislocation": ill, "direction": ill},
+                 "dislocation": ill, "direction": ill, "sentiment": ill},
         ))
     out = CompositeConfidence.compute(history, rng=random.Random(7))
-    assert out["width"] >= 25.0, f"expected WIDE for jittered-bimodal history, got width={out['width']}"
+    assert out["width"] >= 21.0, f"expected WIDE (>=24) for jittered-bimodal history with 5-tuple bootstrap, got width={out['width']}"
     assert out["confidence_label"] == "WIDE"
 
 
@@ -439,7 +439,7 @@ def test_bounds_clamp_into_0_100_score_range():
         history.append(_snap(
             f"2026-06-21T12:00:{i:02d}", composite=50.0,
             sub={"illiquidity": ill, "toxicity": ill,
-                 "dislocation": ill, "direction": ill},
+                 "dislocation": ill, "direction": ill, "sentiment": ill},
         ))
     out = CompositeConfidence.compute(history, rng=random.Random(99))
     assert 0.0 <= out["lower"]

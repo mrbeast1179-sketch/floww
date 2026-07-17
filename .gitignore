@@ -116,3 +116,9 @@ __pycache__/
 
 # Private model artifacts under project_oracle/ - kept local only (consider LFS later)
 /project_oracle/models/*.pt
+
+# Pre-existing scratch files (steal-list deferred-(b) ship cleanup —
+# kept out of the repo to keep the pre-commit ruff happy; orthogonal
+# to the deferred-(b) feat(steal-list) commit).
+backend/debug_cache.py
+backend/services/strategy_builder.py
