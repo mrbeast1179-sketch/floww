@@ -2,7 +2,7 @@ import {
   bizDTE, scanTypeOf, scanScoreOf, estimateDelta, approxSpot, mkScanRow,
   fmtUSD, fmtK, fmtIV, scoreGradeOf, estPremium, evalAlerts, tickerRollup,
   archetypeOf, volSigma, annotateFirstSeen, sessionDay, fmtClock, fmtAge,
-  awaySummary, scanRowsToCSV, oiChange,
+  awaySummary, scanRowsToCSV, oiChange, streakOf, isTradingDay, evalTickerAlerts,
 } from "./scanLogic";
 
 describe("estimateDelta", () => {
@@ -393,5 +393,108 @@ describe("bizDTE", () => {
     const dte = bizDTE(d.toISOString().slice(0, 10));
     expect(dte).toBeGreaterThan(7);
     expect(dte).toBeLessThanOrEqual(11);
+  });
+});
+
+describe("evalAlerts OICONF (overnight OI confirmation)", () => {
+  const mk = (over) => ({
+    under: "NVDA", type: "call", strike: 100, exp: "2099-01-08",
+    score: 40, premium: 2e5, notional: 5e7, volOI: 1, dte: 10, _new: false, ...over,
+  });
+  it("fires on ≥30% overnight OI build with ≥$1M added notional, without _new", () => {
+    const hits = evalAlerts([mk({ oiChg: { abs: 5000, pct: 0.5 } })]);
+    expect(hits).toHaveLength(1);
+    expect(hits[0].rule).toBe("OICONF");
+    expect(hits[0].why).toMatch(/OI \+50% overnight/);
+    expect(hits[0].ttl).toBeGreaterThan(3600e3);
+  });
+  it("skips small builds — pct below 30% or added notional below $1M", () => {
+    expect(evalAlerts([mk({ oiChg: { abs: 5000, pct: 0.2 } })])).toEqual([]);
+    // +80% but only 50 contracts on a $100 strike = $500k added notional
+    expect(evalAlerts([mk({ oiChg: { abs: 50, pct: 0.8 } })])).toEqual([]);
+  });
+  it("caps at the top 5 by overnight % build, strongest first", () => {
+    const rows = Array.from({ length: 8 }, (_, i) =>
+      mk({ strike: 100 + i, oiChg: { abs: 5000, pct: 0.31 + i * 0.1 } }));
+    const hits = evalAlerts(rows);
+    expect(hits).toHaveLength(5);
+    expect(hits[0].oiChgPct).toBeCloseTo(1.01);
+    expect(hits.every((h) => h.rule === "OICONF")).toBe(true);
+  });
+  it("wins over SCORE on the same row (one alert per row) and can be disabled", () => {
+    const row = mk({ _new: true, score: 95, oiChg: { abs: 5000, pct: 0.5 } });
+    expect(evalAlerts([row])[0].rule).toBe("OICONF");
+    const off = evalAlerts([row], { enabled: { score: true, oiconf: false } });
+    expect(off).toHaveLength(1);
+    expect(off[0].rule).toBe("SCORE");
+  });
+  it("intraday rules carry a plain-English why", () => {
+    const [hit] = evalAlerts([mk({ _new: true, score: 90, volOI: 5.2, premium: 1.2e6 })]);
+    expect(hit.rule).toBe("SCORE");
+    expect(hit.why).toMatch(/score 90/);
+    expect(hit.why).toMatch(/5.2× OI/);
+  });
+});
+
+describe("streakOf (multi-day persistence)", () => {
+  // 2026-07-06 = Monday; all base dates are weekdays.
+  const day = (date, total_vol) => ({ date, total_vol });
+  const base = [day("2026-07-06", 100), day("2026-07-07", 110), day("2026-07-08", 90), day("2026-07-09", 100)];
+  it("counts consecutive most-recent days ≥ mult × prior-day median", () => {
+    const days = [...base, day("2026-07-10", 400), day("2026-07-13", 380)];
+    const st = streakOf(days, { today: "2026-07-14" });
+    expect(st.n).toBe(2);
+    expect(st.median).toBe(105);   // median over ALL six prior days (spike days included)
+  });
+  it("a below-threshold TODAY is skipped, not a streak-breaker (partial day)", () => {
+    const days = [...base, day("2026-07-10", 400), day("2026-07-13", 380), day("2026-07-14", 5)];
+    expect(streakOf(days, { today: "2026-07-14" }).n).toBe(2);
+  });
+  it("an above-threshold TODAY joins the streak", () => {
+    const days = [...base, day("2026-07-10", 400), day("2026-07-14", 500)];
+    expect(streakOf(days, { today: "2026-07-14" }).n).toBe(2);
+  });
+  it("needs minDays of prior history and a nonzero median", () => {
+    expect(streakOf(base.slice(0, 3), { today: "2026-07-14" })).toBeNull();
+    expect(streakOf([day("2026-07-06", 0), day("2026-07-07", 0), day("2026-07-08", 0), day("2026-07-09", 0)], { today: "2026-07-14" })).toBeNull();
+  });
+  it("quiet recent days mean streak 0", () => {
+    const days = [...base, day("2026-07-13", 95)];
+    expect(streakOf(days, { today: "2026-07-14" }).n).toBe(0);
+  });
+  it("weekend rows (stale Friday duplicates) neither count nor break the streak", () => {
+    const days = [...base, day("2026-07-10", 400), day("2026-07-11", 400), day("2026-07-12", 400)];
+    expect(streakOf(days, { today: "2026-07-13" }).n).toBe(1);   // Friday only
+    expect(isTradingDay("2026-07-11")).toBe(false);              // Saturday
+    expect(isTradingDay("2026-07-13")).toBe(true);               // Monday
+  });
+});
+
+describe("evalTickerAlerts (SIGMA + FOLLOW)", () => {
+  const roll = [{ under: "NVDA", callVol: 90000, putVol: 30000, maxScore: 71 }];
+  const baselines = { NVDA: { avg: 40000, std: 15000, days: 6 } };
+  it("SIGMA fires at ≥4σ above the ticker's baseline with a label + long ttl", () => {
+    const hits = evalTickerAlerts(roll, baselines, {});
+    expect(hits).toHaveLength(1);
+    expect(hits[0].rule).toBe("SIGMA");
+    expect(hits[0].key).toBe("sigma|NVDA");
+    expect(hits[0].label).toMatch(/5.3σ above its 6-day baseline/);
+    expect(hits[0].ttl).toBe(4 * 3600e3);
+  });
+  it("stays quiet below the sigma threshold or without a baseline", () => {
+    expect(evalTickerAlerts([{ under: "NVDA", callVol: 40000, putVol: 20000 }], baselines, {})).toEqual([]);
+    expect(evalTickerAlerts(roll, {}, {})).toEqual([]);
+  });
+  it("FOLLOW fires on a ≥2-day streak", () => {
+    const hits = evalTickerAlerts(roll, {}, { NVDA: { n: 3, mult: 1.5, median: 40000 } });
+    expect(hits).toHaveLength(1);
+    expect(hits[0].rule).toBe("FOLLOW");
+    expect(hits[0].label).toMatch(/3 straight days/);
+  });
+  it("respects the allowlist and enabled flags", () => {
+    const streaks = { NVDA: { n: 2, mult: 1.5, median: 40000 } };
+    expect(evalTickerAlerts(roll, baselines, streaks, { allow: ["SPY"] })).toEqual([]);
+    const only = evalTickerAlerts(roll, baselines, streaks, { enabled: { sigma: false, follow: true } });
+    expect(only.map((h) => h.rule)).toEqual(["FOLLOW"]);
   });
 });

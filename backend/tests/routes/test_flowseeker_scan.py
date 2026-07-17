@@ -219,3 +219,52 @@ def test_cached_regimes_reads_heatmap_cache(monkeypatch):
     monkeypatch.setitem(sys.modules, "server", fake_server)
     out = _REAL_CACHED_REGIMES()
     assert out == {"SPY": "negative", "QQQ": "positive"}
+
+
+def test_scan_history_groups_by_ticker_and_caches(monkeypatch):
+    """/scan/history groups flow_scan_daily docs per ticker (date-asc) and
+    serves the 60s module cache on the second call without touching Mongo."""
+    docs = [
+        {"ticker": "NVDA", "date": "2026-07-14", "total_vol": 100, "call_vol": 60, "put_vol": 40},
+        {"ticker": "NVDA", "date": "2026-07-15", "total_vol": 300, "call_vol": 200, "put_vol": 100},
+        {"ticker": "SPY", "date": "2026-07-15", "total_vol": 900, "call_vol": 500, "put_vol": 400},
+    ]
+
+    class FakeCursor:
+        def sort(self, *a):
+            return self
+
+        def limit(self, n):
+            return self
+
+        def __aiter__(self):
+            async def gen():
+                for d in docs:
+                    yield d
+            return gen()
+
+    class FakeColl:
+        def find(self, *a, **k):
+            return FakeCursor()
+
+    class FakeDB:
+        flow_scan_daily = FakeColl()
+
+    import sys
+    import types
+    fake_server = types.ModuleType("server")
+    fake_server.db = FakeDB()
+    monkeypatch.setitem(sys.modules, "server", fake_server)
+    fs._history_cache.update({"ts": 0.0, "days": 0, "data": None})
+
+    out = asyncio.run(fs.scan_history(days=14))
+    assert set(out["tickers"]) == {"NVDA", "SPY"}
+    assert [d["total_vol"] for d in out["tickers"]["NVDA"]] == [100, 300]
+    assert out["tickers"]["SPY"][0]["put_vol"] == 400
+    assert out["asof"]
+
+    # Second call inside the TTL must return the cached payload object —
+    # a db hit here would raise (db is gone) and fail the test.
+    fake_server.db = None
+    assert asyncio.run(fs.scan_history(days=14)) is out
+    fs._history_cache.update({"ts": 0.0, "days": 0, "data": None})

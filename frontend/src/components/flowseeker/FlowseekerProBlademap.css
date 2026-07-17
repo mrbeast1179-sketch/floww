@@ -283,6 +283,11 @@
 .fsb-rulebadge.r-score { background: rgba(245, 176, 66, 0.15); color: #f5b042; border: 1px solid rgba(245, 176, 66, 0.4); }
 .fsb-rulebadge.r-whale { background: rgba(162, 103, 255, 0.15); color: #a267ff; border: 1px solid rgba(162, 103, 255, 0.4); }
 .fsb-rulebadge.r-0dte { background: rgba(255, 77, 94, 0.15); color: #ff4d5e; border: 1px solid rgba(255, 77, 94, 0.4); }
+/* Confirmation-tier rules — history-backed, not one-snapshot */
+.fsb-rulebadge.r-oiconf { background: rgba(25, 210, 124, 0.15); color: #19d27c; border: 1px solid rgba(25, 210, 124, 0.45); }
+.fsb-rulebadge.r-follow { background: rgba(124, 140, 255, 0.15); color: #7c8cff; border: 1px solid rgba(124, 140, 255, 0.45); }
+.fsb-rulebadge.r-sigma { background: rgba(255, 140, 66, 0.15); color: #ff8c42; border: 1px solid rgba(255, 140, 66, 0.45); }
+.fsb-why { font-size: 9.5px; color: #6c7382; white-space: normal; }
 .fsb-stab thead th { position: sticky; top: 0; background: #10141f; z-index: 1; }
 
 /* ── Premium concentration rollup chips ── */
@@ -310,6 +315,12 @@
 .fsb-pcr { font-size: 8.5px; color: #6c7382; margin-left: 4px; }
 .fsb-pcr.bull { color: #19d27c; font-weight: 700; }
 .fsb-pcr.bear { color: #ff4d5e; font-weight: 700; }
+
+/* ── Persistence: streak flame + daily-volume sparkline on rollup chips ── */
+.fsb-streak { font-size: 8.5px; font-weight: 800; color: #ff8c42; margin-left: 5px; letter-spacing: 0.3px; }
+.fsb-spark { display: flex; align-items: flex-end; gap: 1px; height: 12px; margin: 1px 0; }
+.fsb-spark i { display: block; width: 4px; min-height: 1px; background: #2f3b52; border-radius: 1px; }
+.fsb-spark i.t { background: #29c5e0; }
 
 /* ── σ-spike tag (volume vs prior-day baseline) ── */
 .fsb-sigma { font-size: 8.5px; font-weight: 800; color: #f5b042; margin-left: 4px; }

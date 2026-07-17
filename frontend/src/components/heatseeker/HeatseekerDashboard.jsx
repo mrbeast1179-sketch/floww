@@ -155,9 +155,17 @@ import MaxPainPerExpiryDriftTile from "./MaxPainPerExpiryDriftTile";
 // Historical steal-list signals (steal-list #6/#9/#10/#20 — backend
 // services landed in routes/steal_three.py).
 import ConfluenceVelocityRow from "./ConfluenceVelocityRow";
-// Steal-list #10 + #8 — Row 4 mount ("Expected Moves / Trade Ideas").
+// Steal-list #10 + #8 + news — Row 4 mount ("Expected Moves / Trade Ideas").
 import StrikeConeBadge from "./StrikeConeBadge";
 import OpportunityBadge from "./OpportunityBadge";
+// Catalysts/news pulse (steal-list news feed) — Row 4 3rd-column tile,
+// fetches /api/news/{ticker}/history?days=14 on a 5 min poll.
+import NewsBadge from "./NewsBadge";
+// Steal-list #4 RND (Breeden-Litzenberger PDF/CDF) — Row 4b full-width
+// beneath the 3-col Row 4 grid per the panel's own docstring spec.
+// Fetches GET /api/rnd/{ticker}?expiry_index=N and renders PDF + CDF
+// SVG + tail-prob chips.
+import RndDensityPanel from "./RndDensityPanel";
 import RollingFloorsCeilingsPanelBase from "./RollingFloorsCeilingsPanel";
 import NodeClassificationPanelBase from "./NodeClassificationPanel";
 import StackedNodesPanelBase from "./StackedNodesPanel";
@@ -337,12 +345,33 @@ export default function HeatseekerDashboard({
       </div>
 
       {/* ── Row 4: Expected Moves / Trade Ideas ──────────────────────── */}
+      {/* 3-col grid (md:grid-cols-3) above the 12-col fold so NewsBadge
+          sits alongside StrikeConeBadge + OpportunityBadge. NewsBadge
+          fetches /api/news/{ticker}/history?days=14 on a 5 min poll and
+          surfaces {n_headlines_last_24h, n_unique_domains,
+          top_3_publishers, catalyst_news, latest_headline_ts}. The
+          single hs-news testid is asserted via the React-panel mock —
+          no per-feature wrapper testids here (kept consistent with the
+          minimum-footprint intent of the original spec). */}
       <div>
         <SectionHeader title="Expected Moves / Trade Ideas" />
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
           <StrikeConeBadge ticker={normalizedTicker} expiries={1} />
           <OpportunityBadge ticker={normalizedTicker} />
+          <NewsBadge ticker={normalizedTicker} days={14} />
         </div>
+      </div>
+
+      {/* ── Row 4b: Risk-Neutral Density (steal-list #4 frontend) ──── */}
+      {/* Full-width beneath the 3-col Row 4 so the dual PDF/CDF SVG
+          gets the horizontal real estate it needs (per the
+          RndDensityPanel docstring: "Row 4b, full-width beneath the
+          2-col Row 4 grid ... interpreted as a dedicated row positioned
+          after them rather than crammed into the existing 2-col grid").
+          Marked with the standardised hs-rnd-density testid so the
+          visual-regression suite can target the tile directly. */}
+      <div data-testid="hs-rnd-density-row">
+        <RndDensityPanel ticker={normalizedTicker} expiries={1} />
       </div>
 
       {/* ── Row 5: Wave 3 panels (lazy-loaded) ──────────────────────── */}

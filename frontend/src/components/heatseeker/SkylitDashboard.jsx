@@ -11,6 +11,21 @@ import MaxPainBadge from "./MaxPainBadge";
 // Per-expiry max-pain-drift multi-line chart tile (steal-list #9 rich
 // visualization — surfaced via /api/max_pain_drift/{ticker}/per_expiry_history).
 import MaxPainPerExpiryDriftTile from "./MaxPainPerExpiryDriftTile";
+// NEW (2026-07-16): steal-list #10 (strike cone) + #8 (opportunity
+// engine) — surfaced into the skylit bottom band so the steal-three
+// is visible without scrolling to Heatseeker Row 4. Pairs with the
+// existing Dual-GEX / IV-Mid / Wheel-Income / Max-Pain mounts already
+// in the skylit-steal-list-band container below.
+import StrikeConeBadge from "./StrikeConeBadge";
+import OpportunityBadge from "./OpportunityBadge";
+// Steal-list news/pulse — Row 3.5 tile on Skylit's bottom band,
+// mirrors the Heatseeker Dashboard top-3 pattern so users see the
+// same signals on either layout.
+import NewsBadge from "./NewsBadge";
+// Steal-list #4 — Risk-Neutral Density full-width tile beneath the
+// strike-cone / opportunity band so the PDF + CDF SVG gets horizontal
+// real estate. (Mirrors Heatseeker Row 4b mount.)
+import RndDensityPanel from "./RndDensityPanel";
 
 /**
  * SkylitDashboard — Full Skylit-style trading dashboard
@@ -166,6 +181,19 @@ function SkylitDashboard({
         </div>
         <div data-testid="skylit-steal-wheel-income">
           <WheelIncomeScreenerPanel ticker={ticker} />
+          {/* NEW (2026-07-16): steal-list #10 strike cone + #8 opportunity
+              engine — surface classic 16Δ/30Δ cone shape + regime pills
+              in the skylit bottom band. Marked with the skylit-steal-<feature>
+              wrappers per the test's standardized visual-regression
+              convention so downstream visual verifications can locate the
+              tile by semantic purpose (strike-cone / opportunity) instead
+              of relying on component-internal ids that may shift. */}
+          <div data-testid="skylit-steal-strike-cone">
+            <StrikeConeBadge ticker={ticker} expiries={1} />
+          </div>
+          <div data-testid="skylit-steal-opportunity">
+            <OpportunityBadge ticker={ticker} />
+          </div>
         </div>
         {/* NEW: Per-expiry max-pain-drift multi-line chart — full-width
             beneath the Wheel panel so the multi-line visualization gets
@@ -173,6 +201,20 @@ function SkylitDashboard({
             /api/max_pain_drift/{ticker}/per_expiry_history. */}
         <div data-testid="skylit-steal-max-pain-per-expiry-drift">
           <MaxPainPerExpiryDriftTile ticker={ticker} />
+        </div>
+
+        {/* NEW (2026-07-16): News pulse + Risk-Neutral Density — extend
+            the Skylit bottom band to mirror the Heatseeker Dashboard
+            Row 4 (news) + Row 4b (RND full-width). The Skylit layout
+            keeps the existing max-pain-drift multi-line chart at the
+            top and appends these two tiles below it so the
+            visualisation cadence matches the Heatseeker iteration:
+            analytics → flow → expected-moves → RND. */}
+        <div className="pt-1" data-testid="skylit-steal-news-band">
+          <NewsBadge ticker={ticker} days={14} />
+        </div>
+        <div data-testid="skylit-steal-rnd-density">
+          <RndDensityPanel ticker={ticker} expiries={1} />
         </div>
       </div>
 

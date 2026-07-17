@@ -51,11 +51,12 @@ _Restored 2026-07-15: a status edit clobbered the doc header + items #1–#8; re
 - **Steal from:** `MattL922_implied-volatility/implied-volatility.js::getImpliedVolatility (upgrade bisection to Newton using floww's bs_vega)`
 - **Lands in floww:** Add implied_vol_from_price() to backend/bs_greeks.py; wire into vol_analytics.calc_iv_surface_data preferring solver(mid) over raw yfinance IV, with a 'clean IV' toggle; q from yfinance dividendYield.
 
-### #6 · Spot-shifted exposure PROFILE engine (gamma/vanna/charm/delta vs price curves + true flip points)  `[high-impact]`  — value 8 / effort 3
-- **Status:** ⬜ not started.
-- **Why:** Upgrades floww's flip from 'strike where per-strike GEX crosses zero' to the SqueezeMetrics-style true gamma-neutral and delta-neutral spot, interpolated from aggregate exposure recomputed across 300 hypothetical spot levels. Also yields vanna/charm PROFILE curves (vanna wall, charm-into-close) and 0DTE-vs-structural decomposition via per-expiry masks. Highly portable — floww's vectorized numba greeks already exist; only the spot-grid loop and flip solver are new.
+### ~~#6 · Spot-shifted exposure PROFILE engine (gamma/vanna/charm/delta vs price curves + true flip points)  `[high-impact]`  — value 8 / effort 3~~
+- **Status:** ✅ **DONE** (2026-07-16, this session).
+  - **In:** Pure-logic service at `backend/services/squeeze_exposure_profile.py` — SqueezeMetrics-style spot-shifted BS re-pricing (gamma recomputed via `bs_gamma(shifted_spot, ...)` per contract across 5 default shifts [-5, -2, 0, +2, +5] %), aggregated through the canonical `GexAggregator` for S² · OI · 100 · 0.01 dollar-scaling fidelity. DuckDB persistence via `init_exposure_profile_table` + `persist_daily` UPSERT against the new `floww_squeeze_exposure_daily` table. Sidecar route `backend/routes/exposure_profile.py` mounted on the canonical :8000 port via `app.include_router` in `server.py` (`GET /api/exposure_profile/{ticker}?shifts=-5,0,5&accumulate=true`). 13-case pytest suite green (12 spec'd + persistence smoke). σ held constant across shifts — zero-vol-drift SqueezeMetrics approximation documented in service docstring.
+- **Why:** Upgrades floww's flip from 'strike where per-strike GEX crosses zero' to the SqueezeMetrics-style true gamma-neutral and delta-neutral spot, interpolated from aggregate exposure recomputed across 300 hypothetical spot levels.
 - **Steal from:** `aaguiar10_gflows/modules/calc.py:306-749 (calc_exposures, zerodelta/zerogamma) + modules/stats.py:44-121`
-- **Lands in floww:** New ExposureProfileService looping backend/services/numba_greeks.py over np.linspace(0.5*spot, 1.5*spot, 300) using existing databento_eod_chains data; new route beside routes/greeks.py; 'Exposure Profile' curve chart on Skylit next to the GEX heatmap, complementing zero_gamma_levels.
+- **Lands in floww:** Pure-logic service + sidecar route + DuckDB UPSERT + server.py router mount. Ready to feed 'Exposure Profile' curve chart on Skylit next to the GEX heatmap, complementing zero_gamma_levels.
 
 ### #7 · Realized-vol suite + variance risk premium (Yang-Zhang, GK, Parkinson, vol cones) with realized-range percentile bands  `[high-impact]`  — value 8 / effort 3
 - **Status:** ⬜ not started. (Prerequisite for #13; feeds the wheel screener gate.)

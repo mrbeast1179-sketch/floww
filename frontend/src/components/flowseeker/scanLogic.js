@@ -139,6 +139,8 @@ export function estPremium(r) {
 
 // Alert engine — pure. Evaluates NEW rows against the enabled rules; a row
 // fires at most one alert (first matching rule wins, in priority order).
+// Every hit carries a plain-English `why` (a desk explains its alerts) and an
+// optional `ttl` — how long ingest should dedupe this key before re-firing.
 // opts.allow: optional ticker allowlist (array) — scopes alerting to the
 // user's universe so market-wide scans don't ping for 700 random symbols.
 export function evalAlerts(rows, opts = {}) {
@@ -146,25 +148,166 @@ export function evalAlerts(rows, opts = {}) {
     minScore = 85,
     whalePremium = 10e6,
     zeroDteScore = 70,
-    enabled = { score: true, whale: true, zerodte: true },
+    oiConfPct = 0.30,
+    oiConfNotional = 1e6,
+    enabled = { score: true, whale: true, zerodte: true, oiconf: true },
     allow = null,
   } = opts;
   const allowSet = allow && allow.length ? new Set(allow) : null;
-  const out = [];
-  for (const r of rows || []) {
-    if (!r._new) continue;
-    if (allowSet && !allowSet.has(r.under)) continue;
-    let rule = null;
-    if (enabled.score && r.score >= minScore) rule = "SCORE";
-    else if (enabled.whale && r.premium != null && r.premium >= whalePremium) rule = "WHALE";
-    else if (enabled.zerodte && r.dte != null && r.dte <= 1 && r.score >= zeroDteScore) rule = "0DTE";
-    if (!rule) continue;
-    out.push({
-      key: `${r.under}|${r.type}|${r.strike}|${r.exp}`,
+  // key is rule-namespaced so dedup ttls stay independent across rules — a
+  // SCORE fire yesterday afternoon must not suppress this morning's OICONF
+  // confirmation on the same contract. ckey keeps the raw contract identity.
+  const mkHit = (r, rule, extra) => {
+    const ckey = `${r.under}|${r.type}|${r.strike}|${r.exp}`;
+    return {
+      key: `${rule.toLowerCase()}|${ckey}`, ckey,
       rule, under: r.under, type: r.type, strike: r.strike, exp: r.exp,
       score: r.score, premium: r.premium, notional: r.notional,
-      volOI: r.volOI, dte: r.dte,
-    });
+      volOI: r.volOI, dte: r.dte, ...extra,
+    };
+  };
+  // Pass 1 — ΔOI confirmation candidates: the one hard "yesterday's flow was
+  // real" proof a print-less feed offers (open interest that JUMPED overnight
+  // means the positioning held). Doesn't require _new; capped to the top 5 by
+  // % build so the tape gets the strongest follow-through, not 50 rows of +30%.
+  const cand = [];
+  for (const r of rows || []) {
+    if (allowSet && !allowSet.has(r.under)) continue;
+    const addNotl = r.oiChg ? r.oiChg.abs * 100 * (r.strike || 0) : 0;
+    if (enabled.oiconf && r.oiChg && r.oiChg.pct >= oiConfPct && addNotl >= oiConfNotional) {
+      cand.push({ r, addNotl });
+    }
+  }
+  cand.sort((a, b) => b.r.oiChg.pct - a.r.oiChg.pct);
+  const topConf = cand.slice(0, 5);
+  const inTop = new Set(topConf.map((c) => c.r));
+  const out = topConf.map(({ r, addNotl }) => mkHit(r, "OICONF", {
+    oiChgPct: r.oiChg.pct,
+    why: `OI +${Math.round(r.oiChg.pct * 100)}% overnight (+${fmtK(r.oiChg.abs)} contracts, ${fmtUSD(addNotl)} notional) — prior-day flow HELD as new positioning`,
+    ttl: 20 * 3600e3,
+  }));
+  // Pass 2 — intraday rules on NEW rows. Rows that won an OICONF slot skip
+  // this (one alert per row, strongest claim wins); rows that qualified but
+  // ranked 6+ fall through here so their one-shot _new alert isn't swallowed.
+  for (const r of rows || []) {
+    if (!r._new || inTop.has(r)) continue;
+    if (allowSet && !allowSet.has(r.under)) continue;
+    let rule = null, why = null;
+    if (enabled.score && r.score >= minScore) {
+      rule = "SCORE";
+      why = `score ${r.score} — vol ${r.volOI >= 99 ? "99+" : (r.volOI ?? 0).toFixed(1)}× OI${r.premium != null ? `, ~${fmtUSD(r.premium)} premium` : ""}${r.dte != null ? `, ${r.dte} DTE` : ""}`;
+    } else if (enabled.whale && r.premium != null && r.premium >= whalePremium) {
+      rule = "WHALE";
+      why = `~${fmtUSD(r.premium)} estimated premium on a single line`;
+    } else if (enabled.zerodte && r.dte != null && r.dte <= 1 && r.score >= zeroDteScore) {
+      rule = "0DTE";
+      why = `${r.dte} DTE with score ${r.score} — urgent short-fuse positioning`;
+    }
+    if (!rule) continue;
+    out.push(mkHit(r, rule, { why }));
+  }
+  return out;
+}
+
+// Weekend scans record stale duplicates of Friday's cumulative volumes (the
+// upstream feed doesn't reset off-hours) — drop Sat/Sun rows before any
+// history math. Date-only strings parse as UTC midnight, so getUTCDay is exact.
+export function isTradingDay(dateStr) {
+  const wd = new Date(`${dateStr}T00:00:00Z`).getUTCDay();
+  return wd !== 0 && wd !== 6;
+}
+
+// The most recent weekday strictly before dateStr (Mon → prior Fri).
+function prevTradingDayOf(dateStr) {
+  const t = Date.parse(`${dateStr}T00:00:00Z`);
+  for (let k = 1; k <= 4; k++) {
+    const d = new Date(t - k * 86400000);
+    const wd = d.getUTCDay();
+    if (wd !== 0 && wd !== 6) return d.toISOString().slice(0, 10);
+  }
+  return null;
+}
+
+// History hygiene for streaks + sparklines: weekday rows only, and drop
+// consecutive EXACT-duplicate rows — a weekday market holiday records the
+// prior session's cumulative volumes under its own date (same off-hours
+// staleness the weekend filter handles), and identical consecutive real
+// volumes are practically impossible at these magnitudes.
+export function cleanHistory(days) {
+  const out = [];
+  for (const d of days || []) {
+    if (!d || d.total_vol == null || !isTradingDay(d.date)) continue;
+    const p = out[out.length - 1];
+    if (p && p.total_vol === d.total_vol && p.call_vol === d.call_vol && p.put_vol === d.put_vol) continue;
+    out.push(d);
+  }
+  return out;
+}
+
+// Multi-day persistence — "are they coming back?" days = [{date, total_vol},…]
+// ascending (from /scan/history). Baseline = median of PRIOR days only —
+// today's row is a partial intraday-cumulative count. Streak = consecutive
+// most-recent TRADING days with total_vol ≥ mult × median; a below-threshold
+// TODAY is skipped rather than breaking yesterday's streak (the day isn't
+// over yet). Calendar continuity is enforced: a missing day means the ticker
+// fell out of the scan (a quiet day), so a gap BREAKS the streak — "N straight
+// days" must mean literally consecutive sessions. (A holiday's missing row
+// also breaks — conservative beats a false persistence claim.)
+export function streakOf(days, { mult = 1.5, minDays = 4, today = sessionDay() } = {}) {
+  const arr = cleanHistory(days);
+  const prior = arr.filter((d) => d.date !== today);
+  if (prior.length < minDays) return null;
+  const vols = prior.map((d) => d.total_vol).sort((a, b) => a - b);
+  const mid = Math.floor(vols.length / 2);
+  const median = vols.length % 2 ? vols[mid] : (vols[mid - 1] + vols[mid]) / 2;
+  if (!(median > 0)) return null;
+  const thr = median * mult;
+  let i = arr.length - 1;
+  if (arr[i].date === today && arr[i].total_vol < thr) i--;
+  let n = 0, lastDate = null;
+  for (; i >= 0 && arr[i].total_vol >= thr; i--) {
+    if (lastDate && arr[i].date !== prevTradingDayOf(lastDate)) break;
+    n++;
+    lastDate = arr[i].date;
+  }
+  return { n, thr: Math.round(thr), median: Math.round(median), mult };
+}
+
+// Ticker-level alerts from aggregates — the "definite" tier: both rules
+// compare a ticker to its OWN history rather than one snapshot.
+//   SIGMA:  today's scan volume ≥ sigmaMin σ above the ticker's multi-day
+//           baseline (OptionScannerTWS finding: 4-5σ spikes precede moves).
+//   FOLLOW: ≥ followDays consecutive elevated-volume days — persistent
+//           positioning; institutions building over days, not one print.
+// Hits use the label pathway (no strike) and long ttls so the tape stays signal.
+export function evalTickerAlerts(rollup, baselines = {}, streaks = {}, opts = {}) {
+  const { sigmaMin = 4, followDays = 2, enabled = { sigma: true, follow: true }, allow = null } = opts;
+  const allowSet = allow && allow.length ? new Set(allow) : null;
+  const out = [];
+  for (const e of rollup || []) {
+    if (allowSet && !allowSet.has(e.under)) continue;
+    const base = { under: e.under, type: "", strike: "", exp: "", score: e.maxScore ?? null, premium: null, dte: null };
+    if (enabled.sigma) {
+      const b = baselines[e.under];
+      const s = volSigma(e.callVol + e.putVol, b);
+      if (s != null && s >= sigmaMin) {
+        out.push({
+          ...base, key: `sigma|${e.under}`, rule: "SIGMA", sigma: s,
+          label: `${e.under} options volume ${s}σ above its ${b.days}-day baseline (${fmtK(e.callVol + e.putVol)} vs ~${fmtK(b.avg)} avg)`,
+          ttl: 4 * 3600e3,
+        });
+      }
+    }
+    if (enabled.follow) {
+      const st = streaks[e.under];
+      if (st && st.n >= followDays) {
+        out.push({
+          ...base, key: `follow|${e.under}`, rule: "FOLLOW", streak: st.n,
+          label: `${e.under} elevated options volume ${st.n} straight days (≥${st.mult}× its median) — persistent positioning`,
+          ttl: 20 * 3600e3,
+        });
+      }
+    }
   }
   return out;
 }

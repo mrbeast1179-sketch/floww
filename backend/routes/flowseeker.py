@@ -12,7 +12,7 @@ import logging
 import math
 import os
 import time
-from datetime import datetime
+from datetime import datetime, timedelta
 
 import httpx
 from fastapi import APIRouter, HTTPException, Query
@@ -737,6 +737,49 @@ async def force_refresh_scan(
     except Exception as e:
         logger.warning(f"cvforge force-refresh failed: {e}")
         raise HTTPException(502, f"force refresh failed: {e}")
+
+
+# Per-ticker daily history cache — the collection only changes once per scan
+# upsert, and the frontend polls every 15 min; 60s is plenty.
+_history_cache = {"ts": 0.0, "days": 0, "data": None}
+
+
+@router.get("/scan/history")
+async def scan_history(days: int = Query(14, ge=2, le=60)):
+    """
+    Per-ticker daily options-volume history from the scan baseline collector
+    (flow_scan_daily: total/call/put volume per ticker per day). Powers the
+    scanner's rollup sparklines and multi-day persistence streaks — the
+    "what are they following across sessions" read. Mongo-only, no upstream.
+    """
+    nowt = time.time()
+    if (
+        _history_cache["data"] is not None
+        and _history_cache["days"] == days
+        and nowt - _history_cache["ts"] < 60
+    ):
+        return _history_cache["data"]
+    out: dict[str, list] = {}
+    try:
+        from server import db  # deferred: circular import
+
+        cutoff = (datetime.now() - timedelta(days=days)).strftime("%Y-%m-%d")
+        cur = db.flow_scan_daily.find(
+            {"date": {"$gte": cutoff}},
+            {"_id": 0, "ticker": 1, "date": 1, "total_vol": 1, "call_vol": 1, "put_vol": 1},
+        ).sort("date", 1).limit(40000)
+        async for doc in cur:
+            out.setdefault(doc["ticker"], []).append({
+                "date": doc["date"],
+                "total_vol": doc.get("total_vol") or 0,
+                "call_vol": doc.get("call_vol") or 0,
+                "put_vol": doc.get("put_vol") or 0,
+            })
+    except Exception as e:
+        logger.debug("scan history unavailable: %s" % e)
+    payload = {"days": days, "tickers": out, "asof": datetime.now().isoformat()}
+    _history_cache.update(ts=nowt, days=days, data=payload)
+    return payload
 
 
 @router.get("/alerts/{symbol}")

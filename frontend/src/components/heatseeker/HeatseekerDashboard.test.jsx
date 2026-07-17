@@ -43,8 +43,14 @@ jest.mock("./MaxPainBadge", () => () => <div data-testid="hs-max-pain" />);
 // visualization; fetches /api/max_pain_drift/{ticker}/per_expiry_history).
 jest.mock("./MaxPainPerExpiryDriftTile", () => () => <div data-testid="hs-max-pain-per-expiry-drift" />);
 // Row 4 mount — steal-list #10 (cone) + #8 (opportunity engine)
+// + news pulse tile (catalyst + headlines count).
 jest.mock("./StrikeConeBadge", () => () => <div data-testid="hs-strike-cone" />);
 jest.mock("./OpportunityBadge", () => () => <div data-testid="hs-opportunity" />);
+jest.mock("./NewsBadge", () => () => <div data-testid="hs-news" />);
+// Row 4b mount — steal-list #4 (risk-neutral density). The component
+// fetches /api/rnd/{ticker}?expiry_index=1 on mount (real network call
+// to :8000) — we mock it so the test stays synchronous + side-effect-free.
+jest.mock("./RndDensityPanel", () => () => <div data-testid="hs-rnd-density" />);
 
 // Mock lazy-loaded chart components
 jest.mock("../VannaChart", () => () => <div data-testid="mock-vanna" />);
@@ -91,9 +97,15 @@ describe("HeatseekerDashboard", () => {
       "hs-iv-mid",
       "hs-wheel-income",
       "hs-max-pain",
-      // Steal-list #10 + #8 mounted into Row 4 ("Expected Moves / Trade Ideas")
+      // Steal-list #10 + #8 + news mounted into Row 4 ("Expected Moves / Trade Ideas")
+      // — news Badge tests-loaded count delta is whatever the file shows (24 → 25
+      // in this revision; the user's "17→18" was a relative-count shorthand).
       "hs-strike-cone",
       "hs-opportunity",
+      "hs-news",
+      // Row 4b mount — steal-list #4 RND panel (full-width PDF/CDF viz).
+      "hs-rnd-density",
+      "hs-rnd-density-row",
       "hs-rolling-floors-ceilings",
       "hs-tug-of-war",
       "hs-node-classification",

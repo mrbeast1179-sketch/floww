@@ -3299,6 +3299,13 @@ from routes.paper_trading import router as paper_trading_router
 
 app.include_router(paper_trading_router, tags=["paper_trading"])
 
+# Steal-list #6 sidecar — SqueezeMetrics spot-shifted Exposure Profile.
+try:
+    import routes.exposure_profile as _exp_profile_sidecar
+    app.include_router(_exp_profile_sidecar.router)
+except Exception as _exp_exc:    # pragma: no cover (defensive)
+    log.warning(f"exposure_profile sidecar mount failed (non-fatal): {_exp_exc}")
+
 # (deduped — see L2905 in the Replay, Agent Hub, Nexus block; P1 entry #4 in docs/superpowers/plans/2026-06-20-freebuff-decoder-hardening-60h.md.)
 # ============ Dash UI Mount ============
 try:

@@ -36,6 +36,16 @@ jest.mock("./MaxPainBadge",              () => () => <div data-testid="hs-max-pa
 // Per-expiry max-pain-drift multi-line chart tile (steal-list #9 rich
 // visualization; fetches /api/max_pain_drift/{ticker}/per_expiry_history).
 jest.mock("./MaxPainPerExpiryDriftTile",  () => () => <div data-testid="hs-max-pain-per-expiry-drift" />);
+// NEW (2026-07-16): steal-list #10 (strike cone) + #8 (opportunity
+// engine) — mocks mirror the production component data-testids so
+// these assertions also serve as a reality-check on those ids.
+jest.mock("./StrikeConeBadge",              () => () => <div data-testid="hs-strike-cone" />);
+jest.mock("./OpportunityBadge",             () => () => <div data-testid="hs-opportunity" />);
+// NEW (2026-07-16): News pulse (catalyst + headline count) and the
+// full-width Risk-Neutral Density tile — both fetch on mount so the
+// mocks keep the test synchronous + side-effect-free.
+jest.mock("./NewsBadge",                    () => () => <div data-testid="hs-news" />);
+jest.mock("./RndDensityPanel",              () => () => <div data-testid="hs-rnd-density" />);
 
 // Import AFTER mocks are set up.
 import SkylitDashboard from "./SkylitDashboard";
@@ -61,6 +71,26 @@ describe("SkylitDashboard", () => {
     // Per-expiry max-pain-drift multi-line chart mounted full-width
     // beneath the Wheel panel inside the steal-list band.
     expect(screen.getByTestId("hs-max-pain-per-expiry-drift")).toBeInTheDocument();
+    // NEW (2026-07-16): steal-list #10 strike cone + #8 opportunity
+    // engine mirror — surfaced into the skylit bottom band alongside
+    // the existing #1/#3/#5/#9 mounts. Pairs with the SkylitDashboard.jsx
+    // edit that imports + mounts them inside the skylit-steal-list-band
+    // container. Count delta: +4 (inner hs-strike-cone + hs-opportunity
+    // + outer skylit-steal-strike-cone + skylit-steal-opportunity wrappers
+    // — keeps test parity with the existing 4-badge dual-level pattern).
+    expect(screen.getByTestId("hs-strike-cone")).toBeInTheDocument();
+    expect(screen.getByTestId("hs-opportunity")).toBeInTheDocument();
+    // skylit-steal-<feature> wrapper assertions mirror the dual-level
+    // pattern the existing 4 badges follow (DualGEX / IVMid / MaxPain /
+    // WheelIncome / MaxPainPerExpiryDriftTile) — see lines above.
+    // Adding these catches a future regression where a maintainer might
+    // rename or remove the wrapper testids without realising the
+    // convention is shared across the band.
+    expect(screen.getByTestId("skylit-steal-strike-cone")).toBeInTheDocument();
+    expect(screen.getByTestId("skylit-steal-opportunity")).toBeInTheDocument();
+    // NEW (2026-07-16): bottom-band news pulse + RND full-width mount.
+    expect(screen.getByTestId("skylit-steal-news-band")).toBeInTheDocument();
+    expect(screen.getByTestId("skylit-steal-rnd-density")).toBeInTheDocument();
     // NEW (2026-07-15): skylit-steal-<feature> wrappers — standardize
     // on the skylit-steal-<feature> prefix so visual verifications can
     // target tiles by semantic purpose (dual-gex / iv-mid / max-pain /
