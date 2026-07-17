@@ -1,7 +1,7 @@
 /**
  * ConfluenceVelocityRow.jsx — historical steal-list signals tile.
  *
- * Renders a 4-column grid of tiles that lift the 4 newly-shipped
+ * Renders a 7-column grid of tiles that lift the 7 newly-shipped
  * backend services onto the Skylit dashboard Row 3 ("Confluence &
  * Velocity"). Each tile is a small standalone fetcher (axios +
  * AbortController for unmount cleanup) so swapping tickers doesn't
@@ -12,20 +12,24 @@
  *   2. ConsensusDriftTile      ← GET /api/consensus_drift/{ticker}?days=14
  *   3. InsiderPressureTile     ← GET /api/insider/{ticker}?limit=20
  *   4. StrikeConeTile          ← GET /api/strike_cone/{ticker}?target_probs=0.16,0.30,0.70,0.84
+ *   5. OCCVolumeTile           ← GET /api/occ_volume/{ticker}?days=14
+ *   6. RawVsRealizedBadge      ← GET /api/vol/realized/{ticker} (steal-list #7)
+ *   7. RvConeTile              ← GET /api/vol/realized/{ticker} (steal-list #7)
  *
  * Visual treatment mirrors `HeatseekerDashboard.jsx`'s slate palette
- * (text-slate-200, bg-slate-800/30, accent emerald/rose/amber/purple).
- * No React Query available in this codebase (see package.json), so
- * we use plain `useEffect` + `useState` + axios with signal-based
+ * (text-slate-200, bg-slate-800/30, accent emerald/rose/amber/purple
+ * /sky). No React Query available in this codebase (see package.json),
+ * so we use plain `useEffect` + `useState` + axios with signal-based
  * race-free cleanup.
  *
  * Defensive degrade: any backend failure (timeout / 500 / unreachable)
  * shows the tile in a neutral "—" state, not a crash. Parent
  * dashboard stays usable.
  *
- * Steal intent: aggregate rank #6 (consensus) + #9 (max-pain-drift) +
- * #10 (strike-cone) + #20 (insider-scraper) into a single Confluence
- * row visible above the existing real-time steal-list sub-section.
+ * Steal intent: aggregate rank #6 (consensus) + #7 (RV/VRP) + #9
+ * (max-pain-drift) + #10 (strike-cone) + #14 (OCC who-traded) + #20
+ * (insider-scraper) into a single Confluence row visible above the
+ * existing real-time steal-list sub-section.
  */
 
 import React, {
@@ -57,6 +61,8 @@ function Panel({ children, loading, error, label, accent = "emerald" }) {
     amber: "border-amber-500/20",
     purple: "border-purple-500/20",
     sky: "border-sky-500/20",
+    teal: "border-teal-500/20",
+    indigo: "border-indigo-500/20",
   };
   return (
     <div
@@ -386,6 +392,149 @@ function OCCVolumeTile({ ticker }) {
   );
 }
 
+// ── Tile #6 — Raw vs Realised (steal-list #7 IV-RV gate) ────────────
+//
+// Compares front-month ATM implied volatility (from the option chain)
+// against Yang-Zhang realised volatility (from 60 daily OHLC bars).
+// Short-vol-favored when IV > RV (premium being collected exceeds
+// what the market actually delivers); long-vol-favored when IV < RV.
+// Mirrors the speculative-grade chip shown on the OptionsFlowCard but
+// scaled for the historical Confluence & Velocity row.
+
+function RawVsRealizedBadge({ ticker }) {
+  const { data, loading, error } = useFetch(ticker, "/api/vol/realized", {
+    query: "days=60&estimator=yang_zhang",
+  });
+  const frontAtmIv = data?.front_atm_iv;
+  const estimators = data?.estimators || {};
+  const yz = estimators.yang_zhang;
+  const vrp = data?.vrp || {};
+  const vrpLabel = vrp.vrp_label || data?.source || "fair";
+  const vrpRatio = vrp.ratio != null ? Number(vrp.ratio) : null;
+
+  const hasBoth =
+    typeof frontAtmIv === "number" &&
+    typeof yz === "number" &&
+    yz > 0 &&
+    frontAtmIv > 0;
+  const labelColor =
+    vrpLabel === "short_vol_favored"
+      ? "text-emerald-400"
+      : vrpLabel === "long_vol_favored"
+      ? "text-rose-400"
+      : "text-slate-400";
+
+  return (
+    <Panel
+      label="IV vs YZ-RV"
+      loading={loading}
+      error={error || !hasBoth}
+      accent="teal"
+    >
+      {!hasBoth ? (
+        <span className="text-slate-500 mono">— no IV chain —</span>
+      ) : (
+        <>
+          <div className="flex items-baseline gap-2">
+            <span className="text-lg font-bold mono text-slate-100">
+              {(Number(frontAtmIv) * 100).toFixed(1)}%
+            </span>
+            <span className="text-[10px] mono text-slate-500">
+              vs {(Number(yz) * 100).toFixed(1)}%
+            </span>
+          </div>
+          <div className="flex items-center justify-between text-[10px] mt-1">
+            <span className={`mono uppercase tracking-widest ${labelColor}`}>
+              {vrpLabel.replace(/_/g, " ")}
+            </span>
+            {vrpRatio != null && (
+              <span className="mono text-slate-500">
+                {vrpRatio.toFixed(2)}×
+              </span>
+            )}
+          </div>
+        </>
+      )}
+    </Panel>
+  );
+}
+
+// ── Tile #7 — RV Vol Cone (steal-list #7 historical cone) ────────────
+//
+// Renders the empirical-percentile vol cone at the canonical 20d / 30d
+// / 60d lookbacks. Today's spot sits somewhere on the cone; the colour
+// cue mirrors the position-vs-distribution convention (current RV in
+// p80+ → amber; p50–p80 → emerald; below p50 → slate). Falls back to
+// a "no data" state when the daily bars haven't been persisted yet.
+
+function RvConeTile({ ticker }) {
+  const { data, loading, error } = useFetch(ticker, "/api/vol/realized", {
+    query: "days=60&estimator=yang_zhang",
+  });
+  const cones = data?.cones || {};
+  const estimators = data?.estimators || {};
+  const yz = typeof estimators.yang_zhang === "number" ? estimators.yang_zhang : null;
+
+  // Pull 30d cone first (the most-floww-canonical lookback); fall
+  // back to 60d then 20d if the API hasn't fully populated yet.
+  const bucket30 = cones["30d"] || cones["60d"] || cones["20d"];
+  const p50 = bucket30?.p50;
+  const p80 = bucket30?.p80;
+  const p95 = bucket30?.p95;
+  const nPoints = bucket30?.n_points ?? 0;
+
+  const hasData = p50 != null && p80 != null && p95 != null && nPoints > 0;
+  let positionColor = "text-slate-400";
+  let positionLabel = "—";
+  if (hasData && yz != null) {
+    if (yz >= p95) {
+      positionColor = "text-rose-400";
+      positionLabel = "tail";
+    } else if (yz >= p80) {
+      positionColor = "text-amber-400";
+      positionLabel = "high";
+    } else if (yz >= p50) {
+      positionColor = "text-emerald-400";
+      positionLabel = "median";
+    } else {
+      positionColor = "text-sky-400";
+      positionLabel = "calm";
+    }
+  }
+
+  return (
+    <Panel
+      label="Vol Cone (30d)"
+      loading={loading}
+      error={error || !hasData}
+      accent="indigo"
+    >
+      {!hasData ? (
+        <span className="text-slate-500 mono">— no cone —</span>
+      ) : (
+        <>
+          <div className="flex items-baseline gap-2">
+            <span className="text-lg font-bold mono text-slate-100">
+              {(Number(p50) * 100).toFixed(0)}%
+            </span>
+            <span className="text-[10px] mono text-slate-500">
+              p50 / p95 {(Number(p95) * 100).toFixed(0)}%
+            </span>
+          </div>
+          <div className="flex items-center justify-between text-[10px] mt-1">
+            <span className={`mono ${positionColor}`}>{positionLabel}</span>
+            {yz != null && (
+              <span className="mono text-slate-500">
+                {(Number(yz) * 100).toFixed(1)}% today
+              </span>
+            )}
+          </div>
+        </>
+      )}
+    </Panel>
+  );
+}
+
 // ── Container ───────────────────────────────────────────────────────
 
 function ConfluenceVelocityRowBase({
@@ -402,12 +551,14 @@ function ConfluenceVelocityRowBase({
   const upper = useMemo(() => String(debouncedTicker || "").toUpperCase(), [debouncedTicker]);
   if (!upper) return null;
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7 gap-3">
       <MaxPainDriftTile ticker={upper} />
       <ConsensusDriftTile ticker={upper} />
       <InsiderPressureTile ticker={upper} />
       <StrikeConeTile ticker={upper} />
       <OCCVolumeTile ticker={upper} />
+      <RawVsRealizedBadge ticker={upper} />
+      <RvConeTile ticker={upper} />
     </div>
   );
 }
