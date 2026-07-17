@@ -4,6 +4,7 @@ import {
   archetypeOf, volSigma, annotateFirstSeen, sessionDay, fmtClock, fmtAge,
   awaySummary, scanRowsToCSV, oiChange, streakOf, isTradingDay, evalTickerAlerts,
   pulseState, elapsedClock, formatFOLLOWStrip,
+  tierOf, selectFires, pickBanner,
 } from "./scanLogic";
 
 describe("estimateDelta", () => {
@@ -620,5 +621,118 @@ describe("formatFOLLOWStrip", () => {
     expect(formatFOLLOWStrip(obj, { top: 3 })).toHaveLength(3);
     expect(formatFOLLOWStrip(obj, { top: 0 })).toHaveLength(0);
     expect(formatFOLLOWStrip(obj, { top: 100 })).toHaveLength(10);
+  });
+});
+
+describe("tierOf", () => {
+  it("OICONF is always high (overnight OI confirms yesterday's flow)", () => {
+    expect(tierOf({ rule: "OICONF", score: 50 })).toBe("high");
+    expect(tierOf({ rule: "OICONF", sigma: 2 })).toBe("high");
+  });
+  it("WHALE is always high (premium size)", () => {
+    expect(tierOf({ rule: "WHALE", score: 30, premium: 10e6 })).toBe("high");
+  });
+  it("FOLLOW≥3 straight days is high; <3 is med (default followDays=2 is med)", () => {
+    expect(tierOf({ rule: "FOLLOW", streak: 1 })).toBe("med");
+    expect(tierOf({ rule: "FOLLOW", streak: 2 })).toBe("med");
+    expect(tierOf({ rule: "FOLLOW", streak: 3 })).toBe("high");
+    expect(tierOf({ rule: "FOLLOW", streak: 5 })).toBe("high");
+  });
+  it("SIGMA needs ≥5σ for high (4-5σ + 1 notch above the 4-σ rule floor)", () => {
+    expect(tierOf({ rule: "SIGMA", sigma: 4 })).toBe("med");
+    expect(tierOf({ rule: "SIGMA", sigma: 5 })).toBe("high");
+    expect(tierOf({ rule: "SIGMA", sigma: 7.2 })).toBe("high");
+  });
+  it("SCORE needs ≥minScoreForFire (default 90) for high; lower floors respected", () => {
+    expect(tierOf({ rule: "SCORE", score: 89 })).toBe("med");
+    expect(tierOf({ rule: "SCORE", score: 90 })).toBe("high");
+    expect(tierOf({ rule: "SCORE", score: 87 }, { minScoreForFire: 85 })).toBe("high");
+    expect(tierOf({ rule: "SCORE", score: 84 }, { minScoreForFire: 85 })).toBe("med");
+  });
+  it("0DTE is med (too noisy for the sticky banner)", () => {
+    expect(tierOf({ rule: "0DTE", score: 99 })).toBe("med");
+  });
+  it("null / undefined / no-rule → \"off\"", () => {
+    expect(tierOf(null)).toBe("off");
+    expect(tierOf(undefined)).toBe("off");
+    expect(tierOf({})).toBe("off");
+  });
+});
+
+describe("selectFires", () => {
+  const baseT = 1_700_000_000_000;
+  const mk = (over) => ({
+    key: `k_${over.rule || "x"}_${over.under || "Y"}`, ckey: "ckey", t: baseT,
+    time: "00:00:00", rule: over.rule, under: over.under || "NVDA", type: "call",
+    strike: 100, exp: "2099-01-08",
+    ...over,
+  });
+
+  it("returns [] for null / empty / only-meds", () => {
+    expect(selectFires([])).toEqual([]);
+    expect(selectFires(null)).toEqual([]);
+    expect(selectFires([mk({ rule: "0DTE", score: 99 })])).toEqual([]);
+  });
+  it("includes only high-tier fires", () => {
+    const log = [
+      mk({ rule: "0DTE", score: 99 }),
+      mk({ rule: "SCORE", score: 80 }),
+      mk({ rule: "SCORE", score: 95 }),
+      mk({ rule: "OICONF" }),
+    ];
+    expect(selectFires(log, { now: baseT }).map((h) => h.rule)).toEqual(["OICONF", "SCORE"]);
+  });
+  it("respects per-rule enabled toggle", () => {
+    const log = [mk({ rule: "WHALE" }), mk({ rule: "OICONF" })];
+    const out = selectFires(log, { now: baseT, enabled: { whale: false, oiconf: true } });
+    expect(out.map((h) => h.rule)).toEqual(["OICONF"]);
+  });
+  it("respects allow list (universe scoping)", () => {
+    const log = [mk({ under: "NVDA", rule: "OICONF" }), mk({ under: "QQQ", rule: "OICONF" })];
+    expect(selectFires(log, { now: baseT, allow: ["NVDA"] }).map((h) => h.under)).toEqual(["NVDA"]);
+  });
+  it("drops entries older than ttlMs (defensive; alertLog usually pre-trims)", () => {
+    const log = [mk({ rule: "OICONF", t: baseT - 90_000 })];
+    expect(selectFires(log, { now: baseT, ttlMs: 60_000 })).toEqual([]);
+  });
+  it("drops acked keys (Set or plain-object form)", () => {
+    const log = [mk({ rule: "OICONF", key: "oiconf|X" })];
+    expect(selectFires(log, { now: baseT, acked: new Set(["oiconf|X"]) })).toEqual([]);
+    expect(selectFires(log, { now: baseT, acked: { "score|Y": 1 } })).toHaveLength(1);
+  });
+  it("sorts by priority OICONF > WHALE > FOLLOW > SIGMA > SCORE", () => {
+    const log = [
+      mk({ rule: "SCORE", score: 95 }),
+      mk({ rule: "SIGMA", sigma: 7 }),
+      mk({ rule: "OICONF" }),
+      mk({ rule: "WHALE" }),
+    ];
+    expect(selectFires(log, { now: baseT }).map((h) => h.rule)).toEqual(["OICONF", "WHALE", "SIGMA", "SCORE"]);
+  });
+  it("ties on rule are broken by t desc (newest wins)", () => {
+    const log = [
+      mk({ rule: "WHALE", t: baseT - 1000 }),
+      mk({ rule: "WHALE", t: baseT }),
+    ];
+    expect(selectFires(log, { now: baseT }).map((h) => h.t)).toEqual([baseT, baseT - 1000]);
+  });
+  it("annotates _tier=\"high\" on returned hits so the JSX can rely on it", () => {
+    const out = selectFires([mk({ rule: "OICONF" })], { now: baseT });
+    expect(out[0]._tier).toBe("high");
+  });
+});
+
+describe("pickBanner", () => {
+  const mk = (rule) => ({ rule, key: `k_${rule}`, under: "NVDA", t: Date.now() });
+  it("returns null on no fires", () => {
+    expect(pickBanner([])).toBeNull();
+    expect(pickBanner(null)).toBeNull();
+  });
+  it("returns the first sorted fire (precedence already applied by selectFires)", () => {
+    expect(pickBanner([mk("SCORE"), mk("OICONF")]).rule).toBe("OICONF");
+    expect(pickBanner([mk("WHALE")]).rule).toBe("WHALE");
+  });
+  it("returns the only fire when one qualifies", () => {
+    expect(pickBanner([mk("FOLLOW")]).rule).toBe("FOLLOW");
   });
 });

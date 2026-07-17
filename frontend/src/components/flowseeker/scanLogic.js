@@ -539,10 +539,14 @@ function firePriorityCompare(a, b) {
 }
 
 // Pick the single banner to render. MVP = top fire per priority order. Null
-// when nothing qualifies. The component wraps this in a useMemo so the input
-// array is already sorted by selectFires; we just take index 0.
+// when nothing qualifies. Re-sorts defensively using the same priority
+// comparator selectFires applies so callers can pass either the already-sorted
+// output of selectFires OR a raw subset (e.g. from a stub test) without
+// breaking the OICONF > WHALE > FOLLOW > SIGMA > SCORE precedence.
 export function pickBanner(fires, _prev = null, _opts = {}) {
-  return fires && fires.length ? fires[0] : null;
+  if (!Array.isArray(fires) || fires.length === 0) return null;
+  const sorted = [...fires].sort(firePriorityCompare);
+  return sorted[0];
 }
 
 // FOLLOW Leaderboard — turn the streaks map (from the JSX useMemo) into a

@@ -11,7 +11,7 @@
  */
 import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { BACKEND_URL } from "../../config/api";
-import { approxSpot, mkScanRow, evalAlerts, evalTickerAlerts, streakOf, cleanHistory, tickerRollup, volSigma, annotateFirstSeen, sessionDay, fmtClock, fmtAge, awaySummary, scanRowsToCSV, oiChange, fmtUSD, fmtK, fmtIV, scoreGradeOf, pulseState, elapsedClock, formatFOLLOWStrip } from "./scanLogic";
+import { approxSpot, mkScanRow, evalAlerts, evalTickerAlerts, streakOf, cleanHistory, tickerRollup, volSigma, annotateFirstSeen, sessionDay, fmtClock, fmtAge, awaySummary, scanRowsToCSV, oiChange, fmtUSD, fmtK, fmtIV, scoreGradeOf, pulseState, elapsedClock, formatFOLLOWStrip, tierOf, selectFires, pickBanner } from "./scanLogic";
 import "./FlowseekerProBlademap.css";
 
 const API = `${BACKEND_URL}/api/flowseeker`;
@@ -657,6 +657,27 @@ export default function FlowseekerProBlademap({ active = true }) {
     return a.slice(0, 60);
   }, [alertLog, alertOrder]);
 
+  // FIRE Banner — the "definite alert" tier that demands attention. Pure
+  // helpers tierOf + selectFires + pickBanner keep the precedence Jest-testable.
+  // The banner shows ONE high-tier alert (OICONF / WHALE / FOLLOW≥3d / SIGMA≥5σ
+  // / SCORE≥90). User acknowledges OR auto-dismisses 60s after fire.
+  const [ackedKeys, setAckedKeys] = useState(() => new Set());
+  const ackFire = useCallback((k) => setAckedKeys((m) => { const n = new Set(m); n.add(k); return n; }), []);
+  const fires = useMemo(() => selectFires(alertLog, {
+    now: Date.now(), ttlMs: 60_000,
+    minScoreForFire: Math.max(alertScore, 90),
+    enabled: alertRules,
+    allow: alertUnivOnly ? universe : null,
+    acked: ackedKeys,
+  }), [alertLog, alertScore, alertRules, alertUnivOnly, universe, ackedKeys]);
+  const fireBanner = useMemo(() => pickBanner(fires), [fires]);
+  useEffect(() => {
+    if (!fireBanner) return;
+    const tid = setTimeout(() => ackFire(fireBanner.key), 60_000);
+    return () => clearTimeout(tid);
+  }, [fireBanner, ackFire]);
+
+
   const SCAN_COLS = [
     ["firstSeen", "Seen", false], ["score", "Score", false], ["under", "Ticker", true], ["type", "C/P", true],
     ["strike", "Strike", false], ["dte", "DTE", false], ["vol", "Volume", false],
@@ -998,6 +1019,42 @@ export default function FlowseekerProBlademap({ active = true }) {
                 ⚙ {advanced ? "Simple" : "Advanced"}
               </button>
             </div>
+            {fireBanner && (
+              <div className="fsb-fire-banner" role="alert"
+                title={fireBanner.label || fireBanner.why || "Institutional alert"}
+                onClick={() => {
+                  if (fireBanner.label) {
+                    setScanQ(scanQ === fireBanner.under ? "" : fireBanner.under);
+                  } else {
+                    setTicker(fireBanner.under);
+                    setTab("flow");
+                  }
+                }}>
+                <span className="fsb-fire-ring" aria-hidden="true" />
+                <span className={`fsb-rulebadge r-${String(fireBanner.rule || "").toLowerCase()}`}>{fireBanner.rule}</span>
+                <span className="fsb-fire-t">
+                  {fireBanner.under}
+                  {!fireBanner.label && (
+                    <>
+                      {" · "}
+                      <span className={fireBanner.type === "call" ? "fsb-tcall" : "fsb-tput"}>
+                        {fireBanner.type === "call" ? "CALL" : "PUT"}
+                      </span>
+                      {" "}{fireBanner.strike} <span className="fsb-sub">{(fireBanner.exp || "").slice(5)}</span>
+                    </>
+                  )}
+                </span>
+                <span className="fsb-fire-why">
+                  {fireBanner.label || fireBanner.why || " "}
+                  {fireBanner.premium != null ? ` · ~${fmtUSD(fireBanner.premium)}` : ""}
+                  {fireBanner.sigma != null ? ` · ${fireBanner.sigma}σ` : ""}
+                  {fireBanner.streak != null ? ` · ${fireBanner.streak}d streak` : ""}
+                </span>
+                <span className="fsb-fire-age" title="Auto-dismiss after 60s">{fmtAge(fireBanner.t)}</span>
+                <button className="fsb-fire-x" title="Acknowledge — auto-dismisses after 60s anyway"
+                  onClick={(e) => { e.stopPropagation(); ackFire(fireBanner.key); }}>✕</button>
+              </div>
+            )}
             {rollup.length > 0 && (
               <div className="fsb-rollup">
                 <span className="fsb-rollup-label">PREM~ FLOW</span>
