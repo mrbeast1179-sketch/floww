@@ -11,7 +11,7 @@
  */
 import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { BACKEND_URL } from "../../config/api";
-import { approxSpot, mkScanRow, evalAlerts, evalTickerAlerts, streakOf, cleanHistory, tickerRollup, volSigma, annotateFirstSeen, sessionDay, fmtClock, fmtAge, awaySummary, scanRowsToCSV, oiChange, fmtUSD, fmtK, fmtIV, scoreGradeOf, pulseState, elapsedClock, formatFOLLOWStrip, tierOf, selectFires, pickBanner } from "./scanLogic";
+import { mkScanRow, evalAlerts, evalTickerAlerts, streakOf, cleanHistory, tickerRollup, volSigma, annotateFirstSeen, sessionDay, fmtClock, fmtAge, awaySummary, scanRowsToCSV, oiChange, fmtUSD, fmtK, fmtIV, scoreGradeOf, pulseState, elapsedClock, formatFOLLOWStrip, tierOf, selectFires, pickBanner } from "./scanLogic";
 import "./FlowseekerProBlademap.css";
 
 const API = `${BACKEND_URL}/api/flowseeker`;
@@ -442,67 +442,32 @@ export default function FlowseekerProBlademap({ active = true }) {
           const nSyms = new Set(rows.map((x) => x.under)).size;
           if (d.baselines) setBaselines(d.baselines);
           setScanMeta({ mode: "market", stale: !!d.stale, symbols: nSyms,
-            age: d.cache_age_seconds ?? 0, retry: d.retry_after_seconds ?? null });
+            age: d.cache_age_seconds ?? 0, retry: d.retry_after_seconds ?? null,
+            ttl: d.scan_ttl ?? 60, budget: d.budget ?? null });
           noteSourceFlip("market", nSyms);
           setScanAt(new Date().toLocaleTimeString());
           return;   // a 200 with rows[] is authoritative — even when empty
         }
       } catch (e) {
         if (cancelled || e?.name === "AbortError") return;
-        // Backend answered 502/503 (upstream rate-limited): if we already have
-        // data, keep it stale-marked instead of fanning the 18-symbol chain
-        // loop out against the very upstream that is 429ing. On a cold start
-        // (nothing to show) still fall through so the scanner isn't blank.
-        if (/HTTP 50[23]/.test(String(e?.message)) && hadDataRef.current) {
+        // Backend answered 502/503 (upstream rate-limited or hourly budget
+        // spent): keep the last good data stale-marked. There is NO client
+        // fallback anymore — the old 18-symbol chain sweep cost 18 of the
+        // plan's 20 hourly cvforge calls in a single poll, which is exactly
+        // what kept exhausting the quota. The backend is the only spender.
+        if (hadDataRef.current) {
           setScanMeta((m) => ({ ...m, stale: true }));
-          return;
+        } else {
+          setScanMeta((m) => ({ ...m, err: true }));
         }
-        /* endpoint missing/unreachable — fall through to the chain loop */
       }
-      // Path B: loop the live per-ticker chain over the universe and merge.
-      // Spot isn't in the chain payload — median strike ≈ spot for delta estimates.
-      try {
-        const results = await Promise.all(universe.map((t) =>
-          getJSON(`${API}/chain/${t}?fields=oi,volume,iv,delta`, ctrl.signal)
-            .then((d) => ({ t, d })).catch(() => null)));
-        if (cancelled) return;
-        const rows = [];
-        for (const res of results) {
-          if (!res || !res.d) continue;
-          const params = res.d.params || [];
-          const vi = (name) => { const i = params.indexOf(name); return i > 0 ? i - 1 : -1; };
-          const iVol = vi("volume"), iOI = vi("openInterest"), iIV = vi("impliedVolatility"), iDelta = vi("delta");
-          const allStrikes = [];
-          for (const exp of (res.d.chain || [])) for (const s of (exp.strikes || [])) allStrikes.push(s[0]);
-          const spotEst = approxSpot(allStrikes);
-          for (const exp of (res.d.chain || [])) {
-            for (const s of (exp.strikes || [])) {
-              const strike = s[0];
-              for (const [sideU, vals] of [["call", s[1] || []], ["put", s[2] || []]]) {
-                const vol = Number(vals[iVol]) || 0;
-                if (vol < 1000) continue;   // notable activity only
-                rows.push(mkScanRow(res.t, sideU, strike, exp.expiration, vol,
-                  Number(vals[iOI]) || 0, Number(vals[iIV]) || 0,
-                  iDelta >= 0 ? Number(vals[iDelta]) : null, spotEst, null));
-              }
-            }
-          }
-        }
-        rows.sort((a, b) => b.vol - a.vol);
-        const marked = markNew(rows.slice(0, 300), prevKeysRef, "fallback");
-        firstSeenRef.current = annotateFirstSeen(marked, firstSeenRef.current).seen;
-        try { localStorage.setItem(FIRSTSEEN_KEY, JSON.stringify(firstSeenRef.current)); } catch { /* private mode */ }
-        ingestAlerts(marked, "fallback");
-        setScan(marked);
-        setScanMeta({ mode: "fallback", stale: false, symbols: universe.length });
-        noteSourceFlip("fallback", universe.length);
-        setScanAt(new Date().toLocaleTimeString());
-      } catch { /* keep last data on a transient hiccup */ }
     };
     run();
-    const id = setInterval(run, 20000);
+    // Data refreshes on the backend's budgeted cadence (~4 min); a 60s poll
+    // re-serves that cache — snappy enough, and free.
+    const id = setInterval(run, 60000);
     return () => { cancelled = true; ctrl.abort(); clearInterval(id); };
-  }, [active, tab, universe, refreshTick]);
+  }, [active, tab, refreshTick]);
 
   // ---- daily volume history (sparklines + persistence streaks) ----
   // Mongo-only on the backend (no upstream call) and it changes once a day —
@@ -644,11 +609,20 @@ export default function FlowseekerProBlademap({ active = true }) {
   // Institutional Heartbeat tier — drives the colored dot + label in the
   // scanbar's Heartbeat chip. Pure helper delegates the precedence rules so
   // the JSX never repeats them; same call backs the title-tooltip.
-  const heartbeat = useMemo(() => pulseState({
-    mode: scanMeta.mode, stale: !!scanMeta.stale,
-    age: scanMeta.age || 0, retry: scanMeta.retry,
-    hasData: scan.length > 0,
-  }), [scanMeta, scan.length]);
+  const heartbeat = useMemo(() => {
+    const hb = pulseState({
+      mode: scanMeta.mode, stale: !!scanMeta.stale,
+      age: scanMeta.age || 0, retry: scanMeta.retry,
+      hasData: scan.length > 0, hasError: !!scanMeta.err,
+      ttl: scanMeta.ttl || 60,
+    });
+    // Budget context on the tooltip — an institutional desk knows its data
+    // cadence: X of the plan's hourly cvforge calls spent, next scan ETA.
+    const b = scanMeta.budget;
+    const next = scanMeta.ttl ? Math.max(0, scanMeta.ttl - (scanMeta.age || 0)) : null;
+    hb.hint = `${hb.hint}${next != null ? ` · next scan ~${elapsedClock(next)}` : ""}${b ? ` · ${b.used}/${b.hourly_cap} cvforge calls this hour` : ""}`;
+    return hb;
+  }, [scanMeta, scan.length]);
   // FOLLOW Leaderboard — the "what are they following" read. Pure helper
   // sorts + clips the streaks map; the JSX renders the result.
   const followStrip = useMemo(() => formatFOLLOWStrip(streaks, { top: 6 }), [streaks]);

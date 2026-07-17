@@ -13,6 +13,8 @@ _REAL_RECORD_BASELINE = fs._record_scan_baseline
 
 
 class FakeResp:
+    text = ""   # non-hourly 429 body — the hourly branch matches "hourly" in .text
+
     def __init__(self, status_code=200, rows=None):
         self.status_code = status_code
         self._rows = rows or [
@@ -70,6 +72,8 @@ def reset(monkeypatch):
     monkeypatch.setattr(fs, "_prev_contract_oi", _no_prev_oi)
     fs._scan_cache.clear()
     fs._scan_backoff.update({"until": 0.0, "delay": 30.0})
+    fs._cv_calls["scan"] = []
+    fs._cv_calls["chain"] = []
     FakeClient.calls = 0
     FakeClient.status = 200
     yield
@@ -268,3 +272,45 @@ def test_scan_history_groups_by_ticker_and_caches(monkeypatch):
     fake_server.db = None
     assert asyncio.run(fs.scan_history(days=14)) is out
     fs._history_cache.update({"ts": 0.0, "days": 0, "data": None})
+
+
+def test_hourly_budget_gates_upstream(monkeypatch):
+    """The scan slice of the cvforge hourly budget hard-stops upstream calls:
+    once spent, /scan serves the cached result instead of calling out."""
+    monkeypatch.setattr(fs, "CV_HOURLY_BUDGET", 20)
+    monkeypatch.setattr(fs, "CV_SCAN_BUDGET", 1)
+    monkeypatch.setitem(fs._cv_calls, "scan", [])
+    monkeypatch.setitem(fs._cv_calls, "chain", [])
+
+    out1 = scan()
+    assert out1["count"] == 1
+    assert FakeClient.calls == 1
+    assert out1["budget"]["scan_used"] == 1
+
+    # Expire the cache entry so /scan wants upstream — the budget must block
+    # and stale-serve the retained data instead.
+    fs._scan_cache["1000:300"]["ts"] = time.time() - 9999
+    out2 = scan()
+    assert FakeClient.calls == 1          # no second upstream call
+    assert out2["stale"] is True          # served the retained last-good data
+    assert out2["retry_after_seconds"] is not None
+
+
+def test_budget_take_slices():
+    """chain slice = cap - scan slice - 1 reserve; each kind is independent."""
+    fs._cv_calls["scan"] = []
+    fs._cv_calls["chain"] = []
+    old_cap, old_scan = fs.CV_HOURLY_BUDGET, fs.CV_SCAN_BUDGET
+    try:
+        fs.CV_HOURLY_BUDGET, fs.CV_SCAN_BUDGET = 4, 2
+        assert fs._budget_take("scan") and fs._budget_take("scan")
+        assert not fs._budget_take("scan")          # scan slice spent
+        assert fs._budget_take("chain")             # chain cap = 4-2-1 = 1
+        assert not fs._budget_take("chain")
+        st = fs._budget_state()
+        assert (st["used"], st["scan_used"], st["chain_used"]) == (3, 2, 1)
+        assert st["frees_in"] > 0
+    finally:
+        fs.CV_HOURLY_BUDGET, fs.CV_SCAN_BUDGET = old_cap, old_scan
+        fs._cv_calls["scan"] = []
+        fs._cv_calls["chain"] = []

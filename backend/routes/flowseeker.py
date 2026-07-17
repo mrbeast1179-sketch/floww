@@ -31,7 +31,9 @@ CVFORGE_TIMEOUT = 15.0  # seconds
 
 # ── Cache ──
 _chain_cache: dict[str, tuple[float, dict]] = {}
-CACHE_TTL = 120  # 2 minutes
+# 10 min — per-ticker chains share a ~5-call/hour budget slice with a free
+# yfinance fallback; a 2-min TTL would let one open chart tab spend it all.
+CACHE_TTL = 600
 
 
 def _safe_float(v):
@@ -131,6 +133,13 @@ async def _cvforge_chain(symbol: str, fields: list[str] | None = None) -> dict |
     # Map yfinance-style index symbols to cvserver format
     _sym_map = {"^SPX": "I:SPX", "^NDX": "I:NDX", "^RUT": "I:RUT", "^VIX": "I:VIX"}
     cv_symbol = _sym_map.get(symbol.upper(), symbol.upper())
+
+    # Budget gate — chains have a free yfinance fallback, so when the chain
+    # slice of the hourly cvforge budget is spent we degrade instead of
+    # burning calls the market-wide scan needs.
+    if not _budget_take("chain"):
+        logger.info("cvforge chain %s skipped — hourly budget slice spent", symbol)
+        return None
 
     headers = {
         "Content-Type": "application/json",
@@ -336,6 +345,11 @@ async def _cvforge_screen(
     filters = [{"field": "underlying_ticker", "op": "eq", "value": symbol}]
     if not CVFORGE_API_KEY:
         return None
+    # Per-ticker screen shares the chain slice of the hourly budget — the
+    # caller falls back to the cached chain when it's spent.
+    if not _budget_take("chain"):
+        logger.info("cvforge screen %s skipped — hourly budget slice spent", symbol)
+        return None
     headers = {
         "Content-Type": "application/json",
         "Authorization": f"Bearer {CVFORGE_API_KEY}",
@@ -393,9 +407,59 @@ async def _cvforge_screen(
 # Returns raw {columns, rows}; the frontend computes Flow Score / flow-type /
 # lean exactly like the scenner34 build. Only live cvserver fields are used
 # (day_volume vs OI) — there is no per-trade tape on this feed.
+# ── cvforge hourly request budget ──
+# The plan allows ~20 upstream requests/hour (429: "hourly request limit
+# reached"). One market-wide /scan screen is the highest-value call — 300
+# contracts across every scanned ticker, all the alert engine needs — so it
+# gets most of the budget; per-ticker chains/screens share the remainder and
+# degrade to yfinance/cache when their slice is spent. Rolling 1h window.
+CV_HOURLY_BUDGET = int(os.environ.get("CV_HOURLY_BUDGET", "20"))
+CV_SCAN_BUDGET = int(os.environ.get("CV_SCAN_BUDGET", str(max(1, (CV_HOURLY_BUDGET * 7) // 10))))
+_cv_calls: dict[str, list[float]] = {"scan": [], "chain": []}
+
+
+def _budget_state(now: float | None = None) -> dict:
+    now = time.time() if now is None else now
+    cutoff = now - 3600.0
+    for k in _cv_calls:
+        _cv_calls[k] = [t for t in _cv_calls[k] if t > cutoff]
+    scan_used, chain_used = len(_cv_calls["scan"]), len(_cv_calls["chain"])
+    all_calls = _cv_calls["scan"] + _cv_calls["chain"]
+    return {
+        "hourly_cap": CV_HOURLY_BUDGET, "used": scan_used + chain_used,
+        "scan_used": scan_used, "scan_cap": CV_SCAN_BUDGET,
+        "chain_used": chain_used, "chain_cap": max(0, CV_HOURLY_BUDGET - CV_SCAN_BUDGET - 1),
+        "frees_in": int(min(all_calls) + 3600 - now) if all_calls else 0,
+    }
+
+
+def _budget_take(kind: str, now: float | None = None) -> bool:
+    """Reserve one upstream cvforge call. False = that slice (or the whole
+    hourly cap, 1 call held in reserve) is spent — caller must serve
+    cache/stale/yfinance instead of going upstream."""
+    now = time.time() if now is None else now
+    st = _budget_state(now)
+    if st["used"] >= CV_HOURLY_BUDGET:
+        return False
+    if kind == "scan" and st["scan_used"] >= CV_SCAN_BUDGET:
+        return False
+    if kind == "chain" and st["chain_used"] >= st["chain_cap"]:
+        return False
+    _cv_calls[kind].append(now)
+    return True
+
+
+def _hourly_backoff_until(now: float) -> float:
+    """cvforge's limit is per clock hour — after an hourly-limit 429 there is
+    no point retrying before the next hour boundary (+2min grace)."""
+    return min((int(now // 3600) + 1) * 3600 + 120.0, now + 3900.0)
+
+
 # ── /scan cache + 429 backoff ──
 _scan_cache: dict[str, dict] = {}                # "min_volume:limit" → {ts, data, asof}
-_SCAN_TTL = 60                                   # seconds
+# ~4-minute cadence spends ≤15 scan calls/hour — alerts stay minutes-fresh
+# without ever exhausting the plan mid-hour.
+_SCAN_TTL = float(os.environ.get("CV_SCAN_TTL", "240"))
 _scan_backoff = {"until": 0.0, "delay": 30.0}    # exponential, capped at 600s
 _scan_lock = asyncio.Lock()                       # single-flight for upstream screen calls
 _last_force_refresh = 0.0                         # debounce force refresh
@@ -558,6 +622,8 @@ def _scan_payload(rows: list, stale: bool, asof: str, columns: list, cache_age: 
         "source": source, "stale": stale, "asof": asof,
         "cache_age_seconds": round(cache_age) if cache_age else None,
         "retry_after_seconds": round(retry_after) if retry_after else None,
+        "scan_ttl": int(_SCAN_TTL),
+        "budget": _budget_state(),
         "regimes": _cached_regimes(),
     }
 
@@ -626,6 +692,12 @@ async def market_scan(
         if limited:
             return limited
 
+        # Hourly budget gate — when the scan slice is spent, serve the last
+        # good result until a slot frees instead of burning the plan's cap.
+        if not _budget_take("scan"):
+            frees = _budget_state(now)["frees_in"]
+            return _stale_or(now, 503, f"cvforge hourly budget spent; next slot in ~{frees}s", retry_after=float(frees or 60))
+
         headers = {
             "Content-Type": "application/json",
             "Authorization": f"Bearer {CVFORGE_API_KEY}",
@@ -648,9 +720,14 @@ async def market_scan(
             async with httpx.AsyncClient(timeout=CVFORGE_TIMEOUT) as client:
                 resp = await client.post(CVFORGE_URL, json=payload, headers=headers)
                 if resp.status_code == 429:
-                    _scan_backoff["until"] = now + _scan_backoff["delay"]
-                    _scan_backoff["delay"] = min(_scan_backoff["delay"] * 2, 600.0)
-                    logger.warning("cvforge scan 429 — backing off %ss", int(_scan_backoff["delay"]))
+                    if "hourly" in (resp.text or "").lower():
+                        # Hourly plan cap — retrying before the next clock
+                        # hour only wastes the first calls of that hour.
+                        _scan_backoff["until"] = _hourly_backoff_until(now)
+                    else:
+                        _scan_backoff["until"] = now + _scan_backoff["delay"]
+                        _scan_backoff["delay"] = min(_scan_backoff["delay"] * 2, 600.0)
+                    logger.warning("cvforge scan 429 — backing off %ss", int(_scan_backoff["until"] - now))
                     retry_after = _scan_backoff["until"] - now
                     return _stale_or(now, 503, "cvserver rate-limited (429), no cached scan yet", retry_after=retry_after)
                 if resp.status_code != 200:
@@ -705,6 +782,11 @@ async def force_refresh_scan(
         raise HTTPException(503, "cvserver API key not configured")
 
     cache_key = f"{min_volume}:{limit}"
+    # Force refresh spends a real scan slot — when the hourly slice is spent
+    # it must say so instead of silently burning the cap.
+    if not _budget_take("scan"):
+        frees = _budget_state(now)["frees_in"]
+        raise HTTPException(503, f"cvforge hourly budget spent — next slot in ~{frees}s")
     headers = {
         "Content-Type": "application/json",
         "Authorization": f"Bearer {CVFORGE_API_KEY}",
@@ -727,8 +809,11 @@ async def force_refresh_scan(
         async with httpx.AsyncClient(timeout=CVFORGE_TIMEOUT) as client:
             resp = await client.post(CVFORGE_URL, json=payload, headers=headers)
             if resp.status_code == 429:
-                _scan_backoff["until"] = now + _scan_backoff["delay"]
-                _scan_backoff["delay"] = min(_scan_backoff["delay"] * 2, 600.0)
+                if "hourly" in (resp.text or "").lower():
+                    _scan_backoff["until"] = _hourly_backoff_until(now)
+                else:
+                    _scan_backoff["until"] = now + _scan_backoff["delay"]
+                    _scan_backoff["delay"] = min(_scan_backoff["delay"] * 2, 600.0)
                 raise HTTPException(503, "cvserver rate-limited (429) — force refresh backed off")
             if resp.status_code != 200:
                 raise HTTPException(502, f"cvserver returned {resp.status_code}")

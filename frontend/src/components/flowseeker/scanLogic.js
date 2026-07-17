@@ -458,14 +458,19 @@ export function elapsedClock(ageSec) {
 // chip. green=live pulse with age≤30s, yellow=ok-age OR fallback OR slow,
 // red=stale+retry OR errored. tier.hint is the title-tooltip explaining WHY;
 // the component renders just .dot (CSS class) + .label.
-export function pulseState({ mode, stale, age = 0, retry = null, hasData = false, hasError = false } = {}) {
+// ttl = the backend's budgeted refresh cadence (scan_ttl from /scan). Data as
+// old as the cadence is HEALTHY on a request-capped plan — fresh/slow bounds
+// scale with it. Defaults preserve the original 30s/90s bounds.
+export function pulseState({ mode, stale, age = 0, retry = null, hasData = false, hasError = false, ttl = 60 } = {}) {
+  const freshBound = Math.max(30, ttl * 0.5);
+  const slowBound = Math.max(90, ttl * 1.5);
   if (hasError) return { dot: "r", label: "ERRORED", tier: "err", hint: "last poll threw — keeping last good scan" };
-  if (stale && retry != null) return { dot: "r", label: `STALE ·retry ${elapsedClock(retry)}`, tier: "err", hint: "upstream rate-limited, retrying after the duration shown" };
+  if (stale && retry != null) return { dot: "r", label: `STALE ·retry ${elapsedClock(retry)}`, tier: "err", hint: "upstream rate-limited or hourly budget spent — retrying after the duration shown" };
   if (stale) return { dot: "y", label: "STALE", tier: "warn", hint: "data is the last good scan — upstream is back-pressured" };
   if (!hasData && !mode) return { dot: "y", label: "LOADING", tier: "warn", hint: "first poll in flight — no prior data to show" };
   if (mode === "fallback") return { dot: "y", label: "FALLBACK", tier: "warn", hint: "upstream market-wide unavailable — scanning 18-symbol universe locally" };
-  if (mode === "market" && age <= 30) return { dot: "g", label: "LIVE", tier: "fresh", hint: `market-wide scan · ${elapsedClock(age)} since last poll` };
-  if (mode === "market" && age <= 90) return { dot: "y", label: "LIVE ·slow", tier: "warn", hint: `market-wide scan · ${elapsedClock(age)} since last poll (target ≤30s)` };
+  if (mode === "market" && age <= freshBound) return { dot: "g", label: "LIVE", tier: "fresh", hint: `market-wide scan · ${elapsedClock(age)} since last poll` };
+  if (mode === "market" && age <= slowBound) return { dot: "y", label: "LIVE ·slow", tier: "warn", hint: `market-wide scan · ${elapsedClock(age)} since last poll (target ≤${elapsedClock(freshBound)})` };
   return { dot: "y", label: `LIVE ·${elapsedClock(age)}`, tier: "warn", hint: `market-wide scan · ${elapsedClock(age)} since last poll` };
 }
 
