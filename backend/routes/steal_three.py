@@ -874,6 +874,87 @@ def risk_neutral_density_endpoint(
 # pin-probability-score, direction-label, n-covered, warnings.
 # Try/except defensive degrade — never 500s on DB hiccup.
 # ---------------------------------------------------------------------------
+
+# NEW (2026-07-16): path-style alias per the steal-list #4 user spec.
+# /api/rnd/{ticker}/{expiry} is a thin wrapper that maps an ISO expiry
+# string (path param) to the existing /api/rnd/{ticker} query-style
+# endpoint's expiry_index contract. Additive only — never replaces
+# the query-style route, so any test/curl surface currently relying
+# on /api/rnd/SPY?expiry_index=N keeps working unchanged.
+@router.get("/api/rnd/{ticker}/{expiry}")
+def risk_neutral_density_path_endpoint(ticker: str, expiry: str):
+    """Steal-list #4 path-style alias — /api/rnd/{ticker}/{expiry}.
+
+    ISO expiry date in the path (e.g. /api/rnd/SPY/2026-07-19) maps
+    to the existing /api/rnd/{ticker}?expiry_index=N contract here.
+    If the requested ISO isn't in ``yt.options`` (off-market-week gap,
+    post-expiry fetch) fall back to expiry_index=1 (first non-0DTE)
+    so the dashboard never 500s on cold cache — mirrors the parent
+    route's defensive pattern.
+    """
+    import yfinance as yf
+    try:
+        opts = list(
+            getattr(yf.Ticker(ticker.upper()), "options", []) or []
+        )
+        if expiry in opts:
+            idx = opts.index(expiry)
+        else:
+            idx = 1  # fallback: first non-0DTE per the parent route's default
+    except (ImportError, AttributeError, IndexError):
+        idx = 1
+    return risk_neutral_density_endpoint(
+        ticker=ticker, expiry_index=idx,
+    )
+
+
+
+@router.post("/api/strategy/evaluate")
+def strategy_evaluate_endpoint(payload: dict):
+    """Evaluate a multi-leg option strategy.
+
+    Body shape::
+
+        {
+            "ticker": "SPY",          # informational; for logging
+            "spot": 100.0,             # underlying price at evaluation
+            "legs": [                  # list of leg dicts
+                {"side": "buy"/"sell", "qty": int,
+                 "option_type": "call"/"put", "strike": float,
+                 "expiry": "YYYY-MM-DD", "premium": float,
+                 "iv": float | None}
+            ],
+            "n_grid_points": 150,      # optional spot-grid resolution
+            "today": "YYYY-MM-DD",     # optional anchor today (ISO)
+            "expiry": "YYYY-MM-DD",    # optional anchor expiry (ISO)
+        }
+
+    Returns the ``evaluate_strategy`` dict — structure label, payoff
+    grid, breakevens, PoP, expected P&L, VaR/ES, aggregate greeks.
+
+    Invalid leg shapes degrade gracefully — the service filters
+    invalid legs (zero qty / negative strike / bad expiry) out of
+    the calculation, populates the ``warnings`` list with the
+    skipped message, and continues with the surviving legs (or
+    returns empty grids if none survive). No HTTP 400 mapping is
+    needed; the route mirrors the service's defensive pattern.
+    """
+    from services.strategy_builder import evaluate_strategy
+    legs = payload.get("legs") or []
+    spot = float(payload.get("spot") or 0.0)
+    n_grid_points = int(payload.get("n_grid_points") or 150)
+    kwargs = {}
+    if "today" in payload:
+        kwargs["today"] = payload["today"]
+    if "expiry" in payload:
+        kwargs["expiry"] = payload["expiry"]
+    return evaluate_strategy(
+        legs=legs, spot=spot,
+        n_grid_points=n_grid_points,
+        **kwargs,
+    )
+
+
 @router.get("/api/max_pain_drift/{ticker}")
 def max_pain_drift_endpoint(
     ticker: str,
