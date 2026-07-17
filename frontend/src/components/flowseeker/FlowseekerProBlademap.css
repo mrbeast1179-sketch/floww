@@ -316,6 +316,9 @@
 .fsb-pcr.bull { color: #19d27c; font-weight: 700; }
 .fsb-pcr.bear { color: #ff4d5e; font-weight: 700; }
 
+/* ── Simple/Advanced toggle sits at the end of the KPI bar ── */
+.fsb-advtoggle { margin-left: auto; align-self: center; white-space: nowrap; }
+
 /* ── Persistence: streak flame + daily-volume sparkline on rollup chips ── */
 .fsb-streak { font-size: 8.5px; font-weight: 800; color: #ff8c42; margin-left: 5px; letter-spacing: 0.3px; }
 .fsb-spark { display: flex; align-items: flex-end; gap: 1px; height: 12px; margin: 1px 0; }
@@ -355,3 +358,26 @@
 /* scoped to beat `.fsb-stab tbody td`'s color (higher specificity) */
 .fsb-stab tbody td.fsb-oiup { color: #19d27c; font-weight: 700; }
 .fsb-stab tbody td.fsb-oidn { color: #ff4d5e; font-weight: 700; }
+
+/* ── Heartbeat HUD chip dot + LIVE/slow/STALE pulse (institutional data-age read) ── */
+.fsb-skpi .fsb-pulse { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 5px; vertical-align: -1px; box-shadow: 0 0 4px currentColor; }
+.fsb-skpi .fsb-pulse.g { background: #19d27c; color: #19d27c; animation: fsbPulseG 1.4s ease-in-out infinite; }
+.fsb-skpi .fsb-pulse.y { background: #f5b042; color: #f5b042; animation: fsbPulseY 2.2s ease-in-out infinite; }
+.fsb-skpi .fsb-pulse.r { background: #ff4d5e; color: #ff4d5e; animation: fsbPulseR 0.9s ease-in-out infinite; }
+@keyframes fsbPulseG { 0%,100% { opacity: 1; transform: scale(1); } 50% { opacity: .5; transform: scale(.85); } }
+@keyframes fsbPulseY { 0%,100% { opacity: 1; } 50% { opacity: .55; } }
+@keyframes fsbPulseR { 0%,100% { opacity: 1; transform: scale(1); } 50% { opacity: .4; transform: scale(.7); } }
+
+/* ── FOLLOW Leaderboard strip ("what are they following" — top of the Scanner tab) ── */
+.fsb-follow-strip { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin: 4px 0 4px; padding: 6px 10px; background: linear-gradient(90deg, rgba(155, 89, 182, 0.10), rgba(155, 89, 182, 0.02)); border: 1px solid rgba(155, 89, 182, 0.25); border-radius: 6px; font-family: ui-monospace, Menlo, monospace; font-size: 11px; }
+.fsb-follow-label { color: #a267ff; font-weight: 800; letter-spacing: 0.5px; text-transform: uppercase; margin-right: 4px; }
+.fsb-follow-chip { display: inline-flex; align-items: center; gap: 5px; padding: 3px 8px; background: rgba(155, 89, 182, 0.08); border: 1px solid rgba(155, 89, 182, 0.30); border-radius: 4px; color: #cdd2dd; cursor: pointer; transition: border-color .12s, background .12s; }
+.fsb-follow-chip:hover { border-color: #a267ff; background: rgba(155, 89, 182, 0.18); }
+.fsb-follow-chip.on { border-color: #d2a8ff; background: rgba(155, 89, 182, 0.28); color: #fff; }
+.fsb-follow-t { font-weight: 700; }
+.fsb-follow-n { color: #f5b042; font-weight: 700; }
+.fsb-follow-chip.n-3 .fsb-follow-n, .fsb-follow-chip.n-4 .fsb-follow-n, .fsb-follow-chip.n-5 .fsb-follow-n { color: #ff8b42; }
+.fsb-follow-chip.n-3, .fsb-follow-chip.n-4, .fsb-follow-chip.n-5 { border-color: rgba(255, 139, 66, 0.40); }
+.fsb-follow-x { color: #6c7382; }
+.fsb-follow-chip.n-3 .fsb-follow-x, .fsb-follow-chip.n-4 .fsb-follow-x, .fsb-follow-chip.n-5 .fsb-follow-x { color: #cdd2dd; }
+.fsb-follow-sub { color: #6c7382; margin-left: auto; letter-spacing: 0.3px; font-style: italic; }

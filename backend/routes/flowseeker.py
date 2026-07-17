@@ -13,6 +13,7 @@ import math
 import os
 import time
 from datetime import datetime, timedelta
+from zoneinfo import ZoneInfo
 
 import httpx
 from fastapi import APIRouter, HTTPException, Query
@@ -418,6 +419,17 @@ def _cached_regimes() -> dict[str, str]:
         return {}
 
 
+# Trading-day identity is Eastern regardless of host TZ — a UTC-deployed
+# backend writing evening rows under tomorrow's date would corrupt the daily
+# volume/OI history ($max merges today's EOD totals into tomorrow's doc) and
+# desync from the frontend's local sessionDay.
+_ET = ZoneInfo("America/New_York")
+
+
+def _today_et() -> str:
+    return datetime.now(_ET).strftime("%Y-%m-%d")
+
+
 # ── Volume baseline store (σ-spike detection) ──
 # Each successful upstream scan upserts today's per-ticker MAX cumulative
 # volume (day_volume is cumulative, so $max converges to the EOD total). The
@@ -437,7 +449,7 @@ async def _record_scan_baseline(rows: list) -> None:
     try:
         from server import db  # deferred: circular import
 
-        today = datetime.now().strftime("%Y-%m-%d")
+        today = _today_et()
         per: dict[str, dict] = {}
         oi_ops: list = []
         seen_contracts: set = set()
@@ -487,7 +499,7 @@ async def _prev_contract_oi() -> dict[str, int]:
     try:
         from server import db  # deferred: circular import
 
-        today = datetime.now().strftime("%Y-%m-%d")
+        today = _today_et()
         prior = await db.flow_scan_contract_oi.find(
             {"date": {"$lt": today}}, {"date": 1}
         ).sort("date", -1).limit(1).to_list(1)
@@ -513,7 +525,7 @@ async def _volume_baselines() -> dict[str, dict]:
     try:
         from server import db  # deferred: circular import
 
-        today = datetime.now().strftime("%Y-%m-%d")
+        today = _today_et()
         agg: dict[str, list] = {}
         async for doc in db.flow_scan_daily.find(
             {"date": {"$ne": today}}, {"ticker": 1, "total_vol": 1}
@@ -763,7 +775,7 @@ async def scan_history(days: int = Query(14, ge=2, le=60)):
     try:
         from server import db  # deferred: circular import
 
-        cutoff = (datetime.now() - timedelta(days=days)).strftime("%Y-%m-%d")
+        cutoff = (datetime.now(_ET) - timedelta(days=days)).strftime("%Y-%m-%d")
         cur = db.flow_scan_daily.find(
             {"date": {"$gte": cutoff}},
             {"_id": 0, "ticker": 1, "date": 1, "total_vol": 1, "call_vol": 1, "put_vol": 1},
@@ -776,8 +788,14 @@ async def scan_history(days: int = Query(14, ge=2, le=60)):
                 "put_vol": doc.get("put_vol") or 0,
             })
     except Exception as e:
+        # A transient Mongo hiccup must not become a cached-for-60s empty
+        # payload that wipes the frontend's sparklines/streaks — serve the
+        # last good result instead, and never cache the failure.
         logger.debug(f"scan history unavailable: {e}")
-    payload = {"days": days, "tickers": out, "asof": datetime.now().isoformat()}
+        if _history_cache["data"] is not None:
+            return _history_cache["data"]
+        return {"days": days, "tickers": {}, "asof": datetime.now(_ET).isoformat(), "stale": True}
+    payload = {"days": days, "tickers": out, "asof": datetime.now(_ET).isoformat()}
     _history_cache.update(ts=nowt, days=days, data=payload)
     return payload
 

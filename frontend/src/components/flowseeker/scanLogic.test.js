@@ -3,6 +3,7 @@ import {
   fmtUSD, fmtK, fmtIV, scoreGradeOf, estPremium, evalAlerts, tickerRollup,
   archetypeOf, volSigma, annotateFirstSeen, sessionDay, fmtClock, fmtAge,
   awaySummary, scanRowsToCSV, oiChange, streakOf, isTradingDay, evalTickerAlerts,
+  pulseState, elapsedClock, formatFOLLOWStrip,
 } from "./scanLogic";
 
 describe("estimateDelta", () => {
@@ -171,9 +172,10 @@ describe("evalAlerts", () => {
     expect(evalAlerts(rows, { enabled: { score: false, whale: false, zerodte: false } })).toEqual([]);
     expect(evalAlerts(rows)).toHaveLength(1);   // matches SCORE first, not three times
   });
-  it("carries a stable contract key", () => {
+  it("carries a rule-namespaced key plus the raw contract key", () => {
     const [hit] = evalAlerts([mk()]);
-    expect(hit.key).toBe("SPY|call|745|2099-01-08");
+    expect(hit.key).toBe("score|SPY|call|745|2099-01-08");   // dedup ttls stay per-rule
+    expect(hit.ckey).toBe("SPY|call|745|2099-01-08");
   });
 });
 
@@ -421,6 +423,15 @@ describe("evalAlerts OICONF (overnight OI confirmation)", () => {
     expect(hits[0].oiChgPct).toBeCloseTo(1.01);
     expect(hits.every((h) => h.rule === "OICONF")).toBe(true);
   });
+  it("a row cut from the top-5 OICONF slots still fires its one-shot intraday rule", () => {
+    const rows = Array.from({ length: 6 }, (_, i) =>
+      mk({ strike: 100 + i, oiChg: { abs: 5000, pct: 0.9 - i * 0.1 } }));
+    rows[5]._new = true; rows[5].score = 95;   // weakest OI build (rank 6) but hot new flow
+    const hits = evalAlerts(rows);
+    expect(hits).toHaveLength(6);
+    expect(hits.filter((h) => h.rule === "OICONF")).toHaveLength(5);
+    expect(hits.find((h) => h.strike === 105)?.rule).toBe("SCORE");   // not swallowed
+  });
   it("wins over SCORE on the same row (one alert per row) and can be disabled", () => {
     const row = mk({ _new: true, score: 95, oiChg: { abs: 5000, pct: 0.5 } });
     expect(evalAlerts([row])[0].rule).toBe("OICONF");
@@ -451,8 +462,19 @@ describe("streakOf (multi-day persistence)", () => {
     expect(streakOf(days, { today: "2026-07-14" }).n).toBe(2);
   });
   it("an above-threshold TODAY joins the streak", () => {
-    const days = [...base, day("2026-07-10", 400), day("2026-07-14", 500)];
+    const days = [...base, day("2026-07-13", 400), day("2026-07-14", 500)];
     expect(streakOf(days, { today: "2026-07-14" }).n).toBe(2);
+  });
+  it("a missing day (ticker fell out of the scan = quiet day) BREAKS the streak", () => {
+    // Mon 07-13 spike, Tue-Wed absent, Thu 07-16 spike → two isolated spikes, not \"2 straight days\"
+    const days = [...base, day("2026-07-13", 400), day("2026-07-16", 380)];
+    expect(streakOf(days, { today: "2026-07-17" }).n).toBe(1);
+  });
+  it("weekday-holiday stale duplicates are dropped before streak math", () => {
+    // Fri 07-10 spike; Mon 07-13 records the identical stale row (holiday-style dup)
+    const days = [...base, { date: "2026-07-10", total_vol: 400, call_vol: 240, put_vol: 160 },
+      { date: "2026-07-13", total_vol: 400, call_vol: 240, put_vol: 160 }];
+    expect(streakOf(days, { today: "2026-07-14" }).n).toBe(1);
   });
   it("needs minDays of prior history and a nonzero median", () => {
     expect(streakOf(base.slice(0, 3), { today: "2026-07-14" })).toBeNull();
@@ -496,5 +518,107 @@ describe("evalTickerAlerts (SIGMA + FOLLOW)", () => {
     expect(evalTickerAlerts(roll, baselines, streaks, { allow: ["SPY"] })).toEqual([]);
     const only = evalTickerAlerts(roll, baselines, streaks, { enabled: { sigma: false, follow: true } });
     expect(only.map((h) => h.rule)).toEqual(["FOLLOW"]);
+  });
+});
+
+describe("elapsedClock", () => {
+  it("returns \u2014 for null/undefined/negative/non-finite", () => {
+    expect(elapsedClock(null)).toBe("\u2014");
+    expect(elapsedClock(undefined)).toBe("\u2014");
+    expect(elapsedClock(-1)).toBe("\u2014");
+    expect(elapsedClock(NaN)).toBe("\u2014");
+  });
+  it("formats in seconds when age < 60", () => {
+    expect(elapsedClock(0)).toBe("0s");
+    expect(elapsedClock(7)).toBe("7s");
+    expect(elapsedClock(59.4)).toBe("59s");   // Math.round
+  });
+  it("switches to minutes at 60s", () => {
+    expect(elapsedClock(60)).toBe("1m");
+    expect(elapsedClock(125)).toBe("2m");
+  });
+  it("switches to hours at 60m", () => {
+    expect(elapsedClock(60 * 60)).toBe("1h");
+    expect(elapsedClock(125 * 60)).toBe("2h");
+  });
+});
+
+describe("pulseState", () => {
+  it("ERRORED beats stale+retry (precedence)", () => {
+    const p = pulseState({ hasError: true, stale: true, retry: 30 });
+    expect(p.dot).toBe("r");
+    expect(p.label).toBe("ERRORED");
+    expect(p.tier).toBe("err");
+  });
+  it("STALE retry Ns when stale with a retry window", () => {
+    const p = pulseState({ stale: true, retry: 47 });
+    expect(p.dot).toBe("r");
+    expect(p.label).toBe("STALE \u00b7retry 47s");
+    expect(p.tier).toBe("err");
+  });
+  it("STALE alone falls to warning tier", () => {
+    expect(pulseState({ stale: true }).dot).toBe("y");
+    expect(pulseState({ stale: true }).tier).toBe("warn");
+  });
+  it("LOADING when no mode and no data yet", () => {
+    const p = pulseState({ mode: null, hasData: false });
+    expect(p.dot).toBe("y");
+    expect(p.label).toBe("LOADING");
+  });
+  it("FALLBACK on local universe scan", () => {
+    const p = pulseState({ mode: "fallback", hasData: true });
+    expect(p.dot).toBe("y");
+    expect(p.label).toBe("FALLBACK");
+  });
+  it("LIVE (green/fresh) when market mode and age <= 30s", () => {
+    const p = pulseState({ mode: "market", age: 12 });
+    expect(p.dot).toBe("g");
+    expect(p.label).toBe("LIVE");
+    expect(p.tier).toBe("fresh");
+  });
+  it("LIVE slow (yellow/warn) between 30s and 90s", () => {
+    const p = pulseState({ mode: "market", age: 65 });
+    expect(p.dot).toBe("y");
+    expect(p.label).toBe("LIVE \u00b7slow");
+  });
+  it("LIVE Hm when age is minutes/hours", () => {
+    const p = pulseState({ mode: "market", age: 2500 });
+    expect(p.dot).toBe("y");
+    expect(p.label).toBe("LIVE \u00b742m");
+  });
+});
+
+describe("formatFOLLOWStrip", () => {
+  it("returns [] for empty / null / non-object input", () => {
+    expect(formatFOLLOWStrip({})).toEqual([]);
+    expect(formatFOLLOWStrip(null)).toEqual([]);
+    expect(formatFOLLOWStrip(undefined)).toEqual([]);
+  });
+  it("drops sub-2 / NaN / zero streaks so a malformed map can\u0027t leak", () => {
+    const out = formatFOLLOWStrip({
+      AAPL: { n: 1, mult: 1.5 },
+      NVDA: { n: 0, mult: 1.5 },
+      TSLA: { n: NaN, mult: 1.5 },
+      MSFT: { n: 2, mult: 1.5, median: 40000 },
+    });
+    expect(out).toHaveLength(1);
+    expect(out[0].under).toBe("MSFT");
+  });
+  it("sorts by streak days desc, then mult desc, then ticker ASC", () => {
+    const out = formatFOLLOWStrip({
+      NVDA: { n: 3, mult: 1.5, median: 40000 },
+      TSLA: { n: 5, mult: 1.5, median: 10000 },
+      AMD:  { n: 5, mult: 2.0, median: 20000 },
+      AAPL: { n: 2, mult: 1.5, median: 30000 },
+    });
+    expect(out.map((e) => e.under)).toEqual(["AMD", "TSLA", "NVDA", "AAPL"]);
+  });
+  it("clips to top-N (default 6, custom, zero, huge)", () => {
+    const obj = {};
+    for (let i = 0; i < 10; i++) obj[`T${i}`] = { n: 2, mult: 1.5, median: 1000 };
+    expect(formatFOLLOWStrip(obj)).toHaveLength(6);
+    expect(formatFOLLOWStrip(obj, { top: 3 })).toHaveLength(3);
+    expect(formatFOLLOWStrip(obj, { top: 0 })).toHaveLength(0);
+    expect(formatFOLLOWStrip(obj, { top: 100 })).toHaveLength(10);
   });
 });

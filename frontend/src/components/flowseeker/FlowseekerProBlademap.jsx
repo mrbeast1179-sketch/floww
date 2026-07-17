@@ -11,7 +11,7 @@
  */
 import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { BACKEND_URL } from "../../config/api";
-import { approxSpot, mkScanRow, evalAlerts, evalTickerAlerts, streakOf, cleanHistory, tickerRollup, volSigma, annotateFirstSeen, sessionDay, fmtClock, fmtAge, awaySummary, scanRowsToCSV, oiChange, fmtUSD, fmtK, fmtIV, scoreGradeOf } from "./scanLogic";
+import { approxSpot, mkScanRow, evalAlerts, evalTickerAlerts, streakOf, cleanHistory, tickerRollup, volSigma, annotateFirstSeen, sessionDay, fmtClock, fmtAge, awaySummary, scanRowsToCSV, oiChange, fmtUSD, fmtK, fmtIV, scoreGradeOf, pulseState, elapsedClock, formatFOLLOWStrip } from "./scanLogic";
 import "./FlowseekerProBlademap.css";
 
 const API = `${BACKEND_URL}/api/flowseeker`;
@@ -161,7 +161,10 @@ export default function FlowseekerProBlademap({ active = true }) {
   const [alertRules, setAlertRules] = useState({ ...DEFAULT_RULES, ...(prefs.alertRules || {}) });
   const [history, setHistory] = useState({});   // {ticker: [{date, total_vol, call_vol, put_vol}]} from /scan/history
   const [alertLog, setAlertLog] = useState(loadAlertLog);
-  const [alertsOpen, setAlertsOpen] = useState(false);
+  // Simple mode (default): institutional alerts + a best-only table, no knobs.
+  // ⚙ Advanced reveals the full filter/preset/universe/rule-chip toolkit.
+  const [advanced, setAdvanced] = useState(!!prefs.advanced);
+  const [alertsOpen, setAlertsOpen] = useState(true);   // the feed IS the product — open by default
   const [alertOrder, setAlertOrder] = useState("new");   // tape order: newest | oldest first
   const [alertUnivOnly, setAlertUnivOnly] = useState(prefs.alertUnivOnly ?? true);   // scope alerts to My Universe
   const [away, setAway] = useState(null);                 // "while you were away" digest, null = hidden
@@ -225,9 +228,9 @@ export default function FlowseekerProBlademap({ active = true }) {
 
   useEffect(() => {
     try {
-      localStorage.setItem(PREFS_KEY, JSON.stringify({ scanTypeF, scanMinVol, scanMinScore, scanSort, universe, universeOnly, alertScore, alertRules, notify, alertUnivOnly }));
+      localStorage.setItem(PREFS_KEY, JSON.stringify({ scanTypeF, scanMinVol, scanMinScore, scanSort, universe, universeOnly, alertScore, alertRules, notify, alertUnivOnly, advanced }));
     } catch { /* private mode — prefs just don't persist */ }
-  }, [scanTypeF, scanMinVol, scanMinScore, scanSort, universe, universeOnly, alertScore, alertRules, notify, alertUnivOnly]);
+  }, [scanTypeF, scanMinVol, scanMinScore, scanSort, universe, universeOnly, alertScore, alertRules, notify, alertUnivOnly, advanced]);
 
   // "While you were away" — keep the last-seen stamp current while visible
   // (the previous visit's value was snapshotted at module load, see AWAY_FROM).
@@ -577,14 +580,23 @@ export default function FlowseekerProBlademap({ active = true }) {
     }
   }), [signals, filter]);
 
-  // scanner: filter + sort + KPI rollup
+  // scanner: filter + sort + KPI rollup. Simple mode ignores the hidden
+  // advanced knobs (a Min-Vol set weeks ago must not silently filter an
+  // interface with no visible controls) and applies one opinionated quality
+  // gate instead: only rows an institutional desk would look at.
   const scanRows = useMemo(() => {
     const q = (scanQ || "").trim().toUpperCase();
+    const isBest = (r) => r.score >= 70 || r.arch === "WHALE"
+      || (r.oiChgPct ?? 0) >= 0.3 || (r.premium ?? 0) >= 1e6;
     const rows = scan.filter((r) => {
-      if (universeOnly && !universe.includes(r.under)) return false;
-      if (scanTypeF !== "all" && r.type !== scanTypeF) return false;
-      if (scanMinVol && r.vol < scanMinVol) return false;
-      if (scanMinScore && r.score < scanMinScore) return false;
+      if (!advanced) {
+        if (!isBest(r)) return false;
+      } else {
+        if (universeOnly && !universe.includes(r.under)) return false;
+        if (scanTypeF !== "all" && r.type !== scanTypeF) return false;
+        if (scanMinVol && r.vol < scanMinVol) return false;
+        if (scanMinScore && r.score < scanMinScore) return false;
+      }
       if (q && !(r.under || "").toUpperCase().includes(q)) return false;
       return true;
     });
@@ -596,7 +608,7 @@ export default function FlowseekerProBlademap({ active = true }) {
       return (av < bv ? -1 : av > bv ? 1 : 0) * dir;
     });
     return rows;
-  }, [scan, scanTypeF, scanMinVol, scanMinScore, scanQ, scanSort, universe, universeOnly]);
+  }, [scan, scanTypeF, scanMinVol, scanMinScore, scanQ, scanSort, universe, universeOnly, advanced]);
 
   const scanStats = useMemo(() => {
     let notl = 0, cv = 0, pv = 0, unusual = 0, alerts = 0; const cnt = {};
@@ -629,6 +641,17 @@ export default function FlowseekerProBlademap({ active = true }) {
     const oldest = alertLog.length ? alertLog[alertLog.length - 1].time : null;
     return { c, newest, oldest };
   }, [alertLog]);
+  // Institutional Heartbeat tier — drives the colored dot + label in the
+  // scanbar's Heartbeat chip. Pure helper delegates the precedence rules so
+  // the JSX never repeats them; same call backs the title-tooltip.
+  const heartbeat = useMemo(() => pulseState({
+    mode: scanMeta.mode, stale: !!scanMeta.stale,
+    age: scanMeta.age || 0, retry: scanMeta.retry,
+    hasData: scan.length > 0,
+  }), [scanMeta, scan.length]);
+  // FOLLOW Leaderboard — the "what are they following" read. Pure helper
+  // sorts + clips the streaks map; the JSX renders the result.
+  const followStrip = useMemo(() => formatFOLLOWStrip(streaks, { top: 6 }), [streaks]);
   const shownAlerts = useMemo(() => {
     const a = alertOrder === "old" ? [...alertLog].reverse() : alertLog;
     return a.slice(0, 60);
@@ -641,6 +664,9 @@ export default function FlowseekerProBlademap({ active = true }) {
     ["notional", "Notional", false],
     ["iv", "IV", false], ["ftype", "Flow", true], ["lean", "Lean", true],
   ];
+  // Simple mode: the columns a decision needs, nothing else.
+  const SIMPLE_KEYS = ["firstSeen", "score", "under", "type", "strike", "dte", "vol", "oiChgPct", "premium", "ftype"];
+  const colsShown = advanced ? SCAN_COLS : SCAN_COLS.filter(([k]) => SIMPLE_KEYS.includes(k));
 
   function selectSignal(p) {
     setSelected(p);
@@ -949,13 +975,28 @@ export default function FlowseekerProBlademap({ active = true }) {
                     : `${scanAt || "—"}${scanMeta.age >= 5 ? ` ·data ${scanMeta.age}s` : ""}`,
                   scanMeta.stale ? "y" : "",
                   "Local fetch time · upstream data age (60s server cache; STALE = upstream rate-limited, serving last good scan)"],
-              ].map(([l, v, c, tip]) => (
+                ["Heartbeat",
+                  <>
+                    <span className={`fsb-pulse ${heartbeat.dot}`} aria-hidden="true" />
+                    {scanMeta.mode
+                      ? `${heartbeat.label}${heartbeat.tier === "fresh" ? ` ·${scanAt || "—"}` : ""}`
+                      : heartbeat.label}
+                  </>,
+                  heartbeat.dot,
+                  heartbeat.tier === "fresh" && scanAt ? `${heartbeat.hint} · last fetch ${scanAt}` : heartbeat.hint],
+              ].filter(([l]) => advanced || ["Source", "⚡ Alerts", "Updated", "Heartbeat"].includes(l))
+                .map(([l, v, c, tip]) => (
                 <div key={l} className={`fsb-skpi${l === "⚡ Alerts" ? " fsb-skpi-click" : ""}`}
                   onClick={l === "⚡ Alerts" ? () => setAlertsOpen((o) => !o) : undefined}
                   title={tip}>
                   <div className="fsb-skl">{l}</div><div className={`fsb-skv ${c}`}>{v}</div>
                 </div>
               ))}
+              <button className="fsb-preset fsb-advtoggle"
+                title={advanced ? "Back to the simple view — alerts + best flow only" : "Show all filters, presets, universe and alert-rule controls"}
+                onClick={() => setAdvanced((a) => !a)}>
+                ⚙ {advanced ? "Simple" : "Advanced"}
+              </button>
             </div>
             {rollup.length > 0 && (
               <div className="fsb-rollup">
@@ -986,12 +1027,29 @@ export default function FlowseekerProBlademap({ active = true }) {
                         })()}
                       </span>
                     )}
-                    <span className="fsb-rollbar"><span className="fsb-rollbar-c" style={{ width: `${e.callPct}%` }} /></span>
+                  <span className="fsb-rollbar"><span className="fsb-rollbar-c" style={{ width: `${e.callPct}%` }} /></span>
+                </button>
+              ))}
+            </div>
+            )}
+            {followStrip.length > 0 && (
+              <div className="fsb-follow-strip">
+                <span className="fsb-follow-label">📈 FOLLOWING</span>
+                {followStrip.map(({ under, n, mult, median }) => (
+                  <button key={under} className={`fsb-follow-chip n-${Math.min(5, n)}${scanQ === under ? " on" : ""}`}
+                    title={`${under} elevated-volume ${n} straight days (≥${mult.toFixed(1)}× its ${fmtK(median)} daily median) — click to filter the scan to this ticker`}
+                    onClick={() => setScanQ(scanQ === under ? "" : under)}>
+                    <span className="fsb-follow-t">{under}</span>
+                    <span className="fsb-follow-n">{n}d</span>
+                    <span className="fsb-follow-x">{mult.toFixed(1)}×</span>
                   </button>
                 ))}
+                <span className="fsb-follow-sub">
+                  persistent positioning · {followStrip.length} ticker{followStrip.length === 1 ? "" : "s"}
+                </span>
               </div>
             )}
-            <div className="fsb-scanctrl">
+            {advanced && <div className="fsb-scanctrl">
               <select value={scanTypeF} onChange={(e) => setScanTypeF(e.target.value)}>
                 <option value="all">All Types</option><option value="call">Calls</option><option value="put">Puts</option>
               </select>
@@ -1022,7 +1080,7 @@ export default function FlowseekerProBlademap({ active = true }) {
                 title="Alert when a NEW contract scores ≥ this"
                 onChange={(e) => setAlertScore(Math.max(50, Math.min(100, parseInt(e.target.value, 10) || 85)))} />
               <span className="fsb-scannote">Live cross-symbol flow · cvforge day-volume vs OI. No per-trade tape on this feed — Flow-type = volume-magnitude class; Lean = contract-type bias.</span>
-            </div>
+            </div>}
             {away && (
               <div className="fsb-away">
                 <span className="fsb-away-t">☾ While you were away · {fmtAge(Date.now() - away.gapMs)}</span>
@@ -1051,7 +1109,7 @@ export default function FlowseekerProBlademap({ active = true }) {
             {alertsOpen && (
               <div className="fsb-alertlog">
                 <div className="fsb-alertlog-h">
-                  <span>Alert Tape · {alertLog.length}</span>
+                  <span>🏛 Institutional Alerts · {alertLog.length}</span>
                   {alertLog.length > 0 && (
                     <span className="fsb-alertsummary">
                       {alertSummary.oldest === alertSummary.newest
@@ -1066,28 +1124,30 @@ export default function FlowseekerProBlademap({ active = true }) {
                     <button className={`fsb-rulechip${notify ? " on" : ""}`}
                       title="Browser notification when alerts fire while this tab is hidden"
                       onClick={toggleNotify}>🔔 Notify</button>
-                    <button className={`fsb-rulechip${alertUnivOnly ? " on" : ""}`}
-                      title="Scope alerts + notifications to My Universe tickers only — off = whole market (700+ symbols)"
-                      onClick={() => setAlertUnivOnly((v) => !v)}>🎯 UNIV</button>
-                    {[["oiconf", "ΔOI CONF"], ["follow", "FOLLOW 2d+"], ["sigma", "SIGMA ≥4σ"],
-                      ["score", `SCORE≥${alertScore}`], ["whale", "WHALE ≥$10M~"], ["zerodte", "0DTE HOT"]].map(([k, lbl]) => (
-                      <button key={k} className={`fsb-rulechip${alertRules[k] ? " on" : ""}`}
-                        title="Toggle this alert rule"
-                        onClick={() => setAlertRules((r) => ({ ...r, [k]: !r[k] }))}>{lbl}</button>
-                    ))}
-                    <button className="fsb-rulechip" title="Toggle newest-first / oldest-first"
-                      onClick={() => setAlertOrder((o) => (o === "new" ? "old" : "new"))}>
-                      {alertOrder === "new" ? "⇊ Newest" : "⇈ Oldest"}
-                    </button>
+                    {advanced && <>
+                      <button className={`fsb-rulechip${alertUnivOnly ? " on" : ""}`}
+                        title="Scope alerts + notifications to My Universe tickers only — off = whole market (700+ symbols)"
+                        onClick={() => setAlertUnivOnly((v) => !v)}>🎯 UNIV</button>
+                      {[["oiconf", "ΔOI CONF"], ["follow", "FOLLOW 2d+"], ["sigma", "SIGMA ≥4σ"],
+                        ["score", `SCORE≥${alertScore}`], ["whale", "WHALE ≥$10M~"], ["zerodte", "0DTE HOT"]].map(([k, lbl]) => (
+                        <button key={k} className={`fsb-rulechip${alertRules[k] ? " on" : ""}`}
+                          title="Toggle this alert rule"
+                          onClick={() => setAlertRules((r) => ({ ...r, [k]: !r[k] }))}>{lbl}</button>
+                      ))}
+                      <button className="fsb-rulechip" title="Toggle newest-first / oldest-first"
+                        onClick={() => setAlertOrder((o) => (o === "new" ? "old" : "new"))}>
+                        {alertOrder === "new" ? "⇊ Newest" : "⇈ Oldest"}
+                      </button>
+                    </>}
                   </span>
-                  <button className="fsb-alertclear" disabled={!alertLog.length}
+                  {advanced && <button className="fsb-alertclear" disabled={!alertLog.length}
                     title="Copy the tape to the clipboard (tab-separated — pastes into Sheets/journal)"
                     onClick={() => {
                       const tsv = alertLog.map((a) => [a.day || "", a.time, a.rule, a.under, a.type, a.strike, a.exp, a.score ?? "", a.premium ?? "", a.label || a.why || ""].join("\t")).join("\n");
                       try { navigator.clipboard.writeText(tsv); } catch { /* clipboard blocked */ }
                     }}>
                     ⧉ Copy
-                  </button>
+                  </button>}
                   <button className="fsb-alertclear"
                     title="Clear the tape display — fired alerts stay deduped, so still-active conditions won't re-fire"
                     onClick={() => { setAlertLog([]); try { localStorage.removeItem(ALERTS_KEY); } catch { /* noop */ } }}>
@@ -1146,14 +1206,14 @@ export default function FlowseekerProBlademap({ active = true }) {
               ) : (
                 <table className="fsb-stab">
                   <thead><tr>
-                    {SCAN_COLS.map(([k, t, l]) => (
+                    {colsShown.map(([k, t, l]) => (
                       <th key={k} className={`${l ? "l" : ""}${k === scanSort.key ? " on" : ""}`} onClick={() => sortScan(k)}>
                         {t}{k === scanSort.key ? (scanSort.dir === "desc" ? " ▾" : " ▴") : ""}
                       </th>
                     ))}
                   </tr></thead>
                   <tbody>
-                    {scanRows.slice(0, 200).map((r, i) => {
+                    {scanRows.slice(0, advanced ? 200 : 50).map((r, i) => {
                       const isCall = r.type === "call";
                       const otm = r.delta == null ? "" : (Math.abs(r.delta) < 0.45 ? "OTM" : "ITM");
                       return (
@@ -1170,7 +1230,7 @@ export default function FlowseekerProBlademap({ active = true }) {
                           <td>{r.strike % 1 === 0 ? r.strike.toFixed(0) : r.strike.toFixed(1)}</td>
                           <td>{r.dte == null ? "—" : `${r.dte}d`}</td>
                           <td>{fmtK(r.vol)}</td>
-                          <td>{fmtK(r.oi)}</td>
+                          {advanced && <td>{fmtK(r.oi)}</td>}
                           <td className={r.oiChg ? (r.oiChg.pct >= 0 ? "fsb-oiup" : "fsb-oidn") : ""}
                               title={r.oiChg
                                 ? `Open interest ${r.oiChg.abs >= 0 ? "+" : ""}${fmtK(r.oiChg.abs)} vs last session (${fmtK(r.oi - r.oiChg.abs)} → ${fmtK(r.oi)})${r.arch === "FRESH" ? (r.oiChg.pct >= 0.1 ? " — FRESH held: new positioning stuck" : r.oiChg.pct <= -0.1 ? " — FRESH faded: intraday churn, OI fell back" : "") : ""}`
@@ -1179,10 +1239,10 @@ export default function FlowseekerProBlademap({ active = true }) {
                               ? `${r.oiChg.pct >= 0 ? "+" : ""}${(r.oiChg.pct * 100).toFixed(0)}%`
                               : <span className="fsb-sub">—</span>}
                           </td>
-                          <td>{r.volOI >= 99 ? "99+" : `${r.volOI.toFixed(1)}x`}</td>
+                          {advanced && <td>{r.volOI >= 99 ? "99+" : `${r.volOI.toFixed(1)}x`}</td>}
                           <td title="Estimated premium spent — no quote feed on cvserver, BS-lite estimate">{r.premium != null ? `~${fmtUSD(r.premium)}` : "—"}</td>
-                          <td>{fmtUSD(r.notional)}</td>
-                          <td>{fmtIV(r.iv)}</td>
+                          {advanced && <td>{fmtUSD(r.notional)}</td>}
+                          {advanced && <td>{fmtIV(r.iv)}</td>}
                           <td className="l">
                             <span className={`fsb-flt ${r.ftype}`}>{r.ftype.toUpperCase()}</span>
                             {r.arch ? <span className={`fsb-arch a-${r.arch.toLowerCase()}`} title={
@@ -1192,7 +1252,7 @@ export default function FlowseekerProBlademap({ active = true }) {
                               "volume ≥ 3× open interest — fresh positioning"
                             }>{r.arch}</span> : null}
                           </td>
-                          <td className="l"><span className={`fsb-lean ${isCall ? "bull" : "bear"}`}>{isCall ? "▲ BULL" : "▼ BEAR"}</span>{otm ? <span className="fsb-sub"> {r.deltaEst ? "~" : ""}{otm}</span> : null}</td>
+                          {advanced && <td className="l"><span className={`fsb-lean ${isCall ? "bull" : "bear"}`}>{isCall ? "▲ BULL" : "▼ BEAR"}</span>{otm ? <span className="fsb-sub"> {r.deltaEst ? "~" : ""}{otm}</span> : null}</td>}
                         </tr>
                       );
                     })}

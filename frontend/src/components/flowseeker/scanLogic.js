@@ -435,3 +435,135 @@ export function mkScanRow(under, type, strike, exp, vol, oi, iv, delta, spot = n
   r.arch = archetypeOf(r);
   return r;
 }
+
+// ── Heartbeat HUD helpers (institutional data-freshness read-out) ──
+// Three pure functions so the JSX purity doesn't bleed into the component and
+// the GREEN phase can pin every UI tier in jest tests. Precedence is fixed:
+//   errored > stale+retry > stale > loading > fallback > live-warn > live-fresh
+// so a degraded upstream always shown the same colour as the worst condition.
+
+// Compact age formatter for the heartbeat chip. Always in seconds when <60s
+// (the heartbeat pulses with a 1s clock tick, not the alert-tape 30min dedup
+// cadence); null / negative / non-finite → "—" so a missing age never lies.
+export function elapsedClock(ageSec) {
+  if (ageSec == null || !Number.isFinite(ageSec) || ageSec < 0) return "—";
+  const s = Math.round(ageSec);
+  if (s < 60) return `${s}s`;
+  const m = Math.round(s / 60);
+  if (m < 60) return `${m}m`;
+  return `${Math.round(m / 60)}h`;
+}
+
+// Heartbeat tier — drives the colored dot + label in the scanbar "Heartbeat"
+// chip. green=live pulse with age≤30s, yellow=ok-age OR fallback OR slow,
+// red=stale+retry OR errored. tier.hint is the title-tooltip explaining WHY;
+// the component renders just .dot (CSS class) + .label.
+export function pulseState({ mode, stale, age = 0, retry = null, hasData = false, hasError = false } = {}) {
+  if (hasError) return { dot: "r", label: "ERRORED", tier: "err", hint: "last poll threw — keeping last good scan" };
+  if (stale && retry != null) return { dot: "r", label: `STALE ·retry ${elapsedClock(retry)}`, tier: "err", hint: "upstream rate-limited, retrying after the duration shown" };
+  if (stale) return { dot: "y", label: "STALE", tier: "warn", hint: "data is the last good scan — upstream is back-pressured" };
+  if (!hasData && !mode) return { dot: "y", label: "LOADING", tier: "warn", hint: "first poll in flight — no prior data to show" };
+  if (mode === "fallback") return { dot: "y", label: "FALLBACK", tier: "warn", hint: "upstream market-wide unavailable — scanning 18-symbol universe locally" };
+  if (mode === "market" && age <= 30) return { dot: "g", label: "LIVE", tier: "fresh", hint: `market-wide scan · ${elapsedClock(age)} since last poll` };
+  if (mode === "market" && age <= 90) return { dot: "y", label: "LIVE ·slow", tier: "warn", hint: `market-wide scan · ${elapsedClock(age)} since last poll (target ≤30s)` };
+  return { dot: "y", label: `LIVE ·${elapsedClock(age)}`, tier: "warn", hint: `market-wide scan · ${elapsedClock(age)} since last poll` };
+}
+
+// ── FIRE Banner helpers (Upgrade C — sticky top banner for high-priority alert fires) ──
+// 3 pure functions so the sticky FIRE banner never repeats the institutional
+// "definite alert" precedence in JSX — helpers test the tiering, the component
+// renders + ticks the 60s auto-dismiss + ack button. The slate of rules that
+// qualify as high-tier mirrors Upgrade-C's spec: OICONF (overnight OI confirmed)
+// + WHALE (≥$10M premium) + FOLLOW ≥3d + SIGMA ≥5σ + SCORE ≥90 (floor bumped
+// over the 85 default to keep the banner for "definite" only).
+
+// Classify a single alert hit into the banner-eligible tier.
+//   high = banner candidate (rule + threshold)
+//   med  = loud but not definite enough for the sticky banner (e.g. SCORE 88)
+//   off  = user-toggled this rule off in the chips (caller should filter upstream)
+// tierOf is intentionally hit-only — it inspects the hit's own data + the
+// caller-provided minScoreForFire (defaults to 90 so a user with alertScore=70
+// still keeps the banner off their SCORE-low band).
+export function tierOf(hit, { minScoreForFire = 90 } = {}) {
+  if (!hit || !hit.rule) return "off";
+  switch (hit.rule) {
+    case "OICONF": return "high";
+    case "WHALE": return "high";
+    case "FOLLOW":
+      return Number.isFinite(Number(hit.streak)) && Number(hit.streak) >= 3 ? "high" : "med";
+    case "SIGMA":
+      return Number.isFinite(Number(hit.sigma)) && Number(hit.sigma) >= 5 ? "high" : "med";
+    case "SCORE":
+      return Number.isFinite(Number(hit.score)) && Number(hit.score) >= minScoreForFire ? "high" : "med";
+    default: return "med";   // 0DTE, SOURCE — too noisy for the sticky banner
+  }
+}
+
+// Select banner-eligible fires from the (already-dedup'd by alertSeen) alertLog.
+// Returns the subset tagged _tier="high" sorted banner-priority. Defensive on
+// each axis: respects per-rule enabled flags + universe allow (mirrors the
+// evalAlerts/evalTickerAlerts gating) and drops entries older than ttlMs
+// (alertLog is already deduped, but TTL handling stays here for stub tests).
+// acked accepts either a Set<string> or a plain {key: ms} object.
+export function selectFires(alertLog, opts = {}) {
+  const { now = Date.now(), ttlMs = 60_000, minScoreForFire = 90, enabled, allow, acked } = opts;
+  const ackedSet = acked instanceof Set ? acked : new Set(Object.keys(acked || {}));
+  const allowSet = allow && allow.length ? new Set(allow) : null;
+  const enabledMap = enabled || {};
+  const out = [];
+  for (const hit of alertLog || []) {
+    if (!hit || !hit.key) continue;
+    if (ackedSet.has(hit.key)) continue;
+    const rl = String(hit.rule || "").toLowerCase();
+    // enabled-map is keyed by lowercase rule names (oiconf / whale / zerodte etc)
+    if (enabledMap[rl] === false) continue;
+    if (allowSet && hit.under && !allowSet.has(hit.under)) continue;
+    if (hit.t != null && now - hit.t > ttlMs) continue;
+    const t = tierOf(hit, { minScoreForFire });
+    if (t !== "high") continue;
+    out.push({ ...hit, _tier: t });
+  }
+  out.sort(firePriorityCompare);
+  return out;
+}
+
+// Priority comparator for banner rendering. Lower number = higher rank;
+// ties (same rule) broken by t desc so the newest fire bumps its peer. The
+// map is re-allocated per call so callers who add a new rule just have to
+// patch the table — the comparator is private to this module.
+function firePriorityCompare(a, b) {
+  const pr = { OICONF: 0, WHALE: 1, FOLLOW: 2, SIGMA: 3, SCORE: 4, "0DTE": 5 };
+  const pa = pr[a.rule] ?? 99, pb = pr[b.rule] ?? 99;
+  if (pa !== pb) return pa - pb;
+  return (Number(b.t) || 0) - (Number(a.t) || 0);
+}
+
+// Pick the single banner to render. MVP = top fire per priority order. Null
+// when nothing qualifies. The component wraps this in a useMemo so the input
+// array is already sorted by selectFires; we just take index 0.
+export function pickBanner(fires, _prev = null, _opts = {}) {
+  return fires && fires.length ? fires[0] : null;
+}
+
+// FOLLOW Leaderboard — turn the streaks map (from the JSX useMemo) into a
+// rendering-stable, sorted, top-N-clipped list. Sort: streak-days desc, then
+// mult desc (stronger conviction first when days tie), then ticker ASCII so
+// the strip stays deterministic across reloads. Single-day / NaN streaks are
+// filtered out by the caller, but we double-check here so a bad shape can't
+// leak into the strip. Empty / non-object input → [].
+export function formatFOLLOWStrip(streaks, { top = 6 } = {}) {
+  if (!streaks || typeof streaks !== "object") return [];
+  const arr = [];
+  for (const [under, st] of Object.entries(streaks)) {
+    if (!st || !Number.isFinite(st.n) || st.n < 2) continue;
+    arr.push({
+      under,
+      n: st.n,
+      mult: Number(st.mult) || 1.5,
+      median: Number(st.median) || 0,
+      thr: Number(st.thr) || 0,
+    });
+  }
+  arr.sort((a, b) => (b.n - a.n) || (b.mult - a.mult) || a.under.localeCompare(b.under));
+  return arr.slice(0, Math.max(0, top));
+}
