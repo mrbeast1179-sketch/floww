@@ -552,6 +552,47 @@ async def _record_scan_baseline(rows: list) -> None:
         logger.debug(f"scan baseline record skipped: {e}")
 
 
+async def _run_institutional_alerts(rows: list) -> None:
+    """Server-side institutional alert pass over a FRESH scan result.
+
+    Fires on every cache fill (normal + force-refresh), so alerts exist and
+    persist even with no Scanner tab open — the browser engine only ever saw
+    what a live tab happened to witness. Zero extra cvforge calls: it reuses
+    the rows, baselines, prev-OI and regime cache the scan already has.
+    """
+    try:
+        from services import flow_alerts as fa
+        from services.duckdb_engine import db as duckdb_engine
+
+        normed = fa.norm_rows(rows)
+        if not normed:
+            return
+        baselines = await _volume_baselines()
+        prev_occ = await _prev_contract_oi()
+        # prev-OI store is keyed by OCC symbol (r[1]); the engine keys by
+        # contract identity — re-key here at the boundary.
+        prev = {
+            r["ckey"]: prev_occ[r["occ"]]
+            for r in normed
+            if r.get("occ") and prev_occ.get(r["occ"]) is not None
+        }
+        alerts = fa.eval_institutional(
+            normed, baselines=baselines, prev_oi=prev, regimes=_cached_regimes(),
+        )
+        fa.init_flow_alert_tables(duckdb_engine)
+        fresh = fa.dedup_filter(duckdb_engine, alerts)
+        if fresh:
+            fa.persist_alerts(duckdb_engine, fresh)
+            logger.info(
+                "institutional alerts: %d fired (%s)",
+                len(fresh), ",".join(sorted({a["under"] for a in fresh})),
+            )
+        spots = {r["under"]: r["spot"] for r in normed if r.get("spot")}
+        fa.update_moves(duckdb_engine, spots)
+    except Exception as e:
+        logger.warning(f"institutional alert eval failed: {e}")
+
+
 async def _prev_contract_oi() -> dict[str, int]:
     """{contract_ticker: oi} from the most recent PRIOR scan day. 60s cached.
     A single prior date (the last day we scanned) keeps this to two indexed
@@ -744,6 +785,7 @@ async def market_scan(
                 asof = datetime.now().isoformat()
                 _scan_cache[cache_key] = {"ts": now, "data": rows, "asof": asof}
                 asyncio.get_running_loop().create_task(_record_scan_baseline(rows))
+                asyncio.get_running_loop().create_task(_run_institutional_alerts(rows))
                 out = _scan_payload(rows, False, asof, columns, cache_age=0)
                 out["baselines"] = await _volume_baselines()
                 out["prev_oi"] = await _prev_contract_oi()
@@ -828,6 +870,8 @@ async def force_refresh_scan(
             _scan_backoff["until"] = 0.0
             asof = datetime.now().isoformat()
             _scan_cache[cache_key] = {"ts": now, "data": rows, "asof": asof}
+            asyncio.get_running_loop().create_task(_record_scan_baseline(rows))
+            asyncio.get_running_loop().create_task(_run_institutional_alerts(rows))
             return _scan_payload(rows, False, asof, columns, cache_age=0)
     except HTTPException:
         raise
@@ -883,6 +927,31 @@ async def scan_history(days: int = Query(14, ge=2, le=60)):
     payload = {"days": days, "tickers": out, "asof": datetime.now(_ET).isoformat()}
     _history_cache.update(ts=nowt, days=days, data=payload)
     return payload
+
+
+@router.get("/alerts/feed")
+async def institutional_alert_feed(
+    days: int = Query(7, ge=1, le=60),
+    tier: str | None = Query(None, pattern="^(?i)(gold|silver|bronze)$"),
+    ticker: str | None = Query(None),
+):
+    """Persisted institutional alert feed from the server-side engine.
+
+    Declared BEFORE the /alerts/{symbol} catch-all (route-ordering
+    convention, cf. /api/news/article). Tier filter is a minimum:
+    tier=silver returns GOLD + SILVER. Rows carry side/bias, BS entry
+    price, conviction tier, and move-since-alert.
+    """
+    from services import flow_alerts as fa
+    from services.duckdb_engine import db as duckdb_engine
+
+    try:
+        fa.init_flow_alert_tables(duckdb_engine)
+        rows = fa.read_alert_feed(duckdb_engine, days=days, min_tier=tier, ticker=ticker)
+        return {"alerts": rows, "count": len(rows), "days": days}
+    except Exception as e:
+        logger.warning(f"alert feed failed: {e}")
+        return {"alerts": [], "count": 0, "days": days, "error": str(e)}
 
 
 @router.get("/alerts/{symbol}")
