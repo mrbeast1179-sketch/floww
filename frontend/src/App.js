@@ -4,6 +4,7 @@ import "@/App.css";
 import { useAuth } from "./context/AuthContext";
 
 import { fmt, fmtAbs, pctClass, tagFor, TRINITY, DEFAULT_TICKERS } from "./lib/helpers";
+import { buildHeatmapQuery } from "./lib/heatmapQuery";
 import GridHeatmap from "./components/GridHeatmap";
 import DomHeatmap from "./components/DomHeatmap";
 import MultiTickerHeatmap from "./components/MultiTickerHeatmap";
@@ -546,8 +547,8 @@ export default function App() {
   const fetchData = useCallback(async () => {
     setLoading(true);
     try {
-      const dteParam = debouncedDte != null ? `&dte=${debouncedDte}` : "";
-      const res = await axios.get(`${API}/heatmap/${ticker}?expiries=${debouncedExpiries}&mode=${debouncedMode}${dteParam}`, { timeout: 30000 });
+      const qs = buildHeatmapQuery({ expiries: debouncedExpiries, mode: debouncedMode, dte: debouncedDte });
+      const res = await axios.get(`${API}/heatmap/${ticker}?${qs}`, { timeout: 30000 });
       setData(res.data); setErr(null);
     } catch (e) {
       let msg = "Failed to load data";
@@ -589,14 +590,18 @@ export default function App() {
     const doFetch = async () => {
       if (cancelled) return;
       try {
-        const r = await axios.get(`${API}/data/${ticker}`);
+        // Same query as the manual /heatmap fetch — a naked poll here
+        // overwrites the user's DTE/Expiries/mode selection with backend
+        // defaults on every tick (Round-8 regression).
+        const qs = buildHeatmapQuery({ expiries: debouncedExpiries, mode: debouncedMode, dte: debouncedDte });
+        const r = await axios.get(`${API}/data/${ticker}?${qs}`);
         if (!cancelled) setData(r.data);
       } catch (e) { if (!cancelled) setErr(e.message); }
     };
     doFetch();
     const id = setInterval(doFetch, refreshMs);
     return () => { cancelled = true; clearInterval(id); };
-  }, [ticker, refreshMs]);
+  }, [ticker, refreshMs, debouncedExpiries, debouncedMode, debouncedDte]);
 
   // Advanced analytics with in-flight guard
   useEffect(() => {
@@ -606,14 +611,14 @@ export default function App() {
       setAdvancedLoading(true);
       setAdvancedError(false);
       try {
-        const r = await axios.get(`${API}/advanced/${ticker}`);
+        const r = await axios.get(`${API}/advanced/${ticker}?expiries=${debouncedExpiries != null ? debouncedExpiries : 4}`);
         if (!cancelled) { setAdvanced(r.data); setAdvancedLoading(false); }
       } catch (e) { if (!cancelled) { setAdvancedError(true); setAdvancedLoading(false); } }
     };
     doFetch();
     const id = setInterval(doFetch, refreshMs * 2);
     return () => { cancelled = true; clearInterval(id); };
-  }, [ticker, refreshMs]);
+  }, [ticker, refreshMs, debouncedExpiries]);
 
   // Ensemble toxicity polling
   useEffect(() => {
