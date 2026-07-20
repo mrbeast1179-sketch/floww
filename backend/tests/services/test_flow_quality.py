@@ -241,6 +241,44 @@ def test_eval_cluster_and_cw_lift_tier():
     assert top[0].get("cw_spread") is not None and top[0]["cw_spread"] > 0
 
 
+def test_eval_stamps_cluster_field_per_ticker():
+    # cluster_biases is per-ticker: any PLTR alert fired in the snapshot
+    # should carry cluster=True once ≥3 same-bias laddering rows qualify.
+    exp = _future_exp(10)
+    rows = norm_rows([
+        _raw(under="PLTR", occ="O:1", strike=138.0, exp=exp, vol=60000, oi=1500, delta=0.35),
+        _raw(under="PLTR", occ="O:2", strike=142.0, exp=_future_exp(15), vol=55000, oi=1300, delta=0.30),
+        _raw(under="PLTR", occ="O:3", strike=145.0, exp=_future_exp(20), vol=50000, oi=1200, delta=0.25),
+    ])
+    for r in rows:
+        r["_score"] = 90   # force the SCORE rule above the 85-floor
+    alerts = eval_institutional(rows)
+    pltr_alerts = [a for a in alerts if a["under"] == "PLTR"]
+    assert pltr_alerts, "PLTR should fire"
+    assert all(a["cluster"] is True for a in pltr_alerts), \
+        "every PLTR alert in a 3-leg laddering snapshot must carry cluster=True"
+
+
+def test_eval_does_not_stamp_cluster_for_two_legs():
+    # Two same-bias qualifying contracts aren't a cluster yet — the
+    # frontend chip must NOT light up under that threshold. Use non-matching
+    # volumes (60k vs 12k) so detect_spreads leaves both rows as BUY/BULLISH
+    # (otherwise the test would pass for the wrong reason — via vertical
+    # spread demotion to STRATEGY, never entering cluster_biases).
+    exp = _future_exp(10)
+    rows = norm_rows([
+        _raw(under="PLTR", occ="O:1", strike=138.0, exp=exp, vol=60000, oi=1500, delta=0.35),
+        _raw(under="PLTR", occ="O:2", strike=142.0, exp=exp, vol=12000, oi=1300, delta=0.30),
+    ])
+    for r in rows:
+        r["_score"] = 90
+    alerts = eval_institutional(rows)
+    pltr_alerts = [a for a in alerts if a["under"] == "PLTR"]
+    assert pltr_alerts, "PLTR should fire on score"
+    assert all(a["cluster"] is False for a in pltr_alerts), \
+        "two legs doesn't meet the ≥3 cluster threshold; cluster must stay False"
+
+
 @pytest.fixture
 def fresh_engine():
     import services.duckdb_engine as dbe
@@ -261,6 +299,119 @@ def test_alert_quality_hit_rate_round_trip(fresh_engine):
     assert row["n"] == 1 and row["n_measured"] == 1
     assert row["hit_rate"] == pytest.approx(1.0)
     assert row["avg_move_pct"] == pytest.approx(3.9, abs=0.1)
+    # v2.3 — wins column is the bit-exact integer count (not float-rounded
+    # AVG-derived). The frontend consumer (summarizeQuality) reads it
+    # directly when non-null and falls back to Math.round(x.hits) only
+    # when the column is absent. Decimal precision at small n is the actual
+    # reason to ship this column instead of reconstructing from hit_rate.
+    assert row["wins"] == 1
+    assert isinstance(row["wins"], int), "backend SUM must produce integer wins, not a float reconstruction"
+
+
+def test_alert_quality_wins_is_bit_exact_with_mixed_outcomes(fresh_engine):
+    # v2.3 close-out: 4 distinct tickers, 1 hits (>=0.5% move in BULLISH
+    # direction) and 3 miss. Each ticker has explicit distinct `under` so
+    # update_moves can stamp the per-ticker move_pct correctly (under is
+    # the join key, NOT occ). wins must equal exactly 1 as a literal
+    # integer -- the SUM column is what the frontend's summarizeQuality
+    # prefers over the float-round fallback.
+    init_flow_alert_tables(fresh_engine)
+    rows = norm_rows([
+        _raw(under="T_HIT",  occ="O:HIT_1234567",    strike=133.0, vol=60000, oi=1500, delta=0.25, spot=133.0),  # hits (133->138.2 = +3.9%)
+        _raw(under="T_MISS", occ="O:MISS_A0123456",  strike=200.0, vol=60000, oi=1500, delta=0.25, spot=200.0),  # miss (200->195 = -2.5%)
+        _raw(under="T_MISS2", occ="O:MISS_B0123456", strike=200.0, vol=60000, oi=1500, delta=0.25, spot=200.0),  # miss
+        _raw(under="T_MISS3", occ="O:MISS_C0123456", strike=200.0, vol=60000, oi=1500, delta=0.25, spot=200.0),  # miss
+    ])
+    persist_alerts(fresh_engine, eval_institutional(rows))
+    # update_moves keys by `under` (the column in flow_alerts_daily), not by occ.
+    update_moves(fresh_engine, {
+        "T_HIT":  138.2,   # +3.9% (BULLISH >= 0.5 --> HIT)
+        "T_MISS": 195.0,   # -2.5% (BULLISH < 0.5 --> miss)
+        "T_MISS2": 195.0,
+        "T_MISS3": 195.0,
+    })
+    q = alert_quality(fresh_engine, days=3)
+    assert q, "quality rows emitted"
+    total_wins = sum(r["wins"] for r in q)
+    total_measured = sum(r["n_measured"] for r in q)
+    assert total_measured == 4, "every alert had a measurable move_pct"
+    assert total_wins == 1, "exactly one of the four alerts scored a hit"
+    assert isinstance(total_wins, int), "wins aggregate must stay integer (no float drift)"
+    # Per-row wins are bit-exact integers (CAST AS BIGINT) -- the SUM column
+    # the frontend prefers over Math.round(x.hits).
+    for r in q:
+        assert isinstance(r["wins"], int), f"row wins must be integer, got {type(r['wins'])}"
+    # hit_rate averaging matches: 1/4 = 0.25.
+    assert pytest.approx(
+        sum(r["hit_rate"] * r["n_measured"] for r in q) / total_measured,
+        abs=1e-6,
+    ) == 0.25
+
+
+def test_init_flow_alert_tables_migrates_legacy_table_to_v2_3(fresh_engine):
+    # v2.3.1 migration canary: pre-create flow_alerts_daily with the v2.2
+    # schema (no `wins` column), then call init_flow_alert_tables() and
+    # verify the column was added in-place. Without this, the prod upgrade
+    # path from v2.2 -> v2.3 silently fails on the first alert_quality()
+    # call after deploy (DuckDB error: "column wins does not exist").
+    fresh_engine.execute_write("""
+        CREATE TABLE flow_alerts_daily (
+            asof_date DATE, asof_ts TIMESTAMP, key TEXT, ckey TEXT,
+            rule TEXT, tier TEXT, side TEXT, bias TEXT,
+            under TEXT, type TEXT, strike DOUBLE, exp TEXT, dte INTEGER,
+            score INTEGER, est_entry DOUBLE, premium DOUBLE, notional DOUBLE,
+            vol_oi DOUBLE, sigma DOUBLE, oi_chg_pct DOUBLE,
+            under_price DOUBLE, last_price DOUBLE, move_pct DOUBLE,
+            cw_spread DOUBLE, cluster BOOLEAN, why TEXT,
+            PRIMARY KEY (asof_date, key)
+        )
+    """)
+    # Pre-v2.3 prod module wouldn't have a `wins` BIGINT column here.
+    init_flow_alert_tables(fresh_engine)
+    # Schema probe -- wins column must exist and be queryable.
+    cols = fresh_engine.query("""
+        SELECT column_name, data_type
+        FROM information_schema.columns
+        WHERE table_name = 'flow_alerts_daily' AND column_name = 'wins'
+    """)
+    assert cols, "wins column was not added by init_flow_alert_tables migration"
+    data_type = cols[0]["data_type"].upper()
+    # Strict equality. DuckDB returns exactly "BIGINT" given the explicit
+    # CAST AS BIGINT in alert_quality's SQL. A regression to INTEGER (or any
+    # smaller family) would silently pass a looser LIKE check and break
+    # JSON number precision on the DuckDB → JS JSON boundary (JS numbers
+    # lose precision above 2^53; cumulative tier wins over months can
+    # approach that range when a tier has thousands of alerts).
+    assert data_type == "BIGINT", \
+        f"wins column must be exactly BIGINT (got {data_type})"
+    # Round-trip alert_quality() MUST NOT throw "column wins does not exist"
+    # on the migrated table -- the canary passes iff the SQL succeeds.
+    rows = norm_rows([_raw(under="T_LEGACY", vol=60000, oi=1500, delta=0.25, spot=100.0)])
+    persist_alerts(fresh_engine, eval_institutional(rows))
+    update_moves(fresh_engine, {"T_LEGACY": 104.0})  # +4% BULLISH hit
+    q = alert_quality(fresh_engine, days=3)
+    assert q and q[0]["wins"] == 1, "wins column queryable + first row integer 1"
+
+
+def test_alert_quality_returns_one_row_per_rule_tier_pair(fresh_engine):
+    # The aggregation groups by (rule, tier). With two rules firing into
+    # different tiers you get exactly as many rows as (rule × tier) seen.
+    # This is the invariant the trend sparkline relies on — every window
+    # in the batched response shares the same key set.
+    init_flow_alert_tables(fresh_engine)
+    rows = [
+        _raw(under="SPY", occ="O:1", strike=100.0, exp=_future_exp(10), vol=25000, oi=2000, delta=0.4, spot=100.0),
+        _raw(under="SPY", occ="O:2", strike=110.0, exp=_future_exp(15), vol=10000, oi=2000, delta=0.4, spot=100.0),
+    ]
+    persist_alerts(fresh_engine, eval_institutional(norm_rows(rows)))
+    update_moves(fresh_engine, {"SPY": 102.0, "_rest_": 102.0})
+    q7 = alert_quality(fresh_engine, days=7)
+    keys7 = {(r["rule"], r["tier"]) for r in q7}
+    # Each call returns the same shape → the trend sparkline helper can
+    # index by tier across windows.
+    q14 = alert_quality(fresh_engine, days=14)
+    keys14 = {(r["rule"], r["tier"]) for r in q14}
+    assert keys7 == keys14, "window length must not change the (rule, tier) keyset"
 
 
 def test_eval_market_wide_volume_day_suppressed_by_median_removal():

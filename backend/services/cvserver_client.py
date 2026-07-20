@@ -94,9 +94,153 @@ DEFAULT_FIELDS = [
     "day_change_percent", "day_previous_close",
 ]
 
-# In-memory cache: symbol -> (timestamp, data)
+# In-memory cache: cache_key -> (timestamp, data)
 _cache: dict[str, tuple[float, dict]] = {}
-CACHE_TTL = 60  # seconds
+CACHE_TTL = 60  # seconds — per-symbol chain
+
+# ---- Upstream request budget ---------------------------------------------
+# Every ConvexValue call in this process funnels through _cached_call, so this
+# is the one place that can hold the whole app inside the plan's hourly quota.
+# Before this existed, screen_from_cvserver and fetch_chain_for_heatmap had NO
+# cache at all (every request hit upstream), fetch_chain_from_cvserver had a TTL
+# but no coalescing (N concurrent cold requests = N upstream calls), and a 429
+# was swallowed by a generic `except Exception` — so the app answered a
+# rate-limit response by immediately trying again.
+#
+# Three protections, in order of importance:
+#   1. TTL cache on EVERY upstream path (was: only the chain path).
+#   2. Per-key coalescing lock — the Heatseeker tab and the Flowseeker scanner
+#      asking for the same symbol at the same moment share ONE upstream call
+#      instead of racing. This is what stops the two tabs double-pulling.
+#   3. 429 cool-down + per-key failure backoff — a rate-limited or failing
+#      upstream is left alone, and stale cache is served instead of nothing.
+SCREEN_TTL = float(os.environ.get("CVSERVER_SCREEN_TTL", "120"))
+HEATMAP_TTL = float(os.environ.get("CVSERVER_HEATMAP_TTL", "120"))
+RL_PAUSE = float(os.environ.get("CVSERVER_RL_PAUSE", "600"))      # 429 → pause 10 min
+FAIL_BACKOFF = float(os.environ.get("CVSERVER_FAIL_BACKOFF", "90"))  # per-key, escalating
+
+_locks: dict[str, asyncio.Lock] = {}
+_fails: dict[str, tuple[float, int]] = {}   # key -> (retry_after_ts, consecutive_failures)
+_rl_until: float = 0.0                      # wall-clock; > now means rate-limited
+_req_log: list[float] = []                  # upstream call timestamps (rolling hour)
+
+
+def _note_req() -> None:
+    """Record one real upstream call for the req/hr readout."""
+    now = time.time()
+    _req_log.append(now)
+    cutoff = now - 3600
+    while _req_log and _req_log[0] < cutoff:
+        _req_log.pop(0)
+
+
+def upstream_requests_last_hour() -> int:
+    """Actual ConvexValue calls made in the trailing hour (cache hits excluded)."""
+    cutoff = time.time() - 3600
+    return sum(1 for t in _req_log if t > cutoff)
+
+
+def budget_status() -> dict:
+    """Observability for the rate-limit dashboard / health endpoint."""
+    now = time.time()
+    return {
+        "upstream_requests_last_hour": upstream_requests_last_hour(),
+        "rate_limited": now < _rl_until,
+        "cooldown_seconds_remaining": max(0, int(_rl_until - now)),
+        "cached_keys": len(_cache),
+        "keys_in_backoff": sum(1 for ts, _ in _fails.values() if now < ts),
+        "cache_ttls": {
+            "chain": CACHE_TTL, "screen": SCREEN_TTL, "heatmap": HEATMAP_TTL,
+        },
+    }
+
+
+def _is_rate_limit(exc: BaseException) -> bool:
+    """True for an upstream 429 / plan-quota response.
+
+    Checks the structured status code first (httpx.HTTPStatusError carries the
+    response); the string match is the fallback for wrapped/RuntimeError cases.
+    """
+    resp = getattr(exc, "response", None)
+    if resp is not None and getattr(resp, "status_code", None) == 429:
+        return True
+    msg = str(exc).lower()
+    return "429" in msg or "limit reached" in msg or "rate limit" in msg
+
+
+async def _cached_call(key: str, ttl: float, fetch) -> dict | None:
+    """Run `fetch` at most once per `ttl` per key, coalescing concurrent callers.
+
+    Returns cached data when fresh, stale data when upstream is unavailable, or
+    None when there is nothing to serve. Never raises — callers keep their
+    existing "None means fall back" contract.
+    """
+    global _rl_until
+
+    def _stale():
+        """Last-known-good data, explicitly flagged.
+
+        Serving stale beats serving nothing while upstream is rate-limited, but
+        on a trading surface it must never masquerade as fresh — callers and the
+        UI can key off `stale` / `age_seconds` to badge it. Shallow-copied so the
+        flag can't leak back into the cached entry.
+        """
+        hit = _cache.get(key)
+        if not hit:
+            return None
+        ts, data = hit
+        if not isinstance(data, dict):
+            return data
+        return {**data, "stale": True, "age_seconds": int(time.time() - ts)}
+
+    now = time.time()
+    hit = _cache.get(key)
+    if hit and now - hit[0] < ttl:
+        return hit[1]
+    if now < _rl_until:
+        return _stale()                       # rate-limited: stale beats hammering
+    fail = _fails.get(key)
+    if fail and now < fail[0]:
+        return _stale()                       # backing off this key
+
+    lock = _locks.setdefault(key, asyncio.Lock())
+    async with lock:
+        # A concurrent caller may have filled the cache while we waited — this
+        # re-check is what turns N simultaneous requests into 1 upstream call.
+        now = time.time()
+        hit = _cache.get(key)
+        if hit and now - hit[0] < ttl:
+            return hit[1]
+        if now < _rl_until:
+            return _stale()
+
+        _note_req()
+        try:
+            data = await fetch()
+        except Exception as e:
+            if _is_rate_limit(e):
+                _rl_until = time.time() + RL_PAUSE
+                logger.error(
+                    "cvserver: RATE LIMITED (429) — pausing upstream calls for %ds. "
+                    "%d upstream requests in the last hour.",
+                    int(RL_PAUSE), upstream_requests_last_hour(),
+                )
+            else:
+                n = _fails.get(key, (0.0, 0))[1] + 1
+                _fails[key] = (time.time() + min(FAIL_BACKOFF * n, 600), n)
+                logger.warning("cvserver: %s failed (%s); backing off", key, e)
+            return _stale()
+
+        if data is None:
+            # Empty-but-successful response: don't cache it, but do back off so a
+            # dead symbol can't be re-requested on every poll.
+            n = _fails.get(key, (0.0, 0))[1] + 1
+            _fails[key] = (time.time() + min(FAIL_BACKOFF * n, 600), n)
+            return _stale()
+
+        _cache[key] = (time.time(), data)
+        _fails.pop(key, None)
+        return data
 
 # Module-level shared HTTP client — avoids creating a new TCP connection per call.
 # Initialised lazily on first use; replaced on timeout/error if needed.
@@ -296,20 +440,13 @@ async def fetch_chain_from_cvserver(
         logger.debug("cvserver: no API key configured, skipping")
         return None
 
-    # Check cache
-    cache_key = f"cvserver:{symbol}:{max_expiries}"
-    if cache_key in _cache:
-        ts, data = _cache[cache_key]
-        if time.time() - ts < CACHE_TTL:
-            logger.debug(f"cvserver cache hit: {symbol}")
-            return data
-
     if fields is None:
         fields = DEFAULT_FIELDS
 
     cv_symbol = _SYMBOL_MAP.get(symbol.upper(), symbol.upper())
+    cache_key = f"cvserver:{symbol}:{max_expiries}"
 
-    try:
+    async def _fetch() -> dict | None:
         raw = await _cvserver_call_async("tools/call", {
             "name": "get_chain",
             "arguments": {
@@ -326,24 +463,23 @@ async def fetch_chain_from_cvserver(
         chain = raw["chain"]
         if max_expiries and len(chain) > max_expiries:
             chain = sorted(chain, key=lambda g: g.get("expiration", ""))[:max_expiries]
-            raw = {**raw, "chain": chain}
+            raw2 = {**raw, "chain": chain}
+        else:
+            raw2 = raw
 
-        parsed = _parse_chain_response(raw, cv_symbol)
+        parsed = _parse_chain_response(raw2, cv_symbol)
 
         if not parsed["contracts"]:
             logger.warning(f"cvserver: no contracts parsed for {symbol}")
             return None
 
-        _cache[cache_key] = (time.time(), parsed)
         logger.info(
             f"cvserver: {symbol} → {len(parsed['contracts'])} contracts, "
             f"{len(parsed['expiries'])} expiries, spot={parsed['spot']}"
         )
         return parsed
 
-    except Exception as e:
-        logger.warning(f"cvserver: fetch failed for {symbol}: {e}")
-        return None
+    return await _cached_call(cache_key, CACHE_TTL, _fetch)
 
 
 async def screen_from_cvserver(
@@ -359,28 +495,31 @@ async def screen_from_cvserver(
     if not CVSERVER_API_KEY:
         return None
 
-    try:
-        args: dict = {
-            "columns": columns,
-            "filters": filters,
-            "limit": limit,
-        }
-        if sort:
-            args["sort"] = sort
+    args: dict = {
+        "columns": columns,
+        "filters": filters,
+        "limit": limit,
+    }
+    if sort:
+        args["sort"] = sort
 
+    # Key on the full query so different screens cache independently, but two
+    # callers running the SAME screen (e.g. the scanner's market-wide query
+    # polled from two open windows) collapse to one upstream call.
+    import hashlib
+    import json as _json
+    digest = hashlib.sha1(
+        _json.dumps(args, sort_keys=True, default=str).encode()
+    ).hexdigest()[:16]
+
+    async def _fetch() -> dict | None:
         raw = await _cvserver_call_async("tools/call", {
             "name": "screen",
             "arguments": args,
         })
+        return raw or None
 
-        if not raw:
-            return None
-
-        return raw
-
-    except Exception as e:
-        logger.warning(f"cvserver screen failed: {e}")
-        return None
+    return await _cached_call(f"cvscreen:{digest}", SCREEN_TTL, _fetch)
 
 
 def clear_cache() -> None:
@@ -417,7 +556,13 @@ async def fetch_chain_for_heatmap(
         {"field": "open_interest", "op": "gt", "value": 0},
     ]
 
-    try:
+    # Bucket spot to the nearest 10 so ordinary tick-by-tick drift doesn't mint a
+    # new cache key every poll — the ±20% strike window absorbs far more than
+    # that, and the TTL bounds how stale the window can get.
+    spot_bucket = int(round(spot / 10.0) * 10) if spot else 0
+    cache_key = f"cvheat:{cv_symbol}:{spot_bucket}:{max_strikes}"
+
+    async def _fetch() -> dict | None:
         raw = await asyncio.wait_for(
             _cvserver_call_async("tools/call", {
                 "name": "screen",
@@ -488,9 +633,6 @@ async def fetch_chain_for_heatmap(
             "data_source": "cvserver",
         }
 
-    except TimeoutError:
-        logger.warning(f"cvserver screen timeout for {symbol}")
-        return None
-    except Exception as e:
-        logger.warning(f"cvserver screen failed for {symbol}: {e}")
-        return None
+    # Timeouts and upstream errors are handled by _cached_call: it logs, applies
+    # the per-key backoff (or the global 429 cool-down) and serves stale data.
+    return await _cached_call(cache_key, HEATMAP_TTL, _fetch)

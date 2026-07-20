@@ -461,3 +461,363 @@
 }
 @keyframes fspSpin { to { transform: rotate(360deg); } }
 .fsp-empty { display: flex; align-items: center; justify-content: center; height: 200px; color: var(--text-tertiary); font-size: 14px; }
+
+/* ── Conviction v2 (InstitutionalAlertsPanel banner) ── */
+:root {
+  --conf-gold: #f5b042;
+  --conf-silver: #b3b8c5;
+  --conf-bronze: #a1734a;
+  --conf-strategy: #6c7382;
+  --conf-prime: #19d27c;
+  --conf-cluster: #a267ff;
+  --conf-cw-bull: #29c5e0;
+  --conf-cw-bear: #ff4d5e;
+  --conf-cw-neutral: #6c7382;
+  --conf-sigma: #a267ff;
+}
+.fsp-conviction {
+  margin: 12px 16px 0 16px;
+  padding: 12px 14px 14px 14px;
+  background: linear-gradient(180deg, rgba(245,176,66,0.04), rgba(245,176,66,0.01));
+  border: 1px solid rgba(245,176,66,0.18);
+  border-radius: 8px;
+  font-family: ui-monospace, Menlo, monospace;
+  font-size: 11.5px;
+  flex-shrink: 0;
+}
+.fsp-conviction-h {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid rgba(245,176,66,0.12);
+}
+.fsp-conviction-title { display: flex; align-items: center; gap: 10px; }
+.fsp-conviction-dot {
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  background: var(--conf-gold);
+  box-shadow: 0 0 10px var(--conf-gold);
+  animation: fspPulse 1.4s ease-in-out infinite;
+}
+.fsp-conviction-name {
+  font-weight: 700;
+  letter-spacing: 0.6px;
+  color: var(--conf-gold);
+  text-transform: uppercase;
+}
+.fsp-conviction-sub { color: var(--text-muted); font-size: 10.5px; }
+.fsp-conviction-meta { display: flex; align-items: center; gap: 8px; }
+.fsp-conviction-count { color: var(--text-secondary); }
+.fsp-conviction-refresh {
+  background: transparent;
+  border: 1px solid var(--border-light);
+  color: var(--text-secondary);
+  padding: 2px 8px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-family: inherit;
+  transition: all .12s;
+}
+.fsp-conviction-refresh:hover { color: var(--conf-gold); border-color: var(--conf-gold); }
+.fsp-conviction-err {
+  margin-top: 10px;
+  padding: 8px 10px;
+  background: rgba(255,77,94,0.08);
+  border: 1px solid rgba(255,77,94,0.25);
+  color: #ff8090;
+  border-radius: 4px;
+  font-size: 11px;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.fsp-conviction-err code { color: #ffb8c0; }
+.fsp-conviction-retry {
+  background: transparent;
+  border: 1px solid rgba(255,77,94,0.35);
+  color: #ff8090;
+  padding: 2px 8px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-family: ui-monospace, Menlo, monospace;
+  font-size: 10.5px;
+  transition: all .12s;
+}
+.fsp-conviction-retry:hover { background: rgba(255,77,94,0.18); color: #ffc0cc; border-color: #ff8090; }
+.fsp-conviction-empty {
+  padding: 16px 4px;
+  text-align: center;
+  color: var(--text-muted);
+}
+.fsp-conviction-empty-headline {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  margin-bottom: 4px;
+}
+.fsp-conviction-empty-body code {
+  background: rgba(0,0,0,0.3);
+  padding: 1px 5px;
+  border-radius: 3px;
+  color: var(--accent-green);
+  font-size: 10.5px;
+}
+.fsp-conviction-table-wrap { overflow-x: auto; margin-top: 10px; }
+.fsp-conviction-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: 11px;
+  background: rgba(0,0,0,0.16);
+}
+.fsp-conviction-table thead th {
+  position: sticky;
+  top: 0;
+  background: rgba(17,24,39,0.92);
+  color: var(--text-muted);
+  font-size: 9.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  padding: 6px 8px;
+  text-align: left;
+  border-bottom: 1px solid rgba(245,176,66,0.16);
+  white-space: nowrap;
+}
+.fsp-conviction-table thead th.num { text-align: right; }
+.fsp-conviction-table tbody td {
+  padding: 6px 8px;
+  border-bottom: 1px solid rgba(255,255,255,0.04);
+  color: var(--text-primary);
+  white-space: nowrap;
+  vertical-align: middle;
+}
+.fsp-conviction-table tbody td.num { text-align: right; }
+.fsp-conviction-table tbody tr:hover { background: rgba(245,176,66,0.04); }
+.fsp-conviction-tk { font-weight: 600; letter-spacing: 0.3px; }
+.fsp-conviction-bias { font-weight: 600; font-size: 10.5px; }
+.fsp-conviction-bias-bull { color: var(--accent-green); }
+.fsp-conviction-bias-bear { color: var(--accent-red); }
+.fsp-conviction-bias-flow { color: var(--text-muted); }
+.fsp-conviction-bias-strategy { color: var(--conf-strategy); }
+.fsp-conviction-rule { color: var(--accent-cyan); }
+.fsp-conviction-strike { font-weight: 600; }
+.fsp-conviction-ticker-only { color: var(--text-muted); font-style: italic; font-weight: normal; }
+.fsp-conviction-chips {
+  display: inline-flex;
+  gap: 4px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+.fsp-conviction-move-bull { color: var(--accent-green); font-weight: 600; }
+.fsp-conviction-move-bear { color: var(--accent-red); font-weight: 600; }
+.fsp-conviction-move-neutral { color: var(--text-muted); }
+.fsp-conviction-move-na { color: var(--text-muted); opacity: 0.5; }
+.fsp-conviction-why {
+  color: var(--text-secondary);
+  font-size: 10px;
+  max-width: 280px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ── Tier pills (GOLD / SILVER / BRONZE / STRATEGY) ── */
+.fsp-tier {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 7px;
+  border-radius: 3px;
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+  font-family: ui-monospace, Menlo, monospace;
+  border: 1px solid;
+  white-space: nowrap;
+}
+.fsp-tier-gold {
+  color: var(--conf-gold);
+  background: rgba(245,176,66,0.10);
+  border-color: rgba(245,176,66,0.45);
+  box-shadow: 0 0 8px rgba(245,176,66,0.15);
+}
+.fsp-tier-silver {
+  color: var(--conf-silver);
+  background: rgba(179,184,197,0.10);
+  border-color: rgba(179,184,197,0.35);
+}
+.fsp-tier-bronze {
+  color: var(--conf-bronze);
+  background: rgba(161,115,74,0.10);
+  border-color: rgba(161,115,74,0.30);
+}
+.fsp-tier-strategy {
+  color: var(--conf-strategy);
+  background: rgba(108,115,130,0.10);
+  border-color: rgba(108,115,130,0.35);
+  font-style: italic;
+}
+
+/* ── Conviction chips (PRIME / PAIRED LEGS / CW / SIGMA / CLUSTER) ── */
+.fsp-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 6px;
+  border-radius: 3px;
+  font-size: 9.5px;
+  font-weight: 600;
+  letter-spacing: 0.3px;
+  border: 1px solid;
+  white-space: nowrap;
+  font-family: ui-monospace, Menlo, monospace;
+}
+.fsp-chip-prime {
+  color: var(--conf-prime);
+  background: rgba(25,210,124,0.08);
+  border-color: rgba(25,210,124,0.35);
+}
+.fsp-chip-strategy {
+  color: var(--conf-strategy);
+  background: rgba(108,115,130,0.10);
+  border-color: rgba(108,115,130,0.35);
+  font-style: italic;
+}
+.fsp-chip-cluster {
+  color: var(--conf-cluster);
+  background: rgba(162,103,255,0.08);
+  border-color: rgba(162,103,255,0.35);
+}
+.fsp-chip-cw-bull {
+  color: var(--conf-cw-bull);
+  background: rgba(41,197,224,0.08);
+  border-color: rgba(41,197,224,0.35);
+}
+.fsp-chip-cw-bear {
+  color: var(--conf-cw-bear);
+  background: rgba(255,77,94,0.08);
+  border-color: rgba(255,77,94,0.35);
+}
+.fsp-chip-cw-neutral {
+  color: var(--conf-cw-neutral);
+  background: transparent;
+  border-color: rgba(108,115,130,0.20);
+  opacity: 0.7;
+}
+.fsp-chip-sigma {
+  color: var(--conf-sigma);
+  background: rgba(162,103,255,0.10);
+  border-color: rgba(162,103,255,0.40);
+  font-weight: 700;
+}
+
+/* ── Quality strip ── */
+.fsp-conviction-quality {
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px solid rgba(245,176,66,0.10);
+}
+.fsp-conviction-qtitle {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.fsp-conviction-qtitle > span:first-child {
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.6px;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+}
+.fsp-conviction-qsub { color: var(--text-muted); font-size: 9.5px; }
+.fsp-conviction-qstrip {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+}
+.fsp-conviction-qcell {
+  background: rgba(0,0,0,0.20);
+  border: 1px solid;
+  border-radius: 6px;
+  padding: 10px 12px;
+  position: relative;
+}
+.fsp-conviction-qcell-gold   { border-color: rgba(245,176,66,0.30); }
+.fsp-conviction-qcell-silver { border-color: rgba(179,184,197,0.25); }
+.fsp-conviction-qcell-bronze { border-color: rgba(161,115,74,0.22); }
+.fsp-conviction-qcell-tier {
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+  margin-bottom: 4px;
+}
+.fsp-conviction-qcell-gold   .fsp-conviction-qcell-tier { color: var(--conf-gold); }
+.fsp-conviction-qcell-silver .fsp-conviction-qcell-tier { color: var(--conf-silver); }
+.fsp-conviction-qcell-bronze .fsp-conviction-qcell-tier { color: var(--conf-bronze); }
+.fsp-conviction-qcell-hr {
+  font-size: 22px;
+  font-weight: 700;
+  font-family: ui-monospace, Menlo, monospace;
+  color: var(--text-primary);
+  line-height: 1.1;
+}
+.fsp-conviction-qcell-meta {
+  margin-top: 4px;
+  font-size: 9.5px;
+  color: var(--text-muted);
+}
+/* v2.4 — top-producing rule chip per tier. Muted line below the
+   hit_rate that says "via SCORE 80% (4)". The rule name is bold so the
+   eye snaps to it; the sample size in parens keeps the desk honest
+   about how much data the rule's contribution rests on. */
+.fsp-conviction-bestrule {
+  font-size: 11px;
+  color: #6c7382;
+  font-weight: 400;
+  margin-top: 2px;
+  letter-spacing: 0.01em;
+  font-variant-numeric: tabular-nums;
+}
+.fsp-conviction-bestrule strong {
+  color: #19d27c;
+  font-weight: 600;
+}
+.fsp-conviction-bestrule-meta {
+  margin-left: 4px;
+  color: #4a5160;
+}
+
+/* v2.3 — Wilson 90% CI bracket next to the point estimate. Dimmed so the
+   headline number stays prominent; mono digits so the bounds don't jiggle
+   when one tier goes from 99% to 100% between refreshes. */
+.fsp-conviction-ci {
+  color: #6c7382;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-weight: 400;
+  font-variant-numeric: tabular-nums;
+  margin-left: 4px;
+  white-space: nowrap;
+}
+
+.fsp-conviction-qtrend {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 6px;
+  padding: 2px 0 4px 0;
+  border-top: 1px solid rgba(255,255,255,0.04);
+}
+.fsp-conviction-qtrend svg {
+  display: block;
+}
+.fsp-conviction-qtrend-label {
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  font-family: ui-monospace, Menlo, monospace;
+}
+

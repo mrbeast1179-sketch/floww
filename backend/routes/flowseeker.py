@@ -930,18 +930,49 @@ async def scan_history(days: int = Query(14, ge=2, le=60)):
 
 
 @router.get("/alerts/quality")
-async def institutional_alert_quality(days: int = Query(30, ge=1, le=180)):
+async def institutional_alert_quality(
+    days: str = Query(
+        "7,14,30",
+        description=(
+            "Comma-separated window sizes in days; e.g. '7,14,30'. A single "
+            "value keeps the legacy response shape; multiple values return "
+            "a per-window map for trend sparklines."
+        ),
+    ),
+):
     """Per rule × tier precision from realized moves (Conviction v2's
-    calibration loop). Declared before the /alerts/{symbol} catch-all."""
+    calibration loop). Declared before the /alerts/{symbol} catch-all.
+
+    One DuckDB query per window — the underlying /scan baseline table is
+    much smaller than the FULL unfiltered feed, so a single batched call
+    that aggregates 3 windows still costs one DB connection and is cheap
+    vs. 3 separate frontend fetches (each would carry its own poll slot
+    and cache key)."""
     from services import flow_alerts as fa
     from services.duckdb_engine import db as duckdb_engine
 
+    raw = (days or "").strip()
+    if not raw:
+        return {"quality_windows": {}, "days": [], "error": "empty days"}
+    try:
+        window_list = sorted({int(p.strip()) for p in raw.split(",") if p.strip()})
+    except ValueError:
+        return {"quality_windows": {}, "days": [], "error": f"days must be ints, got {raw!r}"}
+    window_list = [d for d in window_list if 1 <= d <= 180]
+    if not window_list:
+        return {"quality_windows": {}, "days": [], "error": "no valid window specified"}
     try:
         fa.init_flow_alert_tables(duckdb_engine)
-        return {"quality": fa.alert_quality(duckdb_engine, days=days), "days": days}
+        # Back-compat: a single window keeps the original response shape so
+        # callers on the legacy contract don't break.
+        if len(window_list) == 1:
+            return {"quality": fa.alert_quality(duckdb_engine, days=window_list[0]),
+                    "days": window_list[0]}
+        out = {w: fa.alert_quality(duckdb_engine, days=w) for w in window_list}
+        return {"quality_windows": out, "days": window_list}
     except Exception as e:
         logger.warning(f"alert quality failed: {e}")
-        return {"quality": [], "days": days, "error": str(e)}
+        return {"quality_windows": {}, "days": window_list, "error": str(e)}
 
 
 @router.get("/alerts/feed")

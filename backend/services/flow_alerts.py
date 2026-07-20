@@ -235,6 +235,12 @@ def _mk_alert(r: dict, rule: str, extra: dict, factors: dict, asof: str) -> dict
         "notional": r.get("notional"), "vol_oi": r.get("vol_oi"),
         "sigma": extra.get("sigma"), "oi_chg_pct": extra.get("oi_chg_pct"),
         "under_price": r.get("spot"),
+        # Conviction v2 v2.1: surface the cluster factor that the engine
+        # already computed in _common_factors(factors). A row whose ticker
+        # laddered with ≥3 same-bias qualifying contracts in the snapshot
+        # gets cluster=True; the frontend can now render an honest CLUSTER
+        # chip without inferring a proxy from tier+SIGMA.
+        "cluster": bool(factors.get("cluster", False)),
         "why": extra.get("why", ""),
         "ttl_s": _TTL_S.get(rule, 2 * 3600),
         "asof": asof,
@@ -408,7 +414,7 @@ def init_flow_alert_tables(engine) -> None:
             score INTEGER, est_entry DOUBLE, premium DOUBLE, notional DOUBLE,
             vol_oi DOUBLE, sigma DOUBLE, oi_chg_pct DOUBLE,
             under_price DOUBLE, last_price DOUBLE, move_pct DOUBLE,
-            cw_spread DOUBLE, why TEXT,
+            cw_spread DOUBLE, cluster BOOLEAN, why TEXT,
             PRIMARY KEY (asof_date, key)
         )
     """)
@@ -416,6 +422,21 @@ def init_flow_alert_tables(engine) -> None:
         # Migration for pre-Conviction-v2 tables (column added 2026-07-20).
         engine.execute_write(
             "ALTER TABLE flow_alerts_daily ADD COLUMN IF NOT EXISTS cw_spread DOUBLE")
+    except Exception:
+        pass
+    try:
+        # Migration for v2.1 — cluster factor surfaced to the feed (2026-07-20).
+        engine.execute_write(
+            "ALTER TABLE flow_alerts_daily ADD COLUMN IF NOT EXISTS cluster BOOLEAN")
+    except Exception:
+        pass
+    try:
+        # Migration for v2.3 — wins column (BIGINT). The alert_quality() SQL
+        # CAST(SUM(...) AS BIGINT) requires this column. Pre-v2.3 prod tables
+        # upgrade in place without manual SQL. Mirrors cw_spread / cluster
+        # migration pattern above.
+        engine.execute_write(
+            "ALTER TABLE flow_alerts_daily ADD COLUMN IF NOT EXISTS wins BIGINT")
     except Exception:
         pass
     engine.execute_write("""
@@ -437,14 +458,15 @@ def persist_alerts(engine, alerts, snapshot_date: str | None = None) -> int:
         a.get("strike"), a.get("exp"), a.get("dte"), a.get("score"),
         a.get("est_entry"), a.get("premium"), a.get("notional"),
         a.get("vol_oi"), a.get("sigma"), a.get("oi_chg_pct"),
-        a.get("under_price"), a.get("cw_spread"), a.get("why"),
+        a.get("under_price"), a.get("cw_spread"), bool(a.get("cluster", False)),
+        a.get("why"),
     ] for a in alerts]
     engine.execute_write("""
         INSERT INTO flow_alerts_daily (
             asof_date, asof_ts, key, ckey, rule, tier, side, bias, under, type,
             strike, exp, dte, score, est_entry, premium, notional, vol_oi,
-            sigma, oi_chg_pct, under_price, cw_spread, why
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            sigma, oi_chg_pct, under_price, cw_spread, cluster, why
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT (asof_date, key) DO UPDATE SET
             asof_ts = excluded.asof_ts, tier = excluded.tier, side = excluded.side,
             bias = excluded.bias, score = excluded.score,
@@ -452,7 +474,7 @@ def persist_alerts(engine, alerts, snapshot_date: str | None = None) -> int:
             notional = excluded.notional, vol_oi = excluded.vol_oi,
             sigma = excluded.sigma, oi_chg_pct = excluded.oi_chg_pct,
             under_price = excluded.under_price, cw_spread = excluded.cw_spread,
-            why = excluded.why
+            cluster = excluded.cluster, why = excluded.why
     """, rows)
     return len(rows)
 
@@ -463,12 +485,22 @@ def alert_quality(engine, days: int = 30) -> list[dict]:
     hit = the underlying moved ≥0.5% in the alert's claimed direction since
     the alert fired (move_pct is stamped by update_moves on every scan).
     Directionless rows (bias NULL — STRATEGY legs, SIGMA) are excluded.
+
+    v2.3: also emits `wins` (integer count of hits) alongside hit_rate so the
+    frontend can pool many (rule, tier) rows into a tier-level binomial CI
+    (Wilson 90%) using integer-accurate totals. The float-rounding fallback
+    n_measured*hit_rate is acceptable when `wins` is absent (older DBs),
+    but the integer SUM is the bit-exact source of truth.
     """
     since = (datetime.now(_ET).date() - timedelta(days=max(1, days))).isoformat()
     try:
         return engine.query("""
             SELECT rule, tier, count(*) AS n,
                    count(move_pct) AS n_measured,
+                   CAST(SUM(CASE WHEN move_pct IS NULL THEN 0
+                                 WHEN bias = 'BULLISH' AND move_pct >= 0.5 THEN 1
+                                 WHEN bias = 'BEARISH' AND move_pct <= -0.5 THEN 1
+                                 ELSE 0 END) AS BIGINT) AS wins,
                    avg(CASE WHEN move_pct IS NULL THEN NULL
                             WHEN bias = 'BULLISH' AND move_pct >= 0.5 THEN 1.0
                             WHEN bias = 'BEARISH' AND move_pct <= -0.5 THEN 1.0

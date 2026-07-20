@@ -8,6 +8,7 @@
 import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import { List } from 'react-window';
 import { syntheticDataGenerator as generateSyntheticFlowEvents, formatMoney as fmtMoney, formatTime as fmtTime, formatExpiry as fmtDate, dteOf, sentimentLabel } from './FlowEngine';
+import InstitutionalAlertsPanel from './InstitutionalAlertsPanel';
 import './FlowseekerPro.css';
 
 // ── Filter Bar ───────────────────────────────────────────────────────
@@ -212,6 +213,13 @@ export default function FlowseekerPro({ active = true }) {
         <span className="fsp-brand">◢ FlowSeeker <b>Pro</b></span>
         <span className="fsp-live"><i />LIVE · SYNTHETIC DATA</span>
       </div>
+
+      {/* Conviction v2 institutional feed — the server-side engine's
+          persisted alerts (spread demoted, CW-confirmed, BH-FDR-screened,
+          prime-bracketed). Subscribes to /alerts/feed + /alerts/quality and
+          surfaces every tier, chip, and the calibration strip. */}
+      <InstitutionalAlertsPanel active={active} days={7} limit={24} />
+
       <FilterBar filters={filters} onChange={setFilters} onReset={handleReset} />
       <StatsBar events={filtered} />
       <div className="fsp-table-wrap">
