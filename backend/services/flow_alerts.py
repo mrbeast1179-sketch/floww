@@ -241,9 +241,24 @@ def _mk_alert(r: dict, rule: str, extra: dict, factors: dict, asof: str) -> dict
     }
 
 
-def _common_factors(r: dict, regimes: dict, sigma_tickers: set) -> dict:
+def _finalize(a: dict, r: dict, cw_map: dict | None) -> dict:
+    """Conviction v2 post-pass: attach the ticker's CW spread, and demote
+    paired strategy legs — a vertical's leg is never a directional whale."""
+    cw = (cw_map or {}).get(a["under"])
+    a["cw_spread"] = round(cw, 4) if cw is not None else None
+    if r.get("spread_leg"):
+        a["side"], a["bias"], a["tier"] = "STRATEGY", None, "BRONZE"
+        a["why"] = (a.get("why") or "") + " [paired legs: likely spread — direction unclaimed]"
+    return a
+
+
+def _common_factors(r: dict, regimes: dict, sigma_tickers: set,
+                    cw_map: dict | None = None, clusters: dict | None = None) -> dict:
+    from services.flow_quality import cw_confirms, is_prime
+
     reg = (regimes or {}).get(r["under"])
     dte, vol_oi = r.get("dte"), r.get("vol_oi") or 0
+    _, bias = infer_side_bias(r)
     return {
         "score90": (r.get("_score") or 0) >= 90,
         "whale": (r.get("premium") or 0) >= 10e6,
@@ -251,6 +266,10 @@ def _common_factors(r: dict, regimes: dict, sigma_tickers: set) -> dict:
         "informed_band": dte is not None and 7 <= dte <= 90 and vol_oi >= 3 and (r.get("premium") or 0) >= 25e3,
         "regime_confluent": (reg == "negative" and dte is not None and dte <= 7)
                             or (reg == "positive" and vol_oi >= 2),
+        # Conviction v2 factors (spec: 2026-07-20-flow-quality-conviction-v2)
+        "prime": is_prime(r),
+        "cluster": bool(clusters) and clusters.get(r["under"]) == bias and bias is not None,
+        "cw_confirm": cw_confirms(bias, (cw_map or {}).get(r["under"])),
     }
 
 
@@ -261,9 +280,14 @@ def eval_institutional(rows, baselines=None, prev_oi=None, regimes=None, opts=No
     0DTE), plus per-ticker SIGMA alerts. Pure logic — dedup/persistence are
     the I/O layer's job so this stays unit-testable.
     """
+    from services.flow_quality import (
+        bh_fdr, cluster_biases, cw_iv_spread, detect_spreads, sigma_pvalue,
+    )
+
     o = {
         "min_score": 85, "whale_premium": 10e6, "zero_dte_score": 70,
-        "oiconf_pct": 0.30, "oiconf_notional": 1e6, "sigma_min": 4.0,
+        "oiconf_pct": 0.30, "oiconf_notional": 1e6, "sigma_min": 3.0,
+        "fdr_q": 0.10,
         **(opts or {}),
     }
     baselines = baselines or {}
@@ -275,19 +299,38 @@ def eval_institutional(rows, baselines=None, prev_oi=None, regimes=None, opts=No
     for r in rows:
         r["_score"] = scan_score(r, regimes.get(r["under"]))
 
-    # Per-ticker σ vs multi-day baseline — computed first so it can feed the
-    # tier factors of the per-contract alerts on the same ticker.
+    # Conviction v2 context: spread-leg flags, Cremers-Weinbaum call-put IV
+    # spread, and same-bias laddering — all cross-row reads of THIS snapshot.
+    detect_spreads(rows)
+    cw_map = cw_iv_spread(rows)
+    clusters = cluster_biases(rows)
+
+    # Per-ticker σ vs multi-day baseline. Two-stage quality gate:
+    #   1. market-mode removal — a broad volume day lifts every ticker's σ
+    #      together; subtract the cross-sectional median (when the cross-
+    #      section is wide enough to define one) so only IDIOSYNCRATIC
+    #      spikes remain;
+    #   2. Benjamini-Hochberg FDR at q — testing hundreds of tickers a day
+    #      at a raw cutoff is a multiple-testing machine.
     by_ticker: dict[str, float] = {}
     for r in rows:
         by_ticker[r["under"]] = by_ticker.get(r["under"], 0.0) + (r.get("vol") or 0.0)
-    sigma_hits: dict[str, float] = {}
+    raw_sigma: dict[str, float] = {}
     for under, tot in by_ticker.items():
         b = baselines.get(under)
         if not b or not b.get("std") or (b.get("days") or 0) < 2:
             continue
-        s = (tot - b["avg"]) / b["std"]
-        if s >= o["sigma_min"]:
-            sigma_hits[under] = round(s, 1)
+        raw_sigma[under] = (tot - b["avg"]) / b["std"]
+    market_mode = 0.0
+    if len(raw_sigma) >= 5:
+        ordered = sorted(raw_sigma.values())
+        mid = len(ordered) // 2
+        med = ordered[mid] if len(ordered) % 2 else (ordered[mid - 1] + ordered[mid]) / 2
+        market_mode = max(0.0, med)
+    adj_sigma = {t: s - market_mode for t, s in raw_sigma.items()}
+    pvals = {t: sigma_pvalue(s) for t, s in adj_sigma.items() if s >= o["sigma_min"]}
+    survivors = bh_fdr(pvals, q=o["fdr_q"])
+    sigma_hits = {t: round(raw_sigma[t], 1) for t in survivors}
     sigma_tickers = set(sigma_hits)
 
     out: list[dict] = []
@@ -308,18 +351,18 @@ def eval_institutional(rows, baselines=None, prev_oi=None, regimes=None, opts=No
     winners = set()
     for pct, add_notl, r in cand[:5]:
         winners.add(r["ckey"])
-        f = _common_factors(r, regimes, sigma_tickers)
+        f = _common_factors(r, regimes, sigma_tickers, cw_map, clusters)
         f["oiconf"] = True
-        out.append(_mk_alert(r, "OICONF", {
+        out.append(_finalize(_mk_alert(r, "OICONF", {
             "oi_chg_pct": round(pct, 4),
             "why": f"OI +{round(pct * 100)}% overnight (${add_notl / 1e6:.1f}M added notional) — prior-day flow HELD as new positioning",
-        }, f, asof))
+        }, f, asof), r, cw_map))
 
     # Pass 2 — intraday per-contract rules, strongest first, one per contract.
     for r in rows:
         if r["ckey"] in winners:
             continue
-        f = _common_factors(r, regimes, sigma_tickers)
+        f = _common_factors(r, regimes, sigma_tickers, cw_map, clusters)
         rule, why = None, None
         score = r.get("_score") or 0
         if score >= o["min_score"]:
@@ -333,7 +376,7 @@ def eval_institutional(rows, baselines=None, prev_oi=None, regimes=None, opts=No
             why = f"{r['dte']} DTE with score {score} — urgent short-fuse positioning"
         if not rule:
             continue
-        out.append(_mk_alert(r, rule, {"why": why}, f, asof))
+        out.append(_finalize(_mk_alert(r, rule, {"why": why}, f, asof), r, cw_map))
 
     # Pass 3 — per-ticker SIGMA alerts (aggregate anomaly, no single strike).
     for under, s in sigma_hits.items():
@@ -347,6 +390,8 @@ def eval_institutional(rows, baselines=None, prev_oi=None, regimes=None, opts=No
         a["key"] = f"sigma|{under}"
         a["ckey"] = under
         a["type"], a["strike"], a["exp"] = "", None, ""
+        cw = cw_map.get(under)
+        a["cw_spread"] = round(cw, 4) if cw is not None else None
         out.append(a)
 
     return out
@@ -363,10 +408,16 @@ def init_flow_alert_tables(engine) -> None:
             score INTEGER, est_entry DOUBLE, premium DOUBLE, notional DOUBLE,
             vol_oi DOUBLE, sigma DOUBLE, oi_chg_pct DOUBLE,
             under_price DOUBLE, last_price DOUBLE, move_pct DOUBLE,
-            why TEXT,
+            cw_spread DOUBLE, why TEXT,
             PRIMARY KEY (asof_date, key)
         )
     """)
+    try:
+        # Migration for pre-Conviction-v2 tables (column added 2026-07-20).
+        engine.execute_write(
+            "ALTER TABLE flow_alerts_daily ADD COLUMN IF NOT EXISTS cw_spread DOUBLE")
+    except Exception:
+        pass
     engine.execute_write("""
         CREATE TABLE IF NOT EXISTS flow_alert_dedup (
             key TEXT PRIMARY KEY, last_fired_ts DOUBLE, ttl_s DOUBLE
@@ -386,23 +437,51 @@ def persist_alerts(engine, alerts, snapshot_date: str | None = None) -> int:
         a.get("strike"), a.get("exp"), a.get("dte"), a.get("score"),
         a.get("est_entry"), a.get("premium"), a.get("notional"),
         a.get("vol_oi"), a.get("sigma"), a.get("oi_chg_pct"),
-        a.get("under_price"), a.get("why"),
+        a.get("under_price"), a.get("cw_spread"), a.get("why"),
     ] for a in alerts]
     engine.execute_write("""
         INSERT INTO flow_alerts_daily (
             asof_date, asof_ts, key, ckey, rule, tier, side, bias, under, type,
             strike, exp, dte, score, est_entry, premium, notional, vol_oi,
-            sigma, oi_chg_pct, under_price, why
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            sigma, oi_chg_pct, under_price, cw_spread, why
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT (asof_date, key) DO UPDATE SET
             asof_ts = excluded.asof_ts, tier = excluded.tier, side = excluded.side,
             bias = excluded.bias, score = excluded.score,
             est_entry = excluded.est_entry, premium = excluded.premium,
             notional = excluded.notional, vol_oi = excluded.vol_oi,
             sigma = excluded.sigma, oi_chg_pct = excluded.oi_chg_pct,
-            under_price = excluded.under_price, why = excluded.why
+            under_price = excluded.under_price, cw_spread = excluded.cw_spread,
+            why = excluded.why
     """, rows)
     return len(rows)
+
+
+def alert_quality(engine, days: int = 30) -> list[dict]:
+    """Per rule × tier precision from realized moves — the calibration loop.
+
+    hit = the underlying moved ≥0.5% in the alert's claimed direction since
+    the alert fired (move_pct is stamped by update_moves on every scan).
+    Directionless rows (bias NULL — STRATEGY legs, SIGMA) are excluded.
+    """
+    since = (datetime.now(_ET).date() - timedelta(days=max(1, days))).isoformat()
+    try:
+        return engine.query("""
+            SELECT rule, tier, count(*) AS n,
+                   count(move_pct) AS n_measured,
+                   avg(CASE WHEN move_pct IS NULL THEN NULL
+                            WHEN bias = 'BULLISH' AND move_pct >= 0.5 THEN 1.0
+                            WHEN bias = 'BEARISH' AND move_pct <= -0.5 THEN 1.0
+                            ELSE 0.0 END) AS hit_rate,
+                   avg(move_pct) AS avg_move_pct
+            FROM flow_alerts_daily
+            WHERE asof_date >= ? AND bias IS NOT NULL
+            GROUP BY rule, tier
+            ORDER BY rule, tier
+        """, [since])
+    except Exception as e:
+        logger.warning(f"flow_alerts.alert_quality: {e}")
+        return []
 
 
 def dedup_filter(engine, alerts, now: float | None = None) -> list[dict]:

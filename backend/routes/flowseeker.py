@@ -929,6 +929,21 @@ async def scan_history(days: int = Query(14, ge=2, le=60)):
     return payload
 
 
+@router.get("/alerts/quality")
+async def institutional_alert_quality(days: int = Query(30, ge=1, le=180)):
+    """Per rule × tier precision from realized moves (Conviction v2's
+    calibration loop). Declared before the /alerts/{symbol} catch-all."""
+    from services import flow_alerts as fa
+    from services.duckdb_engine import db as duckdb_engine
+
+    try:
+        fa.init_flow_alert_tables(duckdb_engine)
+        return {"quality": fa.alert_quality(duckdb_engine, days=days), "days": days}
+    except Exception as e:
+        logger.warning(f"alert quality failed: {e}")
+        return {"quality": [], "days": days, "error": str(e)}
+
+
 @router.get("/alerts/feed")
 async def institutional_alert_feed(
     days: int = Query(7, ge=1, le=60),
