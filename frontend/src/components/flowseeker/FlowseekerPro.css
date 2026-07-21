@@ -712,6 +712,34 @@
   font-weight: 700;
 }
 
+/* v3.x tier-lock sigil — "retuner is holding this tier at the locked
+   floor." Amber/yellow reads as a steady-on indicator (anchored,
+   unwavering) without colliding with --conf-gold (the GOLD tier pill)
+   or any other existing chip. Distinct from the purple CLUSTER +
+   purple SIGMA family, the green PRIME, the cyan/red CW side; lock
+   sits orthogonal to the factor chips so the desk reads it as STATE,
+   not as ANOTHER factor. The lock icon is sized slightly down so
+   the glyph is decorative and the rate reads as the primary datum.
+   Tabular-nums on the rate prevents layout jank when the chip
+   reflows during a live engagement transition (rate goes from "—"
+   to "75%" mid-cell in the worst case). */
+.fsp-chip-lock {
+  color: #eab308;
+  background: rgba(234, 179, 8, 0.10);
+  border-color: rgba(234, 179, 8, 0.40);
+  font-weight: 700;
+  gap: 3px;
+}
+.fsp-chip-lock-icon {
+  font-size: 9px;
+  opacity: 0.9;
+  line-height: 1;
+}
+.fsp-chip-lock-rate {
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0;
+}
+
 /* ── Quality strip ── */
 .fsp-conviction-quality {
   margin-top: 12px;
