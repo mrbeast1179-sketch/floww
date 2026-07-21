@@ -1,5 +1,46 @@
 # floww — whole-project audit for freebuff
 
+> **VERIFICATION UPDATE (2026-07-21, later)** — a 7-agent adversarial pass +
+> live checks corrected three items in the original draft below. Read this
+> block first; the body is kept for history with inline corrections.
+>
+> **✅ FIXED & pushed (`37282c4`):**
+> - **P0 direction bug — real location is `ml_briefing.py:154`, and it's LIVE**
+>   (feeds the morning briefing), not the orphaned `institutional_detector`.
+>   `_combine_signals` used a binary `(2*pred-1)*conf` on a **3-class** label
+>   (DOWN=0/HOLD=1/UP=2): HOLD scored bullish, UP triple-weighted (a bearish
+>   regime + UP produced STRONG_BULLISH). Now decodes the class explicitly;
+>   6-case test pins it; corrected the stale test that baked in the bug. Also
+>   removed the orphaned `institutional_detector` delta clause as a latent
+>   twin.
+> - **requirements — the earlier "`yfinance==1.3.0` doesn't exist" claim was
+>   WRONG.** yfinance shipped a 1.x line (PyPI has 1.0→1.5.1; installed 1.4.0),
+>   so `pip install` succeeds. The real gap was **6 imported-but-missing** deps
+>   (`aiohttp`, `beautifulsoup4`, `pyyaml`, `databento`, `tenacity`, `Pillow`)
+>   → runtime `ModuleNotFoundError`. Added them.
+>
+> **Corrected (not yet fixed — for freebuff/Nav):**
+> - **CI (was P1 "install fails"): REFUTED.** Install is fine. The real CI
+>   weakness is escape-hatches that swallow failures: `mypy || true`
+>   (`ci.yml:69`), frontend lint `|| true` (`:118`), frontend tests
+>   `continue-on-error: true` (`:129`). Backend pytest + ruff ARE hard gates.
+>   Fix: add a post-install `python -c "import server"` smoke check and tighten
+>   the `|| true` gates.
+> - **34 MB dump** = `data/github-repos/cloned/kaushikjadhav01_.../wordpress.sql`
+>   (a 2021 phpMyAdmin dump inside a vendored repo), not a floww DB. No videos
+>   are tracked (2 large GIFs). The ~75% figure holds for *committed* content.
+> - **"46 components, 41 unused"** = `frontend/src/components/ui/` (shadcn
+>   primitives); `@emergentbase/visual-edits` is `package.json:56`.
+> - **Only non-Nav committer is `emergent-agent-e1`** (9 commits — the
+>   emergent.sh AI agent, same origin as that tarball dep). Collaborator
+>   **odaialdajani** (admin) has made **zero** commits/PRs/issues/comments.
+>
+> Everything below is the original draft (P0/P3 numbering pre-verification).
+
+---
+
+
+
 _2026-07-21 · Fable. Every finding below was verified by reading the actual
 code / running the actual command cited — not agent speculation. File:line
 references are against the working tree at audit time. Ranked worst-first;
