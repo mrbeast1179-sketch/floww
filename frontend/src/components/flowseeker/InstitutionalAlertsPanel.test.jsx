@@ -100,6 +100,7 @@ describe("InstitutionalAlertsPanel — tier-lock sigil (v3.x)", () => {
     expect(sigil).toBeInTheDocument();
     expect(sigil).toHaveTextContent("🔒");
     expect(sigil).toHaveTextContent("75%");
+    expect(sigil).toHaveTextContent("LOCK");
     expect(sigil).toHaveClass("fsp-chip");
     expect(sigil).toHaveClass("fsp-chip-lock");
     expect(sigil.title).toMatch(/75%/);
@@ -172,6 +173,7 @@ describe("InstitutionalAlertsPanel — tier-lock sigil (v3.x)", () => {
     // Exactly ONE chip on the strip — the SILVER one. Both the GOLD and
     // BRONZE qcells must NOT contribute a chip.
     expect(sigils).toHaveLength(1);
+    expect(sigils[0]).toHaveTextContent("LOCK");
     expect(sigils[0]).toHaveTextContent("62%");
     expect(sigils[0].getAttribute("aria-label")).toMatch(/SILVER/);
   });

@@ -296,6 +296,7 @@ function TierLockSigil({ tier, payload }) {
       title={ariaLabel}
     >
       <span className="fsp-chip-lock-icon" aria-hidden="true">🔒</span>
+      <span className="fsp-chip-lock-label">LOCK</span>
       <span className="fsp-chip-lock-rate">{rateStr}</span>
     </span>
   );
