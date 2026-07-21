@@ -56,7 +56,11 @@ Your `cluster BOOLEAN` addition is untouched and composes fine.
 
 ## ⚠️ Heads-up on your WIP
 
-`routes/flowseeker.py:934` currently has a SyntaxError (stray `;` after the
-`Query(...)` default in the multi-window quality route) — imports of the
-routes tree fail, so DO NOT restart the backend until it's fixed; the
-running :8000 process predates the edit and is healthy.
+`routes/flowseeker.py:934` — **resolved as of v2.2-wire**.
+The `Query(...)` default signature change in `546fc52` is syntactically
+clean (`days: str = Query("7,14,30", …)`); `python3 -m py_compile` passes
+and `from backend.routes import flowseeker` succeeds. `flowseeker.py:589`
+now wires `fd.desk_pass(duckdb_engine, normed, alerts)` post-eval /
+pre-dedup with `init_flow_alert_tables` reordered above it so the
+campaign 10-day lookback has its target table on every fresh deploy.
+Backend is restart-safe.

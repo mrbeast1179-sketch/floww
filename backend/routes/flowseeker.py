@@ -562,6 +562,7 @@ async def _run_institutional_alerts(rows: list) -> None:
     """
     try:
         from services import flow_alerts as fa
+        from services import flow_desk as fd
         from services.duckdb_engine import db as duckdb_engine
 
         normed = fa.norm_rows(rows)
@@ -579,7 +580,13 @@ async def _run_institutional_alerts(rows: list) -> None:
         alerts = fa.eval_institutional(
             normed, baselines=baselines, prev_oi=prev, regimes=_cached_regimes(),
         )
+        # init before desk_pass so the campaign 10-day lookback in
+        # flow_alerts_daily has its target table on every fresh deploy.
         fa.init_flow_alert_tables(duckdb_engine)
+        # Desk pass (Conviction v2.2): fresh-interest gate, campaign
+        # promotion, IV context. Fails open. See
+        # docs/handoff/FABLE-desk-pass.md for the contract.
+        alerts = fd.desk_pass(duckdb_engine, normed, alerts)
         fresh = fa.dedup_filter(duckdb_engine, alerts)
         if fresh:
             fa.persist_alerts(duckdb_engine, fresh)
