@@ -286,7 +286,7 @@ function TierLockSigil({ tier, payload }) {
   if (!lock) return null;
   const rate = lock.locked_hit_rate;
   const rateStr = `${Math.round(rate * 100)}%`;
-  const ariaLabel = `Tier lock engaged for ${tier}: ${rateStr}`
+  const ariaLabel = `Tier lock engaged for ${tier}: ${rateStr} — LOCK`
     + (lock.locked_at ? ` (held since ${lock.locked_at})` : "");
   return (
     <span

@@ -105,6 +105,8 @@ describe("InstitutionalAlertsPanel — tier-lock sigil (v3.x)", () => {
     expect(sigil).toHaveClass("fsp-chip-lock");
     expect(sigil.title).toMatch(/75%/);
     expect(sigil.title).toMatch(/2026-07-21/);
+    expect(sigil.title).toMatch(/LOCK/);
+    expect(sigil.getAttribute("aria-label")).toMatch(/LOCK/);
   });
 
   test("renders ZERO lock chips when ALL tier_locks have engaged: false", () => {
