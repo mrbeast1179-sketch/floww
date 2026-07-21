@@ -39,3 +39,13 @@ websockets>=13.0
 prometheus-client>=0.25.0
 vaderSentiment>=3.3.2
 textblob>=0.19.0
+
+# Imported by live code but previously MISSING from this file — a fresh
+# `pip install -r requirements.txt` installed clean, then the app hit
+# ModuleNotFoundError at runtime / pytest (added 2026-07-21 audit):
+aiohttp>=3.9.0            # routes/alpha_advantage.py, flashalpha_client.py
+beautifulsoup4>=4.12.0    # services/insider_scraper.py, news_feed.py (bs4)
+pyyaml>=6.0               # services/agent_hub, services/alerts/engine.py (yaml)
+databento>=0.34.0         # services/databento_oi.py, databento_provider.py
+tenacity>=8.2.0           # services/yoptions_fetcher.py
+Pillow>=10.0.0            # services/memory/chart_embeddings.py (PIL)

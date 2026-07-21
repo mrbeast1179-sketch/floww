@@ -454,8 +454,13 @@ class BlademapDetector:
         reasons.append(f"Primary signal: {primary}")
 
         # ---- Direction ----
-        put_heavy = put_vol > call_vol * 1.15 or abs(put_delta) > abs(call_delta)
-        call_heavy = call_vol > put_vol * 1.15 or abs(call_delta) > abs(put_delta)
+        # Direction comes from VOLUME dominance only. Delta MAGNITUDE is not a
+        # direction proxy — a bullish call sweep whose paired put merely has a
+        # larger |delta| (e.g. an ITM put on the chain) must not be flipped to
+        # BEARISH, and balanced volume must stay NEUTRAL rather than tipping on
+        # |delta|. (Fixed 2026-07-21; see docs/reports/2026-07-21-project-audit.)
+        put_heavy = put_vol > call_vol * 1.15
+        call_heavy = call_vol > put_vol * 1.15
         if put_heavy:
             direction = "BEARISH"
             side = "PUT"

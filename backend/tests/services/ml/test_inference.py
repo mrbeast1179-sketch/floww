@@ -330,7 +330,9 @@ class TestMlBriefingIntegrator:
         """Both bullish signals → STRONG_BULLISH."""
         from services.ml_briefing import MlBriefingIntegrator
         integrator = MlBriefingIntegrator()
-        signal, conf = integrator._combine_signals("BULLISH", 0.8, 1, 0.7)
+        # ml_prediction=2 is UP (3-class DOWN=0/HOLD=1/UP=2); the prior value
+        # 1 was HOLD/neutral, which must NOT read as bullish.
+        signal, conf = integrator._combine_signals("BULLISH", 0.8, 2, 0.7)
         assert "BULLISH" in signal
         assert conf > 0.5
 

@@ -148,10 +148,21 @@ class MlBriefingIntegrator:
         elif regime == "BEARISH":
             regime_score = -regime_confidence
 
-        # ML score: -1 (bearish) to +1 (bullish)
+        # ML score: -conf (bearish) to +conf (bullish), consistent with
+        # regime_score above. The InferenceEngine emits a THREE-class label
+        # (DOWN=0, HOLD=1, UP=2), NOT a binary {0,1}: the old
+        # `(2*pred - 1)*conf` scored HOLD(1) as +conf (spuriously bullish)
+        # and UP(2) as +3*conf (over-weighted). Decode the class explicitly.
+        from services.ml.inference import DOWN, UP
+
         ml_score = 0.0
         if ml_prediction is not None and ml_confidence is not None:
-            ml_score = (2 * ml_prediction - 1) * ml_confidence  # 1->+conf, 0->-conf
+            if ml_prediction == UP:
+                ml_score = ml_confidence
+            elif ml_prediction == DOWN:
+                ml_score = -ml_confidence
+            # HOLD (or any unexpected label) → 0.0: a neutral read must not
+            # tip the combined signal in either direction.
 
         # Weighted average (weight by confidence)
         total_weight = 0.0
