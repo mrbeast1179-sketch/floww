@@ -6,6 +6,7 @@ Admin/utility routes: errors, performance, databento usage.
 from __future__ import annotations
 
 import logging
+import time
 from datetime import UTC
 
 logger = logging.getLogger(__name__)
@@ -112,6 +113,73 @@ async def databento_usage(_: bool = Depends(_require_admin_auth)):
         "in_window_now": in_window,
         "live_tape_state": "active" if _live_tape_session.get("active") else "stopped",
         "budget_usd": BUDGET_USD,
+    }
+
+
+@router.get("/databento/breaker/status")
+async def databento_breaker_status(_: bool = Depends(_require_admin_auth)):
+    """Per-parent databento circuit breaker snapshot.
+
+    Operators use this to check whether databento is reachable for each OPRA
+    parent (SPY/QQQ/IWM/DIA/TLT/SPXW) after a vendor incident. The
+    `databento_provider.py:_on_failure` / `_on_success` state machine drives
+    the underlying state; this route simply exposes `snapshot_circuits()` over
+    HTTP.
+
+    Response shape: `{ts, providers: [{parent, state, consecutive_failures,
+    close_attempts, opened_at, ttl_remaining_s}], open_count, half_open_count,
+    closed_count}`. Sort order: OPENs first by ttl_remaining ascending (closest
+    to half-open probe), then half-open, then closed.
+
+    Test pinning: `backend/tests/services/test_databento_snapshot.py` covers the
+    snapshot shape; `backend/tests/routes/test_databento_breaker_status.py`
+    covers route auth + graceful degradation when cache is unavailable.
+    """
+    cache = None
+    try:
+        from databento_provider import get_cache as _databento_cache
+        cache = _databento_cache()
+    except Exception as e:  # noqa: BLE001
+        logger.error(f"databento_breaker_status: get_cache import/init failed: {e}")
+        return {
+            "ts": time.time(),
+            "providers": [],
+            "open_count": 0,
+            "half_open_count": 0,
+            "closed_count": 0,
+            "no_cache": True,
+            "error": f"databento cache unavailable: {e}",
+        }
+    if cache is None:
+        return {
+            "ts": time.time(),
+            "providers": [],
+            "open_count": 0,
+            "half_open_count": 0,
+            "closed_count": 0,
+            "no_cache": True,
+        }
+    try:
+        snap = cache.snapshot_circuits()
+    except Exception as e:  # noqa: BLE001
+        logger.error(f"databento_breaker_status: snapshot_circuits raised: {e}")
+        return {
+            "ts": time.time(),
+            "providers": [],
+            "open_count": 0,
+            "half_open_count": 0,
+            "closed_count": 0,
+            "snapshot_error": str(e),
+        }
+    open_n = sum(1 for x in snap if x["state"] == "open")
+    half_open_n = sum(1 for x in snap if x["state"] == "half_open")
+    closed_n = sum(1 for x in snap if x["state"] == "closed")
+    return {
+        "ts": time.time(),
+        "providers": snap,
+        "open_count": open_n,
+        "half_open_count": half_open_n,
+        "closed_count": closed_n,
     }
 
 
