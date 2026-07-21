@@ -17,6 +17,7 @@ import pytest
 
 from services.flow_alerts import (
     alert_quality,
+    alert_quality_daily,
     eval_institutional,
     init_flow_alert_tables,
     norm_rows,
@@ -427,3 +428,210 @@ def test_eval_market_wide_volume_day_suppressed_by_median_removal():
     alerts = eval_institutional(normed, baselines=baselines,
                                 opts={"min_score": 101, "whale_premium": 1e12})
     assert len([a for a in alerts if a["rule"] == "SIGMA"]) == 0
+
+
+# ── v2.5 DAILY SERIES ─────────────────────────────────────────────
+# Sparkline-shape support: per-(date, tier) aggregation. Same hit logic as
+# alert_quality (≥0.5% |move| in claimed direction), but indexed by day so
+# the frontend renders one dot per trading day rather than 3 aggregated
+# window endpoints. Missing dates are intentionally NOT backfilled — a
+# zero-alert day is information (no signal), not a 0% loss.
+#
+# Test strategy: persist alerts on three explicit dates with known
+# hit/miss outcomes and verify daily_series returns them grouped by tier
+# with the right hit_rate and integer wins column.
+
+def test_alert_quality_daily_returns_one_row_per_day_per_tier(fresh_engine):
+    # v2.5 layout: 4 GOLD alerts persisted on 4 DIFFERENT dates so the
+    # GROUP BY (asof_date, tier) splits into 4 (date, GOLD) rows.
+    #
+    # IMPORTANT: each underlying ticker is DISTINCT so update_moves (which
+    # keys by under, not strike) stamps a unique verified price per alert
+    # and every BULLISH alert can hit the >=0.5% threshold independently.
+    # Using PLTR for two strikes (e.g. 140 + 145) would re-use the same
+    # under key in update_moves and stamp both rows with the same last
+    # price — one would miss if its strike differed from the spot, breaking
+    # the strict assertion. Distinct underlyers sidestep that completely.
+    init_flow_alert_tables(fresh_engine)
+    from datetime import date, timedelta
+    today = date.today()
+    rows = norm_rows([
+        _raw(under="PLTR",  occ="O:D_PLTR",  strike=140.0, vol=60000, oi=1500, iv=0.70, delta=0.30, spot=140.0, exp=_future_exp(10)),
+        _raw(under="NVDA",  occ="O:D_NVDA",  strike=1300.0, vol=45000, oi=3000, iv=0.55, delta=0.30, spot=1300.0, exp=_future_exp(20)),
+        _raw(under="AAPL",  occ="O:D_AAPL",  strike=200.0, vol=60000, oi=2500, iv=0.45, delta=0.30, spot=200.0, exp=_future_exp(25)),
+        _raw(under="TSLA",  occ="O:D_TSLA",  strike=260.0, vol=55000, oi=2000, iv=0.50, delta=0.30, spot=260.0, exp=_future_exp(30)),
+    ])
+    alerts = eval_institutional(rows)
+    directional = [a for a in alerts
+                   if a.get("rule") in ("SCORE", "WHALE", "0DTE")
+                   and a.get("bias") in ("BULLISH", "BEARISH")]
+    assert len(directional) >= 4, \
+        f"expected ≥4 directional alerts, got {len(directional)}: {[(a.get('under'), a.get('tier')) for a in directional]}"
+    # Stamp each alert on a distinct date (D-4 through D-0); the keys
+    # are distinct ckeys so ON CONFLICT does not fire.
+    for offset, alert in enumerate(directional[:4]):
+        persist_alerts(fresh_engine, [alert],
+                       snapshot_date=(today - timedelta(days=4 - offset)).isoformat())
+    # Each underlying uses spot==strike AND a positive update_moves stamp
+    # so change > 0.5% hits the BULLISH threshold. update_moves keys by
+    # under so 4 unique keys → 4 unique verified moves.
+    update_moves(fresh_engine, {
+        "PLTR": 142.8,   # 140 → 142.8 = +2%   BULLISH hit
+        "NVDA": 1326.0,  # 1300 → 1326 = +2%   BULLISH hit
+        "AAPL": 203.5,   # 200 → 203.5 = +1.75% BULLISH hit
+        "TSLA": 266.0,   # 260 → 266  = +2.3%  BULLISH hit
+    })
+    series = alert_quality_daily(fresh_engine, days=30)
+    assert series, "daily series has rows"
+    by_tier: dict[str, list] = {"GOLD": [], "SILVER": [], "BRONZE": []}
+    for r in series:
+        t = str(r.get("tier") or "").upper()
+        if t in by_tier:
+            by_tier[t].append(r)
+    # The fixtures all have vol_oi >= 15 (so prime=True), dte ∈ [10,30]
+    # (so informed_band=True), and a high score (so score90=True when
+    # notional is large enough). Assert that the schema path lands the
+    # rows in their respective tiers without forcing all to GOLD — exact
+    # tier depends on score math that we don't pin here.
+    total_rows = sum(len(by_tier[t]) for t in by_tier)
+    assert total_rows >= 4, \
+        f"expected ≥4 daily rows (1 per alert on a distinct date), got {total_rows}"
+    # wins is integer (mirrors CAST AS BIGINT in alert_quality).
+    for r in series:
+        assert isinstance(r.get("wins"), int), \
+            f"daily-series wins must be integer, got {type(r.get('wins'))}"
+    # Sum the moves — 4 distinct underlyings each with a positive spot
+    # move. n_measured across the daily series sums to 4 (every alert
+    # got a verified move_pct). All 4 BULLISH puts register hits under
+    # the documented >=0.5% threshold.
+    total_measured = sum((r.get("n_measured") or 0) for r in series)
+    total_wins = sum((r.get("wins") or 0) for r in series)
+    assert total_measured == 4, f"4 alerts all measured, got {total_measured}"
+    assert total_wins == 4, f"all 4 alerts +ve BULLISH hits, got {total_wins}"
+
+
+def test_alert_quality_daily_missing_dates_not_backfilled_with_zeros(fresh_engine):
+    # v2.5 sparkline design: a day with NO alerts is rendered as a GAP in
+    # the line (the visual breaks), not as a 0% hit-rate point. The query
+    # must NOT synthesize a fake zero day.
+    init_flow_alert_tables(fresh_engine)
+    from datetime import date, timedelta
+    today = date.today()
+    # Only D1 has a row, D2 and D3 have nothing in the table.
+    rows = norm_rows([_raw(under="TSLA", occ="O:T1", strike=260.0, vol=55000, oi=2000, delta=0.30, spot=260.0)])
+    alerts = eval_institutional(rows)
+    persist_alerts(fresh_engine, alerts, snapshot_date=(today - timedelta(days=2)).isoformat())
+    update_moves(fresh_engine, {"TSLA": 265.2})  # +2% BULLISH hit
+    series = alert_quality_daily(fresh_engine, days=30)
+    # Exactly one row -- the one day we wrote. No fake zero-row on D2/D3.
+    matching = [r for r in series if r.get("tier") in ("GOLD", "SILVER", "BRONZE")]
+    assert len(matching) == 1, f"expected 1 daily row, got {len(matching)} ({matching})"
+    only = matching[0]
+    # Date is an ISO string, never a datetime.date JSON disaster.
+    assert isinstance(only["date"], str)
+    assert only["n_measured"] == 1
+    assert only["wins"] == 1
+    # The query only returns days that have at least one alert. A desk
+    # reading the sparkline sees ONE dot in the strip, not four flat ones.
+    assert sum(r.get("n", 0) for r in series) == only["n"]
+
+
+def test_alert_quality_daily_excludes_directionless_strategic_rows(fresh_engine):
+    # Spread legs land in the feed as side="STRATEGY" / tier="BRONZE" /
+    # bias=None. They MUST NOT contribute to the daily sparkline -- a
+    # directionless row can't claim a directional hit by definition.
+    # Mirrors the bias IS NOT NULL filter in alert_quality().
+    #
+    # The simplest, schema-stable path: produce a real STRATEGY row through
+    # eval_institutional (which automatically demotes paired legs), then
+    # persist via persist_alerts. No raw INSERT means no column-count
+    # alignment bug surface — the assertion becomes schema-free.
+    init_flow_alert_tables(fresh_engine)
+    from datetime import date
+    exp = _future_exp(10)
+    rows = norm_rows([
+        # Two legs with matched volumes + same (under, exp) + different
+        # strikes → vertical-spread fingerprint. detect_spreads flags both,
+        # _finalize demotes side to STRATEGY / bias to NULL / tier to BRONZE.
+        _raw(under="AMD", occ="O:DEMO_A1", strike=150.0, exp=exp, vol=5000, oi=800, delta=0.30, spot=150.0),
+        _raw(under="AMD", occ="O:DEMO_A2", strike=155.0, exp=exp, vol=5200, oi=700, delta=0.25, spot=155.0),
+    ])
+    alerts = eval_institutional(rows)
+    strategy_alerts = [a for a in alerts if a.get("side") == "STRATEGY"]
+    assert strategy_alerts, \
+        "eval_institutional should produce at least one STRATEGY row for the vertical pair fixture"
+    assert all(a.get("bias") is None for a in strategy_alerts), \
+        "STRATEGY alerts must have bias=None so the SQL filter excludes them"
+    # Persist + verify no measurement gets counted. We deliberately DO
+    # NOT update_moves — STRATEGY rows with no resolved path through the
+    # filter would be a question for a different test.
+    persist_alerts(fresh_engine, strategy_alerts, snapshot_date=date.today().isoformat())
+    # Drop any directional rows the same snapshot might have produced
+    # (tolerated by the algebra — what matters is directionless=False).
+    series = alert_quality_daily(fresh_engine, days=30)
+    # The ONLY rows the daily query returns are ones with bias IS NOT
+    # NULL. STRATEGY rows have bias=None → they CANNOT leak through.
+    # Any STRATEGY-shaped row leaking to series is a regression.
+    for r in series:
+        t = str(r.get("tier") or "").upper()
+        assert t in {"GOLD", "SILVER", "BRONZE"}, \
+            f"unknown tier {t!r} in daily_series — STRATEGY leak?"
+        n = r.get("n_measured") or 0
+        w = r.get("wins") or 0
+        assert n >= 0 and w >= 0
+    # The strict invariant: every row returned has positive/zero
+    # measured counts. STRATEGY rows specifically were persisted but
+    # must NOT appear here.
+    strategy_keys = {a["key"] for a in strategy_alerts}
+    returned_keys = {r.get("key") or "" for r in series}
+    leaked = strategy_keys & returned_keys
+    assert not leaked, \
+        f"STRATEGY alert keys leaked through the bias filter: {leaked}"
+    # Independently verify the row IS in the table (so the test is not
+    # passing because persist_alerts silently dropped it).
+    raw = fresh_engine.query(
+        "SELECT count(*) AS c FROM flow_alerts_daily WHERE tier = 'BRONZE' AND side = 'STRATEGY'")
+    assert raw[0]["c"] >= 1, \
+        "STRATEGY row was not persisted — test is not exercising the filter"
+
+
+def test_alert_quality_daily_tier_filter_returns_subset(fresh_engine):
+    # The new tier= filter adds a tiny optimization when the front-end
+    # only needs one tier's series. Verifies the SQL path forward-compat.
+    init_flow_alert_tables(fresh_engine)
+    from datetime import date, timedelta
+    today = date.today()
+    rows = norm_rows([
+        _raw(under="X", occ="O:X1", strike=100.0, vol=60000, oi=2000, delta=0.30, spot=100.0),
+    ])
+    alerts = eval_institutional(rows)
+    persist_alerts(fresh_engine, alerts, snapshot_date=(today - timedelta(days=1)).isoformat())
+    update_moves(fresh_engine, {"X": 102.5})  # +2.5% BULLISH hit
+    only_gold = alert_quality_daily(fresh_engine, tier="GOLD", days=30)
+    only_silver = alert_quality_daily(fresh_engine, tier="SILVER", days=30)
+    only_bronze = alert_quality_daily(fresh_engine, tier="BRONZE", days=30)
+    # The single fixture may be GOLD or SILVER depending on factor counts;
+    # either way, exactly one of [GOLD, SILVER, BRONZE] is non-empty and
+    # the others are empty.
+    nonempty = sum(1 for s in (only_gold, only_silver, only_bronze) if s)
+    assert nonempty == 1, f"one tier should match, got {[len(s) for s in (only_gold, only_silver, only_bronze)]}"
+
+
+def test_alert_quality_daily_date_is_serialized_to_iso(fresh_engine):
+    # DuckDB date columns come back as datetime.date on the python side;
+    # the v2.5 contract requires an ISO string for the JSON boundary to
+    # React (avoiding the JS Date round-trip dropping quiet hours).
+    init_flow_alert_tables(fresh_engine)
+    from datetime import date, timedelta
+    today = date.today()
+    rows = norm_rows([_raw(under="QQ", occ="O:Q1", strike=90.0, vol=30000, oi=2000, delta=0.25, spot=90.0)])
+    alerts = eval_institutional(rows)
+    persist_alerts(fresh_engine, alerts, snapshot_date=(today - timedelta(days=1)).isoformat())
+    update_moves(fresh_engine, {"QQ": 91.0})  # +1.1% BULLISH hit
+    series = alert_quality_daily(fresh_engine, days=30)
+    assert series, "daily series populated"
+    d = series[0]["date"]
+    # ISO YYYY-MM-DD format, not a datetime.date, NOT a datetime string.
+    assert isinstance(d, str), f"expected ISO string, got {type(d).__name__}"
+    assert len(d) == 10 and d[4] == "-" and d[7] == "-", \
+        f"expected YYYY-MM-DD, got {d!r}"

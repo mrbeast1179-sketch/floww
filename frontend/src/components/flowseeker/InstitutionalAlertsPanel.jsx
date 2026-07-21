@@ -32,6 +32,8 @@ import {
   compareAlerts,
   clusterChip,
   cwConfirmChip,
+  dailySeriesForTier,
+  DAILY_MIN_N,
   fmtCW,
   fmtMovePct,
   primeChip,
@@ -66,6 +68,8 @@ export default function InstitutionalAlertsPanel({ active = true, days = 7, limi
   // Convenience accessor for the trend helper — strip just the rows keyed
   // by window so the helper signature stays clean.
   const qualityWindows = qualityData?.quality_windows || null;
+  const dailyMap = qualityData?.daily_series || null;
+  const dailyDays = qualityData?.daily_series_days || 30;
 
   const hasData = rows.length > 0;
   const empty = !feedLoading && !feedError && !hasData;
@@ -244,6 +248,7 @@ export default function InstitutionalAlertsPanel({ active = true, days = 7, limi
                   </div>
                 )}
                 <QualitySparkline tier={t.tier} windows={qualityWindows} />
+                <DailySparkline tier={t.tier} daily={dailyMap} days={dailyDays} />
               </div>
             ))}
           </div>
@@ -302,6 +307,134 @@ function QualitySparkline({ tier, windows }) {
       </svg>
       <span className="fsp-conviction-qtrend-label"
             style={{ color }}>{trend.direction === "unknown" ? "—" : trend.direction}</span>
+    </div>
+  );
+}
+
+// Daily sparkline (v2.5). Pure inline SVG, one dot per trading-day cell,
+// and a polyline that breaks at calendar gaps. Color reflects the LAST
+// measured day's direction relative to the FIRST measured day's rate —
+// "up", "down", "flat" — when at least 2 measured days exist and the
+// n_measured sum is above the per-day threshold. The trend label sits to
+// the right of the SVG so a desk can scan whether today's calibration
+// is hotter or colder than yesterday's WITHOUT reading the line itself.
+//
+// A missing day in the payload is information — the polyline stops at
+// the previous dot and starts again at the next dot. We do NOT
+// backfill zeros; doing so would render a day that produced no alerts
+// as a 0% loss, which a desk would read as the tier "failing" when
+// in fact there was simply nothing to measure.
+//
+// DailySparkline is intentionally distinct from QualitySparkline: the
+// latter reads the 7/14/30 window endpoints (cheap, sparse), the former
+// reads actual day-by-day data (richer, expose the "fade"). When both
+// are present the desk sees a directional pair — endpoints vs. raw
+// trajectory — and can spot a calculation window that disagrees with
+// the day's actual behavior.
+function DailySparkline({ tier, daily, days }) {
+  const series = dailySeriesForTier(tier || "GOLD", daily, { maxPoints: 30 });
+  const dims = { width: 84, height: 22, padX: 2, padY: 4 };
+  const dayCount = Number(days) || 30;
+  if (!series.has_data) {
+    return (
+      <div className="fsp-conviction-dtrend"
+           aria-label={`Daily calibration sparkline: no data (${tier})`}
+           title={`No measured alerts in last ${dayCount}d for ${tier}`}>
+        <svg width={dims.width} height={dims.height}>
+          <line x1={dims.padX} y1={dims.height / 2}
+                x2={dims.width - dims.padX} y2={dims.height / 2}
+                stroke={TREND_COLOR.unknown} strokeWidth="1"
+                strokeDasharray="2 2" />
+        </svg>
+        <span className="fsp-conviction-dtrend-label">—</span>
+      </div>
+    );
+  }
+  const pts = series.points;
+  // Distribute dots evenly across the strip width — the visual encodes
+  // RECENT (right) vs OLDER (left), not calendar position. A bursty
+  // tier that fires Mon-Wed-Fri and dies the rest of the week shows as
+  // a 3-point line, not 30 dashes.
+  const n = pts.length;
+  const xs = pts.map((_, i) => {
+    if (n === 1) return dims.padX + (dims.width - 2 * dims.padX) / 2;
+    return dims.padX + (i / (n - 1)) * (dims.width - 2 * dims.padX);
+  });
+  const yFor = (hr) => {
+    if (hr == null) return dims.height / 2;            // gap = midway, muted
+    const c = Math.max(0, Math.min(1, hr));
+    return dims.padY + (1 - c) * (dims.height - dims.padY * 2);
+  };
+  // Heuristic: a tier is "fading" when the second-half mean < first-half mean
+  // by >= 15 percentage points; "rising" when second-half > first-half by
+  // >=15pp; otherwise "flat". Two-point tiers can't tell first-half from
+  // second-half, so we use delta = last - first as the canonical read.
+  let trend = "flat";
+  const first = pts[0]?.hit_rate;
+  const last = pts[pts.length - 1]?.hit_rate;
+  if (first != null && last != null) {
+    const delta = last - first;
+    if (delta > 0.15) trend = "up";
+    else if (delta < -0.15) trend = "down";
+  }
+  // The fade signal (down) gets a louder red so it doesn't get lost
+  // against the noise of "down" as ordinary drift.
+  const color = TREND_COLOR[trend] || TREND_COLOR.unknown;
+  // Build a single path that breaks at gaps: each M starts a new segment
+  // after the previous L. Missing days stay absent (no `L`).
+  const segments = [];
+  let current = null;
+  for (let i = 0; i < n; i++) {
+    const hr = pts[i].hit_rate;
+    if (hr == null) {
+      if (current) {
+        segments.push(current.join(" "));
+        current = null;
+      }
+      continue;
+    }
+    const cmd = current == null ? "M" : "L";
+    current = current || [];
+    current.push(`${cmd} ${xs[i].toFixed(1)} ${yFor(hr).toFixed(1)}`);
+  }
+  if (current) segments.push(current.join(" "));
+  const fmtDate = (s) => {
+    const m = s?.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if (!m) return s || "";
+    return `${m[2]}/${m[3]}`;                       // 2026-07-20 → 07/20
+  };
+  return (
+    <div className="fsp-conviction-dtrend"
+         aria-label={`${tier} daily calibration sparkline: last ${dayCount}d`}
+         title={`${tier} daily hit-rate over ${dayCount}d · ${pts.length} measured days${series.gaps ? ` · ${series.gaps} gap(s)` : ""}`}>
+      <svg width={dims.width} height={dims.height} aria-hidden="true">
+        {segments.map((d, i) => (
+          <path key={`dseg${i}`} d={d} stroke={color} strokeWidth="1.5" fill="none" />
+        ))}
+        {pts.map((p, i) => (
+          <circle key={`dd${i}`} cx={xs[i]} cy={yFor(p.hit_rate)} r="1.4"
+                  fill={p.hit_rate != null ? color : TREND_COLOR.unknown}
+                  opacity={p.n_measured < DAILY_MIN_N ? 0.35 : 1} />
+        ))}
+        {/* Hover layer: one invisible rect per cell with a <title> for native
+            tooltip on mouseover — avoids React state churn for a 30-point
+            strip the desk glances at, not clicks. */}
+        {pts.map((p, i) => (
+          <rect key={`dh${i}`} x={xs[i] - 2}
+                y={dims.padY}
+                width={Math.max(dims.width / n, 4)}
+                height={dims.height - dims.padY * 2}
+                fill="transparent"
+                pointerEvents="all">
+            <title>
+              {fmtDate(p.date)}
+              {`: ${p.n_measured} alerts · ${p.hits != null ? p.hits : p.wins}/${p.n_measured} hit (`
+              + `${p.hit_rate != null ? Math.round(p.hit_rate * 100) : "—"}%)`}
+            </title>
+          </rect>
+        ))}
+      </svg>
+      <span className="fsp-conviction-dtrend-label" style={{ color }}>{trend === "flat" ? "→" : trend}</span>
     </div>
   );
 }

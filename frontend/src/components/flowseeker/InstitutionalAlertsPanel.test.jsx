@@ -170,6 +170,30 @@ describe("InstitutionalAlertsPanel — quality-strip error UX", () => {
   });
 });
 
+describe("InstitutionalAlertsPanel — empty feed handling", () => {
+  test("renders the 'No fresh scan yet' empty state when feed is empty", () => {
+    // Swap the global mock to report an empty feed for the duration of this
+    // single test. We avoid jest.isolateModules/require because CRACO's
+    // transform pipeline has been seen to drop the React import for mid-test
+    // require() of JSX files; a global mock swap is the stable path.
+    const feedMock = require("../../hooks/useFlowseeker");
+    feedMock.useFlowseeker = (endpoint) => ({
+      data: endpoint === "alerts/quality" ? QUALITY : EMPTY,
+      loading: false, error: null, refresh: jest.fn(),
+    });
+    try {
+      const { container } = render(<InstitutionalAlertsPanel active={true} />);
+      expect(container.textContent).toMatch(/No fresh scan yet/);
+    } finally {
+      feedMock.useFlowseeker = (endpoint) => {
+        if (endpoint === "alerts/feed") return { data: TICKER_ALERTS, loading: false, error: null, refresh: jest.fn() };
+        if (endpoint === "alerts/quality") return { data: QUALITY, loading: false, error: null, refresh: jest.fn() };
+        return { data: EMPTY, loading: false, error: null, refresh: jest.fn() };
+      };
+    }
+  });
+});
+
 describe("InstitutionalAlertsPanel — v2.2 trend sparkline", () => {
   test("renders per-tier sparkline SVG with direction label", () => {
     render(<InstitutionalAlertsPanel active={true} />);
@@ -234,22 +258,120 @@ describe("InstitutionalAlertsPanel — v2.2 trend sparkline", () => {
   });
 });
 
-describe("InstitutionalAlertsPanel — empty feed handling", () => {
-  test("renders the 'No fresh scan yet' empty state when feed is empty", () => {
-    // Swap the global mock to report an empty feed for the duration of this
-    // single test. We avoid jest.isolateModules/require because CRACO's
-    // transform pipeline has been seen to drop the React import for mid-test
-    // require() of JSX files; a global mock swap is the stable path.
-    const feedMock = require("../../hooks/useFlowseeker");
-    feedMock.useFlowseeker = (endpoint) => ({
-      data: endpoint === "alerts/quality" ? QUALITY : EMPTY,
-      loading: false, error: null, refresh: jest.fn(),
-    });
+// ── v2.5 daily sparkline rendering ──────────────────────────────────
+// The daily_series endpoint returns { GOLD: [{date, n_measured, hit_rate}],
+// SILVER: [...], BRONZE: [...] }; the panel reads it via dailySeriesForTier
+// and renders one DailySparkline per tier cell.
+//
+// Empty daily_series: muted dashes (no data). Rising trend (>15pp):
+// green "up" label. Absent tier: muted dashes on that tier cell only.
+// Hover rectangles with native <title> tooltips anchor the value at
+// each dot. The QualitySparkline v2.2 trend plus the daily sparkline
+// run side-by-side; both are additive.
+describe("InstitutionalAlertsPanel — v2.5 daily sparkline", () => {
+  test("renders trend label and hover tooltip rectangles for each tier", () => {
+    const hook = require("../../hooks/useFlowseeker");
+    hook.useFlowseeker = (endpoint) => {
+      if (endpoint === "alerts/feed")
+        return { data: TICKER_ALERTS, loading: false, error: null, refresh: jest.fn() };
+      if (endpoint === "alerts/quality")
+        return {
+          data: {
+            quality_windows: {
+              7:  [{ rule: "SCORE", tier: "GOLD", n: 4, n_measured: 4, hit_rate: 0.70, avg_move_pct: 2.0 }],
+              14: [{ rule: "SCORE", tier: "GOLD", n: 8, n_measured: 8, hit_rate: 0.65, avg_move_pct: 1.9 }],
+              30: [
+                { rule: "SCORE", tier: "GOLD",   n: 12, n_measured: 12, hit_rate: 0.60, avg_move_pct: 1.7 },
+                { rule: "SCORE", tier: "SILVER", n: 18, n_measured: 18, hit_rate: 0.55, avg_move_pct: 1.4 },
+                { rule: "SCORE", tier: "BRONZE", n: 22, n_measured: 0,  hit_rate: null, avg_move_pct: null },
+              ],
+            },
+            days: [7, 14, 30],
+            // v2.5: per-tier per-day series. GOLD rises (0.50 → 0.85 =
+            // +35pp > 15pp threshold → "up"). SILVER flat (0.50 → 0.55
+            // = +5pp within ±15pp band → "→"). BRONZE absent (no
+            // measured days → muted dashes fallback).
+            daily_series: {
+              GOLD: [
+                { date: "2026-07-14", n: 3, n_measured: 3, wins: 1, hit_rate: 0.50 },
+                { date: "2026-07-16", n: 4, n_measured: 4, wins: 3, hit_rate: 0.75 },
+                { date: "2026-07-18", n: 5, n_measured: 5, wins: 4, hit_rate: 0.85 },
+              ],
+              SILVER: [
+                { date: "2026-07-15", n: 4, n_measured: 4, wins: 2, hit_rate: 0.50 },
+                { date: "2026-07-17", n: 4, n_measured: 4, wins: 2, hit_rate: 0.55 },
+              ],
+              BRONZE: [],
+            },
+            daily_series_days: 30,
+          },
+          loading: false, error: null, refresh: jest.fn(),
+        };
+      return { data: EMPTY, loading: false, error: null, refresh: jest.fn() };
+    };
     try {
       const { container } = render(<InstitutionalAlertsPanel active={true} />);
-      expect(container.textContent).toMatch(/No fresh scan yet/);
+      expect(container.textContent).toMatch(/Calibration/);
+      // 3 daily trend containers (one per tier).
+      const dtrendContainers = container.querySelectorAll(".fsp-conviction-dtrend");
+      expect(dtrendContainers.length).toBe(3);
+      // GOLD trend label is "up"; SILVER's flat label is "→"; BRONZE muted "—".
+      const allLabels = container.querySelectorAll(".fsp-conviction-dtrend-label");
+      const labelTexts = Array.from(allLabels).map((el) => el.textContent || "");
+      expect(labelTexts).toContain("up");
+      expect(labelTexts).toContain("\u2192");
+      // Hover rectangles — at least 5 (GOLD 3 + SILVER 2 measured days).
+      const rects = container.querySelectorAll(".fsp-conviction-dtrend svg rect");
+      expect(rects.length).toBeGreaterThanOrEqual(5);
+      const titles = Array.from(rects)
+        .map((r) => r.querySelector("title")?.textContent || "")
+        .filter(Boolean);
+      expect(titles.some((t) => /alerts/.test(t))).toBe(true);
+      expect(titles.some((t) => /\d+\/\d+/.test(t))).toBe(true);
     } finally {
-      feedMock.useFlowseeker = (endpoint) => {
+      hook.useFlowseeker = (endpoint) => {
+        if (endpoint === "alerts/feed") return { data: TICKER_ALERTS, loading: false, error: null, refresh: jest.fn() };
+        if (endpoint === "alerts/quality") return { data: QUALITY, loading: false, error: null, refresh: jest.fn() };
+        return { data: EMPTY, loading: false, error: null, refresh: jest.fn() };
+      };
+    }
+  });
+
+  test("no daily_series payload → muted dashed line per tier (forwards compat)", () => {
+    // When the backend hasn't been upgraded (pre-v2.5), the panel must
+    // still render the strip — dailySeriesForTier returns has_data=false
+    // and DailySparkline falls back to the dashed muted line. The
+    // QualitySparkline v2.2 trend still works against quality_windows.
+    const hook = require("../../hooks/useFlowseeker");
+    hook.useFlowseeker = (endpoint) => {
+      if (endpoint === "alerts/feed")
+        return { data: TICKER_ALERTS, loading: false, error: null, refresh: jest.fn() };
+      if (endpoint === "alerts/quality")
+        // INTENTIONAL: no daily_series key. Legacy v2.x responses lack it.
+        return { data: QUALITY, loading: false, error: null, refresh: jest.fn() };
+      return { data: EMPTY, loading: false, error: null, refresh: jest.fn() };
+    };
+    try {
+      const { container } = render(<InstitutionalAlertsPanel active={true} />);
+      expect(container.textContent).toMatch(/Calibration/);
+      const dtrendContainers = container.querySelectorAll(".fsp-conviction-dtrend");
+      // Soft assertion: at least one dtrend container renders one per
+      // visible tier. Today QUALITY produces exactly 3 (GOLD + SILVER +
+      // BRONZE), but a future version that hides a tier cell (e.g. BRONZE
+      // with thin=true suppressed from the strip) should NOT silently
+      // regress this test. `>= 1` keeps the regression signal alive
+      // ("a tier cell with no daily series should still render the muted
+      // fallback") without coupling to the exact cell count.
+      expect(dtrendContainers.length).toBeGreaterThanOrEqual(1);
+      // The muted fallback reads "—" (em-dash) per DailySparkline's
+      // inert branch — assert at least one such label appears in a
+      // dtrend container when daily_series is absent from the payload.
+      const mutedLabels = Array.from(
+        container.querySelectorAll(".fsp-conviction-dtrend-label")
+      ).filter((el) => (el.textContent || "").trim() === "\u2014");
+      expect(mutedLabels.length).toBeGreaterThanOrEqual(1);
+    } finally {
+      hook.useFlowseeker = (endpoint) => {
         if (endpoint === "alerts/feed") return { data: TICKER_ALERTS, loading: false, error: null, refresh: jest.fn() };
         if (endpoint === "alerts/quality") return { data: QUALITY, loading: false, error: null, refresh: jest.fn() };
         return { data: EMPTY, loading: false, error: null, refresh: jest.fn() };

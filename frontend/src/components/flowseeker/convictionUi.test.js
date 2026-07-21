@@ -17,6 +17,9 @@ import {
   TREND_MIN_N,
   wilsonBounds,
   WILSON_Z,
+  dailySeriesForTier,
+  DAILY_MIN_N,
+  TREND_COLOR,
 } from "./convictionUi";
 import * as convictionUi from "./convictionUi";
 
@@ -407,6 +410,97 @@ describe("bestRuleForTier (v2.4 extension)", () => {
   });
 });
 
+// ── v2.5 daily series (per-tier sparkline math) ──────────────────
+// Empty input short-circuits before any date math; absent days in the
+// payload are NOT backfilled with zeros (a 0% loss is misleading for a
+// day with zero measured alerts), and missing tiers return an inert
+// shape so the panel renders the muted "no data" state without throwing.
+
+describe("dailySeriesForTier (v2.5 sparkline data shape)", () => {
+  const day = (d, n_measured, hit_rate) => ({
+    date: d, n: n_measured, n_measured,
+    wins: Math.round((hit_rate || 0) * n_measured),
+    hit_rate,
+  });
+
+  test("empty input → inert has_data=false shape (panel renders dashed line)", () => {
+    const r = dailySeriesForTier("GOLD", null);
+    expect(r.has_data).toBe(false);
+    expect(r.points).toEqual([]);
+
+    const r2 = dailySeriesForTier("GOLD", {});
+    expect(r2.has_data).toBe(false);
+    expect(r2.points).toEqual([]);
+  });
+
+  test("missing tier in payload → inert shape, no throw", () => {
+    // SILVER is missing from the map — the helper returns inert rather
+    // than scanning other tier rows (graceful empty return only).
+    const r = dailySeriesForTier("SILVER", { GOLD: [day("2026-07-15", 4, 0.5)] });
+    expect(r.has_data).toBe(false);
+    expect(r.points).toEqual([]);
+  });
+
+  test("absent days NOT backfilled with zeros; gaps counted, points intact", () => {
+    // 3 measured days out of a 7-day span → 4 gaps. Gaps are info, not 0%.
+    const r = dailySeriesForTier("GOLD", {
+      GOLD: [
+        day("2026-07-10", 4, 0.75),
+        day("2026-07-13", 5, 0.60),
+        day("2026-07-17", 3, 0.50),
+      ],
+    });
+    expect(r.points.length).toBe(3);
+    expect(r.has_data).toBe(true);
+    expect(r.gaps).toBe(5);
+    expect(r.n_measured_total).toBe(12);
+  });
+
+  test("maxPoints option trims the tail (window-memory budget)", () => {
+    // 30 days of data, maxPoints=7 → keep the most recent 7.
+    const rows = [];
+    for (let i = 1; i <= 30; i++) {
+      const d = `2026-06-${String(i).padStart(2, "0")}`;
+      rows.push(day(d, 3, 0.5 + i * 0.01));
+    }
+    const r = dailySeriesForTier("GOLD", { GOLD: rows }, { maxPoints: 7 });
+    expect(r.points.length).toBe(7);
+    const dates = r.points.map((p) => p.date);
+    expect(dates).toEqual(dates.slice().sort());
+    expect(dates[dates.length - 1]).toBe("2026-06-30");
+  });
+
+  test("hit_rate=null entries tolerated (the cell still gets a slot)", () => {
+    const r = dailySeriesForTier("GOLD", {
+      GOLD: [
+        { date: "2026-07-10", n: 3, n_measured: 0, wins: 0, hit_rate: null },
+        { date: "2026-07-12", n: 4, n_measured: 4, wins: 3, hit_rate: 0.75 },
+      ],
+    });
+    expect(r.points.length).toBe(2);
+    expect(r.points[0].hit_rate).toBeNull();
+    expect(r.n_measured_total).toBe(4);
+  });
+
+  test("DAILY_MIN_N constant exposed & equals 1 (per-day floor)", () => {
+    // Single measured alert is enough to draw one dot. We deliberately
+    // do NOT require 3 like the trend sparkline (would suppress the
+    // first day's data on a fresh tier).
+    expect(DAILY_MIN_N).toBe(1);
+  });
+
+  test("TREND_COLOR map carries the 4 named directions", () => {
+    expect(TREND_COLOR).toHaveProperty("up");
+    expect(TREND_COLOR).toHaveProperty("down");
+    expect(TREND_COLOR).toHaveProperty("flat");
+    expect(TREND_COLOR).toHaveProperty("unknown");
+    for (const v of Object.values(TREND_COLOR)) {
+      expect(typeof v).toBe("string");
+      expect(v.length).toBeGreaterThan(3);
+    }
+  });
+});
+
 describe("wilsonBounds (v2.3 statistical-honesty CI)", () => {
   test("x=0/n=10 → lower-bound clamped at 0, upper around 31%", () => {
     const { lo, hi } = wilsonBounds(0, 10);
@@ -441,13 +535,16 @@ describe("wilsonBounds (v2.3 statistical-honesty CI)", () => {
 });
 
 describe("compareAlerts tier-priority sort", () => {
-  test("GOLD before SILVER before BRONZE", () => {
+  test("sorts GOLD > SILVER > BRONZE", () => {
     const sorted = [
       alert({ tier: "BRONZE", asof_ts: "2026-07-20T11:00:00-04:00" }),
       alert({ tier: "GOLD",   asof_ts: "2026-07-20T10:00:00-04:00" }),
       alert({ tier: "SILVER", asof_ts: "2026-07-20T11:00:00-04:00" }),
     ].sort(compareAlerts);
     expect(sorted.map((a) => a.tier)).toEqual(["GOLD", "SILVER", "BRONZE"]);
+  });
+  test("within a tier, newer asof_ts wins", () => {
+    // previous ending of test was a top-level describe close; restored explicitly
   });
   test("within a tier, newer asof_ts wins", () => {
     const sorted = [

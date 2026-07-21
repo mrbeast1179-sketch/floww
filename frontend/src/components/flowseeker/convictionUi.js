@@ -418,3 +418,84 @@ export const TREND_COLOR = {
   flat: "#b3b8c5",      // slate — direction noise
   unknown: "#6c7382",   // muted — underpowered / missing windows
 };
+
+// ── v2.5 daily sparkline (per-tier N-day series) ─────────────────
+// Backend's /alerts/quality response carries a `daily_series: {GOLD: [...],
+// SILVER: [...], BRONZE: [...]}` map with one row per (date, tier) that
+// fired at least one directional alert in the last `daily_series_days`
+// days. Each row: {date, n, n_measured, hits, hit_rate, avg_move_pct}.
+//
+// Visual contract: render one dot per trading-day cell in the strip.
+// MISSING DAYS are NOT backfilled with 0% — a gap in the line is
+// information ("no measured alerts = no signal"), the SVG path breaks
+// at the gap so a desk reads it as noise, not as a losing day.
+//
+// Statistical contract:
+//   1. A day with n_measured < DAILY_MIN_N (default 1, surface only
+//      measured days; underpowered days never carry a direction) renders
+//      as a muted dot, NOT a colored line point.
+//   2. A SINGLE point tier (n_measured==1 across the whole window) is
+//      rendered as one muted dot, no line — the desk should not see a
+//      "trend" from n=1.
+//
+// `dailySeriesForTier` returns a stable, slot-aligned array length
+// `days.length`. Empty slots are `null` — never coalesced to 0% — and
+// the consumer renders gaps accordingly.
+export const DAILY_MIN_N = 1;       // one measured alert is the floor
+export const DAILY_MIN_DAYS = 1;    // zero points is a meaningless sparkline
+
+export function dailySeriesForTier(tier, dailyMap, opts = {}) {
+  const tierKey = String(tier || "").toUpperCase();
+  const rows = (dailyMap && dailyMap[tierKey]) || [];
+  // Index existing rows by ISO date so absent days can be backfilled
+  // with null (a gap), never 0. Order preserved ascending by date.
+  const byDate = new Map();
+  for (const r of rows || []) {
+    const d = String(r?.date || "");
+    if (!d) continue;
+    // Defensively separate the null/undefined path from the numeric
+    // coercion path. Number(null) = 0 would silently downgrade a
+    // no-observation day to a "0% hit rate" point — the exact opposite
+    // of the gap-is-information contract documented above.
+    const hrRaw = r?.hit_rate;
+    const hrNumeric = hrRaw == null ? null : Number(hrRaw);
+    const hr = hrNumeric == null ? null
+      : (Number.isFinite(hrNumeric) ? hrNumeric : null);
+    byDate.set(d, {
+      date: d,
+      n: Number(r.n) || 0,
+      n_measured: Number(r.n_measured) || 0,
+      wins: Number(r.wins) || 0,
+      hit_rate: hr,
+      avg_move_pct: r.avg_move_pct == null ? null : Number(r.avg_move_pct),
+    });
+  }
+  // No raw rows → return an inert shape that downstream still renders.
+  if (!byDate.size) {
+    return { points: [], n_measured_total: 0, has_data: false, gaps: 0 };
+  }
+  const sorted = Array.from(byDate.values()).sort((a, b) =>
+    a.date < b.date ? -1 : a.date > b.date ? 1 : 0
+  );
+  // Gap stats: a "gap" is a calendar-day cell with no data between first
+  // and last observed dates. A back-to-back bursty cluster has gaps, an
+  // evenly-active tier has gaps=0.
+  const first = new Date(sorted[0].date + "T00:00:00Z");
+  const last = new Date(sorted[sorted.length - 1].date + "T00:00:00Z");
+  const span = Math.max(
+    Math.round((last.getTime() - first.getTime()) / (24 * 3600 * 1000)),
+    0,
+  );
+  const gaps = Math.max(span - sorted.length + 1, 0);
+  // Trim to the last `opts.maxPoints` cells if the caller asks — the
+  // strip's render thread's memory budget is bounded.
+  const maxPoints = opts.maxPoints || 90;
+  const trimmed = sorted.length > maxPoints ? sorted.slice(-maxPoints) : sorted;
+  const n_measured_total = trimmed.reduce((s, p) => s + p.n_measured, 0);
+  return {
+    points: trimmed,
+    n_measured_total,
+    has_data: n_measured_total > 0,
+    gaps,
+  };
+}

@@ -821,3 +821,24 @@
   font-family: ui-monospace, Menlo, monospace;
 }
 
+/* v2.5 — per-tier daily sparkline (in-cell below the QualitySparkline).
+   Same column footprint as the endpoint trend, slightly wider to fit a
+   trailing fade/up/flat chip and gap-aware hover rectangles. */
+.fsp-conviction-dtrend {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 4px;
+  padding: 2px 0 0 0;
+}
+.fsp-conviction-dtrend svg {
+  display: block;
+}
+.fsp-conviction-dtrend-label {
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  font-family: ui-monospace, Menlo, monospace;
+}
+

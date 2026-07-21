@@ -516,6 +516,72 @@ def alert_quality(engine, days: int = 30) -> list[dict]:
         return []
 
 
+def alert_quality_daily(engine, tier: str | None = None, days: int = 30) -> list[dict]:
+    """v2.5 — daily (date, tier) precision series for the per-tier sparkline.
+
+    Same hit threshold as alert_quality (>=0.5% |move| in claimed direction),
+    but indexed by asof_date so the frontend can render a ~30-point
+    sparkline instead of just 7/14/30 windows. SIGMA / STRATEGY rows
+    (bias NULL) are excluded — they cannot claim a directional hit by
+    definition.
+
+    Group-by is (asof_date, tier); the rule dimension is collapsed because
+    the strip's per-tier card only needs the AGGREGATE hit-rate trend, not
+    per-rule breakdown (per-(rule, tier) data is what alert_quality() +
+    the 7/14/30 endpoint windows already expose as `quality_windows`).
+
+    Missing dates are NOT backfilled with zeros. A bursty tier (5 hits on
+    Mon, zero alerts Tue / Wed / Thu) renders as a 4-point series with
+    gaps — the gap is information (no measured alerts = no signal), the
+    visual breaks the line so a desk reads it as noise, NOT as a 0% loss.
+    """
+    since = (datetime.now(_ET).date() - timedelta(days=max(1, days))).isoformat()
+    params: list = [since]
+    tier_clause = ""
+    if tier:
+        tier_clause = " AND tier = ?"
+        params.append(str(tier).upper())
+    try:
+        rows = engine.query(f"""
+            SELECT asof_date AS date, tier,
+                   count(*) AS n,
+                   count(move_pct) AS n_measured,
+                   CAST(SUM(CASE WHEN move_pct IS NULL THEN 0
+                                 WHEN bias = 'BULLISH' AND move_pct >= 0.5 THEN 1
+                                 WHEN bias = 'BEARISH' AND move_pct <= -0.5 THEN 1
+                                 ELSE 0 END) AS BIGINT) AS wins,
+                   avg(CASE WHEN move_pct IS NULL THEN NULL
+                            WHEN bias = 'BULLISH' AND move_pct >= 0.5 THEN 1.0
+                            WHEN bias = 'BEARISH' AND move_pct <= -0.5 THEN 1.0
+                            ELSE 0.0 END) AS hit_rate,
+                   avg(move_pct) AS avg_move_pct
+            FROM flow_alerts_daily
+            WHERE asof_date >= ? AND bias IS NOT NULL{tier_clause}
+            GROUP BY asof_date, tier
+            ORDER BY asof_date ASC, tier ASC
+        """, params)
+    except Exception as e:
+        logger.warning(f"flow_alerts.alert_quality_daily: {e}")
+        return []
+    # DuckDB date columns come back as either datetime.date or
+    # datetime.datetime depending on the lib version + bind context; some
+    # paths serialize to a 19-char ISO datetime via .isoformat(). The JSON
+    # contract to React is strictly "YYYY-MM-DD" (10 chars) so a desk
+    # never confuses 2026-07-19 with 2026-07-19T00:00:00. Force the slice.
+    for r in rows:
+        d = r.get("date")
+        if d is None:
+            continue
+        if hasattr(d, "isoformat"):
+            r["date"] = d.isoformat()[:10]
+        elif isinstance(d, str):
+            # Already a string (some engine wrappers pre-serialize); trim
+            # any T... suffix defensively so legacy paths still hit the
+            # 10-char YYYY-MM-DD contract.
+            r["date"] = d[:10]
+    return rows
+
+
 def dedup_filter(engine, alerts, now: float | None = None) -> list[dict]:
     """Drop alerts whose key fired within its TTL; record the survivors."""
     if not alerts:

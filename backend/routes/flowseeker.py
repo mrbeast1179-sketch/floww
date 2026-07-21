@@ -969,10 +969,36 @@ async def institutional_alert_quality(
             return {"quality": fa.alert_quality(duckdb_engine, days=window_list[0]),
                     "days": window_list[0]}
         out = {w: fa.alert_quality(duckdb_engine, days=w) for w in window_list}
-        return {"quality_windows": out, "days": window_list}
+        # v2.5 — per-tier per-day series for the sparkline. Always uses the
+        # MAX window (a desk's full-history read) regardless of which 7/14/30
+        # windows the caller requested for the headline strip — the sparkline
+        # needs raw day-level resolution, not aggregated windows. Group-by
+        # is (date, tier) so each tier carries its own N<=182 point series.
+        daily_max = max(window_list)
+        daily_rows = fa.alert_quality_daily(duckdb_engine, days=daily_max)
+        daily_by_tier: dict[str, list] = {"GOLD": [], "SILVER": [], "BRONZE": []}
+        for r in daily_rows:
+            t = str(r.get("tier") or "").upper()
+            if t in daily_by_tier:
+                daily_by_tier[t].append({
+                    "date": r.get("date"),
+                    "n": r.get("n", 0),
+                    "n_measured": r.get("n_measured", 0),
+                    "wins": r.get("wins", 0),
+                    "hit_rate": r.get("hit_rate"),
+                    "avg_move_pct": r.get("avg_move_pct"),
+                })
+        return {
+            "quality_windows": out,
+            "days": window_list,
+            "daily_series": daily_by_tier,
+            "daily_series_days": daily_max,
+        }
     except Exception as e:
         logger.warning(f"alert quality failed: {e}")
-        return {"quality_windows": {}, "days": window_list, "error": str(e)}
+        return {"quality_windows": {}, "days": window_list, "daily_series": {},
+                "daily_series_days": max(window_list) if window_list else 30,
+                "error": str(e)}
 
 
 @router.get("/alerts/feed")
