@@ -118,19 +118,20 @@ async def test_snapshot_one_open_after_three_failures(cache, today, monkeypatch)
     assert parsed.tzinfo is not None  # timezone-aware
 
 
-async def test_snapshot_half_open_state_after_ttl_elapses(cache, today, monkeypatch):
+def test_snapshot_half_open_state_after_ttl_elapses(cache):
     """TTL elapsed but no successful probe yet → HALF-OPEN state.
-    opened_at still set, timestamp, but ttl_remaining=0."""
-    parent = "SPY.OPT"
-    monkeypatch.setattr(
-        "databento_provider._fetch_oi_sync",
-        mock.Mock(side_effect=_auth_locked_error()),
+    opened_at still set, timestamp, but ttl_remaining=0.
+
+    Constructed manually (no monkeypatch + asyncio.sleep) so the test is
+    not timing-fragile — the position of `opened_at` is exact, not
+    inferred from clock skew between the trip point and the snapshot call."""
+    # opened_at is older than CIRCUIT_OPEN_TTL_SEC — TTL has elapsed, no probe fired.
+    cache._circuit["SPY.OPT"] = _CircuitState(
+        parent="SPY.OPT",
+        consecutive_failures=CIRCUIT_MAX_FAILURES,
+        opened_at=datetime.now(UTC) - timedelta(seconds=CIRCUIT_OPEN_TTL_SEC + 1),
+        close_attempts=0,
     )
-    monkeypatch.setattr("databento_provider.CIRCUIT_OPEN_TTL_SEC", 0.05)
-    for _ in range(3):
-        await cache.get(parent, today)
-    assert cache.is_circuit_open(parent) is True
-    await asyncio.sleep(0.07)  # TTL elapsed
     snap = cache.snapshot_circuits()
     entry = snap[0]
     assert entry["state"] == "half_open"
@@ -138,29 +139,35 @@ async def test_snapshot_half_open_state_after_ttl_elapses(cache, today, monkeypa
     assert entry["ttl_remaining_s"] == 0.0
 
 
-async def test_snapshot_sort_order_open_first_by_ttl_asc(
-    cache, today, monkeypatch
-):
+def test_snapshot_sort_order_open_first_by_ttl_asc(cache):
     """Sort priority: OPENs earliest-to-recover first (smallest ttl_remaining),
     then HALF-OPEN, then CLOSED alphabetically. Pins the dashboard's "what
-    will clear next" visual logic."""
-    parent_a, parent_b = "AAPL.OPT", "MSFT.OPT"
-    # Trip A first, then B 0.05s later — A has SHORTER ttl_remaining.
-    # Both within TTL => both 'open', A should sort first.
-    monkeypatch.setattr(
-        "databento_provider._fetch_oi_sync",
-        mock.Mock(side_effect=_auth_locked_error()),
+    will clear next" visual logic.
+
+    Constructed manually — no trip-via-mock + asyncio.sleep — so the test
+    isolates the sort behavior from clock skew between consecutive circuit
+    trips and the snapshot call. Both parents are OPEN with calculated
+    ttl_remaining, parent_a is older (smaller ttl) so it sorts first."""
+    # A opened 595s ago → ttl_remaining ≈ 5s (smaller, sorts first)
+    cache._circuit["AAPL.OPT"] = _CircuitState(
+        parent="AAPL.OPT",
+        consecutive_failures=CIRCUIT_MAX_FAILURES,
+        opened_at=datetime.now(UTC) - timedelta(seconds=595),
+        close_attempts=0,
     )
-    for _ in range(3):
-        await cache.get(parent_a, today)
-    await asyncio.sleep(0.05)
-    for _ in range(3):
-        await cache.get(parent_b, today)
+    # B opened 5s ago → ttl_remaining ≈ 595s (larger, sorts second)
+    cache._circuit["MSFT.OPT"] = _CircuitState(
+        parent="MSFT.OPT",
+        consecutive_failures=CIRCUIT_MAX_FAILURES,
+        opened_at=datetime.now(UTC) - timedelta(seconds=5),
+        close_attempts=0,
+    )
     snap = cache.snapshot_circuits()
     assert len(snap) == 2
-    # A opened earlier → its ttl_remaining is smaller → it sorts first.
+    # Both OPEN — A (older) has smaller ttl_remaining, sorts first.
     assert [e["parent"] for e in snap] == ["AAPL.OPT", "MSFT.OPT"]
     assert snap[0]["ttl_remaining_s"] < snap[1]["ttl_remaining_s"]
+    assert snap[0]["state"] == "open" and snap[1]["state"] == "open"
 
 
 def test_snapshot_mixed_states_full_stack(cache):
