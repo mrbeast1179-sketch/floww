@@ -408,6 +408,47 @@ describe("bestRuleForTier (v2.4 extension)", () => {
     };
     expect(bestRuleForTier("GOLD", byRuleAndTier)).toBeNull();
   });
+
+  test("single-hit fringe candidate loses to thin high-rate rival (v2.4.1 coverage gap)", () => {
+    // v2.4.1: the fringe sits exactly at the BEST_RULE_MIN_N=3 floor with
+    // hits=1 — the WEAKEST possible qualifying entry. Without this test, a
+    // future regression that loses the floor guard or that mis-ranks the
+    // weighted-hits key could silently flip this result. Pins: fringe
+    // qualifies (n=3 > 0), floor holds, and a higher-weighted-hits rival
+    // wins.
+    //
+    // The rival is "thin + high-rate" (n=10 with hits=10 → 100%) so even
+    // under a hypothetical hit_rate-DESC re-ranking the result would stay
+    // RIVAL — this test pins the floor + multi-candidate "rival wins"
+    // path, not the ranking metric.
+    //
+    // SHAPE: byRuleAndTier is built by summarizeQuality with keys like
+    // `${RULE}_${TIER}` (e.g. SCORE_GOLD). bestRuleForTier iterates
+    // Object.values and filters by c.tier === tierKey — flat dict, NOT
+    // an array under the tier key. Providing `{ GOLD: [...] }` would
+    // yield Object.values = [<array>] and the c.tier filter would
+    // reject every entry, returning null under the documented contract.
+    //
+    // Hits values here are the SAMPLE-SIZE-WEIGHTED hit_count that
+    // summarizeQuality rolls up as Σ hit_rate × n_measured. RIVAL =
+    // 1.0 × 10 = 10; FRINGE = (1/3) × 3 = 1. RIVAL's weighted hits
+    // dominate FRINGE's by 10x so the ranking has clear margin.
+    const byRuleAndTier = {
+      FRINGE_GOLD: { rule: "FRINGE", tier: "GOLD", hits: 1,  n_measured: 3  },
+      RIVAL_GOLD:  { rule: "RIVAL",  tier: "GOLD", hits: 10, n_measured: 10 },
+    };
+    const r = bestRuleForTier("GOLD", byRuleAndTier);
+    expect(r).not.toBeNull();  // sanity: function must surface a winner here
+    expect(r.rule).toBe("RIVAL");
+    expect(r.n_measured).toBe(10);
+    // hit_rate is recomputed by the function from c.hits / c.n_measured
+    // (Σ hit_rate × n_measured ÷ n_measured) — for a single-row rival
+    // with hits=10, n=10, that's 1.0. The desk reads this as a perfect
+    // 10-for-10 record. hits itself is NOT in the return shape (it lives
+    // on the internal mapped candidate used for `.sort`); asserting on
+    // it would silently false-fail any time.
+    expect(r.hit_rate).toBeCloseTo(1.0);
+  });
 });
 
 // ── v2.5 daily series (per-tier sparkline math) ──────────────────

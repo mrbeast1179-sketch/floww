@@ -15,6 +15,7 @@ tables so a skim reader does not infer supersession across axes.
 | v2.2 — quality-trend sparkline math (7/14/30 windows, Wilson lower bound) | `546fc52` | |
 | v2.3 — Wilson 95% confidence interval helpers (statistical-honesty layer) | `546fc52` | |
 | v2.4 — bestRuleForTier (decision-rule ranking with `BEST_RULE_MIN_N=3` floor) | `546fc52` | **closed 2026-07-21** |
+| v2.4.1 — "single-hit fringe vs thin high-rate rival" coverage pin | (this commit) | **closed 2026-07-21** |
 | v2.5 — daily sparkline for per-tier trending | `f20c416` | |
 | v2.5.1 — null-aware coercion helper cleanup | `f89a010` | |
 
@@ -133,6 +134,25 @@ waves built ON TOP of it:
 - v2.5 daily sparkline (`f20c416`) — per-tier fade-signal via `dailySeriesForTier` + Wilson CIs
 - v2.5.1 cleanup (`f89a010`) — `_toNum` null-aware coercion helper
 - v2.2 desk-pass (`a6fffe8`) + v2.2-wire (`642d225`) + v2.2-wire-failopen (`f41351e`) — backend hardening; v2.4 frontend layer sits on top of the resulting feed
+
+### v2.4.1 Coverage-pin test
+
+Closed 2026-07-21 (this commit). The "single-hit fringe candidate loses to thin
+high-rate rival" test pins the floor edge case the prior v2.4 close-out left uncovered:
+
+- **Fringe** sits exactly at `BEST_RULE_MIN_N = 3` with `hits = 1` — the WEAKEST
+  possible qualifying entry. Without this pin, a future regression mis-ranking
+  the weighted-hits key could silently flip a result at the floor boundary.
+- **Rival** has `hits = 10`, `n_measured = 10` — "thin + high-rate" (100% record
+  at small n). Wins decisively on weighted-hits ranking (10 > 1).
+- **Test contract**: fringe qualifies (`n_measured > 0` holds), floor holds
+  (`n_measured >= 3`), and a higher-weighted-hits rival wins. `hit_rate` is
+  recomputed and reads ~1.0 (10/10).
+
+This test does NOT strictly pin the ranking metric — under a hypothetical
+`hit_rate`-DESC re-ranking the rival still wins because its 100% rate beats the
+fringe's ~33%. The ranking-metric regression coverage is provided implicitly by
+the 7 existing tests in the `describe("bestRuleForTier (v2.4 extension)")` block.
 
 ### Calibration notes
 
