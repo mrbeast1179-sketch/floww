@@ -137,12 +137,20 @@ class AlertTuner:
             "status": "analyzed",
         }
 
-    def optimize_threshold(self, alert_id: str) -> TuningResult | None:
+    def optimize_threshold(self, alert_id: str, *, is_locked: bool = False) -> TuningResult | None:
         """Find optimal threshold for an alert type using holdout validation.
 
         Grid-searches threshold candidates between the 10th and 90th
         percentile of observed values, picking the one that maximizes
         precision while maintaining recall >= MIN_RECALL.
+
+        ``is_locked`` (v3.x tier-lock): when True, we SHORT-CIRCUIT
+        BEFORE the 50-candidate grid — a locked tier keeps its current
+        ``old_threshold`` and the retuner never proposes a new one. The
+        ``TuningResult`` returned still carries ``old_precision`` /
+        ``old_recall`` so calibration drift is visible to the desk even
+        on a held tier.  Skipping the grid saves ~50× the per-call work
+        and keeps the proposal semantics clean.
         """
         records = [r for r in self._alerts if r.alert_id == alert_id]
         labeled = [r for r in records if r.was_true_positive is not None]
@@ -164,12 +172,39 @@ class AlertTuner:
         values = [r.observed_value for r in train]
         old_threshold = records[0].threshold_used if records else float("inf")
 
-        # Compute old precision on holdout
+        # Compute old precision / recall on holdout
         old_tp = sum(1 for r in holdout if r.observed_value >= old_threshold and r.was_true_positive)
         old_fp = sum(1 for r in holdout if r.observed_value >= old_threshold and not r.was_true_positive)
         old_fn = sum(1 for r in holdout if r.observed_value < old_threshold and r.was_true_positive)
         old_precision = old_tp / (old_tp + old_fp) if (old_tp + old_fp) > 0 else 0.0
         old_recall = old_tp / (old_tp + old_fn) if (old_tp + old_fn) > 0 else 0.0
+
+        # v3.x tier-lock short-circuit — BEFORE the 50-candidate grid.
+        # When locked, the retuner holds ``old_threshold`` and never proposes.
+        # TuningResult still carries old_precision / old_recall so the
+        # calibration drift is visible even on a held tier.
+        if is_locked:
+            result = TuningResult(
+                alert_id=alert_id,
+                metric_name=records[0].metric_name if records else "",
+                old_threshold=round(old_threshold, 4),
+                new_threshold=round(old_threshold, 4),
+                old_precision=round(old_precision, 4),
+                new_precision=round(old_precision, 4),
+                old_recall=round(old_recall, 4),
+                new_recall=round(old_recall, 4),
+                false_positive_reduction_pct=0.0,
+                n_samples=len(holdout),
+                n_true_positives=old_tp,
+                n_false_positives=old_fp,
+            )
+            self._results.append(result)
+            log.info(
+                f"[{alert_id}] Locked tier — retune skipped, threshold held at "
+                f"{old_threshold:.2f} (precision {old_precision:.2%}, "
+                f"recall {old_recall:.2%})"
+            )
+            return result
 
         # Grid search threshold candidates
         p10 = float(np.percentile(values, 10))

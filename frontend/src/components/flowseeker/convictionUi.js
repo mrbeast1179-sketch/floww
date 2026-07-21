@@ -144,8 +144,7 @@ export function summarizeQuality(payload, daysHint = null) {
   // rolls hits across all rules in a tier (for the headline hit_rate +
   // Wilson CI), this preserves the per-rule picture so bestRuleForTier can
   // rank rules within the same tier by sample-size-weighted hit count.
-  const byRuleAndTier = {};
-  for (const row of flatRows || []) {
+  const byRuleAndTier = {};    for (const row of flatRows || []) {
     const t = String(row.tier || "").toUpperCase();
     if (!(t in byTier)) continue;
     // v2.3 — wins starts as `null`. We only set it when a row carries the
@@ -153,18 +152,30 @@ export function summarizeQuality(payload, daysHint = null) {
     // `wins` field) as zero-wins and silently lock the Wilson fallback path
     // off — the classic "0 != null" nullability trap. The winsSrc selection
     // null-checks rather than truthy-checks for the same reason.
+    //
+    // v2.5.2 — every inline `Number(row.X)` / `Number.isNaN(...)` in this
+    // block now goes through `_toNum(v, fallback)`. Counts (n, n_measured,
+    // wins) take the 0 fallback so "absent" is indistinguishable from
+    // "explicitly zero" — `prev.n += 0` is a no-op, identical to the
+    // `Number(row.n) || 0` form. Ratios (hit_rate, avg_move_pct) take the
+    // `null` fallback so "no measurement" stays distinct from "0% on a
+    // measurement" — the byTier rollup's `hr != null` guard fires for the
+    // former, exactly matching the previous `!Number.isNaN(hr)` check
+    // (both reject NaN; `_toNum` additionally rejects Infinity as a
+    // bonus — Infinity row.hit_rate is now also dropped, was previously
+    // propagted into hits via `Infinity * n_measured`).
     const prev = byTier[t] || { tier: t, n: 0, n_measured: 0, hits: 0, wins: null, sum_move: 0, n_move: 0 };
-    prev.n += Number(row.n) || 0;
-    prev.n_measured += Number(row.n_measured) || 0;
-    const hr = Number(row.hit_rate);
-    if (!Number.isNaN(hr) && (row.n_measured || 0) > 0) {
+    prev.n += _toNum(row.n, 0);
+    prev.n_measured += _toNum(row.n_measured, 0);
+    const hr = _toNum(row.hit_rate, null);
+    if (hr != null && (row.n_measured || 0) > 0) {
       prev.hits += hr * (row.n_measured || 0);
     }
     if (row.wins != null) {
-      prev.wins = (prev.wins ?? 0) + Number(row.wins);
+      prev.wins = (prev.wins ?? 0) + _toNum(row.wins, 0);
     }
-    const mv = Number(row.avg_move_pct);
-    if (!Number.isNaN(mv) && mv != null) {
+    const mv = _toNum(row.avg_move_pct, null);
+    if (mv != null) {
       prev.sum_move += mv * (row.n_measured || 0);
       prev.n_move += row.n_measured || 0;
     }
@@ -177,13 +188,13 @@ export function summarizeQuality(payload, daysHint = null) {
     const rPrev = byRuleAndTier[rtKey] || {
       rule: r, tier: t, n: 0, n_measured: 0, hits: 0, wins: null,
     };
-    rPrev.n += Number(row.n) || 0;
-    rPrev.n_measured += Number(row.n_measured) || 0;
-    if (!Number.isNaN(hr) && (row.n_measured || 0) > 0) {
+    rPrev.n += _toNum(row.n, 0);
+    rPrev.n_measured += _toNum(row.n_measured, 0);
+    if (hr != null && (row.n_measured || 0) > 0) {
       rPrev.hits += hr * (row.n_measured || 0);
     }
     if (row.wins != null) {
-      rPrev.wins = (rPrev.wins ?? 0) + Number(row.wins);
+      rPrev.wins = (rPrev.wins ?? 0) + _toNum(row.wins, 0);
     }
     byRuleAndTier[rtKey] = rPrev;
   }
@@ -241,8 +252,19 @@ export function summarizeQuality(payload, daysHint = null) {
 export const WILSON_Z = 1.645;   // 90% CI — tunable for v2.4 if a desk wants 95%
 
 export function wilsonBounds(x, n, z = WILSON_Z) {
-  if (!Number.isFinite(n) || n <= 0) return { lo: null, hi: null };
-  const p = Number(x) / n;
+  // v2.5.2 — `!Number.isFinite(n) || n <= 0` collapses to
+  // `_toNum(n) == null || n <= 0`. _toNum(v) returns null for any
+  // non-finite v (NaN, Infinity, non-numeric string, null, undefined)
+  // so the same cases that previously tripped the early-return trip the
+  // helper; the `<= 0` half of the guard still handles the
+  // finite-but-non-positive range {0, negatives} explicitly because
+  // _toNum(0)=0 (not null) — i.e. zero is a valid finite number on its
+  // own and only the `<=` check disqualifies it as a denominator.
+  if (_toNum(n) == null || n <= 0) return { lo: null, hi: null };
+  // x is the numerator; coerce it the same way summarizeQuality coerces
+  // winsSrc so the Wilson math sees a finite value or 0 (not NaN that
+  // would propagate through Mathf.sqrt and Math.min downstream).
+  const p = _toNum(x, 0) / n;
   const z2 = z * z;
   const denom = 1 + z2 / n;
   const center = p + z2 / (2 * n);
@@ -270,13 +292,13 @@ export function wilsonBounds(x, n, z = WILSON_Z) {
 // (rule, tier) for a strictly statistical read. The current key matches
 // the existing byTier aggregation discipline (weighted hits) so the
 // UI math stays consistent with the cell's headline hit_rate.
-export const BEST_RULE_MIN_N = 3;
+export const BEST_RULE_MIN_N = 3;  // mirrors backend/services/flow_alerts.py _BEST_RULE_MIN_N — keep identical
 
 export function bestRuleForTier(tier, byRuleAndTier) {
   const tierKey = String(tier || "").toUpperCase();
   const candidates = Object.values(byRuleAndTier || {})
     .filter((c) => c.tier === tierKey)
-    .filter((c) => Number(c.n_measured) > 0)
+    .filter((c) => _toNum(c.n_measured, 0) > 0)
     .map((c) => ({
       rule: c.rule,
       hit_rate: c.n_measured > 0 ? c.hits / c.n_measured : 0,
@@ -419,6 +441,42 @@ export const TREND_COLOR = {
   unknown: "#6c7382",   // muted — underpowered / missing windows
 };
 
+// ── tier-lock helper (v3.x tier-lock hysteresis) ─────────────────
+// The backend's /api/flowseeker/alerts/quality response carries a
+// `tier_locks` field — one entry per tier:
+//   { GOLD:    { engaged: bool, locked_hit_rate: float|null,
+//                locked_at: ISO8601 | null },
+//     SILVER:  { ... }, BRONZE: { ... } }
+// `engaged=true` means the retuner is currently LOCKED to that tier's
+// calibration — a desk reads "Lock engaged: GOLD 75%" as proof the
+// threshold isn't being shaken by mid-cycle noise. The render sigil
+// (`data-locked` on the panel pill) is purely informational; the retuner
+// enforces the lock on the data side independently.
+//
+// Returns `{engaged, locked_hit_rate}` when the tier is locked, or null
+// when the tier is not engaged, the payload lacks the field, OR the
+// source `locked_hit_rate` is corrupted (null/NaN — we drop the sigil
+// rather than render "Lock engaged: GOLD null%" garbage on a desk).
+export function tierLockFor(tier, payload) {
+  if (!payload || typeof payload !== "object") return null;
+  const locks = payload.tier_locks;
+  if (!locks || typeof locks !== "object") return null;
+  const info = locks[String(tier || "").toUpperCase()];
+  if (!info || info.engaged !== true) return null;
+  // Drop the sigil when source `locked_hit_rate` is missing/null/NaN.
+  // The "Lock engaged: GOLD 75%" annotation needs a number — null here
+  // means a corrupt upstream row (e.g. tier just engaged at /scan but
+  // the quality snapshot hasn't accumulated yet) and the strip should
+  // render no sigil until a real rate lands.
+  const rate = _toNum(info.locked_hit_rate, null);
+  if (rate === null) return null;
+  return {
+    engaged: true,
+    locked_hit_rate: rate,
+    locked_at: info.locked_at || null,
+  };
+}
+
 // ── v2.5 daily sparkline (per-tier N-day series) ─────────────────
 // Backend's /alerts/quality response carries a `daily_series: {GOLD: [...],
 // SILVER: [...], BRONZE: [...]}` map with one row per (date, tier) that
@@ -449,7 +507,20 @@ export const DAILY_MIN_DAYS = 1;    // zero points is a meaningless sparkline
 // want 0 because "how many" doesn't distinguish zero from absent in a
 // way the consumer cares about. `fallback` disambiguates the two.
 // Number(null) === 0 is the foot-gun this helper exists to neuter.
-function _toNum(v, fallback) {
+// v2.5.2 — exported (and given a `null` default fallback) so the
+// summarizeQuality / wilsonBounds / bestRuleForTier code paths that
+// previously inlined `Number(row.X) || 0` + `Number.isNaN(...)` style
+// checks collapse to a single call site with one consistent contract:
+//   _toNum(null)            → null  (no observation is meaningful)
+//   _toNum(0)               → 0     (explicit zero is PRESERVED, not
+//                                    coerced away — Math.round(0)===0,
+//                                    Number(0)===0, isFinite(0)===true)
+//   _toNum(NaN)             → fallback (Number.isFinite(NaN)===false)
+//   _toNum("5")             → 5     (numeric strings coerce, not blank)
+//   _toNum(Infinity)        → fallback (Number.isFinite(Infinity)===false)
+//   _toNum(row.hit_rate, 0) → 0     (legacy rows without hit_rate field)
+// Pinned by the 4-case `_toNum (v2.5.2 helper contract)` describe below.
+export function _toNum(v, fallback = null) {
   if (v == null) return fallback;
   const n = Number(v);
   return Number.isFinite(n) ? n : fallback;

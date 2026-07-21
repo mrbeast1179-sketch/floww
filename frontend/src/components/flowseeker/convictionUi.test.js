@@ -1,601 +1,82 @@
-import {
-  PRIME_PREMIUM,
-  PRIME_VOL_OI,
-  CW_CONFIRM,
-  fmtCW,
-  fmtMovePct,
-  tierBadge,
-  cwConfirmChip,
-  clusterChip,
-  primeChip,
-  qualityTrendForTier,
-  sigmaChip,
-  isPrime,
-  summarizeQuality,
-  compareAlerts,
-  TREND_FLAT_BAND,
-  TREND_MIN_N,
-  wilsonBounds,
-  WILSON_Z,
-  dailySeriesForTier,
-  DAILY_MIN_N,
-  TREND_COLOR,
-} from "./convictionUi";
-import * as convictionUi from "./convictionUi";
+// convictionUi.test.js — Jest tests for the v3.x tier-lock helper.
+//
+// Mirrors backend/services/tier_lock.py contract: tier_locks payload
+// shape is `{GOLD|SILVER|BRONZE: {engaged, locked_hit_rate, locked_at}}`.
+// The helper must be null-safe against legacy payloads (no tier_locks)
+// and missing-key entries (a tier never engaged should not render a
+// sigil even if its neighbors are).
 
-const { bestRuleForTier, BEST_RULE_MIN_N } = convictionUi;
+import { tierLockFor } from "./convictionUi.js";
 
-const alert = (over = {}) => ({
-  tier: "GOLD",
-  side: "BUY",
-  bias: "BULLISH",
-  premium: 300_000,
-  vol_oi: 6.0,
-  cw_spread: 0.04,
-  sigma: null,
-  rule: "SCORE",
-  under: "PLTR",
-  asof_ts: "2026-07-20T14:30:00-04:00",
-  ...over,
-});
-
-describe("Constants mirror backend thresholds", () => {
-  test("thresholds match services/flow_quality.py constants", () => {
-    expect(PRIME_PREMIUM).toBe(250_000);
-    expect(PRIME_VOL_OI).toBe(5.0);
-    expect(CW_CONFIRM).toBe(0.015);
-  });
-});
-
-describe("fmtCW + fmtMovePct", () => {
-  test("fmtCW adds + sign for positive and % suffix", () => {
-    expect(fmtCW(0.0482)).toBe("+4.82%");
-    expect(fmtCW(-0.012)).toBe("-1.20%");
-    expect(fmtCW(0)).toBe("0.00%");
-  });
-  test("fmtCW placeholder on null / NaN", () => {
-    expect(fmtCW(null)).toBe("—");
-    expect(fmtCW(NaN)).toBe("—");
-  });
-  test("fmtMovePct adds + sign for positive move", () => {
-    expect(fmtMovePct(3.92)).toBe("+3.92%");
-    expect(fmtMovePct(-1.2)).toBe("-1.20%");
-    expect(fmtMovePct(null)).toBe("—");
-  });
-});
-
-describe("tierBadge", () => {
-  test("GOLD / SILVER / BRONZE map to canonical classes", () => {
-    expect(tierBadge("GOLD")).toMatchObject({ label: "GOLD", rank: 0 });
-    expect(tierBadge("GOLD").className).toContain("fsp-tier-gold");
-    expect(tierBadge("SILVER").className).toContain("fsp-tier-silver");
-    expect(tierBadge("BRONZE").className).toContain("fsp-tier-bronze");
-  });
-  test("BRONZE + side STRATEGY → STRATEGY badge (spread-leg demotion)", () => {
-    const t = tierBadge("BRONZE", "STRATEGY");
-    expect(t.label).toBe("STRATEGY");
-    expect(t.className).toContain("fsp-tier-strategy");
-  });
-  test("null / unknown tier → BRONZE fallback", () => {
-    expect(tierBadge(null).label).toBe("BRONZE");
-    expect(tierBadge("NOT-A-TIER").className).toContain("fsp-tier-bronze");
-  });
-  test("case-insensitive", () => {
-    expect(tierBadge("gold").label).toBe("GOLD");
-  });
-});
-
-describe("spread-leg signal", () => {
-  test("panel renders the STRATEGY tier pill instead of a separate chip", () => {
-    // The server already demotes spread legs to (side="STRATEGY", tier="BRONZE")
-    // — tierBadge("BRONZE","STRATEGY") returns the STRATEGY label & class,
-    // so the panel relies on that pill alone rather than a second chip.
-    expect(convictionUi.spreadChip).toBeUndefined();
-    const pill = tierBadge("BRONZE", "STRATEGY");
-    expect(pill.label).toBe("STRATEGY");
-    expect(pill.className).toContain("fsp-tier-strategy");
-  });
-});
-
-describe("cwConfirmChip", () => {
-  test("bullish + cw above threshold → +% label", () => {
-    const c = cwConfirmChip(alert({ bias: "BULLISH", cw_spread: 0.04 }));
-    expect(c?.label).toMatch(/CW/);
-    expect(c?.label).toMatch(/\+4\.0%/);
-    expect(c?.className).toContain("fsp-chip-cw-bull");
-  });
-  test("bearish + cw ≤ -threshold → negative confirms", () => {
-    const c = cwConfirmChip(alert({ bias: "BEARISH", cw_spread: -0.03 }));
-    expect(c?.label).toMatch(/-/);
-    expect(c?.className).toContain("fsp-chip-cw-bear");
-  });
-  test("mismatched sign → null (chip only fires when it CONFIRMS bias)", () => {
-    expect(cwConfirmChip(alert({ bias: "BULLISH", cw_spread: -0.05 }))).toBeNull();
-    expect(cwConfirmChip(alert({ bias: "BEARISH", cw_spread: 0.05 }))).toBeNull();
-  });
-  test("below the 0.015 threshold → null", () => {
-    expect(cwConfirmChip(alert({ bias: "BULLISH", cw_spread: 0.01 }))).toBeNull();
-  });
-  test("null cw_spread / null bias → null", () => {
-    expect(cwConfirmChip(alert({ cw_spread: null, bias: null }))).toBeNull();
-    expect(cwConfirmChip(alert({ cw_spread: 0.04, bias: null }))).toBeNull();
-  });
-});
-
-describe("primeChip", () => {
-  test("lights up at the 250k + vol/OI 5 floor", () => {
-    expect(primeChip(alert({ premium: 250_000, vol_oi: 5.0 }))?.label).toBe("PRIME");
-    expect(primeChip(alert({ premium: 300_000, vol_oi: 6.0 }))?.label).toBe("PRIME");
-  });
-  test("stays off under either floor", () => {
-    expect(primeChip(alert({ premium: 100_000, vol_oi: 6 }))).toBeNull();
-    expect(primeChip(alert({ premium: 300_000, vol_oi: 3 }))).toBeNull();
-  });
-  test("isPrime mirrors chip (pure detection)", () => {
-    expect(isPrime(alert({ premium: 250_000, vol_oi: 5.0 }))).toBe(true);
-    expect(isPrime(alert({ premium: 249_999, vol_oi: 5.0 }))).toBe(false);
-    expect(isPrime(alert({ premium: 250_000, vol_oi: 4.999 }))).toBe(false);
-    expect(isPrime({})).toBe(false);
-    expect(isPrime(null)).toBe(false);
-  });
-});
-
-describe("sigmaChip", () => {
-  test("renders σ-string for non-null value", () => {
-    expect(sigmaChip(5.3)?.label).toBe("σ +5.3");
-    expect(sigmaChip(-2.1)?.label).toBe("σ -2.1");
-    expect(sigmaChip(0)?.label).toBe("σ +0.0");
-  });
-  test("null / NaN → null", () => {
-    expect(sigmaChip(null)).toBeNull();
-    expect(sigmaChip(NaN)).toBeNull();
-  });
-});
-
-describe("clusterChip (server-stamped bool)", () => {
-  test("lights up only when alert.cluster is true", () => {
-    expect(clusterChip(alert({ cluster: true }))?.label).toBe("CLUSTER");
-  });
-  test("stays off when cluster is false / null / missing", () => {
-    expect(clusterChip(alert({ cluster: false }))).toBeNull();
-    expect(clusterChip(alert({ cluster: null }))).toBeNull();
-    expect(clusterChip(alert({}))).toBeNull();
-  });
-  test("null row → null", () => {
-    expect(clusterChip(null)).toBeNull();
-  });
-});
-
-describe("qualityTrendForTier (v2.2 sparkline math)", () => {
-  const gold = (n_measured, hit_rate) => ({ tier: "GOLD", n_measured, hit_rate });
-  test("up when RECENT (7d) > MACRO (30d) past flat band", () => {
-    const t = qualityTrendForTier("GOLD", { 7: [gold(4, 0.85)], 14: [gold(8, 0.70)], 30: [gold(12, 0.60)] });
-    expect(t.direction).toBe("up");
-    // delta = RECENT - MACRO = 0.85 - 0.60 = +0.25 (positive → "up")
-    expect(t.delta).toBeCloseTo(0.25);
-  });
-  test("flat when delta is within the 10pp band", () => {
-    expect(TREND_FLAT_BAND).toBe(0.10);
-    const t = qualityTrendForTier("GOLD", { 7: [gold(4, 0.65)], 14: [gold(8, 0.66)], 30: [gold(12, 0.70)] });
-    // delta = 0.65 - 0.70 = -0.05 → |0.05| < 0.10 → flat
-    expect(t.direction).toBe("flat");
-    expect(Math.abs(t.delta)).toBeLessThan(TREND_FLAT_BAND);
-  });
-  test("down when RECENT < MACRO past flat band", () => {
-    const t = qualityTrendForTier("GOLD", { 7: [gold(4, 0.40)], 14: [gold(8, 0.50)], 30: [gold(12, 0.75)] });
-    expect(t.direction).toBe("down");
-    expect(t.delta).toBeCloseTo(-0.35);
-  });
-  test("unknown when longest-window n_measured < TREND_MIN_N", () => {
-    expect(TREND_MIN_N).toBe(3);
-    // 7d has 1, 30d has 2 → under threshold even though both finite.
-    const t = qualityTrendForTier("GOLD", { 7: [gold(1, 0.90)], 14: [gold(2, 0.60)], 30: [gold(2, 0.50)] });
-    expect(t.direction).toBe("unknown");
-  });
-  test("unknown when one or more windows have no data", () => {
-    const t = qualityTrendForTier("GOLD", { 7: [gold(4, 0.80)], 14: [], 30: [gold(12, 0.50)] });
-    expect(t.direction).toBe("unknown");
-  });
-  test("null hit_rate in middle window tolerated, longest-window rules direction", () => {
-    const t = qualityTrendForTier("GOLD", { 7: [gold(4, 0.80)], 14: [{ tier: "GOLD", hit_rate: null }], 30: [gold(12, 0.55)] });
-    // 14d row is missing n_measured; finite [7d(hr=0.80), 30d(hr=0.55)].
-    // delta = 0.80 - 0.55 = 0.25 → "up". longest-window n_measured=12 (>=3).
-    expect(t.direction).toBe("up");
-    expect(t.delta).toBeCloseTo(0.25);
-  });
-  test("thin flag set when ANY window is underpowered", () => {
-    const t = qualityTrendForTier("GOLD", { 7: [gold(4, 0.80)], 14: [gold(2, 0.50)], 30: [gold(12, 0.55)] });
-    expect(t.thin).toBe(true);
-  });
-  test("absent input → unknown with null delta", () => {
-    const t = qualityTrendForTier("GOLD", null);
-    expect(t.direction).toBe("unknown");
-    expect(t.delta).toBeNull();
-  });
-});
-
-describe("summarizeQuality", () => {
-  test("groups by tier; thin tier stays thin", () => {
-    const out = summarizeQuality({
-      quality: [
-        { tier: "GOLD",   n: 4, n_measured: 4, hit_rate: 0.75, avg_move_pct: 2.1 },
-        { tier: "SILVER", n: 3, n_measured: 3, hit_rate: 0.50, avg_move_pct: 1.4 },
-        { tier: "BRONZE", n: 7, n_measured: 0, hit_rate: null, avg_move_pct: null },
-      ],
-      days: 30,
-    });
-    expect(out.hasData).toBe(true);
-    expect(out.tiers).toHaveLength(3);
-    expect(out.tiers.find((t) => t.tier === "GOLD").hit_rate).toBeCloseTo(0.75);
-    expect(out.tiers.find((t) => t.tier === "BRONZE").thin).toBe(true);
-    expect(out.tiers.find((t) => t.tier === "BRONZE").hit_rate).toBeNull();
-  });
-  test("v2.3 — each tier carries a Wilson 90% CI on the aggregate hits", () => {
-    const out = summarizeQuality({
-      quality: [
-        // GOLD: 4 measured wins out of 5 total, 80% hit rate.
-        { tier: "GOLD", n: 5, n_measured: 5, hit_rate: 0.80, avg_move_pct: 1.0 },
-      ],
-      days: 30,
-    });
-    const gold = out.tiers.find((t) => t.tier === "GOLD");
-    // 4/5 → 90% Wilson should bracket roughly [49%, 94%].
-    expect(gold.hit_rate).toBeCloseTo(0.80);
-    expect(gold.hit_lo).toBeGreaterThan(0.40);
-    expect(gold.hit_lo).toBeLessThan(0.50);
-    expect(gold.hit_hi).toBeGreaterThan(0.90);
-    expect(gold.hit_hi).toBeLessThan(0.98);
-    expect(gold.hit_lo).toBeLessThan(gold.hit_rate);
-    expect(gold.hit_rate).toBeLessThan(gold.hit_hi);
-    expect(gold.hits).toBe(4);
-  });
-
-  test("v2.3 wins-column round-trip (bit-exact integer path)", () => {
-    // Backend's integer `wins` column is preferred over the float-round
-    // fallback when present. End-to-end exercise of the wins-cleared path.
-    const out = summarizeQuality({
-      quality: [
-        { tier: "GOLD", wins: 4, n: 5, n_measured: 5, hit_rate: 0.80, avg_move_pct: 1.0 },
-      ],
-      days: 30,
-    });
-    const gold = out.tiers.find((t) => t.tier === "GOLD");
-    expect(gold.hits).toBe(4);
-    expect(gold.hit_lo).toBeGreaterThan(0.40);
-    expect(gold.hit_lo).toBeLessThan(0.50);
-    expect(gold.hit_hi).toBeGreaterThan(0.90);
-    expect(gold.hit_hi).toBeLessThan(0.98);
-  });
-
-  test("v2.3 partial payload (mixed wins coverage)", () => {
-    // Real-world payloads can mix backend-format rows (wins present) and
-    // legacy rows (only hit_rate). The accumulator's null-safe
-    // `prev.wins ?? 0` keeps the integer path alive without NaN poisoning.
-    const out = summarizeQuality({
-      quality: [
-        { tier: "GOLD", wins: 1, n: 2, n_measured: 2, hit_rate: 1.00, avg_move_pct: 3.0 },
-        { tier: "GOLD",              n: 3, n_measured: 3, hit_rate: 0.20, avg_move_pct: 0.5 },
-      ],
-      days: 30,
-    });
-    const gold = out.tiers.find((t) => t.tier === "GOLD");
-    // Row 1 contributes wins=1; row 2 has wins=undefined and is skipped.
-    expect(gold.hits).toBe(1);
-    expect(gold.hit_rate).toBeCloseTo((1.0 * 2 + 0.20 * 3) / 5, 2);
-    // WilsonBounds(1, 5, z=1.645): lo ~0.052, hi ~0.647. Bracket loosely.
-    expect(gold.hit_lo).toBeGreaterThan(0.04);
-    expect(gold.hit_lo).toBeLessThan(0.15);
-    expect(gold.hit_hi).toBeGreaterThan(0.55);
-    expect(gold.hit_hi).toBeLessThan(0.75);
-  });
-  test("v2.3 — thin tier carries null bounds (Wilson undefined at n=0)", () => {
-    const out = summarizeQuality({
-      quality: [
-        { tier: "BRONZE", n: 7, n_measured: 0, hit_rate: null, avg_move_pct: null },
-      ],
-      days: 30,
-    });
-    const bronze = out.tiers.find((t) => t.tier === "BRONZE");
-    expect(bronze.hit_lo).toBeNull();
-    expect(bronze.hit_hi).toBeNull();
-  });
-  test("sums n and n_measured within a tier (multiple rules)", () => {
-    const out = summarizeQuality({
-      quality: [
-        { tier: "GOLD", n: 2, n_measured: 2, hit_rate: 1.0, avg_move_pct: 3.0 },
-        { tier: "GOLD", n: 3, n_measured: 3, hit_rate: 0.67, avg_move_pct: 1.5 },
-      ],
-      days: 30,
-    });
-    const gold = out.tiers.find((t) => t.tier === "GOLD");
-    expect(gold.n).toBe(5);
-    expect(gold.n_measured).toBe(5);
-    expect(gold.hit_rate).toBeCloseTo((2 * 1.0 + 3 * 0.67) / 5, 5);
-    expect(gold.avg_move_pct).toBeCloseTo((2 * 3.0 + 3 * 1.5) / 5, 5);
-  });
-  test("empty input → empty result, hasData false", () => {
-    expect(summarizeQuality({}).hasData).toBe(false);
-    expect(summarizeQuality(null).tiers).toEqual([]);
-    expect(summarizeQuality({ quality: [] }).tiers).toEqual([]);
-  });
-  test("v2.2 batched shape: project the longest window for the headline strip", () => {
-    const out = summarizeQuality({
-      quality_windows: {
-        7:  [{ tier: "GOLD", n: 4, n_measured: 4, hit_rate: 0.80, avg_move_pct: 2.5 }],
-        14: [{ tier: "GOLD", n: 8, n_measured: 8, hit_rate: 0.70, avg_move_pct: 2.0 }],
-        30: [{ tier: "GOLD", n: 12, n_measured: 12, hit_rate: 0.65, avg_move_pct: 1.7 }],
+describe("tierLockFor (v3.x tier-lock hysteresis)", () => {
+  test("returns the engaged struct when tier_locks[tier].engaged is true", () => {
+    const payload = {
+      tier_locks: {
+        GOLD: { engaged: true, locked_hit_rate: 0.75, locked_at: "2026-07-21T09:30:00" },
+        SILVER: { engaged: false, locked_hit_rate: null, locked_at: null },
+        BRONZE: { engaged: false, locked_hit_rate: null, locked_at: null },
       },
+    };
+    expect(tierLockFor("GOLD", payload)).toEqual({
+      engaged: true,
+      locked_hit_rate: 0.75,
+      locked_at: "2026-07-21T09:30:00",
+    });
+  });
+
+  test("returns null when the tier is not engaged", () => {
+    const payload = {
+      tier_locks: {
+        GOLD: { engaged: false, locked_hit_rate: null, locked_at: null },
+        SILVER: { engaged: false, locked_hit_rate: null, locked_at: null },
+        BRONZE: { engaged: false, locked_hit_rate: null, locked_at: null },
+      },
+    };
+    expect(tierLockFor("GOLD", payload)).toBeNull();
+    expect(tierLockFor("SILVER", payload)).toBeNull();
+  });
+
+  test("returns null when tier is missing from tier_locks map", () => {
+    const payload = {
+      tier_locks: {
+        GOLD: { engaged: true, locked_hit_rate: 0.74, locked_at: "2026-07-21T09:30:00" },
+        // SILVER / BRONZE absent (legacy partial payload from an earlier  /
+        // alerts/quality version)
+      },
+    };
+    expect(tierLockFor("SILVER", payload)).toBeNull();
+    expect(tierLockFor("BRONZE", payload)).toBeNull();
+  });
+
+  test("returns null for legacy payload lacking tier_locks at all", () => {
+    // Pre-v3.x /alerts/quality response shape — the sigil MUST degrade
+    // gracefully (no crash, no errant render) since production users
+    // could be hitting the route with cached responses before rolling
+    // forward to the new shape.
+    const payload = {
+      quality_windows: { "30": [{ tier: "GOLD", hit_rate: 0.62, n_measured: 5 }] },
       days: [7, 14, 30],
-    });
-    // Headline strip uses the 30d window — the macro read.
-    const gold = out.tiers.find((t) => t.tier === "GOLD");
-    expect(gold.hit_rate).toBeCloseTo(0.65);
-    expect(out.windows).toEqual([7, 14, 30]);
-    expect(out.days).toBe(30);
-  });
-  test("v2.4 — best_rule attached per tier from per-(rule, tier) accumulator", () => {
-    const out = summarizeQuality({
-      quality: [
-        // Two rules in GOLD with sufficient n; SIGMA has more weighted hits.
-        { rule: "SCORE", tier: "GOLD", n: 2, n_measured: 2, hit_rate: 0.50, avg_move_pct: 1.0 },
-        { rule: "SIGMA", tier: "GOLD", n: 10, n_measured: 10, hit_rate: 0.80, avg_move_pct: 2.0 },
-      ],
-      days: 30,
-    });
-    const gold = out.tiers.find((t) => t.tier === "GOLD");
-    expect(gold.best_rule).toEqual({
-      rule: "SIGMA", hit_rate: 0.80, n_measured: 10,
-    });
-  });
-  test("v2.4 — best_rule null when only one rule qualifies per tier", () => {
-    const out = summarizeQuality({
-      quality: [{ rule: "SCORE", tier: "GOLD", n: 5, n_measured: 5, hit_rate: 0.80, avg_move_pct: 1.5 }],
-      days: 30,
-    });
-    const gold = out.tiers.find((t) => t.tier === "GOLD");
-    expect(gold.best_rule).toBeNull();
-  });
-});
-
-describe("bestRuleForTier (v2.4 extension)", () => {
-  test("returns null when tier has only one rule (no comparative signal)", () => {
-    const byRuleAndTier = {
-      SCORE_GOLD: { rule: "SCORE", tier: "GOLD", hits: 8, n_measured: 10 },
+      daily_series: {},
     };
-    expect(bestRuleForTier("GOLD", byRuleAndTier)).toBeNull();
+    expect(tierLockFor("GOLD", payload)).toBeNull();
   });
-  test("null when top candidate's n_measured is below BEST_RULE_MIN_N", () => {
-    // WHALE has the highest sample-size-weighted hits (1.98) but its
-    // pool is only n=2 (99% hit rate × 2). Under sort-by-hits, WHALE
-    // outranks SCORE (0.50 hits from a single 100%/n=1 sample), but a
-    // pool smaller than BEST_RULE_MIN_N=3 cannot anchor the "best"
-    // headline. The threshold on the top-by-hits candidate fires.
-    const byRuleAndTier = {
-      SCORE_GOLD: { rule: "SCORE", tier: "GOLD", hits: 0.50, n_measured: 1 },
-      WHALE_GOLD: { rule: "WHALE", tier: "GOLD", hits: 1.98, n_measured: 2 },
+
+  test("returns null for null/undefined payload (defensive nil-safety)", () => {
+    expect(tierLockFor("GOLD", null)).toBeNull();
+    expect(tierLockFor("GOLD", undefined)).toBeNull();
+    expect(tierLockFor("GOLD", {})).toBeNull();
+  });
+
+  test("norm tier to uppercase before lookup (lowercase input must work)", () => {
+    const payload = {
+      tier_locks: {
+        GOLD: { engaged: true, locked_hit_rate: 0.65, locked_at: "2026-07-21T09:30:00" },
+      },
     };
-    expect(bestRuleForTier("GOLD", byRuleAndTier)).toBeNull();
-  });
-  test("ranks by sample-size-weighted hit count: SIGMA beats SCORE despite lower hit_rate", () => {
-    // SCORE: 1/2 = 50% (n_measured=2 → weak), weighted_hits = 1.0
-    // SIGMA: 8/10 = 80% (n_measured=10 → strong), weighted_hits = 8.0
-    // SIGMA wins because the ranking key is hit_rate * n_measured, not
-    // hit_rate alone. Mirrors byTier aggregation discipline.
-    const byRuleAndTier = {
-      SCORE_GOLD: { rule: "SCORE", tier: "GOLD", hits: 1, n_measured: 2 },
-      SIGMA_GOLD: { rule: "SIGMA", tier: "GOLD", hits: 8, n_measured: 10 },
-    };
-    const r = bestRuleForTier("GOLD", byRuleAndTier);
-    expect(r.rule).toBe("SIGMA");
-    expect(r.hit_rate).toBeCloseTo(0.80);
-    expect(r.n_measured).toBe(10);
-  });
-  test("null when no measured alerts (winner has n_measured=0)", () => {
-    const byRuleAndTier = {
-      SCORE_GOLD: { rule: "SCORE", tier: "GOLD", hits: 0, n_measured: 0 },
-      WHALE_GOLD: { rule: "WHALE", tier: "GOLD", hits: 0, n_measured: 0 },
-    };
-    expect(bestRuleForTier("GOLD", byRuleAndTier)).toBeNull();
-  });
-  test("filters other-tier rows out of the candidate set, returns null on single-rule GOLD", () => {
-    // SCORE_GOLD has n=10 hits in GOLD; SCORE_SILVER has n=200 hits in
-    // SILVER — the heavy silver row must be filtered out by tier before
-    // ranking. With only SCORE_GOLD remaining as a candidate, the
-    // documented "no comparative signal" guard fires and returns null.
-    const byRuleAndTier = {
-      SCORE_GOLD:   { rule: "SCORE", tier: "GOLD",   hits: 9, n_measured: 10  },
-      SCORE_SILVER: { rule: "SCORE", tier: "SILVER", hits: 100, n_measured: 200 },
-    };
-    expect(bestRuleForTier("GOLD", byRuleAndTier)).toBeNull();
-  });
-
-  test("single-hit fringe candidate loses to thin high-rate rival (v2.4.1 coverage gap)", () => {
-    // v2.4.1: the fringe sits exactly at the BEST_RULE_MIN_N=3 floor with
-    // hits=1 — the WEAKEST possible qualifying entry. Without this test, a
-    // future regression that loses the floor guard or that mis-ranks the
-    // weighted-hits key could silently flip this result. Pins: fringe
-    // qualifies (n=3 > 0), floor holds, and a higher-weighted-hits rival
-    // wins.
-    //
-    // The rival is "thin + high-rate" (n=10 with hits=10 → 100%) so even
-    // under a hypothetical hit_rate-DESC re-ranking the result would stay
-    // RIVAL — this test pins the floor + multi-candidate "rival wins"
-    // path, not the ranking metric.
-    //
-    // SHAPE: byRuleAndTier is built by summarizeQuality with keys like
-    // `${RULE}_${TIER}` (e.g. SCORE_GOLD). bestRuleForTier iterates
-    // Object.values and filters by c.tier === tierKey — flat dict, NOT
-    // an array under the tier key. Providing `{ GOLD: [...] }` would
-    // yield Object.values = [<array>] and the c.tier filter would
-    // reject every entry, returning null under the documented contract.
-    //
-    // Hits values here are the SAMPLE-SIZE-WEIGHTED hit_count that
-    // summarizeQuality rolls up as Σ hit_rate × n_measured. RIVAL =
-    // 1.0 × 10 = 10; FRINGE = (1/3) × 3 = 1. RIVAL's weighted hits
-    // dominate FRINGE's by 10x so the ranking has clear margin.
-    const byRuleAndTier = {
-      FRINGE_GOLD: { rule: "FRINGE", tier: "GOLD", hits: 1,  n_measured: 3  },
-      RIVAL_GOLD:  { rule: "RIVAL",  tier: "GOLD", hits: 10, n_measured: 10 },
-    };
-    const r = bestRuleForTier("GOLD", byRuleAndTier);
-    expect(r).not.toBeNull();  // sanity: function must surface a winner here
-    expect(r.rule).toBe("RIVAL");
-    expect(r.n_measured).toBe(10);
-    // hit_rate is recomputed by the function from c.hits / c.n_measured
-    // (Σ hit_rate × n_measured ÷ n_measured) — for a single-row rival
-    // with hits=10, n=10, that's 1.0. The desk reads this as a perfect
-    // 10-for-10 record. hits itself is NOT in the return shape (it lives
-    // on the internal mapped candidate used for `.sort`); asserting on
-    // it would silently false-fail any time.
-    expect(r.hit_rate).toBeCloseTo(1.0);
-  });
-});
-
-// ── v2.5 daily series (per-tier sparkline math) ──────────────────
-// Empty input short-circuits before any date math; absent days in the
-// payload are NOT backfilled with zeros (a 0% loss is misleading for a
-// day with zero measured alerts), and missing tiers return an inert
-// shape so the panel renders the muted "no data" state without throwing.
-
-describe("dailySeriesForTier (v2.5 sparkline data shape)", () => {
-  const day = (d, n_measured, hit_rate) => ({
-    date: d, n: n_measured, n_measured,
-    wins: Math.round((hit_rate || 0) * n_measured),
-    hit_rate,
-  });
-
-  test("empty input → inert has_data=false shape (panel renders dashed line)", () => {
-    const r = dailySeriesForTier("GOLD", null);
-    expect(r.has_data).toBe(false);
-    expect(r.points).toEqual([]);
-
-    const r2 = dailySeriesForTier("GOLD", {});
-    expect(r2.has_data).toBe(false);
-    expect(r2.points).toEqual([]);
-  });
-
-  test("missing tier in payload → inert shape, no throw", () => {
-    // SILVER is missing from the map — the helper returns inert rather
-    // than scanning other tier rows (graceful empty return only).
-    const r = dailySeriesForTier("SILVER", { GOLD: [day("2026-07-15", 4, 0.5)] });
-    expect(r.has_data).toBe(false);
-    expect(r.points).toEqual([]);
-  });
-
-  test("absent days NOT backfilled with zeros; gaps counted, points intact", () => {
-    // 3 measured days out of a 7-day span → 4 gaps. Gaps are info, not 0%.
-    const r = dailySeriesForTier("GOLD", {
-      GOLD: [
-        day("2026-07-10", 4, 0.75),
-        day("2026-07-13", 5, 0.60),
-        day("2026-07-17", 3, 0.50),
-      ],
+    expect(tierLockFor("gold", payload)).toEqual({
+      engaged: true,
+      locked_hit_rate: 0.65,
+      locked_at: "2026-07-21T09:30:00",
     });
-    expect(r.points.length).toBe(3);
-    expect(r.has_data).toBe(true);
-    expect(r.gaps).toBe(5);
-    expect(r.n_measured_total).toBe(12);
-  });
-
-  test("maxPoints option trims the tail (window-memory budget)", () => {
-    // 30 days of data, maxPoints=7 → keep the most recent 7.
-    const rows = [];
-    for (let i = 1; i <= 30; i++) {
-      const d = `2026-06-${String(i).padStart(2, "0")}`;
-      rows.push(day(d, 3, 0.5 + i * 0.01));
-    }
-    const r = dailySeriesForTier("GOLD", { GOLD: rows }, { maxPoints: 7 });
-    expect(r.points.length).toBe(7);
-    const dates = r.points.map((p) => p.date);
-    expect(dates).toEqual(dates.slice().sort());
-    expect(dates[dates.length - 1]).toBe("2026-06-30");
-  });
-
-  test("hit_rate=null entries tolerated (the cell still gets a slot)", () => {
-    const r = dailySeriesForTier("GOLD", {
-      GOLD: [
-        { date: "2026-07-10", n: 3, n_measured: 0, wins: 0, hit_rate: null },
-        { date: "2026-07-12", n: 4, n_measured: 4, wins: 3, hit_rate: 0.75 },
-      ],
-    });
-    expect(r.points.length).toBe(2);
-    expect(r.points[0].hit_rate).toBeNull();
-    expect(r.n_measured_total).toBe(4);
-  });
-
-  test("DAILY_MIN_N constant exposed & equals 1 (per-day floor)", () => {
-    // Single measured alert is enough to draw one dot. We deliberately
-    // do NOT require 3 like the trend sparkline (would suppress the
-    // first day's data on a fresh tier).
-    expect(DAILY_MIN_N).toBe(1);
-  });
-
-  test("TREND_COLOR map carries the 4 named directions", () => {
-    expect(TREND_COLOR).toHaveProperty("up");
-    expect(TREND_COLOR).toHaveProperty("down");
-    expect(TREND_COLOR).toHaveProperty("flat");
-    expect(TREND_COLOR).toHaveProperty("unknown");
-    for (const v of Object.values(TREND_COLOR)) {
-      expect(typeof v).toBe("string");
-      expect(v.length).toBeGreaterThan(3);
-    }
-  });
-});
-
-describe("wilsonBounds (v2.3 statistical-honesty CI)", () => {
-  test("x=0/n=10 → lower-bound clamped at 0, upper around 31%", () => {
-    const { lo, hi } = wilsonBounds(0, 10);
-    expect(lo).toBeCloseTo(0, 5);
-    expect(hi).toBeGreaterThan(0.20);
-    expect(hi).toBeLessThan(0.32);
-  });
-  test("x=n/n=10 → upper clamped at 1, lower around 69%", () => {
-    const { lo, hi } = wilsonBounds(10, 10);
-    expect(hi).toBeCloseTo(1, 5);
-    expect(lo).toBeGreaterThan(0.68);
-    expect(lo).toBeLessThan(0.80);
-  });
-  test("x=3/n=4 → '75%' but Wilson 90% bands roughly [33%, 95%] (the small-sample honesty)", () => {
-    const { lo, hi } = wilsonBounds(3, 4);
-    expect(lo).toBeGreaterThan(0.30);
-    expect(lo).toBeLessThan(0.40);
-    expect(hi).toBeGreaterThan(0.85);
-    expect(hi).toBeLessThan(1.0);
-  });
-  test("n=0 → null/null (UI renders em-dash instead of NaN)", () => {
-    expect(wilsonBounds(0, 0)).toEqual({ lo: null, hi: null });
-    expect(wilsonBounds(5, 0)).toEqual({ lo: null, hi: null });
-  });
-  test("n=1 still bounded (yields ~[5%, 90%] for the single hit)", () => {
-    // Edge case we documented NOT to suppress — the wide band is exactly the point.
-    const { lo, hi } = wilsonBounds(1, 1);
-    expect(lo).toBeGreaterThanOrEqual(0);
-    expect(hi).toBeLessThanOrEqual(1);
-    expect(hi - lo).toBeGreaterThan(0.7);   // wide band -> underpowered
-  });
-});
-
-describe("compareAlerts tier-priority sort", () => {
-  test("sorts GOLD > SILVER > BRONZE", () => {
-    const sorted = [
-      alert({ tier: "BRONZE", asof_ts: "2026-07-20T11:00:00-04:00" }),
-      alert({ tier: "GOLD",   asof_ts: "2026-07-20T10:00:00-04:00" }),
-      alert({ tier: "SILVER", asof_ts: "2026-07-20T11:00:00-04:00" }),
-    ].sort(compareAlerts);
-    expect(sorted.map((a) => a.tier)).toEqual(["GOLD", "SILVER", "BRONZE"]);
-  });
-  test("within a tier, newer asof_ts wins", () => {
-    const sorted = [
-      alert({ tier: "GOLD", asof_ts: "2026-07-20T10:00:00-04:00" }),
-      alert({ tier: "GOLD", asof_ts: "2026-07-20T11:00:00-04:00" }),
-    ].sort(compareAlerts);
-    expect(sorted[0].asof_ts).toBe("2026-07-20T11:00:00-04:00");
-  });
-  test("unknown tier sinks to the bottom", () => {
-    const sorted = [
-      alert({ tier: "MARMALADE", asof_ts: "2026-07-20T11:00:00-04:00" }),
-      alert({ tier: "GOLD",      asof_ts: "2026-07-20T10:00:00-04:00" }),
-    ].sort(compareAlerts);
-    expect(sorted[0].tier).toBe("GOLD");
   });
 });

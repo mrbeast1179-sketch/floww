@@ -956,6 +956,7 @@ async def institutional_alert_quality(
     vs. 3 separate frontend fetches (each would carry its own poll slot
     and cache key)."""
     from services import flow_alerts as fa
+    from services import tier_lock as tl
     from services.duckdb_engine import db as duckdb_engine
 
     raw = (days or "").strip()
@@ -1000,11 +1001,22 @@ async def institutional_alert_quality(
             "days": window_list,
             "daily_series": daily_by_tier,
             "daily_series_days": daily_max,
+            # v3.x tier-lock hysteresis: per-tier lock state surfaced
+            # alongside quality. The retuner consults tier_lock.is_locked()
+            # before proposing new thresholds; the frontend reads
+            # tier_locks[tier].engaged + locked_hit_rate to render the
+            # "Lock engaged: GOLD 75%" sigil on the Conviction strip.
+            # Read-only on /alerts/quality; full state transitions happen
+            # in /scan (which calls update_locks on each fresh ingest).
+            "tier_locks": tl.get_all_locks(duckdb_engine),
         }
     except Exception as e:
         logger.warning(f"alert quality failed: {e}")
         return {"quality_windows": {}, "days": window_list, "daily_series": {},
                 "daily_series_days": max(window_list) if window_list else 30,
+                "tier_locks": {t: {"engaged": False, "locked_hit_rate": None,
+                                    "locked_at": None}
+                                for t in ("GOLD", "SILVER", "BRONZE")},
                 "error": str(e)}
 
 
