@@ -41,6 +41,7 @@ import {
   sigmaChip,
   summarizeQuality,
   tierBadge,
+  tierLockFor,
   TREND_COLOR,
 } from "./convictionUi";
 
@@ -213,6 +214,7 @@ export default function InstitutionalAlertsPanel({ active = true, days = 7, limi
             {summary.tiers.map((t) => (
               <div key={t.tier} className={`fsp-conviction-qcell fsp-conviction-qcell-${t.tier.toLowerCase()}`}>
                 <div className="fsp-conviction-qcell-tier">{t.tier}</div>
+                <TierLockSigil tier={t.tier} payload={qualityData} />
                 <div className="fsp-conviction-qcell-hr">                   {t.thin
                      ? "—"
                      : (
@@ -259,6 +261,45 @@ export default function InstitutionalAlertsPanel({ active = true, days = 7, limi
 }
 
 // ── tiny helpers (local — table cells only) ──────────────────────────
+
+// Tier-lock sigil (v3.x — tier-lock hysteresis UI). Renders a small chip
+// alongside the tier label when /alerts/quality's `tier_locks[tier]` entry
+// reads `engaged: true` with a finite `locked_hit_rate`. The chip is the
+// desk-visible signal that the retuner is HOLDING the tier's threshold
+// rather than chasing noise — "Lock engaged: GOLD 75%" is proof the
+// measured hit-rate is stable, not a random sample.
+// Strictly informational; the retuner enforces the lock on the data
+// side independently. Renders `null` (no DOM) when the tier is not
+// engaged, when the source `locked_hit_rate` is null/NaN, or when the
+// payload's `tier_locks` field is missing entirely — same null-safety
+// contract as `convictionUi.tierLockFor()` (which has 6 helper tests
+// pinning that contract). The aria-label / title carry the engaged
+// rate + the locked_at timestamp the desk needs to triangulate "when
+// did this lock engage" without leaving the strip.
+// CSS classes: `fsp-chip fsp-chip-lock` extend the existing chip
+// naming (sibling to `fsp-chip-prime`, `fsp-chip-cluster`,
+// `fsp-chip-sigma`, etc.). The 🔒 glyph is decorative; the
+// aria-label carries the semantic weight so screen-readers announce
+// the rate, not the lock icon.
+function TierLockSigil({ tier, payload }) {
+  const lock = tierLockFor(tier, payload);
+  if (!lock) return null;
+  const rate = lock.locked_hit_rate;
+  const rateStr = `${Math.round(rate * 100)}%`;
+  const ariaLabel = `Tier lock engaged for ${tier}: ${rateStr}`
+    + (lock.locked_at ? ` (held since ${lock.locked_at})` : "");
+  return (
+    <span
+      className="fsp-chip fsp-chip-lock"
+      role="status"
+      aria-label={ariaLabel}
+      title={ariaLabel}
+    >
+      <span className="fsp-chip-lock-icon" aria-hidden="true">🔒</span>
+      <span className="fsp-chip-lock-rate">{rateStr}</span>
+    </span>
+  );
+}
 
 // Quality-trend sparkline (v2.2). Pure inline SVG; the parent component
 // passes the batched quality_windows map and tier label. Three tiny dots
