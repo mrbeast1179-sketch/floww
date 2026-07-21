@@ -544,9 +544,6 @@ describe("compareAlerts tier-priority sort", () => {
     expect(sorted.map((a) => a.tier)).toEqual(["GOLD", "SILVER", "BRONZE"]);
   });
   test("within a tier, newer asof_ts wins", () => {
-    // previous ending of test was a top-level describe close; restored explicitly
-  });
-  test("within a tier, newer asof_ts wins", () => {
     const sorted = [
       alert({ tier: "GOLD", asof_ts: "2026-07-20T10:00:00-04:00" }),
       alert({ tier: "GOLD", asof_ts: "2026-07-20T11:00:00-04:00" }),

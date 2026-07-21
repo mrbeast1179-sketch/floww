@@ -331,6 +331,13 @@ function QualitySparkline({ tier, windows }) {
 // are present the desk sees a directional pair — endpoints vs. raw
 // trajectory — and can spot a calculation window that disagrees with
 // the day's actual behavior.
+//
+// Null handling post-v2.5.1: a point with `hit_rate === null` is rendered
+// as a small hollow dot (not a 0% marker) so the desk reads it as
+// "observation gap" rather than "0% loss". Slots where the SQL row had
+// `n_measured === 0` (e.g. restart-skipped move-update) likewise render
+// muted per the DAILY_MIN_N contract — never as a 100% win, never as a
+// 0% loss, always as a neutral observation gap.
 function DailySparkline({ tier, daily, days }) {
   const series = dailySeriesForTier(tier || "GOLD", daily, { maxPoints: 30 });
   const dims = { width: 84, height: 22, padX: 2, padY: 4 };

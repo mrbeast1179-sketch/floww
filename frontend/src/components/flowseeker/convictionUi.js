@@ -444,6 +444,17 @@ export const TREND_COLOR = {
 export const DAILY_MIN_N = 1;       // one measured alert is the floor
 export const DAILY_MIN_DAYS = 1;    // zero points is a meaningless sparkline
 
+// Coerce a numeric value defensively. Ratios (hit_rate, avg_move_pct)
+// want `null` when there's no observation; counts (n, n_measured, wins)
+// want 0 because "how many" doesn't distinguish zero from absent in a
+// way the consumer cares about. `fallback` disambiguates the two.
+// Number(null) === 0 is the foot-gun this helper exists to neuter.
+function _toNum(v, fallback) {
+  if (v == null) return fallback;
+  const n = Number(v);
+  return Number.isFinite(n) ? n : fallback;
+}
+
 export function dailySeriesForTier(tier, dailyMap, opts = {}) {
   const tierKey = String(tier || "").toUpperCase();
   const rows = (dailyMap && dailyMap[tierKey]) || [];
@@ -453,21 +464,13 @@ export function dailySeriesForTier(tier, dailyMap, opts = {}) {
   for (const r of rows || []) {
     const d = String(r?.date || "");
     if (!d) continue;
-    // Defensively separate the null/undefined path from the numeric
-    // coercion path. Number(null) = 0 would silently downgrade a
-    // no-observation day to a "0% hit rate" point — the exact opposite
-    // of the gap-is-information contract documented above.
-    const hrRaw = r?.hit_rate;
-    const hrNumeric = hrRaw == null ? null : Number(hrRaw);
-    const hr = hrNumeric == null ? null
-      : (Number.isFinite(hrNumeric) ? hrNumeric : null);
     byDate.set(d, {
       date: d,
-      n: Number(r.n) || 0,
-      n_measured: Number(r.n_measured) || 0,
-      wins: Number(r.wins) || 0,
-      hit_rate: hr,
-      avg_move_pct: r.avg_move_pct == null ? null : Number(r.avg_move_pct),
+      n: _toNum(r.n, 0),                  // count → 0 when absent
+      n_measured: _toNum(r.n_measured, 0),
+      wins: _toNum(r.wins, 0),
+      hit_rate: _toNum(r.hit_rate, null), // ratio → null when absent
+      avg_move_pct: _toNum(r.avg_move_pct, null),
     });
   }
   // No raw rows → return an inert shape that downstream still renders.
@@ -480,6 +483,18 @@ export function dailySeriesForTier(tier, dailyMap, opts = {}) {
   // Gap stats: a "gap" is a calendar-day cell with no data between first
   // and last observed dates. A back-to-back bursty cluster has gaps, an
   // evenly-active tier has gaps=0.
+  //
+  // Two equivalent formulations:
+  //   (A) Map-form: span = last_day - first_day (inclusive days), so
+  //       gaps = span - measured_count = (last - first in days + 1) - n.
+  //   (B) Diff-form: span = last_day - first_day (exclusive of last-day
+  //       dot since the dot is the measurement itself), so
+  //       gaps = span - n + 1 = (last - first in days) - n + 1.
+  // Both yield the same N, just counting differently. The calendar gap
+  // count ignores weekends — a Mon→Fri tier is reported with 3 calendar
+  // gaps even though only the Tuesday/Thursday were "no-measure" days.
+  // This is intentional: the desk reads "GOLD had 4 missing days
+  // between its first and last hit," not "GOLD fired 0 of 5 weekdays."
   const first = new Date(sorted[0].date + "T00:00:00Z");
   const last = new Date(sorted[sorted.length - 1].date + "T00:00:00Z");
   const span = Math.max(
