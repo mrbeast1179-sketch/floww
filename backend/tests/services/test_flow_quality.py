@@ -260,6 +260,106 @@ def test_eval_stamps_cluster_field_per_ticker():
         "every PLTR alert in a 3-leg laddering snapshot must carry cluster=True"
 
 
+# ── v2 PRE-FLIGHT: 3-leg ladder + CW-confirm + prime bracket all stack ──
+#
+# Live-demo gap the user reported: the display room only stacks 2 of the 3
+# conviction layers at once. This test PROVES that 4-leg PLTR fixture —
+# three bullish calls at laddering strikes/expiries (so they cluster but
+# do NOT pair as a vertical spread) + one matched put whose IV sits 20
+# vols UNDER the call (Cremers-Weinbaum bullish confirmation) — produces
+# a single alert that simultaneously carries:
+#   • tier == GOLD    (5 factors true ≥ 3 floor)
+#   • cluster == True (the v2 surfaced lacboost stamp the Scanner panel
+#                       reads to render a CLUSTER chip)
+#   • prime  == True  (premium ≥ $250k AND vol_oi ≥ 5)
+#   • cw_spread > 0   (the CW confirming signal the layer uses to upgrade
+#                       conviction; > _CW_CONFIRM = 0.015)
+# Stamping all four on one row is the cross-receipt that closes the
+# "one factor short" gap in the live demo.
+
+def test_preflight_three_factor_cluster_cw_prime_stack_to_gold():
+    # 3 calls at DIFFERENT expiries (so detect_spreads cannot pair any two
+    # as a vertical; would otherwise demote to STRATEGY / BRONZE and zero
+    # the cluster). One matched put at strike 138, exp sharing #1 only,
+    # with mismatched volume ratio (8000/60000 = 0.133 << _SPREAD_RATIO_LO
+    # = 0.7) so the straddle fingerprint ALSO fails. Crucially the put's
+    # IV (0.50) sits 20 vols UNDER the matching call (0.70), which yields
+    # the positive CW spread that the layer refiles as 'informed
+    # bullish pressure' and uses to upgrade tier.
+    exp_a = _future_exp(10)
+    exp_b = _future_exp(15)
+    exp_c = _future_exp(20)
+    rows = norm_rows([
+        _raw(under="PLTR", occ="O:PF_1", strike=138.0, exp=exp_a,
+             vol=60000, oi=1500, iv=0.70, delta=0.35, spot=133.0),
+        _raw(under="PLTR", occ="O:PF_2", strike=142.0, exp=exp_b,
+             vol=55000, oi=1300, iv=0.70, delta=0.30, spot=133.0),
+        _raw(under="PLTR", occ="O:PF_3", strike=145.0, exp=exp_c,
+             vol=50000, oi=1200, iv=0.70, delta=0.25, spot=133.0),
+        # vol=8000 (NOT 80000) — ratio 60000/8000 = 7.5 > _SPREAD_RATIO_HI ≈ 1.43,
+        # so detect_spreads does NOT pair this put with call #1 as a straddle.
+        # This is what keeps call #1 on the laddering-stamp list (no
+        # _finalize demotion to STRATEGY / bias=None / tier=BRONZE).
+        _raw(under="PLTR", occ="O:PF_P", typ="put", strike=138.0, exp=exp_a,
+             vol=8000, oi=9000, iv=0.50, delta=-0.35, spot=133.0),
+    ])
+    alerts = eval_institutional(rows, regimes={"PLTR": "positive"})
+    # Carrier: pick the highest-tier PLTR alert under SCORE/WHALE rule.
+    # SIGMA may co-fire but is directionless and gets excluded from the
+    # cluster-tied stamping logic in the panel anyway.
+    directed = [a for a in alerts
+                if a["under"] == "PLTR"
+                and a.get("rule") in ("SCORE", "WHALE")
+                and a.get("tier") == "GOLD"]
+    assert directed, (
+        f"no GOLD SCORE/WHALE PLTR alert fired in the 4-leg fixture; GOT: " +
+        repr([(a.get('rule'), a.get('tier'), a.get('cluster')) for a in alerts])
+    )
+    # Stamping-v2x cross-receipt: every GOLD PLTR row in the survivor
+    # list independently carries all four conviction layers. This is
+    # the STRUCTURAL receipt -- if even one laddering row regresses to
+    # cluster=False (or any other stamp flips off), this test fails.
+    # The max(directed, key=...) hoist was too narrow: it could pass
+    # on a lucky one-row output even if the other laddering rows
+    # were silently demoted (e.g. through spread-leg pairing).
+    for starred in directed:
+        assert starred['cluster'] is True, (
+            f"cluster=true stamp MISSING on a GOLD row: under={starred.get('under')} "
+            f" rule={starred.get('rule')} score={starred.get('score')} "
+            f" cluster={starred.get('cluster')}"
+        )
+        # prime bracket receipt -- re-derived from surfaced fields since
+        # the factor dict isn't emitted to the feed.
+        assert (starred.get('premium') or 0) >= 250e3, (
+            f"prime bracket requires premium >= $250k; "
+            f"got ${starred.get('premium'):.0f}"
+        )
+        assert (starred.get('vol_oi') or 0) >= 5.0, (
+            f"prime bracket requires vol_oi >= 5; "
+            f"got {starred.get('vol_oi'):.2f}"
+        )
+        assert starred.get('cw_spread') is not None and starred['cw_spread'] > 0.015, (
+            f"CW confirming signal absent: cw_spread={starred.get('cw_spread')}"
+        )
+        # Row must NOT be a strategy-leg demotion. STRATEGY/bias=None
+        # would annihilate the GOLD stamping even if 8 factors were True.
+        assert starred.get('side') == 'BUY', (
+            f"cluster+CW+prime stack but side='{starred.get('side')}' "
+            f"- spread-leg demotion undefeated the trap"
+        )
+        assert starred.get('bias') == 'BULLISH', (
+            f"bias not BULLISH: {starred.get('bias')}"
+        )
+    # ALSO: every PLTR alert (regardless of rule) should carry the same
+    # cluster stamp, because cluster_biases is a per-TICKER aggregate
+    # and _finalize does NOT clear the cluster field on STRATEGY demotion.
+    pltr_all = [a for a in alerts if a["under"] == "PLTR"]
+    assert pltr_all, "no PLTR alerts fired"
+    assert all(p["cluster"] is True for p in pltr_all), (
+        f"not every PLTR alert carries cluster=True: "
+        f"{[(p.get('rule'), p.get('cluster')) for p in pltr_all]}"
+    )
+
 def test_eval_does_not_stamp_cluster_for_two_legs():
     # Two same-bias qualifying contracts aren't a cluster yet — the
     # frontend chip must NOT light up under that threshold. Use non-matching

@@ -513,7 +513,6 @@ export default function App() {
   const [err, setErr] = useState(null);
   const [showLeftSidebar, setShowLeftSidebar] = useState(false);
   const [showRightSidebar, setShowRightSidebar] = useState(false);
-  const [view, setView] = useState("skylit");
   const [viewMode, setViewMode] = useState("gex");
   const [mode, setMode] = useState("day");
   const [filters, setFilters] = useState({ side: "all", lifecycle: "all", magMin: 0 });
@@ -896,17 +895,8 @@ export default function App() {
               </div>
             </aside>
 
-            {/* Main Content — view-switchable: 2D Grid (Skylit) / Bars / Chain / Multi / Profile */}
+            {/* Main Content — Skylit Dashboard (only view) */}
             <main className="heatseeker-main" style={{ display: "flex", flexDirection: "column", flex: 1, minHeight: 0, overflow: "hidden" }}>
-{view === "bar" ? (
-                <BarHeatmap data={displayData} filters={filters} compact={false} viewMode={viewMode} />
-              ) : view === "chain" ? (
-                <OptionsChainTable ticker={ticker} spot={livespot?.spot ?? displayData?.spot} />
-              ) : view === "multi" ? (
-                <MultiTickerHeatmap tickers={tickers} />
-              ) : view === "profile" ? (
-                <VolumeProfileGrid data={displayData} spot={livespot?.spot ?? displayData?.spot} />
-              ) : view === "skylit" || view === "grid" ? (
                 <SkylitDashboard
                   ticker={ticker}
                   spot={livespot?.spot ?? data?.spot}
@@ -941,42 +931,6 @@ export default function App() {
                   regime={data?.nodes?.regime}
                   loading={loading && !data}
                 />
-              ) : (
-                <SkylitDashboard
-                  ticker={ticker}
-                  spot={livespot?.spot ?? data?.spot}
-                  change={livespot?.change ?? data?.change}
-                  changePct={livespot?.change_pct ?? data?.change_pct}
-                  data={displayData}
-                  viewMode={viewMode}
-                  onViewModeChange={setViewMode}
-                  timeframe={mode === "scalp" ? "1m" : mode === "swing" ? "1h" : "5m"}
-                  onTimeframeChange={(tf) => {
-                    if (tf === "1m") setMode("scalp");
-                    else if (tf === "1h") setMode("swing");
-                    else setMode("day");
-                  }}
-                  expiries={expiries}
-                  onExpiriesChange={setExpiries}
-                  onTickerChange={setTicker}
-                  onRefresh={() => { setErr(null); fetchData(); }}
-                  onCellClick={(strike, colKey, value) => {
-                    const row = displayData?.strikes?.find(s => s.strike === strike);
-                    setTradeSelection({
-                      ticker, strike, expiry: colKey,
-                      spot: livespot?.spot ?? data?.spot, gex: value,
-                      iv: row?.iv ?? data?.iv, delta: row?.delta ?? data?.delta,
-                      oi: row?.total_oi ?? row?.oi ?? data?.oi,
-                      call_gex: row?.call_gex, put_gex: row?.put_gex,
-                      vex: row?.vex, charm: row?.charm,
-                    });
-                  }}
-                  onStrikeClick={(strike) => setTradeSelection({ ticker, strike, spot: livespot?.spot ?? data?.spot })}
-                  isLive={!!livespot}
-                  regime={data?.nodes?.regime}
-                  loading={loading && !data}
-                />
-              )}
             </main>
           </div>
         )}

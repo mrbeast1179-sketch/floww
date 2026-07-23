@@ -491,10 +491,20 @@ def alert_quality(engine, days: int = 30) -> list[dict]:
     (Wilson 90%) using integer-accurate totals. The float-rounding fallback
     n_measured*hit_rate is acceptable when `wins` is absent (older DBs),
     but the integer SUM is the bit-exact source of truth.
+
+    v2.x contract — also returns `sigma_median` per (rule, tier) row (DuckDB
+    MEDIAN over the window's per-alert sigma values; null when no sigma
+    was stamped) and a per-row boolean `is_best_rule` (False for runners-up,
+    True for the winner in each tier). The is_best_rule ranking mirrors the
+    frontend's bestRuleForTier: weighted-hits DESC, n_measured DESC, hit_rate
+    DESC; min-n floor = 3; tier must have ≥2 qualifying rules. The boolean is
+    a per-row flat-field design rather than a per-tier aggregate so the
+    root type stays a list-of-dicts and existing consumers do not need to
+    branch on response shape.
     """
     since = (datetime.now(_ET).date() - timedelta(days=max(1, days))).isoformat()
     try:
-        return engine.query("""
+        rows = engine.query("""
             SELECT rule, tier, count(*) AS n,
                    count(move_pct) AS n_measured,
                    CAST(SUM(CASE WHEN move_pct IS NULL THEN 0
@@ -505,7 +515,8 @@ def alert_quality(engine, days: int = 30) -> list[dict]:
                             WHEN bias = 'BULLISH' AND move_pct >= 0.5 THEN 1.0
                             WHEN bias = 'BEARISH' AND move_pct <= -0.5 THEN 1.0
                             ELSE 0.0 END) AS hit_rate,
-                   avg(move_pct) AS avg_move_pct
+                   avg(move_pct) AS avg_move_pct,
+                   MEDIAN(sigma) AS sigma_median
             FROM flow_alerts_daily
             WHERE asof_date >= ? AND bias IS NOT NULL
             GROUP BY rule, tier
@@ -513,8 +524,35 @@ def alert_quality(engine, days: int = 30) -> list[dict]:
         """, [since])
     except Exception as e:
         logger.warning(f"flow_alerts.alert_quality: {e}")
-        return []
+        rows = []
 
+    # Per-row is_best_rule flag — Python-side ranking mirrors the frontend
+    # so a consumer of this endpoint directly does not need to re-run
+    # bestRuleForTier to know which row is the tier winner. The min-n floor
+    # is intentionally consistent so the two views agree on "GOLD's best
+    # rule is X" without a timezone-of-truth regression.
+    _BEST_RULE_MIN_N = 3  # mirrors convictionUi.js BEST_RULE_MIN_N — keep identical
+    for r in rows:
+        r["is_best_rule"] = False
+    by_tier = {}
+    for r in rows:
+        by_tier.setdefault(str(r.get("tier") or "").upper(), []).append(r)
+    for tier, tier_rows in by_tier.items():
+        candidates = [r for r in tier_rows if (r.get("n_measured") or 0) > 0]
+        if len(candidates) < _BEST_RULE_MIN_N:
+            continue
+        ranked = sorted(
+            candidates,
+            key=lambda c: (
+                -(c.get("wins") or 0),
+                -(c.get("n_measured") or 0),
+                -(c.get("hit_rate") or 0.0),
+            ),
+        )
+        best = ranked[0]
+        if (best.get("n_measured") or 0) >= _BEST_RULE_MIN_N:
+            best["is_best_rule"] = True
+    return rows
 
 def alert_quality_daily(engine, tier: str | None = None, days: int = 30) -> list[dict]:
     """v2.5 — daily (date, tier) precision series for the per-tier sparkline.

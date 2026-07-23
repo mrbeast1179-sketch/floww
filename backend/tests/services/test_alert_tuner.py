@@ -130,3 +130,53 @@ def test_tuner_recall_constraint():
         assert result.new_recall >= 0.0
         assert result.new_precision >= 0.0
         assert result.new_threshold > 0
+
+
+# ── v3.x tier-lock wiring (Conviction tier-lock hysteresis feature) ──
+
+
+def test_optimize_threshold_unlocked_proposes_new_threshold():
+    """When NOT locked, optimize_threshold still runs the standard grid
+    search end-to-end (regression-pin the un-locked path so the
+    lock-respecting path can't silently disable the retuner). Same
+    cryptographic shape as test_tuner_recall_constraint + the new
+    is_locked=False keyword — the lock is opt-in."""
+    from services.alert_tuner import AlertTuner, generate_synthetic_training_data
+
+    alerts, gt = generate_synthetic_training_data(n_alerts=200, fp_rate=0.4)
+    tuner = AlertTuner(alerts, gt)
+    result = tuner.optimize_threshold("duckdb_queue_depth", is_locked=False)
+    assert result is not None
+    # Standard contract: precision/recall in [0,1], threshold positive.
+    assert 0.0 <= result.new_precision <= 1.0
+    assert 0.0 <= result.new_recall <= 1.0
+    assert result.new_threshold > 0
+
+
+def test_optimize_threshold_locked_forces_old_threshold():
+    """When is_locked=True, best_threshold MUST equal old_threshold — the
+    retuner proposes nothing for a locked tier even if the grid search
+    would otherwise have moved the floor. The fp_reduction MUST read 0.0
+    because the new_fp_count is reset to old_fp_count on the lock."""
+    from services.alert_tuner import AlertTuner, generate_synthetic_training_data
+
+    alerts, gt = generate_synthetic_training_data(n_alerts=300, fp_rate=0.5)
+    tuner_unlocked = AlertTuner(alerts, gt)
+    unlocked = tuner_unlocked.optimize_threshold("duckdb_queue_depth", is_locked=False)
+    assert unlocked is not None
+
+    # Re-build the tuner (state from prior call lingers on _results); the
+    # lock path needs a fresh instance to test the predicate cleanly.
+    tuner_locked = AlertTuner(alerts, gt)
+    locked = tuner_locked.optimize_threshold("duckdb_queue_depth", is_locked=True)
+    assert locked is not None
+    # The forcing logic must pin the threshold to old_threshold.
+    assert locked.new_threshold == locked.old_threshold, (
+        f"locked retuner MUST NOT propose a new threshold; "
+        f"got new_threshold={locked.new_threshold} old_threshold={locked.old_threshold}")
+    # Diagnostic read still surfaces the calibration drift (precision/
+    # recall reflect the grid-search result on the holdout) so a desk
+    # retains visibility — we explicitly do NOT short-circuit the math.
+    assert locked.false_positive_reduction_pct == 0.0, (
+        f"locked retuner must reset FP-reduction to 0.0 (no proposal); "
+        f"got {locked.false_positive_reduction_pct}")

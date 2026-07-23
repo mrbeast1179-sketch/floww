@@ -124,10 +124,42 @@ class StructuredFormatter(logging.Formatter):
 
 
 class PerformanceMonitor:
-    """Simple performance monitor."""
+    """Best-effort per-endpoint latency tracker.
+
+    `record()` is the sole writer; the middleware (server.py:286) wraps every
+    call in try/except so this method MUST stay side-effect-free for invalid
+    inputs and cheap on the hot path.  `_metrics` is a flat dict bucketed by
+    endpoint with running count + total + max — enough to derive p99 latency
+    on demand via read helpers without maintaining a per-bucket histogram.
+    Cardinality cap protects against memory creep on a long-running backend.
+    """
+
+    _MAX_TRACKED_ENDPOINTS = 256
 
     def __init__(self):
-        self._metrics = {}
+        self._metrics: dict[str, dict[str, float | int]] = {}
+
+    def record(self, endpoint: str, duration_ms: float) -> None:
+        """Append one timing sample for `endpoint`.
+
+        Best-effort: returns silently on bad input so the middleware's outer
+        try/except (server.py:286) never has to log a warning for routine
+        shape mismatches.  Hot-path safe — no I/O, no allocation beyond a
+        small dict setdefault + arithmetic.
+        """
+        if not isinstance(endpoint, str) or not endpoint:
+            return
+        if not isinstance(duration_ms, (int, float)) or duration_ms < 0:
+            return
+        # LRU-ish cap: drop the oldest tracked endpoint when full so memory
+        # stays bounded under pathologically diverse route lists.
+        if endpoint not in self._metrics and len(self._metrics) >= self._MAX_TRACKED_ENDPOINTS:
+            self._metrics.pop(next(iter(self._metrics)))
+        bucket = self._metrics.setdefault(endpoint, {"count": 0, "total_ms": 0.0, "max_ms": 0.0})
+        bucket["count"] += 1
+        bucket["total_ms"] += duration_ms
+        if duration_ms > bucket["max_ms"]:
+            bucket["max_ms"] = duration_ms
 
 
 perf_monitor = PerformanceMonitor()

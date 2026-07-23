@@ -288,4 +288,45 @@ What Claude drives: shell, git, pytest, ruff, npm, file edits, docs, agent promp
 
 ---
 
+## Known vendor-side issues (DO NOT chase as code bugs)
+
+The floww backend depends on a small number of external services. Most are polite and surface clear errors. **A few return errors that LOOK like code bugs but are actually vendor-side account state** — chasing these as code problems wastes time and ships unnecessary defensive code. The canonical example is below; future agents SHOULD NOT reopen it.
+
+### Databento Historical API — `auth_account_locked`
+
+**Symptom in `/tmp/floww-backend.log`:** repeated WARN lines of the form
+
+```
+WARNING databento: databento OI fetch fail <PARENT> <DAY>:
+{"auth_account_locked":"Your account has been locked for security reasons. (auth_account_locked)"}
+```
+
+where `<PARENT>` ∈ `{SPY.OPT, QQQ.OPT, IWM.OPT, DIA.OPT, TLT.OPT, SPXW.OPT, AAPL.OPT, ...}` (any OPRA.PILLAR parent).
+
+**Root cause:** databento's API gateway locks the account at the vendor's discretion — payment failure, burst-pattern detection, security incident flag, or manual support action. The lock is **not** recoverable by rotating the API key. `DATABENTO_API_KEY` being SET in `backend/.env` is irrelevant.
+
+**What this is NOT:**
+
+- NOT an application error — the SDK layer received a valid 403 with a clear vendor-side reason.
+- NOT recoverable by changing the code — no code path can bypass databento's account-level lock.
+- NOT a missing-key scenario — that returns a different error string (`Databento client not initialized — missing DATABENTO_API_KEY`) and is local-config-only.
+
+**Correct action (in order):**
+
+1. File a vendor support ticket. A paste-ready draft lives at `/tmp/databento-support-ticket.md` — it asks databento for cause + recovery ETA + time-of-incident alignment.
+2. Leave `DISABLE_DATABENTO` UNSET in `backend/.env` while waiting. The conviction tier strip is **cvserver-driven** — databento OI is non-critical and the per-parent circuit breaker absorbs the WARN log noise in the meantime.
+3. Wait for vendor unlock. **Do NOT rotate the API key** — won't help, the lock is account-level not key-level.
+
+**Defense-in-depth is already deployed:** `backend/databento_provider.py` (v2.6+) carries a per-parent circuit breaker (15 pytest tests in `backend/tests/services/test_databento_circuit.py`) that caps the WARN spam to one per parent per 10-min window. This is NOT the fix — it's the noise floor. The fix is the vendor unlock.
+
+**Cross-references:**
+
+- Obsidian postmortem: `Documents/Obsidian Vault/2026-07-07.md` ("Update 2026-07-21" section)
+- Vendor-ticket draft: `/tmp/databento-support-ticket.md`
+- Defense-in-depth code: `backend/databento_provider.py` (per-parent `_circuit` + `is_circuit_open`)
+
+**Resolution status:** `_unresolved_ — vendor support ticket filed; awaiting cause + ETA` (update this line once databento replies; also update the Obsidian note entry to RESOLVED with the cause + unlock timestamp).
+
+---
+
 End of CLAUDE.md. If you find yourself violating any rule above, STOP and tell Nav before continuing.
