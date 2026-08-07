@@ -564,7 +564,8 @@ async def build_briefing(
                 informed_option_volume_signal,
                 cremers_weinbaum_spread,
                 demand_pressure_premium, option_illiquidity_signal,
-                vix_gamma_fragility,
+                vix_gamma_fragility, overnight_drift_risk,
+                dealer_balance_sheet_fragility, cross_asset_gamma_spillover,
             )
             # ADV proxy — the paper normalises by average daily share volume
             _adv_proxy = {
@@ -615,6 +616,14 @@ async def build_briefing(
             vix_gamma_signal = vix_gamma_fragility(
                 gamma_imbalance_pct=gib_pct,
                 flip_distance_pct=flip_dist,
+            )
+            # Overnight drift risk — dealer gamma at close → next-day gap
+            overnight_signal = overnight_drift_risk(
+                net_gex, gib_pct, put_call_ratio_oi=pcr_val,
+            )
+            # Dealer balance sheet fragility (post-SVB dealer capacity)
+            dealer_fragility_signal = dealer_balance_sheet_fragility(
+                gamma_imbalance_pct=gib_pct,
             )
             # Christensen-Oomen-Reno (2018) drift burst risk
             burst_signal = drift_burst_risk(gamma_imbalance_pct=gib_pct)
@@ -691,6 +700,10 @@ async def build_briefing(
             "option_illiquidity": opt_illiq_signal,
             # VIX term structure × Gamma fragility interaction
             "vix_gamma_fragility": vix_gamma_signal,
+            # Overnight drift risk — dealer gamma at close → next-day gap
+            "overnight_drift_risk": overnight_signal,
+            # Dealer balance sheet fragility — post-SVB capacity index
+            "dealer_balance_sheet_fragility": dealer_fragility_signal,
             # Christensen-Oomen-Reno (2018) drift burst risk
             "drift_burst_risk": burst_signal,
             # Ni-Pearson appendix §3 — dealer delta rebalancing → stock imbalance

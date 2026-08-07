@@ -2007,3 +2007,464 @@ def vix_gamma_fragility(
         result["combined_risk"] = "LOW"
 
     return result
+
+
+# ============================================================================
+# NEW SIGNALS — 2024-2025 Research Frontier
+# ============================================================================
+
+
+def overnight_drift_risk(
+    net_gex_at_close: float,
+    gamma_imbalance_pct: float,
+    vix: float | None = None,
+    vix_term_structure: float | None = None,
+    put_call_ratio_oi: float | None = None,
+    dte_days: float = 1.0,
+) -> dict[str, Any]:
+    """Overnight gap risk from dealer gamma positioning at market close.
+
+    Based on the empirical relationship between end-of-day dealer gamma
+    and overnight/next-day returns documented in Barbon-Buraschi (2021)
+    and practitioner observations from SqueezeMetrics Implied Order Book.
+
+    Mechanism:
+      - Dealers holding large net gamma positions at close MUST delta-hedge
+        any overnight gap at the open, amplifying the move
+      - Negative gamma + gap down → dealers sell into weakness → cascade
+      - Positive gamma + gap up → dealers buy → amplifying rally
+      - VIX elevation indicates dealer hedging costs are higher →
+        more aggressive hedging at open
+
+    Key formula:
+      OvernightDriftRisk = f(ΓIB_close, VIX, VIX_futures_slope, DTE)
+
+    Args:
+        net_gex_at_close: Net dollar GEX at market close
+        gamma_imbalance_pct: ΓIB at close as % of ADV
+        vix: Current VIX level (optional, default 18)
+        vix_term_structure: VIX futures - VIX spot spread (optional)
+        put_call_ratio_oi: OI-based put/call ratio (optional)
+        dte_days: Days to expiration for front-month options
+
+    Returns:
+        dict with overnight_risk_level, predicted_gap_direction, hedging_pressure
+    """
+    result: dict[str, Any] = {
+        "overnight_risk_level": "LOW",
+        "predicted_gap_direction": "neutral",
+        "hedging_pressure_at_open": "minimal",
+        "gap_magnitude_estimate_pct": 0.0,
+    }
+
+    vix_val = vix if vix is not None and vix > 0 else 18.0
+    abs_gib = abs(gamma_imbalance_pct)
+
+    # Base overnight risk from gamma imbalance magnitude
+    # Larger |ΓIB| → more dealer positions to hedge at open
+    if abs_gib > 2.0:
+        base_risk = 0.30
+        pressure = "aggressive"
+    elif abs_gib > 1.0:
+        base_risk = 0.18
+        pressure = "significant"
+    elif abs_gib > 0.5:
+        base_risk = 0.10
+        pressure = "moderate"
+    elif abs_gib > 0.1:
+        base_risk = 0.05
+        pressure = "minimal"
+    else:
+        base_risk = 0.02
+        pressure = "negligible"
+
+    # VIX amplification: higher VIX → dealers hedge more aggressively at open
+    if vix_val > 30:
+        vix_mult = 2.0
+        result["vix_regime"] = "extreme_fear"
+    elif vix_val > 25:
+        vix_mult = 1.5
+        result["vix_regime"] = "elevated_fear"
+    elif vix_val > 20:
+        vix_mult = 1.2
+        result["vix_regime"] = "moderate"
+    elif vix_val > 15:
+        vix_mult = 1.0
+        result["vix_regime"] = "normal"
+    else:
+        vix_mult = 0.8
+        result["vix_regime"] = "complacent"
+
+    # VIX term structure: backwardation → dealers pulling capacity → higher risk
+    if vix_term_structure is not None:
+        if vix_term_structure < -1.0:
+            vix_ts_mult = 1.5
+            result["vix_term_regime"] = "backwardation"
+        elif vix_term_structure < 0:
+            vix_ts_mult = 1.2
+            result["vix_term_regime"] = "mild_backwardation"
+        else:
+            vix_ts_mult = 1.0
+            result["vix_term_regime"] = "contango"
+    else:
+        vix_ts_mult = 1.0
+
+    # PCR interaction: high PCR + negative gamma = dealers short puts →
+    # gap down forces aggressive put hedging at open
+    pcr_val = put_call_ratio_oi if put_call_ratio_oi is not None else 0.5
+    if pcr_val > 0.65 and gamma_imbalance_pct < 0:
+        pcr_mult = 1.3
+    elif pcr_val < 0.35 and gamma_imbalance_pct > 0:
+        pcr_mult = 1.3
+    else:
+        pcr_mult = 1.0
+
+    # Final overnight risk score
+    overnight_risk = min(base_risk * vix_mult * vix_ts_mult * pcr_mult, 0.95)
+
+    # Classification
+    if overnight_risk > 0.30:
+        result["overnight_risk_level"] = "CRITICAL"
+    elif overnight_risk > 0.20:
+        result["overnight_risk_level"] = "HIGH"
+    elif overnight_risk > 0.10:
+        result["overnight_risk_level"] = "ELEVATED"
+    elif overnight_risk > 0.05:
+        result["overnight_risk_level"] = "MODERATE"
+    else:
+        result["overnight_risk_level"] = "LOW"
+
+    # Predicted gap direction
+    if gamma_imbalance_pct < -1.0:
+        result["predicted_gap_direction"] = "amplify_any_move"
+        result["direction_note"] = (
+            "Dealers net short gamma — any overnight gap will be AMPLIFIED "
+            "by dealer hedging at open. Gap down → forced selling cascade. "
+            "Gap up → forced buying. Expect wider-than-normal opening range."
+        )
+    elif gamma_imbalance_pct > 1.0:
+        result["predicted_gap_direction"] = "fade_the_gap"
+        result["direction_note"] = (
+            "Dealers net long gamma — overnight gaps tend to FADE. "
+            "Dealers buy into weakness and sell into strength at open. "
+            "Expect mean reversion after initial gap."
+        )
+    elif pcr_val > 0.65:
+        result["predicted_gap_direction"] = "bearish_bias"
+    elif pcr_val < 0.35:
+        result["predicted_gap_direction"] = "bullish_bias"
+    else:
+        result["predicted_gap_direction"] = "neutral"
+
+    # Gap magnitude estimate (approximate from ΓIB × VIX regime)
+    gap_est = abs_gib * 0.5 * (vix_val / 16.0)
+    result["gap_magnitude_estimate_pct"] = round(gap_est, 2)
+    result["overnight_risk_score"] = round(overnight_risk, 4)
+    result["hedging_pressure_at_open"] = pressure
+    result["gamma_imbalance_pct"] = round(gamma_imbalance_pct, 4)
+    result["vix"] = round(vix_val, 2)
+    result["net_gex_at_close"] = round(net_gex_at_close, 2)
+
+    return result
+
+
+def dealer_balance_sheet_fragility(
+    vix: float | None = None,
+    vix_term_structure: float | None = None,
+    gamma_imbalance_pct: float = 0.0,
+    ted_spread: float | None = None,
+    credit_spread: float | None = None,
+    dealer_leverage_proxy: float | None = None,
+) -> dict[str, Any]:
+    """Dealer balance sheet capacity and gamma absorption fragility.
+
+    Post-SVB (March 2023) research on dealer capital constraints:
+    When dealer balance sheets are stressed (high VIX, wide credit spreads,
+    elevated funding costs), their capacity to absorb gamma risk diminishes.
+    This creates a feedback loop: less capacity → wider spreads → higher
+    hedging costs → even less capacity.
+
+    Key channels:
+      1. VIX level: higher VIX → higher VaR → dealers reduce risk limits
+      2. VIX term structure: backwardation → funding stress
+      3. Credit spreads: wider → dealer funding costs higher
+      4. TED spread: wider → interbank funding stress → dealer balance sheet cost
+      5. Gamma imbalance: large |ΓIB| → more inventory risk
+
+    Composite Dealer Fragility Index (DFI):
+      DFI = w1×VIX_stress + w2×VIX_TS_stress + w3×Credit_stress +
+            w4×Funding_stress + w5×Gamma_stress
+
+    Args:
+        vix: Current VIX level
+        vix_term_structure: VIX futures - VIX spot spread
+        gamma_imbalance_pct: ΓIB as % of ADV
+        ted_spread: TED spread in bps (3M LIBOR - 3M T-bill, or SOFR equivalent)
+        credit_spread: IG credit spread in bps (e.g., CDX IG 5Y)
+        dealer_leverage_proxy: Dealer leverage proxy (e.g., primary dealer repo)
+
+    Returns:
+        dict with dfi_score, fragility_regime, dealer_capacity_utilization
+    """
+    vix_val = vix if vix is not None and vix > 0 else 18.0
+
+    # --- Component 1: VIX stress (0-1) ---
+    if vix_val > 35:
+        vix_stress = 1.0
+    elif vix_val > 28:
+        vix_stress = 0.8
+    elif vix_val > 22:
+        vix_stress = 0.5
+    elif vix_val > 18:
+        vix_stress = 0.3
+    elif vix_val > 14:
+        vix_stress = 0.1
+    else:
+        vix_stress = 0.0
+
+    # --- Component 2: VIX term structure stress (0-1) ---
+    if vix_term_structure is not None:
+        if vix_term_structure < -2.0:
+            vix_ts_stress = 1.0
+        elif vix_term_structure < -1.0:
+            vix_ts_stress = 0.7
+        elif vix_term_structure < 0:
+            vix_ts_stress = 0.4
+        elif vix_term_structure < 1.0:
+            vix_ts_stress = 0.1
+        else:
+            vix_ts_stress = 0.0
+    else:
+        vix_ts_stress = 0.3  # neutral assumption
+
+    # --- Component 3: Credit stress (0-1) ---
+    if credit_spread is not None:
+        if credit_spread > 200:
+            credit_stress = 1.0
+        elif credit_spread > 130:
+            credit_stress = 0.7
+        elif credit_spread > 90:
+            credit_stress = 0.4
+        elif credit_spread > 60:
+            credit_stress = 0.1
+        else:
+            credit_stress = 0.0
+    else:
+        credit_stress = 0.1  # low stress default
+
+    # --- Component 4: Funding stress (TED spread proxy, 0-1) ---
+    if ted_spread is not None:
+        if ted_spread > 100:
+            funding_stress = 1.0
+        elif ted_spread > 50:
+            funding_stress = 0.7
+        elif ted_spread > 30:
+            funding_stress = 0.4
+        elif ted_spread > 15:
+            funding_stress = 0.2
+        else:
+            funding_stress = 0.0
+    else:
+        funding_stress = 0.0
+
+    # --- Component 5: Gamma inventory stress (0-1) ---
+    abs_gib = abs(gamma_imbalance_pct)
+    if abs_gib > 3.0:
+        gamma_stress = 1.0
+    elif abs_gib > 2.0:
+        gamma_stress = 0.8
+    elif abs_gib > 1.0:
+        gamma_stress = 0.5
+    elif abs_gib > 0.5:
+        gamma_stress = 0.3
+    else:
+        gamma_stress = 0.0
+
+    # --- Composite Dealer Fragility Index ---
+    # Weights: VIX 25%, VIX TS 15%, Credit 20%, Funding 15%, Gamma 25%
+    dfi = (
+        0.25 * vix_stress
+        + 0.15 * vix_ts_stress
+        + 0.20 * credit_stress
+        + 0.15 * funding_stress
+        + 0.25 * gamma_stress
+    )
+
+    # --- Regime classification ---
+    if dfi > 0.7:
+        fragility = "CRITICAL"
+        capacity = "severely_constrained"
+        interpretation = (
+            f"DFI={dfi:.2f} — CRITICAL dealer balance sheet fragility. "
+            "Multiple stress channels active. Dealer capacity severely "
+            "constrained. Option liquidity likely impaired. "
+            "High probability of sharp dislocations. Reduce position sizes."
+        )
+    elif dfi > 0.5:
+        fragility = "HIGH"
+        capacity = "constrained"
+        interpretation = (
+            f"DFI={dfi:.2f} — HIGH fragility. Dealers operating with "
+            "reduced capacity. Expect wider spreads, aggressive hedging."
+        )
+    elif dfi > 0.3:
+        fragility = "ELEVATED"
+        capacity = "moderately_constrained"
+        interpretation = (
+            f"DFI={dfi:.2f} — ELEVATED fragility. Some stress channels active."
+        )
+    elif dfi > 0.15:
+        fragility = "MODERATE"
+        capacity = "normal"
+        interpretation = f"DFI={dfi:.2f} — MODERATE. Normal dealer conditions."
+    else:
+        fragility = "LOW"
+        capacity = "ample"
+        interpretation = (
+            f"DFI={dfi:.2f} — LOW fragility. Dealers have ample balance sheet "
+            "capacity. Favorable for option liquidity."
+        )
+
+    return {
+        "dfi_score": round(dfi, 4),
+        "fragility_regime": fragility,
+        "dealer_capacity": capacity,
+        "interpretation": interpretation,
+        "components": {
+            "vix_stress": round(vix_stress, 2),
+            "vix_term_structure_stress": round(vix_ts_stress, 2),
+            "credit_stress": round(credit_stress, 2),
+            "funding_stress": round(funding_stress, 2),
+            "gamma_inventory_stress": round(gamma_stress, 2),
+        },
+        "vix": round(vix_val, 2),
+        "gamma_imbalance_pct": round(gamma_imbalance_pct, 4),
+    }
+
+
+def cross_asset_gamma_spillover(
+    spx_gamma_imbalance_pct: float,
+    single_stock_gamma_imbalance_pct: float = 0.0,
+    spx_vix: float | None = None,
+    cross_asset_beta: float | None = None,
+    sector: str = "broad",
+) -> dict[str, Any]:
+    """Cross-asset gamma spillover — SPX gamma → single-stock volatility.
+
+    Measures how gamma imbalances in index options (SPX/SPY) spill over
+    into single-stock options through dealer hedging networks.
+
+    Mechanism:
+      - When index dealers are short gamma, their delta-hedging of index
+        options creates correlated flows across ALL constituents
+      - This means SPX gamma imbalance affects single-stock option liquidity
+        and volatility even without stock-specific gamma changes
+      - The spillover is strongest for high-beta stocks and during high VIX
+
+    Cross-Asset Gamma Beta (CAGB):
+      If not provided, estimated from sector:
+        Tech: 1.5, Financials: 1.3, Broad: 1.0, Defensive: 0.7, Utilities: 0.5
+
+    Args:
+        spx_gamma_imbalance_pct: SPX/SPY ΓIB as % of ADV
+        single_stock_gamma_imbalance_pct: Stock-specific ΓIB (optional)
+        spx_vix: Current VIX (optional)
+        cross_asset_beta: Stock's sensitivity to index gamma flows (optional)
+        sector: Sector classification for beta estimation
+
+    Returns:
+        dict with spillover_risk, effective_gamma, index_driver_pct
+    """
+    # Cross-Asset Gamma Beta estimation
+    if cross_asset_beta is not None:
+        cagb = cross_asset_beta
+    else:
+        sector_betas = {
+            "technology": 1.5,
+            "tech": 1.5,
+            "financials": 1.3,
+            "financial": 1.3,
+            "consumer_discretionary": 1.2,
+            "consumer_cyclical": 1.2,
+            "industrials": 1.1,
+            "industrial": 1.1,
+            "energy": 1.0,
+            "materials": 1.0,
+            "broad": 1.0,
+            "healthcare": 0.8,
+            "health_care": 0.8,
+            "consumer_staples": 0.7,
+            "defensive": 0.7,
+            "utilities": 0.5,
+            "real_estate": 0.6,
+            "reit": 0.6,
+        }
+        cagb = sector_betas.get(sector.lower(), 1.0)
+
+    # Effective gamma = stock-specific + spillover from index
+    spillover_gamma = spx_gamma_imbalance_pct * cagb
+    effective_gamma = single_stock_gamma_imbalance_pct + spillover_gamma
+
+    # Index driver: what fraction of effective gamma comes from index spillover?
+    if abs(effective_gamma) > 0.001:
+        index_driver_pct = abs(spillover_gamma) / abs(effective_gamma) * 100
+    else:
+        index_driver_pct = 0.0
+
+    # VIX amplification of spillover
+    vix_val = spx_vix if spx_vix is not None and spx_vix > 0 else 18.0
+    if vix_val > 30:
+        spillover_mult = 1.5
+    elif vix_val > 25:
+        spillover_mult = 1.3
+    elif vix_val > 20:
+        spillover_mult = 1.1
+    else:
+        spillover_mult = 1.0
+
+    spillover_risk = abs(spillover_gamma) * spillover_mult
+
+    # Risk classification
+    if spillover_risk > 3.0:
+        risk_level = "EXTREME_SPILLOVER"
+    elif spillover_risk > 1.5:
+        risk_level = "HIGH_SPILLOVER"
+    elif spillover_risk > 0.5:
+        risk_level = "MODERATE_SPILLOVER"
+    elif spillover_risk > 0.1:
+        risk_level = "MILD_SPILLOVER"
+    else:
+        risk_level = "MINIMAL_SPILLOVER"
+
+    # Interpretation
+    if index_driver_pct > 50:
+        driver_note = (
+            f"Index gamma ({index_driver_pct:.0f}% of effective gamma) is the "
+            f"DOMINANT driver of this stock's gamma profile. Single-stock "
+            f"signals may be misleading — trade the index, not the stock."
+        )
+    elif index_driver_pct > 25:
+        driver_note = (
+            f"Index gamma contributes {index_driver_pct:.0f}% of effective "
+            f"gamma — significant spillover. Factor index conditions into "
+            f"single-stock decisions."
+        )
+    else:
+        driver_note = (
+            f"Stock-specific gamma dominates ({100 - index_driver_pct:.0f}%). "
+            f"Index spillover is secondary."
+        )
+
+    return {
+        "spillover_risk_level": risk_level,
+        "spillover_risk_score": round(spillover_risk, 4),
+        "effective_gamma_imbalance_pct": round(effective_gamma, 4),
+        "spillover_gamma_pct": round(spillover_gamma, 4),
+        "stock_specific_gamma_pct": round(single_stock_gamma_imbalance_pct, 4),
+        "index_driver_pct": round(index_driver_pct, 1),
+        "cross_asset_gamma_beta": round(cagb, 2),
+        "sector": sector,
+        "driver_note": driver_note,
+        "spx_gamma_imbalance_pct": round(spx_gamma_imbalance_pct, 4),
+        "vix": round(vix_val, 2),
+    }
