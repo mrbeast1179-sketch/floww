@@ -28,6 +28,24 @@ from typing import Any
 
 logger = logging.getLogger(__name__)
 
+# ── In-memory prior-state caches for data-feed gap signals ────────────────
+# These enable gamma_decomposition, stock_order_imbalance, and
+# real_drift_burst_risk to work on the SECOND call onward by
+# storing the previous snapshot per ticker.
+_prior_gex_cache: dict[str, dict[str, float]] = {}
+_prior_delta_cache: dict[str, float] = {}
+_prior_returns_cache: dict[str, list[float]] = {}
+_PRIOR_CACHE_MAX_SIZE = 100  # prevent unbounded growth
+
+
+def _trim_prior_cache(cache: dict) -> None:
+    """Trim cache if it exceeds max size (FIFO eviction)."""
+    if len(cache) > _PRIOR_CACHE_MAX_SIZE:
+        # Evict oldest entries (FIFO approximation via first keys)
+        excess = len(cache) - _PRIOR_CACHE_MAX_SIZE
+        for key in list(cache.keys())[:excess]:
+            cache.pop(key, None)
+
 # ────────────────────────────────────────────────────────────────────────
 # Thresholds (tunable)
 # ────────────────────────────────────────────────────────────────────────
@@ -566,6 +584,7 @@ async def build_briefing(
                 demand_pressure_premium, option_illiquidity_signal,
                 vix_gamma_fragility, overnight_drift_risk,
                 dealer_balance_sheet_fragility, cross_asset_gamma_spillover,
+                real_drift_burst_risk,
             )
             # ADV proxy — the paper normalises by average daily share volume
             _adv_proxy = {
@@ -612,6 +631,23 @@ async def build_briefing(
             opt_illiq_signal = option_illiquidity_signal(
                 open_interest=call_oi_total + put_oi_total
             )
+            # ── Explicit gamma_decomposition with prior-GEX cache ──
+            _prior_gex_state = _prior_gex_cache.get(ticker.upper(), {})
+            _old_gex = _prior_gex_state.get("net_gex")
+            _old_spot = _prior_gex_state.get("spot")
+            if _old_gex is not None and _old_spot is not None and _old_spot > 0:
+                from services.gex_paper_accurate import decompose_gamma
+                gamma_decomp = decompose_gamma(
+                    current_gex=net_gex,
+                    gex_at_old_spot=_old_gex,  # prior GEX recomputed at current spot
+                    gex_at_old_spot_old_oi=_old_gex,  # prior GEX at prior spot
+                )
+                # Override the paper_metrics default (which has None values)
+                paper_metrics["gamma_decomposition"] = gamma_decomp
+            # Update cache for next call
+            if _PRIOR_CACHE_MAX_SIZE and len(_prior_gex_cache) < _PRIOR_CACHE_MAX_SIZE:
+                _prior_gex_cache[ticker.upper()] = {"net_gex": net_gex, "spot": spot}
+
             # VIX term structure × Gamma fragility
             vix_gamma_signal = vix_gamma_fragility(
                 gamma_imbalance_pct=gib_pct,
@@ -626,7 +662,14 @@ async def build_briefing(
                 gamma_imbalance_pct=gib_pct,
             )
             # Christensen-Oomen-Reno (2018) drift burst risk
-            burst_signal = drift_burst_risk(gamma_imbalance_pct=gib_pct)
+            # Try real returns from cache; fall back to gamma proxy
+            _cached_returns = _prior_returns_cache.get(ticker.upper())
+            if _cached_returns and len(_cached_returns) >= 30:
+                burst_signal = real_drift_burst_risk(
+                    _cached_returns, gamma_imbalance_pct=gib_pct
+                )
+            else:
+                burst_signal = drift_burst_risk(gamma_imbalance_pct=gib_pct)
             # Easley-O'Hara-Srinivas (1998) PIN — informed option volume
             if not (_is_effectively_zero(call_oi_total) and _is_effectively_zero(put_oi_total)):
                 # Proxy: total OI ratio as buyer/seller initiated proxy
@@ -660,9 +703,16 @@ async def build_briefing(
                         (c.get("delta", 0) or 0) * (c.get("oi", c.get("open_interest", 0)) or 0)
                         for c in chain_contracts
                     )
+                    # Feed cached prior delta for full decomposition
+                    _prior_delta = _prior_delta_cache.get(ticker.upper())
                     stock_imb_signal = stock_order_imbalance_signal(
-                        net_delta=net_delta_today, net_gamma=net_gex
+                        net_delta=net_delta_today,
+                        net_delta_old_spot=_prior_delta,
+                        net_gamma=net_gex,
                     )
+                    # Update cache for next call
+                    _prior_delta_cache[ticker.upper()] = net_delta_today
+                    _trim_prior_cache(_prior_delta_cache)
                 except Exception:
                     pass
         except Exception as e:
@@ -712,7 +762,7 @@ async def build_briefing(
             "informed_volume_pin": eos_pin_signal,
             # Cremers-Weinbaum (2010) — Put-Call Parity deviation
             "cw_spread": cw_spread_signal,
-            # Christensen-Oomen-Reno (2018) — real drift burst from returns
-            "real_drift_burst": {},
+            # Christensen-Oomen-Reno (2018) — drift burst (real returns if cached)
+            "real_drift_burst": burst_signal,
         },
     )
