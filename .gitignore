@@ -122,3 +122,7 @@ __pycache__/
 # to the deferred-(b) feat(steal-list) commit).
 backend/debug_cache.py
 backend/services/strategy_builder.py
+
+# DuckDB temp storage (accidentally committed historically — see audit #11)
+*.tmp
+**/.tmp/
