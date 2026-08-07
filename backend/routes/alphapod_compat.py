@@ -253,13 +253,22 @@ async def gex_spx() -> dict[str, Any]:
         spot = raw.get("spot") or 0
         rows = compute_gex_by_strike(spot, raw.get("contracts") or [], "^SPX")
         rows_sorted = sorted(rows, key=lambda r: r.get("strike", 0))
-        return {
+        total_gex = sum(r.get("gex", 0) for r in rows)
+        resp: dict[str, Any] = {
             "ticker": "SPX",
             "spot": spot,
             "asof": _now_iso(),
             "by_strike": rows_sorted,
-            "total_gex": sum(r.get("gex", 0) for r in rows),
+            "total_gex": total_gex,
         }
+        # Paper-accurate Gamma Imbalance (Barbon-Buraschi)
+        if spot > 0:
+            try:
+                from services.gex_paper_accurate import compute_gamma_imbalance
+                resp["gamma_imbalance"] = compute_gamma_imbalance(total_gex, spot, 3_500_000)
+            except Exception:
+                pass
+        return resp
     except Exception as e:
         return {
             "ticker": "SPX",

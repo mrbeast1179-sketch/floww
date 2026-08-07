@@ -144,6 +144,16 @@ async def gex_surface_endpoint(ticker: str, expiries: int = Query(5, ge=1, le=20
         result = agg.compute(spot, contracts)
         result["ticker"] = ticker.upper()
         result["status"] = "ok"
+        # Paper-accurate metrics (Barbon-Buraschi)
+        try:
+            from services.gex_paper_accurate import compute_gamma_imbalance, compute_flip_metrics
+            ng = result.get("net_gex", 0.0)
+            zgl = result.get("zero_gamma_levels", [])
+            result["gamma_imbalance"] = compute_gamma_imbalance(ng, spot, 75_000_000)
+            if zgl:
+                result["flip_metrics"] = compute_flip_metrics(spot, zgl[0], ng)
+        except Exception:
+            pass
         return result
     except Exception as e:
         logger.error(f"GEX surface error for {ticker}: {e}")
