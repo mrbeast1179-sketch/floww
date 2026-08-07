@@ -321,6 +321,8 @@ class CompositeFlowScore:
             },
             "n_obs_min":  int(n_obs_min),
             "is_warming": bool(is_warming),
+            # Paper-accurate GEX (Ni-Pearson 2020 + Barbon-Buraschi 2021)
+            "gex_gamma_imbalance": _safe_gex_imbalance(gex_result),
         }
 
 

@@ -259,12 +259,25 @@ def _finalize(a: dict, r: dict, cw_map: dict | None) -> dict:
 
 
 def _common_factors(r: dict, regimes: dict, sigma_tickers: set,
-                    cw_map: dict | None = None, clusters: dict | None = None) -> dict:
+                    cw_map: dict | None = None, clusters: dict | None = None,
+                    gex_context: dict | None = None) -> dict:
     from services.flow_quality import cw_confirms, is_prime
 
     reg = (regimes or {}).get(r["under"])
     dte, vol_oi = r.get("dte"), r.get("vol_oi") or 0
     _, bias = infer_side_bias(r)
+
+    # Paper-accurate GEX confluency (Ni-Pearson 2020 + Barbon-Buraschi 2021)
+    gex_confluent = False
+    gex_regime = None
+    if gex_context:
+        gi = gex_context.get("gamma_imbalance", {})
+        gex_regime = gi.get("regime")
+        gib_pct = gi.get("gamma_imbalance_pct", 0)
+        # Confluent: negative gamma + bearish flow, or positive gamma + bullish flow
+        if (gib_pct < -0.5 and bias == "bearish") or (gib_pct > 0.5 and bias == "bullish"):
+            gex_confluent = True
+
     return {
         "score90": (r.get("_score") or 0) >= 90,
         "whale": (r.get("premium") or 0) >= 10e6,
@@ -276,6 +289,9 @@ def _common_factors(r: dict, regimes: dict, sigma_tickers: set,
         "prime": is_prime(r),
         "cluster": bool(clusters) and clusters.get(r["under"]) == bias and bias is not None,
         "cw_confirm": cw_confirms(bias, (cw_map or {}).get(r["under"])),
+        # Paper-accurate GEX: Ni-Pearson 2020 + Barbon-Buraschi 2021
+        "gex_confluent": gex_confluent,
+        "gex_regime": gex_regime,
     }
 
 
