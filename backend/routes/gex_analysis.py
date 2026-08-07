@@ -19,6 +19,20 @@ from fastapi.responses import JSONResponse
 router = APIRouter()
 
 
+def _sanitize_json(obj):
+    """Recursively replace inf/nan floats with None for JSON compliance."""
+    import math
+    if isinstance(obj, dict):
+        return {k: _sanitize_json(v) for k, v in obj.items()}
+    if isinstance(obj, list):
+        return [_sanitize_json(v) for v in obj]
+    if isinstance(obj, float):
+        if math.isinf(obj) or math.isnan(obj):
+            return None
+        return obj
+    return obj
+
+
 def _get_spot_and_chain(ticker: str) -> tuple[float, list[dict], list[dict]] | None:
     """Fetch spot price and options chain via yfinance."""
     try:
@@ -117,7 +131,7 @@ async def get_gex_term_structure(
         gex_by_strike = compute_gex_by_strike(spot, contracts)
         term_result = compute_gex_term_structure(spot, gex_by_strike)
 
-        return JSONResponse(content=term_result)
+        return JSONResponse(content=_sanitize_json(term_result))
 
     except Exception as e:
         return JSONResponse(
@@ -174,7 +188,7 @@ async def get_gex_liquidity_analysis(
             total_gex, spot, adv, flip_level
         ).get("paper_metrics", {}).get("gamma_imbalance", {})
 
-        return JSONResponse(content=result)
+        return JSONResponse(content=_sanitize_json(result))
 
     except Exception as e:
         return JSONResponse(

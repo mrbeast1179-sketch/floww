@@ -1894,3 +1894,116 @@ def option_illiquidity_signal(
         )
 
     return result
+
+
+def vix_gamma_fragility(
+    vix_spot: float | None = None,
+    vix_future: float | None = None,
+    gamma_imbalance_pct: float = 0.0,
+    flip_distance_pct: float | None = None,
+) -> dict[str, Any]:
+    """VIX term structure × Gamma fragility interaction.
+
+    Combines VIX futures curve steepness with gamma imbalance to
+    produce a fragility regime signal. Based on the empirical
+    relationship documented in Barbon-Buraschi and practitioner
+    observations:
+
+    - VIX contango (future > spot): dealers willing to warehouse risk
+    - VIX backwardation (future < spot): dealers pulling capacity
+    - Backwardation + negative gamma = MAXIMUM fragility
+    - Near flip level + backwardation = regime transition risk
+
+    VIX spread in %: (VIX_future - VIX_spot) / VIX_spot × 100
+
+    Args:
+        vix_spot: Current VIX level
+        vix_future: Front-month VIX futures price
+        gamma_imbalance_pct: ΓIB as % of ADV
+        flip_distance_pct: Distance to zero-gamma flip (%)
+
+    Returns:
+        dict with fragility_regime, dealer_capacity, combined_risk
+    """
+    result: dict[str, Any] = {
+        "fragility_regime": "unknown",
+        "dealer_capacity": "normal",
+        "combined_risk": "LOW",
+    }
+
+    # VIX term structure signal
+    vix_spread_pct = 0.0
+    if vix_spot and vix_future and vix_spot > 0:
+        vix_spread_pct = (vix_future - vix_spot) / vix_spot * 100
+        result["vix_spread_pct"] = round(vix_spread_pct, 2)
+
+        if vix_spread_pct < -5:
+            result["dealer_capacity"] = "severely_constrained"
+            result["vix_regime"] = "strong_backwardation"
+            interp = (
+                f"VIX spread {vix_spread_pct:.1f}% — STRONG backwardation. "
+                "Dealers severely pulling risk capacity. Options expensive "
+                "near-term, cheap far-term. Hedging costs elevated."
+            )
+        elif vix_spread_pct < -2:
+            result["dealer_capacity"] = "constrained"
+            result["vix_regime"] = "backwardation"
+            interp = (
+                f"VIX spread {vix_spread_pct:.1f}% — backwardation. "
+                "Dealers reducing risk warehouse capacity."
+            )
+        elif vix_spread_pct > 10:
+            result["dealer_capacity"] = "expanding"
+            result["vix_regime"] = "strong_contango"
+            interp = (
+                f"VIX spread {vix_spread_pct:.1f}% — STRONG contango. "
+                "Dealers expanding risk capacity. Favorable for vol selling."
+            )
+        elif vix_spread_pct > 5:
+            result["dealer_capacity"] = "comfortable"
+            result["vix_regime"] = "contango"
+            interp = f"VIX spread {vix_spread_pct:.1f}% — contango. Normal risk environment."
+        else:
+            result["dealer_capacity"] = "normal"
+            result["vix_regime"] = "flat"
+            interp = f"VIX spread {vix_spread_pct:.1f}% — flat term structure."
+    else:
+        result["vix_regime"] = "data_unavailable"
+        interp = "VIX data unavailable."
+
+    # Gamma interaction
+    result["interpretation"] = interp
+    neg_gamma = gamma_imbalance_pct < -1.0
+    near_flip = flip_distance_pct is not None and abs(flip_distance_pct) < 2.0
+
+    if result.get("dealer_capacity") in ("severely_constrained", "constrained") and neg_gamma:
+        result["fragility_regime"] = "maximum_fragility"
+        result["combined_risk"] = "EXTREME"
+        result["interpretation"] += (
+            f" + Negative gamma ({gamma_imbalance_pct:.1f}%) — MAXIMUM fragility. "
+            "Dealers cannot absorb shocks. Flash crash risk extreme. "
+            "Reduce all risk, avoid short gamma strategies."
+        )
+        if near_flip:
+            result["combined_risk"] = "CRITICAL"
+            result["interpretation"] += " NEAR FLIP LEVEL — regime transition imminent."
+    elif result.get("dealer_capacity") in ("severely_constrained", "constrained"):
+        result["fragility_regime"] = "elevated_fear"
+        result["combined_risk"] = "HIGH"
+        result["interpretation"] += (
+            " Dealers constrained but gamma neutral — elevated vol but not crash-prone."
+        )
+    elif neg_gamma and result.get("dealer_capacity") == "expanding":
+        result["fragility_regime"] = "contained_fragility"
+        result["combined_risk"] = "MODERATE"
+        result["interpretation"] += (
+            " Negative gamma but dealers expanding capacity — contained risk."
+        )
+    elif result.get("dealer_capacity") == "expanding":
+        result["fragility_regime"] = "low_fragility"
+        result["combined_risk"] = "LOW"
+    else:
+        result["fragility_regime"] = "normal"
+        result["combined_risk"] = "LOW"
+
+    return result
