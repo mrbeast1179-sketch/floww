@@ -1265,3 +1265,78 @@ def dealer_hedging_liquidity_impact(
         )
 
     return result
+
+
+def gamma_liquidity_regime(
+    gamma_imbalance_pct: float,
+    flip_distance_pct: float | None = None,
+    amihud_illiquidity: float | None = None,
+) -> dict[str, Any]:
+    """Gamma → option liquidity regime — Barbon-Buraschi (SSRN 4138512).
+
+    'Option Liquidity and Gamma Imbalances'
+    Maps gamma imbalance to option market liquidity conditions.
+
+    Key finding: dealer inventory risk from gamma imbalances creates
+    predictable patterns in option market liquidity. Large absolute
+    gamma imbalances → reduced option liquidity as dealers widen quotes
+    to manage inventory risk. Near the zero-gamma flip → maximum
+    uncertainty → option liquidity worst.
+
+    Args:
+        gamma_imbalance_pct: ΓIB as % of ADV
+        flip_distance_pct: Distance to zero-gamma flip (%)
+        amihud_illiquidity: Stock-level Amihud (optional)
+
+    Returns:
+        dict with option_liquidity_regime, dealer_quote_behavior
+    """
+    abs_gib = abs(gamma_imbalance_pct)
+    near_flip = flip_distance_pct is not None and abs(flip_distance_pct) < 2.0
+
+    # Gamma imbalance drives dealer inventory risk → wider option spreads
+    if abs_gib > 2.0 and near_flip:
+        regime = "critically_illiquid"
+        quote_behavior = "wide_quotes_withdrawing"
+        result = {
+            "regime": regime,
+            "dealer_quote_behavior": quote_behavior,
+            "interpretation": (
+                f"Large |ΓIB| ({abs_gib:.1f}%) NEAR the zero-gamma flip — "
+                "maximum dealer inventory risk. Per Barbon-Buraschi: "
+                "option market makers widen spreads significantly. "
+                "Option liquidity critically impaired."
+            ),
+        }
+    elif abs_gib > 2.0:
+        result = {
+            "regime": "illiquid",
+            "dealer_quote_behavior": "wider_spreads",
+            "interpretation": (
+                f"Large |ΓIB| ({abs_gib:.1f}%) — elevated dealer inventory risk. "
+                "Option liquidity below normal."
+            ),
+        }
+    elif abs_gib > 0.5:
+        result = {
+            "regime": "moderate",
+            "dealer_quote_behavior": "normal_spreads",
+            "interpretation": f"Moderate ΓIB — normal option liquidity conditions.",
+        }
+    else:
+        result = {
+            "regime": "liquid",
+            "dealer_quote_behavior": "tight_spreads",
+            "interpretation": (
+                "Low ΓIB — dealers face minimal inventory risk. "
+                "Option liquidity abundant, tight spreads."
+            ),
+        }
+
+    result["gamma_imbalance_pct"] = round(gamma_imbalance_pct, 4)
+    result["near_flip"] = near_flip
+    if amihud_illiquidity and amihud_illiquidity > 1e-5:
+        result["illiquid_stock_interaction"] = (
+            "Underlying stock illiquid → option liquidity doubly impaired."
+        )
+    return result
