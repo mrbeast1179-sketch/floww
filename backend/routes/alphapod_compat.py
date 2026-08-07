@@ -223,7 +223,7 @@ async def deep_dive(ticker: str) -> dict[str, Any]:
     }
     # Pull a few quick analytics if the helpers are available.
     try:
-        from server import compute_gex_by_strike  # type: ignore
+        from services.gex_core import compute_gex_by_strike
         gex_rows = compute_gex_by_strike(spot, contracts, t)
         summary["total_gex"] = sum(r.get("gex", 0) for r in gex_rows)
         summary["top_strikes"] = sorted(
@@ -248,7 +248,8 @@ async def deep_dive(ticker: str) -> dict[str, Any]:
 async def gex_spx() -> dict[str, Any]:
     """SPX GEX snapshot in AlphaPod shape."""
     try:
-        from server import compute_gex_by_strike, fetch_spot_and_chains_merged
+        from services.gex_core import compute_gex_by_strike
+        from server import fetch_spot_and_chains_merged
         raw = await fetch_spot_and_chains_merged("^SPX", 4)
         spot = raw.get("spot") or 0
         rows = compute_gex_by_strike(spot, raw.get("contracts") or [], "^SPX")

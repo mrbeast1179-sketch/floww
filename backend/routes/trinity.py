@@ -30,9 +30,7 @@ async def _fetch_chain(ticker: str, expiries: int = 4):
 
 def _extract_zero_gamma_levels(spot: float, contracts: list[dict]) -> list[float]:
     """Extract zero-gamma (flip) levels from computed GEX data."""
-    from server import compute_gex_by_strike
-    if not contracts or spot <= 0:
-        return []
+    from services.gex_core import compute_gex_by_strike
     strikes_data = compute_gex_by_strike(spot, contracts)
     if not strikes_data:
         return []
@@ -104,7 +102,7 @@ async def get_trinity_for_ticker(ticker: str, expiries: int = Query(4, ge=1, le=
     if not spot or not contracts:
         raise HTTPException(404, f"No options data for {t}")
 
-    from server import compute_gex_by_strike
+    from services.gex_core import compute_gex_by_strike
     strikes_data = compute_gex_by_strike(spot, contracts, t)
     flip_levels = _extract_zero_gamma_levels(spot, contracts)
 

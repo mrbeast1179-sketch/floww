@@ -36,7 +36,8 @@ logger = logging.getLogger(__name__)
 
 async def collect_snapshot(ticker: str = "SPY") -> dict:
     """Collect a single GEX snapshot."""
-    from server import classify_nodes, compute_gex_by_strike, fetch_spot_and_chains_merged
+    from server import fetch_spot_and_chains_merged
+    from services.gex_core import classify_nodes, compute_gex_by_strike
 
     t = ticker.strip().upper()
     if t == "SPX":
