@@ -137,6 +137,13 @@ class MultiTickerComparator:
         """Compare current regimes across tickers."""
         result = {}
 
+        # Move import outside loop for performance
+        try:
+            from services.gex_paper_accurate import compute_gamma_imbalance
+            _has_paper_metrics = True
+        except Exception:
+            _has_paper_metrics = False
+
         for ticker, snapshots in snapshots_by_ticker.items():
             if not snapshots:
                 continue
@@ -153,14 +160,10 @@ class MultiTickerComparator:
                 "king_strike": latest.get("king_strike", 0),
             }
             # Paper metrics per ticker
-            try:
-                from services.gex_paper_accurate import compute_gamma_imbalance
-                if spot > 0:
-                    result[ticker]["gamma_imbalance"] = compute_gamma_imbalance(
-                        net_gex, spot, adv_shares=10_000_000
-                    )
-            except Exception:
-                pass
+            if _has_paper_metrics and spot > 0:
+                result[ticker]["gamma_imbalance"] = compute_gamma_imbalance(
+                    net_gex, spot, adv_shares=10_000_000
+                )
 
         # Count regimes
         positive = [t for t, d in result.items() if d["regime"] == "POSITIVE"]

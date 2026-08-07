@@ -190,7 +190,6 @@ class GreekAggregator:
     def compute_paper_metrics(
         self,
         net_gex: float,
-        total_gex: float,
         zero_gamma_levels: list[float] | None = None,
     ) -> dict[str, Any]:
         """Compute Barbon-Buraschi/Ni-Pearson paper metrics from aggregated GEX."""

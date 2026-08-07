@@ -333,7 +333,7 @@ def full_term_analysis(
 def _term_structure_paper_metrics(expiry_gex_list: list, spot: float) -> dict:
     """Compute Barbon-Buraschi Gamma Imbalance for term structure context."""
     try:
-        from services.gex_paper_accurate import compute_gamma_imbalance, compute_flip_metrics
+        from services.gex_paper_accurate import compute_gamma_imbalance
         total_gex = sum(e.net_gex for e in expiry_gex_list)
         near_gex = expiry_gex_list[0].net_gex if expiry_gex_list else 0.0
         gib = compute_gamma_imbalance(total_gex, spot, adv_shares=10_000_000)

@@ -672,8 +672,6 @@ def stock_order_imbalance_signal(
     net_delta: float,
     net_delta_old_spot: float | None = None,
     net_gamma: float = 0.0,
-    spot: float = 0.0,
-    shares_outstanding: float | None = None,
 ) -> dict[str, Any]:
     """Stock order imbalance from hedge rebalancing — Ni-Pearson appendix §3.
 
@@ -787,13 +785,14 @@ def stock_order_imbalance_signal(
     return result
 
 
+DEFAULT_ADV_SHARES = 10_000_000
+
+
 def option_demand_pressure(
     net_gex: float,
-    spot: float,
     put_call_ratio_oi: float | None = None,
     put_call_ratio_vol: float | None = None,
     bid_ask_spread: float | None = None,
-    implied_vol: float | None = None,
 ) -> dict[str, Any]:
     """Option demand pressure signal — Gârleanu-Pedersen-Poteshman (2008).
 
@@ -843,7 +842,7 @@ def option_demand_pressure(
 
     # End-user demand pressure: if dealers are short gamma, end-users are long
     # (buying pressure). Long end-users → upward demand pressure on IV.
-    pcr = put_call_ratio_oi or put_call_ratio_vol
+    pcr = put_call_ratio_oi if put_call_ratio_oi is not None else put_call_ratio_vol
 
     if dealer_position == "short" and (pcr is None or pcr < 0.5):
         result["demand_pressure"] = "end_user_buying"
