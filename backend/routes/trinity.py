@@ -120,11 +120,18 @@ async def get_trinity_for_ticker(ticker: str, expiries: int = Query(4, ge=1, le=
     # ── Paper-accurate Gamma Imbalance (Barbon-Buraschi) ──
     if spot > 0 and flip_levels:
         try:
-            from services.gex_paper_accurate import compute_flip_metrics, compute_gamma_imbalance
+            from services.gex_paper_accurate import compute_flip_metrics, compute_gamma_imbalance, cross_asset_gamma_spillover
             gi = compute_gamma_imbalance(net_gex, spot, adv_shares=75_000_000)
             fm = compute_flip_metrics(spot, flip_levels[0] if flip_levels else None, net_gex)
             response["gamma_imbalance"] = gi
             response["flip_metrics"] = fm
+            # Cross-asset spillover: how much SPX gamma drives this ticker
+            gib_pct = gi.get("gamma_imbalance_pct", 0)
+            response["cross_asset_spillover"] = cross_asset_gamma_spillover(
+                spx_gamma_imbalance_pct=gib_pct,
+                single_stock_gamma_imbalance_pct=gib_pct,
+                sector="broad",
+            )
         except Exception:
             pass
 
