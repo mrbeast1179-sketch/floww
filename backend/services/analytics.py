@@ -142,13 +142,25 @@ class MultiTickerComparator:
                 continue
 
             latest = max(snapshots, key=lambda s: s.get("ts", ""))
+            spot = latest.get("spot", 0)
+            net_gex = latest.get("net_gex", 0)
+            total_gex = latest.get("total_gex", 0)
             result[ticker] = {
                 "regime": latest.get("regime", "unknown"),
-                "spot": latest.get("spot", 0),
-                "net_gex": latest.get("net_gex", 0),
-                "total_gex": latest.get("total_gex", 0),
+                "spot": spot,
+                "net_gex": net_gex,
+                "total_gex": total_gex,
                 "king_strike": latest.get("king_strike", 0),
             }
+            # Paper metrics per ticker
+            try:
+                from services.gex_paper_accurate import compute_gamma_imbalance
+                if spot > 0:
+                    result[ticker]["gamma_imbalance"] = compute_gamma_imbalance(
+                        net_gex, spot, adv_shares=10_000_000
+                    )
+            except Exception:
+                pass
 
         # Count regimes
         positive = [t for t, d in result.items() if d["regime"] == "POSITIVE"]

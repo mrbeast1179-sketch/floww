@@ -62,10 +62,72 @@ def _get_spot_and_chain(ticker: str) -> tuple[float, list[dict], list[dict]] | N
 
 def _compute_contracts_gex(calls: list, puts: list, spot: float) -> list[dict]:
     """Add gamma and GEX to contracts using Black-Scholes."""
-    from services.bs_greeks import compute_greeks_for_chain
-
+    from bs_greeks import dollar_gex_per_contract, bs_gamma
+    
     combined = calls + puts
-    return compute_greeks_for_chain(combined, spot)
+    
+    for c in combined:
+        try:
+            strike = float(c.get("strike", 0))
+            if strike <= 0:
+                continue
+                
+            # Get time to expiry in years
+            from datetime import datetime
+            dte_days = c.get("dte", c.get("days_to_expiry", 1))
+            T = max(float(dte_days), 1) / 365.0  # Avoid T=0
+            
+            # Get IV
+            iv = float(c.get("iv", 0.2))
+            if iv <= 0:
+                continue
+            
+            # Get OI or volume
+            oi = float(c.get("openInterest", c.get("oi", c.get("volume", 0))))
+            
+            # Get option type
+            opt_type = c.get("type", "CALL").upper()
+            if not isinstance(opt_type, str):
+                opt_type = "CALL"
+            sign = 1.0 if opt_type in ("CALL", "CALLS") else -1.0
+            
+            # Get time to expiry in years
+            dte_days = c.get("dte", c.get("days_to_expiry", c.get("DTE", 1)))
+            if dte_days is None or dte_days == 0:
+                dte_days = 1
+            T = max(float(dte_days), 1) / 365.0  # Avoid T=0
+            
+            # Get IV - yfinance uses 'impliedVolatility' or 'iv'
+            iv = float(c.get("iv", c.get("impliedVolatility", c.get("Implied Volatility", 0.2))))
+            if iv <= 0 or iv > 5.0:  # Sanity check IV
+                iv = 0.2  # Default fallback
+            
+            # Get OI - yfinance uses 'openInterest' or 'oi'
+            oi = c.get("openInterest", c.get("oi", c.get("Open Interest", 0))) or 0
+            oi = float(oi)
+            
+            # Compute gamma
+            gamma = bs_gamma(spot, strike, T, iv, q=0.0, r=0.05)
+            
+            # Compute GEX
+            gex = dollar_gex_per_contract(gamma, oi, spot)
+            
+            # Compute vomma and vex
+            from bs_greeks import bs_vomma, dollar_vex_per_contract
+            vomma = bs_vomma(spot, strike, T, iv, q=0.0, r=0.05)
+            vex = dollar_vex_per_contract(vomma, oi, spot)
+            sign_vex = 1.0 if opt_type in ("CALL", "CALLS") else -1.0
+            
+            c["gamma"] = gamma
+            c["gex"] = sign * gex
+            c["vomma"] = vomma
+            c["vex"] = sign_vex * vex
+            
+        except Exception:
+            c["gex"] = 0.0
+            c["gamma"] = 0.0
+    
+    return combined
 
 
 @router.get("/gex/term-structure/{ticker}")
@@ -131,7 +193,7 @@ async def get_gex_liquidity_analysis(
 
         # Compute flip level
         try:
-            from services.gex_aggregator import find_zero_crossings
+            from services.gex_core import find_zero_crossings
             flip_levels = find_zero_crossings(spot, contracts)
             flip_level = flip_levels[0] if flip_levels else None
         except Exception:
@@ -183,7 +245,7 @@ async def get_flip_points(ticker: str = Path(..., min_length=1, max_length=10)):
         spot, calls, puts = result
         contracts = _compute_contracts_gex(calls, puts, spot)
 
-        from services.gex_aggregator import find_zero_crossings
+        from services.gex_core import find_zero_crossings
         flip_levels = find_zero_crossings(spot, contracts)
 
         net_gex = sum(c.get("gex", 0) for c in contracts)

@@ -726,3 +726,44 @@ def compute_gex_by_strike_volume(spot: float, contracts: list[dict[str, Any]], t
         else:
             bucket["put_gex"] += gex_unit
     return sorted(agg.values(), key=lambda r: r["strike"])
+
+
+def find_zero_crossings(spot: float, contracts: list[dict]) -> list[float]:
+    """
+    Find zero-gamma flip points by linear interpolation.
+    
+    Uses aggregate GEX curve to identify price levels where net dealer
+    gamma transitions from positive to negative.
+    """
+    # Aggregate GEX by strike
+    by_strike = {}
+    for c in contracts:
+        strike = c.get("strike", 0)
+        gex_val = c.get("gex", 0)
+        if isinstance(gex_val, dict):
+            gex_val = gex_val.get("net_gex", 0)
+        if strike and gex_val:
+            by_strike[strike] = by_strike.get(strike, 0) + gex_val
+    
+    if not by_strike:
+        return []
+    
+    # Sort by strike
+    sorted_strikes = sorted(by_strike.keys())
+    gex_values = [by_strike[s] for s in sorted_strikes]
+    
+    # Find sign changes
+    flip_levels = []
+    for i in range(1, len(sorted_strikes)):
+        prev_gex = gex_values[i - 1]
+        curr_gex = gex_values[i]
+        
+        if prev_gex * curr_gex < 0:
+            prev_s = sorted_strikes[i - 1]
+            curr_s = sorted_strikes[i]
+            
+            if curr_gex != prev_gex:
+                flip = prev_s - prev_gex * (curr_s - prev_s) / (curr_gex - prev_gex)
+                flip_levels.append(flip)
+    
+    return sorted(set(flip_levels))

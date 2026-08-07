@@ -250,13 +250,6 @@ def compute_gamma_scallop(
     if not strikes:
         return {"scallop_analysis": [], "liquidity_basins": []}
     
-    # Identify liquidity basins (areas with high cumulative GEX)
-    spot_idx = 0
-    for i, s in enumerate(strikes):
-        if s >= spot:
-            spot_idx = i
-            break
-    
     # Analyze window around spot
     window_pct = window / 10000  # Convert to decimal
     lower = spot * (1 - window_pct)

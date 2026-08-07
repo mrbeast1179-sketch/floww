@@ -785,3 +785,110 @@ def stock_order_imbalance_signal(
         result["next_day_reversal_probability"] = "low"
 
     return result
+
+
+def option_demand_pressure(
+    net_gex: float,
+    spot: float,
+    put_call_ratio_oi: float | None = None,
+    put_call_ratio_vol: float | None = None,
+    bid_ask_spread: float | None = None,
+    implied_vol: float | None = None,
+) -> dict[str, Any]:
+    """Option demand pressure signal — Gârleanu-Pedersen-Poteshman (2008).
+
+    'Demand-Based Option Pricing'
+    Review of Financial Studies 22, 4259-4299.
+
+    GPP show that end-users' net demand for options creates price pressure
+    that market makers must absorb, leading to predictable patterns in
+    option prices relative to Black-Scholes. When end-user demand is net
+    positive (buying pressure), implied volatilities deviate from fair value.
+
+    Key mechanism:
+      - Market makers are risk-averse and cannot perfectly hedge
+      - Net end-user demand creates inventory imbalances
+      - Inventory imbalances affect option prices through demand pressure
+      - Higher demand → higher IV relative to fundamental value
+
+    Our proxy: combine GEX-based gamma imbalance with PCR ratio to infer
+    directional demand pressure on the market maker book.
+
+    Args:
+        net_gex: Net dollar GEX (negative = dealers short, positive = dealers long)
+        spot: Current spot price  
+        put_call_ratio_oi: Put/Call OI ratio (optional)
+        put_call_ratio_vol: Put/Call volume ratio (optional)
+        bid_ask_spread: Relative bid-ask spread (optional)
+        implied_vol: ATM implied volatility (optional)
+
+    Returns:
+        dict with demand_pressure, dealer_inventory_type, expected_price_impact
+    """
+    result: dict[str, Any] = {
+        "demand_pressure": "neutral",
+        "dealer_inventory_type": "balanced",
+        "expected_price_impact": "none",
+    }
+
+    # Dealer inventory direction from GEX sign
+    if net_gex < -1e9:
+        dealer_position = "short"
+        result["dealer_inventory_type"] = "net_short_gamma"
+    elif net_gex > 1e9:
+        dealer_position = "long"
+        result["dealer_inventory_type"] = "net_long_gamma"
+    else:
+        dealer_position = "neutral"
+
+    # End-user demand pressure: if dealers are short gamma, end-users are long
+    # (buying pressure). Long end-users → upward demand pressure on IV.
+    pcr = put_call_ratio_oi or put_call_ratio_vol
+
+    if dealer_position == "short" and (pcr is None or pcr < 0.5):
+        result["demand_pressure"] = "end_user_buying"
+        result["expected_price_impact"] = "upward_iv_pressure"
+        result["interpretation"] = (
+            "Dealers net short gamma → end-users net long. "
+            "Per GPP 2008: end-user buying pressure biases IV above "
+            "fundamental value. Favorable for volatility selling strategies. "
+            "Also consistent with Ni-Pearson: dealers forced to hedge amplify moves."
+        )
+    elif dealer_position == "long" and (pcr or 0.5) > 0.5:
+        result["demand_pressure"] = "end_user_selling"
+        result["expected_price_impact"] = "downward_iv_pressure"
+        result["interpretation"] = (
+            "Dealers net long gamma → end-users net short/hedging. "
+            "Per GPP 2008: end-user selling pressure biases IV below "
+            "fundamental value. Consider buying volatility cheaply."
+        )
+    elif pcr is not None:
+        if pcr < 0.35:
+            result["demand_pressure"] = "call_demand_dominant"
+            result["interpretation"] = (
+                f"PCR={pcr:.2f} — strong call demand. "
+                "End-users buying calls, dealers short calls (negative gamma)."
+            )
+        elif pcr > 0.65:
+            result["demand_pressure"] = "put_demand_dominant"
+            result["interpretation"] = (
+                f"PCR={pcr:.2f} — strong put demand. "
+                "Hedging/protection buying dominates, dealers short puts."
+            )
+        else:
+            result["demand_pressure"] = "balanced"
+    else:
+        if dealer_position == "short":
+            result["demand_pressure"] = "moderate_buying"
+        elif dealer_position == "long":
+            result["demand_pressure"] = "moderate_selling"
+
+    # Liquidity friction: higher spread → stronger demand price impact
+    if bid_ask_spread and bid_ask_spread > 0.002:
+        result["demand_pressure_amplified"] = True
+        result["liquidity_note"] = (
+            f"Bid-ask spread {bid_ask_spread*100:.2f}% > 0.2% → "
+            "demand price impact amplified per GPP illiquidity channel."
+        )
+
+    return result

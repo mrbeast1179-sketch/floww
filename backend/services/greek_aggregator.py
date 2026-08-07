@@ -187,6 +187,23 @@ class GreekAggregator:
             types=kind,
         )
 
+    def compute_paper_metrics(
+        self,
+        net_gex: float,
+        total_gex: float,
+        zero_gamma_levels: list[float] | None = None,
+    ) -> dict[str, Any]:
+        """Compute Barbon-Buraschi/Ni-Pearson paper metrics from aggregated GEX."""
+        try:
+            from services.gex_paper_accurate import compute_gamma_imbalance, compute_flip_metrics
+            adv = 10_000_000  # default ADV for general use
+            flip = zero_gamma_levels[0] if zero_gamma_levels else None
+            gi = compute_gamma_imbalance(net_gex, self.spot, adv)
+            fm = compute_flip_metrics(self.spot, flip, net_gex)
+            return {"gamma_imbalance": gi, "flip_metrics": fm}
+        except Exception:
+            return {}
+
     def aggregate_simple(
         self,
         strikes: np.ndarray,
