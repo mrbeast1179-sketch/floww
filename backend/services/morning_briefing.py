@@ -570,6 +570,8 @@ async def build_briefing(
     gpp_premium_signal = {}
     opt_illiq_signal = {}
     vix_gamma_signal = {}
+    overnight_signal = {}
+    dealer_fragility_signal = {}
     gib_pct = 0
     if spot > 0 and not _is_effectively_zero(net_gex):
         try:
