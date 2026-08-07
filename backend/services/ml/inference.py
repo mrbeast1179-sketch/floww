@@ -96,6 +96,9 @@ GEX_CACHE_TTL_SEC = 120
 # Feature cache TTL
 FEATURE_CACHE_TTL_SEC = 300
 
+# yfinance raw-data cache (avoids re-downloading 1y of prices every request)
+_yfinance_raw_cache: Dict[str, Tuple[pd.DataFrame, float]] = {}
+
 
 # ── Data classes ───────────────────────────────────────────────────────
 
@@ -145,6 +148,7 @@ def compute_live_features(ticker: str, period: str = "1y") -> pd.DataFrame:
 
     Uses pandas vectorized ops instead of Python for-loops.
     On a typical 1-year (250-row) dataset this is ~100x faster.
+    Caches raw yfinance downloads for FEATURE_CACHE_TTL_SEC (300s).
 
     Args:
         ticker: Ticker symbol
@@ -153,13 +157,31 @@ def compute_live_features(ticker: str, period: str = "1y") -> pd.DataFrame:
     Returns:
         DataFrame with one row per trading day, columns = features
     """
-    log.info(f"Downloading {ticker} data (period={period})")
-    try:
-        data = yf.download(ticker, period=period, progress=False)
-        if data.empty:
-            raise DegenerateModelError(f"No data returned for {ticker}")
-    except Exception as e:
-        raise DegenerateModelError(f"Failed to download {ticker}: {e}")
+    # ── Cache check ──
+    cache_key = f"{ticker}:{period}"
+    now = time.time()
+    if cache_key in _yfinance_raw_cache:
+        cached_df, cached_at = _yfinance_raw_cache[cache_key]
+        if now - cached_at < FEATURE_CACHE_TTL_SEC:
+            log.info(f"Using cached {ticker} data (age={now - cached_at:.0f}s, TTL={FEATURE_CACHE_TTL_SEC}s)")
+            data = cached_df.copy()
+        else:
+            del _yfinance_raw_cache[cache_key]
+            data = None
+    else:
+        data = None
+
+    # ── Download if not cached ──
+    if data is None:
+        log.info(f"Downloading {ticker} data (period={period})")
+        try:
+            data = yf.download(ticker, period=period, progress=False)
+            if data.empty:
+                raise DegenerateModelError(f"No data returned for {ticker}")
+        except Exception as e:
+            raise DegenerateModelError(f"Failed to download {ticker}: {e}")
+        # Store in cache
+        _yfinance_raw_cache[cache_key] = (data.copy(), now)
 
     if isinstance(data.columns, pd.MultiIndex):
         data.columns = data.columns.get_level_values(0)
@@ -415,11 +437,11 @@ class InferenceEngine:
 
         if isinstance(entry, tuple):
             model_path = entry[0]
-            scaler_path = entry[1] if len(entry) > 1 else None
+            _scaler_path = entry[1] if len(entry) > 1 else None
             m_path = entry[2] if len(entry) > 2 else None
         else:
             model_path = entry
-            scaler_path = None
+            _scaler_path = None
             m_path = None
 
         if not os.path.exists(model_path):
