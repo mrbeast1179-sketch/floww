@@ -199,8 +199,8 @@ async def flip_zones_route(
                 "flip_metrics": fm,
                 "net_gex_dollars": net_gex_dollars,
             }
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug(f"Paper metrics compute failed for flip-zones: {e}")
 
         response = _sanitize({
             "ticker": ticker.upper(), "spot": spot, **result,

@@ -539,13 +539,11 @@ async def build_briefing(
 
     # ── Paper-accurate GEX diagnostic (Ni-Pearson + Barbon-Buraschi) ────
     paper_metrics = {}
+    pcr_signal = {}
     if spot > 0 and not _is_effectively_zero(net_gex):
         try:
             from services.gex_paper_accurate import full_paper_diagnostic, put_call_ratio_signal
-            # ADV defaults to 75M for SPY-scale tickers — the paper normalises
-            # by average daily share volume so large/small caps are comparable.
-            # A proper ADV needs a 21-day rolling window from TAQ/CRSP; the
-            # fallback keeps the briefing alive when ADV isn't available.
+            # ADV proxy — the paper normalises by average daily share volume
             _adv_proxy = {
                 "SPY": 75_000_000, "SPX": 3_500_000, "QQQ": 45_000_000,
                 "IWM": 28_000_000, "DIA": 3_000_000, "AAPL": 55_000_000,
@@ -558,6 +556,9 @@ async def build_briefing(
                 adv_shares=_adv_proxy,
                 zero_gamma_level=flip_level if not _is_effectively_zero(flip_level) else None,
             ).get("paper_metrics", {})
+            # Pan-Poteshman (2006) put-call ratio signal
+            if not (_is_effectively_zero(call_oi_total) and _is_effectively_zero(put_oi_total)):
+                pcr_signal = put_call_ratio_signal(call_oi_total, put_oi_total)
         except Exception as e:
             logger.debug(f"Paper-accurate GEX diagnostic failed for {ticker}: {e}")
 
@@ -580,8 +581,6 @@ async def build_briefing(
             "gamma_decomposition": paper_metrics.get("gamma_decomposition", {}),
             "flash_crash_risk": paper_metrics.get("flash_crash_risk", {}),
             # Pan-Poteshman (2006) put-call ratio signal
-            "put_call_ratio": put_call_ratio_signal(call_oi_total, put_oi_total)
-            if not (_is_effectively_zero(call_oi_total) and _is_effectively_zero(put_oi_total))
-            else {},
+            "put_call_ratio": pcr_signal,
         },
     )

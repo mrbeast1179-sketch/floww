@@ -586,11 +586,13 @@ def full_paper_diagnostic(
         result["paper_metrics"]["gamma_imbalance"] = {
             "error": "ADV not provided — skip Gamma Imbalance computation"
         }
+        # Default ADV fallback — avoids magic number; mirrors briefing ADV dict
+        _default_adv = 10_000_000
         gib_pct = (
-            net_gex / (spot * spot * 0.01 * 1e7) * 100
+            net_gex / (spot * spot * 0.01 * _default_adv) * 100
             if spot > 0
             else 0.0
-        )  # rough proxy
+        )  # rough proxy with explicit default
 
     # 2. Flip Metrics
     fm = compute_flip_metrics(spot, zero_gamma_level, net_gex)
