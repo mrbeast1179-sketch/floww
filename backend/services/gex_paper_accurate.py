@@ -1189,3 +1189,79 @@ def drift_burst_risk(
         )
 
     return result
+
+
+def dealer_hedging_liquidity_impact(
+    net_gamma: float,
+    gamma_imbalance_pct: float,
+    amihud_illiquidity: float | None = None,
+) -> dict[str, Any]:
+    """Dealer hedging → stock liquidity impact — O'Donovan-Yu-Zhang (2023).
+
+    'Option Market Maker Hedging and Stock Market Liquidity'
+    SSRN 4567604.
+
+    Key finding: when option market makers hold net SHORT positions
+    (negative gamma), their pro-cyclical delta hedging withdraws liquidity
+    from the underlying, widening bid-ask spreads and increasing Amihud
+    illiquidity. Net LONG positions supply counter-cyclical liquidity.
+
+    This interacts with Ni-Pearson: negative gamma → dealers amplify
+    moves → liquidity deteriorates → wider spreads → higher vol.
+
+    Args:
+        net_gamma: Net position gamma (negative = dealers short)
+        gamma_imbalance_pct: ΓIB as % of ADV
+        amihud_illiquidity: Existing Amihud illiquidity ratio (optional)
+
+    Returns:
+        dict with liquidity_impact, spread_direction
+    """
+    result: dict[str, Any] = {
+        "liquidity_impact": "neutral",
+        "spread_direction": "stable",
+    }
+
+    has_negative = net_gamma < -1e9
+    has_positive = net_gamma > 1e9
+    abs_gib = abs(gamma_imbalance_pct)
+
+    if has_negative and abs_gib > 1.0:
+        result["liquidity_impact"] = "liquidity_withdrawal"
+        result["spread_direction"] = "widening"
+        result["interpretation"] = (
+            f"Dealers net short gamma ({net_gamma/1e9:.1f}B, ΓIB={gamma_imbalance_pct:.1f}%). "
+            "Pro-cyclical hedging withdraws liquidity from underlying. "
+            "Per O'Donovan-Yu-Zhang: expect wider bid-ask spreads, "
+            "higher Amihud illiquidity. Amplified for small-cap/illiquid names."
+        )
+    elif has_negative:
+        result["liquidity_impact"] = "mild_withdrawal"
+        result["spread_direction"] = "slightly_widening"
+        result["interpretation"] = (
+            f"Mild negative gamma — moderate liquidity impact."
+        )
+    elif has_positive and abs_gib > 1.0:
+        result["liquidity_impact"] = "liquidity_provision"
+        result["spread_direction"] = "tightening"
+        result["interpretation"] = (
+            f"Dealers net long gamma ({net_gamma/1e9:.1f}B, ΓIB={gamma_imbalance_pct:.1f}%). "
+            "Counter-cyclical hedging supplies liquidity. "
+            "Expect tighter spreads, lower Amihud."
+        )
+    elif has_positive:
+        result["liquidity_impact"] = "mild_provision"
+        result["spread_direction"] = "slightly_tightening"
+    else:
+        result["liquidity_impact"] = "neutral"
+        result["interpretation"] = "Gamma near neutral — no liquidity impact."
+
+    # Amplify for already-illiquid stocks
+    if amihud_illiquidity and amihud_illiquidity > 1e-6 and has_negative:
+        result["amplified_for_illiquid"] = True
+        result["warning"] = (
+            f"Stock already illiquid (Amihud={amihud_illiquidity:.2e}) + "
+            "negative gamma → liquidity spiral risk elevated."
+        )
+
+    return result
