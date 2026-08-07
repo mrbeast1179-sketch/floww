@@ -400,6 +400,7 @@ class GexAggregator:
             "min_gex_strike": min_gex_strike,
             "zero_gamma_levels": zero_gamma_levels,
             "gex_ratio": gex_ratio,
+            "_spot": round(self.spot, 2),
         }
 
     def find_zero_crossings(

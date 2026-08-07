@@ -470,6 +470,7 @@ def classify_nodes(strikes: list[dict[str, Any]], spot: float) -> dict[str, Any]
         "charm_flip": round(charm_flip, 4),
         "max_pain": max_pain,
         "put_call_ratio": round(put_call_ratio, 4) if put_call_ratio is not None else None,
+        "_spot": round(spot, 2),
         "risk_metrics": {
             "gci": round(gci, 4),
             "pgr": round(pgr, 4),
