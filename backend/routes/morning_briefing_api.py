@@ -112,13 +112,24 @@ async def get_briefing(
         except Exception:
             logger.debug(f"Chain fetch failed for {ticker}, will use fallback")
 
-        # Fallback: if we have spot but no chain, compute net_gex from aggregator
+        # Fallback: if we have spot but no chain, try server's live GEX cache
         if spot > 0 and chain_contracts is None:
             try:
-                from services.gex_aggregator import GexAggregator
-                raw_fb = await fetch_spot_and_chains_merged(ticker, max_expiries=4)
-                if raw_fb and raw_fb.get("contracts"):
-                    chain_contracts = raw_fb.get("contracts")
+                import server as srv_fb
+                if hasattr(srv_fb, "_gex_cache") and ticker in srv_fb._gex_cache:
+                    cached_gex = srv_fb._gex_cache[ticker]
+                    if cached_gex:
+                        net_gex = cached_gex.get("net_gex", 0)
+                        chain_contracts = cached_gex.get("contracts")
+                        logger.debug(f"Using cached GEX for {ticker}: net_gex={net_gex}")
+                # Also try DuckDB
+                if chain_contracts is None and hasattr(srv_fb, "_duckdb_conn"):
+                    from services.gex_aggregator import GexAggregator
+                    agg = GexAggregator()
+                    recent = agg.get_recent_gex(ticker, srv_fb._duckdb_conn)
+                    if recent:
+                        net_gex = recent.get("net_gex", 0)
+                        chain_contracts = recent.get("contracts")
             except Exception:
                 pass
 

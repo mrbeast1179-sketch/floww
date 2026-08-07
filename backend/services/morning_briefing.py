@@ -546,6 +546,7 @@ async def build_briefing(
     gamma_liq_signal = {}
     demand_signal = {}
     burst_signal = {}
+    stock_imb_signal = {}
     if spot > 0 and not _is_effectively_zero(net_gex):
         try:
             from services.gex_paper_accurate import (
@@ -553,6 +554,7 @@ async def build_briefing(
                 options_order_imbalance, charm_hedging_pressure,
                 dealer_hedging_liquidity_impact, gamma_liquidity_regime,
                 option_demand_pressure, drift_burst_risk,
+                stock_order_imbalance_signal,
             )
             # ADV proxy — the paper normalises by average daily share volume
             _adv_proxy = {
@@ -593,6 +595,18 @@ async def build_briefing(
             demand_signal = option_demand_pressure(net_gex, put_call_ratio_oi=pcr_val)
             # Christensen-Oomen-Reno (2018) drift burst risk
             burst_signal = drift_burst_risk(gamma_imbalance_pct=gib_pct)
+            # Ni-Pearson appendix §3 — stock order imbalance from delta rebalancing
+            if chain_contracts and len(chain_contracts) > 0:
+                try:
+                    net_delta_today = sum(
+                        (c.get("delta", 0) or 0) * (c.get("oi", c.get("open_interest", 0)) or 0)
+                        for c in chain_contracts
+                    )
+                    stock_imb_signal = stock_order_imbalance_signal(
+                        net_delta=net_delta_today, net_gamma=net_gex
+                    )
+                except Exception:
+                    pass
         except Exception as e:
             logger.debug(f"Paper-accurate GEX diagnostic failed for {ticker}: {e}")
 
@@ -624,5 +638,7 @@ async def build_briefing(
             "option_demand_pressure": demand_signal,
             # Christensen-Oomen-Reno (2018) drift burst risk
             "drift_burst_risk": burst_signal,
+            # Ni-Pearson appendix §3 — dealer delta rebalancing → stock imbalance
+            "stock_order_imbalance": stock_imb_signal,
         },
     )
