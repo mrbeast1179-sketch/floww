@@ -12,8 +12,11 @@ so routes here should NOT include the /api prefix. I-7 fix.
 
 from __future__ import annotations
 
+import logging
 import time
 from typing import Any
+
+logger = logging.getLogger(__name__)
 
 from fastapi import APIRouter, HTTPException, Path
 from fastapi.responses import HTMLResponse, JSONResponse
@@ -107,7 +110,17 @@ async def get_briefing(
                     normalized.append(nc)
                 chain_contracts = normalized
         except Exception:
-            pass
+            logger.debug(f"Chain fetch failed for {ticker}, will use fallback")
+
+        # Fallback: if we have spot but no chain, compute net_gex from aggregator
+        if spot > 0 and chain_contracts is None:
+            try:
+                from services.gex_aggregator import GexAggregator
+                raw_fb = await fetch_spot_and_chains_merged(ticker, max_expiries=4)
+                if raw_fb and raw_fb.get("contracts"):
+                    chain_contracts = raw_fb.get("contracts")
+            except Exception:
+                pass
 
         result: BriefingResult = await build_briefing(
             ticker=ticker,
