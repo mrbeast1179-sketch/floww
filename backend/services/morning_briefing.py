@@ -572,6 +572,7 @@ async def build_briefing(
     vix_gamma_signal = {}
     overnight_signal = {}
     dealer_fragility_signal = {}
+    spillover_signal = {}
     gib_pct = 0
     if spot > 0 and not _is_effectively_zero(net_gex):
         try:
@@ -662,6 +663,12 @@ async def build_briefing(
             # Dealer balance sheet fragility (post-SVB dealer capacity)
             dealer_fragility_signal = dealer_balance_sheet_fragility(
                 gamma_imbalance_pct=gib_pct,
+            )
+            # Cross-asset gamma spillover — index gamma → this ticker
+            spillover_signal = cross_asset_gamma_spillover(
+                spx_gamma_imbalance_pct=gib_pct,
+                single_stock_gamma_imbalance_pct=gib_pct,
+                sector="broad",
             )
             # Christensen-Oomen-Reno (2018) drift burst risk
             # Try real returns from cache; fall back to gamma proxy
@@ -766,5 +773,7 @@ async def build_briefing(
             "cw_spread": cw_spread_signal,
             # Christensen-Oomen-Reno (2018) — drift burst (real returns if cached)
             "real_drift_burst": burst_signal,
+            # Cross-asset gamma spillover — index gamma → this ticker
+            "cross_asset_spillover": spillover_signal,
         },
     )
