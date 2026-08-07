@@ -570,10 +570,9 @@ async def build_briefing(
             if chain_contracts and len(chain_contracts) > 0:
                 avg_theta = sum(c.get("theta", 0) or 0 for c in chain_contracts[:20]) / max(1, min(20, len(chain_contracts)))
                 avg_delta = sum(abs(c.get("delta", 0) or 0) for c in chain_contracts[:20]) / max(1, min(20, len(chain_contracts)))
-                avg_gamma = sum(abs(c.get("gamma", 0) or 0) for c in chain_contracts[:20]) / max(1, min(20, len(chain_contracts)))
                 min_dte = min((c.get("expiry", 365) or 365 for c in chain_contracts[:20]), default=365.0)
                 dte = min(min_dte * 365.0, 365.0) if min_dte < 1.0 else min_dte
-                charm_signal = charm_hedging_pressure(avg_delta, avg_gamma, avg_theta, net_gex, dte)
+                charm_signal = charm_hedging_pressure(avg_delta, avg_theta, dte)
         except Exception as e:
             logger.debug(f"Paper-accurate GEX diagnostic failed for {ticker}: {e}")
 

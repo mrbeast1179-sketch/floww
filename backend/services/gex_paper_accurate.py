@@ -36,19 +36,13 @@ import numpy as np
 # 1. Gamma Imbalance (Barbon-Buraschi Eq. 2)
 #    ΓIB_i(t) = Hedgers Gamma_i × S_i(t) / ADSV_i(t)
 #
-#    Where:
-#    - Hedgers Gamma_i = Σ(Γ_j × Inventory_j) for all options on stock i
-#    - S_i(t) = underlying stock price at t
-#    - ADSV_i(t) = average daily share volume (21-day rolling)
-#
-#    This normalizes raw dollar GEX by the stock's typical daily volume,
-#    making GEX comparable across stocks of different liquidity. The paper
-#    finds that one std dev increase in ΓIB decreases absolute returns by
-#    5-25 bps for single stocks, >20 bps for indices.
-#
-#    Sign convention (dealer-positive, matching gex_aggregator.py):
-#      Calls (+): dealers short calls → buy to re-hedge on rallies
-#      Puts  (-): dealers short puts → sell to re-hedge on declines
+#    Note on scale: the paper defines ΓIB as raw gamma×inventory×S/ADSV
+#    (units: $/share). Our practitioner GEX = γ×OI×100×S²×0.01. Converting
+#    back: raw γ×OI = GEX/S², so paper ΓIB = GEX/(S×ADSV). Our computation
+#    additionally multiplies by 100/(S×0.01) ≈ 13× for SPY at $768. This
+#    preserves relative ordering (paper uses standardized ΓIB in regressions)
+#    but absolute values differ from the paper's raw scale. For cross-stock
+#    comparability, normalize by the same formula consistently.
 # ---------------------------------------------------------------------------
 
 def compute_gamma_imbalance(
@@ -984,14 +978,16 @@ def options_order_imbalance(
 
         if approx_ooi > 1e6:
             result["signal"] = "BULLISH_OI_SKEW"
+            ratio = call_open_interest / max(put_open_interest, 1)
             result["interpretation"] = (
-                f"Call OI dominates ({call_open_interest/put_open_interest:.1f}:1 ratio). "
+                f"Call OI dominates (C/P={ratio:.1f}:1). "
                 f"Approximate OOI ~{approx_ooi/1e6:.1f}M share equivalents."
             )
         elif approx_ooi < -1e6:
             result["signal"] = "BEARISH_OI_SKEW"
+            ratio = put_open_interest / max(call_open_interest, 1)
             result["interpretation"] = (
-                f"Put OI dominates ({put_open_interest/call_open_interest:.1f}:1 ratio). "
+                f"Put OI dominates (P/C={ratio:.1f}:1). "
                 f"Approximate OOI ~{approx_ooi/1e6:.1f}M share equivalents."
             )
         else:
@@ -1007,9 +1003,7 @@ def options_order_imbalance(
 
 def charm_hedging_pressure(
     delta: float,
-    gamma: float,
     theta: float,
-    net_gamma: float = 0.0,
     dte_days: float = 1.0,
 ) -> dict[str, Any]:
     """Charm hedging pressure — Ni-Pearson-Poteshman-White (2021).
@@ -1085,7 +1079,6 @@ def charm_hedging_pressure(
 def drift_burst_risk(
     returns: list[float] | None = None,
     gamma_imbalance_pct: float = 0.0,
-    spot: float = 0.0,
     window_minutes: int = 60,
 ) -> dict[str, Any]:
     """Drift burst detection — Christensen-Oomen-Reno (2018).
