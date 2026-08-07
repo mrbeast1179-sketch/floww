@@ -108,9 +108,26 @@ async def get_trinity_for_ticker(ticker: str, expiries: int = Query(4, ge=1, le=
     strikes_data = compute_gex_by_strike(spot, contracts, t)
     flip_levels = _extract_zero_gamma_levels(spot, contracts)
 
-    return {
+    # ── Compute net GEX for paper-accurate metrics ──
+    net_gex = sum(s.get("gex", 0.0) for s in strikes_data)
+
+    response: dict = {
         "ticker": t,
         "spot": spot,
         "zero_gamma_levels": flip_levels,
         "strikes": strikes_data,
+        "net_gex": round(net_gex, 2),
     }
+
+    # ── Paper-accurate Gamma Imbalance (Barbon-Buraschi) ──
+    if spot > 0 and flip_levels:
+        try:
+            from services.gex_paper_accurate import compute_flip_metrics, compute_gamma_imbalance
+            gi = compute_gamma_imbalance(net_gex, spot, adv_shares=75_000_000)
+            fm = compute_flip_metrics(spot, flip_levels[0] if flip_levels else None, net_gex)
+            response["gamma_imbalance"] = gi
+            response["flip_metrics"] = fm
+        except Exception:
+            pass
+
+    return response
