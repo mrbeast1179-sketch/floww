@@ -634,6 +634,121 @@ async def fetch_spot_and_chains_merged(ticker: str, max_expiries: int = 4) -> di
     return yf_data
 
 
+async def tap_counts(ticker: str, strikes: list[float], days: int = 5) -> dict[float, int]:
+    """Count how many days price crossed each strike in last N trading days using Polygon aggs."""
+    if not POLYGON_API_KEY or not strikes:
+        return {s: 0 for s in strikes}
+    end = datetime.now(UTC).date()
+    start = end - timedelta(days=days * 2)
+    pg_ticker = ticker.replace("^SPX", "I:SPX") if ticker.startswith("^") else ticker
+    url = f"https://api.polygon.io/v2/aggs/ticker/{pg_ticker}/range/1/day/{start.isoformat()}/{end.isoformat()}"
+    out = {s: 0 for s in strikes}
+    try:
+        async with httpx.AsyncClient(timeout=10) as cli:
+            r = await cli.get(url, params={"apiKey": POLYGON_API_KEY, "limit": days * 2})
+            data = r.json()
+        if not data.get("results"):
+            return out
+        results = data["results"][-days:]
+        for bar in results:
+            lo = bar.get("l", 0)
+            hi = bar.get("h", 0)
+            for s in strikes:
+                if lo <= s <= hi:
+                    out[s] += 1
+    except Exception as e:
+        log.warning(f"tap_counts fail {ticker}: {e}")
+    return out
+
+
+# ----------------------------- Snapshot persistence (velocity/rolling) --------
+
+TRINITY = ["^SPX", "SPY", "QQQ"]
+DEFAULT_TICKERS = ["SPY", "QQQ", "^SPX", "IWM", "AAPL", "NVDA", "TSLA", "META", "AMZN", "MSFT", "GOOGL", "AMD", "KO", "XOM", "GM", "MCD", "^VIX"]
+POPULAR_UNIVERSE = ["AAPL", "NVDA", "TSLA", "META", "AMZN", "MSFT", "GOOGL", "AMD", "AVGO", "NFLX",
+                    "COIN", "PLTR", "MU", "SMCI", "BABA", "CRM", "ORCL", "GME", "AMC", "INTC",
+                    "DIS", "BA", "JPM", "GS", "XOM", "UBER", "SHOP", "SOFI", "F", "MARA",
+                    "KO", "GM", "MCD", "^VIX"]
+
+PATTERN_GLOSSARY = {
+    "gamma_flip": {"name": "Gamma Flip", "description": "The spot price level where total GEX flips from positive to negative."},
+    "call_wall": {"name": "Call Wall", "description": "Strike with highest call gamma exposure — acts as resistance."},
+    "put_wall": {"name": "Put Wall", "description": "Strike with highest put gamma exposure — acts as support."},
+    "max_pain": {"name": "Max Pain", "description": "Strike where option sellers have the most profit / buyers the most loss."},
+    "unusual_activity": {"name": "Unusual Options Activity", "description": "Trades with premium or volume significantly above average."},
+    "charm_pinning": {"name": "Charm Pinning", "description": "Delta decay (charm) accelerates near expiry, pinning price to high-OI strikes."},
+    "vanna_regime": {"name": "Vanna Regime", "description": "Vanna-driven flow regime — positive vanna amplifies moves, negative dampens."},
+    "hedge_impulse": {"name": "Hedge Impulse", "description": "Dealer hedging pressure curve — shows where delta hedging accelerates or decelerates."},
+    "pressure_cloud": {"name": "Pressure Cloud", "description": "Zones of stability and acceleration from second-order Greek exposure."},
+    "trinity": {"name": "Trinity", "description": "Confluence of SPY, QQQ, and ^SPX regime alignment."},
+    "iron_condor": {"name": "Iron Condor", "description": "Sell OTM call spread + OTM put spread — profit from range-bound price."},
+    "straddle": {"name": "Straddle", "description": "Buy call + put at same strike — profit from large move in either direction."},
+    "strangle": {"name": "Strangle", "description": "Buy OTM call + OTM put — cheaper than straddle, needs bigger move."},
+    "vertical_spread": {"name": "Vertical Spread", "description": "Buy and sell same type at different strikes — directional with defined risk."},
+    "calendar_spread": {"name": "Calendar Spread", "description": "Sell near-term + buy longer-term at same strike — profit from IV term structure."},
+    "rug": {"name": "Rug", "description": "Sudden GEX regime flip — market makers forced to reverse hedging direction, causing accelerated price move."},
+    "reverse_rug": {"name": "Reverse Rug", "description": "GEX flip back to prior regime after a brief excursion — snap-back move as dealers re-hedge."},
+    "pika_cloud": {"name": "Pika Cloud", "description": "Dense cluster of gamma exposure across multiple strikes — creates a 'cloud' of support/resistance."},
+    "beach_ball": {"name": "Beach Ball", "description": "Compressing GEX profile — volatility squeeze that precedes a large directional move."},
+    "whipsaw": {"name": "Whipsaw", "description": "Rapid GEX regime oscillation — dealers chase price in both directions, creating chop."},
+    "rainbow_road": {"name": "Rainbow Road", "description": "Multi-expiry GEX alignment — all timeframes pointing in the same directional bias."},
+    "king_node": {"name": "King Node", "description": "Dominant gamma node — the single strike with the largest GEX influence on spot price."},
+    "floor": {"name": "Floor", "description": "Strong put GEX support level — dealers buy into dips to hedge, creating a price floor."},
+    "ceiling": {"name": "Ceiling", "description": "Strong call GEX resistance level — dealers sell into rallies to hedge, creating a price ceiling."},
+    "gatekeeper": {"name": "Gatekeeper", "description": "Critical GEX transition strike — price crossing this level triggers a regime change in dealer hedging."},
+    "air_pocket": {"name": "Air Pocket", "description": "Zone of minimal GEX — price can move rapidly through this region with little dealer hedging friction."},
+    # Title-case aliases for backward compat
+    "Rug": {"name": "Rug", "description": "Sudden GEX regime flip — market makers forced to reverse hedging direction, causing accelerated price move."},
+    "Reverse Rug": {"name": "Reverse Rug", "description": "GEX flip back to prior regime after a brief excursion — snap-back move as dealers re-hedge."},
+    "Pika Cloud": {"name": "Pika Cloud", "description": "Dense cluster of gamma exposure across multiple strikes — creates a 'cloud' of support/resistance."},
+    "Beach Ball": {"name": "Beach Ball", "description": "Compressing GEX profile — volatility squeeze that precedes a large directional move."},
+    "Whipsaw": {"name": "Whipsaw", "description": "Rapid GEX regime oscillation — dealers chase price in both directions, creating chop."},
+    "Rainbow Road": {"name": "Rainbow Road", "description": "Multi-expiry GEX alignment — all timeframes pointing in the same directional bias."},
+    "King Node": {"name": "King Node", "description": "Dominant gamma node — the single strike with the largest GEX influence on spot price."},
+    "Floor": {"name": "Floor", "description": "Strong put GEX support level — dealers buy into dips to hedge, creating a price floor."},
+    "Ceiling": {"name": "Ceiling", "description": "Strong call GEX resistance level — dealers sell into rallies to hedge, creating a price ceiling."},
+    "Gatekeeper": {"name": "Gatekeeper", "description": "Critical GEX transition strike — price crossing this level triggers a regime change in dealer hedging."},
+    "Air Pocket": {"name": "Air Pocket", "description": "Zone of minimal GEX — price can move rapidly through this region with little dealer hedging friction."},
+    "Call Wall": {"name": "Call Wall", "description": "Strike with highest call gamma exposure — acts as resistance."},
+    "Put Wall": {"name": "Put Wall", "description": "Strike with highest put gamma exposure — acts as support."},
+    "Max Pain": {"name": "Max Pain", "description": "Strike where option sellers have the most profit / buyers the most loss."},
+    "Gamma Flip": {"name": "Gamma Flip", "description": "The spot price level where total GEX flips from positive to negative."},
+    "Trinity": {"name": "Trinity", "description": "Confluence of SPY, QQQ, and ^SPX regime alignment."},
+}
+
+
+_movers_cache: dict[str, Any] = {"ts": 0, "data": []}
+
+
+def _fetch_movers_sync() -> list[dict[str, Any]]:
+    """Use yfinance bulk download for prev-day movers (fast, no rate limit)."""
+    try:
+        df = yf.download(POPULAR_UNIVERSE, period="2d", interval="1d",
+                         group_by="ticker", progress=False, threads=True, auto_adjust=False)
+    except Exception as e:
+        log.warning(f"yfinance movers fail: {e}")
+        return []
+    out: list[dict[str, Any]] = []
+    for sym in POPULAR_UNIVERSE:
+        try:
+            sub = df[sym].dropna()
+            if len(sub) < 2:
+                continue
+            prev_close = float(sub["Close"].iloc[-2])
+            last_close = float(sub["Close"].iloc[-1])
+            day_open = float(sub["Open"].iloc[-1])
+            hi = float(sub["High"].iloc[-1])
+            lo = float(sub["Low"].iloc[-1])
+            vol = float(sub["Volume"].iloc[-1])
+            pct = ((last_close - prev_close) / prev_close * 100) if prev_close else 0
+            out.append({"ticker": sym, "open": day_open, "close": last_close, "pct": round(pct, 2),
+                        "volume": vol, "high": hi, "low": lo, "prev_close": prev_close})
+        except Exception:
+            continue
+    return out
+
+
+
 # ----------------------------- Heatmap Core -----------------------------------
 
 _BUILD_HEATMAP_CACHE: dict[str, Any] = {}

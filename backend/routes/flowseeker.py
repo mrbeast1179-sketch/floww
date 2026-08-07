@@ -710,7 +710,15 @@ async def market_scan(
         if best:
             cache_age = now - best["ts"]
             return _scan_payload(best["data"], True, best["asof"], columns, cache_age=cache_age, retry_after=retry_after)
-        raise HTTPException(status, detail)
+        # No cached data — return empty payload with stale marker + retry hint
+        # instead of 503, so the frontend can show "waiting for first scan"
+        # rather than an error state. cvserver hits its 20/hour budget and
+        # backs off ~13min; the frontend polls every 60s and will pick up
+        # the cache within ~1-2 backoff cycles.
+        return _scan_payload(
+            [], stale=True, asof=datetime.now().isoformat(),
+            columns=columns, cache_age=0, retry_after=retry_after,
+        )
 
     def _backing_off(now: float):
         if not force and now < _scan_backoff["until"]:
