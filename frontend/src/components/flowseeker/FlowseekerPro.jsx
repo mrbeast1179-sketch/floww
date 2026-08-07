@@ -1,15 +1,58 @@
 /**
  * FlowseekerPro.jsx — Complete BladeMap-style FlowSeeker Pro screener
- * 
+ *
  * Integrates: FilterBar, StatsBar, ScreenerTable, FlowEngine
- * Uses synthetic data generator for demo (no live trade stream from cvforge)
- * 17-column table with virtual scrolling, row expansion, real-time updates
+ * Fetches LIVE options flow from /api/flowseeker/live with 5s polling.
+ * Synthetic data is used as a fallback ONLY when the backend returns
+ * zero prints (so users see a populated UI rather than an empty table).
  */
 import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import { List } from 'react-window';
+import { useFlowseeker } from '../../hooks/useFlowseeker';
 import { syntheticDataGenerator as generateSyntheticFlowEvents, formatMoney as fmtMoney, formatTime as fmtTime, formatExpiry as fmtDate, dteOf, sentimentLabel } from './FlowEngine';
 import InstitutionalAlertsPanel from './InstitutionalAlertsPanel';
 import './FlowseekerPro.css';
+
+/**
+ * Map a raw cvserver/options-flow print into the 17-column Flowseeker
+ * table row shape that the existing Row component expects.
+ */
+function mapPrintToRow(print) {
+  return {
+    id: print.id || print.key || Math.random().toString(36),
+    timestamp: print.timestamp || print.asof_ts || Date.now() / 1000,
+    ticker: print.ticker || '',
+    side: print.side || (print.delta > 0 ? 'BUY' : 'SELL'),
+    option_type: print.option_type || print.type || 'CALL',
+    flow_type: print.flow_type || print.classification || 'SWEEP',
+    strike: print.strike || 0,
+    expiry: print.expiry || print.exp || new Date().toISOString().split('T')[0],
+    dte: print.dte || 0,
+    otm_pct: print.otm_pct || 0,
+    contracts: print.contracts || print.size || 0,
+    premium: print.premium || 0,
+    notional: print.notional || 0,
+    vol_vs_oi: print.vol_vs_oi || print.vol_oi || 0,
+    delta: print.delta || 0,
+    total_delta: print.total_delta || print.delta * print.contracts || 0,
+    total_gamma: print.gamma || print.total_gamma || 0,
+    total_vega: print.vega || 0,
+    total_notional_delta: print.total_notional_delta || 0,
+    flow_score: print.flow_score || print.score || 50,
+    iv: print.iv || 0,
+    oi: print.oi || 0,
+    oi_change: print.oi_change || 0,
+    oi_change_pct: print.oi_change_pct || 0,
+    directionConfidence: print.directionConfidence || 0.5,
+    sentiment: print.sentiment || 'NEUTRAL',
+    sentiment_color: print.sentiment_color || '#94a3b8',
+    greeks: {
+      theta: print.greeks?.theta || print.theta || 0,
+      vanna: print.greeks?.vanna || print.vanna || 0,
+      charm: print.greeks?.charm || print.charm || 0,
+    },
+  };
+}
 
 // ── Filter Bar ───────────────────────────────────────────────────────
 function FilterBar({ filters, onChange, onReset }) {
@@ -159,22 +202,57 @@ export default function FlowseekerPro({ active = true }) {
     dteMin: 0, dteMax: 365, minContracts: 0, minNotional: 0, minScore: 0,
     otmMin: -50, otmMax: 50, timeRange: 'today',
   });
+
+  // Fetch REAL options flow from backend with auto-refresh. Falls back to
+  // synthetic data ONLY when the backend returns zero prints (so users see
+  // a populated UI rather than an empty table).
+  const {
+    data: liveData,
+    loading: liveLoading,
+    error: liveError,
+    refresh: refreshLive,
+  } = useFlowseeker('live', {
+    refreshMs: active ? 5000 : 0,
+    skip: !active,
+    limit: 300,
+  });
+
+  // Map live prints to table rows, fall back to synthetic when empty
   const [events, setEvents] = useState([]);
   const [expandedId, setExpandedId] = useState(null);
+  const [usingSynthetic, setUsingSynthetic] = useState(false);
   const newIdsRef = useRef(new Set());
   const listRef = useRef(null);
 
-  // Generate synthetic data on mount
   useEffect(() => {
     if (!active) return;
-    const result = generateSyntheticFlowEvents({ eventCount: 300 });
-    const initial = Array.isArray(result) ? result : result.events || [];
-    setEvents(initial);
-    // Mark first 5 as "new" for animation
-    initial.slice(0, 5).forEach(e => newIdsRef.current.add(e.id));
-    const timer = setTimeout(() => newIdsRef.current.clear(), 3000);
-    return () => clearTimeout(timer);
-  }, [active]);
+    if (liveLoading || liveError) return;
+    if (!liveData) {
+      // No data yet — show synthetic so UI isn't empty
+      const result = generateSyntheticFlowEvents({ eventCount: 50 });
+      const initial = Array.isArray(result) ? result : result.events || [];
+      setEvents(initial);
+      setUsingSynthetic(true);
+      return;
+    }
+    const prints = liveData.prints || [];
+    if (prints.length === 0) {
+      // Backend has no prints — still show synthetic fallback
+      const result = generateSyntheticFlowEvents({ eventCount: 50 });
+      const initial = Array.isArray(result) ? result : result.events || [];
+      setEvents(initial);
+      setUsingSynthetic(true);
+    } else {
+      // Map real prints to table rows
+      const mapped = prints.map(mapPrintToRow);
+      setEvents(mapped);
+      setUsingSynthetic(false);
+      // Mark first 3 as new for animation
+      mapped.slice(0, 3).forEach(e => newIdsRef.current.add(e.id));
+      const timer = setTimeout(() => newIdsRef.current.clear(), 3000);
+      return () => clearTimeout(timer);
+    }
+  }, [liveData, liveLoading, liveError, active]);
 
   // Filter events
   const filtered = useMemo(() => {
@@ -211,7 +289,10 @@ export default function FlowseekerPro({ active = true }) {
     <div className="fsp-root">
       <div className="fsp-header">
         <span className="fsp-brand">◢ FlowSeeker <b>Pro</b></span>
-        <span className="fsp-live"><i />LIVE · SYNTHETIC DATA</span>
+        <span className="fsp-live-badge">
+          <i className={`fsp-live-dot ${usingSynthetic ? 'synthetic' : liveError ? 'error' : ''}`} />
+          {usingSynthetic ? 'LIVE · Fallback (demo)' : liveError ? 'LIVE · Error' : 'LIVE · Real Flow'}
+        </span>
       </div>
 
       {/* Conviction v2 institutional feed — the server-side engine's

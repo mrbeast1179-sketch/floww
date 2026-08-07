@@ -95,6 +95,16 @@
   box-shadow: 0 0 8px var(--accent-green);
   animation: fspPulse 1.4s ease-in-out infinite;
 }
+.fsp-live-dot.synthetic {
+  background: var(--accent-yellow);
+  box-shadow: 0 0 8px var(--accent-yellow);
+  animation: fspPulse 2s ease-in-out infinite;
+}
+.fsp-live-dot.error {
+  background: var(--accent-red);
+  box-shadow: 0 0 8px var(--accent-red);
+  animation: fspPulse 1s ease-in-out infinite;
+}
 @keyframes fspPulse {
   0%, 100% { opacity: 1; transform: scale(1); }
   50% { opacity: 0.4; transform: scale(0.8); }
