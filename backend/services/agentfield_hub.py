@@ -88,12 +88,49 @@ class AgentFieldHub:
     def _register_signal_reasoners(self) -> None:
         @self.router.reasoner(path="/signals/gex-regime", tags=["signal", "gex"])
         async def gex_regime(ticker: str = "SPY") -> dict[str, Any]:
-            """Compute GEX regime for a ticker. Returns regime, flip level, walls."""
+            """Compute GEX regime for a ticker. Returns paper-accurate metrics."""
             from services.heatseeker import compute_gex_profile  # type: ignore
 
             try:
                 profile = await compute_gex_profile(ticker)
-                return {"ticker": ticker.upper(), "status": "ok", **profile}
+                result: dict[str, Any] = {"ticker": ticker.upper(), "status": "ok", **profile}
+
+                # ── Paper-accurate metrics (Barbon-Buraschi + Ni-Pearson) ──
+                try:
+                    from services.gex_paper_accurate import (  # noqa: F811
+                        compute_gamma_imbalance,
+                        compute_flip_metrics,
+                        predict_intraday_regime,
+                        flash_crash_risk,
+                        gamma_liquidity_regime,
+                        vix_gamma_fragility,
+                    )
+
+                    spot = result.get("spot", 0) or 0
+                    net_gex = result.get("net_gex", 0) or 0
+                    flip_level = result.get("flip_level", 0) or 0
+                    vix = result.get("vix", 22)
+
+                    gib = compute_gamma_imbalance(net_gex, spot)
+                    flip = compute_flip_metrics(flip_level, spot)
+                    regime = predict_intraday_regime(gib.get("gamma_imbalance_pct", 0))
+                    crash = flash_crash_risk(gib.get("gamma_imbalance_pct", 0))
+                    liq = gamma_liquidity_regime(gib.get("gamma_imbalance_pct", 0), flip.get("flip_distance_pct", 100))
+                    vgf = vix_gamma_fragility(vix_spot=vix, gamma_imbalance_pct=gib.get("gamma_imbalance_pct", 0), flip_distance_pct=flip.get("flip_distance_pct", 100))
+
+                    result["paper_metrics"] = {
+                        "gamma_imbalance": gib,
+                        "flip_metrics": flip,
+                        "intraday_regime": regime,
+                        "flash_crash_risk": crash,
+                        "gamma_liquidity_regime": liq,
+                        "vix_gamma_fragility": vgf,
+                        "net_gex_dollars": net_gex,
+                    }
+                except Exception as paper_err:
+                    logger.warning("Paper metrics unavailable for %s: %s", ticker, paper_err)
+
+                return result
             except Exception as e:
                 logger.error("gex_regime error: %s", e)
                 return {"ticker": ticker.upper(), "status": "error", "error": str(e)}
