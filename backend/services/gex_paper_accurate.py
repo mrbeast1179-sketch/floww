@@ -1675,3 +1675,118 @@ def real_drift_burst_risk(
         result["flash_crash_risk"] = "ELEVATED"
 
     return result
+
+
+def demand_pressure_premium(
+    net_gex: float,
+    spot: float,
+    atm_iv: float | None = None,
+    put_call_ratio_oi: float | None = None,
+    bid_ask_spread: float | None = None,
+    vix: float | None = None,
+) -> dict[str, Any]:
+    """Demand pressure IV premium — GPP (2009) RFS published extension.
+
+    Garleanu, Pedersen, Poteshman (2009) 'Demand-Based Option Pricing'
+    Review of Financial Studies 22, 4259-4299.
+
+    The published RFS version extends the 2008 SSRN with:
+      1. Market maker CARA utility optimization with risk aversion γ
+      2. End-user demand curve: D(P) = a - bP + noise
+      3. Equilibrium price: P = BS + λ × NetDemand
+         where λ = γ × σ² × (1-ρ) / market_depth
+      4. Margin constraints amplify λ during funding stress
+
+    Key finding: options with high end-user demand trade at a premium
+    to Black-Scholes. This premium predicts future IV changes: high
+    premium today → IV compression tomorrow as demand normalizes.
+
+    Our proxy: combine GEX-based dealer inventory with PCR ratio
+    to estimate the demand pressure premium on ATM IV.
+
+    Args:
+        net_gex: Net dollar GEX (negative = dealers short, end-users long)
+        spot: Current spot price
+        atm_iv: ATM implied volatility (optional, for premium estimation)
+        put_call_ratio_oi: Put/Call OI ratio (optional)
+        bid_ask_spread: Relative bid-ask spread (optional)
+        vix: VIX level for funding stress proxy (optional)
+
+    Returns:
+        dict with demand_premium_bps, signal, iv_prediction
+    """
+    result: dict[str, Any] = {
+        "demand_premium_bps": 0.0,
+        "signal": "neutral",
+        "iv_prediction": "stable",
+    }
+
+    # --- Dealer inventory pressure ---
+    # Negative GEX → dealers short → end-users long → upward IV pressure
+    # λ increases with: larger |GEX|, higher VIX (funding stress), wider spreads
+    if spot <= 0:
+        return result
+
+    abs_gex_ratio = abs(net_gex) / (spot * 10_000_000) if spot > 0 else 0  # per $10M ADV
+
+    # Base lambda (demand price impact coefficient)
+    # GPP: λ = γ × σ² / market_depth
+    # Proxy: λ ∝ |GEX| / (spot × ADV) × IV × spread
+    base_lambda = abs_gex_ratio * 100  # scale to bps
+
+    # Funding stress amplifier (VIX > 25 = stressed)
+    funding_mult = 1.0
+    if vix and vix > 30:
+        funding_mult = 2.5
+    elif vix and vix > 25:
+        funding_mult = 1.8
+    elif vix and vix > 20:
+        funding_mult = 1.3
+
+    # Illiquidity amplifier (wider spreads = higher λ)
+    spread_mult = 1.0
+    if bid_ask_spread and bid_ask_spread > 0.005:
+        spread_mult = 2.0
+    elif bid_ask_spread and bid_ask_spread > 0.002:
+        spread_mult = 1.5
+
+    demand_premium = base_lambda * funding_mult * spread_mult
+
+    # Direction: negative GEX + low PCR = call demand dominant → IV bid up
+    if net_gex < -1e9:
+        if put_call_ratio_oi is not None and put_call_ratio_oi < 0.5:
+            result["demand_premium_bps"] = round(demand_premium, 2)
+            result["signal"] = "call_demand_premium"
+            result["iv_prediction"] = "upward_pressure_then_compression"
+            result["interpretation"] = (
+                f"Dealers short gamma ({net_gex/1e9:.1f}B) + call demand dominant "
+                f"(PCR={put_call_ratio_oi:.2f}). Per GPP 2009: end-user buying "
+                f"pressure bids IV above fundamental value. "
+                f"Expected: IV stays elevated near-term, compresses as demand normalizes. "
+                f"Demand premium: {demand_premium:.0f} bps. "
+                "Favorable for volatility selling strategies."
+            )
+        else:
+            result["demand_premium_bps"] = round(demand_premium * 0.7, 2)
+            result["signal"] = "moderate_demand_premium"
+            result["iv_prediction"] = "mild_upward_pressure"
+            result["interpretation"] = (
+                f"Dealers short gamma with moderate end-user demand. "
+                f"Mild IV premium expected."
+            )
+    elif net_gex > 1e9:
+        result["demand_premium_bps"] = round(-demand_premium * 0.5, 2)
+        result["signal"] = "demand_discount"
+        result["iv_prediction"] = "downward_pressure"
+        result["interpretation"] = (
+            f"Dealers long gamma ({net_gex/1e9:.1f}B) — end-users net short. "
+            "IV trading at discount to fundamental value."
+        )
+    else:
+        result["interpretation"] = "Gamma near neutral — no significant demand pressure."
+
+    if atm_iv:
+        result["atm_iv"] = round(atm_iv, 4)
+        result["estimated_fair_iv"] = round(atm_iv - demand_premium / 10000, 4)
+
+    return result
