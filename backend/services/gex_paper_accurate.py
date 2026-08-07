@@ -1340,3 +1340,137 @@ def gamma_liquidity_regime(
             "Underlying stock illiquid → option liquidity doubly impaired."
         )
     return result
+
+
+def informed_option_volume_signal(
+    buyer_initiated_call_vol: float = 0.0,
+    seller_initiated_call_vol: float = 0.0,
+    buyer_initiated_put_vol: float = 0.0,
+    seller_initiated_put_vol: float = 0.0,
+    total_call_volume: float | None = None,
+    total_put_volume: float | None = None,
+    days_observed: int = 20,
+) -> dict[str, Any]:
+    """Informed option volume signal — Easley-O'Hara-Srinivas (1998).
+
+    'Option Volume and Stock Prices: Evidence on Where Informed Traders Trade'
+    Journal of Finance 53, 431-465.
+
+    EOS 1998 is THE foundational paper showing that option volume contains
+    private information about future stock prices. Their key insight:
+    informed traders prefer options over stocks because of leverage and
+    downside protection. Positive (negative) option volume predicts
+    positive (negative) stock returns.
+
+    The PIN (Probability of Informed Trading) model adapted for options:
+      PIN = αμ / (αμ + 2ε)
+      where:
+        α = prob of information event per day (~0.2-0.4 for active stocks)
+        μ = informed trader arrival rate (buyer-initiated unusual volume)
+        ε = uninformed trader arrival rate (balanced buy/sell background)
+
+    When trade-level data is unavailable, we proxy PIN from:
+      InformedRatio = |buy_vol - sell_vol| / total_vol
+      Higher ratio → more one-sided flow → more likely informed
+
+    Args:
+        buyer_initiated_call_vol: Buyer-initiated call volume (contracts or premium)
+        seller_initiated_call_vol: Seller-initiated call volume
+        buyer_initiated_put_vol: Buyer-initiated put volume
+        seller_initiated_put_vol: Seller-initiated put volume
+        total_call_volume: Total call volume (optional, auto-computed if None)
+        total_put_volume: Total put volume (optional)
+        days_observed: Days of data for PIN estimation
+
+    Returns:
+        dict with pin_estimate, informed_direction, signal
+    """
+    # Auto-compute totals if not provided
+    if total_call_volume is None:
+        total_call_volume = buyer_initiated_call_vol + seller_initiated_call_vol
+    if total_put_volume is None:
+        total_put_volume = buyer_initiated_put_vol + seller_initiated_put_vol
+
+    total_vol = total_call_volume + total_put_volume
+    if total_vol <= 0:
+        return {
+            "pin_estimate": 0.0,
+            "informed_direction": "insufficient_data",
+            "signal": "NO_DATA",
+            "interpretation": "No option volume data available.",
+        }
+
+    # --- PIN estimation ---
+    # Informed buys = buyer-initiated calls + buyer-initiated puts
+    # (buying calls = bullish, buying puts = bearish)
+    _informed_vol = buyer_initiated_call_vol + buyer_initiated_put_vol
+    _uninformed_vol = seller_initiated_call_vol + seller_initiated_put_vol
+
+    # PIN proxy: fraction of one-sided volume
+    # Higher values = more informed (more directional conviction)
+    if total_vol > 0:
+        net_directional = abs(buyer_initiated_call_vol - seller_initiated_call_vol) + \
+                          abs(buyer_initiated_put_vol - seller_initiated_put_vol)
+        pin_estimate = net_directional / total_vol
+    else:
+        pin_estimate = 0.0
+
+    # --- Informed direction ---
+    # Net call buying = bullish informed
+    # Net put buying = bearish informed
+    net_call_buying = buyer_initiated_call_vol - seller_initiated_call_vol
+    net_put_buying = buyer_initiated_put_vol - seller_initiated_put_vol
+
+    # EOS finding: positive (negative) option volume → positive (negative) returns
+    # Call buying is more informative for positive returns
+    # Put buying is more informative for negative returns
+    call_call_ratio = total_call_volume / max(total_put_volume, 1)
+
+    if pin_estimate < 0.15:
+        signal = "LOW_INFORMATION"
+        direction = "neutral"
+        interp = f"PIN={pin_estimate:.3f} — low information content. Balanced buy/sell flow."
+    elif pin_estimate > 0.4:
+        signal = "HIGH_INFORMATION"
+        if net_call_buying > 0 and net_put_buying < 0:
+            direction = "bullish"
+            interp = (
+                f"PIN={pin_estimate:.3f} — HIGH informed content, BULLISH direction. "
+                f"Net call buying ${net_call_buying/1e6:.1f}M. "
+                "Per EOS 1998: positive option volume predicts positive returns."
+            )
+        elif net_put_buying > 0 and net_call_buying < 0:
+            direction = "bearish"
+            interp = (
+                f"PIN={pin_estimate:.3f} — HIGH informed content, BEARISH direction. "
+                f"Net put buying ${net_put_buying/1e6:.1f}M. "
+                "Per EOS 1998: negative option volume predicts negative returns."
+            )
+        else:
+            direction = "mixed"
+            interp = (
+                f"PIN={pin_estimate:.3f} — HIGH informed content but mixed direction. "
+                "Both calls and puts seeing informed buying — potential volatility event."
+            )
+    else:
+        signal = "MODERATE_INFORMATION"
+        if net_call_buying > net_put_buying:
+            direction = "mildly_bullish"
+            interp = f"PIN={pin_estimate:.3f} — moderate information, leaning bullish."
+        elif net_put_buying > net_call_buying:
+            direction = "mildly_bearish"
+            interp = f"PIN={pin_estimate:.3f} — moderate information, leaning bearish."
+        else:
+            direction = "neutral"
+            interp = f"PIN={pin_estimate:.3f} — moderate information, balanced direction."
+
+    return {
+        "pin_estimate": round(pin_estimate, 4),
+        "informed_direction": direction,
+        "signal": signal,
+        "interpretation": interp,
+        "net_call_buying": round(net_call_buying, 2),
+        "net_put_buying": round(net_put_buying, 2),
+        "call_put_ratio": round(call_call_ratio, 2),
+        "days_observed": days_observed,
+    }

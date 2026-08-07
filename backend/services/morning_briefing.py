@@ -547,6 +547,7 @@ async def build_briefing(
     demand_signal = {}
     burst_signal = {}
     stock_imb_signal = {}
+    eos_pin_signal = {}
     if spot > 0 and not _is_effectively_zero(net_gex):
         try:
             from services.gex_paper_accurate import (
@@ -555,6 +556,7 @@ async def build_briefing(
                 dealer_hedging_liquidity_impact, gamma_liquidity_regime,
                 option_demand_pressure, drift_burst_risk,
                 stock_order_imbalance_signal,
+                informed_option_volume_signal,
             )
             # ADV proxy — the paper normalises by average daily share volume
             _adv_proxy = {
@@ -595,6 +597,16 @@ async def build_briefing(
             demand_signal = option_demand_pressure(net_gex, put_call_ratio_oi=pcr_val)
             # Christensen-Oomen-Reno (2018) drift burst risk
             burst_signal = drift_burst_risk(gamma_imbalance_pct=gib_pct)
+            # Easley-O'Hara-Srinivas (1998) PIN — informed option volume
+            if not (_is_effectively_zero(call_oi_total) and _is_effectively_zero(put_oi_total)):
+                # Proxy: total OI ratio as buyer/seller initiated proxy
+                # Approximate: call-heavy = net call buying, put-heavy = net put buying
+                eos_pin_signal = informed_option_volume_signal(
+                    buyer_initiated_call_vol=call_oi_total * 0.6,
+                    seller_initiated_call_vol=call_oi_total * 0.4,
+                    buyer_initiated_put_vol=put_oi_total * 0.4,
+                    seller_initiated_put_vol=put_oi_total * 0.6,
+                )
             # Ni-Pearson appendix §3 — stock order imbalance from delta rebalancing
             if chain_contracts and len(chain_contracts) > 0:
                 try:
@@ -640,5 +652,7 @@ async def build_briefing(
             "drift_burst_risk": burst_signal,
             # Ni-Pearson appendix §3 — dealer delta rebalancing → stock imbalance
             "stock_order_imbalance": stock_imb_signal,
+            # Easley-O'Hara-Srinivas (1998) — informed option volume PIN
+            "informed_volume_pin": eos_pin_signal,
         },
     )

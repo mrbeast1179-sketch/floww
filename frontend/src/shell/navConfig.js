@@ -7,8 +7,8 @@ export const NAV_ITEMS = [
   // Decoder
   { id: "heatseeker", label: "Heatseeker", group: "Decoder", icon: "grid", legacy: true },
   { id: "trinity",    label: "Trinity",    group: "Decoder", icon: "layers", legacy: true },
+  { id: "skylit",     label: "Skylit",     group: "Decoder", icon: "bar-chart", legacy: true },
   { id: "flowseeker-pro", label: "Flowseeker Pro", group: "Decoder", icon: "zap", legacy: true },
-  { id: "steal-three", label: "Steal Three", group: "Decoder", icon: "sparkles", badge: "NEW" },
 
   // Trading
   { id: "portfolio",  label: "Portfolio",  group: "Trading", icon: "trending-up" },
