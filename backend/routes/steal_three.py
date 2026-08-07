@@ -172,6 +172,16 @@ def dual_gex(ticker: str) -> dict[str, Any]:
             "carry it. Wire the existing numba_greeks pipeline through to this "
             "router for production-quality ratios that match the Heatseeker heatmap."
         )
+
+        # ── Paper-accurate GEX metrics (Barbon-Buraschi + Ni-Pearson) ──
+        try:
+            from services.gex_paper_accurate import compute_gamma_imbalance
+            net_gex = result.get("net_gex_oi", 0.0)
+            gi = compute_gamma_imbalance(net_gex, spot, 75_000_000)
+            result["gamma_imbalance"] = gi
+        except Exception:
+            pass
+
         return result
     except Exception as exc:    # pragma: no cover (defensive degrade)
         empty_shape["error"] = f"{type(exc).__name__}: {exc}"
