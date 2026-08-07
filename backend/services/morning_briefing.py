@@ -548,6 +548,7 @@ async def build_briefing(
     burst_signal = {}
     stock_imb_signal = {}
     eos_pin_signal = {}
+    cw_spread_signal = {}
     if spot > 0 and not _is_effectively_zero(net_gex):
         try:
             from services.gex_paper_accurate import (
@@ -557,6 +558,7 @@ async def build_briefing(
                 option_demand_pressure, drift_burst_risk,
                 stock_order_imbalance_signal,
                 informed_option_volume_signal,
+                cremers_weinbaum_spread, real_drift_burst_risk,
             )
             # ADV proxy — the paper normalises by average daily share volume
             _adv_proxy = {
@@ -607,6 +609,22 @@ async def build_briefing(
                     buyer_initiated_put_vol=put_oi_total * 0.4,
                     seller_initiated_put_vol=put_oi_total * 0.6,
                 )
+                # Cremers-Weinbaum (2010) CW spread from chain bid/ask
+                if chain_contracts and len(chain_contracts) > 0:
+                    try:
+                        call_bids = [c.get("bid", c.get("last", 0)) or 0 for c in chain_contracts if str(c.get("type","")).lower() in ("call","c","0")]
+                        put_asks = [c.get("ask", c.get("last", 0)) or 0 for c in chain_contracts if str(c.get("type","")).lower() in ("put","p","1")]
+                        strikes_list = [c.get("strike", 0) or 0 for c in chain_contracts]
+                        oi_list = [c.get("oi", c.get("open_interest", 0)) or 0 for c in chain_contracts]
+                        num_use = min(len(call_bids), len(put_asks), len(strikes_list))
+                        if num_use > 0:
+                            cw_spread_signal = cremers_weinbaum_spread(
+                                call_bids[:num_use], put_asks[:num_use],
+                                strikes_list[:num_use], oi_list[:num_use] if oi_list else None,
+                                spot=spot, dte_days=30
+                            )
+                    except Exception:
+                        pass
             # Ni-Pearson appendix §3 — stock order imbalance from delta rebalancing
             if chain_contracts and len(chain_contracts) > 0:
                 try:
@@ -654,5 +672,9 @@ async def build_briefing(
             "stock_order_imbalance": stock_imb_signal,
             # Easley-O'Hara-Srinivas (1998) — informed option volume PIN
             "informed_volume_pin": eos_pin_signal,
+            # Cremers-Weinbaum (2010) — Put-Call Parity deviation
+            "cw_spread": cw_spread_signal,
+            # Christensen-Oomen-Reno (2018) — real drift burst from returns
+            "real_drift_burst": real_drift_burst_risk([], gamma_imbalance_pct=gib_pct) if gib_pct != 0 else {},
         },
     )
