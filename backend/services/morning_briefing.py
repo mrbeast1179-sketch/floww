@@ -550,6 +550,7 @@ async def build_briefing(
     eos_pin_signal = {}
     cw_spread_signal = {}
     gpp_premium_signal = {}
+    opt_illiq_signal = {}
     gib_pct = 0
     if spot > 0 and not _is_effectively_zero(net_gex):
         try:
@@ -561,7 +562,7 @@ async def build_briefing(
                 stock_order_imbalance_signal,
                 informed_option_volume_signal,
                 cremers_weinbaum_spread, real_drift_burst_risk,
-                demand_pressure_premium,
+                demand_pressure_premium, option_illiquidity_signal,
             )
             # ADV proxy — the paper normalises by average daily share volume
             _adv_proxy = {
@@ -600,9 +601,13 @@ async def build_briefing(
             # Gârleanu-Pedersen-Poteshman (2008) demand pressure
             pcr_val = pcr_signal.get("pcr_oi") if isinstance(pcr_signal, dict) else None
             demand_signal = option_demand_pressure(net_gex, put_call_ratio_oi=pcr_val)
-            # GPP (2009) RFS published — demand pressure IV premium
+            # GPP (2009) RFS — demand pressure IV premium
             gpp_premium_signal = demand_pressure_premium(
                 net_gex, spot, put_call_ratio_oi=pcr_val
+            )
+            # Goyenko-Ornthanalai-Tang option illiquidity
+            opt_illiq_signal = option_illiquidity_signal(
+                open_interest=call_oi_total + put_oi_total
             )
             # Christensen-Oomen-Reno (2018) drift burst risk
             burst_signal = drift_burst_risk(gamma_imbalance_pct=gib_pct)
@@ -675,6 +680,8 @@ async def build_briefing(
             "option_demand_pressure": demand_signal,
             # GPP (2009) RFS — demand pressure IV premium
             "demand_pressure_premium": gpp_premium_signal,
+            # Goyenko-Ornthanalai-Tang — option illiquidity
+            "option_illiquidity": opt_illiq_signal,
             # Christensen-Oomen-Reno (2018) drift burst risk
             "drift_burst_risk": burst_signal,
             # Ni-Pearson appendix §3 — dealer delta rebalancing → stock imbalance
