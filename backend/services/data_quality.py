@@ -100,9 +100,26 @@ class DataQualityChecker:
         warnings = sum(1 for r in recent if r["status"] == "WARNING")
         criticals = sum(1 for r in recent if r["status"] == "CRITICAL")
         rel_errs = [r["rel_err"] for r in recent if r["status"] == "OK"]
+        # Paper-accurate GEX consistency (Ni-Pearson 2020 + Barbon-Buraschi 2021)
+        gex_consistency = {}
+        if recent:
+            try:
+                latest = recent[-1]
+                if latest.get("net_gex") and latest.get("spot"):
+                    from services.gex_paper_accurate import compute_gamma_imbalance
+                    gi = compute_gamma_imbalance(latest["net_gex"], latest["spot"], 10_000_000)
+                    gex_consistency = {
+                        "gamma_imbalance_pct": gi["gamma_imbalance_pct"],
+                        "regime": gi["regime"],
+                    }
+            except Exception:
+                pass
+
         return {
             "checks": len(self._history),
             "warnings": warnings,
             "criticals": criticals,
             "median_rel_err": round(float(np.median(rel_errs)), 6) if rel_errs else 0,
+            # Ni-Pearson 2020 + Barbon-Buraschi 2021
+            "gex_consistency": gex_consistency,
         }
