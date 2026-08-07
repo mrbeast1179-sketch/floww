@@ -494,6 +494,19 @@ class BlademapDetector:
             else "net_long_gamma"
         )
 
+        # Paper-accurate GEX regime (Ni-Pearson 2020 + Barbon-Buraschi 2021)
+        gex_regime = "unknown"
+        if self.spot and self.spot > 0 and cross is not None and cross > 0:
+            flip_dist = (self.spot - cross) / self.spot * 100
+            if flip_dist > 2.5:
+                gex_regime = "safe_positive_gamma"
+            elif flip_dist > 0:
+                gex_regime = "positive_gamma_approach_flip"
+            elif flip_dist > -2.5:
+                gex_regime = "negative_gamma_approach_flip"
+            else:
+                gex_regime = "deep_negative_gamma"
+
         # Market regime heuristic — net directional volume dominance + vol
         if call_vol > 0 and put_vol > 0:
             ratio = call_vol / max(put_vol, 1)
@@ -628,6 +641,8 @@ class BlademapDetector:
                 "market_regime": market_regime,
                 "dealer_positioning": dealer_positioning,
                 "zero_gamma_cross": float(round(cross, 2)) if cross is not None else None,
+                # Ni-Pearson 2020 + Barbon-Buraschi 2021 paper metrics
+                "gex_regime": gex_regime,
             },
             "rationale": rationale,
             "recommended_actions": recommended_actions,
