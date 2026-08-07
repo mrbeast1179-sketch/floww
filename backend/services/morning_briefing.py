@@ -550,6 +550,7 @@ async def build_briefing(
                 full_paper_diagnostic, put_call_ratio_signal,
                 options_order_imbalance, charm_hedging_pressure,
                 dealer_hedging_liquidity_impact, gamma_liquidity_regime,
+                option_demand_pressure, drift_burst_risk,
             )
             # ADV proxy — the paper normalises by average daily share volume
             _adv_proxy = {
@@ -585,6 +586,11 @@ async def build_briefing(
             # Barbon-Buraschi gamma → option liquidity regime
             flip_dist = paper_metrics.get("flip_metrics", {}).get("flip_distance_pct")
             gamma_liq_signal = gamma_liquidity_regime(gib_pct, flip_dist)
+            # Gârleanu-Pedersen-Poteshman (2008) demand pressure
+            pcr_val = pcr_signal.get("pcr_oi") if isinstance(pcr_signal, dict) else None
+            demand_signal = option_demand_pressure(net_gex, put_call_ratio_oi=pcr_val)
+            # Christensen-Oomen-Reno (2018) drift burst risk
+            burst_signal = drift_burst_risk(gamma_imbalance_pct=gib_pct)
         except Exception as e:
             logger.debug(f"Paper-accurate GEX diagnostic failed for {ticker}: {e}")
 
@@ -612,5 +618,9 @@ async def build_briefing(
             "charm_pressure": charm_signal,
             "dealer_liquidity_impact": liquidity_signal,
             "gamma_liquidity_regime": gamma_liq_signal,
+            # Gârleanu-Pedersen-Poteshman (2008) demand pressure
+            "option_demand_pressure": demand_signal if 'demand_signal' in dir() else {},
+            # Christensen-Oomen-Reno (2018) drift burst risk
+            "drift_burst_risk": burst_signal if 'burst_signal' in dir() else {},
         },
     )
