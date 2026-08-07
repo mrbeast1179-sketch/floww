@@ -20,6 +20,19 @@ import numpy as np
 from bs_greeks import bs_call_price, bs_charm, bs_gamma, bs_vanna
 from domain.greek_scalers import dollar_vex_per_1pct_spot_move
 
+
+def safe_float(v, default=0.0):
+    """Safely convert a value to float, handling None and NaN."""
+    if v is None:
+        return default
+    try:
+        f = float(v)
+        if math.isnan(f) or math.isinf(f):
+            return default
+        return f
+    except (TypeError, ValueError):
+        return default
+
 # ============================================================================
 # Implied PDF (Breeden-Litzenberger)
 # ============================================================================
@@ -183,15 +196,15 @@ def calc_market_regime(spot: float, contracts: list[dict[str, Any]]) -> dict[str
         return {"regime": "unknown", "atm_iv": 0}
 
     # Get ATM IV
-    atm_contract = min(contracts, key=lambda c: abs(c["strike"] - spot))
-    atm_iv = atm_contract.get("iv") or 0.2
+    atm_contract = min(contracts, key=lambda c: abs(safe_float(c.get("strike")) - spot))
+    atm_iv = safe_float(atm_contract.get("iv"), 0.2)
 
     # Compute skew (slope of IV across strikes)
-    otm_puts = [c for c in contracts if c["type"] == "put" and c["strike"] < spot * 0.95]
-    otm_calls = [c for c in contracts if c["type"] == "call" and c["strike"] > spot * 1.05]
+    otm_puts = [c for c in contracts if (c.get("type") or "") == "put" and safe_float(c.get("strike")) < spot * 0.95]
+    otm_calls = [c for c in contracts if (c.get("type") or "") == "call" and safe_float(c.get("strike")) > spot * 1.05]
 
-    put_ivs = [c["iv"] for c in otm_puts if c.get("iv")]
-    call_ivs = [c["iv"] for c in otm_calls if c.get("iv")]
+    put_ivs = [safe_float(c.get("iv")) for c in otm_puts]
+    call_ivs = [safe_float(c.get("iv")) for c in otm_calls]
     avg_put_iv = np.mean(put_ivs) if put_ivs else atm_iv
     avg_call_iv = np.mean(call_ivs) if call_ivs else atm_iv
 
@@ -224,13 +237,13 @@ def calc_market_regime(spot: float, contracts: list[dict[str, Any]]) -> dict[str
     return {
         "regime": regime,
         "atm_iv": round(atm_iv, 4),
-        "atm_strike": atm_contract["strike"],
+        "atm_strike": safe_float(atm_contract.get("strike")),
         "skew": round(skew, 4),
         "curvature": round(curvature, 4),
         "implied_spot_vol_corr": round(implied_spot_vol_corr, 4),
         "implied_vol_of_vol": round(implied_vol_of_vol, 4),
         "expected_daily_spot_move": round(expected_daily_spot_move, 4),
-        "expected_daily_spot_move_pct": round(expected_daily_spot_move * 100, 2),
+        "expected_daily_vol_move_pct": round(expected_daily_vol_move * 100, 2),
         "expected_daily_vol_move": round(expected_daily_vol_move, 4),
         "interpretation": {
             "fear_greed": "extreme_fear" if skew > 0.05 else "fear" if skew > 0.02 else "greed" if skew < -0.02 else "neutral",
@@ -262,12 +275,18 @@ def calc_hedge_impulse_curve(spot: float, contracts: list[dict[str, Any]],
     gex_values = []
     vex_values = []
     for c in contracts:
-        s = c["strike"]
-        oi = c.get("oi", 0) or 0
+        s = safe_float(c.get("strike"))
+        if s <= 0:
+            continue
+        oi = safe_float(c.get("oi", 0))
         if oi <= 0 or math.isnan(oi) or math.isinf(oi):
             continue
-        gamma = bs_gamma(spot, s, c["T"], c["iv"], q=q)
-        vanna = bs_vanna(spot, s, c["T"], c["iv"], q=q)
+        T = safe_float(c.get("T"))
+        iv = safe_float(c.get("iv"))
+        if T <= 0 or iv <= 0:
+            continue
+        gamma = bs_gamma(spot, s, T, iv, q=q)
+        vanna = bs_vanna(spot, s, T, iv, q=q)
         if math.isnan(gamma) or math.isinf(gamma) or math.isnan(vanna) or math.isinf(vanna):
             continue
         gex = gamma * oi * 100.0 * spot * spot * 0.01
@@ -285,10 +304,10 @@ def calc_hedge_impulse_curve(spot: float, contracts: list[dict[str, Any]],
     kernel_width = 2.0 * strike_spacing
 
     # Derive spot-vol coupling from skew
-    otm_puts = [c for c in contracts if c["type"] == "put" and c["strike"] < spot * 0.95]
-    otm_calls = [c for c in contracts if c["type"] == "call" and c["strike"] > spot * 1.05]
-    avg_put_iv = np.mean([c["iv"] for c in otm_puts]) if otm_puts else 0.2
-    avg_call_iv = np.mean([c["iv"] for c in otm_calls]) if otm_calls else 0.2
+    otm_puts = [c for c in contracts if (c.get("type") or "") == "put" and safe_float(c.get("strike")) < spot * 0.95]
+    otm_calls = [c for c in contracts if (c.get("type") or "") == "call" and safe_float(c.get("strike")) > spot * 1.05]
+    avg_put_iv = np.mean([safe_float(c.get("iv")) for c in otm_puts]) if otm_puts else 0.2
+    avg_call_iv = np.mean([safe_float(c.get("iv")) for c in otm_calls]) if otm_calls else 0.2
     skew = avg_put_iv - avg_call_iv
     implied_corr = max(-0.95, min(0.5, skew * 0.15))
     k = max(2, min(20, -implied_corr * 0.2 * math.sqrt(252)))
@@ -635,19 +654,26 @@ def calc_gamma_flip_levels(spot: float, contracts: list[dict[str, Any]],
     zero_dte_oi: dict[float, int] = {}
 
     for c in contracts:
-        strike = c["strike"]
+        strike = safe_float(c.get("strike"))
+        if strike <= 0:
+            continue
         oi = c.get("oi", 0) or 0
         if oi <= 0:
             continue
-        gamma = bs_gamma(spot, strike, c["T"], c["iv"], q=q)
+        T = safe_float(c.get("T"))
+        iv = safe_float(c.get("iv"))
+        if T <= 0 or iv <= 0:
+            continue
+        gamma = bs_gamma(spot, strike, T, iv, q=q)
         if gamma <= 0:
             continue
         gex_unit = gamma * oi * 100.0 * spot * spot * 0.01
-        sign = 1.0 if c["type"] == "call" else -1.0
+        contract_type = c.get("type") or "call"
+        sign = 1.0 if contract_type == "call" else -1.0
         gex_by_strike[strike] = gex_by_strike.get(strike, 0.0) + sign * gex_unit
         oi_by_strike[strike] = oi_by_strike.get(strike, 0) + oi
         try:
-            exp_date = datetime.strptime(c["expiry"], "%Y-%m-%d").date()
+            exp_date = datetime.strptime(c.get("expiry") or "", "%Y-%m-%d").date()
             if (exp_date - today).days <= 0:
                 zero_dte_oi[strike] = zero_dte_oi.get(strike, 0) + oi
         except Exception:

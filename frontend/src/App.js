@@ -47,6 +47,7 @@ import { SocialFlowPanel } from "./components/SocialFlowPanel";
 import SwarmFrame from "./components/SwarmFrame";
 import TurboQuantPanel from "./components/TurboQuantPanel";
 import SkylitDashboard from "./components/heatseeker/SkylitDashboard";
+import StealThreePreview from "./components/heatseeker/StealThreePreview";
 import FlowseekerProBlademap from "./components/flowseeker/FlowseekerProBlademap";
 import AlertOverlay from "./components/AlertOverlay";
 import PWAInstallBanner from "./components/PWAInstallBanner";
@@ -1022,6 +1023,11 @@ export default function App() {
               <FlowseekerProBlademap active={page === "flowseeker-pro"} />
             </ErrorBoundary>
           </div>
+        )}
+
+        {/* Steal Three Top-3 Preview Page */}
+        {page === "steal-three" && (
+          <StealThreePreview defaultTicker="SPY" />
         )}
 
         {/* Drilldown Modal */}

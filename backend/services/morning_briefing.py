@@ -134,17 +134,17 @@ def classify_regime(
         elif call_oi > 0 and put_oi / call_oi > OI_SURGE_RATIO:
             bearish_score += 2
 
-    # Spot vs flip level
+    # Spot vs flip level - only score when combined with GEX signal
+    # Flip level without GEX is ambiguous; requiring both prevents mislabeling
     has_flip = not _is_effectively_zero(flip_level) and not _is_effectively_zero(spot)
     if has_flip:
         if spot > flip_level and has_gex and net_gex > 0:
             bullish_score += 1
         elif spot < flip_level and has_gex and net_gex < 0:
             bearish_score += 1
-        elif spot > flip_level:
-            bullish_score += 1
-        elif spot < flip_level:
-            bearish_score += 1
+        # Removed: elif spot > flip_level / elif spot < flip_level
+        # These were causing bullish to be labeled as bearish when flip_level
+        # was a resistance level and spot was below it, without GEX confirmation
 
     # IV skew signal
     has_skew = not _is_effectively_zero(iv_skew)
