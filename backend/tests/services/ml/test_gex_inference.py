@@ -198,7 +198,7 @@ class TestGexInferenceFeatures:
         )
         feats = compute_gex_features(synthetic_chain_3)
         missing = GEX_REQUIRED_FEATURES - set(feats.keys())
-        expected_known_gaps = frozenset({"gex_concentration"})
+        expected_known_gaps = frozenset()
         assert missing == expected_known_gaps, (
             f"compute_gex_features missing set drifted. "
             f"Expected missing={expected_known_gaps}; got={missing}. "

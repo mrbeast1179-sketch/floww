@@ -260,7 +260,6 @@ class TestComputeGexFeaturesEdgeCases:
         result = compute_gex_features(chain)
         assert result["total_vex"] == pytest.approx(result["net_gex"] * 0.01)
 
-    @pytest.mark.xfail(reason="BUG: gex_concentration is in GEX_REQUIRED_FEATURES but compute_gex_features never sets it — see FINDINGS")
     def test_feature_set_superset_of_gex_required(self):
         """All GEX_REQUIRED_FEATURES should be present in a normal result."""
         chain = {
