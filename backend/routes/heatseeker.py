@@ -174,7 +174,39 @@ async def flip_zones_route(
             raise HTTPException(404, "No options data for " + ticker)
         window_pct = _norm_frac(window_pct, 0.01, 0.50)
         result = calc_flip_zones(spot, contracts, window_pct=window_pct)
-        return _sanitize({"ticker": ticker.upper(), "spot": spot, **result})
+
+        # ── Paper-accurate GEX diagnostic ────────────────────────────
+        paper_diag = {}
+        try:
+            from services.gex_paper_accurate import compute_flip_metrics, compute_gamma_imbalance
+            # Compute net GEX from the contracts
+            gex_map = _gex_per_strike(spot, contracts)
+            net_gex_dollars = sum(gex_map.values())
+            flip_zones_list = result.get("flip_zones", [])
+            zero_gamma = (
+                float(flip_zones_list[0].get("price", 0))
+                if flip_zones_list else None
+            )
+            # ADV proxy (same as briefing)
+            _adv = {
+                "SPY": 75_000_000, "SPX": 3_500_000, "QQQ": 45_000_000,
+                "IWM": 28_000_000, "DIA": 3_000_000,
+            }.get(ticker.upper(), 10_000_000)
+            fm = compute_flip_metrics(spot, zero_gamma, net_gex_dollars)
+            gi = compute_gamma_imbalance(net_gex_dollars, spot, _adv)
+            paper_diag = {
+                "gamma_imbalance": gi,
+                "flip_metrics": fm,
+                "net_gex_dollars": net_gex_dollars,
+            }
+        except Exception:
+            pass
+
+        response = _sanitize({
+            "ticker": ticker.upper(), "spot": spot, **result,
+            "paper_metrics": paper_diag,
+        })
+        return response
     except HTTPException:
         raise
     except Exception as e:

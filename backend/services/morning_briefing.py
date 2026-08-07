@@ -537,6 +537,30 @@ async def build_briefing(
         put_oi=put_oi_total,
     )
 
+    # ── Paper-accurate GEX diagnostic (Ni-Pearson + Barbon-Buraschi) ────
+    paper_metrics = {}
+    if spot > 0 and not _is_effectively_zero(net_gex):
+        try:
+            from services.gex_paper_accurate import full_paper_diagnostic
+            # ADV defaults to 75M for SPY-scale tickers — the paper normalises
+            # by average daily share volume so large/small caps are comparable.
+            # A proper ADV needs a 21-day rolling window from TAQ/CRSP; the
+            # fallback keeps the briefing alive when ADV isn't available.
+            _adv_proxy = {
+                "SPY": 75_000_000, "SPX": 3_500_000, "QQQ": 45_000_000,
+                "IWM": 28_000_000, "DIA": 3_000_000, "AAPL": 55_000_000,
+                "MSFT": 22_000_000, "NVDA": 250_000_000, "TSLA": 80_000_000,
+                "META": 15_000_000, "AMZN": 40_000_000, "GOOGL": 22_000_000,
+            }.get(ticker.upper(), 10_000_000)
+            paper_metrics = full_paper_diagnostic(
+                net_gex=net_gex,
+                spot=spot,
+                adv_shares=_adv_proxy,
+                zero_gamma_level=flip_level if not _is_effectively_zero(flip_level) else None,
+            ).get("paper_metrics", {})
+        except Exception as e:
+            logger.debug(f"Paper-accurate GEX diagnostic failed for {ticker}: {e}")
+
     return BriefingResult(
         ticker=ticker,
         regime=regime,
@@ -549,5 +573,11 @@ async def build_briefing(
             "put_oi": put_oi_total,
             "iv_skew": computed_iv_skew,
             "spot": spot,
+            # Paper-accurate metrics (Ni-Pearson 2020 + Barbon-Buraschi 2021)
+            "gamma_imbalance": paper_metrics.get("gamma_imbalance", {}),
+            "flip_metrics": paper_metrics.get("flip_metrics", {}),
+            "intraday_regime": paper_metrics.get("intraday_regime", {}),
+            "gamma_decomposition": paper_metrics.get("gamma_decomposition", {}),
+            "flash_crash_risk": paper_metrics.get("flash_crash_risk", {}),
         },
     )
