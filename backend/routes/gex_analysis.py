@@ -134,7 +134,7 @@ async def get_gex_liquidity_analysis(
     ticker = ticker.upper()
 
     try:
-        from services.gex_paper_accurate import full_paper_diagnostic
+        from services.gex_paper_accurate import DEFAULT_ADV_SHARES, full_paper_diagnostic
         from services.gex_vex_calculator import full_liquidity_analysis
         from services.gex_core import compute_gex_by_strike
 
@@ -153,7 +153,7 @@ async def get_gex_liquidity_analysis(
         adv = {
             "SPY": 75_000_000, "SPX": 3_500_000, "QQQ": 45_000_000,
             "IWM": 28_000_000, "DIA": 3_000_000,
-        }.get(ticker, 10_000_000)
+        }.get(ticker, DEFAULT_ADV_SHARES)
 
         # Compute net GEX and VEX
         total_gex = sum(c.get("gex", 0) for c in gex_by_strike)
@@ -201,7 +201,7 @@ async def get_flip_points(ticker: str = Path(..., min_length=1, max_length=10)):
     ticker = ticker.upper()
 
     try:
-        from services.gex_paper_accurate import compute_flip_metrics
+        from services.gex_paper_accurate import DEFAULT_ADV_SHARES, compute_flip_metrics
         from services.gex_core import compute_gex_by_strike, find_zero_crossings
 
         result = _get_spot_and_chain(ticker)

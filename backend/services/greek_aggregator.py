@@ -194,8 +194,8 @@ class GreekAggregator:
     ) -> dict[str, Any]:
         """Compute Barbon-Buraschi/Ni-Pearson paper metrics from aggregated GEX."""
         try:
-            from services.gex_paper_accurate import compute_gamma_imbalance, compute_flip_metrics
-            adv = 10_000_000  # default ADV for general use
+            from services.gex_paper_accurate import DEFAULT_ADV_SHARES, compute_gamma_imbalance, compute_flip_metrics
+            adv = DEFAULT_ADV_SHARES  # default ADV for general use
             flip = zero_gamma_levels[0] if zero_gamma_levels else None
             gi = compute_gamma_imbalance(net_gex, self.spot, adv)
             fm = compute_flip_metrics(self.spot, flip, net_gex)

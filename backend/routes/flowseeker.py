@@ -1393,10 +1393,10 @@ async def regime(ticker: str):
             out["tv_signal"] = tv
         # Paper-accurate GEX metrics (Barbon-Buraschi ΓIB + flip metrics)
         try:
-            from services.gex_paper_accurate import compute_gamma_imbalance, compute_flip_metrics
+            from services.gex_paper_accurate import DEFAULT_ADV_SHARES, compute_gamma_imbalance, compute_flip_metrics
             if total_gex and spot and spot > 0:
                 out["paper_metrics"] = {
-                    "gamma_imbalance": compute_gamma_imbalance(total_gex, spot, adv_shares=10_000_000),
+                    "gamma_imbalance": compute_gamma_imbalance(total_gex, spot, adv_shares=DEFAULT_ADV_SHARES),
                     "flip_metrics": compute_flip_metrics(spot, flip, total_gex),
                 }
         except Exception:

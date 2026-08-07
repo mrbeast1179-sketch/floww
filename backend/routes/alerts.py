@@ -15,11 +15,11 @@ router = APIRouter(prefix="/api/alerts", tags=["alerts"])
 def _compute_paper_metrics(snapshot: dict) -> dict:
     """Compute Barbon-Buraschi paper metrics from alert snapshot."""
     try:
-        from services.gex_paper_accurate import compute_gamma_imbalance
+        from services.gex_paper_accurate import DEFAULT_ADV_SHARES, compute_gamma_imbalance
         net_gex = snapshot.get("net_gex", 0)
         spot = snapshot.get("spot_price", 0)
         if spot > 0:
-            return {"gamma_imbalance": compute_gamma_imbalance(net_gex, spot, adv_shares=10_000_000)}
+            return {"gamma_imbalance": compute_gamma_imbalance(net_gex, spot, adv_shares=DEFAULT_ADV_SHARES)}
     except Exception:
         pass
     return {}

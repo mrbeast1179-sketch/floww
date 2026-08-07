@@ -542,9 +542,15 @@ async def build_briefing(
     pcr_signal = {}
     ooi_signal = {}
     charm_signal = {}
+    liquidity_signal = {}
+    gamma_liq_signal = {}
     if spot > 0 and not _is_effectively_zero(net_gex):
         try:
-            from services.gex_paper_accurate import full_paper_diagnostic, put_call_ratio_signal, options_order_imbalance, charm_hedging_pressure
+            from services.gex_paper_accurate import (
+                full_paper_diagnostic, put_call_ratio_signal,
+                options_order_imbalance, charm_hedging_pressure,
+                dealer_hedging_liquidity_impact, gamma_liquidity_regime,
+            )
             # ADV proxy — the paper normalises by average daily share volume
             _adv_proxy = {
                 "SPY": 75_000_000, "SPX": 3_500_000, "QQQ": 45_000_000,
@@ -573,6 +579,12 @@ async def build_briefing(
                 min_dte = min((c.get("expiry", 365) or 365 for c in chain_contracts[:20]), default=365.0)
                 dte = min(min_dte * 365.0, 365.0) if min_dte < 1.0 else min_dte
                 charm_signal = charm_hedging_pressure(avg_delta, avg_theta, dte)
+            # O'Donovan-Yu-Zhang (2023) dealer hedging → stock liquidity
+            gib_pct = paper_metrics.get("gamma_imbalance", {}).get("gamma_imbalance_pct", 0)
+            liquidity_signal = dealer_hedging_liquidity_impact(net_gex, gib_pct)
+            # Barbon-Buraschi gamma → option liquidity regime
+            flip_dist = paper_metrics.get("flip_metrics", {}).get("flip_distance_pct")
+            gamma_liq_signal = gamma_liquidity_regime(gib_pct, flip_dist)
         except Exception as e:
             logger.debug(f"Paper-accurate GEX diagnostic failed for {ticker}: {e}")
 
@@ -598,5 +610,7 @@ async def build_briefing(
             "put_call_ratio": pcr_signal,
             "options_order_imbalance": ooi_signal,
             "charm_pressure": charm_signal,
+            "dealer_liquidity_impact": liquidity_signal,
+            "gamma_liquidity_regime": gamma_liq_signal,
         },
     )

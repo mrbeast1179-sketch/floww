@@ -545,8 +545,8 @@ async def ml_briefing(ticker: str) -> dict[str, Any]:
                 result["model_type"] = "gex_fallback"
                 # Paper-accurate GEX metrics (Barbon-Buraschi + Ni-Pearson)
                 try:
-                    from services.gex_paper_accurate import compute_gamma_imbalance
-                    gib = compute_gamma_imbalance(net_gex, spot, adv_shares=10_000_000)
+                    from services.gex_paper_accurate import DEFAULT_ADV_SHARES, compute_gamma_imbalance
+                    gib = compute_gamma_imbalance(net_gex, spot, adv_shares=DEFAULT_ADV_SHARES)
                     result["paper_metrics"] = {"gamma_imbalance": gib}
                 except Exception:
                     pass

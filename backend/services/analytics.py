@@ -139,7 +139,7 @@ class MultiTickerComparator:
 
         # Move import outside loop for performance
         try:
-            from services.gex_paper_accurate import compute_gamma_imbalance
+            from services.gex_paper_accurate import DEFAULT_ADV_SHARES, compute_gamma_imbalance
             _has_paper_metrics = True
         except Exception:
             _has_paper_metrics = False
@@ -162,7 +162,7 @@ class MultiTickerComparator:
             # Paper metrics per ticker
             if _has_paper_metrics and spot > 0:
                 result[ticker]["gamma_imbalance"] = compute_gamma_imbalance(
-                    net_gex, spot, adv_shares=10_000_000
+                    net_gex, spot, adv_shares=DEFAULT_ADV_SHARES
                 )
 
         # Count regimes
