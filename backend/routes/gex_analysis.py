@@ -7,8 +7,6 @@ Additional endpoints for comprehensive GEX analysis including:
 - VEX computation and GEX+VEX combined
 - Liquidity analysis
 - Put-call ratio signals
-
-Mounted at /api in server.py
 """
 
 from __future__ import annotations
@@ -25,6 +23,7 @@ def _get_spot_and_chain(ticker: str) -> tuple[float, list[dict], list[dict]] | N
     """Fetch spot price and options chain via yfinance."""
     try:
         import yfinance as yf
+        from datetime import datetime, date
 
         yt = yf.Ticker(ticker.upper())
         hist = yt.history(period="5d")
@@ -50,84 +49,49 @@ def _get_spot_and_chain(ticker: str) -> tuple[float, list[dict], list[dict]] | N
             else []
         )
 
+        # Compute DTE from the chosen expiry
+        try:
+            expiry_date = datetime.strptime(chosen_expiry, "%Y-%m-%d").date()
+            dte_days = max((expiry_date - date.today()).days, 1)
+        except Exception:
+            dte_days = 1
+
         for c in calls:
             c.setdefault("expiry", chosen_expiry)
+            c["type"] = "call"
+            c["dte"] = dte_days
         for p in puts:
             p.setdefault("expiry", chosen_expiry)
+            p["type"] = "put"
+            p["dte"] = dte_days
 
         return spot, calls, puts
     except Exception:
         return None
 
 
-def _compute_contracts_gex(calls: list, puts: list, spot: float) -> list[dict]:
-    """Add gamma and GEX to contracts using Black-Scholes."""
-    from bs_greeks import dollar_gex_per_contract, bs_gamma
-    
+def _normalize_contracts(calls: list, puts: list) -> list[dict]:
+    """Normalize yfinance contract dicts to GEX computation format."""
     combined = calls + puts
-    
+    normalized = []
+
     for c in combined:
-        try:
-            strike = float(c.get("strike", 0))
-            if strike <= 0:
-                continue
-                
-            # Get time to expiry in years
-            from datetime import datetime
-            dte_days = c.get("dte", c.get("days_to_expiry", 1))
-            T = max(float(dte_days), 1) / 365.0  # Avoid T=0
-            
-            # Get IV
-            iv = float(c.get("iv", 0.2))
-            if iv <= 0:
-                continue
-            
-            # Get OI or volume
-            oi = float(c.get("openInterest", c.get("oi", c.get("volume", 0))))
-            
-            # Get option type
-            opt_type = c.get("type", "CALL").upper()
-            if not isinstance(opt_type, str):
-                opt_type = "CALL"
-            sign = 1.0 if opt_type in ("CALL", "CALLS") else -1.0
-            
-            # Get time to expiry in years
-            dte_days = c.get("dte", c.get("days_to_expiry", c.get("DTE", 1)))
-            if dte_days is None or dte_days == 0:
-                dte_days = 1
-            T = max(float(dte_days), 1) / 365.0  # Avoid T=0
-            
-            # Get IV - yfinance uses 'impliedVolatility' or 'iv'
-            iv = float(c.get("iv", c.get("impliedVolatility", c.get("Implied Volatility", 0.2))))
-            if iv <= 0 or iv > 5.0:  # Sanity check IV
-                iv = 0.2  # Default fallback
-            
-            # Get OI - yfinance uses 'openInterest' or 'oi'
-            oi = c.get("openInterest", c.get("oi", c.get("Open Interest", 0))) or 0
-            oi = float(oi)
-            
-            # Compute gamma
-            gamma = bs_gamma(spot, strike, T, iv, q=0.0, r=0.05)
-            
-            # Compute GEX
-            gex = dollar_gex_per_contract(gamma, oi, spot)
-            
-            # Compute vomma and vex
-            from bs_greeks import bs_vomma, dollar_vex_per_contract
-            vomma = bs_vomma(spot, strike, T, iv, q=0.0, r=0.05)
-            vex = dollar_vex_per_contract(vomma, oi, spot)
-            sign_vex = 1.0 if opt_type in ("CALL", "CALLS") else -1.0
-            
-            c["gamma"] = gamma
-            c["gex"] = sign * gex
-            c["vomma"] = vomma
-            c["vex"] = sign_vex * vex
-            
-        except Exception:
-            c["gex"] = 0.0
-            c["gamma"] = 0.0
-    
-    return combined
+        nc = dict(c)
+        nc["type"] = "call" if c.get("type", "CALL").upper() in ("CALL", "CALLS") else "put"
+        nc["strike"] = float(nc.get("strike", 0))
+        nc["iv"] = float(nc.get("iv", nc.get("impliedVolatility", 0.2)))
+        if nc["iv"] <= 0:
+            nc["iv"] = 0.2
+        nc["oi"] = float(nc.get("openInterest", nc.get("oi", nc.get("volume", 0)) or 0))
+
+        dte_days = nc.get("dte", 1)
+        if dte_days is None or dte_days == 0:
+            dte_days = 1
+        nc["T"] = max(float(dte_days), 1) / 365.0
+
+        normalized.append(nc)
+
+    return normalized
 
 
 @router.get("/gex/term-structure/{ticker}")
@@ -139,6 +103,7 @@ async def get_gex_term_structure(
 
     try:
         from services.gex_term_structure import compute_gex_term_structure
+        from services.gex_core import compute_gex_by_strike
 
         result = _get_spot_and_chain(ticker)
         if not result:
@@ -148,8 +113,9 @@ async def get_gex_term_structure(
             )
 
         spot, calls, puts = result
-        contracts = _compute_contracts_gex(calls, puts, spot)
-        term_result = compute_gex_term_structure(spot, contracts)
+        contracts = _normalize_contracts(calls, puts)
+        gex_by_strike = compute_gex_by_strike(spot, contracts)
+        term_result = compute_gex_term_structure(spot, gex_by_strike)
 
         return JSONResponse(content=term_result)
 
@@ -170,6 +136,7 @@ async def get_gex_liquidity_analysis(
     try:
         from services.gex_paper_accurate import full_paper_diagnostic
         from services.gex_vex_calculator import full_liquidity_analysis
+        from services.gex_core import compute_gex_by_strike
 
         result = _get_spot_and_chain(ticker)
         if not result:
@@ -179,7 +146,8 @@ async def get_gex_liquidity_analysis(
             )
 
         spot, calls, puts = result
-        contracts = _compute_contracts_gex(calls, puts, spot)
+        contracts = _normalize_contracts(calls, puts)
+        gex_by_strike = compute_gex_by_strike(spot, contracts)
 
         # Get ADV proxy
         adv = {
@@ -188,13 +156,13 @@ async def get_gex_liquidity_analysis(
         }.get(ticker, 10_000_000)
 
         # Compute net GEX and VEX
-        total_gex = sum(c.get("gex", 0) for c in contracts)
-        total_vex = sum(c.get("vex", 0) for c in contracts)
+        total_gex = sum(c.get("gex", 0) for c in gex_by_strike)
+        total_vex = sum(c.get("vex", 0) for c in gex_by_strike)
 
         # Compute flip level
         try:
             from services.gex_core import find_zero_crossings
-            flip_levels = find_zero_crossings(spot, contracts)
+            flip_levels = find_zero_crossings(spot, gex_by_strike)
             flip_level = flip_levels[0] if flip_levels else None
         except Exception:
             flip_level = None
@@ -234,6 +202,7 @@ async def get_flip_points(ticker: str = Path(..., min_length=1, max_length=10)):
 
     try:
         from services.gex_paper_accurate import compute_flip_metrics
+        from services.gex_core import compute_gex_by_strike, find_zero_crossings
 
         result = _get_spot_and_chain(ticker)
         if not result:
@@ -243,12 +212,11 @@ async def get_flip_points(ticker: str = Path(..., min_length=1, max_length=10)):
             )
 
         spot, calls, puts = result
-        contracts = _compute_contracts_gex(calls, puts, spot)
+        contracts = _normalize_contracts(calls, puts)
+        gex_by_strike = compute_gex_by_strike(spot, contracts)
+        flip_levels = find_zero_crossings(spot, gex_by_strike)
 
-        from services.gex_core import find_zero_crossings
-        flip_levels = find_zero_crossings(spot, contracts)
-
-        net_gex = sum(c.get("gex", 0) for c in contracts)
+        net_gex = sum(c.get("gex", 0) for c in gex_by_strike)
 
         flip_metrics = {}
         if flip_levels:
