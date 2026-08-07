@@ -253,6 +253,17 @@ def compute_gex_features(chain: dict[str, Any]) -> dict[str, float]:
     features["gex_kurtosis"] = _kurtosis(gex_values)
     features["gex_num_strikes"] = float(len(strikes_sorted))
 
+    # Paper-accurate GEX: Ni-Pearson 2020 + Barbon-Buraschi 2021
+    if spot > 0 and features["net_gex"] != 0:
+        try:
+            from services.gex_paper_accurate import compute_gamma_imbalance
+            _adv = 10_000_000
+            gi = compute_gamma_imbalance(features["net_gex"], spot, _adv)
+            features["paper_gib_pct"] = gi["gamma_imbalance_pct"]
+            features["paper_gib_regime"] = 1.0 if gi["regime"] in ("positive_gamma", "strong_positive_gamma") else (-1.0 if gi["regime"] in ("negative_gamma", "strong_negative_gamma") else 0.0)
+        except Exception:
+            pass
+
     return features
 
 
