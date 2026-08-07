@@ -178,6 +178,7 @@ class DualGexCalculator:
             "gex_oi_total": pos_oi,
             "gex_volume_total": net_vol,
             "activity_ratio": round(ratio, 4),
+            "_spot": float(spot) if spot else None,  # for paper metrics computation
             "activity_badge": badge,
         }
 

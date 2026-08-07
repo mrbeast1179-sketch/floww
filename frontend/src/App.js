@@ -515,6 +515,7 @@ export default function App() {
   const [showLeftSidebar, setShowLeftSidebar] = useState(false);
   const [showRightSidebar, setShowRightSidebar] = useState(false);
   const [viewMode, setViewMode] = useState("gex");
+  const [view, setView] = useState("skylit");
   const [mode, setMode] = useState("day");
   const [filters, setFilters] = useState({ side: "all", lifecycle: "all", magMin: 0 });
   const [expiries, setExpiries] = useState(4);

@@ -540,9 +540,11 @@ async def build_briefing(
     # ── Paper-accurate GEX diagnostic (Ni-Pearson + Barbon-Buraschi) ────
     paper_metrics = {}
     pcr_signal = {}
+    ooi_signal = {}
+    charm_signal = {}
     if spot > 0 and not _is_effectively_zero(net_gex):
         try:
-            from services.gex_paper_accurate import full_paper_diagnostic, put_call_ratio_signal
+            from services.gex_paper_accurate import full_paper_diagnostic, put_call_ratio_signal, options_order_imbalance, charm_hedging_pressure
             # ADV proxy — the paper normalises by average daily share volume
             _adv_proxy = {
                 "SPY": 75_000_000, "SPX": 3_500_000, "QQQ": 45_000_000,
@@ -559,6 +561,19 @@ async def build_briefing(
             # Pan-Poteshman (2006) put-call ratio signal
             if not (_is_effectively_zero(call_oi_total) and _is_effectively_zero(put_oi_total)):
                 pcr_signal = put_call_ratio_signal(call_oi_total, put_oi_total)
+            # Hu (2014) Options Order Imbalance
+            ooi_signal = options_order_imbalance(
+                call_open_interest=call_oi_total, put_open_interest=put_oi_total
+            )
+            # Ni-Pearson 2021 Charm — use theta from chain if available
+            charm_signal = {"signal": "data_unavailable"}
+            if chain_contracts and len(chain_contracts) > 0:
+                avg_theta = sum(c.get("theta", 0) or 0 for c in chain_contracts[:20]) / max(1, min(20, len(chain_contracts)))
+                avg_delta = sum(abs(c.get("delta", 0) or 0) for c in chain_contracts[:20]) / max(1, min(20, len(chain_contracts)))
+                avg_gamma = sum(abs(c.get("gamma", 0) or 0) for c in chain_contracts[:20]) / max(1, min(20, len(chain_contracts)))
+                min_dte = min((c.get("expiry", 365) or 365 for c in chain_contracts[:20]), default=365.0)
+                dte = min(min_dte * 365.0, 365.0) if min_dte < 1.0 else min_dte
+                charm_signal = charm_hedging_pressure(avg_delta, avg_gamma, avg_theta, net_gex, dte)
         except Exception as e:
             logger.debug(f"Paper-accurate GEX diagnostic failed for {ticker}: {e}")
 
@@ -582,5 +597,7 @@ async def build_briefing(
             "flash_crash_risk": paper_metrics.get("flash_crash_risk", {}),
             # Pan-Poteshman (2006) put-call ratio signal
             "put_call_ratio": pcr_signal,
+            "options_order_imbalance": ooi_signal,
+            "charm_pressure": charm_signal,
         },
     )

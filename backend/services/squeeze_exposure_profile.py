@@ -390,6 +390,8 @@ def compute_spot_shifted_exposure_profile(
         "profile": profile,
         "warnings": warnings,
         "method": "bs_reprice_then_dollar_gex",
+        "_spot": round(float(spot), 4),
+        "_net_gex": round(current_total_exposure, 4),
     }
 
 
