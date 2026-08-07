@@ -334,3 +334,19 @@ __all__ = [
     "LABEL_LOW",
     "LABEL_COLORS",
 ]
+
+def _safe_gex_imbalance(gex_out=None):
+    """Extract Gamma Imbalance from GEX output, returning None if unavailable."""
+    if not gex_out:
+        return None
+    try:
+        net_gex = gex_out.get("net_gex", 0)
+        spot = gex_out.get("spot", gex_out.get("_spot", 0)) or 0
+        if spot > 0 and net_gex != 0:
+            from services.gex_paper_accurate import compute_gamma_imbalance
+            _adv = gex_out.get("adv_shares", 10_000_000) or 10_000_000
+            gi = compute_gamma_imbalance(net_gex, spot, _adv)
+            return {"gamma_imbalance_pct": gi["gamma_imbalance_pct"], "regime": gi["regime"]}
+    except Exception:
+        pass
+    return None
