@@ -312,11 +312,15 @@ class GexAggregator:
 
         for i, c in enumerate(contracts):
             strikes[i] = float(self._resolve(c, self._STRIKE_KEYS))
-            gammas[i] = float(self._resolve(c, self._GAMMA_KEYS))
-            ois[i] = float(self._resolve(c, self._OI_KEYS))
+            gamma_val = self._resolve(c, self._GAMMA_KEYS, default=0.0)
+            gammas[i] = float(gamma_val) if gamma_val is not None else 0.0
+            oi_val = self._resolve(c, self._OI_KEYS)
+            ois[i] = float(oi_val) if oi_val is not None else 0.0
             types[i] = self._parse_option_type(self._resolve(c, self._TYPE_KEYS))
-            expiries[i] = float(self._resolve(c, self._EXPIRY_KEYS))
-            vommas[i] = float(self._resolve(c, self._VOMMA_KEYS, default=0.0))
+            exp_val = self._resolve(c, self._EXPIRY_KEYS, default=0.0)
+            expiries[i] = float(exp_val) if exp_val is not None else 0.0
+            vomm_val = self._resolve(c, self._VOMMA_KEYS, default=0.0)
+            vommas[i] = float(vomm_val) if vomm_val is not None else 0.0
 
         unique_strikes = np.unique(strikes)
         unique_expiries = np.unique(expiries)

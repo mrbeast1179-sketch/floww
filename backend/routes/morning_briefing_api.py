@@ -69,9 +69,10 @@ async def get_briefing(
     try:
         from services.morning_briefing import BriefingResult, build_briefing
 
-        # Try to get top movers from server's cache
+        # Try to get top movers and spot from server's cache
         top_movers = []
         spot = 0.0
+        chain_contracts = None
         try:
             import server as srv
             if hasattr(srv, "_movers_cache") and srv._movers_cache.get("data"):
@@ -80,6 +81,31 @@ async def get_briefing(
                     key=lambda r: abs(r.get("pct", 0)),
                     reverse=True,
                 )[:5]
+            # Fetch spot and chain data via the server's chain loader
+            from server import fetch_spot_and_chains_merged
+            raw = await fetch_spot_and_chains_merged(ticker, max_expiries=4)
+            if raw:
+                spot = float(raw.get("spot", 0.0) or 0.0)
+                # Normalize contracts: convert date-string expiry to year-fraction T
+                from datetime import datetime, date
+                today = date.today()
+                normalized = []
+                for c in raw.get("contracts", []):
+                    nc = dict(c)
+                    # Convert expiry date string to T (years)
+                    expiry = nc.get("expiry") or nc.get("expiration")
+                    if expiry:
+                        if isinstance(expiry, str):
+                            try:
+                                exp_date = datetime.strptime(expiry, "%Y-%m-%d").date()
+                                dte_days = max((exp_date - today).days, 1)
+                            except (ValueError, TypeError):
+                                dte_days = 1
+                            nc["expiry"] = max(float(dte_days), 1) / 365.0
+                        elif isinstance(expiry, (int, float)):
+                            nc["expiry"] = max(float(expiry), 1) / 365.0
+                    normalized.append(nc)
+                chain_contracts = normalized
         except Exception:
             pass
 
@@ -87,6 +113,7 @@ async def get_briefing(
             ticker=ticker,
             top_movers=top_movers,
             spot=spot,
+            chain_contracts=chain_contracts,
         )
 
         response = {
