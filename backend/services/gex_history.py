@@ -324,6 +324,16 @@ def calc_gex_timeframes(
             [{"strike": k, "gex": round(v, 2)} for k, v in strike_gex.items() if k <= spot and v < 0],
             key=lambda x: x["gex"]
         )[:3]
+        # Paper-accurate GEX (Ni-Pearson 2020 + Barbon-Buraschi 2021)
+        paper_gib = {}
+        if spot > 0 and net_gex != 0:
+            try:
+                from services.gex_paper_accurate import compute_gamma_imbalance
+                _adv = 10_000_000  # default ADV fallback
+                paper_gib = compute_gamma_imbalance(net_gex, spot, _adv)
+            except Exception:
+                pass
+
         return {
             "gex_total": round(abs(call_gex) + abs(put_gex), 2),
             "call_gex": round(call_gex, 2),
@@ -333,6 +343,8 @@ def calc_gex_timeframes(
             "contract_count": n_valid,
             "top_floors": top_floors,
             "top_ceilings": top_ceilings,
+            # Ni-Pearson 2020 + Barbon-Buraschi 2021 paper metrics
+            "paper_gamma_imbalance": paper_gib,
         }
 
     return {"timeframes": {k: _agg(v) for k, v in buckets.items()}}
