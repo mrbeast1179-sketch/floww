@@ -1474,3 +1474,204 @@ def informed_option_volume_signal(
         "call_put_ratio": round(call_call_ratio, 2),
         "days_observed": days_observed,
     }
+
+
+def cremers_weinbaum_spread(
+    call_bids: list[float] | None = None,
+    put_asks: list[float] | None = None,
+    strikes: list[float] | None = None,
+    open_interests: list[float] | None = None,
+    spot: float = 0.0,
+    risk_free_rate: float = 0.05,
+    dte_days: float = 30.0,
+) -> dict[str, Any]:
+    """Cremers-Weinbaum (2010) Put-Call Parity deviation spread.
+
+    'Deviations from Put-Call Parity and Stock Return Predictability'
+    Journal of Finance 65, 589-626.
+
+    CW spread measures the OI-weighted average deviation from put-call
+    parity across all strikes and expiries. Positive CW → calls expensive
+    relative to puts → BULLISH (predicts HIGHER future returns).
+
+    Formula:
+      CW = Σ_i w_i × [(C_bid_i - P_ask_i) - (S - PV(K_i))] / S
+      where w_i = OI_i / Σ OI_i
+
+    Key finding: decile of highest CW outperforms lowest by ~50 bps/day.
+
+    Args:
+        call_bids: List of call bid prices per strike
+        put_asks: List of put ask prices per strike
+        strikes: List of strike prices
+        open_interests: List of (call+put) open interest per strike
+        spot: Current underlying price
+        risk_free_rate: Annual risk-free rate (default 5%)
+        dte_days: Days to expiration
+
+    Returns:
+        dict with cw_spread, signal, interpretation
+    """
+    if not call_bids or not put_asks or not strikes:
+        return {
+            "cw_spread_bps": None,
+            "signal": "insufficient_data",
+            "interpretation": "Need call bids, put asks, and strikes per option.",
+        }
+
+    T = dte_days / 365.0
+    pv_factor = 1.0 / (1.0 + risk_free_rate * T) if T > 0 else 1.0
+
+    num_contracts = min(len(call_bids), len(put_asks), len(strikes))
+    if num_contracts == 0:
+        return {"cw_spread_bps": None, "signal": "insufficient_data", "interpretation": "No contracts."}
+
+    # Default equal weighting if no OI provided
+    if not open_interests or len(open_interests) < num_contracts:
+        weights = [1.0 / num_contracts] * num_contracts
+    else:
+        total_oi = sum(open_interests[:num_contracts])
+        weights = [oi / max(total_oi, 1) for oi in open_interests[:num_contracts]]
+
+    if spot <= 0:
+        return {"cw_spread_bps": None, "signal": "no_spot", "interpretation": "Spot price required."}
+
+    # CW = Σ w_i × [(C_bid_i - P_ask_i) / S - (1 - PV(K_i)/S)]
+    #    = Σ w_i × [(C_bid_i - P_ask_i - S + PV(K_i)) / S]
+    cw_sum = 0.0
+    for i in range(num_contracts):
+        synthetic_forward = call_bids[i] - put_asks[i]
+        parity_value = spot - strikes[i] * pv_factor
+        deviation = (synthetic_forward - parity_value) / spot
+        cw_sum += weights[i] * deviation
+
+    cw_bps = cw_sum * 10000.0  # Convert to basis points
+
+    # Thresholds per Cremers-Weinbaum:
+    # |CW| > 10 bps = economically significant deviation
+    if cw_bps > 15:
+        signal = "BULLISH_CW"
+        interp = (
+            f"CW={cw_bps:.1f} bps — calls EXPENSIVE relative to puts. "
+            "Per CW 2010: positive deviations predict HIGHER returns. "
+            "High CW decile outperforms low by ~50 bps/day."
+        )
+    elif cw_bps > 5:
+        signal = "SLIGHTLY_BULLISH"
+        interp = f"CW={cw_bps:.1f} bps — mild call premium. Modestly bullish."
+    elif cw_bps < -15:
+        signal = "BEARISH_CW"
+        interp = (
+            f"CW={cw_bps:.1f} bps — puts EXPENSIVE relative to calls. "
+            "Negative deviations predict LOWER returns."
+        )
+    elif cw_bps < -5:
+        signal = "SLIGHTLY_BEARISH"
+        interp = f"CW={cw_bps:.1f} bps — mild put premium. Modestly bearish."
+    else:
+        signal = "NEUTRAL_CW"
+        interp = f"CW={cw_bps:.1f} bps — PCP holds within normal bounds."
+
+    return {
+        "cw_spread_bps": round(cw_bps, 2),
+        "signal": signal,
+        "interpretation": interp,
+        "num_contracts": num_contracts,
+    }
+
+
+def real_drift_burst_risk(
+    returns: list[float],
+    gamma_imbalance_pct: float = 0.0,
+    window_minutes: int = 60,
+    significance: float = 2.0,
+) -> dict[str, Any]:
+    """Real drift burst detection from price returns — Christensen-Oomen-Reno (2018).
+
+    Uses ACTUAL tick/minute returns to detect drift bursts rather than
+    the gamma proxy fallback in drift_burst_risk().
+
+    Algorithm:
+      1. Compute local drift μ = mean(returns over window)
+      2. Compute local volatility σ = std(returns over window)
+      3. t-stat = |μ| × √n / σ  (test for drift dominating diffusion)
+      4. |t| > 2.0 → potential drift burst (95% confidence)
+      5. |t| > 3.0 → confirmed drift burst (99.7% confidence)
+      6. If negative gamma + drift burst → FLASH CRASH risk elevated
+
+    Args:
+        returns: List of period returns (e.g., 1-min returns over 60-min window)
+        gamma_imbalance_pct: Current Gamma Imbalance for interaction
+        window_minutes: Number of periods (default 60 for 1-min returns)
+        significance: t-stat threshold for detection (default 2.0)
+
+    Returns:
+        dict with drift_burst_detected, t_statistic, flash_crash_risk
+    """
+    n = len(returns)
+    if n < 10:
+        return {
+            "drift_burst_detected": False,
+            "t_statistic": 0.0,
+            "severity": "insufficient_data",
+            "interpretation": f"Need at least 10 returns, got {n}.",
+        }
+
+    # Local drift and volatility
+    mu = sum(returns) / n
+    variance = sum((r - mu) ** 2 for r in returns) / (n - 1) if n > 1 else 0.0
+    sigma = variance ** 0.5
+
+    if sigma <= 0:
+        return {
+            "drift_burst_detected": False,
+            "t_statistic": 0.0,
+            "severity": "zero_volatility",
+            "interpretation": "Zero local volatility — no burst possible.",
+        }
+
+    t_stat = abs(mu) * (n ** 0.5) / sigma
+    direction = "UPWARD" if mu > 0 else "DOWNWARD"
+
+    # Christensen-Oomen-Reno thresholds
+    if t_stat > 3.0:
+        severity = "confirmed"
+        drift_detected = True
+        interp = (
+            f"CONFIRMED drift burst |t|={t_stat:.1f} — explosive {direction} trend. "
+            f"Per Christensen-Oomen-Reno 2018: drift dominates diffusion."
+        )
+    elif t_stat > significance:
+        severity = "potential"
+        drift_detected = True
+        interp = (
+            f"Potential drift burst |t|={t_stat:.1f} — monitor for acceleration."
+        )
+    else:
+        severity = "none"
+        drift_detected = False
+        interp = f"No drift burst |t|={t_stat:.1f}. Diffusion dominates."
+
+    result: dict[str, Any] = {
+        "drift_burst_detected": drift_detected,
+        "t_statistic": round(t_stat, 4),
+        "severity": severity,
+        "local_drift_bps": round(mu * 10000, 2),
+        "local_vol_bps": round(sigma * 10000, 2),
+        "direction": direction,
+        "window_periods": n,
+        "interpretation": interp,
+    }
+
+    # Flash crash interaction (Barbon-Buraschi Table VIII)
+    if drift_detected and gamma_imbalance_pct < -1.0:
+        result["flash_crash_risk"] = "HIGH"
+        result["combined_risk"] = (
+            f"Drift burst ({severity}, |t|={t_stat:.1f}) + "
+            f"negative gamma ({gamma_imbalance_pct:.1f}%) → "
+            "conditional flash crash probability 2-5x baseline."
+        )
+    elif drift_detected and gamma_imbalance_pct < -0.5:
+        result["flash_crash_risk"] = "ELEVATED"
+
+    return result
