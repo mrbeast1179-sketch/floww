@@ -619,3 +619,48 @@ def full_paper_diagnostic(
     result["paper_metrics"]["flash_crash_risk"] = fcr
 
     return result
+
+
+def put_call_ratio_signal(
+    call_oi: float,
+    put_oi: float,
+    call_vol: float = 0.0,
+    put_vol: float = 0.0,
+) -> dict[str, Any]:
+    """Pan-Poteshman (2006) put-call ratio directional signal.
+
+    'The Information of Option Volume for Future Stock Prices'
+    Review of Financial Studies 19, 871-908.
+
+    Key finding: stocks with LOW PCR outperform by 40bps next day, 1% next week.
+    Uses OI-based PCR as primary proxy when trade-level buyer-initiated data unavailable.
+    """
+    total_oi = call_oi + put_oi
+    total_vol = call_vol + put_vol
+    pcr_oi = (put_oi / total_oi) if total_oi > 0 else None
+    pcr_vol = (put_vol / total_vol) if total_vol > 0 else None
+    pcr = pcr_oi if pcr_oi is not None else (pcr_vol if pcr_vol is not None else 0.5)
+
+    if pcr < 0.35:
+        signal, confidence = "BULLISH", "high"
+        interp = f"PCR {pcr:.2f} — calls dominate. Low PCR stocks outperform (Pan-Poteshman 2006)."
+    elif pcr < 0.45:
+        signal, confidence = "BULLISH", "medium"
+        interp = f"PCR {pcr:.2f} — mild call dominance."
+    elif pcr > 0.65:
+        signal, confidence = "BEARISH", "high"
+        interp = f"PCR {pcr:.2f} — puts dominate. High PCR stocks underperform."
+    elif pcr > 0.55:
+        signal, confidence = "BEARISH", "medium"
+        interp = f"PCR {pcr:.2f} — mild put dominance."
+    else:
+        signal, confidence = "NEUTRAL", "low"
+        interp = f"PCR {pcr:.2f} — balanced. No directional edge."
+
+    return {
+        "pcr_oi": round(pcr_oi, 4) if pcr_oi is not None else None,
+        "pcr_vol": round(pcr_vol, 4) if pcr_vol is not None else None,
+        "signal": signal,
+        "confidence": confidence,
+        "interpretation": interp,
+    }

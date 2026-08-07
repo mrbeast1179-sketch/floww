@@ -541,7 +541,7 @@ async def build_briefing(
     paper_metrics = {}
     if spot > 0 and not _is_effectively_zero(net_gex):
         try:
-            from services.gex_paper_accurate import full_paper_diagnostic
+            from services.gex_paper_accurate import full_paper_diagnostic, put_call_ratio_signal
             # ADV defaults to 75M for SPY-scale tickers — the paper normalises
             # by average daily share volume so large/small caps are comparable.
             # A proper ADV needs a 21-day rolling window from TAQ/CRSP; the
@@ -579,5 +579,9 @@ async def build_briefing(
             "intraday_regime": paper_metrics.get("intraday_regime", {}),
             "gamma_decomposition": paper_metrics.get("gamma_decomposition", {}),
             "flash_crash_risk": paper_metrics.get("flash_crash_risk", {}),
+            # Pan-Poteshman (2006) put-call ratio signal
+            "put_call_ratio": put_call_ratio_signal(call_oi_total, put_oi_total)
+            if not (_is_effectively_zero(call_oi_total) and _is_effectively_zero(put_oi_total))
+            else {},
         },
     )
