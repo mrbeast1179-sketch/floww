@@ -551,6 +551,7 @@ async def build_briefing(
     cw_spread_signal = {}
     gpp_premium_signal = {}
     opt_illiq_signal = {}
+    vix_gamma_signal = {}
     gib_pct = 0
     if spot > 0 and not _is_effectively_zero(net_gex):
         try:
@@ -563,6 +564,7 @@ async def build_briefing(
                 informed_option_volume_signal,
                 cremers_weinbaum_spread, real_drift_burst_risk,
                 demand_pressure_premium, option_illiquidity_signal,
+                vix_gamma_fragility,
             )
             # ADV proxy — the paper normalises by average daily share volume
             _adv_proxy = {
@@ -608,6 +610,11 @@ async def build_briefing(
             # Goyenko-Ornthanalai-Tang option illiquidity
             opt_illiq_signal = option_illiquidity_signal(
                 open_interest=call_oi_total + put_oi_total
+            )
+            # VIX term structure × Gamma fragility
+            vix_gamma_signal = vix_gamma_fragility(
+                gamma_imbalance_pct=gib_pct,
+                flip_distance_pct=flip_dist,
             )
             # Christensen-Oomen-Reno (2018) drift burst risk
             burst_signal = drift_burst_risk(gamma_imbalance_pct=gib_pct)
@@ -682,6 +689,8 @@ async def build_briefing(
             "demand_pressure_premium": gpp_premium_signal,
             # Goyenko-Ornthanalai-Tang — option illiquidity
             "option_illiquidity": opt_illiq_signal,
+            # VIX term structure × Gamma fragility interaction
+            "vix_gamma_fragility": vix_gamma_signal,
             # Christensen-Oomen-Reno (2018) drift burst risk
             "drift_burst_risk": burst_signal,
             # Ni-Pearson appendix §3 — dealer delta rebalancing → stock imbalance
@@ -691,6 +700,6 @@ async def build_briefing(
             # Cremers-Weinbaum (2010) — Put-Call Parity deviation
             "cw_spread": cw_spread_signal,
             # Christensen-Oomen-Reno (2018) — real drift burst from returns
-            "real_drift_burst": drift_burst_risk(gamma_imbalance_pct=gib_pct),
+            "real_drift_burst": real_drift_burst_risk([], gamma_imbalance_pct=gib_pct) if gib_pct != 0 else {},
         },
     )
