@@ -891,3 +891,192 @@ def option_demand_pressure(
         )
 
     return result
+
+
+def options_order_imbalance(
+    trade_direction: list[int] | None = None,
+    trade_volume: list[float] | None = None,
+    trade_deltas: list[float] | None = None,
+    call_open_interest: float = 0.0,
+    put_open_interest: float = 0.0,
+) -> dict[str, Any]:
+    """Options Order Imbalance — Hu (2014) JFE 111, 625-645.
+
+    'Does Option Trading Convey Stock Price Information?'
+    Journal of Financial Economics, 2014.
+
+    Converts option trade flow into share-equivalent stock order imbalance
+    by weighting each option trade by its delta. This proxies the
+    inventory-driven hedging pressure market makers pass to the stock.
+
+    Formula: OOI = Σ Dir_i × Volume_i × Δ_i × 100
+
+    Where:
+      Dir_i = +1 for buyer-initiated (customer buys option)
+      Dir_i = -1 for seller-initiated (customer sells option)
+      Volume_i = number of contracts traded
+      Δ_i = Black-Scholes delta of the option
+      ×100 = converts contracts to share equivalents
+
+    Key finding: OOI predicts next-day stock returns. Positive OOI
+    (net buying of calls/selling of puts) → bullish. Negative OOI → bearish.
+
+    When trade-level data is unavailable, infers from OI changes.
+
+    Args:
+        trade_direction: List of trade direction indicators (+1/-1)
+        trade_volume: List of contract volumes
+        trade_deltas: List of Black-Scholes deltas at trade time
+        call_open_interest: Total call OI (fallback)
+        put_open_interest: Total put OI (fallback)
+
+    Returns:
+        dict with ooi_value, signal, interpretation
+    """
+    result: dict[str, Any] = {
+        "ooi_value": None,
+        "ooi_normalized": None,
+        "signal": "insufficient_data",
+        "interpretation": "",
+    }
+
+    # Trade-level computation
+    if trade_direction and trade_volume and trade_deltas:
+        if len(trade_direction) == len(trade_volume) == len(trade_deltas):
+            ooi = sum(
+                d * v * delta * 100.0
+                for d, v, delta in zip(trade_direction, trade_volume, trade_deltas)
+            )
+            result["ooi_value"] = round(ooi, 2)
+
+            if ooi > 0:
+                result["signal"] = "BULLISH_ORDER_FLOW"
+                result["interpretation"] = (
+                    f"Net options buying pressure: {ooi:,.0f} share equivalents. "
+                    "Positive OOI predicts higher returns (Hu 2014). "
+                    "Market makers short calls → must BUY stock to delta-hedge."
+                )
+            elif ooi < 0:
+                result["signal"] = "BEARISH_ORDER_FLOW"
+                result["interpretation"] = (
+                    f"Net options selling pressure: {ooi:,.0f} share equivalents. "
+                    "Negative OOI predicts lower returns. "
+                    "Market makers long puts → must SELL stock to delta-hedge."
+                )
+            else:
+                result["signal"] = "NEUTRAL"
+                result["interpretation"] = "No directional options order imbalance."
+
+            # Normalize by typical daily volume
+            result["ooi_normalized"] = round(ooi / 10_000_000, 6)  # per 10M ADV
+            return result
+
+    # OI-based fallback: approximate OOI from OI changes
+    # Calls: positive delta → buying calls = bullish OOI
+    # Puts: negative delta → buying puts = bearish OOI
+    total_oi = call_open_interest + put_open_interest
+    if total_oi > 0:
+        # Approximate: call OI contributes +Δ, put OI contributes -Δ
+        # Assume ATM delta ≈ 0.5 for calls, -0.5 for puts
+        approx_ooi = (call_open_interest * 0.5 - put_open_interest * 0.5) * 100.0
+        result["ooi_value"] = round(approx_ooi, 2)
+        result["method"] = "oi_approximation"
+
+        if approx_ooi > 1e6:
+            result["signal"] = "BULLISH_OI_SKEW"
+            result["interpretation"] = (
+                f"Call OI dominates ({call_open_interest/put_open_interest:.1f}:1 ratio). "
+                f"Approximate OOI ~{approx_ooi/1e6:.1f}M share equivalents."
+            )
+        elif approx_ooi < -1e6:
+            result["signal"] = "BEARISH_OI_SKEW"
+            result["interpretation"] = (
+                f"Put OI dominates ({put_open_interest/call_open_interest:.1f}:1 ratio). "
+                f"Approximate OOI ~{approx_ooi/1e6:.1f}M share equivalents."
+            )
+        else:
+            result["signal"] = "BALANCED_OI"
+            result["interpretation"] = "Call and put OI balanced — no skew signal."
+
+        result["ooi_normalized"] = round(approx_ooi / 10_000_000, 6)
+        return result
+
+    result["interpretation"] = "No trade-level or OI data available."
+    return result
+
+
+def charm_hedging_pressure(
+    delta: float,
+    gamma: float,
+    theta: float,
+    net_gamma: float = 0.0,
+    dte_days: float = 1.0,
+) -> dict[str, Any]:
+    """Charm hedging pressure — Ni-Pearson-Poteshman-White (2021).
+
+    'Charming! Retail Option Volume, Delta Hedging, and the...'
+    SSRN 5054370.
+
+    Charm (dDelta/dTime) measures how option delta changes as time passes.
+    Unlike gamma which reacts to spot moves, charm creates a PERSISTENT
+    hedging need that accumulates each day regardless of spot direction.
+
+    For ATM options near expiry:
+      Charm ≈ -Θ / S  (for calls)
+      Charm ≈ Θ / S   (for puts)
+
+    Key implications:
+      - High negative charm → dealers must buy more stock each day
+      - High positive charm → dealers must sell more stock each day
+      - Charm effects peak in the final week before expiration
+
+    Args:
+        delta: Current option delta
+        gamma: Current option gamma
+        theta: Current option theta (daily)
+        net_gamma: Net position gamma for context
+        dte_days: Days to expiration
+
+    Returns:
+        dict with charm_signal, hedging_direction
+    """
+    # Charm = -∂Δ/∂t ≈ -Θ/S for ATM calls
+    # Using theta (already daily) as charm proxy
+    charm = -theta if abs(delta) > 0.3 else 0.0  # meaningful only near ATM
+
+    result: dict[str, Any] = {
+        "charm_value": round(charm, 8),
+        "dte_days": dte_days,
+        "signal": "neutral",
+    }
+
+    # Charm effect amplifies near expiration (DTE < 5 days)
+    near_expiry = dte_days < 5.0
+
+    if charm < -0.01 and near_expiry:
+        result["signal"] = "CHARM_BUYING_PRESSURE"
+        result["interpretation"] = (
+            f"Charm {charm:.4f} near expiry ({dte_days:.0f}d). "
+            "Dealers must BUY more stock daily to maintain delta-neutral. "
+            "Persistent upward drift from charm hedging. "
+            "Per Ni-Pearson 2021: charm effects strongest in final week."
+        )
+    elif charm > 0.01 and near_expiry:
+        result["signal"] = "CHARM_SELLING_PRESSURE"
+        result["interpretation"] = (
+            f"Charm +{charm:.4f} near expiry ({dte_days:.0f}d). "
+            "Dealers must SELL more stock daily to maintain delta-neutral. "
+            "Persistent downward drift from charm hedging."
+        )
+    elif near_expiry:
+        result["signal"] = "CHARM_NEUTRAL_NEAR_EXPIRY"
+        result["interpretation"] = (
+            f"Near expiry but charm near zero. Monitor for acceleration."
+        )
+    else:
+        result["signal"] = "CHARM_NEGLIGIBLE"
+        result["interpretation"] = (
+            f"DTE {dte_days:.0f}d > 5 — charm effects negligible."
+        )
+
+    return result
