@@ -1790,3 +1790,107 @@ def demand_pressure_premium(
         result["estimated_fair_iv"] = round(atm_iv - demand_premium / 10000, 4)
 
     return result
+
+
+def option_illiquidity_signal(
+    option_price_changes: list[float] | None = None,
+    option_dollar_volumes: list[float] | None = None,
+    stock_amihud: float | None = None,
+    bid_ask_spread: float | None = None,
+    open_interest: float = 0.0,
+) -> dict[str, Any]:
+    """Option illiquidity → stock return signal — Goyenko-Ornthanalai-Tang.
+
+    'Option Liquidity and Stock Return Predictability'
+
+    Extends the Amihud (2002) illiquidity measure to options:
+      Option Amihud = |ΔOptionPrice| / OptionDollarVolume
+
+    Key finding: illiquid options predict LOWER stock returns.
+    Stocks with illiquid options underperform by 30-50 bps/month.
+    The effect is strongest for OTM options and near expirations.
+
+    Channel: illiquid options → higher transaction costs → informed
+    traders avoid → less price discovery in options → delayed
+    information flow to stocks.
+
+    Args:
+        option_price_changes: List of daily option price changes
+        option_dollar_volumes: List of daily option dollar volumes
+        stock_amihud: Stock-level Amihud illiquidity (optional, for interaction)
+        bid_ask_spread: Average relative bid-ask spread (optional)
+        open_interest: Total OI for normalization
+
+    Returns:
+        dict with option_amihud, illiquidity_level, return_prediction
+    """
+    result: dict[str, Any] = {
+        "option_amihud": None,
+        "illiquidity_level": "insufficient_data",
+        "return_prediction": "unknown",
+    }
+
+    # Compute option Amihud from daily data
+    if option_price_changes and option_dollar_volumes:
+        n = min(len(option_price_changes), len(option_dollar_volumes))
+        if n > 5:
+            daily_amihuds = []
+            for i in range(n):
+                dv = option_dollar_volumes[i]
+                if dv > 0:
+                    daily_amihuds.append(abs(option_price_changes[i]) / dv)
+            if daily_amihuds:
+                opt_amihud = sum(daily_amihuds) / len(daily_amihuds)
+                result["option_amihud"] = round(opt_amihud, 8)
+                result["n_days"] = len(daily_amihuds)
+    elif bid_ask_spread is not None and bid_ask_spread > 0:
+        # Proxy: wider spread → higher illiquidity
+        result["option_amihud"] = round(bid_ask_spread * 100, 8)
+        result["method"] = "spread_proxy"
+    elif open_interest > 0:
+        # Proxy: lower OI → higher illiquidity
+        # Normalize: illiquidity ∝ 1/OI
+        result["option_amihud"] = round(1.0 / max(open_interest, 1), 8)
+        result["method"] = "oi_proxy"
+    else:
+        result["interpretation"] = "No data for option Amihud computation."
+        return result
+
+    opt_amihud = result.get("option_amihud") or 0
+
+    # Threshold classification (Goyenko-Ornthanalai-Tang):
+    # Option Amihud > 1e-6 → illiquid options → predicts lower returns
+    if opt_amihud > 1e-5:
+        result["illiquidity_level"] = "highly_illiquid"
+        result["return_prediction"] = "bearish"
+        result["expected_underperformance_bps"] = 50
+        interp = (
+            f"Option Amihud={opt_amihud:.2e} — HIGHLY illiquid options. "
+            "Per Goyenko-Ornthanalai-Tang: stocks with illiquid options "
+            "underperform by 30-50 bps/month. Informed traders avoid "
+            "illiquid options → delayed price discovery."
+        )
+    elif opt_amihud > 1e-6:
+        result["illiquidity_level"] = "moderately_illiquid"
+        result["return_prediction"] = "mildly_bearish"
+        result["expected_underperformance_bps"] = 20
+        interp = (
+            f"Option Amihud={opt_amihud:.2e} — moderately illiquid options. "
+            "Mild underperformance expected."
+        )
+    else:
+        result["illiquidity_level"] = "liquid"
+        result["return_prediction"] = "neutral"
+        interp = f"Option Amihud={opt_amihud:.2e} — liquid options. No illiquidity discount."
+
+    result["interpretation"] = interp
+
+    # Interaction with stock illiquidity (double penalty)
+    if stock_amihud and stock_amihud > 1e-6 and opt_amihud > 1e-6:
+        result["double_illiquidity"] = True
+        result["interpretation"] += (
+            f" Stock also illiquid (Amihud={stock_amihud:.2e}) — "
+            "double penalty: both option and stock illiquidity."
+        )
+
+    return result

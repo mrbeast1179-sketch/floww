@@ -550,6 +550,7 @@ async def build_briefing(
     eos_pin_signal = {}
     cw_spread_signal = {}
     gpp_premium_signal = {}
+    gib_pct = 0
     if spot > 0 and not _is_effectively_zero(net_gex):
         try:
             from services.gex_paper_accurate import (
