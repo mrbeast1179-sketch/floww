@@ -11,6 +11,19 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/alerts", tags=["alerts"])
 
+
+def _compute_paper_metrics(snapshot: dict) -> dict:
+    """Compute Barbon-Buraschi paper metrics from alert snapshot."""
+    try:
+        from services.gex_paper_accurate import compute_gamma_imbalance
+        net_gex = snapshot.get("net_gex", 0)
+        spot = snapshot.get("spot_price", 0)
+        if spot > 0:
+            return {"gamma_imbalance": compute_gamma_imbalance(net_gex, spot, adv_shares=10_000_000)}
+    except Exception:
+        pass
+    return {}
+
 # Global alert engine instance
 _alert_engine = None
 
@@ -180,6 +193,7 @@ async def add_snapshot(snapshot: dict[str, Any]):
             "snapshot_stored": True,
             "alerts_detected": len(alerts),
             "alerts": [a.to_dict() for a in alerts],
+            "paper_metrics": _compute_paper_metrics(snapshot) if snapshot else {},
         }
     except Exception as e:
         return JSONResponse(status_code=503, content={"error": str(e)})

@@ -2993,6 +2993,10 @@ from routes.steal_three import router as steal_three_router
 
 app.include_router(steal_three_router, tags=["steal-three"])
 
+from routes.gex_analysis import router as gex_analysis_router
+
+app.include_router(gex_analysis_router, tags=["gex-analysis"])
+
 from routes.heatseeker import router as heatseeker_router
 
 app.include_router(heatseeker_router, tags=["heatseeker"])

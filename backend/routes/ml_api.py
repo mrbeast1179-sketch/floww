@@ -543,6 +543,13 @@ async def ml_briefing(ticker: str) -> dict[str, Any]:
                 result["feature_values"] = {"gex_regime": "positive" if net_gex > 0 else "negative", "net_gex": round(net_gex, 0)}
                 result["data_age_sec"] = 0
                 result["model_type"] = "gex_fallback"
+                # Paper-accurate GEX metrics (Barbon-Buraschi + Ni-Pearson)
+                try:
+                    from services.gex_paper_accurate import compute_gamma_imbalance
+                    gib = compute_gamma_imbalance(net_gex, spot, adv_shares=10_000_000)
+                    result["paper_metrics"] = {"gamma_imbalance": gib}
+                except Exception:
+                    pass
         except Exception as e:
             # PHASE 6 TASK 10 — Decision Queue #1: observability-gap fix at L513.
             # The GEX fallback is optional INSIDE the predict()=DegenerateModelError

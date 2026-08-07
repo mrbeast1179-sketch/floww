@@ -666,3 +666,122 @@ def put_call_ratio_signal(
         "confidence": confidence,
         "interpretation": interp,
     }
+
+
+def stock_order_imbalance_signal(
+    net_delta: float,
+    net_delta_old_spot: float | None = None,
+    net_gamma: float = 0.0,
+    spot: float = 0.0,
+    shares_outstanding: float | None = None,
+) -> dict[str, Any]:
+    """Stock order imbalance from hedge rebalancing — Ni-Pearson appendix §3.
+
+    'Does Option Trading Have a Pervasive Impact on Underlying Stock Prices?'
+    Internet Appendix, Section 3: Effect of Hedge Rebalancing on Directional
+    Stock Price Movements.
+
+    Key formula:
+      HedgeDeltaOI(t-τ,t) = -[netDelta(t-τ, S_t) - netDelta(t-τ, S_{t-τ})]
+      InfoDeltaOI(t-τ,t) = -[netDelta(t, S_t) - netDelta(t-τ, S_t)]
+
+    Where netDelta is the normalized net delta of market makers:
+      netDelta(t,S) = 100 × (1/M_t) × Σ(net_oi_j × Δ_j(t,S)) / N_t
+
+    Findings:
+      - Negative gamma + positive HedgeDeltaOI → dealers buying → momentum UP
+      - Negative gamma + negative HedgeDeltaOI → dealers selling → momentum DOWN
+      - Positive gamma → weak/unclear relationship (dealers stabilize)
+      - Coefficient on HedgeDeltaOI × I_{G-}: 0.791 (t=8.30) for 1990-2001
+
+    Args:
+        net_delta: Today's net delta of market makers at today's spot
+        net_delta_old_spot: Net delta using old OI at today's spot (optional)
+        net_gamma: Net position gamma for sign context
+        spot: Current spot price (for display)
+        shares_outstanding: Shares outstanding for normalization
+
+    Returns:
+        dict with hedge_oi, info_oi, imbalance_signal, predicted_direction
+    """
+    result: dict[str, Any] = {
+        "hedge_delta_oi": None,
+        "info_delta_oi": None,
+        "imbalance_signal": "insufficient_data",
+        "predicted_direction": "unknown",
+        "net_gamma_context": "neutral" if abs(net_gamma) < 1e6 else ("negative" if net_gamma < 0 else "positive"),
+    }
+
+    if net_delta_old_spot is None:
+        result["interpretation"] = (
+            "Insufficient data for HedgeDeltaOI decomposition. "
+            "Need prior net delta recomputed at current spot."
+        )
+        return result
+
+    # HedgeDeltaOI = negative of delta change from spot move (dealers rebalance)
+    # When net_delta decreases (becomes more negative) as spot falls →
+    # HedgeDeltaOI is positive = dealers BUYING stock
+    hedge_oi = -(net_delta - net_delta_old_spot)
+
+    # Net gamma determines whether dealers amplify or dampen
+    has_negative_gamma = net_gamma < -1e6
+    has_positive_gamma = net_gamma > 1e6
+
+    # Interpretation per paper Table 3:
+    # Negative gamma + HedgeDeltaOI > 0 → dealers buying pushes price UP → momentum
+    # Negative gamma + HedgeDeltaOI < 0 → dealers selling pushes price DOWN → momentum
+    # Positive gamma → relationship weak/unclear (dealers stabilize)
+
+    if has_negative_gamma:
+        if hedge_oi > 0.01:
+            result["imbalance_signal"] = "DEALER_BUYING"
+            result["predicted_direction"] = "bullish_momentum"
+            result["interpretation"] = (
+                f"Negative gamma ({net_gamma/1e9:.1f}B) + dealers BUYING stock "
+                f"(HedgeDeltaOI={hedge_oi:.4f}). Per Ni-Pearson Table 3: "
+                "positive feedback — expect upward momentum continuation. "
+                "Coefficient on HedgeDeltaOI×I_{G-}: 0.791 (t=8.30)."
+            )
+        elif hedge_oi < -0.01:
+            result["imbalance_signal"] = "DEALER_SELLING"
+            result["predicted_direction"] = "bearish_momentum"
+            result["interpretation"] = (
+                f"Negative gamma ({net_gamma/1e9:.1f}B) + dealers SELLING stock "
+                f"(HedgeDeltaOI={hedge_oi:.4f}). Per Ni-Pearson Table 3: "
+                "downward momentum from dealer rebalancing."
+            )
+        else:
+            result["imbalance_signal"] = "DEALER_NEUTRAL"
+            result["predicted_direction"] = "neutral"
+            result["interpretation"] = (
+                f"Negative gamma but dealers near delta-neutral. "
+                "No directional pressure from rebalancing."
+            )
+    elif has_positive_gamma:
+        result["imbalance_signal"] = "POSITIVE_GAMMA_STABILIZING"
+        result["predicted_direction"] = "mean_reverting"
+        result["interpretation"] = (
+            f"Positive gamma ({net_gamma/1e9:.1f}B) — dealers stabilize. "
+            f"HedgeDeltaOI={hedge_oi:.4f}. Per Ni-Pearson: weak/unclear "
+            "relationship between delta rebalancing and returns."
+        )
+    else:
+        result["imbalance_signal"] = "NEUTRAL_GAMMA"
+        result["predicted_direction"] = "neutral"
+        result["interpretation"] = (
+            f"Gamma near zero — no strong dealer hedging pressure."
+        )
+
+    result["hedge_delta_oi"] = round(hedge_oi, 6)
+    result["net_gamma"] = round(net_gamma, 2)
+
+    # Return reversal probability per Ni-Pearson: after dealer rebalancing
+    # pushes price, we see reversal next day (coeff -0.022, t=-1.92)
+    if has_negative_gamma and abs(hedge_oi) > 0.01:
+        result["next_day_reversal_probability"] = "moderate"
+        result["reversal_horizon"] = "1-2 days"
+    else:
+        result["next_day_reversal_probability"] = "low"
+
+    return result

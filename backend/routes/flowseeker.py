@@ -1391,6 +1391,16 @@ async def regime(ticker: str):
         tv = await _fetch_tv_signal(sym)
         if tv:
             out["tv_signal"] = tv
+        # Paper-accurate GEX metrics (Barbon-Buraschi ΓIB + flip metrics)
+        try:
+            from services.gex_paper_accurate import compute_gamma_imbalance, compute_flip_metrics
+            if total_gex and spot and spot > 0:
+                out["paper_metrics"] = {
+                    "gamma_imbalance": compute_gamma_imbalance(total_gex, spot, adv_shares=10_000_000),
+                    "flip_metrics": compute_flip_metrics(spot, flip, total_gex),
+                }
+        except Exception:
+            pass
         return out
     except Exception as e:
         logger.warning(f"regime failed for {sym}: {e}")
