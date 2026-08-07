@@ -700,6 +700,6 @@ async def build_briefing(
             # Cremers-Weinbaum (2010) — Put-Call Parity deviation
             "cw_spread": cw_spread_signal,
             # Christensen-Oomen-Reno (2018) — real drift burst from returns
-            "real_drift_burst": real_drift_burst_risk([], gamma_imbalance_pct=gib_pct) if gib_pct != 0 else {},
+            "real_drift_burst": {},
         },
     )
