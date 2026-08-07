@@ -544,6 +544,8 @@ async def build_briefing(
     charm_signal = {}
     liquidity_signal = {}
     gamma_liq_signal = {}
+    demand_signal = {}
+    burst_signal = {}
     if spot > 0 and not _is_effectively_zero(net_gex):
         try:
             from services.gex_paper_accurate import (
@@ -619,8 +621,8 @@ async def build_briefing(
             "dealer_liquidity_impact": liquidity_signal,
             "gamma_liquidity_regime": gamma_liq_signal,
             # Gârleanu-Pedersen-Poteshman (2008) demand pressure
-            "option_demand_pressure": demand_signal if 'demand_signal' in dir() else {},
+            "option_demand_pressure": demand_signal,
             # Christensen-Oomen-Reno (2018) drift burst risk
-            "drift_burst_risk": burst_signal if 'burst_signal' in dir() else {},
+            "drift_burst_risk": burst_signal,
         },
     )
