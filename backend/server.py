@@ -665,10 +665,20 @@ async def tap_counts(ticker: str, strikes: list[float], days: int = 5) -> dict[f
 
 TRINITY = ["^SPX", "SPY", "QQQ"]
 DEFAULT_TICKERS = ["SPY", "QQQ", "^SPX", "IWM", "AAPL", "NVDA", "TSLA", "META", "AMZN", "MSFT", "GOOGL", "AMD", "KO", "XOM", "GM", "MCD", "^VIX"]
-POPULAR_UNIVERSE = ["AAPL", "NVDA", "TSLA", "META", "AMZN", "MSFT", "GOOGL", "AMD", "AVGO", "NFLX",
-                    "COIN", "PLTR", "MU", "SMCI", "BABA", "CRM", "ORCL", "GME", "AMC", "INTC",
-                    "DIS", "BA", "JPM", "GS", "XOM", "UBER", "SHOP", "SOFI", "F", "MARA",
-                    "KO", "GM", "MCD", "^VIX"]
+POPULAR_UNIVERSE = [
+    # Mega Cap Tech
+    "AAPL", "MSFT", "GOOGL", "AMZN", "META", "NVDA", "TSLA", "AMD", "AVGO", "NFLX",
+    "CRM", "INTC", "ORCL", "TXN", "ADBE", "SNAP", "PANW", "TEAM", "DOCU", "NOW",
+    # Growth & AI
+    "SMCI", "MU", "PLTR", "COIN", "MARA", "RIVN", "LCID", "HOOD", "SOFI", "UPWK",
+    "SQ", "PINS", "SHOP", "TWLO", "DDOG", "OKTA", "PSTG", "NET", "PATH", "VEEV",
+    # Financials & Industrials
+    "JPM", "GS", "MS", "WFC", "BAC", "C", "BLK", "SPGI", "BA", "LMT", "UNP", "UPS", "FDX",
+    # Energy & Materials
+    "XOM", "CVX", "COP", "SLB", "VLO", "MPC", "PSX", "APD", "NCLH", "GM", "F", "T",
+    # Consumer Staples
+    "KO", "PEP", "MCD", "WMT", "COST", "BABA", "MRNA", "BIDU", "JD", "PDD"
+]
 
 PATTERN_GLOSSARY = {
     "gamma_flip": {"name": "Gamma Flip", "description": "The spot price level where total GEX flips from positive to negative."},
@@ -853,12 +863,20 @@ async def _build_heatmap_impl(ticker: str, max_expiries: int = 4, with_taps: boo
         grid = compute_gex_grid(spot, raw["contracts"], ticker)
 
     # Band: scalp=±2%, day=±15%, swing=±25%
+    # Dynamic band based on price level: wider bands for low-priced stocks
     if scalp:
         band = 0.02
     elif mode == "swing":
         band = 0.25
     else:
-        band = 0.15
+        base_band = 0.15
+        # Widen band for low-priced stocks (under $50)
+        if spot < 50:
+            band = max(base_band, 0.40)  # At least ±40% for low-priced
+        elif spot < 100:
+            band = max(base_band, 0.30)  # At least ±30% for mid-priced
+        else:
+            band = base_band
 
     strikes = [s for s in strikes if abs(s["strike"] - spot) / spot <= band]
     if not scalp:
