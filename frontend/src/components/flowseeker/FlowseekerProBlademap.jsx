@@ -1244,7 +1244,7 @@ export default function FlowseekerProBlademap({ active = true }) {
                     ))}
                   </tr></thead>
                   <tbody>
-                    {scanRows.slice(0, advanced ? 200 : 50).map((r, i) => {
+                    {scanRows.map((r, i) => {
                       const isCall = r.type === "call";
                       const otm = r.delta == null ? "" : (Math.abs(r.delta) < 0.45 ? "OTM" : "ITM");
                       return (

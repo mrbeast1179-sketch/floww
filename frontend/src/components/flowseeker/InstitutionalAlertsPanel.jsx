@@ -45,7 +45,7 @@ import {
   TREND_COLOR,
 } from "./convictionUi";
 
-export default function InstitutionalAlertsPanel({ active = true, days = 7, limit = 24 }) {
+export default function InstitutionalAlertsPanel({ active = true, days = 7, limit = 100 }) {
   const { data: feedData, loading: feedLoading, error: feedError, refresh: refreshFeed } = useFlowseeker(
     "alerts/feed", { days, ticker: "", refreshMs: 12_000, skip: !active }
   );

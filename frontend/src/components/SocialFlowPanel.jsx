@@ -102,7 +102,7 @@ export function SocialFlowPanel({ ticker }) {
             <div>
               <div className="label mb-1">Flow Signals ({report.flow_signals.length})</div>
               <div className="space-y-1 max-h-32 overflow-y-auto">
-                {report.flow_signals.slice(0, 10).map((signal, i) => (
+                {report.flow_signals.slice(0, 50).map((signal, i) => (
                   <div key={i} className="bg-slate-800/40 rounded px-2 py-1 text-[9px] flex items-center justify-between">
                     <div className="flex items-center gap-1.5">
                       <span className={signal.option_type === "call" ? "text-teal-400" : "text-purple-400"}>
