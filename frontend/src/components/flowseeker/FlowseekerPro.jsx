@@ -299,7 +299,7 @@ export default function FlowseekerPro({ active = true }) {
           persisted alerts (spread demoted, CW-confirmed, BH-FDR-screened,
           prime-bracketed). Subscribes to /alerts/feed + /alerts/quality and
           surfaces every tier, chip, and the calibration strip. */}
-      <InstitutionalAlertsPanel active={active} days={7} limit={24} />
+      <InstitutionalAlertsPanel active={active} days={7} limit={100} />
 
       <FilterBar filters={filters} onChange={setFilters} onReset={handleReset} />
       <StatsBar events={filtered} />

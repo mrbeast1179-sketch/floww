@@ -94,7 +94,7 @@ describe("InstitutionalAlertsPanel — tier-lock sigil (v3.x)", () => {
         BRONZE: { engaged: false, locked_hit_rate: null, locked_at: null },
       },
     });
-    render(<InstitutionalAlertsPanel active={true} days={7} limit={24} />);
+    render(<InstitutionalAlertsPanel active={true} days={7} limit={100} />);
     // The chip carries role=status + aria-label carrying the rate + locked_at.
     const sigil = screen.getByRole("status", { name: /Tier lock engaged for GOLD/i });
     expect(sigil).toBeInTheDocument();
@@ -118,7 +118,7 @@ describe("InstitutionalAlertsPanel — tier-lock sigil (v3.x)", () => {
         BRONZE: { engaged: false, locked_hit_rate: null, locked_at: null },
       },
     });
-    render(<InstitutionalAlertsPanel active={true} days={7} limit={24} />);
+    render(<InstitutionalAlertsPanel active={true} days={7} limit={100} />);
     expect(screen.queryByRole("status", { name: /Tier lock engaged/i })).toBeNull();
   });
 
@@ -128,7 +128,7 @@ describe("InstitutionalAlertsPanel — tier-lock sigil (v3.x)", () => {
       qualityWindows: goldSilverBronzeWindows(0.62),
       // tierLocks intentionally omitted.
     });
-    render(<InstitutionalAlertsPanel active={true} days={7} limit={24} />);
+    render(<InstitutionalAlertsPanel active={true} days={7} limit={100} />);
     expect(screen.queryByRole("status", { name: /Tier lock engaged/i })).toBeNull();
   });
 
@@ -149,7 +149,7 @@ describe("InstitutionalAlertsPanel — tier-lock sigil (v3.x)", () => {
         BRONZE: { engaged: false, locked_hit_rate: null, locked_at: null },
       },
     });
-    render(<InstitutionalAlertsPanel active={true} days={7} limit={24} />);
+    render(<InstitutionalAlertsPanel active={true} days={7} limit={100} />);
     expect(screen.queryByRole("status", { name: /Tier lock engaged/i })).toBeNull();
   });
 
@@ -170,7 +170,7 @@ describe("InstitutionalAlertsPanel — tier-lock sigil (v3.x)", () => {
         BRONZE: { engaged: false, locked_hit_rate: null, locked_at: null },
       },
     });
-    render(<InstitutionalAlertsPanel active={true} days={7} limit={24} />);
+    render(<InstitutionalAlertsPanel active={true} days={7} limit={100} />);
     const sigils = screen.getAllByRole("status", { name: /Tier lock engaged/i });
     // Exactly ONE chip on the strip — the SILVER one. Both the GOLD and
     // BRONZE qcells must NOT contribute a chip.
