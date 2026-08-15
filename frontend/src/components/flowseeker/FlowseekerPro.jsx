@@ -54,6 +54,16 @@ function mapPrintToRow(print) {
   };
 }
 
+// Helper: Map timeRange to date parameter for historical queries
+function getDateParam(timeRange) {
+  if (timeRange === 'yesterday') {
+    const d = new Date();
+    d.setDate(d.getDate() - 1);
+    return d.toISOString().split('T')[0];
+  }
+  return null; // today = live data
+}
+
 // ── Filter Bar ───────────────────────────────────────────────────────
 function FilterBar({ filters, onChange, onReset }) {
   const set = (k, v) => onChange({ ...filters, [k]: v });
@@ -90,7 +100,9 @@ function FilterBar({ filters, onChange, onReset }) {
         <input type="number" className="fsp-input-sm" value={filters.otmMax} onChange={e => set('otmMax', +e.target.value)} placeholder="50" />
       </div>
       <select className="fsp-select" value={filters.timeRange} onChange={e => set('timeRange', e.target.value)}>
-        <option value="today">Today</option><option value="1h">Last Hour</option>
+        <option value="today">Today</option>
+        <option value="yesterday">Yesterday</option>
+        <option value="1h">Last Hour</option>
         <option value="30m">Last 30min</option><option value="pre">Pre-Market</option>
         <option value="after">After-Hours</option>
       </select>
@@ -212,8 +224,9 @@ export default function FlowseekerPro({ active = true }) {
     error: liveError,
     refresh: refreshLive,
   } = useFlowseeker('live', {
-    refreshMs: active ? 5000 : 0,
+    refreshMs: active && filters.timeRange !== 'yesterday' ? 5000 : 0,
     skip: !active,
+    date: getDateParam(filters.timeRange),
     limit: 300,
   });
 
