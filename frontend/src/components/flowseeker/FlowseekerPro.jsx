@@ -56,12 +56,34 @@ function mapPrintToRow(print) {
 
 // Helper: Map timeRange to date parameter for historical queries
 function getDateParam(timeRange) {
-  if (timeRange === 'yesterday') {
-    const d = new Date();
-    d.setDate(d.getDate() - 1);
-    return d.toISOString().split('T')[0];
+  const now = new Date();
+  switch(timeRange) {
+    case 'yesterday':
+      const d1 = new Date(now);
+      d1.setDate(now.getDate() - 1);
+      return d1.toISOString().split('T')[0];
+    case '2_days_ago':
+      const d2 = new Date(now);
+      d2.setDate(now.getDate() - 2);
+      return d2.toISOString().split('T')[0];
+    case '3_days_ago':
+      const d3 = new Date(now);
+      d3.setDate(now.getDate() - 3);
+      return d3.toISOString().split('T')[0];
+    default:
+      return null;
   }
-  return null; // today = live data
+}
+
+// Helper: Get human-readable label for timeRange
+function getTimeRangeLabel(timeRange) {
+  switch(timeRange) {
+    case 'yesterday': return 'Yesterday';
+    case '2_days_ago': return '2 Days Ago';
+    case '3_days_ago': return '3 Days Ago';
+    case 'today': return 'Today (Live)';
+    default: return timeRange.replace('_', ' ').split(' ')[0];
+  }
 }
 
 // ── Filter Bar ───────────────────────────────────────────────────────
@@ -100,8 +122,10 @@ function FilterBar({ filters, onChange, onReset }) {
         <input type="number" className="fsp-input-sm" value={filters.otmMax} onChange={e => set('otmMax', +e.target.value)} placeholder="50" />
       </div>
       <select className="fsp-select" value={filters.timeRange} onChange={e => set('timeRange', e.target.value)}>
-        <option value="today">Today</option>
+        <option value="today">Today (Live)</option>
         <option value="yesterday">Yesterday</option>
+        <option value="2_days_ago">2 Days Ago</option>
+        <option value="3_days_ago">3 Days Ago</option>
         <option value="1h">Last Hour</option>
         <option value="30m">Last 30min</option><option value="pre">Pre-Market</option>
         <option value="after">After-Hours</option>
@@ -224,7 +248,7 @@ export default function FlowseekerPro({ active = true }) {
     error: liveError,
     refresh: refreshLive,
   } = useFlowseeker('live', {
-    refreshMs: active && filters.timeRange !== 'yesterday' ? 5000 : 0,
+    refreshMs: active && !['yesterday', '2_days_ago', '3_days_ago'].includes(filters.timeRange) ? 5000 : 0,
     skip: !active,
     date: getDateParam(filters.timeRange),
     limit: 300,
