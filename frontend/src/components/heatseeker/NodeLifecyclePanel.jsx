@@ -18,7 +18,7 @@ function stateClass(state) {
 
 export default function NodeLifecyclePanel({ ticker = "SPY" }) {
   const { data, loading, error } = useHeatseeker("node-lifecycle", { ticker });
-  const nodes = (data?.nodes || []).slice(0, 10);
+  const nodes = (data?.nodes || []).slice(0, 25);
 
   return (
     <div className="rounded-xl border border-slate-700/30 bg-slate-800/20 p-3" data-testid="hs-node-lifecycle">
@@ -27,7 +27,7 @@ export default function NodeLifecyclePanel({ ticker = "SPY" }) {
           <span className="text-sm">🔄</span>
           <span className="text-xs font-semibold text-slate-200">Node Lifecycle</span>
         </div>
-        <span className="text-[10px] text-slate-500">{nodes.length} of top-10</span>
+        <span className="text-[10px] text-slate-500">{nodes.length} of top-25</span>
       </div>
       {loading && !data && <div className="text-slate-500 text-xs">Loading…</div>}
       {error && <div className="text-rose-400 text-[10px]">Error: {error}</div>}
