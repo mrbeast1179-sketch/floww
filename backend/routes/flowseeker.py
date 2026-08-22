@@ -1574,3 +1574,85 @@ async def regime(ticker: str):
         logger.warning(f"regime failed for {sym}: {e}")
         return {"ticker": sym, "current_state": "RANGING", "confidence": 0.0,
                 "is_warming": True, "error": str(e)}
+
+
+# ── Signal-to-trade bridge: alerts → paper trades + journal seeds ──
+
+@router.get("/auto-trade/preview")
+async def auto_trade_preview(
+    tier: str = Query("SILVER", pattern="^(GOLD|SILVER|BRONZE)$"),
+    min_dte: int = Query(2, ge=0, le=180),
+    equity: float = Query(100000.0, gt=0),
+    days: int = Query(2, ge=1, le=30),
+):
+    """Preview which current institutional alerts would become paper trades.
+    Read-only — no orders placed. Gates: tier floor, BUY-side directional
+    claims only, DTE >= min_dte (skips 0DTE), one trade per contract."""
+    from services import flow_alerts as fa
+    from services.duckdb_engine import db as duckdb_engine
+    from services.flow_trade_bridge import build_auto_trades
+
+    fa.init_flow_alert_tables(duckdb_engine)
+    alerts = fa.read_alert_feed(duckdb_engine, days=days)
+    trades = build_auto_trades(alerts, account_equity=equity,
+                               min_tier=tier, min_dte=min_dte)
+    return {"trades": trades, "count": len(trades),
+            "gates": {"min_tier": tier, "min_dte": min_dte, "equity": equity}}
+
+
+@router.post("/auto-trade/execute")
+async def auto_trade_execute(
+    confirm: bool = Query(False),
+    tier: str = Query("SILVER", pattern="^(GOLD|SILVER|BRONZE)$"),
+    min_dte: int = Query(2, ge=0, le=180),
+    equity: float = Query(100000.0, gt=0),
+    days: int = Query(2, ge=1, le=30),
+):
+    """Execute the previewed trades through the paper-trading engine and
+    return journal seed entries for the frontend to persist into
+    floww_trades_v2. Requires ?confirm=true (two-step arm/fire)."""
+    if not confirm:
+        raise HTTPException(400, "execute requires ?confirm=true — preview first with GET /auto-trade/preview")
+
+    from services import flow_alerts as fa
+    from services.duckdb_engine import db as duckdb_engine
+    from services.flow_trade_bridge import build_auto_trades
+
+    fa.init_flow_alert_tables(duckdb_engine)
+    alerts = fa.read_alert_feed(duckdb_engine, days=days)
+    trades = build_auto_trades(alerts, account_equity=equity,
+                               min_tier=tier, min_dte=min_dte)
+
+    executed, rejected, journal_seeds = [], [], []
+    try:
+        from server import _paper_engine
+        engine = _paper_engine
+    except Exception:
+        engine = None
+
+    for t in trades:
+        order_payload = t["order"]
+        journal_seeds.append(t["journal_entry"])
+        if engine is None:
+            executed.append({"ckey": t["ckey"], "status": "no_paper_engine",
+                             "reason": "paper trading engine not initialized"})
+            continue
+        try:
+            result = engine.submit_order(
+                symbol=order_payload["symbol"],
+                side=order_payload["side"],
+                quantity=order_payload["quantity"],
+                order_type=order_payload.get("order_type", "market"),
+            )
+            result["ckey"] = t["ckey"]
+            executed.append(result)
+        except Exception as e:
+            logger.warning("auto-trade submit failed for %s: %s", t["ckey"], e)
+            rejected.append({"ckey": t["ckey"], "error": str(e)})
+
+    ok = sum(1 for r in executed if r.get("status") == "accepted")
+    return {
+        "executed": executed, "rejected": rejected,
+        "journal_seeds": journal_seeds,
+        "count": len(trades), "accepted": ok,
+    }
