@@ -478,6 +478,16 @@ _SCAN_TTL = float(os.environ.get("CV_SCAN_TTL", "240"))
 _scan_backoff = {"until": 0.0, "delay": 30.0}    # exponential, capped at 600s
 _scan_lock = asyncio.Lock()                       # single-flight for upstream screen calls
 _last_force_refresh = 0.0                         # debounce force refresh
+# Strong refs to fire-and-forget tasks — unreferenced tasks can be GC'd
+# mid-flight (CPython docs), nondeterministically dropping baseline/alert writes.
+_flow_bg_tasks: set[asyncio.Task] = set()
+
+
+def _spawn_bg(coro) -> None:
+    """create_task + strong-ref bookkeeping (the server.py pattern)."""
+    t = asyncio.get_running_loop().create_task(coro)
+    _flow_bg_tasks.add(t)
+    t.add_done_callback(_flow_bg_tasks.discard)
 
 
 def _cached_regimes() -> dict[str, str]:
@@ -840,8 +850,8 @@ async def market_scan(
                 _scan_backoff["until"] = 0.0
                 asof = datetime.now().isoformat()
                 _scan_cache[cache_key] = {"ts": now, "data": rows, "asof": asof}
-                asyncio.get_running_loop().create_task(_record_scan_baseline(rows))
-                asyncio.get_running_loop().create_task(_run_institutional_alerts(rows))
+                _spawn_bg(_record_scan_baseline(rows))
+                _spawn_bg(_run_institutional_alerts(rows))
                 out = _scan_payload(rows, False, asof, columns, cache_age=0)
                 out["baselines"] = await _volume_baselines()
                 out["prev_oi"] = await _prev_contract_oi()
@@ -885,6 +895,18 @@ async def force_refresh_scan(
     if not _budget_take("scan"):
         frees = _budget_state(now)["frees_in"]
         raise HTTPException(503, f"cvforge hourly budget spent — next slot in ~{frees}s")
+
+    # Single-flight: a force refresh must serialize against market_scan —
+    # both mutate _scan_backoff/_scan_cache/budget; concurrent runs meant two
+    # upstream calls for one slot and last-writer-wins on the cache.
+    async with _scan_lock:
+        return await _force_refresh_locked(min_volume, limit, columns, cache_key)
+
+
+async def _force_refresh_locked(min_volume: int, limit: int,
+                                columns: list[str], cache_key: str):
+    """Upstream body of force_refresh_scan — caller holds _scan_lock."""
+    now = time.time()
     headers = {
         "Content-Type": "application/json",
         "Authorization": f"Bearer {CVFORGE_API_KEY}",
@@ -907,11 +929,7 @@ async def force_refresh_scan(
         async with httpx.AsyncClient(timeout=CVFORGE_TIMEOUT) as client:
             resp = await client.post(CVFORGE_URL, json=payload, headers=headers)
             if resp.status_code == 429:
-                if "hourly" in (resp.text or "").lower():
-                    _scan_backoff["until"] = _hourly_backoff_until(now)
-                else:
-                    _scan_backoff["until"] = now + _scan_backoff["delay"]
-                    _scan_backoff["delay"] = min(_scan_backoff["delay"] * 2, 600.0)
+                _register_scan_429(now, resp.text)
                 raise HTTPException(503, "cvserver rate-limited (429) — force refresh backed off")
             if resp.status_code != 200:
                 raise HTTPException(502, f"cvserver returned {resp.status_code}")
@@ -926,8 +944,8 @@ async def force_refresh_scan(
             _scan_backoff["until"] = 0.0
             asof = datetime.now().isoformat()
             _scan_cache[cache_key] = {"ts": now, "data": rows, "asof": asof}
-            asyncio.get_running_loop().create_task(_record_scan_baseline(rows))
-            asyncio.get_running_loop().create_task(_run_institutional_alerts(rows))
+            _spawn_bg(_record_scan_baseline(rows))
+            _spawn_bg(_run_institutional_alerts(rows))
             return _scan_payload(rows, False, asof, columns, cache_age=0)
     except HTTPException:
         raise

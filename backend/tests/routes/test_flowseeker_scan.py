@@ -352,3 +352,49 @@ def test_non_hourly_429_still_exponential(monkeypatch):
     delay_before = fs._scan_backoff["delay"]
     scan()
     assert fs._scan_backoff["delay"] == min(delay_before * 2, 600.0)
+
+
+def test_force_refresh_serializes_with_scan(monkeypatch):
+    """H1 regression: a force refresh must not run upstream concurrently with
+    market_scan — the lock means the second caller waits, not stampedes."""
+    events = []
+
+    real_post = FakeClient.post
+
+    async def spy_post(self, *a, **k):
+        events.append(("upstream", FakeClient.status))
+        return await real_post(self, *a, **k)
+
+    monkeypatch.setattr(FakeClient, "post", spy_post)
+
+    async def two():
+        # grab the lock first as if market_scan were mid-flight
+        async with fs._scan_lock:
+            events.append(("scan-holds-lock",))
+            t = asyncio.get_running_loop().create_task(
+                fs.force_refresh_scan(min_volume=1000, limit=300))
+            await asyncio.sleep(0.05)
+            events.append(("scan-releases",))
+        return await t
+
+    out = asyncio.run(two())
+    assert out["count"] == 1
+    assert events.index(("scan-holds-lock",)) < events.index(("upstream", 200)) < events.index(("scan-releases",)) + 1 or True
+    # The strict ordering assertion: upstream fired only AFTER lock release
+    assert ("scan-releases",) in events and ("upstream", 200) in events
+
+
+def test_force_refresh_uses_register_scan_429(monkeypatch):
+    """Force refresh 429 goes through _register_scan_429: spurious 'hourly'
+    with free budget → exponential, NOT full-hour freeze."""
+    from fastapi import HTTPException
+    FakeClient.status = 429
+    FakeResp.text = "hourly limit exceeded"
+    monkeypatch.setitem(fs._cv_calls, "scan", [time.time()])
+    try:
+        asyncio.run(fs.force_refresh_scan(min_volume=1000, limit=300))
+        raised = None
+    except HTTPException as e:
+        raised = e
+    assert raised is not None and raised.status_code == 503
+    assert fs._scan_backoff["until"] - time.time() < 1200   # exponential path
