@@ -34,7 +34,8 @@ describe("BeachBallIndicator", () => {
       refresh: jest.fn(),
     });
     render(<BeachBallIndicator ticker="SPY" />);
-    expect(screen.getByText(/● active/i)).toBeInTheDocument();
-    expect(screen.getByText("500")).toBeInTheDocument();
+    // v2 pill reads "ACTIVE" (no ● glyph), split across the pulse dot span.
+    expect(screen.getByText("ACTIVE")).toBeInTheDocument();
+    expect(screen.getByText((_, el) => el?.textContent === "$500")).toBeInTheDocument();
   });
 });

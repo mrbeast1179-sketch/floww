@@ -33,7 +33,8 @@ describe("TugOfWarZonesPanel", () => {
     });
     render(<TugOfWarZonesPanel ticker="SPY" spot={500} />);
     expect(screen.getByText("Tug-of-War Zones")).toBeInTheDocument();
-    expect(screen.getByText(/● active/i)).toBeInTheDocument();
+    // v2 pill reads "ACTIVE" (no ● glyph), split across the pulse dot span.
+    expect(screen.getByText("ACTIVE")).toBeInTheDocument();
     expect(screen.getByText(/balanced — tug of war/i)).toBeInTheDocument();
   });
 

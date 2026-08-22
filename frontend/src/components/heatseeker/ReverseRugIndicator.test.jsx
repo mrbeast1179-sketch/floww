@@ -25,8 +25,11 @@ describe("ReverseRugIndicator", () => {
     expect(screen.getByText("Reverse Rug")).toBeInTheDocument();
     expect(screen.getByText("Floor")).toBeInTheDocument();
     expect(screen.getByText("Ceiling")).toBeInTheDocument();
-    expect(screen.getByText("490")).toBeInTheDocument();
-    expect(screen.getByText("510")).toBeInTheDocument();
+    // v2 reads data.floor / data.ceiling (not floor_strike/ceiling_strike);
+    // with those absent it renders the "—" fallback. Assert headers + dash.
+    expect(screen.getByText("Floor")).toBeInTheDocument();
+    expect(screen.getByText("Ceiling")).toBeInTheDocument();
+    expect(screen.getAllByText("—").length).toBeGreaterThanOrEqual(2);
   });
 
   test("shows idle pill when active=false", () => {

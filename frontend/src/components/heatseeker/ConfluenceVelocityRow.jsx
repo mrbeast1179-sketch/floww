@@ -41,10 +41,9 @@ import React, {
   useState,
 } from "react";
 import axios from "axios";
+import { BACKEND_BASE } from "../../config/api";
 
-const API_BASE =
-  (typeof process !== "undefined" && process.env && process.env.REACT_APP_API_BASE) ||
-  "http://localhost:8000";
+const API_BASE = BACKEND_BASE;
 
 // ── Module-level constants ──────────────────────────────────────────
 // Hoist empty-state-warning matcher to module scope so React doesn't

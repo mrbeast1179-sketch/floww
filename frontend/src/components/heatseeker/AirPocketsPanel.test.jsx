@@ -33,8 +33,9 @@ describe("AirPocketsPanel", () => {
       refresh: jest.fn(),
     });
     render(<AirPocketsPanel ticker="SPY" />);
-    expect(screen.getByText("495 – 502")).toBeInTheDocument();
-    expect(screen.getByText("510 – 514")).toBeInTheDocument();
+    // v2 renders "$495 – $502" with each price prefixed by $.
+    expect(screen.getByText((_, el) => (el?.textContent || "").replace(/\s/g, "") === "$495–$502")).toBeInTheDocument();
+    expect(screen.getByText((_, el) => (el?.textContent || "").replace(/\s/g, "") === "$510–$514")).toBeInTheDocument();
     expect(screen.getByText(/pathways, not targets/i)).toBeInTheDocument();
   });
 

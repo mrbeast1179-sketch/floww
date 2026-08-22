@@ -31,8 +31,8 @@ describe("StackedNodesPanel", () => {
     });
     render(<StackedNodesPanel ticker="SPY" />);
     expect(screen.getByText("Stacked Nodes")).toBeInTheDocument();
-    expect(screen.getByText("500")).toBeInTheDocument();
-    expect(screen.getByText("505")).toBeInTheDocument();
+    expect(screen.getByText((_, el) => el?.textContent === "$500")).toBeInTheDocument();
+    expect(screen.getByText((_, el) => el?.textContent === "$505")).toBeInTheDocument();
     expect(screen.getByText(/two-sided dealer footprint/i)).toBeInTheDocument();
   });
 

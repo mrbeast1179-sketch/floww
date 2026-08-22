@@ -36,8 +36,10 @@ describe("FlipZonesPanel", () => {
       refresh: jest.fn(),
     });
     render(<FlipZonesPanel ticker="SPY" spot={500} />);
-    expect(screen.getByText("502.0")).toBeInTheDocument();
-    expect(screen.getByText("495.0")).toBeInTheDocument();
+    // Price renders as "$" + formatted number in one span — match the
+    // combined accessible text, not the split text nodes.
+    expect(screen.getByText((_, el) => el?.textContent === "$502.0")).toBeInTheDocument();
+    expect(screen.getByText((_, el) => el?.textContent === "$495.0")).toBeInTheDocument();
   });
 
   test("shows empty-state message when no flip zones", () => {

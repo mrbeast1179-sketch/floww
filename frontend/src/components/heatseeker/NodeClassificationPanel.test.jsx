@@ -32,10 +32,16 @@ describe("NodeClassificationPanel", () => {
     });
     render(<NodeClassificationPanel ticker="SPY" />);
     expect(screen.getByText("Node Classification")).toBeInTheDocument();
-    expect(screen.getByText(/real \(1\)/i)).toBeInTheDocument();
-    expect(screen.getByText(/hedge \(1\)/i)).toBeInTheDocument();
-    expect(screen.getByText("505")).toBeInTheDocument();
-    expect(screen.getByText("495")).toBeInTheDocument();
+    // v2 headers: "Real (N)" with count in nested element — match on the
+    // column div's combined textContent.
+    expect(screen.getByText((_, el) =>
+      el?.className?.includes?.("text-emerald-400") && /real\s*\(\s*1\s*\)/i.test(el.textContent || "")
+    )).toBeInTheDocument();
+    expect(screen.getByText((_, el) =>
+      el?.className?.includes?.("text-amber-400") && /hedge\s*\(\s*1\s*\)/i.test(el.textContent || "")
+    )).toBeInTheDocument();
+    expect(screen.getByText((_, el) => el?.textContent === "$505")).toBeInTheDocument();
+    expect(screen.getByText((_, el) => el?.textContent === "$495")).toBeInTheDocument();
   });
 
   test("renders empty columns when no nodes", () => {
@@ -46,7 +52,7 @@ describe("NodeClassificationPanel", () => {
       refresh: jest.fn(),
     });
     render(<NodeClassificationPanel ticker="SPY" />);
-    expect(screen.getByText(/real \(0\)/i)).toBeInTheDocument();
-    expect(screen.getByText(/hedge \(0\)/i)).toBeInTheDocument();
+    // Empty state: v2 collapses to "No classified nodes" + the R/H counter.
+    expect(screen.getByText("No classified nodes")).toBeInTheDocument();
   });
 });

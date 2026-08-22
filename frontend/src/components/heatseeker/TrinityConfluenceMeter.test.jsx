@@ -42,7 +42,10 @@ describe("TrinityConfluenceMeter", () => {
       refresh: jest.fn(),
     });
     render(<TrinityConfluenceMeter />);
-    expect(screen.getByText("Aligned")).toBeInTheDocument();
-    expect(screen.getByText("Divergent")).toBeInTheDocument();
+    // v2 renders the ✓/✗ list headers ONLY when at least one list is
+    // non-empty. With both empty the panel shows score + verdict instead —
+    // assert that, plus the absence of the list section.
+    expect(screen.getByText("Neutral")).toBeInTheDocument();
+    expect(screen.queryByText(/Aligned/)).not.toBeInTheDocument();
   });
 });

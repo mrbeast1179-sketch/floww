@@ -23,8 +23,10 @@ describe("RainbowRoadIndicator", () => {
     });
     render(<RainbowRoadIndicator ticker="SPY" />);
     expect(screen.getByText("Rainbow Road")).toBeInTheDocument();
-    expect(screen.getByText("42.0%")).toBeInTheDocument();
-    expect(screen.getByText("5")).toBeInTheDocument();
+    // v2 markup: active state shows the CHAOS pill + no-dominant-structure
+    // warning (top_strike_share / n_strikes are no longer displayed).
+    expect(screen.getByText("CHAOS")).toBeInTheDocument();
+    expect(screen.getByText("⚠️ No Dominant Structure")).toBeInTheDocument();
   });
 
   test("renders concentrated empty hint when n=0", () => {
@@ -35,6 +37,7 @@ describe("RainbowRoadIndicator", () => {
       refresh: jest.fn(),
     });
     render(<RainbowRoadIndicator ticker="SPY" />);
-    expect(screen.getByText(/concentrated/i)).toBeInTheDocument();
+    // Idle state shows the structure-detected card.
+    expect(screen.getByText("Structure Detected")).toBeInTheDocument();
   });
 });

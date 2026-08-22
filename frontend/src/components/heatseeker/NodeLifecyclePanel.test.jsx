@@ -33,8 +33,8 @@ describe("NodeLifecyclePanel", () => {
       refresh: jest.fn(),
     });
     render(<NodeLifecyclePanel ticker="SPY" />);
-    expect(screen.getByText("500")).toBeInTheDocument();
-    expect(screen.getByText("510")).toBeInTheDocument();
+    expect(screen.getByText((_, el) => el?.textContent === "$500")).toBeInTheDocument();
+    expect(screen.getByText((_, el) => el?.textContent === "$510")).toBeInTheDocument();
     expect(screen.getByText("fresh")).toBeInTheDocument();
     expect(screen.getByText("tested")).toBeInTheDocument();
   });
