@@ -1,0 +1,40 @@
+# deploy/free/Caddyfile
+# Caddy reverse proxy — auto-HTTPS via Let's Encrypt (zero config, free).
+# DOMAIN comes from the environment (set in docker-compose / .env.prod).
+
+{
+    email {$ADMIN_EMAIL}
+}
+
+{$DOMAIN} {
+    encode zstd gzip
+
+    # API routes → FastAPI
+    handle /api/* {
+        reverse_proxy backend:8000
+    }
+
+    # WebSocket routes → FastAPI (upgrade headers handled automatically)
+    handle /ws/* {
+        reverse_proxy backend:8000
+    }
+
+    # Dash UI → FastAPI
+    handle /dashboard/* {
+        reverse_proxy backend:8000
+    }
+
+    # Static assets (hashed filenames → cache forever)
+    handle /static/* {
+        root * /srv/static
+        file_server
+        header Cache-Control "public, max-age=31536000, immutable"
+    }
+
+    # Default → React build (SPA fallback)
+    handle {
+        root * /srv/static
+        try_files {path} /index.html
+        file_server
+    }
+}

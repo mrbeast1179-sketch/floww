@@ -1,0 +1,76 @@
+# deploy/free/docker-compose.yml
+# Free-tier production stack for Confluence Decoder (single ARM VM)
+# Usage on server: DOMAIN=your.domain docker compose up -d --build
+# (or DOMAIN=your.domain docker compose --env-file .env.prod up -d --build)
+
+services:
+  # ── MongoDB (local container, no Atlas needed for friend-scale) ────────────
+  mongo:
+    image: mongo:7
+    restart: unless-stopped
+    volumes:
+      - mongo_data:/data/db
+    networks:
+      - decoder
+    # Not exposed publicly — only reachable on the internal docker network
+
+  # ── FastAPI backend ────────────────────────────────────────────────────────
+  backend:
+    build:
+      context: ../..
+      dockerfile: Dockerfile.backend
+      target: production
+    restart: unless-stopped
+    env_file: .env.prod          # secrets — never commit
+    environment:
+      - MONGO_URL=mongodb://mongo:27017
+      - DB_NAME=confluence_decoder
+      - ENVIRONMENT=production
+      - CORS_ORIGINS=${CORS_ORIGINS:-*}
+      - RATE_LIMIT_PER_MINUTE=60
+      - LOG_LEVEL=INFO
+    networks:
+      - decoder
+    depends_on:
+      - mongo
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/health', timeout=10)"]
+      interval: 60s
+      timeout: 15s
+      retries: 3
+      start_period: 60s
+    # NOTE: /health (no /api prefix) 404s in the current build — use /api/health.
+    deploy:
+      resources:
+        limits:
+          memory: 1536M
+
+  # ── Caddy: serves the React build + reverse-proxies /api + /ws, auto-HTTPS ─
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+      - ../../frontend/build:/srv/static:ro
+    environment:
+      - DOMAIN=${DOMAIN:-localhost}
+      - ADMIN_EMAIL=${ADMIN_EMAIL:-admin@localhost}
+    networks:
+      - decoder
+    depends_on:
+      - backend
+
+volumes:
+  mongo_data:
+  caddy_data:
+  caddy_config:
+
+networks:
+  decoder:
+    driver: bridge
