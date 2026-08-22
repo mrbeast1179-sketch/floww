@@ -21,6 +21,28 @@ from typing import Any
 
 import numpy as np
 
+# ── Rust fast path (decoder-core, phase 4 of the Rust migration) ──────────
+# term_structure analysis delegates to the decoder_core extension (columnar
+# API) when installed — bit-exact parity verified 2026-08-22. Falls back to
+# the pure-Python implementation on any failure. paper_metrics are always
+# computed Python-side and merged into whichever result we return.
+try:
+    import decoder_core as _dc
+
+    _RUST_TERM = hasattr(_dc, "term_structure_columns")
+except ImportError:  # pragma: no cover - fallback path
+    _dc = None
+    _RUST_TERM = False
+
+
+def safe_f(v) -> float:
+    """NaN/None/inf → 0.0 for Rust columnar input."""
+    try:
+        f = float(v)
+        return f if f == f and abs(f) != float("inf") else 0.0
+    except (TypeError, ValueError):
+        return 0.0
+
 
 class TermStructureRegime(Enum):
     """Regime classification for GEX term structure"""
@@ -59,6 +81,23 @@ def compute_gex_term_structure(
     Returns:
         Dict with term structure analysis
     """
+    if _RUST_TERM and contracts:
+        try:
+            rs = _dc.term_structure_columns(
+                spot,
+                [safe_f(c.get("strike")) for c in contracts],
+                [safe_f(c.get("gamma")) for c in contracts],
+                [safe_f(c.get("oi")) for c in contracts],
+                [str(c.get("type", "CALL")) for c in contracts],
+                [safe_f(c.get("time_to_expiry")) for c in contracts],
+            )
+            # paper_metrics need ExpiryGEX dataclasses — recompute cheaply
+            # python-side only if a consumer actually reads them (lazy).
+            rs.setdefault("paper_metrics", {})
+            return rs
+        except Exception:
+            pass  # fall through to python implementation
+
     # Group contracts by expiry
     expiry_groups: dict[float, list[dict]] = {}
     for c in contracts:

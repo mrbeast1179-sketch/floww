@@ -7,6 +7,7 @@ pub mod chain;
 pub mod bindings;
 pub mod gex;
 pub mod greeks;
+pub mod term;
 
 #[cfg(test)]
 mod tests;

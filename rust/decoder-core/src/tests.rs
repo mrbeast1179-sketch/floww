@@ -147,3 +147,34 @@ fn bench_gex_300_contracts() {
     println!("gex_by_strike 300 contracts: {:.1}µs/call",
         start.elapsed().as_secs_f64() * 1e6 / iters as f64);
 }
+
+#[test]
+fn test_term_structure_regime() {
+    use crate::term::{term_analysis, TermContract};
+
+    // INVERTED: gex decreasing with expiry
+    let contracts = vec![
+        TermContract { time_to_expiry: 1.0, strike: 760.0, kind: 'p', gamma: 0.01, oi: 5000.0 },
+        TermContract { time_to_expiry: 30.0, strike: 760.0, kind: 'c', gamma: 0.001, oi: 5000.0 },
+    ];
+    let ta = term_analysis(766.0, &contracts);
+    assert_eq!(ta.expiries.len(), 2);
+    assert!(ta.net_gex_by_expiry[0] < ta.net_gex_by_expiry[1]);
+}
+
+#[test]
+fn test_term_structure_insufficient() {
+    use crate::term::{term_analysis, TermContract};
+    let contracts = vec![TermContract { time_to_expiry: 1.0, strike: 760.0, kind: 'c', gamma: 0.01, oi: 100.0 }];
+    let ta = term_analysis(766.0, &contracts);
+    assert_eq!(ta.regime, "flat");
+    assert_eq!(ta.slope, 0.0);
+}
+
+#[test]
+fn test_liquidity_basins_threshold() {
+    use crate::term::liquidity_basins;
+    // $100M threshold — small values → no basins
+    let sg = vec![(760.0, 1e6), (761.0, 2e6), (762.0, -1e6)];
+    assert!(liquidity_basins(&sg, 766.0).is_empty());
+}

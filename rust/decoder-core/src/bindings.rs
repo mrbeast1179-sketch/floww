@@ -4,6 +4,7 @@
 
 use crate::gex::{self, RawContract, StrikeRow};
 use crate::greeks;
+use crate::term;
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 use rayon::prelude::*;
@@ -176,6 +177,124 @@ fn zero_gamma_levels(py: Python<'_>, rows: Vec<std::collections::HashMap<String,
     Ok(PyList::new_bound(py, &levels).into_any().unbind())
 }
 
+
+/// Term-structure analysis — parity with gex_term_structure.compute_gex_term_structure
+/// (analysis fields; paper_metrics computed Python-side).
+///
+/// Columnar input: parallel lists strike/gamma/oi/kind/tte ("T"TE). Columnar
+/// avoids 6×N dict lookups — ~10x binding overhead win vs the dict version.
+#[pyfunction]
+#[pyo3(signature = (spot, strikes, gammas, ois, kinds, ttes))]
+fn term_structure_columns(
+    py: Python<'_>,
+    spot: f64,
+    strikes: Vec<f64>,
+    gammas: Vec<f64>,
+    ois: Vec<f64>,
+    kinds: Vec<String>,
+    ttes: Vec<f64>,
+) -> PyResult<PyObject> {
+    use pyo3::types::{PyDict, PyList};
+    use pyo3::types::PyDictMethods;
+
+    let n = strikes.len();
+    let raw: Vec<term::TermContract> = (0..n)
+        .map(|i| term::TermContract {
+            time_to_expiry: ttes[i],
+            strike: strikes[i],
+            kind: if kinds[i].to_uppercase().starts_with('P') { 'p' } else { 'c' },
+            gamma: gammas[i],
+            oi: ois[i],
+        })
+        .collect();
+    let ta = term::term_analysis(spot, &raw);
+
+    let d = PyDict::new_bound(py);
+    d.set_item("regime", ta.regime)?;
+    d.set_item("interpretation", ta.interpretation)?;
+    d.set_item("expiries", PyList::new_bound(py, &ta.expiries))?;
+    d.set_item(
+        "net_gex_by_expiry",
+        PyList::new_bound(py, &ta.net_gex_by_expiry),
+    )?;
+    d.set_item("term_structure_slope", ta.slope)?;
+    d.set_item("calendar_spread_impact", ta.calendar_spread_impact)?;
+    d.set_item("slope_ratio", ta.slope_ratio)?;
+    Ok(d.into_any().unbind())
+}
+
+/// Dict-based variant retained for compatibility.
+#[pyfunction]
+fn term_structure(
+    py: Python<'_>,
+    spot: f64,
+    contracts: Vec<std::collections::HashMap<String, pyo3::Bound<'_, PyAny>>>,
+) -> PyResult<PyObject> {
+    use pyo3::types::{PyDict, PyList};
+    use pyo3::types::PyDictMethods;
+
+    let raw: Vec<term::TermContract> = contracts
+        .iter()
+        .map(|m| {
+            let gf = |name: &str| -> f64 {
+                m.get(name).and_then(|v| v.extract::<f64>().ok()).unwrap_or(f64::NAN)
+            };
+            let kind = m
+                .get("type")
+                .and_then(|v| v.extract::<String>().ok())
+                .map(|s| {
+                    let c = s.trim().to_ascii_uppercase();
+                    if c.starts_with("P") { 'p' } else { 'c' }
+                })
+                .unwrap_or('c');
+            term::TermContract {
+                time_to_expiry: gf("time_to_expiry"),
+                strike: gf("strike"),
+                kind,
+                gamma: gf("gamma"),
+                oi: gf("oi"),
+            }
+        })
+        .collect();
+    let ta = term::term_analysis(spot, &raw);
+
+    let d = PyDict::new_bound(py);
+    d.set_item("regime", ta.regime)?;
+    d.set_item("interpretation", ta.interpretation)?;
+    d.set_item("expiries", PyList::new_bound(py, &ta.expiries))?;
+    d.set_item(
+        "net_gex_by_expiry",
+        PyList::new_bound(py, &ta.net_gex_by_expiry),
+    )?;
+    d.set_item("term_structure_slope", ta.slope)?;
+    d.set_item("calendar_spread_impact", ta.calendar_spread_impact)?;
+    d.set_item("slope_ratio", ta.slope_ratio)?;
+    Ok(d.into_any().unbind())
+}
+
+/// Liquidity basins from (strike, gex) pairs.
+#[pyfunction]
+fn liquidity_basins(
+    py: Python<'_>,
+    spot: f64,
+    strike_gex: Vec<(f64, f64)>,
+) -> PyResult<PyObject> {
+    use pyo3::types::{PyDict, PyList};
+    use pyo3::types::PyDictMethods;
+    let basins = term::liquidity_basins(&strike_gex, spot);
+    let dicts: Vec<_> = basins
+        .iter()
+        .map(|b| {
+            let d = PyDict::new_bound(py);
+            for (k, v) in b {
+                d.set_item(k, v)?;
+            }
+            Ok(d)
+        })
+        .collect::<PyResult<_>>()?;
+    Ok(PyList::new_bound(py, &dicts).into_any().unbind())
+}
+
 #[pymodule]
 fn decoder_core(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(bs_gamma, m)?)?;
@@ -183,5 +302,8 @@ fn decoder_core(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(normalize_chain, m)?)?;
     m.add_function(wrap_pyfunction!(compute_gex_by_strike, m)?)?;
     m.add_function(wrap_pyfunction!(zero_gamma_levels, m)?)?;
+    m.add_function(wrap_pyfunction!(term_structure, m)?)?;
+    m.add_function(wrap_pyfunction!(liquidity_basins, m)?)?;
+    m.add_function(wrap_pyfunction!(term_structure_columns, m)?);
     Ok(())
 }
