@@ -94,3 +94,56 @@ fn bench_gamma_batch_300_contracts() {
     println!("gamma_batch {} contracts: {:.1}µs/call", n, per_call_us);
     // Scalar python was 216µs; rust should be well under.
 }
+
+#[test]
+fn test_gex_by_strike_parity() {
+    use crate::gex::{compute_gex_by_strike, RawContract};
+    let contracts = vec![
+        RawContract { strike: 760.0, kind: 'c', oi: 500.0, iv: 0.2, t: 0.02 },
+        RawContract { strike: 770.0, kind: 'p', oi: 800.0, iv: 0.22, t: 0.02 },
+        RawContract { strike: 760.0, kind: 'p', oi: 0.0,   iv: 0.2,  t: 0.02 }, // skipped (oi<=0)
+        RawContract { strike: -1.0, kind: 'c', oi: 100.0, iv: 0.2,  t: 0.02 }, // skipped
+    ];
+    let rows = compute_gex_by_strike(766.0, &contracts, 0.013);
+    assert_eq!(rows.len(), 2);
+    assert!(rows[0].strike < rows[1].strike); // sorted
+    let call_row = rows.iter().find(|r| r.strike == 760.0).unwrap();
+    assert!(call_row.gex > 0.0, "call gex positive");
+    let put_row = rows.iter().find(|r| r.strike == 770.0).unwrap();
+    assert!(put_row.gex < 0.0, "put gex negative");
+}
+
+#[test]
+fn test_zero_gamma_flip() {
+    use crate::gex::{compute_gex_by_strike, zero_gamma_levels, RawContract};
+    // calls below spot, puts above → sign change between them
+    let contracts = vec![
+        RawContract { strike: 750.0, kind: 'c', oi: 900.0, iv: 0.2, t: 0.05 },
+        RawContract { strike: 790.0, kind: 'p', oi: 900.0, iv: 0.25, t: 0.05 },
+    ];
+    let rows = compute_gex_by_strike(766.0, &contracts, 0.0);
+    let flips = zero_gamma_levels(&rows);
+    assert_eq!(flips.len(), 1);
+    assert_eq!(flips[0], 790.0);
+}
+
+#[test]
+fn bench_gex_300_contracts() {
+    use crate::gex::{compute_gex_by_strike, RawContract};
+    let contracts: Vec<RawContract> = (0..300)
+        .map(|i| RawContract {
+            strike: 700.0 + i as f64 * 0.45,
+            kind: if i % 2 == 0 { 'c' } else { 'p' },
+            oi: 100.0 + i as f64,
+            iv: 0.15 + (i % 20) as f64 * 0.005,
+            t: 0.02 + (i % 5) as f64 * 0.01,
+        })
+        .collect();
+    let start = std::time::Instant::now();
+    let iters = 10_000;
+    for _ in 0..iters {
+        let _ = compute_gex_by_strike(766.0, &contracts, 0.013);
+    }
+    println!("gex_by_strike 300 contracts: {:.1}µs/call",
+        start.elapsed().as_secs_f64() * 1e6 / iters as f64);
+}

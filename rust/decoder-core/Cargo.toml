@@ -13,7 +13,7 @@ extension-module = ["pyo3/extension-module"]
 default = []
 
 [dependencies]
-pyo3 = { version = "0.22", features = ["extension-module"] }
+pyo3 = { version = "0.22" }
 rayon = "1.10"
 serde = { version = "1", features = ["derive"] }
 

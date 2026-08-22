@@ -8,7 +8,7 @@ use rayon::prelude::*;
 
 /// Standard normal PDF.
 #[inline]
-fn norm_pdf(x: f64) -> f64 {
+pub fn norm_pdf(x: f64) -> f64 {
     (-0.5 * x * x).exp() / (2.0 * std::f64::consts::PI).sqrt()
 }
 

@@ -2,10 +2,10 @@
 //!
 //! Uses Bound<'_, T> API throughout (PyO3 ≥ 0.21 style).
 
+use crate::gex::{self, RawContract, StrikeRow};
 use crate::greeks;
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
-use pyo3::types::{PyDictMethods, PyListMethods};
 use rayon::prelude::*;
 
 /// bs_gamma(S, K, T, sigma, r=0.05, q=0.0) — parity with backend/bs_greeks.py
@@ -43,8 +43,7 @@ fn normalize_chain(
     py: Python<'_>,
     rows: Vec<std::collections::HashMap<String, pyo3::Bound<'_, PyAny>>>,
 ) -> PyResult<PyObject> {
-    use pyo3::types::{PyAny, PyDict, PyList};
-    use pyo3::types::{PyDictMethods, PyListMethods};
+    use pyo3::types::{PyAny, PyDict, PyDictMethods, PyList, PyListMethods};
 
     fn get_f64(map: &std::collections::HashMap<String, Bound<'_, PyAny>>, name: &str) -> Option<f64> {
         map.get(name).and_then(|v| v.extract::<f64>().ok())
@@ -93,10 +92,89 @@ fn normalize_chain(
     Ok(PyList::new_bound(py, &out).into_any().unbind())
 }
 
+fn parse_contracts(
+    rows: Vec<std::collections::HashMap<String, pyo3::Bound<'_, PyAny>>>,
+) -> Vec<RawContract> {
+    rows.into_iter()
+        .map(|m| {
+            let gf = |name: &str| -> f64 {
+                m.get(name).and_then(|v| v.extract::<f64>().ok()).unwrap_or(f64::NAN)
+            };
+            let kind = m
+                .get("type")
+                .and_then(|v| v.extract::<String>().ok())
+                .map(|s| s.to_ascii_lowercase())
+                .unwrap_or_default();
+            RawContract {
+                strike: gf("strike"),
+                kind: if kind.starts_with('c') { 'c' } else { 'p' },
+                oi: gf("oi"),
+                iv: gf("iv"),
+                t: gf("T"),
+            }
+        })
+        .collect()
+}
+
+fn row_to_dict<'py>(py: Python<'py>, r: &StrikeRow) -> PyResult<pyo3::Bound<'py, pyo3::types::PyDict>> {
+    use pyo3::types::PyDict;
+    use pyo3::types::PyDictMethods;
+    let d = PyDict::new_bound(py);
+    d.set_item("strike", r.strike)?;
+    d.set_item("gex", r.gex)?;
+    d.set_item("call_gex", r.call_gex)?;
+    d.set_item("put_gex", r.put_gex)?;
+    d.set_item("call_oi", r.call_oi)?;
+    d.set_item("put_oi", r.put_oi)?;
+    d.set_item("total_oi", r.total_oi)?;
+    d.set_item("vex", r.vex)?;
+    d.set_item("vega", r.vega)?;
+    d.set_item("charm", r.charm)?;
+    d.set_item("vomma", r.vomma)?;
+    d.set_item("zomma", r.zomma)?;
+    Ok(d)
+}
+
+/// Per-strike GEX — parity with services/gex_core.compute_gex_by_strike.
+/// contracts: list of dicts with keys strike/type/oi/iv/T. div_yield: e.g. 0.013 for SPY.
+#[pyfunction]
+#[pyo3(signature = (spot, contracts, div_yield=0.0))]
+fn compute_gex_by_strike(
+    py: Python<'_>,
+    spot: f64,
+    contracts: Vec<std::collections::HashMap<String, pyo3::Bound<'_, PyAny>>>,
+    div_yield: f64,
+) -> PyResult<PyObject> {
+    use pyo3::types::PyList;
+    let raw = parse_contracts(contracts);
+    let rows = gex::compute_gex_by_strike(spot, &raw, div_yield);
+    let dicts: Vec<_> = rows.iter().map(|r| row_to_dict(py, r)).collect::<PyResult<_>>()?;
+    Ok(PyList::new_bound(py, &dicts).into_any().unbind())
+}
+
+/// Zero-gamma flip levels from per-strike GEX rows.
+#[pyfunction]
+fn zero_gamma_levels(py: Python<'_>, rows: Vec<std::collections::HashMap<String, pyo3::Bound<'_, PyAny>>>) -> PyResult<PyObject> {
+    use pyo3::types::{PyDict, PyList};
+    use pyo3::types::PyDictMethods;
+    let parsed: Vec<StrikeRow> = rows
+        .iter()
+        .map(|m| StrikeRow {
+            strike: m.get("strike").and_then(|v| v.extract::<f64>().ok()).unwrap_or(0.0),
+            gex: m.get("gex").and_then(|v| v.extract::<f64>().ok()).unwrap_or(0.0),
+            ..Default::default()
+        })
+        .collect();
+    let levels = gex::zero_gamma_levels(&parsed);
+    Ok(PyList::new_bound(py, &levels).into_any().unbind())
+}
+
 #[pymodule]
 fn decoder_core(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(bs_gamma, m)?)?;
     m.add_function(wrap_pyfunction!(gamma_batch, m)?)?;
     m.add_function(wrap_pyfunction!(normalize_chain, m)?)?;
+    m.add_function(wrap_pyfunction!(compute_gex_by_strike, m)?)?;
+    m.add_function(wrap_pyfunction!(zero_gamma_levels, m)?)?;
     Ok(())
 }

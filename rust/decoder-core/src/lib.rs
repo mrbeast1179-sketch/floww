@@ -5,6 +5,7 @@
 
 pub mod chain;
 pub mod bindings;
+pub mod gex;
 pub mod greeks;
 
 #[cfg(test)]

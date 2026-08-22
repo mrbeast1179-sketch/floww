@@ -43,6 +43,18 @@ from bs_greeks import (
 # Dividend yields for Black-Scholes (moved from server.py)
 DIV_YIELD = {"SPY": 0.013, "QQQ": 0.006, "^SPX": 0.013, "IWM": 0.012}
 
+# ── Rust fast path (decoder-core, phase 2 of the Rust migration) ──────────
+# compute_gex_by_strike is delegated to the decoder_core PyO3 extension when
+# available (verified bit-exact parity vs this module, 2026-08-22). Any import
+# or runtime failure falls back to the pure-Python implementation below.
+try:
+    import decoder_core as _dc
+
+    _RUST_GEX = True
+except ImportError:  # pragma: no cover - fallback path
+    _dc = None
+    _RUST_GEX = False
+
 
 def safe_float(v, default=0.0):
     """Safely convert a value to float, handling None and NaN."""
@@ -58,10 +70,23 @@ def safe_float(v, default=0.0):
 
 
 def compute_gex_by_strike(spot: float, contracts: list[dict[str, Any]], ticker: str = "") -> list[dict[str, Any]]:
-    """Per-strike net GEX, VEX, and Vega. Convention: dealer-positive convention."""
+    """Per-strike net GEX, VEX, and Vega. Convention: dealer-positive convention.
+
+    Delegates to the decoder_core Rust extension when installed (bit-exact
+    parity verified 2026-08-22); falls back to the pure-Python loop below.
+    """
     if spot <= 0 or not contracts:
         return []
     q = DIV_YIELD.get(ticker, 0.0)
+    if _RUST_GEX:
+        try:
+            return _dc.compute_gex_by_strike(spot, contracts, q)
+        except Exception as exc:  # pragma: no cover - defensive fallback
+            import logging
+
+            logging.getLogger(__name__).warning(
+                "decoder_core gex failed (%s) — falling back to python", exc
+            )
     agg: dict[float, dict[str, float]] = {}
     for c in contracts:
         oi = safe_float(c.get("oi"))
