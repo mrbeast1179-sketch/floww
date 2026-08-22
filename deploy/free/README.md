@@ -81,9 +81,8 @@ Disk watch: Mongo grows slowly (11MB now). `df -h` monthly is enough.
 ## Known gaps / honest notes
 - `/health` (no prefix) returns 404 in current build — healthcheck and Caddy
   probes use `/api/health` instead. Fixing the route is optional cleanup.
-- Frontend has two hardcoded `http://localhost:8000` fetch bases
-  (`TradeJournal.jsx:4`, `ConfluenceVelocityRow.jsx:47`) — those panels break
-  when served from a real domain until switched to REACT_APP_BACKEND_URL.
-  Build frontend with `REACT_APP_BACKEND_URL=https://your.domain`.
+- ~~Frontend hardcoded `http://localhost:8000` fetch bases~~ FIXED at
+  `af4e254`: all 14 components resolve same-origin at runtime. No
+  REACT_APP_* build args needed — one build works on localhost AND prod.
 - Schwab WebSocket streamer won't run on server unless you copy its token env;
   stack falls back to yfinance/polling providers without it.
