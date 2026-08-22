@@ -3750,3 +3750,47 @@ button, select, input {
   color: #94a3b8;
   white-space: nowrap;
 }
+
+/* ============================================================
+   GLOBAL THEME UNIFICATION — match everything to the
+   Heatseeker dark/gold design system (index.css :root tokens)
+   Retints legacy slate/teal/sky utility styling to gold/dark.
+   ============================================================ */
+
+/* Panel label accent bar: blue → gold */
+.panel .label::before,
+.panel-2 .label::before {
+  background: linear-gradient(180deg, var(--gold-bright), var(--gold)) !important;
+}
+
+/* Panel hover border: teal → gold */
+.panel-2:hover { border-color: rgba(201,168,76,0.30) !important; }
+.panel-2:hover .label { color: var(--text-primary) !important; }
+
+/* Buttons: active/hover states → gold instead of teal/blue */
+.btn:hover { border-color: var(--gold); color: var(--gold-bright); }
+.btn.active { border-color: var(--gold); color: var(--gold-bright); background: rgba(201,168,76,0.08); }
+
+/* Inputs: focus ring teal/sky → gold */
+input:focus, select:focus, textarea:focus,
+input[class*="focus:border-teal"], input[class*="focus:border-sky"],
+select[class*="focus:border-sky"], textarea[class*="focus:border-sky"] {
+  border-color: var(--gold-border) !important;
+  box-shadow: 0 0 0 1px rgba(201,168,76,0.25);
+  outline: none !important;
+}
+
+/* Filter pills / segmented controls that used sky-blue active state
+   (TradeJournal filters, sub-tabs): tint via attribute-free class hooks */
+[class*="bg-sky-600\/20"] { background: rgba(201,168,76,0.14) !important; }
+[class*="text-sky-400"] { color: var(--gold-bright) !important; }
+
+/* Call/Put badges: teal/purple → gold call, keep purple put */
+[class*="bg-teal-500\/20"] { background: rgba(201,168,76,0.16) !important; }
+[class*="text-teal-400"] { color: var(--gold-bright) !important; }
+
+/* Legacy panel inputs: darker surface + subtle border to match --panel-2 */
+input[class*="bg-slate-800"], select[class*="bg-slate-800"], textarea[class*="bg-slate-800"] {
+  background: rgba(13,17,23,0.7) !important;
+  border-color: rgba(255,255,255,0.09) !important;
+}
