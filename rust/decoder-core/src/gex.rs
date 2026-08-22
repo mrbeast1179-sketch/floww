@@ -209,42 +209,55 @@ pub fn compute_gex_by_strike(
 
     // Filter + compute units in parallel (pure per-contract math), then
     // aggregate sequentially into the BTreeMap for deterministic order.
+    // Small chains: sequential avoids rayon spawn overhead (~65µs floor).
+    if contracts.len() < 64 {
+        let computed: Vec<(f64, bool, Units)> = contracts
+            .iter()
+            .filter_map(|c| compute_units(spot, c, div_yield))
+            .collect();
+        return aggregate(spot, computed);
+    }
     let computed: Vec<(f64, bool, Units)> = contracts
         .par_iter()
-        .filter_map(|c| {
-            if !(c.oi > 0.0 && c.iv > 0.0 && c.t > 0.0 && c.strike > 0.0 && c.strike.is_finite())
-            {
-                return None;
-            }
-            let is_call = matches!(c.kind.to_ascii_lowercase(), 'c');
-            let gamma = bs_gamma(spot, c.strike, c.t, c.iv, 0.05, div_yield);
-            let vanna = bs_vanna(spot, c.strike, c.t, c.iv, 0.05, div_yield);
-            if gamma <= 0.0 && vanna.abs() <= 0.0 {
-                return None; // parity: python skips these
-            }
-            let vega_val = bs_vega(spot, c.strike, c.t, c.iv, 0.05, div_yield);
-            let charm = bs_charm(spot, c.strike, c.t, c.iv, 0.05, div_yield, is_call);
-            let vomma = bs_vomma(spot, c.strike, c.t, c.iv, 0.05, div_yield);
-            let zomma = bs_zomma(spot, c.strike, c.t, c.iv, 0.05, div_yield);
-            Some((
-                c.strike,
-                is_call,
-                Units {
-                    gex_unit: dollar_gex(gamma, c.oi, spot),
-                    vex_unit: dollar_vex(vanna, c.oi, spot),
-                    vega_unit: vega_val * c.oi * CONTRACT_MULTIPLIER,
-                    charm_unit: dollar_charm(charm, c.oi, spot),
-                    vomma_unit: vomma * c.oi * CONTRACT_MULTIPLIER,
-                    zomma_unit: zomma * c.oi * CONTRACT_MULTIPLIER * spot * DOLLAR_MOVE_CONVENTION,
-                },
-            ))
-        })
+        .filter_map(|c| compute_units(spot, c, div_yield))
         .collect();
+    aggregate(spot, computed)
+}
 
+fn compute_units(spot: f64, c: &RawContract, div_yield: f64) -> Option<(f64, bool, Units)> {
+    if !(c.oi > 0.0 && c.iv > 0.0 && c.t > 0.0 && c.strike > 0.0 && c.strike.is_finite()) {
+        return None;
+    }
+    let is_call = matches!(c.kind.to_ascii_lowercase(), 'c');
+    let gamma = bs_gamma(spot, c.strike, c.t, c.iv, 0.05, div_yield);
+    let vanna = bs_vanna(spot, c.strike, c.t, c.iv, 0.05, div_yield);
+    if gamma <= 0.0 && vanna.abs() <= 0.0 {
+        return None; // parity: python skips these
+    }
+    let vega_val = bs_vega(spot, c.strike, c.t, c.iv, 0.05, div_yield);
+    let charm = bs_charm(spot, c.strike, c.t, c.iv, 0.05, div_yield, is_call);
+    let vomma = bs_vomma(spot, c.strike, c.t, c.iv, 0.05, div_yield);
+    let zomma = bs_zomma(spot, c.strike, c.t, c.iv, 0.05, div_yield);
+    Some((
+        c.strike,
+        is_call,
+        Units {
+            gex_unit: dollar_gex(gamma, c.oi, spot),
+            vex_unit: dollar_vex(vanna, c.oi, spot),
+            vega_unit: vega_val * c.oi * CONTRACT_MULTIPLIER,
+            charm_unit: dollar_charm(charm, c.oi, spot),
+            vomma_unit: vomma * c.oi * CONTRACT_MULTIPLIER,
+            zomma_unit: zomma * c.oi * CONTRACT_MULTIPLIER * spot * DOLLAR_MOVE_CONVENTION,
+        },
+    ))
+}
+
+fn aggregate(spot: f64, computed: Vec<(f64, bool, Units)>) -> Vec<StrikeRow> {
     let mut agg: BTreeMap<u64, StrikeRow> = BTreeMap::new();
     for (strike, is_call, units) in computed {
         let entry = agg.entry(strike.to_bits()).or_insert_with(|| StrikeRow::new(strike));
-        accumulate(entry, &stub_contract(strike, is_call), is_call, &units, spot);
+        let c = stub_contract(strike, is_call);
+        accumulate(entry, &c, is_call, &units, spot);
     }
 
     agg.into_values().collect()

@@ -763,9 +763,49 @@ def _fetch_movers_sync() -> list[dict[str, Any]]:
 
 _BUILD_HEATMAP_CACHE: dict[str, Any] = {}
 _BUILD_HEATMAP_CACHE_TTL = 60
+# Stale-while-revalidate: serve stale data immediately (up to STALE_TTL) while a
+# single background task refreshes it. Cuts cold /api/data from ~4s to <50ms
+# for repeat views. In-flight set provides single-flight per cache key.
+_BUILD_HEATMAP_STALE_TTL = 900  # 15 min — max age of stale-serveable data
+_BUILD_HEATMAP_INFLIGHT: set[str] = set()
+
+
+async def _revalidate_heatmap(cache_key: str, ticker: str, max_expiries: int,
+                              with_taps: bool, mode: str, dte, scalp: bool,
+                              max_strikes: int):
+    """Background refresh — never raises to the caller."""
+    try:
+        fresh = await _build_heatmap_impl(ticker, max_expiries, with_taps, mode, dte, scalp, max_strikes)
+        if isinstance(fresh, dict) and not fresh.get("error"):
+            _BUILD_HEATMAP_CACHE[cache_key] = {"ts": time.time(), "data": fresh}
+    except Exception as e:
+        log.warning(f"swr revalidate failed {cache_key}: {e}")
+    finally:
+        _BUILD_HEATMAP_INFLIGHT.discard(cache_key)
 
 async def build_heatmap(ticker: str, max_expiries: int = 4, with_taps: bool = True, mode: str = "day", dte: int | None = None, scalp: bool = False, max_strikes: int = 200) -> dict[str, Any]:
-    """Build heatmap with OOM protection and index symbol fast path."""
+    """Build heatmap with OOM protection and index symbol fast path.
+
+    Stale-while-revalidate: if the fresh-TTL cache misses but a stale entry
+    (< STALE_TTL) exists, serve it immediately and refresh in the background
+    (single-flight per key)."""
+    cache_key = f"{ticker}:{max_expiries}:{mode}:{dte}:{scalp}:{with_taps}:{max_strikes}"
+    cached = _BUILD_HEATMAP_CACHE.get(cache_key)
+    age = (time.time() - cached["ts"]) if cached else None
+    if cached is not None and age is not None:
+        if age < _BUILD_HEATMAP_CACHE_TTL:
+            return cached["data"]  # fresh
+        if (
+            age < _BUILD_HEATMAP_STALE_TTL
+            and cache_key not in _BUILD_HEATMAP_INFLIGHT
+            and isinstance(cached.get("data"), dict)
+            and not cached["data"].get("error")
+        ):
+            _BUILD_HEATMAP_INFLIGHT.add(cache_key)
+            asyncio.create_task(_revalidate_heatmap(
+                cache_key, ticker, max_expiries, with_taps, mode, dte, scalp, max_strikes,
+            ))
+            return cached["data"]  # stale-but-serveable, refresh running
     try:
         return await _build_heatmap_impl(ticker, max_expiries, with_taps, mode, dte, scalp, max_strikes)
     except HTTPException:

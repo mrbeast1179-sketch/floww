@@ -30,6 +30,13 @@ fn gamma_batch(
         return Err(PyValueError::new_err("strikes/ts/sigmas length mismatch"));
     }
     let n = strikes.len();
+    // Rayon spawn overhead dominates small batches (~65µs at n=300 vs ~15µs
+    // sequential). Dispatch: sequential under 64, parallel above.
+    if n < 64 {
+        return Ok((0..n)
+            .map(|i| greeks::gamma_scalar(spot, strikes[i], ts[i], sigmas[i], r, q))
+            .collect());
+    }
     Ok((0..n)
         .into_par_iter()
         .map(|i| greeks::gamma_scalar(spot, strikes[i], ts[i], sigmas[i], r, q))
