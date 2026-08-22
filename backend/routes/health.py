@@ -101,3 +101,14 @@ async def health_check():
         "timestamp": datetime.now(UTC).isoformat(),
         "checks": checks,
     }
+
+
+@router.get("/health")
+async def health_alias():
+    """Lightweight liveness alias at the root level.
+
+    Load balancers / Caddy probes hit /health (no /api prefix). This returns
+    a minimal 200 without running dependency checks — deep diagnostics live
+    at /api/health. Mounted without prefix via server.py include_router.
+    """
+    return {"status": "ok", "timestamp": datetime.now(UTC).isoformat()}
