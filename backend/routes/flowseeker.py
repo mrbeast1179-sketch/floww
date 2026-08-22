@@ -470,6 +470,77 @@ def _register_scan_429(now: float, resp_text: str) -> None:
         _scan_backoff["delay"] = min(_scan_backoff["delay"] * 2, 600.0)
 
 
+# ── unusual-activity pure helpers (extracted from /alerts/unusual loop) ──
+
+# Thresholds pinned by tests/routes/test_unusual_activity.py. The endpoint
+# docstring previously claimed $500K/|Δ|>0.7 while the code used 250K/0.6 —
+# resolved to the code values (the tuned, battle-tested ones).
+PREMIUM_CONCENTRATION_MIN = 250_000
+DELTA_EXTREME_ABS = 0.6
+
+
+def per_side_premiums(d: dict) -> dict:
+    """Mid-based notional per side: mid × THAT side's OI × 100.
+
+    The historical bug priced call premium over COMBINED call+put OI,
+    doubling every call-side concentration estimate."""
+    call_mid = (d["call_bid"] + d["call_ask"]) / 2 if d["call_bid"] > 0 and d["call_ask"] > 0 else 0
+    put_mid = (d["put_bid"] + d["put_ask"]) / 2 if d["put_bid"] > 0 and d["put_ask"] > 0 else 0
+    return {
+        "call_mid": call_mid,
+        "put_mid": put_mid,
+        "call_premium": call_mid * d["call_oi"] * 100 if call_mid > 0 else 0,
+        "put_premium": put_mid * d["put_oi"] * 100 if put_mid > 0 else 0,
+    }
+
+
+def strike_unusual_flags(d: dict, peers: list[dict],
+                         min_vol_oi_ratio: float = 0.05) -> list[str]:
+    """Pure flag engine for one strike row against its near-money peers.
+
+    Emits any of: high_volume, high_iv, oi_spike, delta_extreme,
+    premium_concentration. Both sides examined (the historical bug only
+    ever looked at calls for IV and delta)."""
+    flags: list[str] = []
+    total_oi = d["call_oi"] + d["put_oi"]
+    total_vol = d["call_vol"] + d["put_vol"]
+
+    avg_oi = sum(p["call_oi"] + p["put_oi"] for p in peers) / max(len(peers), 1)
+    iv_values = sorted(
+        v for p in peers for v in (p["call_iv"], p["put_iv"]) if v > 0.01)
+    iv_p75 = iv_values[int(len(iv_values) * 0.75)] if iv_values else 0
+
+    # volume/OI
+    if total_oi > 100:
+        vol_oi = total_vol / total_oi
+        if vol_oi >= min_vol_oi_ratio and total_vol > 100:
+            flags.append("high_volume")
+
+    # IV spike — either side, min 500 OI on combined OI
+    if iv_p75 > 0 and total_oi >= 500 and (
+            (d["call_iv"] > 0 and d["call_iv"] >= iv_p75)
+            or (d["put_iv"] > 0 and d["put_iv"] >= iv_p75)):
+        flags.append("high_iv")
+
+    # OI spike (min 500 OI, >2x average)
+    if total_oi > avg_oi * 2 and total_oi >= 500:
+        flags.append("oi_spike")
+
+    # delta extreme — deep ITM either side with that side's OI > 200
+    call_extreme = abs(d["call_delta"]) > DELTA_EXTREME_ABS and d["call_oi"] > 200
+    put_extreme = abs(d["put_delta"]) > DELTA_EXTREME_ABS and d["put_oi"] > 200
+    if call_extreme or put_extreme:
+        flags.append("delta_extreme")
+
+    # premium concentration — per-side OI now
+    prem = per_side_premiums(d)
+    if max(prem["call_premium"], prem["put_premium"]) > PREMIUM_CONCENTRATION_MIN \
+            and total_oi >= 500:
+        flags.append("premium_concentration")
+
+    return flags
+
+
 # ── /scan cache + 429 backoff ──
 _scan_cache: dict[str, dict] = {}                # "min_volume:limit" → {ts, data, asof}
 # ~4-minute cadence spends ≤15 scan calls/hour — alerts stay minutes-fresh
@@ -1125,10 +1196,10 @@ async def unusual_activity_alerts(
 
     Identifies unusual activity based on option chain snapshots:
     - **high_volume**: day_volume / open_interest ratio above threshold (near money only)
-    - **high_iv**: implied IV in top 25% for near-money options (min OI 500)
+    - **high_iv**: IV in top 25% for near-money options, EITHER side (min OI 500)
     - **oi_spike**: open interest > 2x average for near-money options (min OI 500)
-    - **delta_extreme**: deep ITM (|delta| > 0.7) with high OI (>500)
-    - **premium_concentration**: strikes with premium > $500K (min OI 1000)
+    - **delta_extreme**: deep ITM (|delta| > 0.6) with high OI (>200), either side
+    - **premium_concentration**: per-side mid × that side's OI × 100 > $250K (min total OI 500)
 
     Each alert includes confidence scoring and human-readable factors.
     """
@@ -1238,55 +1309,49 @@ async def unusual_activity_alerts(
 
                 # Calculate statistics on near-money options only
                 avg_oi = sum(d["call_oi"] + d["put_oi"] for d in near_money) / max(len(near_money), 1)
-                iv_values = sorted([d["call_iv"] for d in near_money if d["call_iv"] > 0.01])
-                iv_p75 = iv_values[int(len(iv_values) * 0.75)] if iv_values else 0
+                iv_values = sorted(
+                    v for p in near_money for v in (p["call_iv"], p["put_iv"]) if v > 0.01)
 
                 for d in near_money:
-                    alerts_for_strike = []
+                    alerts_for_strike = strike_unusual_flags(d, near_money, min_vol_oi_ratio)
                     confidence_score = 50
                     factors = []
-
-                    # Check volume/OI ratio (unusual trading activity)
                     total_oi = d["call_oi"] + d["put_oi"]
                     total_vol = d["call_vol"] + d["put_vol"]
-                    if total_oi > 100:
-                        vol_oi = total_vol / total_oi
-                        if vol_oi >= min_vol_oi_ratio and total_vol > 100:
-                            alerts_for_strike.append("high_volume")
-                            confidence_score += 10
-                            factors.append(f"Vol/OI ratio: {vol_oi * 100:.1f}% (threshold: {min_vol_oi_ratio * 100:.0f}%)")
-                            factors.append(f"Day volume: {total_vol:.0f} contracts")
 
-                    # Check IV spike (min 500 OI)
-                    if d["call_iv"] > 0 and iv_p75 > 0 and d["call_iv"] >= iv_p75 and total_oi >= 500:
-                        alerts_for_strike.append("high_iv")
+                    if "high_volume" in alerts_for_strike:
+                        vol_oi = total_vol / total_oi if total_oi else 0
                         confidence_score += 10
-                        factors.append("IV: {:.1f}% (75th percentile: {:.1f}%)".format(d["call_iv"] * 100, iv_p75 * 100))
+                        factors.append(f"Vol/OI ratio: {vol_oi * 100:.1f}% (threshold: {min_vol_oi_ratio * 100:.0f}%)")
+                        factors.append(f"Day volume: {total_vol:.0f} contracts")
 
-                    # Check OI spike (min 500 OI, >2x average)
-                    if total_oi > avg_oi * 2 and total_oi >= 500:
-                        alerts_for_strike.append("oi_spike")
+                    prem = per_side_premiums(d)
+                    if "high_iv" in alerts_for_strike:
+                        iv_used = d["call_iv"] if d["call_iv"] > 0.01 and d["call_iv"] >= d["put_iv"] else d["put_iv"]
+                        side = "call" if d["call_iv"] >= d["put_iv"] else "put"
+                        confidence_score += 10
+                        factors.append(f"{side} IV: {iv_used * 100:.1f}% (75th percentile across both sides: {max(iv_values or [0]) * 100:.1f}%)")
+
+                    if "oi_spike" in alerts_for_strike:
                         confidence_score += 10
                         factors.append(f"OI: {total_oi:.0f} (avg: {avg_oi:.0f}, {total_oi / max(avg_oi, 1):.1f}x average)")
 
                     # Check delta extreme with high OI (min 200)
-                    if abs(d["call_delta"]) > 0.6 and d["call_oi"] > 200:
-                        alerts_for_strike.append("delta_extreme")
+                    if "delta_extreme" in alerts_for_strike:
                         confidence_score += 8
-                        factors.append("Deep ITM call (delta: {:.2f}, OI: {:.0f})".format(d["call_delta"], d["call_oi"]))
-                    elif abs(d["put_delta"]) > 0.6 and d["put_oi"] > 200:
-                        alerts_for_strike.append("delta_extreme")
-                        confidence_score += 8
-                        factors.append("Deep ITM put (delta: {:.2f}, OI: {:.0f})".format(abs(d["put_delta"]), d["put_oi"]))
+                        if abs(d["call_delta"]) > DELTA_EXTREME_ABS:
+                            factors.append("Deep ITM call (delta: {:.2f}, OI: {:.0f})".format(d["call_delta"], d["call_oi"]))
+                        else:
+                            factors.append("Deep ITM put (delta: {:.2f}, OI: {:.0f})".format(abs(d["put_delta"]), d["put_oi"]))
 
-                    # Check premium concentration (min 500 OI)
-                    call_mid = (d["call_bid"] + d["call_ask"]) / 2 if d["call_bid"] > 0 and d["call_ask"] > 0 else 0
-                    if call_mid > 0 and total_oi >= 500:
-                        premium = call_mid * total_oi * 100
-                        if premium > 250_000:
-                            alerts_for_strike.append("premium_concentration")
-                            confidence_score += 12
-                            factors.append("Est. premium: ${:.0f}K concentrated at strike {:.0f}".format(premium / 1000, d["strike"]))
+                    # Premium concentration — per-side notional (was call_mid ×
+                    # COMBINED OI, doubling call-side estimates)
+                    if "premium_concentration" in alerts_for_strike:
+                        confidence_score += 12
+                        if prem["call_premium"] >= prem["put_premium"]:
+                            factors.append("Est. call premium: ${:.0f}K concentrated at strike {:.0f}".format(prem["call_premium"] / 1000, d["strike"]))
+                        else:
+                            factors.append("Est. put premium: ${:.0f}K concentrated at strike {:.0f}".format(prem["put_premium"] / 1000, d["strike"]))
 
                     if alerts_for_strike:
                         classification = alerts_for_strike[0]  # Primary classification
@@ -1304,10 +1369,11 @@ async def unusual_activity_alerts(
                         else:
                             tier = 5
 
-                        # DTE calculation
+                        # DTE calculation — ET-aware (expiry is a UTC calendar
+                        # date; naive local now() mislabels DTE by a day)
                         try:
-                            exp_date = datetime.strptime(expiry, "%Y-%m-%d")
-                            dte = (exp_date - datetime.now()).days
+                            exp_date = datetime.strptime(expiry, "%Y-%m-%d").date()
+                            dte = (exp_date - datetime.now(_ET).date()).days
                         except Exception:
                             dte = None
 
