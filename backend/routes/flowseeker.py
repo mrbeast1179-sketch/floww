@@ -455,6 +455,21 @@ def _hourly_backoff_until(now: float) -> float:
     return min((int(now // 3600) + 1) * 3600 + 120.0, now + 3900.0)
 
 
+def _register_scan_429(now: float, resp_text: str) -> None:
+    """Classify a cvforge scan 429 and set the matching backoff.
+
+    The full-hour lockout is only justified when OUR OWN budget tracker shows
+    the hourly window actually spent — a spurious 'hourly' 429 with slots
+    still free must fall back to the exponential path (was: any 'hourly'
+    body text froze scanning for ~47 min even at 1/20 used)."""
+    st = _budget_state(now)
+    if "hourly" in (resp_text or "").lower() and st["used"] >= CV_HOURLY_BUDGET - 1:
+        _scan_backoff["until"] = _hourly_backoff_until(now)
+    else:
+        _scan_backoff["until"] = now + _scan_backoff["delay"]
+        _scan_backoff["delay"] = min(_scan_backoff["delay"] * 2, 600.0)
+
+
 # ── /scan cache + 429 backoff ──
 _scan_cache: dict[str, dict] = {}                # "min_volume:limit" → {ts, data, asof}
 # ~4-minute cadence spends ≤15 scan calls/hour — alerts stay minutes-fresh
@@ -808,13 +823,7 @@ async def market_scan(
             async with httpx.AsyncClient(timeout=CVFORGE_TIMEOUT) as client:
                 resp = await client.post(CVFORGE_URL, json=payload, headers=headers)
                 if resp.status_code == 429:
-                    if "hourly" in (resp.text or "").lower():
-                        # Hourly plan cap — retrying before the next clock
-                        # hour only wastes the first calls of that hour.
-                        _scan_backoff["until"] = _hourly_backoff_until(now)
-                    else:
-                        _scan_backoff["until"] = now + _scan_backoff["delay"]
-                        _scan_backoff["delay"] = min(_scan_backoff["delay"] * 2, 600.0)
+                    _register_scan_429(now, resp.text)
                     logger.warning("cvforge scan 429 — backing off %ss", int(_scan_backoff["until"] - now))
                     retry_after = _scan_backoff["until"] - now
                     return _stale_or(now, 503, "cvserver rate-limited (429), no cached scan yet", retry_after=retry_after)

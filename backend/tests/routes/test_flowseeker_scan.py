@@ -160,21 +160,23 @@ def test_429_with_warm_cache_serves_stale_and_backs_off():
     assert FakeClient.calls == calls_after_429               # upstream NOT re-hit
 
 
-def test_429_with_no_cache_returns_503():
-    from fastapi import HTTPException
+def test_429_with_no_cache_serves_empty_stale_payload():
+    """Contract (updated 2026-08-22): no cached scan + 429 → 200 with
+    stale=True, empty rows, retry hint — NOT 503. The frontend shows
+    'waiting for first scan' instead of an error state."""
     FakeClient.status = 429
-    with pytest.raises(HTTPException) as e:
-        scan()
-    assert e.value.status_code == 503
+    out = scan()
+    assert out["stale"] is True
+    assert out["source"] == "cvserver-stale"
+    assert out["count"] == 0
+    assert out["retry_after_seconds"] is not None
 
 
 def test_backoff_delay_doubles_and_caps():
     FakeClient.status = 429
-    from fastapi import HTTPException
     for _ in range(8):
         fs._scan_backoff["until"] = 0.0                      # force upstream attempt
-        with pytest.raises(HTTPException):
-            scan()
+        scan()
     assert fs._scan_backoff["delay"] == 600.0
 
 
@@ -314,3 +316,39 @@ def test_budget_take_slices():
         fs.CV_HOURLY_BUDGET, fs.CV_SCAN_BUDGET = old_cap, old_scan
         fs._cv_calls["scan"] = []
         fs._cv_calls["chain"] = []
+
+
+# ── C2: hourly 429 lockout must require an actually-exhausted budget ──
+
+def test_hourly_429_with_free_budget_uses_exponential_backoff(monkeypatch):
+    """One spurious 'hourly' 429 with 19/20 slots free must NOT take the
+    full-clock-hour backoff — only the exponential path."""
+    FakeClient.status = 429
+    FakeResp.text = "hourly limit exceeded"
+    monkeypatch.setitem(fs._cv_calls, "scan", [time.time()])   # 1/20 used
+    scan()
+    until = fs._scan_backoff["until"]
+    assert until > time.time()                       # backing off...
+    assert until - time.time() < 1200                # ...NOT ~47 minutes
+
+
+def test_unit_register_scan_429_exhausted_cap_takes_hourly(monkeypatch):
+    """Unit (defensive): _register_scan_429 with OUR tracker showing
+    used >= cap-1 AND an 'hourly' body → full-hour backoff. Unreachable via
+    market_scan (the _budget_take gate serves stale before any HTTP call),
+    but guards against tracker undercount."""
+    now = time.time()
+    monkeypatch.setitem(fs._cv_calls, "scan", [now - i for i in range(fs.CV_HOURLY_BUDGET - 1)])
+    monkeypatch.setitem(fs._cv_calls, "chain", [now])
+    fs._register_scan_429(now, "hourly limit exceeded")
+    assert fs._scan_backoff["until"] == pytest.approx(fs._hourly_backoff_until(now))
+    fs._scan_backoff.update({"until": 0.0, "delay": 30.0})
+
+
+def test_non_hourly_429_still_exponential(monkeypatch):
+    FakeClient.status = 429
+    FakeResp.text = "slow down"                      # no "hourly"
+    monkeypatch.setitem(fs._cv_calls, "scan", [time.time()])
+    delay_before = fs._scan_backoff["delay"]
+    scan()
+    assert fs._scan_backoff["delay"] == min(delay_before * 2, 600.0)
