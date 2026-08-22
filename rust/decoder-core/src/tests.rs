@@ -203,3 +203,28 @@ fn test_vpin_from_buckets() {
     let v = vpin_from_buckets(&[60.0, 70.0], &[40.0, 30.0], &[100.0, 100.0]);
     assert!((v - 0.30).abs() < 1e-9);
 }
+
+#[test]
+fn test_ingest_batch_bucket_boundaries() {
+    use crate::vpin::ingest_batch;
+    // bucket_size 100: vols 60,60 → bucket1 at second trade; then 200 → bucket2
+    let n = 4;
+    let pcs = vec![0.1, -0.1, 0.2, -0.2];
+    let vols = vec![60.0, 60.0, 200.0, 10.0];
+    let ts = vec![1.0, 2.0, 3.0, 4.0];
+    let sig = vec![0.1; n];
+    let (buckets, vpins) = ingest_batch(&pcs, &vols, &ts, &sig, 1.0, 100.0, 50).unwrap();
+    assert_eq!(buckets.len(), 2);
+    assert_eq!(vpins.len(), 2);
+    // first bucket holds 120 volume
+    assert_eq!(buckets[0].total_volume, 120.0);
+    // leftover 10 stays unbucketed (matches python loop semantics)
+}
+
+#[test]
+fn test_ingest_batch_zero_volume_skipped() {
+    use crate::vpin::ingest_batch;
+    let (buckets, _) = ingest_batch(&[0.1, 0.1], &[0.0, 150.0], &[1.0, 2.0], &[0.1, 0.1], 1.0, 100.0, 50).unwrap();
+    assert_eq!(buckets.len(), 1);
+    assert_eq!(buckets[0].total_volume, 150.0);
+}

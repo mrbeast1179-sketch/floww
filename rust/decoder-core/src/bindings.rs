@@ -318,6 +318,44 @@ fn vpin_from_buckets(buy: Vec<f64>, sell: Vec<f64>, total: Vec<f64>) -> f64 {
     vpin::vpin_from_buckets(&buy, &sell, &total)
 }
 
+
+/// Batch ingestion: full trade stream → (bucket dicts, vpin series).
+/// Parity with the per-trade VpinEngine.update() loop, minus Mongo/prometheus.
+#[pyfunction]
+#[pyo3(signature = (price_changes, volumes, timestamps, sigmas, dt=1.0, bucket_size=50000.0, window=50))]
+fn ingest_batch(
+    py: Python<'_>,
+    price_changes: Vec<f64>,
+    volumes: Vec<f64>,
+    timestamps: Vec<f64>,
+    sigmas: Vec<f64>,
+    dt: f64,
+    bucket_size: f64,
+    window: usize,
+) -> PyResult<(PyObject, Vec<f64>)> {
+    use pyo3::types::{PyDict, PyList};
+    use pyo3::types::PyDictMethods;
+    match vpin::ingest_batch(&price_changes, &volumes, &timestamps, &sigmas, dt, bucket_size, window) {
+        Err(e) => Err(PyValueError::new_err(e)),
+        Ok((buckets, vpins)) => {
+            let dicts: Vec<_> = buckets
+                .iter()
+                .map(|b| {
+                    let d = PyDict::new_bound(py);
+                    d.set_item("bucket_id", b.bucket_id)?;
+                    d.set_item("start_time", b.start_time)?;
+                    d.set_item("end_time", b.end_time)?;
+                    d.set_item("total_volume", b.total_volume)?;
+                    d.set_item("buy_volume", b.buy_volume)?;
+                    d.set_item("sell_volume", b.sell_volume)?;
+                    Ok(d)
+                })
+                .collect::<PyResult<_>>()?;
+            Ok((PyList::new_bound(py, &dicts).into_any().unbind(), vpins))
+        }
+    }
+}
+
 #[pymodule]
 fn decoder_core(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(bs_gamma, m)?)?;
@@ -330,5 +368,6 @@ fn decoder_core(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(term_structure_columns, m)?);
     m.add_function(wrap_pyfunction!(classify_volume, m)?);
     m.add_function(wrap_pyfunction!(vpin_from_buckets, m)?);
+    m.add_function(wrap_pyfunction!(ingest_batch, m)?);
     Ok(())
 }

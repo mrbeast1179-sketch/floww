@@ -100,3 +100,119 @@ pub fn vpin_from_buckets(buy: &[f64], sell: &[f64], total: &[f64]) -> f64 {
         .sum();
     imbalance / total_vol
 }
+
+// ── Batch ingestion: whole trade stream → buckets + VPIN series ─────────
+
+pub struct BucketOut {
+    pub bucket_id: u64,
+    pub start_time: f64,
+    pub end_time: f64,
+    pub total_volume: f64,
+    pub buy_volume: f64,
+    pub sell_volume: f64,
+}
+
+/// Ingest a full trade stream through the volume clock. Parity with the
+/// VpinEngine.update() loop:
+/// - volume<=0 trades skipped
+/// - sigma<=0/NaN/Inf → buy_frac 0.5
+/// - bucket finalizes when accumulated total >= bucket_size
+/// - rolling VPIN over last `window` finalized buckets
+///
+/// Returns (finalized buckets, vpin after each finalization).
+pub fn ingest_batch(
+    price_changes: &[f64],
+    volumes: &[f64],
+    timestamps: &[f64],
+    sigmas: &[f64],
+    dt: f64,
+    bucket_size: f64,
+    window: usize,
+) -> Result<(Vec<BucketOut>, Vec<f64>), String> {
+    if volumes.len() != price_changes.len()
+        || volumes.len() != timestamps.len()
+        || volumes.len() != sigmas.len()
+    {
+        return Err("input arrays must have equal length".into());
+    }
+    if bucket_size <= 0.0 {
+        return Err("bucket_size must be positive".into());
+    }
+    if window == 0 {
+        return Err("window must be positive".into());
+    }
+
+    let sqrt_dt = dt.sqrt();
+    let mut buckets_out: Vec<BucketOut> = Vec::new();
+    // rolling windows (bounded)
+    let mut wb: std::collections::VecDeque<f64> = std::collections::VecDeque::with_capacity(window);
+    let mut ws: std::collections::VecDeque<f64> = std::collections::VecDeque::with_capacity(window);
+    let mut wt: std::collections::VecDeque<f64> = std::collections::VecDeque::with_capacity(window);
+    let mut vpins: Vec<f64> = Vec::new();
+
+    let mut acc_buy = 0.0;
+    let mut acc_sell = 0.0;
+    let mut acc_total = 0.0;
+    let mut start_time: Option<f64> = None;
+    let mut end_time = 0.0;
+
+    for i in 0..volumes.len() {
+        let vol = volumes[i];
+        if vol <= 0.0 {
+            continue;
+        }
+        let pc = price_changes[i];
+        let ts = timestamps[i];
+        let sigma = sigmas[i];
+        let buy_frac = if !(sigma > 0.0) || sigma.is_nan() || sigma.is_infinite() {
+            0.5
+        } else {
+            norm_cdf(pc / (sigma * sqrt_dt))
+        };
+        let bvol = vol * buy_frac;
+        acc_buy += bvol;
+        acc_sell += vol - bvol;
+        acc_total += vol;
+        if start_time.is_none() {
+            start_time = Some(ts);
+        }
+        end_time = ts;
+
+        if acc_total >= bucket_size {
+            let (b, s) = (acc_buy, acc_sell);
+            wb.push_back(b);
+            ws.push_back(s);
+            wt.push_back(acc_total);
+            if wb.len() > window {
+                wb.pop_front();
+                ws.pop_front();
+                wt.pop_front();
+            }
+            buckets_out.push(BucketOut {
+                bucket_id: buckets_out.len() as u64,
+                start_time: start_time.unwrap_or(ts),
+                end_time: ts,
+                total_volume: acc_total,
+                buy_volume: b,
+                sell_volume: s,
+            });
+
+            // recompute vpin over window
+            let total_vol: f64 = wt.iter().sum();
+            let vpin = if total_vol > 0.0 {
+                wb.iter().zip(ws.iter()).map(|(b2, s2)| (b2 - s2).abs()).sum::<f64>() / total_vol
+            } else {
+                0.0
+            };
+            vpins.push(vpin);
+
+            acc_buy = 0.0;
+            acc_sell = 0.0;
+            acc_total = 0.0;
+            start_time = None;
+            end_time = 0.0;
+        }
+    }
+    let _ = end_time;
+    Ok((buckets_out, vpins))
+}
