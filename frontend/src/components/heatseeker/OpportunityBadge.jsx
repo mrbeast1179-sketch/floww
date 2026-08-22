@@ -27,9 +27,10 @@
  */
 
 import React, { memo, useEffect, useState } from "react";
+import { BACKEND_BASE } from "../../config/api";
 
 const SIDE_BASE =
-  process.env.REACT_APP_STEAL_THREE_BASE || "http://localhost:8000";
+  process.env.REACT_APP_STEAL_THREE_BASE || BACKEND_BASE;
 
 // Tier colour map — HIGH=emerald (best), MED=sky, WATCH=amber, LOW=slate.
 // Pulse-dot colour on the header tracks the same map so the lifecycle is

@@ -11,7 +11,7 @@
  *                        contract never creates duplicate journal cards.
  */
 
-const API_BASE = "http://localhost:8000/api";
+import { API as API_BASE } from "../../config/api";
 export const JOURNAL_KEY = "floww_trades_v2";
 
 export async function previewAutoTrades({ tier = "SILVER", minDte = 2, equity } = {}) {

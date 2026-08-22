@@ -59,7 +59,7 @@ import ErrorBoundary from "./components/ErrorBoundary";
 import { RetryButton, ErrorState } from "./components/RetryButton";
 
 
-const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || "http://localhost:8000";
+import { BACKEND_URL } from "./config/api";
 const API = `${BACKEND_URL}/api`;
 
 // ============ Velocity Gauge ============

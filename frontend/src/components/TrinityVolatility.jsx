@@ -28,9 +28,9 @@ class ErrorBoundary extends React.Component {
   }
 }
 
-const API = process.env.REACT_APP_BACKEND_URL
-  ? `${process.env.REACT_APP_BACKEND_URL}/api`
-  : "/api";
+import { API as BACKEND_API } from "../config/api";
+
+const API = BACKEND_API;
 
 const PLOT = { responsive: true, displayModeBar: false };
 

@@ -9,8 +9,9 @@
  */
 
 import React, { memo, useEffect, useState } from "react";
+import { BACKEND_BASE } from "../../config/api";
 
-const SIDE_BASE = process.env.REACT_APP_STEAL_THREE_BASE || "http://localhost:8000";
+const SIDE_BASE = process.env.REACT_APP_STEAL_THREE_BASE || BACKEND_BASE;
 const SOLVED_IV_NULL = 0.0;
 
 function fmtPct(n) {

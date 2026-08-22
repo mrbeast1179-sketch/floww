@@ -1,10 +1,9 @@
 import React, { useEffect, useState, useMemo } from "react";
 import axios from "axios";
 import { fmt, TRINITY, DEFAULT_TICKERS } from "../lib/helpers";
+import { API as BACKEND_API } from "../config/api";
 
-const API = process.env.REACT_APP_BACKEND_URL
-  ? `${process.env.REACT_APP_BACKEND_URL}/api`
-  : "/api";
+const API = BACKEND_API;
 
 /**
  * Multi-Ticker Heatmap — Skylit reference style

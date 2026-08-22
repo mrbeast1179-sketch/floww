@@ -9,8 +9,9 @@
  */
 
 import React, { memo, useEffect, useState } from "react";
+import { BACKEND_BASE } from "../../config/api";
 
-const SIDE_BASE = process.env.REACT_APP_STEAL_THREE_BASE || "http://localhost:8000";
+const SIDE_BASE = process.env.REACT_APP_STEAL_THREE_BASE || BACKEND_BASE;
 
 const BADGE_TONE = {
   live:   { fg: "text-rose-300",   bg: "rgba(244,63,94,0.10)",   border: "rgba(244,63,94,0.30)",   label: "LIVE:   flow ≥ structure" },

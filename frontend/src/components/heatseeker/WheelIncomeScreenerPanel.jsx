@@ -7,8 +7,9 @@
  */
 
 import React, { memo, useEffect, useMemo, useState } from "react";
+import { BACKEND_BASE } from "../../config/api";
 
-const SIDE_BASE = process.env.REACT_APP_STEAL_THREE_BASE || "http://localhost:8000";
+const SIDE_BASE = process.env.REACT_APP_STEAL_THREE_BASE || BACKEND_BASE;
 const DEFAULT_FILTERS = { min_iv: 0.0, min_volume: 10, min_dte: 7, max_dte: 45, top: 25 };
 
 function fmt(n, digits = 2) {

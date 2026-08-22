@@ -25,9 +25,10 @@
  */
 
 import React, { memo, useEffect, useState } from "react";
+import { BACKEND_BASE } from "../../config/api";
 
 const SIDE_BASE =
-  process.env.REACT_APP_STEAL_THREE_BASE || "http://localhost:8000";
+  process.env.REACT_APP_STEAL_THREE_BASE || BACKEND_BASE;
 
 function fmt(n, d = 0) {
   return n == null || !Number.isFinite(Number(n))

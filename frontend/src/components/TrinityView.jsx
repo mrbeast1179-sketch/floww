@@ -1,10 +1,9 @@
 import React, { useEffect, useState, useMemo, useCallback, useRef } from "react";
 import axios from "axios";
 import { fmt, fmtAbs, TRINITY } from "../lib/helpers";
+import { API as BACKEND_API } from "../config/api";
 
-const API = process.env.REACT_APP_BACKEND_URL
-  ? `${process.env.REACT_APP_BACKEND_URL}/api`
-  : "/api";
+const API = BACKEND_API;
 
 /**
  * Trinity 3-Panel View — Institutional Redesign

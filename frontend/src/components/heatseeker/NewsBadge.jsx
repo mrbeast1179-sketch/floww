@@ -27,9 +27,10 @@
  */
 
 import React, { memo, useEffect, useState } from "react";
+import { BACKEND_BASE } from "../../config/api";
 
 const SIDE_BASE =
-    process.env.REACT_APP_STEAL_THREE_BASE || "http://localhost:8000";
+    process.env.REACT_APP_STEAL_THREE_BASE || BACKEND_BASE;
 
 /**
  * Convert an ISO datetime string to a compact relative-time tag

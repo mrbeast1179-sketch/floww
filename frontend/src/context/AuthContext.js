@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
+import { BACKEND_BASE } from '../config/api';
 
 const AUTH_KEY = 'ap.authToken';
 const AUTH_USER_KEY = 'ap.authUser';
@@ -23,7 +24,7 @@ export function AuthProvider({ children }) {
 
   const login = useCallback(async (email, tier) => {
     // Use local backend for dev-token (not the real AlphaPod API)
-    const base = process.env.REACT_APP_BACKEND_URL || "http://localhost:8000";
+    const base = BACKEND_BASE;
     const res = await axios.post(
       `${base}/api/auth/dev-token`,
       { email, tier }

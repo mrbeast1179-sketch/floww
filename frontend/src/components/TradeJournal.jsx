@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import { isTradeClosed, tradePnl, tradeOutcome } from "./tradeMath";
 
-const API = "http://localhost:8000/api";
 
 // ─── Trade Form Modal ─────────────────────────────────────────────────────────
 function TradeForm({ trade, onSave, onCancel, ticker, spot }) {

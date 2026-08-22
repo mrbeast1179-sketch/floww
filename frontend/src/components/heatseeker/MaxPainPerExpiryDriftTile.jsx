@@ -37,13 +37,14 @@
  */
 
 import React, { memo, useEffect, useState, useMemo, useCallback } from "react";
+import { BACKEND_BASE } from "../../config/api";
 
 // ─────────────────────────────────────────────────────────────────────
 // Endpoint configuration
 // ─────────────────────────────────────────────────────────────────────
 
 const SIDE_BASE =
-  process.env.REACT_APP_STEAL_THREE_BASE || "http://localhost:8000";
+  process.env.REACT_APP_STEAL_THREE_BASE || BACKEND_BASE;
 const DEFAULT_DAYS = 30;
 
 // ─────────────────────────────────────────────────────────────────────
