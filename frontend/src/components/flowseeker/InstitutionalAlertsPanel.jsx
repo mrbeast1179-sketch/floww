@@ -26,8 +26,13 @@
  * backend/services/cvserver_client.py cadence) and degrades gracefully to
  * a "waiting for first scan" empty state instead of a misleading table.
  */
-import React, { useMemo } from "react";
+import React, { useMemo, useState, useCallback } from "react";
 import { useFlowseeker } from "../../hooks/useFlowseeker";
+import {
+  previewAutoTrades,
+  executeAutoTrades,
+  persistJournalSeeds,
+} from "./autoTrade";
 import {
   compareAlerts,
   clusterChip,
@@ -77,6 +82,41 @@ export default function InstitutionalAlertsPanel({ active = true, days = 7, limi
   // Distinguish three strip states: error (banner), measured (strip), idle.
   const qualityUnavailable = !!qualityError && !summary.hasData;
 
+  // ── Signal-to-trade bridge UI state (two-step arm/fire) ──
+  // preview → shows what WOULD trade (read-only) → execute submits paper
+  // orders AND persists journal_seeds into floww_trades_v2.
+  const [atState, setAtState] = useState("idle"); // idle|preview|executing|done
+  const [atPreview, setAtPreview] = useState(null);
+  const [atResult, setAtResult] = useState(null);
+  const [atError, setAtError] = useState(null);
+
+  const handlePreview = useCallback(async () => {
+    setAtError(null);
+    try {
+      const data = await previewAutoTrades({ tier: "SILVER", minDte: 2 });
+      setAtPreview(data);
+      setAtState("preview");
+    } catch (e) {
+      setAtError(String(e.message || e));
+    }
+  }, []);
+
+  const handleExecute = useCallback(async () => {
+    setAtState("executing");
+    setAtError(null);
+    try {
+      const data = await executeAutoTrades({ tier: "SILVER", minDte: 2 });
+      const added = persistJournalSeeds(data.journal_seeds || []);
+      setAtResult({ ...data, journal_added: added });
+      setAtState("done");
+      refreshFeed();
+    } catch (e) {
+      setAtError(String(e.message || e));
+      setAtState("preview");
+    }
+  }, [refreshFeed]);
+
+
   return (
     <div className="fsp-conviction" aria-label="Conviction v2 institutional alerts">
       <header className="fsp-conviction-h">
@@ -101,6 +141,59 @@ export default function InstitutionalAlertsPanel({ active = true, days = 7, limi
           </button>
         </div>
       </header>
+
+      {atError && (
+        <div className="fsp-conviction-err" role="alert">Auto-trade: <code>{atError}</code></div>
+      )}
+
+      {/* Signal-to-trade bridge bar — preview then arm/fire */}
+      {hasData && (
+        <div className="fsp-at-bar" aria-label="Signal to trade bridge">
+          {atState === "idle" && (
+            <>
+              <span className="fsp-at-hint">
+                Auto-trade qualifying alerts → paper portfolio + journal
+              </span>
+              <button type="button" className="fsp-at-btn" onClick={handlePreview}>
+                Preview trades
+              </button>
+            </>
+          )}
+          {atState === "preview" && atPreview && (
+            <>
+              <span className="fsp-at-hint">
+                {atPreview.count} trade{atPreview.count === 1 ? "" : "s"} pass gates
+                {" "}({atPreview.gates?.min_tier ?? "SILVER"}+, DTE ≥ {atPreview.gates?.min_dte ?? 2})
+                {atPreview.count > 0 && (
+                  <> · {(atPreview.trades || []).slice(0, 4).map(t => t.order.symbol).join(", ")}
+                    {(atPreview.trades || []).length > 4 ? "…" : ""}</>
+                )}
+              </span>
+              <button type="button" className="fsp-at-btn fsp-at-btn-arm" onClick={handleExecute}
+                      disabled={atPreview.count === 0}>
+                Execute + journal
+              </button>
+              <button type="button" className="fsp-at-btn" onClick={() => setAtState("idle")}>
+                Cancel
+              </button>
+            </>
+          )}
+          {atState === "executing" && (
+            <span className="fsp-at-hint">Executing…</span>
+          )}
+          {atState === "done" && atResult && (
+            <>
+              <span className="fsp-at-hint fsp-at-ok">
+                ✓ {atResult.accepted}/{atResult.count} orders accepted
+                {" "}· {atResult.journal_added} journal card{atResult.journal_added === 1 ? "" : "s"} written
+              </span>
+              <button type="button" className="fsp-at-btn" onClick={() => setAtState("idle")}>
+                Dismiss
+              </button>
+            </>
+          )}
+        </div>
+      )}
 
       {feedError && (
         <div className="fsp-conviction-err">
