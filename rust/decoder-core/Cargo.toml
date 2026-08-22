@@ -1,0 +1,23 @@
+[package]
+name = "decoder-core"
+version = "0.1.0"
+edition = "2021"
+description = "Confluence Decoder core math: Black-Scholes Greeks, GEX aggregation, chain normalization. Single source of truth replacing 22 scattered Python implementations."
+
+[lib]
+name = "decoder_core"
+crate-type = ["cdylib", "rlib"]
+
+[features]
+extension-module = ["pyo3/extension-module"]
+default = []
+
+[dependencies]
+pyo3 = { version = "0.22", features = ["extension-module"] }
+rayon = "1.10"
+serde = { version = "1", features = ["derive"] }
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
