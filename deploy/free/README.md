@@ -79,6 +79,10 @@ docker compose -f deploy/free/docker-compose.yml logs -f --tail=100 backend
 Disk watch: Mongo grows slowly (11MB now). `df -h` monthly is enough.
 
 ## Known gaps / honest notes
+- Route audit (openapi.json): 312 backend paths; only /gex/*, /metrics,
+  /health* live outside /api — all explicitly proxied in the Caddyfile now
+  (commit 20a6529). If you add backend routes outside /api later, add the
+  prefix to the `@backend` matcher or they'll hit the SPA fallback.
 - `/health` (no prefix) returns 404 in current build — healthcheck and Caddy
   probes use `/api/health` instead. Fixing the route is optional cleanup.
 - ~~Frontend hardcoded `http://localhost:8000` fetch bases~~ FIXED at
