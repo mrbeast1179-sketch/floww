@@ -1578,6 +1578,38 @@ async def regime(ticker: str):
 
 # ── Signal-to-trade bridge: alerts → paper trades + journal seeds ──
 
+@router.get("/journal/trades")
+async def journal_trades(status: str = Query("all", pattern="^(all|open|closed)$"),
+                         days: int = Query(365, ge=1, le=3650)):
+    """Server-persisted auto-journal entries (survives localStorage clears).
+    Shaped as floww_trades_v2 entries + provenance so the frontend can
+    merge them into its offline store."""
+    from services.duckdb_engine import db as duckdb_engine
+    from services.journal_store import get_engine, init_journal_tables, read_trades
+    init_journal_tables(get_engine())
+    trades = read_trades(get_engine(), status=status, days=days)
+    return {"trades": trades, "count": len(trades)}
+
+
+@router.post("/journal/close")
+async def journal_close(request: dict):
+    """Close a journaled trade: body {key, exit_price, exit_date} where key
+    is the journalSeedKey() composite. Used by the paper-engine close-out
+    sync and by the journal UI when the server store is the source."""
+    from services.journal_store import close_trade, get_engine, init_journal_tables
+    init_journal_tables(get_engine())
+    key = str(request.get("key") or "")
+    try:
+        exit_price = float(request.get("exit_price"))
+    except (TypeError, ValueError) as err:
+        raise HTTPException(400, "exit_price must be a number") from err
+    exit_date = str(request.get("exit_date") or "")
+    ok = close_trade(get_engine(), key, exit_price=exit_price, exit_date=exit_date)
+    if not ok:
+        raise HTTPException(404, f"no journaled trade for key {key}")
+    return {"closed": True, "key": key}
+
+
 @router.get("/auto-trade/preview")
 async def auto_trade_preview(
     tier: str = Query("SILVER", pattern="^(GOLD|SILVER|BRONZE)$"),
@@ -1624,6 +1656,19 @@ async def auto_trade_execute(
                                min_tier=tier, min_dte=min_dte)
 
     executed, rejected, journal_seeds = [], [], []
+    # Server-side journal persistence — file-backed (data/journal.duckdb),
+    # survives restarts and localStorage clears. Written BEFORE the engine
+    # loop so a paper-engine failure never loses the journal record.
+    try:
+        from services.journal_store import get_engine, init_journal_tables, save_seeds
+        jeng = get_engine()
+        init_journal_tables(jeng)
+        seeds = [t["journal_entry"] | {"ckey": t["ckey"]} for t in trades]
+        journal_added = save_seeds(jeng, seeds)
+    except Exception as e:
+        logger.warning("server journal persistence failed (continuing): %s", e)
+        journal_added = 0
+
     try:
         from server import _paper_engine
         engine = _paper_engine
@@ -1654,5 +1699,6 @@ async def auto_trade_execute(
     return {
         "executed": executed, "rejected": rejected,
         "journal_seeds": journal_seeds,
+        "journal_added_server": journal_added,
         "count": len(trades), "accepted": ok,
     }

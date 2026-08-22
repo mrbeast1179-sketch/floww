@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import { isTradeClosed, tradePnl, tradeOutcome } from "./tradeMath";
+import { API } from "../config/api";
 
 
 // ─── Trade Form Modal ─────────────────────────────────────────────────────────
@@ -175,12 +176,33 @@ export default function TradeJournal({ ticker }) {
   const [sortBy, setSortBy] = useState("date"); // date | pnl | ticker
   const loadedRef = useRef(false);
 
-  // Load from localStorage
+  // Load from localStorage, then merge server-persisted auto-journal rows.
+  // Server rows (source flowseeker-auto) survive localStorage clears and
+  // sync across devices; local manual entries always win their own slot.
   useEffect(() => {
+    let cancelled = false;
     try {
       const saved = localStorage.getItem("floww_trades_v2");
       if (saved) setTrades(JSON.parse(saved));
     } catch (e) { console.error("TradeJournal load failed:", e); }
+    (async () => {
+      try {
+        const res = await fetch(`${API}/flowseeker/journal/trades?days=365`);
+        if (!res.ok) return;
+        const data = await res.json();
+        const server = data.trades || [];
+        if (cancelled || server.length === 0) return;
+        setTrades(prev => {
+          const seen = new Set(prev.map(t =>
+            [t.ticker, t.type, t.action, t.strike ?? "", t.expiry ?? "", t.entry_date ?? ""].join("|")));
+          const fresh = server
+            .filter(s => !seen.has([s.ticker, s.type, s.action, s.strike ?? "", s.expiry ?? "", s.entry_date ?? ""].join("|")))
+            .map((s, i) => ({ ...s, id: `srv-${Date.now()}-${i}`, created_at: s.created_at }));
+          return fresh.length ? [...fresh, ...prev] : prev;
+        });
+      } catch (e) { /* server store unreachable — localStorage is the fallback */ }
+    })();
+    return () => { cancelled = true; };
   }, []);
 
   // Save to localStorage
