@@ -205,14 +205,19 @@ def _yfinance_chain_sync(sym: str, fields: list[str]) -> dict:
     for exp in exps:
         try:
             oc = t.option_chain(exp)
+            # Strike-index the puts ONCE per expiry — the old code ran a full
+            # DataFrame boolean scan per field per strike (O(strikes²·fields)).
+            puts_by_strike: dict[float, dict] = {}
+            for _, pr in oc.puts.iterrows():
+                puts_by_strike[float(pr.get("strike", 0))] = pr
             strikes_out = []
             for _, row in oc.calls.iterrows():
                 strike = float(row.get("strike", 0))
                 cv, pv = [], []
+                pr = puts_by_strike.get(strike)
                 for f in fields:
                     v1 = row.get(f)
-                    pr = oc.puts[oc.puts["strike"] == strike]
-                    v2 = pr.iloc[0].get(f) if len(pr) > 0 else None
+                    v2 = pr.get(f) if pr is not None else None
                     cv.append(_safe_float(v1))
                     pv.append(_safe_float(v2))
                 strikes_out.append([strike, cv, pv])
