@@ -1,6 +1,6 @@
 # deploy/free/Caddyfile
-# Caddy reverse proxy — auto-HTTPS via Let's Encrypt (zero config, free).
-# DOMAIN comes from the environment (set in docker-compose / .env.prod).
+# Caddy reverse proxy - auto-HTTPS via Let's Encrypt (zero config, free).
+# DOMAIN comes from the environment.
 
 {
     email {$ADMIN_EMAIL}
@@ -9,29 +9,22 @@
 {$DOMAIN} {
     encode zstd gzip
 
-    # API routes → FastAPI
-    handle /api/* {
+    # Backend routes under explicit prefixes
+    @backend path /api/* /ws/* /dashboard/* /health* /gex/* /metrics
+    handle @backend {
         reverse_proxy backend:8000
     }
 
-    # WebSocket routes → FastAPI (upgrade headers handled automatically)
-    handle /ws/* {
-        reverse_proxy backend:8000
-    }
-
-    # Dash UI → FastAPI
-    handle /dashboard/* {
-        reverse_proxy backend:8000
-    }
-
-    # Static assets (hashed filenames → cache forever)
-    handle /static/* {
+    # Static assets (hashed filenames -> cache forever)
+    @static path /static/* /manifest.json /service-worker.js /offline.html /favicon.ico /asset-manifest.json /icons/*
+    handle @static {
         root * /srv/static
         file_server
         header Cache-Control "public, max-age=31536000, immutable"
     }
 
-    # Default → React build (SPA fallback)
+    # Known non-/api backend segments (from openapi.json audit): /gex/*, /metrics, /health*
+    # Everything else falls through to the SPA — deep links always render the app.
     handle {
         root * /srv/static
         try_files {path} /index.html
