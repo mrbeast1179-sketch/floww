@@ -274,8 +274,11 @@ def _common_factors(r: dict, regimes: dict, sigma_tickers: set,
         gi = gex_context.get("gamma_imbalance", {})
         gex_regime = gi.get("regime")
         gib_pct = gi.get("gamma_imbalance_pct", 0)
-        # Confluent: negative gamma + bearish flow, or positive gamma + bullish flow
-        if (gib_pct < -0.5 and bias == "bearish") or (gib_pct > 0.5 and bias == "bullish"):
+        # Confluent: negative gamma + bearish flow, or positive gamma + bullish
+        # flow. infer_side_bias returns "BULLISH"/"BEARISH" uppercase — compare
+        # case-insensitively (was a case-sensitive dead comparison).
+        bias_l = (bias or "").lower()
+        if (gib_pct < -0.5 and bias_l == "bearish") or (gib_pct > 0.5 and bias_l == "bullish"):
             gex_confluent = True
 
     return {
@@ -295,7 +298,8 @@ def _common_factors(r: dict, regimes: dict, sigma_tickers: set,
     }
 
 
-def eval_institutional(rows, baselines=None, prev_oi=None, regimes=None, opts=None):
+def eval_institutional(rows, baselines=None, prev_oi=None, regimes=None, opts=None,
+                       gex_context: dict | None = None):
     """Evaluate normalized rows into enriched institutional alerts.
 
     One alert per contract, strongest claim first (OICONF > SCORE > WHALE >
@@ -373,7 +377,8 @@ def eval_institutional(rows, baselines=None, prev_oi=None, regimes=None, opts=No
     winners = set()
     for pct, add_notl, r in cand[:5]:
         winners.add(r["ckey"])
-        f = _common_factors(r, regimes, sigma_tickers, cw_map, clusters)
+        f = _common_factors(r, regimes, sigma_tickers, cw_map, clusters,
+                            gex_context=gex_context)
         f["oiconf"] = True
         out.append(_finalize(_mk_alert(r, "OICONF", {
             "oi_chg_pct": round(pct, 4),
@@ -384,7 +389,8 @@ def eval_institutional(rows, baselines=None, prev_oi=None, regimes=None, opts=No
     for r in rows:
         if r["ckey"] in winners:
             continue
-        f = _common_factors(r, regimes, sigma_tickers, cw_map, clusters)
+        f = _common_factors(r, regimes, sigma_tickers, cw_map, clusters,
+                            gex_context=gex_context)
         rule, why = None, None
         score = r.get("_score") or 0
         if score >= o["min_score"]:

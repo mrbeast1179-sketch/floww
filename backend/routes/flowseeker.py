@@ -579,6 +579,7 @@ async def _run_institutional_alerts(rows: list) -> None:
         }
         alerts = fa.eval_institutional(
             normed, baselines=baselines, prev_oi=prev, regimes=_cached_regimes(),
+            gex_context=_cached_gex_context(sorted({r["under"] for r in normed})),
         )
         # init before desk_pass so the campaign 10-day lookback in
         # flow_alerts_daily has its target table on every fresh deploy.
@@ -598,6 +599,37 @@ async def _run_institutional_alerts(rows: list) -> None:
         fa.update_moves(duckdb_engine, spots)
     except Exception as e:
         logger.warning(f"institutional alert eval failed: {e}")
+
+
+def _cached_gex_context(tickers: list[str]) -> dict[str, dict]:
+    """Per-ticker paper-accurate GEX context (Barbon-Buraschi ΓIB) from the
+    heatmap cache — cache-only, no fetches (mirrors _cached_regimes)."""
+    try:
+        import server  # deferred: circular import
+        from services.gex_paper_accurate import (
+            DEFAULT_ADV_SHARES,
+            compute_gamma_imbalance,
+        )
+
+        out: dict[str, dict] = {}
+        now = time.time()
+        wanted = set(tickers)
+        for key, entry in list(getattr(server, "_BUILD_HEATMAP_CACHE", {}).items()):
+            sym = key.split(":", 1)[0]
+            if sym not in wanted or now - entry.get("ts", 0) > 900:
+                continue
+            gf = ((entry.get("data") or {}).get("gamma_flip")) or {}
+            total_gex = gf.get("total_gex")
+            spot = gf.get("spot")
+            if not total_gex or not spot or spot <= 0:
+                continue
+            out[sym] = {
+                "gamma_imbalance": compute_gamma_imbalance(
+                    total_gex, spot, adv_shares=DEFAULT_ADV_SHARES),
+            }
+        return out
+    except Exception:
+        return {}
 
 
 async def _prev_contract_oi() -> dict[str, int]:

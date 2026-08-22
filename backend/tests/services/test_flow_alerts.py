@@ -300,3 +300,47 @@ def test_persist_same_key_same_day_upserts_not_duplicates(fresh_engine):
     persist_alerts(fresh_engine, alerts)
     persist_alerts(fresh_engine, alerts)
     assert len(read_alert_feed(fresh_engine, days=3)) == 1
+
+
+# ── GEX CONFLUENCE (Conviction v2) ──────────────────────────────────
+
+def _bearish_raw(**kw):
+    return _raw(typ="put", vol=60000, oi=1500, **kw)
+
+
+def test_gex_confluent_fires_on_lowercase_bias_vs_negative_gamma():
+    """bias 'BEARISH' (uppercase from infer_side_bias) must match negative
+    gamma regime — the historical bug was a case-sensitive comparison."""
+    from services.flow_alerts import _common_factors
+    r = dict(norm_rows([_bearish_raw()])[0])
+    r["bias"] = "BEARISH"
+    gex_ctx = {"gamma_imbalance": {"gamma_imbalance_pct": -1.2,
+                                   "regime": "negative_gamma"}}
+    f = _common_factors(r, {}, set(), {}, {}, gex_context=gex_ctx)
+    assert f["gex_confluent"] is True
+
+
+def test_gex_confluent_fires_bullish_positive_gamma():
+    from services.flow_alerts import _common_factors
+    r = dict(norm_rows([_raw(vol=60000, oi=1500)])[0])
+    gex_ctx = {"gamma_imbalance": {"gamma_imbalance_pct": 0.9,
+                                   "regime": "positive_gamma"}}
+    f = _common_factors(r, {}, set(), {}, {}, gex_context=gex_ctx)
+    assert f["gex_confluent"] is True
+
+
+def test_gex_confluent_false_when_opposed():
+    from services.flow_alerts import _common_factors
+    r = dict(norm_rows([_raw(vol=60000, oi=1500)])[0])
+    gex_ctx = {"gamma_imbalance": {"gamma_imbalance_pct": -1.2,
+                                   "regime": "negative_gamma"}}
+    f = _common_factors(r, {}, set(), {}, {}, gex_context=gex_ctx)
+    assert f["gex_confluent"] is False
+
+
+def test_gex_confluent_false_without_context():
+    from services.flow_alerts import _common_factors
+    r = dict(norm_rows([_raw(vol=60000, oi=1500)])[0])
+    f = _common_factors(r, {}, set(), {}, {})
+    assert f["gex_confluent"] is False
+    assert f["gex_regime"] is None
