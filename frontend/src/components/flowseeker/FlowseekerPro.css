@@ -532,6 +532,40 @@
 }
 .fsp-conviction-refresh:hover { color: var(--conf-gold); border-color: var(--conf-gold); }
 
+/* ── Blademap v3 conviction bar (tier cell) ── */
+.fsp-conviction-tierwrap {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.fsp-conv {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  min-width: 34px;
+  height: 14px;
+  padding: 0 4px;
+  background: rgba(148, 163, 184, 0.12);
+  border-radius: 3px;
+  overflow: hidden;
+}
+.fsp-conv .fsp-conv-bar {
+  position: absolute;
+  inset: 0 auto 0 0;
+  background: rgba(148, 163, 184, 0.35);
+  transition: width .25s ease;
+}
+.fsp-conv b {
+  position: relative;
+  font-size: 9px;
+  font-weight: 700;
+  color: var(--text-secondary);
+}
+.fsp-conv-warm .fsp-conv-bar { background: rgba(251, 191, 36, 0.35); }
+.fsp-conv-warm b { color: #fbbf24; }
+.fsp-conv-hot .fsp-conv-bar { background: rgba(52, 211, 153, 0.30); }
+.fsp-conv-hot b { color: #34d399; }
+
 /* ── Signal-to-trade bridge bar ── */
 .fsp-at-bar {
   display: flex;

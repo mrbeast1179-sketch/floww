@@ -238,9 +238,30 @@ export default function InstitutionalAlertsPanel({ active = true, days = 7, limi
                 const cluster = clusterChip(a);
                 const prime = primeChip(a);
                 const sigma = sigmaChip(a.sigma);
+                // Blademap v3: ranked conviction (0-100) renders as a mini
+                // bar next to the tier; key levels ride the row tooltip.
+                const conv = Number(a.conviction);
+                const hasConv = Number.isFinite(conv) && conv > 0;
+                const kl = a.key_levels;
+                const klTip = kl
+                  ? `Entry $${kl.entry} · stop $${kl.invalidation} · target $${kl.target}`
+                  : null;
+                const ctx = a.context || {};
+                const ctxTip = ctx.dealer_positioning ? `${ctx.market_regime || ""} — ${ctx.dealer_positioning}` : "";
                 return (
-                  <tr key={`${a.key || a.under}_${i}`} title={a.why || ""}>
-                    <td><span className={tier.className}>{tier.label}</span></td>
+                  <tr key={`${a.key || a.under}_${i}`} title={klTip || a.why || ""}>
+                    <td>
+                      <span className="fsp-conviction-tierwrap">
+                        <span className={tier.className}>{tier.label}</span>
+                        {hasConv && (
+                          <span className={`fsp-conv ${conv >= 75 ? "fsp-conv-hot" : conv >= 60 ? "fsp-conv-warm" : ""}`}
+                                title={klTip ? `${klTip}${ctxTip ? ` · ${ctxTip}` : ""}` : `Conviction ${conv}`}>
+                            <i className="fsp-conv-bar" style={{ width: `${conv}%` }} />
+                            <b>{conv}</b>
+                          </span>
+                        )}
+                      </span>
+                    </td>
                     <td className="fsp-conviction-tk">{a.under}</td>
                     <td className={`fsp-conviction-bias ${biasClass(a)}`}>
                       {a.bias || (a.side === "STRATEGY" ? "—" : a.side || "—")}

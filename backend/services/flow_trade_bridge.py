@@ -52,9 +52,21 @@ def eligible_for_auto_trade(alert: dict, *, min_tier: str = "SILVER",
     return entry > 0
 
 
-def _position_size(est_entry: float, account_equity: float) -> int:
-    """Fixed-fraction: 2% of equity / (entry * 100), min 1 contract."""
-    risk_notional = max(account_equity, 0.0) * RISK_PCT_PER_TRADE
+def _position_size(est_entry: float, account_equity: float,
+                   conviction: int | None = None) -> int:
+    """Fixed-fraction base (2% of equity) scaled by Blademap-style
+    conviction: ≥75 conviction takes full size, 60–75 takes 75%, below
+    60 takes half. Min 1 contract. Conviction is the ranked 0-100
+    score from flow_alerts.score_conviction (None → full size)."""
+    scale = 1.0
+    if isinstance(conviction, (int, float)) and not isinstance(conviction, bool):
+        if conviction >= 75:
+            scale = 1.0
+        elif conviction >= 60:
+            scale = 0.75
+        else:
+            scale = 0.5
+    risk_notional = max(account_equity, 0.0) * RISK_PCT_PER_TRADE * scale
     per_contract = max(est_entry, 0.01) * 100.0
     qty = int(math.floor(risk_notional / per_contract)) if per_contract > 0 else 0
     return max(qty, 1)
@@ -66,7 +78,8 @@ def alert_to_order(alert: dict, *, account_equity: float = 100_000.0) -> dict[st
     return {
         "symbol": str(alert["under"]).upper(),
         "side": "BUY",
-        "quantity": _position_size(entry, account_equity),
+        "quantity": _position_size(entry, account_equity,
+                                   conviction=alert.get("conviction")),
         "order_type": "market",
         "metadata": {
             "source": "flowseeker",

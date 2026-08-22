@@ -23,6 +23,8 @@ conn) — see floww-audit-2026-07-11 (thread-unsafe shared connection).
 
 from __future__ import annotations
 
+import contextlib
+import json
 import logging
 import math
 import time
@@ -219,14 +221,155 @@ def tier_of(factors: dict) -> str | None:
     return None
 
 
+# ── Blademap-style weighted conviction (v3) ─────────────────────────
+#
+# tier_of() counts booleans — a row with whale+cluster+CW reads GOLD the
+# same as score90+sigma+prime, and a row with zero confluences still
+# lands BRONZE off a single soft factor. Blademap weights DIMENSIONS:
+# flow quality dominates, context confirms, and conviction is a number
+# the desk can rank, not a bucket. score_conviction() keeps tier_of()
+# for feed compatibility but is the ranking signal from v3 on.
+
+# Dimension weights sum to 100.
+_W_FLOW = 45        # vol/OI, size, notional — the tape itself
+_W_STRUCTURE = 20   # informed band (Pan-Poteshman) + urgency (DTE shape)
+_W_CONFLUENCE = 25  # GEX/CW/cluster/sigma/regime confluences
+_W_TAIL = 10        # whale premium / score90 tail events
+
+
+def score_conviction(r: dict, factors: dict | None = None,
+                     regime: str | None = None) -> int:
+    """Weighted 0-100 conviction for one normalized row.
+
+    Flow dimension reuses the parity scan_score components (they're the
+    calibrated tape read); structure re-weights urgency toward the
+    informed band; confluence counts Blademap-style confirmations with
+    GEX confluency weighted heaviest (paper-accurate ΓIB is our hardest
+    context signal); tail catches the 1-in-a-hundred prints.
+    """
+    f = factors or {}
+    vol_oi = r.get("vol_oi") or 0.0
+    vol = max(r.get("vol") or 0.0, 1.0)
+    notional = max(r.get("notional") or 0.0, 1.0)
+    dte = r.get("dte")
+    premium = r.get("premium") or 0.0
+
+    # Flow dimension (0-45)
+    pos = min(vol_oi / 3.0, 1.0)
+    size = min(math.log(vol) / math.log(50000), 1.0)
+    notl = min(math.log(notional) / math.log(50e6), 1.0)
+    flow = (pos * 0.45 + size * 0.33 + notl * 0.22) * _W_FLOW
+
+    # Structure dimension (0-20): informed band is the structural claim
+    informed = 1.0 if (dte is not None and 7 <= dte <= 90
+                       and vol_oi >= 3 and premium >= 25e3) else 0.0
+    urg = 0.3 if dte is None else (1.0 if dte <= 2 else 0.7 if dte <= 7
+                                   else 0.4 if dte <= 30 else 0.15)
+    structure = (informed * 0.6 + urg * 0.4) * _W_STRUCTURE
+
+    # Confluence dimension (0-25): gex_confluent weighted double
+    confluence_hits = sum(1 for k in ("cw_confirm", "cluster", "sigma_ticker",
+                                      "regime_confluent") if f.get(k))
+    gex = 2 if f.get("gex_confluent") else 0
+    confluence = min(confluence_hits + gex, 5) / 5.0 * _W_CONFLUENCE
+
+    # Tail dimension (0-10)
+    tail = ((0.6 if premium >= 10e6 else 0.0)
+            + (0.4 if (r.get("_score") or 0) >= 90 else 0.0)) * _W_TAIL
+
+    # Negative-gamma short-DTE context adds a small convexity bump (the
+    # same +5 the parity score grants), capped inside the clamp.
+    bump = 3 if (regime == "negative" and dte is not None and dte <= 7) else 0
+
+    return max(0, min(100, round(flow + structure + confluence + tail + bump)))
+
+
+# ── Blademap alert contract: key levels + context ───────────────────
+
+# Target/invalidation distances as fractions of underlying price. The
+# invalidation sits near the delta-implied breakeven; targets scale with
+# the GEX regime (short gamma moves harder — Ni-Pearson 2020).
+_INVALIDATION_PCT = 0.025
+_TARGET_POS_GAMMA = 0.035
+_TARGET_NEG_GAMMA = 0.055
+
+
+def build_key_levels(r: dict, bias: str | None,
+                     gex_regime: str | None) -> dict | None:
+    """Blademap alert contract: entry / invalidation / target on the
+    UNDERLYING. None when the alert doesn't claim a direction."""
+    spot = r.get("spot")
+    if not bias or not spot or spot <= 0:
+        return None
+    entry = float(spot)
+    if str(bias).upper() == "BULLISH":
+        invalidation = entry * (1 - _INVALIDATION_PCT)
+        tgt_pct = _TARGET_NEG_GAMMA if gex_regime == "negative" else _TARGET_POS_GAMMA
+        target = entry * (1 + tgt_pct)
+    else:
+        invalidation = entry * (1 + _INVALIDATION_PCT)
+        tgt_pct = _TARGET_NEG_GAMMA if gex_regime == "negative" else _TARGET_POS_GAMMA
+        target = entry * (1 - tgt_pct)
+    rnd = lambda v: round(v, 2)  # noqa: E731
+    return {"entry": rnd(entry), "invalidation": rnd(invalidation),
+            "target": rnd(target)}
+
+
+_INDICATOR_LABELS = (
+    ("score90", "Top-decile composite score"),
+    ("whale", "Whale premium (≥$10M)"),
+    ("sigma_ticker", "σ spike (BH-FDR surviving)"),
+    ("informed_band", "Informed-positioning band (7–90 DTE, Pan-Poteshman)"),
+    ("regime_confluent", "Regime-confluent tenor"),
+    ("prime", "Prime print (≥$250k, ≥5× OI)"),
+    ("cluster", "Same-bias cluster (≥3 contracts)"),
+    ("cw_confirm", "Cremers-Weinbaum IV spread confirms"),
+    ("gex_confluent", "Dealer gamma confluency (ΓIB)"),
+)
+
+
+def build_context(r: dict, factors: dict) -> dict:
+    """Blademap-style WHY block: human-readable indicators, dealer
+    positioning read, and the market regime label."""
+    indicators = [label for key, label in _INDICATOR_LABELS if factors.get(key)]
+    regime = factors.get("gex_regime")
+    market_regime = ("NEGATIVE_GAMMA" if regime == "negative"
+                     else "POSITIVE_GAMMA" if regime == "positive"
+                     else "UNKNOWN")
+    if regime == "negative":
+        dealer = ("Net short gamma — dealer hedging amplifies moves; "
+                  "flows in this regime tend to chase")
+    elif regime == "positive":
+        dealer = ("Net long gamma — dealer hedging dampens moves; "
+                  "flows mean-revert toward walls")
+    else:
+        dealer = "Dealer positioning unknown (no GEX context for ticker)"
+    vol = r.get("vol") or 0
+    premium = r.get("premium") or 0
+    vol_oi = r.get("vol_oi") or 0
+    summary = (f"{r.get('type', 'call').capitalize()} print: {vol:,} contracts "
+               f"vs {int(vol_oi * 100):,} resting OI ({vol_oi:.1f}×), "
+               f"~${premium / 1e6:.2f}M premium, {r.get('dte')} DTE")
+    return {
+        "activity_summary": summary,
+        "institutional_indicators": indicators,
+        "market_regime": market_regime,
+        "dealer_positioning": dealer,
+    }
+
+
 # ── the engine ──────────────────────────────────────────────────────
 
 def _mk_alert(r: dict, rule: str, extra: dict, factors: dict, asof: str) -> dict:
     side, bias = infer_side_bias(r)
-    return {
+    regime = factors.get("gex_regime") if isinstance(factors, dict) else None
+    a = {
         "key": f"{rule.lower()}|{r['ckey']}",
         "ckey": r["ckey"], "rule": rule,
         "tier": tier_of(factors) or "BRONZE",
+        # Blademap v3: ranked weighted conviction (factor-count tier kept
+        # above for feed compatibility).
+        "conviction": score_conviction(r, factors),
         "side": side, "bias": bias,
         "under": r["under"], "type": r["type"], "strike": r["strike"],
         "exp": r["exp"], "dte": r.get("dte"),
@@ -235,6 +378,10 @@ def _mk_alert(r: dict, rule: str, extra: dict, factors: dict, asof: str) -> dict
         "notional": r.get("notional"), "vol_oi": r.get("vol_oi"),
         "sigma": extra.get("sigma"), "oi_chg_pct": extra.get("oi_chg_pct"),
         "under_price": r.get("spot"),
+        # Blademap alert contract: falsifiable levels + the WHY block.
+        # STRATEGY (spread) rows claim no direction -> no levels.
+        "key_levels": build_key_levels(r, bias, regime),
+        "context": build_context(r, factors or {}),
         # Conviction v2 v2.1: surface the cluster factor that the engine
         # already computed in _common_factors(factors). A row whose ticker
         # laddered with ≥3 same-bias qualifying contracts in the snapshot
@@ -245,6 +392,7 @@ def _mk_alert(r: dict, rule: str, extra: dict, factors: dict, asof: str) -> dict
         "ttl_s": _TTL_S.get(rule, 2 * 3600),
         "asof": asof,
     }
+    return a
 
 
 def _finalize(a: dict, r: dict, cw_map: dict | None) -> dict:
@@ -461,6 +609,14 @@ def init_flow_alert_tables(engine) -> None:
             "ALTER TABLE flow_alerts_daily ADD COLUMN IF NOT EXISTS wins BIGINT")
     except Exception:
         pass
+    for ddl in (
+        "ALTER TABLE flow_alerts_daily ADD COLUMN IF NOT EXISTS conviction INTEGER",
+        "ALTER TABLE flow_alerts_daily ADD COLUMN IF NOT EXISTS key_levels_json TEXT",
+        "ALTER TABLE flow_alerts_daily ADD COLUMN IF NOT EXISTS context_json TEXT",
+    ):
+        with contextlib.suppress(Exception):
+            # Blademap v3 contract columns (2026-08-22).
+            engine.execute_write(ddl)
     engine.execute_write("""
         CREATE TABLE IF NOT EXISTS flow_alert_dedup (
             key TEXT PRIMARY KEY, last_fired_ts DOUBLE, ttl_s DOUBLE
@@ -482,13 +638,18 @@ def persist_alerts(engine, alerts, snapshot_date: str | None = None) -> int:
         a.get("vol_oi"), a.get("sigma"), a.get("oi_chg_pct"),
         a.get("under_price"), a.get("cw_spread"), bool(a.get("cluster", False)),
         a.get("why"),
+        # Blademap v3 contract (conviction / levels / context)
+        a.get("conviction"),
+        json.dumps(a.get("key_levels")) if a.get("key_levels") else None,
+        json.dumps(a.get("context")) if a.get("context") else None,
     ] for a in alerts]
     engine.execute_write("""
         INSERT INTO flow_alerts_daily (
             asof_date, asof_ts, key, ckey, rule, tier, side, bias, under, type,
             strike, exp, dte, score, est_entry, premium, notional, vol_oi,
-            sigma, oi_chg_pct, under_price, cw_spread, cluster, why
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            sigma, oi_chg_pct, under_price, cw_spread, cluster, why,
+            conviction, key_levels_json, context_json
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT (asof_date, key) DO UPDATE SET
             asof_ts = excluded.asof_ts, tier = excluded.tier, side = excluded.side,
             bias = excluded.bias, score = excluded.score,
@@ -496,7 +657,10 @@ def persist_alerts(engine, alerts, snapshot_date: str | None = None) -> int:
             notional = excluded.notional, vol_oi = excluded.vol_oi,
             sigma = excluded.sigma, oi_chg_pct = excluded.oi_chg_pct,
             under_price = excluded.under_price, cw_spread = excluded.cw_spread,
-            cluster = excluded.cluster, why = excluded.why
+            cluster = excluded.cluster, why = excluded.why,
+            conviction = excluded.conviction,
+            key_levels_json = excluded.key_levels_json,
+            context_json = excluded.context_json
     """, rows)
     return len(rows)
 
