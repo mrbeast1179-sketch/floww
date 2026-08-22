@@ -44,8 +44,6 @@ import TradeJournal from "./components/TradeJournal";
 import { DashboardSummary } from "./components/DashboardSummary";
 import { TradeAnalytics } from "./components/TradeAnalytics";
 import { SocialFlowPanel } from "./components/SocialFlowPanel";
-import SwarmFrame from "./components/SwarmFrame";
-import TurboQuantPanel from "./components/TurboQuantPanel";
 import SkylitDashboard from "./components/heatseeker/SkylitDashboard";
 import StealThreePreview from "./components/heatseeker/StealThreePreview";
 import FlowseekerProBlademap from "./components/flowseeker/FlowseekerProBlademap";
@@ -190,14 +188,14 @@ function TickerSearch({ tickers, value, onChange }) {
 // ============ AlphaPod-style Header ============
 function ApHeader({ page, ticker, onTickerChange, tickers, data, onSignOut, userEmail, userTier }) {
   const pageName = PAGE_NAMES[page] || page;
-  const isLive = page === "flow-alerts" || page === "alpha-flow";
+  const isLive = page === "flow-alerts";
 
   return (
     <header className="ap-header">
       <div className="ap-header-inner">
         {/* Breadcrumb */}
         <div className="ap-breadcrumb">
-          <span className="hidden lg:inline" style={{ color: "var(--text-tertiary)" }}>Alpha Flow</span>
+          <span className="hidden lg:inline" style={{ color: "var(--text-tertiary)" }}>Decoder</span>
           <svg className="hidden lg:block" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ color: "var(--text-quaternary)" }}>
             <path d="M9 18l6-6-6-6"/>
           </svg>
@@ -1055,12 +1053,6 @@ export default function App() {
         {page === "journal" && (
           <TradeJournal ticker={ticker} />
         )}
-
-        {/* SwarmSPX Neural Intelligence */}
-        {page === "swarmspx" && <SwarmFrame />}
-
-        {/* turboQuantDC KV Cache Compression */}
-        {page === "turboquant" && <TurboQuantPanel />}
 
         {/* Flowseeker Pro Tab */}
         {page === "flowseeker-pro" && (

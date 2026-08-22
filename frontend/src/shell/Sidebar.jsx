@@ -186,8 +186,9 @@ export default function Sidebar({ page, onNavigate, userEmail, userTier }) {
                     className="group relative flex items-center gap-2.5 rounded-lg px-3 py-2 text-[13px] font-medium transition-colors"
                     style={{
                       width: "100%",
-                      color: active ? "var(--text-primary)" : "var(--text-secondary)",
-                      background: active ? "rgba(255,255,255,0.06)" : "transparent",
+                      color: active ? "var(--gold-bright)" : "var(--text-secondary)",
+                      background: active ? "rgba(201,168,76,0.09)" : "transparent",
+                      boxShadow: active ? "inset 2px 0 0 var(--gold)" : "none",
                       border: "none",
                       cursor: "pointer",
                       textAlign: "left",
