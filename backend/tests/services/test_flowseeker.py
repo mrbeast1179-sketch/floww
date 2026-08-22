@@ -31,6 +31,7 @@ from services.flowseeker import (  # noqa: E402
     classify_print,
     contract_drilldown,
     fetch_live_flow,
+    fetch_live_flow_with_meta,
 )
 
 # ---------------------------------------------------------------------------
@@ -318,3 +319,39 @@ class TestContractDrilldown:
         assert out["vol_oi_history"][0] == pytest.approx(2.0)
         assert out["vol_oi_history"][1] == pytest.approx(4.0)
         assert out["vol_oi_history"][2] == pytest.approx(0.75)
+
+
+class TestDegradationTransparency:
+    """C3: provider failures must be distinguishable from 'no flow today'.
+    fetch_live_flow/contract_drilldown now attach a `degraded` marker instead
+    of silently returning empty data."""
+
+    def test_live_flow_failure_sets_degraded(self):
+        client = _make_client_mock(recent=None, live=None)
+        client.get_options_flow_recent = AsyncMock(side_effect=RuntimeError("provider down"))
+        with patch("services.flowseeker._get_client", return_value=client):
+            out = _run(fetch_live_flow_with_meta(ticker="SPY"))
+        assert out["degraded"] is True
+        assert "provider down" in out["degraded_reason"]
+        assert out["prints"] == []
+
+    def test_live_flow_empty_payload_flags_degraded(self):
+        """Both endpoints returning None usually means tier/auth issues in
+        practice — flag degraded with a reason rather than a silent []."""
+        client = _make_client_mock(recent=None, live=None)
+        with patch("services.flowseeker._get_client", return_value=client):
+            out = _run(fetch_live_flow_with_meta(ticker="SPY"))
+        assert out["degraded"] is True
+        assert out["prints"] == []
+
+    def test_live_flow_success_not_degraded(self):
+        client = _make_client_mock(recent=[{"x": 1}], live=None)
+        with patch("services.flowseeker._get_client", return_value=client):
+            out = _run(fetch_live_flow_with_meta(ticker="SPY"))
+        assert out["degraded"] is False
+
+    def test_backward_compat_fetch_live_flow_still_list(self):
+        client = _make_client_mock(recent=None, live=None)
+        with patch("services.flowseeker._get_client", return_value=client):
+            out = _run(fetch_live_flow(ticker="SPY"))
+        assert out == []

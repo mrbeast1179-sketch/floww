@@ -294,6 +294,41 @@ async def fetch_live_flow(
     return out
 
 
+async def fetch_live_flow_with_meta(
+    ticker: str | None = None,
+    *,
+    limit: int = 50,
+    min_premium: float = 0.0,
+) -> dict[str, Any]:
+    """fetch_live_flow + degradation metadata.
+
+    The bare list variant can't distinguish 'quiet tape' from 'provider
+    down' — both are []. This returns {prints, degraded, degraded_reason}
+    so the route can surface staleness instead of silently showing an
+    empty feed."""
+    client = _get_client()
+    try:
+        if ticker:
+            sym = ticker.strip().upper()
+            payload = await client.get_options_flow_recent(sym)
+            if not payload:
+                payload = await client.get_flow_live(sym)
+        else:
+            payload = await client.get_options_flow_outliers()
+    except Exception as e:
+        logger.warning(f"flowseeker: provider error: {e}")
+        return {"prints": [], "degraded": True, "degraded_reason": str(e)}
+
+    if not payload:
+        # Provider answered with nothing on BOTH endpoints — in practice this
+        # is a tier/auth gap, not a quiet tape. Flag it.
+        return {"prints": [], "degraded": True,
+                "degraded_reason": "provider returned no payload (tier/auth or empty feed)"}
+
+    prints = await fetch_live_flow(ticker=ticker, limit=limit, min_premium=min_premium)
+    return {"prints": prints, "degraded": False, "degraded_reason": None}
+
+
 async def contract_drilldown(symbol: str) -> dict[str, Any]:
     """
     Contract-level drilldown: volume, OI, chain ratio, recent prints, vol/OI
@@ -326,6 +361,7 @@ async def contract_drilldown(symbol: str) -> dict[str, Any]:
         return empty
 
     client = _get_client()
+    degraded: list[str] = []
 
     # Recent prints (chain context)
     try:
@@ -333,6 +369,7 @@ async def contract_drilldown(symbol: str) -> dict[str, Any]:
     except Exception as e:
         logger.warning(f"flowseeker drilldown: recent error: {e}")
         recent_payload = None
+        degraded.append(f"recent: {e}")
 
     # Aggregate summary (volume / OI rollup)
     try:
@@ -340,6 +377,7 @@ async def contract_drilldown(symbol: str) -> dict[str, Any]:
     except Exception as e:
         logger.warning(f"flowseeker drilldown: summary error: {e}")
         summary_payload = None
+        degraded.append(f"summary: {e}")
 
     # History (optional — many tiers don't expose it; tolerate)
     try:
@@ -347,6 +385,7 @@ async def contract_drilldown(symbol: str) -> dict[str, Any]:
     except Exception as e:
         logger.warning(f"flowseeker drilldown: history error: {e}")
         history_payload = None
+        degraded.append(f"history: {e}")
 
     recent_prints = [_normalize_print(r, ticker_hint=sym) for r in _extract_prints(recent_payload)]
     recent_prints = [r for r in recent_prints if r]
@@ -391,4 +430,7 @@ async def contract_drilldown(symbol: str) -> dict[str, Any]:
         "chain_ratio": chain_ratio,
         "recent_prints": recent_prints,
         "vol_oi_history": vol_oi_history,
+        "degraded": bool(degraded) or not isinstance(summary_payload, dict),
+        "degraded_reason": "; ".join(degraded) if degraded else (
+            "summary payload missing" if not isinstance(summary_payload, dict) else None),
     }

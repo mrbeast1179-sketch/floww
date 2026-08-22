@@ -19,7 +19,7 @@ import httpx
 from fastapi import APIRouter, HTTPException, Query
 from pymongo import UpdateOne
 
-from services.flowseeker import contract_drilldown, fetch_live_flow
+from services.flowseeker import contract_drilldown, fetch_live_flow_with_meta
 
 logger = logging.getLogger(__name__)
 
@@ -219,12 +219,16 @@ async def live_flow(
     limit: int = Query(50, ge=1, le=500),
     min_premium: float = Query(0.0, ge=0.0),
 ):
-    """Live institutional options flow with classification."""
-    prints = await fetch_live_flow(ticker=ticker, limit=limit, min_premium=min_premium)
+    """Live institutional options flow with classification. Surfaces
+    degraded=true + reason when the provider is down — the frontend can
+    distinguish 'no flow today' from 'feed broken'."""
+    meta = await fetch_live_flow_with_meta(ticker=ticker, limit=limit, min_premium=min_premium)
     return {
         "ticker": (ticker.strip().upper() if ticker else None),
-        "count": len(prints),
-        "prints": prints,
+        "count": len(meta["prints"]),
+        "prints": meta["prints"],
+        "degraded": meta["degraded"],
+        "degraded_reason": meta["degraded_reason"],
     }
 
 
