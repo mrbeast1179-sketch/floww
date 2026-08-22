@@ -78,12 +78,16 @@ def fetch_live_chain(ticker: str, max_expiries: int = 2) -> dict[str, Any] | Non
                 spot = float(chain.calls["strike"].median())
 
             for _, row in chain.calls.iterrows():
+                # int(NaN) raises — yfinance returns NaN OI/volume on stale
+                # contracts; coerce NaN→0 before the cast (2026-08-22 500 fix)
+                oi = row.get("openInterest", 0)
+                vol = row.get("volume", 0)
                 contracts.append({
                     "expiry": exp_str,
                     "strike": float(row.get("strike", 0)),
                     "type": "C",
-                    "oi": int(row.get("openInterest", 0) or 0),
-                    "volume": int(row.get("volume", 0) or 0),
+                    "oi": 0 if oi != oi else int(oi),
+                    "volume": 0 if vol != vol else int(vol),
                     "iv": float(row.get("impliedVolatility", 0) or 0),
                     "delta": float(row.get("delta", 0) or 0),
                     "gamma": float(row.get("gamma", 0) or 0),
@@ -93,12 +97,14 @@ def fetch_live_chain(ticker: str, max_expiries: int = 2) -> dict[str, Any] | Non
                 })
 
             for _, row in chain.puts.iterrows():
+                oi = row.get("openInterest", 0)
+                vol = row.get("volume", 0)
                 contracts.append({
                     "expiry": exp_str,
                     "strike": float(row.get("strike", 0)),
                     "type": "P",
-                    "oi": int(row.get("openInterest", 0) or 0),
-                    "volume": int(row.get("volume", 0) or 0),
+                    "oi": 0 if oi != oi else int(oi),
+                    "volume": 0 if vol != vol else int(vol),
                     "iv": float(row.get("impliedVolatility", 0) or 0),
                     "delta": float(row.get("delta", 0) or 0),
                     "gamma": float(row.get("gamma", 0) or 0),

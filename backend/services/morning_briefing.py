@@ -522,12 +522,16 @@ async def build_briefing(
             pass
 
         call_oi_total = sum(
-            int(c.get("oi", c.get("open_interest", 0)))
+            int(c.get("oi", c.get("open_interest", 0)) or 0)
+            if c.get("oi", c.get("open_interest", 0)) == c.get("oi", c.get("open_interest", 0))
+            else 0
             for c in chain_contracts
             if str(c.get("type", "")).lower() in ("call", "c", "0")
         )
         put_oi_total = sum(
-            int(c.get("oi", c.get("open_interest", 0)))
+            int(c.get("oi", c.get("open_interest", 0)) or 0)
+            if c.get("oi", c.get("open_interest", 0)) == c.get("oi", c.get("open_interest", 0))
+            else 0
             for c in chain_contracts
             if str(c.get("type", "")).lower() in ("put", "p", "1")
         )
@@ -727,12 +731,25 @@ async def build_briefing(
         except Exception as e:
             logger.debug(f"Paper-accurate GEX diagnostic failed for {ticker}: {e}")
 
+    import math as _math
+
+    def _sanitize(obj):
+        """Recursively replace NaN/Inf with None — FastAPI's JSONResponse
+        rejects non-compliant floats (2026-08-22 briefing 500 fix)."""
+        if isinstance(obj, float):
+            return None if _math.isnan(obj) or _math.isinf(obj) else obj
+        if isinstance(obj, dict):
+            return {k: _sanitize(v) for k, v in obj.items()}
+        if isinstance(obj, list):
+            return [_sanitize(v) for v in obj]
+        return obj
+
     return BriefingResult(
         ticker=ticker,
         regime=regime,
         narrative=narrative,
         timestamp=now,
-        metrics={
+        metrics=_sanitize({
             "net_gex": net_gex,
             "flip_level": flip_level,
             "call_oi": call_oi_total,
@@ -775,5 +792,4 @@ async def build_briefing(
             "real_drift_burst": burst_signal,
             # Cross-asset gamma spillover — index gamma → this ticker
             "cross_asset_spillover": spillover_signal,
-        },
-    )
+        }))
