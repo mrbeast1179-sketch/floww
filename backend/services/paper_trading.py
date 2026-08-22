@@ -40,12 +40,18 @@ class PaperTradingEngine:
         max_position_pct: float = 0.10,  # max 10% of capital per position
         max_delta_exposure: float = 500.0,  # max net delta
         commission_per_contract: float = 0.65,
+        on_position_closed: Any = None,
     ):
         self.initial_capital = initial_capital
         self.cash = initial_capital
         self.max_position_pct = max_position_pct
         self.max_delta_exposure = max_delta_exposure
         self.commission_per_contract = commission_per_contract
+        # Optional callable(symbol, exit_price) fired when a symbol's net
+        # position transitions to FLAT (round-trip closed). Used by the
+        # Flowseeker journal bridge to auto-close seeded cards; injected
+        # rather than imported so the engine stays decoupled.
+        self.on_position_closed = on_position_closed
 
         self.execution_engine = ExecutionEngine()
         self.kyle_lambda = self.execution_engine.kyle_lambda
@@ -208,6 +214,24 @@ class PaperTradingEngine:
         if new_qty != 0:
             pos["avg_cost"] = (pos["avg_cost"] * old_qty + fill_price * order.quantity) / new_qty
         pos["quantity"] = new_qty
+
+        # Flat transition: symbol NET position (buy + sell legs) crossed to
+        # zero -> round-trip closed. Positions are keyed per symbol_side, so
+        # flatness is computed by netting across all of the symbol's legs.
+        # (No old_qty guard: the CLOSING leg's own side starts at 0, so the
+        # guard would skip exactly the fill that flattens the position.)
+        if self.on_position_closed:
+            buy_qty = sum(p["quantity"] for k, p in self.positions.items()
+                          if p["symbol"] == order.symbol and k.endswith("_buy"))
+            sell_qty = sum(p["quantity"] for k, p in self.positions.items()
+                           if p["symbol"] == order.symbol and k.endswith("_sell"))
+            if abs(buy_qty - sell_qty) < 1e-9:
+                try:
+                    self.on_position_closed(order.symbol, float(fill_price))
+                except Exception as e:
+                    # Hook failure must never break order execution.
+                    logger.warning("on_position_closed hook failed for %s: %s",
+                                   order.symbol, e)
 
     def _check_risk(
         self,

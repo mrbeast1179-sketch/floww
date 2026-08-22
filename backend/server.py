@@ -2519,10 +2519,24 @@ async def startup_paper_trading():
     """Initialize paper trading engine on startup."""
     global _paper_engine
     try:
+        # Close-out sync: when a symbol's paper position nets to flat,
+        # auto-close its open Flowseeker journal cards with the realized
+        # exit. File-backed store; failures are logged, never fatal.
+        def _journal_closeout(symbol: str, exit_price: float) -> None:
+            from datetime import date
+            from services.journal_store import close_open_by_symbol, get_engine
+            closed = close_open_by_symbol(get_engine(), symbol,
+                                          exit_price=float(exit_price),
+                                          exit_date=date.today().isoformat())
+            if closed:
+                log.info("Journal close-out: %d card(s) closed for %s @ %s",
+                         closed, symbol, exit_price)
+
         _paper_engine = PaperTradingEngine(
             initial_capital=100_000.0,
             max_position_pct=0.10,
             max_delta_exposure=500.0,
+            on_position_closed=_journal_closeout,
         )
         _set_paper_engine(_paper_engine)
         log.info("Paper trading engine started ($100K initial capital)")

@@ -182,6 +182,31 @@ def read_trades(engine, *, status: str = "all", days: int = 365) -> list[dict]:
     return out
 
 
+def close_open_by_symbol(engine, symbol: str, *, exit_price: float,
+                         exit_date: str) -> int:
+    """Close ALL open journal cards for a symbol (first close wins on
+    already-closed cards). Returns count closed. Used by the paper-engine
+    close-out hook: when a position nets to flat, every auto-seeded card
+    for that symbol gets its exit stamped automatically."""
+    try:
+        rows = engine.query(
+            "SELECT ticker, type, action, strike, expiry, entry_date "
+            "FROM flow_journal_trades "
+            "WHERE ticker = ? AND COALESCE(exit_date, '') = '' AND exit_price IS NULL",
+            [str(symbol).upper()],
+        )
+        closed = 0
+        for r in rows:
+            key = "|".join(str(r.get(k) or "") for k in
+                           ("ticker", "type", "action", "strike", "expiry", "entry_date"))
+            if close_trade(engine, key, exit_price=exit_price, exit_date=exit_date):
+                closed += 1
+        return closed
+    except Exception as e:
+        logger.warning("close_open_by_symbol failed for %s: %s", symbol, e)
+        return 0
+
+
 def close_trade(engine, key: str, *, exit_price: float, exit_date: str) -> bool:
     """Set exit fields on the trade matching a journalSeedKey() key."""
     parts = str(key).split("|")
