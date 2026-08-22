@@ -178,3 +178,28 @@ fn test_liquidity_basins_threshold() {
     let sg = vec![(760.0, 1e6), (761.0, 2e6), (762.0, -1e6)];
     assert!(liquidity_basins(&sg, 766.0).is_empty());
 }
+
+#[test]
+fn test_classify_volume_sums() {
+    use crate::vpin::classify_volume;
+    let r = classify_volume(&[0.1, -0.2, 0.05], &[100.0, 200.0, 300.0], 1.0).unwrap();
+    for i in 0..3 {
+        assert!((r.buy[i] + r.sell[i] - [100.0, 200.0, 300.0][i]).abs() < 1e-9);
+        assert!(r.buy[i] >= 0.0 && r.buy[i] <= 300.0);
+    }
+}
+
+#[test]
+fn test_classify_volume_zero_sigma_fallback() {
+    use crate::vpin::classify_volume;
+    let r = classify_volume(&[0.0, 0.0], &[100.0, 200.0], 1.0).unwrap();
+    assert_eq!(r.buy[0], 50.0);
+    assert_eq!(r.sell[1], 100.0);
+}
+
+#[test]
+fn test_vpin_from_buckets() {
+    use crate::vpin::vpin_from_buckets;
+    let v = vpin_from_buckets(&[60.0, 70.0], &[40.0, 30.0], &[100.0, 100.0]);
+    assert!((v - 0.30).abs() < 1e-9);
+}

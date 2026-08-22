@@ -8,6 +8,7 @@ pub mod bindings;
 pub mod gex;
 pub mod greeks;
 pub mod term;
+pub mod vpin;
 
 #[cfg(test)]
 mod tests;

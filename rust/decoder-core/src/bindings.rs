@@ -5,6 +5,7 @@
 use crate::gex::{self, RawContract, StrikeRow};
 use crate::greeks;
 use crate::term;
+use crate::vpin;
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 use rayon::prelude::*;
@@ -295,6 +296,28 @@ fn liquidity_basins(
     Ok(PyList::new_bound(py, &dicts).into_any().unbind())
 }
 
+
+/// Bulk Volume Classification over a trade batch — parity with
+/// VpinEngine.classify_volume. Returns (buy[], sell[]).
+#[pyfunction]
+#[pyo3(signature = (price_changes, volumes, dt=1.0))]
+fn classify_volume(
+    price_changes: Vec<f64>,
+    volumes: Vec<f64>,
+    dt: f64,
+) -> PyResult<(Vec<f64>, Vec<f64>)> {
+    match vpin::classify_volume(&price_changes, &volumes, dt) {
+        Ok(c) => Ok((c.buy, c.sell)),
+        Err(e) => Err(PyValueError::new_err(e)),
+    }
+}
+
+/// Rolling VPIN from finalized buckets — parity with _recompute_vpin.
+#[pyfunction]
+fn vpin_from_buckets(buy: Vec<f64>, sell: Vec<f64>, total: Vec<f64>) -> f64 {
+    vpin::vpin_from_buckets(&buy, &sell, &total)
+}
+
 #[pymodule]
 fn decoder_core(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(bs_gamma, m)?)?;
@@ -305,5 +328,7 @@ fn decoder_core(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(term_structure, m)?)?;
     m.add_function(wrap_pyfunction!(liquidity_basins, m)?)?;
     m.add_function(wrap_pyfunction!(term_structure_columns, m)?);
+    m.add_function(wrap_pyfunction!(classify_volume, m)?);
+    m.add_function(wrap_pyfunction!(vpin_from_buckets, m)?);
     Ok(())
 }
