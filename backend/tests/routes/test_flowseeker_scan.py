@@ -398,3 +398,16 @@ def test_force_refresh_uses_register_scan_429(monkeypatch):
         raised = e
     assert raised is not None and raised.status_code == 503
     assert fs._scan_backoff["until"] - time.time() < 1200   # exponential path
+
+
+# ── H2-followup: unbounded caches get pruned ─────────────────────────
+
+def test_chain_cache_pruned_at_cap(monkeypatch):
+    """_remember_chain must evict oldest entries once the cache exceeds
+    its max size — long-lived processes can't grow it forever."""
+    monkeypatch.setattr(fs, "_CHAIN_CACHE_MAX", 5)
+    for i in range(10):
+        fs._remember_chain(f"T{i}", {"i": i})
+    assert len(fs._chain_cache) <= 5
+    # newest entries survive, oldest evicted
+    assert "T9" in fs._chain_cache and "T0" not in fs._chain_cache

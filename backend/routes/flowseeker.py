@@ -31,6 +31,19 @@ CVFORGE_TIMEOUT = 15.0  # seconds
 
 # ── Cache ──
 _chain_cache: dict[str, tuple[float, dict]] = {}
+# Long-lived-process guard: unbounded per-symbol caches leak memory. Oldest
+# entries evicted first (insertion-ordered dict).
+_CHAIN_CACHE_MAX = int(os.environ.get("FLOWW_CHAIN_CACHE_MAX", "500"))
+
+
+def _remember_chain(sym: str, data: dict) -> None:
+    """Insert into _chain_cache with LRU-ish eviction at _CHAIN_CACHE_MAX."""
+    _chain_cache[sym] = (time.time(), data)
+    while len(_chain_cache) > _CHAIN_CACHE_MAX:
+        oldest = next(iter(_chain_cache))
+        del _chain_cache[oldest]
+
+
 # 10 min — per-ticker chains share a ~5-call/hour budget slice with a free
 # yfinance fallback; a 2-min TTL would let one open chart tab spend it all.
 CACHE_TTL = 600
@@ -260,7 +273,7 @@ async def options_chain(symbol: str):
     # Try CVForge first (fast, rich data)
     data = await _cvforge_chain(sym)
     if data and data.get("chain"):
-        _chain_cache[sym] = (time.time(), data)
+        _remember_chain(sym, data)
         return data
 
     # Fallback to yfinance (slow but reliable)
@@ -273,7 +286,7 @@ async def options_chain(symbol: str):
             loop.run_in_executor(None, _yfinance_chain_sync, sym, fields),
             timeout=60.0,
         )
-        _chain_cache[sym] = (time.time(), data)
+        _remember_chain(sym, data)
         return data
     except TimeoutError:
         return {
@@ -681,22 +694,32 @@ async def _run_institutional_alerts(rows: list) -> None:
             normed, baselines=baselines, prev_oi=prev, regimes=_cached_regimes(),
             gex_context=_cached_gex_context(sorted({r["under"] for r in normed})),
         )
-        # init before desk_pass so the campaign 10-day lookback in
-        # flow_alerts_daily has its target table on every fresh deploy.
-        fa.init_flow_alert_tables(duckdb_engine)
-        # Desk pass (Conviction v2.2): fresh-interest gate, campaign
-        # promotion, IV context. Fails open. See
-        # docs/handoff/FABLE-desk-pass.md for the contract.
-        alerts = fd.desk_pass(duckdb_engine, normed, alerts)
-        fresh = fa.dedup_filter(duckdb_engine, alerts)
+        # DuckDB calls are synchronous — run them off the event loop so a
+        # slow query never stalls concurrent requests (this runs in a
+        # fire-and-forget task, but that task still shares the loop).
+        loop = asyncio.get_running_loop()
+
+        def _duck_pass() -> list:
+            # init before desk_pass so the campaign 10-day lookback in
+            # flow_alerts_daily has its target table on every fresh deploy.
+            fa.init_flow_alert_tables(duckdb_engine)
+            # Desk pass (Conviction v2.2): fresh-interest gate, campaign
+            # promotion, IV context. Fails open. See
+            # docs/handoff/FABLE-desk-pass.md for the contract.
+            passed = fd.desk_pass(duckdb_engine, normed, alerts)
+            fresh = fa.dedup_filter(duckdb_engine, passed)
+            if fresh:
+                fa.persist_alerts(duckdb_engine, fresh)
+            fa.update_moves(duckdb_engine, spots)
+            return fresh
+
+        spots = {r["under"]: r["spot"] for r in normed if r.get("spot")}
+        fresh = await loop.run_in_executor(None, _duck_pass)
         if fresh:
-            fa.persist_alerts(duckdb_engine, fresh)
             logger.info(
                 "institutional alerts: %d fired (%s)",
                 len(fresh), ",".join(sorted({a["under"] for a in fresh})),
             )
-        spots = {r["under"]: r["spot"] for r in normed if r.get("spot")}
-        fa.update_moves(duckdb_engine, spots)
     except Exception as e:
         logger.warning(f"institutional alert eval failed: {e}")
 
@@ -1457,6 +1480,9 @@ async def _fetch_tv_signal(sym: str) -> dict | None:
     except Exception as e:
         logger.debug(f"tv signal unavailable for {sym}: {e}")
     _tv_signal_cache[sym] = (time.time(), result)
+    while len(_tv_signal_cache) > 200:
+        oldest = next(iter(_tv_signal_cache))
+        del _tv_signal_cache[oldest]
     return result
 
 
