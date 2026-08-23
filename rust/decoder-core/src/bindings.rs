@@ -5,6 +5,7 @@
 use crate::gex::{self, RawContract, StrikeRow};
 use crate::curve;
 use crate::greeks;
+use crate::grid;
 use crate::nodes;
 use crate::iv;
 use crate::term;
@@ -609,6 +610,84 @@ fn aggregate_gex_curve(
     Ok(PyList::new_bound(py, &items).into_any().unbind())
 }
 
+
+/// 2D GEX grid — parity with gex_core.compute_gex_grid.
+/// Columnar; returns {expiries, strikes, grid, charm_grid, vex_grid, strike_totals}.
+#[pyfunction]
+#[pyo3(signature = (spot, strikes, ts, ois, ivs, kinds, expiries, div_yield=0.0))]
+fn compute_gex_grid(
+    py: Python<'_>,
+    spot: f64,
+    strikes: Vec<f64>, ts: Vec<f64>, ois: Vec<f64>, ivs: Vec<f64>,
+    kinds: Vec<bool>, expiries: Vec<String>, div_yield: f64,
+) -> PyResult<PyObject> {
+    use pyo3::types::{PyDict, PyList};
+    use pyo3::types::PyDictMethods;
+
+    let out = match grid::compute_gex_grid(spot, &strikes, &ts, &ois, &ivs, &kinds, &expiries, div_yield) {
+        Some(g) => g,
+        None => {
+            let d = PyDict::new_bound(py);
+            d.set_item("expiries", PyList::empty_bound(py))?;
+            d.set_item("strikes", PyList::empty_bound(py))?;
+            d.set_item("grid", PyDict::new_bound(py))?;
+            d.set_item("charm_grid", PyDict::new_bound(py))?;
+            d.set_item("vex_grid", PyDict::new_bound(py))?;
+            d.set_item("strike_totals", PyList::empty_bound(py))?;
+            return Ok(d.into_any().unbind());
+        }
+    };
+
+    let fmt_key = |k: f64| -> String {
+        if k.fract() == 0.0 { format!("{}", k as i64) } else { format!("{}", k) }
+    };
+
+    // build nested dicts: expiry → strike-key → value
+    let build_grid = |py: Python<'_>,
+                      pick: fn(&(usize, usize), f64, f64, f64) -> f64|
+     -> PyResult<PyObject> {
+        let outer = PyDict::new_bound(py);
+        for (e_idx, e_name) in out.expiries.iter().enumerate() {
+            let inner = PyDict::new_bound(py);
+            for ((ce, cs), gex, charm, vex) in &out.cells {
+                if *ce != e_idx { continue; }
+                let skey = fmt_key(out.strikes[*cs]);
+                // merge: multiple contracts share a strike key; sum values
+                let existing = inner.get_item(skey.as_str()).ok().flatten()
+                    .and_then(|v| v.extract::<f64>().ok()).unwrap_or(0.0);
+                let key = (*ce, *cs);
+                let val = existing + pick(&key, *gex, *charm, *vex);
+                inner.set_item(skey, val)?;
+            }
+            outer.set_item(e_name, inner)?;
+        }
+        Ok(outer.into_any().unbind())
+    };
+
+    let grid_d = build_grid(py, |_, gex, _, _| gex)?;
+    let charm_d = build_grid(py, |_, _, charm, _| charm)?;
+    let vex_d = build_grid(py, |_, _, _, vex| vex)?;
+
+    let d = PyDict::new_bound(py);
+    d.set_item("expiries", PyList::new_bound(py, &out.expiries))?;
+    d.set_item("strikes", PyList::new_bound(py, &out.strikes))?;
+    d.set_item("grid", grid_d)?;
+    d.set_item("charm_grid", charm_d)?;
+    d.set_item("vex_grid", vex_d)?;
+    let st: Vec<_> = out
+        .strike_totals
+        .iter()
+        .map(|(s, g)| {
+            let x = PyDict::new_bound(py);
+            x.set_item("strike", s)?;
+            x.set_item("gex", g)?;
+            Ok(x)
+        })
+        .collect::<PyResult<_>>()?;
+    d.set_item("strike_totals", PyList::new_bound(py, &st))?;
+    Ok(d.into_any().unbind())
+}
+
 #[pymodule]
 fn decoder_core(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(bs_gamma, m)?)?;
@@ -627,5 +706,6 @@ fn decoder_core(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(realized_volatility, m)?);
     m.add_function(wrap_pyfunction!(classify_nodes, m)?);
     m.add_function(wrap_pyfunction!(aggregate_gex_curve, m)?);
+    m.add_function(wrap_pyfunction!(compute_gex_grid, m)?);
     Ok(())
 }

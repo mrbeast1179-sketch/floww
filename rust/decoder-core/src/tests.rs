@@ -310,3 +310,26 @@ fn test_rvol_all_shapes() {
         if let Some(x) = v { assert!(*x > 0.0 && *x < 10.0, "{name}={x}"); }
     }
 }
+
+#[test]
+fn test_gex_grid_signs() {
+    use crate::grid::compute_gex_grid;
+    let out = compute_gex_grid(
+        766.0,
+        &[760.0, 770.0], &[0.02, 0.02], &[500.0, 500.0], &[0.2, 0.2],
+        &[true, false],
+        &["2026-09-04".into(), "2026-09-04".into()], 0.013,
+    ).unwrap();
+    assert_eq!(out.expiries.len(), 1);
+    assert_eq!(out.strikes.len(), 2);
+    // call cell positive, put cell negative
+    for ((e, s), gex, _, _) in &out.cells {
+        if *s == 0 { assert!(*gex > 0.0); } else { assert!(*gex < 0.0); }
+    }
+}
+
+#[test]
+fn test_gex_grid_empty() {
+    use crate::grid::compute_gex_grid;
+    assert!(compute_gex_grid(0.0, &[760.0], &[0.02], &[500.0], &[0.2], &[true], &["x".into()], 0.0).is_none());
+}

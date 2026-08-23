@@ -16,6 +16,7 @@ default = []
 pyo3 = { version = "0.22" }
 rayon = "1.10"
 serde = { version = "1", features = ["derive"] }
+libm = "0.2"
 
 [profile.release]
 opt-level = 3

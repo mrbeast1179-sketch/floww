@@ -12,20 +12,13 @@ pub fn norm_pdf(x: f64) -> f64 {
     (-0.5 * x * x).exp() / (2.0 * std::f64::consts::PI).sqrt()
 }
 
-/// Standard normal CDF — Abramowitz-Stegun 7.1.26 style rational poly.
-/// ~2ns/call, |err| < 1e-7 (matches scipy double-precision norm.cdf to
-/// well within the 1e-9 greek parity tolerance for typical inputs).
+/// Standard normal CDF — uses libm::erf (double-precision, ~1e-15 relative
+/// error) so Rust matches scipy/math.erf-based Python bit-for-bit at
+/// display precision. 2026-08-22: replaced A&S poly after grid cells
+/// showed 1.6% drift vs python on material values.
 #[inline]
 pub fn norm_cdf(x: f64) -> f64 {
-    // Zelen & Severo (A&S 26.2.17)
-    const B0: f64 = 0.2316419;
-    const B: [f64; 5] = [0.319381530, -0.356563782, 1.781477937, -1.821255978, 1.330274429];
-    let sign = if x < 0.0 { -1.0 } else { 1.0 };
-    let ax = x.abs();
-    let t = 1.0 / (1.0 + B0 * ax);
-    let poly = t * (B[0] + t * (B[1] + t * (B[2] + t * (B[3] + t * B[4]))));
-    let cdf_pos = 1.0 - norm_pdf(x) * poly;
-    0.5 * (1.0 + sign * (2.0 * cdf_pos - 1.0))
+    0.5 * (1.0 + libm::erf(x / std::f64::consts::SQRT_2))
 }
 
 /// Abramowitz & Stegun 7.1.26 erf, |err| < 1.5e-7 — same class of accuracy
@@ -92,7 +85,9 @@ pub fn gamma_scalar(s: f64, k: f64, t: f64, sigma: f64, r: f64, q: f64) -> f64 {
         return 0.0;
     }
     let sq_t = t.sqrt();
-    norm_pdf(d1(s, k, t, sigma, r, q)) / (s * sigma * sq_t)
+    // 2026-08-22 fix: missing (-q*T).exp() dividend adjustment — caused 0.04%
+    // drift vs python bs_gamma when div_yield > 0.
+    (-q * t).exp() * norm_pdf(d1(s, k, t, sigma, r, q)) / (s * sigma * sq_t)
 }
 
 pub fn delta_call_scalar(s: f64, k: f64, t: f64, sigma: f64, r: f64, q: f64) -> f64 {

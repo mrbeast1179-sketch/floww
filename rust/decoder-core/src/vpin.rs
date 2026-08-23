@@ -21,16 +21,7 @@ fn pop_std(xs: &[f64]) -> f64 {
 
 #[inline]
 fn norm_cdf(x: f64) -> f64 {
-    // A&S 26.2.17 (Zelen-Severo) — ~1e-7 abs accuracy; matches math.erf-based
-    // Python within float noise for greek parity at typical |z| < 4.
-    const B0: f64 = 0.2316419;
-    const B: [f64; 5] = [0.319381530, -0.356563782, 1.781477937, -1.821255978, 1.330274429];
-    let sign = if x < 0.0 { -1.0 } else { 1.0 };
-    let ax = x.abs();
-    let t = 1.0 / (1.0 + B0 * ax);
-    let poly = t * (B[0] + t * (B[1] + t * (B[2] + t * (B[3] + t * B[4]))));
-    let cdf_pos = 1.0 - norm_pdf(x) * poly;
-    0.5 * (1.0 + sign * (2.0 * cdf_pos - 1.0))
+    crate::greeks::norm_cdf(x)
 }
 
 #[inline]
