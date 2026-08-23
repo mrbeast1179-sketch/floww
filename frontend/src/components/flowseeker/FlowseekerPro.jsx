@@ -328,7 +328,7 @@ export default function FlowseekerPro({ active = true }) {
         <span className="fsp-brand">◢ FlowSeeker <b>Pro</b></span>
         <span className="fsp-live-badge">
           <i className={`fsp-live-dot ${usingSynthetic ? 'synthetic' : liveError ? 'error' : ''}`} />
-          {usingSynthetic ? 'LIVE · Fallback (demo)' : liveError ? 'LIVE · Error' : 'LIVE · Real Flow'}
+          {getTimeRangeLabel(filters.timeRange)} {usingSynthetic ? '· Synthetic' : ''}
         </span>
       </div>
 
