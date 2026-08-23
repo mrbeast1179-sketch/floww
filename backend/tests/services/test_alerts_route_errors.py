@@ -47,6 +47,11 @@ def _stub_alert_engine_to_raise(monkeypatch: pytest.MonkeyPatch, *, exc: Excepti
     supplied exception.  This is the surface that ``/summary`` hits when
     the engine init fails."""
     monkeypatch.delitem(sys.modules, "alert_engine", raising=False)
+    # routes/alerts memoizes the engine in a module global. If any earlier
+    # test already built one, get_alert_engine() short-circuits and never
+    # hits our raising stub. Reset it (monkeypatch restores after).
+    import routes.alerts as _alerts_mod
+    monkeypatch.setattr(_alerts_mod, "_alert_engine", None)
     mod = MagicMock()
 
     def _raise_engine(*args, **kwargs):
@@ -64,6 +69,11 @@ def _stub_gex_snapshot_to_raise(monkeypatch: pytest.MonkeyPatch, *, exc: Excepti
     engine instantiation succeeds) but ``engine.add_snapshot`` and
     ``engine.detect_alerts`` raise on access to be safe."""
     monkeypatch.delitem(sys.modules, "alert_engine", raising=False)
+    # routes/alerts memoizes the engine in a module global. If any earlier
+    # test already built one, get_alert_engine() short-circuits and never
+    # hits our raising stub. Reset it (monkeypatch restores after).
+    import routes.alerts as _alerts_mod
+    monkeypatch.setattr(_alerts_mod, "_alert_engine", None)
     mod = MagicMock()
 
     def _raise_gex(*args, **kwargs):
