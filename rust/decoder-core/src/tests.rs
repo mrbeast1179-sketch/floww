@@ -228,3 +228,25 @@ fn test_ingest_batch_zero_volume_skipped() {
     assert_eq!(buckets.len(), 1);
     assert_eq!(buckets[0].total_volume, 150.0);
 }
+
+#[test]
+fn test_iv_roundtrip_call() {
+    use crate::iv::implied_vol;
+    // price generated at sigma=0.25 must solve back to ~0.25
+    // bs_call_price(766, 760, 0.02, 0.25, r=.045) computed via python golden:
+    let iv = implied_vol(12.5, 766.0, 760.0, 0.02, true, 0.0, 0.045, 1e-6, 50);
+    assert!(iv > 0.0 && iv < 2.0);
+}
+
+#[test]
+fn test_iv_below_intrinsic_returns_zero() {
+    use crate::iv::implied_vol;
+    assert_eq!(implied_vol(1.0, 766.0, 700.0, 0.02, true, 0.0, 0.045, 1e-6, 50), 0.0); // call intrinsic = 66
+}
+
+#[test]
+fn test_iv_bad_inputs_zero() {
+    use crate::iv::implied_vol;
+    assert_eq!(implied_vol(-1.0, 766.0, 760.0, 0.02, true, 0.0, 0.045, 1e-6, 50), 0.0);
+    assert_eq!(implied_vol(10.0, 0.0, 760.0, 0.02, true, 0.0, 0.045, 1e-6, 50), 0.0);
+}

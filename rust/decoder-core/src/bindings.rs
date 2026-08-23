@@ -4,6 +4,7 @@
 
 use crate::gex::{self, RawContract, StrikeRow};
 use crate::greeks;
+use crate::iv;
 use crate::term;
 use crate::vpin;
 use pyo3::exceptions::PyValueError;
@@ -356,6 +357,37 @@ fn ingest_batch(
     }
 }
 
+
+/// Implied vol solver — parity with bs_greeks.implied_vol_from_price.
+#[pyfunction]
+#[pyo3(signature = (market_price, s, k, t, kind="call", q=0.0, r=0.045, tol=1e-6, max_iter=50))]
+fn implied_vol_from_price(
+    market_price: f64, s: f64, k: f64, t: f64,
+    kind: &str, q: f64, r: f64, tol: f64, max_iter: u32,
+) -> f64 {
+    let is_call = !kind.to_ascii_lowercase().starts_with('p');
+    iv::implied_vol(market_price, s, k, t, is_call, q, r, tol, max_iter)
+}
+
+/// Batch IV surface — columnar inputs, parallel above 64 rows.
+#[pyfunction]
+#[pyo3(signature = (market_prices, spots, strikes, ts, kinds, qs=None, rs=None, tol=1e-6, max_iter=50))]
+fn implied_vol_surface(
+    market_prices: Vec<f64>, spots: Vec<f64>, strikes: Vec<f64>, ts: Vec<f64>,
+    kinds: Vec<bool>,
+    qs: Option<Vec<f64>>, rs: Option<Vec<f64>>,
+    tol: f64, max_iter: u32,
+) -> PyResult<Vec<f64>> {
+    let n = market_prices.len();
+    let qs = qs.unwrap_or_else(|| vec![0.0; n]);
+    let rs = rs.unwrap_or_else(|| vec![0.045; n]);
+    if spots.len() != n || strikes.len() != n || ts.len() != n || kinds.len() != n
+        || qs.len() != n || rs.len() != n {
+        return Err(PyValueError::new_err("column length mismatch"));
+    }
+    Ok(iv::implied_vol_surface(&market_prices, &spots, &strikes, &ts, &kinds, &qs, &rs, tol, max_iter))
+}
+
 #[pymodule]
 fn decoder_core(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(bs_gamma, m)?)?;
@@ -369,5 +401,7 @@ fn decoder_core(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(classify_volume, m)?);
     m.add_function(wrap_pyfunction!(vpin_from_buckets, m)?);
     m.add_function(wrap_pyfunction!(ingest_batch, m)?);
+    m.add_function(wrap_pyfunction!(implied_vol_from_price, m)?);
+    m.add_function(wrap_pyfunction!(implied_vol_surface, m)?);
     Ok(())
 }
