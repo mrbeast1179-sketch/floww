@@ -235,9 +235,28 @@ def compute_gex_grid(spot: float, contracts: list[dict[str, Any]], ticker: str =
 
 def calc_probability_distribution(spot: float, contracts: list[dict[str, Any]],
                                    risk_free_rate: float = 0.05) -> list[dict[str, Any]]:
-    """Risk-neutral probability distribution from option prices."""
+    """Risk-neutral probability distribution from option prices.
+
+    Delegates to decoder_core Rust when available (40.6x, parity 2026-08-22);
+    pure-Python body retained as fallback."""
     if spot <= 0 or not contracts:
         return []
+    if _RUST_GEX:
+        try:
+            return _dc.probability_distribution(
+                spot,
+                [safe_float(c.get("strike")) for c in contracts],
+                [str(c.get("type", "call")).lower().startswith("c") for c in contracts],
+                [safe_float(c.get("iv")) for c in contracts],
+                [safe_float(c.get("T")) for c in contracts],
+                risk_free_rate,
+            )
+        except Exception as exc:  # pragma: no cover - defensive fallback
+            import logging
+
+            logging.getLogger(__name__).warning(
+                "decoder_core probability_distribution failed (%s) — python fallback", exc
+            )
     strikes = sorted(set(c["strike"] for c in contracts))
     result = []
     for k in strikes:

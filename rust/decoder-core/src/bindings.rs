@@ -7,6 +7,7 @@ use crate::curve;
 use crate::greeks;
 use crate::grid;
 use crate::nodes;
+use crate::probdist;
 use crate::iv;
 use crate::term;
 use crate::vpin;
@@ -688,6 +689,38 @@ fn compute_gex_grid(
     Ok(d.into_any().unbind())
 }
 
+
+/// Risk-neutral probability distribution — parity with
+/// gex_core.calc_probability_distribution. Columnar input.
+#[pyfunction]
+#[pyo3(signature = (spot, strikes, kinds, ivs, ts, risk_free_rate=0.05))]
+fn probability_distribution(
+    py: Python<'_>,
+    spot: f64,
+    strikes: Vec<f64>,
+    kinds: Vec<bool>,
+    ivs: Vec<f64>,
+    ts: Vec<f64>,
+    risk_free_rate: f64,
+) -> PyResult<PyObject> {
+    use pyo3::types::{PyDict, PyList};
+    use pyo3::types::PyDictMethods;
+    let rows = probdist::probability_distribution(spot, &strikes, &kinds, &ivs, &ts, risk_free_rate);
+    let dicts: Vec<_> = rows
+        .iter()
+        .map(|r| {
+            let d = PyDict::new_bound(py);
+            d.set_item("strike", r.strike)?;
+            d.set_item("prob_above", r.prob_above)?;
+            d.set_item("prob_below", r.prob_below)?;
+            d.set_item("delta", r.delta)?;
+            d.set_item("iv", r.iv)?;
+            Ok(d)
+        })
+        .collect::<PyResult<_>>()?;
+    Ok(PyList::new_bound(py, &dicts).into_any().unbind())
+}
+
 #[pymodule]
 fn decoder_core(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(bs_gamma, m)?)?;
@@ -707,5 +740,6 @@ fn decoder_core(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(classify_nodes, m)?);
     m.add_function(wrap_pyfunction!(aggregate_gex_curve, m)?);
     m.add_function(wrap_pyfunction!(compute_gex_grid, m)?);
+    m.add_function(wrap_pyfunction!(probability_distribution, m)?);
     Ok(())
 }

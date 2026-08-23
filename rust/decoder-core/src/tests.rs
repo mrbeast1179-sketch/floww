@@ -333,3 +333,25 @@ fn test_gex_grid_empty() {
     use crate::grid::compute_gex_grid;
     assert!(compute_gex_grid(0.0, &[760.0], &[0.02], &[500.0], &[0.2], &[true], &["x".into()], 0.0).is_none());
 }
+
+#[test]
+fn test_prob_dist_sums_to_one() {
+    use crate::probdist::probability_distribution;
+    let rows = probability_distribution(
+        766.0, &[760.0, 770.0], &[true, true], &[0.2, 0.2], &[0.02, 0.02], 0.05,
+    );
+    assert_eq!(rows.len(), 2);
+    for r in &rows {
+        assert!((r.prob_above + r.prob_below - 1.0).abs() < 1e-6);
+    }
+}
+
+#[test]
+fn test_prob_dist_itm_delta_gt_otm() {
+    use crate::probdist::probability_distribution;
+    let rows = probability_distribution(
+        766.0, &[700.0, 830.0], &[true, true], &[0.2, 0.2], &[0.03, 0.03], 0.05,
+    );
+    // ITM call delta > OTM call delta
+    assert!(rows[0].delta > rows[1].delta);
+}

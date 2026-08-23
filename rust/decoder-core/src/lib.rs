@@ -9,6 +9,7 @@ pub mod gex;
 pub mod greeks;
 pub mod grid;
 pub mod nodes;
+pub mod probdist;
 pub mod curve;
 pub mod iv;
 pub mod term;
