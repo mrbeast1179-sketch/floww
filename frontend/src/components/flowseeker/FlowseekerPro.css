@@ -566,6 +566,105 @@
 .fsp-conv-hot .fsp-conv-bar { background: rgba(52, 211, 153, 0.30); }
 .fsp-conv-hot b { color: #34d399; }
 
+/* ── Blademap v3 desk bar (filter/sort) ── */
+.fsp-desk-bar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 14px;
+  padding: 6px 10px;
+  margin-top: 8px;
+  background: rgba(15, 23, 42, 0.5);
+  border: 1px solid var(--border-light);
+  border-radius: 4px;
+  font-size: 11px;
+}
+.fsp-desk-conv { display: inline-flex; align-items: center; gap: 8px; color: var(--text-muted); }
+.fsp-desk-conv input[type="range"] { width: 120px; accent-color: #34d399; }
+.fsp-desk-conv b { color: var(--text-secondary); min-width: 24px; }
+.fsp-conv-hot-text { color: #34d399 !important; }
+.fsp-desk-sort { display: inline-flex; gap: 6px; margin-left: auto; }
+.fsp-desk-btn {
+  background: transparent;
+  border: 1px solid var(--border-light);
+  color: var(--text-secondary);
+  padding: 2px 9px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 11px;
+}
+.fsp-desk-btn.on { color: #34d399; border-color: rgba(52, 211, 153, 0.5); background: rgba(52, 211, 153, 0.08); }
+.fsp-desk-count { color: var(--text-muted); font-variant-numeric: tabular-nums; }
+tr.fsp-row-open td { background: rgba(52, 211, 153, 0.04); }
+
+/* ── Blademap v3 expandable signal card ── */
+.fsp-signal-card {
+  margin-top: 8px;
+  padding: 12px 14px;
+  background: rgba(15, 23, 42, 0.65);
+  border: 1px solid rgba(52, 211, 153, 0.25);
+  border-radius: 6px;
+}
+.fsp-signal-card-h {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+.fsp-signal-card-title { font-weight: 700; font-size: 13px; color: var(--text-primary); }
+.fsp-signal-levels {
+  display: flex;
+  gap: 18px;
+  flex-wrap: wrap;
+  padding: 8px 10px;
+  background: rgba(30, 41, 59, 0.5);
+  border-radius: 4px;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+.fsp-signal-levels .neg b { color: #f87171; }
+.fsp-signal-levels .pos b { color: #34d399; }
+.fsp-signal-risk {
+  margin-left: auto;
+  color: var(--conf-gold);
+  font-weight: 600;
+}
+.fsp-signal-summary { margin: 8px 0 4px; font-size: 11.5px; color: var(--text-secondary); }
+.fsp-signal-inds {
+  margin: 6px 0;
+  padding-left: 18px;
+  font-size: 11px;
+  color: var(--text-secondary);
+}
+.fsp-signal-inds li { margin: 2px 0; }
+.fsp-signal-dealer { margin: 6px 0 2px; font-size: 11px; color: #93c5fd; }
+.fsp-signal-why { margin: 4px 0 0; font-size: 11px; color: var(--text-muted); font-style: italic; }
+
+/* ── Blademap v3 conviction-calibration strip ── */
+.fsp-calib-strip {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin: 8px 0 12px;
+}
+.fsp-calib-cell {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  padding: 5px 10px;
+  background: rgba(30, 41, 59, 0.5);
+  border: 1px solid var(--border-light);
+  border-radius: 4px;
+}
+.fsp-calib-hot { border-color: rgba(52, 211, 153, 0.45); }
+.fsp-calib-band { font-size: 10px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; }
+.fsp-calib-hr { font-size: 15px; font-weight: 700; color: var(--text-primary); font-variant-numeric: tabular-nums; }
+.fsp-calib-hot .fsp-calib-hr { color: #34d399; }
+.fsp-calib-n { font-size: 10px; color: var(--text-muted); }
+.fsp-calib-note { font-size: 10px; color: var(--text-muted); font-style: italic; margin-left: auto; }
+
 /* ── Signal-to-trade bridge bar ── */
 .fsp-at-bar {
   display: flex;

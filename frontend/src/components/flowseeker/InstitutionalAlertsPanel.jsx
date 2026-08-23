@@ -116,6 +116,29 @@ export default function InstitutionalAlertsPanel({ active = true, days = 7, limi
     }
   }, [refreshFeed]);
 
+  // ── Blademap v3: conviction gate + ranked sort + expandable cards ──
+  // minConv: Blademap alerts at >75; the slider is the desk's floor.
+  // sortMode: "conviction" ranks by score (a 92 SILVER above a 61 GOLD),
+  // "tier" keeps the legacy bucket order.
+  const [minConv, setMinConv] = useState(0);
+  const [sortMode, setSortMode] = useState("conviction");
+  const [expandedKey, setExpandedKey] = useState(null);
+
+  const visibleRows = useMemo(() => {
+    let list = rows;
+    if (minConv > 0) {
+      list = list.filter(a => Number(a.conviction || 0) >= minConv);
+    }
+    if (sortMode === "conviction") {
+      list = [...list].sort((x, y) =>
+        (Number(y.conviction) || 0) - (Number(x.conviction) || 0));
+    }
+    return list;
+  }, [rows, minConv, sortMode]);
+
+  // Conviction-band calibration strip data (/alerts/quality payload).
+  const calibBands = qualityData?.conviction_calibration || [];
+
 
   return (
     <div className="fsp-conviction" aria-label="Conviction v2 institutional alerts">
@@ -213,6 +236,34 @@ export default function InstitutionalAlertsPanel({ active = true, days = 7, limi
       )}
 
       {hasData && (
+        <>
+          {/* Blademap v3 desk controls: conviction gate + ranking mode */}
+          <div className="fsp-desk-bar" role="toolbar" aria-label="Feed controls">
+            <label className="fsp-desk-conv">
+              <span>Min conviction</span>
+              <input type="range" min="0" max="95" step="5" value={minConv}
+                     onChange={e => setMinConv(Number(e.target.value))} />
+              <b className={minConv >= 75 ? "fsp-conv-hot-text" : ""}>{minConv || "off"}</b>
+            </label>
+            <div className="fsp-desk-sort">
+              <button type="button"
+                      className={`fsp-desk-btn ${sortMode === "conviction" ? "on" : ""}`}
+                      onClick={() => setSortMode("conviction")}
+                      title="Rank by weighted conviction — a 92 SILVER above a 61 GOLD">
+                ▼ Conviction
+              </button>
+              <button type="button"
+                      className={`fsp-desk-btn ${sortMode === "tier" ? "on" : ""}`}
+                      onClick={() => setSortMode("tier")}
+                      title="Legacy tier buckets (GOLD → SILVER → BRONZE)">
+                Tier
+              </button>
+            </div>
+            <span className="fsp-desk-count">
+              {visibleRows.length}/{rows.length} shown
+            </span>
+          </div>
+
         <div className="fsp-conviction-table-wrap">
           <table className="fsp-conviction-table">
             <thead>
@@ -232,7 +283,7 @@ export default function InstitutionalAlertsPanel({ active = true, days = 7, limi
               </tr>
             </thead>
             <tbody>
-              {rows.map((a, i) => {
+              {visibleRows.map((a, i) => {
                 const tier = tierBadge(a.tier, a.side);
                 const cw = cwConfirmChip(a);
                 const cluster = clusterChip(a);
@@ -249,7 +300,13 @@ export default function InstitutionalAlertsPanel({ active = true, days = 7, limi
                 const ctx = a.context || {};
                 const ctxTip = ctx.dealer_positioning ? `${ctx.market_regime || ""} — ${ctx.dealer_positioning}` : "";
                 return (
-                  <tr key={`${a.key || a.under}_${i}`} title={klTip || a.why || ""}>
+                  <tr key={`${a.key || a.under}_${i}`} title={klTip || a.why || ""}
+                      className={expandedKey === (a.key || `${a.under}_${a.strike}`) ? "fsp-row-open" : ""}
+                      onClick={() => setExpandedKey(
+                        expandedKey === (a.key || `${a.under}_${a.strike}`)
+                          ? null
+                          : (a.key || `${a.under}_${a.strike}`))}
+                      style={{ cursor: "pointer" }}>
                     <td>
                       <span className="fsp-conviction-tierwrap">
                         <span className={tier.className}>{tier.label}</span>
@@ -298,6 +355,53 @@ export default function InstitutionalAlertsPanel({ active = true, days = 7, limi
             </tbody>
           </table>
         </div>
+
+        {/* Expandable Blademap signal cards — click a row to open the
+            full contract: key levels, indicators, dealer context. */}
+        {expandedKey && (() => {
+          const a = visibleRows.find(r => (r.key || `${r.under}_${r.strike}`) === expandedKey);
+          if (!a) return null;
+          const kl = a.key_levels;
+          const ctx = a.context || {};
+          return (
+            <div className="fsp-signal-card" role="region" aria-label="Signal detail">
+              <div className="fsp-signal-card-h">
+                <span className="fsp-signal-card-title">
+                  {a.under} {a.type} {a.strike != null ? `$${fmtStrike(a.strike)}` : ""}
+                </span>
+                <button type="button" className="fsp-at-btn"
+                        onClick={() => setExpandedKey(null)}>✕</button>
+              </div>
+              {kl && (
+                <div className="fsp-signal-levels">
+                  <span>Entry <b>${kl.entry}</b></span>
+                  <span className="neg">Stop <b>${kl.invalidation}</b></span>
+                  <span className="pos">Target <b>${kl.target}</b></span>
+                  <span className="fsp-signal-risk">
+                    R:R {(Math.abs(kl.target - kl.entry) / Math.max(Math.abs(kl.entry - kl.invalidation), 0.01)).toFixed(2)}:1
+                  </span>
+                </div>
+              )}
+              {ctx.activity_summary && (
+                <p className="fsp-signal-summary">{ctx.activity_summary}</p>
+              )}
+              {Array.isArray(ctx.institutional_indicators) && ctx.institutional_indicators.length > 0 && (
+                <ul className="fsp-signal-inds">
+                  {ctx.institutional_indicators.map((ind, j) => (
+                    <li key={j}>{ind}</li>
+                  ))}
+                </ul>
+              )}
+              {ctx.dealer_positioning && (
+                <p className="fsp-signal-dealer">
+                  <b>{ctx.market_regime}</b> — {ctx.dealer_positioning}
+                </p>
+              )}
+              {a.why && <p className="fsp-signal-why">{a.why}</p>}
+            </div>
+          );
+        })()}
+        </>
       )}
 
       {qualityUnavailable && (
@@ -324,6 +428,28 @@ export default function InstitutionalAlertsPanel({ active = true, days = 7, limi
               {qualityWindows && " · trend 7→30d"}
             </span>
           </div>
+
+          {/* Blademap v3 — conviction-band report card. Monotonic curve
+              (75+ > 60-74 > 50-59) is the proof that conviction sizing
+              is real; a flat curve means the weights need retuning. */}
+          {calibBands.length > 0 && (
+            <div className="fsp-calib-strip" aria-label="Conviction calibration">
+              {calibBands.map((b) => {
+                const hr = b.hit_rate != null ? Math.round(b.hit_rate * 100) : null;
+                const hot = b.band === "75+";
+                return (
+                  <div key={b.band} className={`fsp-calib-cell ${hot ? "fsp-calib-hot" : ""}`}
+                       title={`${b.n} alerts, ${b.n_measured} measured, ${b.wins} hits`}>
+                    <span className="fsp-calib-band">{b.band}</span>
+                    <span className="fsp-calib-hr">{hr == null ? "—" : `${hr}%`}</span>
+                    <span className="fsp-calib-n">{b.n_measured}/{b.n}</span>
+                  </div>
+                );
+              })}
+              <span className="fsp-calib-note">by conviction — monotonic = score predicts</span>
+            </div>
+          )}
+
           <div className="fsp-conviction-qstrip">
             {summary.tiers.map((t) => (
               <div key={t.tier} className={`fsp-conviction-qcell fsp-conviction-qcell-${t.tier.toLowerCase()}`}>

@@ -1161,7 +1161,10 @@ async def institutional_alert_quality(
         # callers on the legacy contract don't break.
         if len(window_list) == 1:
             return {"quality": fa.alert_quality(duckdb_engine, days=window_list[0]),
-                    "days": window_list[0]}
+                    "days": window_list[0],
+                    # Blademap v3 — conviction calibration rides every shape
+                    "conviction_calibration": fa.conviction_calibration(
+                        duckdb_engine, days=window_list[0])}
         out = {w: fa.alert_quality(duckdb_engine, days=w) for w in window_list}
         # v2.5 — per-tier per-day series for the sparkline. Always uses the
         # MAX window (a desk's full-history read) regardless of which 7/14/30
