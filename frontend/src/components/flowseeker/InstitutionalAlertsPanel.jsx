@@ -34,6 +34,7 @@ import {
   persistJournalSeeds,
 } from "./autoTrade";
 import { chimeHighConviction } from "./convictionAlert";
+import { useAlertStream } from "./useAlertStream";
 import {
   compareAlerts,
   clusterChip,
@@ -125,8 +126,17 @@ export default function InstitutionalAlertsPanel({ active = true, days = 7, limi
   const [sortMode, setSortMode] = useState("conviction");
   const [expandedKey, setExpandedKey] = useState(null);
 
+
+  // Blademap v3 - SSE push for the conviction feed. When the stream is
+  // live its alerts take priority; otherwise the polling hook remains
+  // the data source (graceful fallback).
+  const stream = useAlertStream({ minConviction: minConv || null, enabled: active });
+  const feedRows = (stream.connected && stream.alerts.length > 0)
+    ? stream.alerts
+    : rows;
+
   const visibleRows = useMemo(() => {
-    let list = rows;
+    let list = feedRows;
     if (minConv > 0) {
       list = list.filter(a => Number(a.conviction || 0) >= minConv);
     }
@@ -135,10 +145,12 @@ export default function InstitutionalAlertsPanel({ active = true, days = 7, limi
         (Number(y.conviction) || 0) - (Number(x.conviction) || 0));
     }
     return list;
-  }, [rows, minConv, sortMode]);
+  }, [feedRows, minConv, sortMode]);
 
   // Conviction-band calibration strip data (/alerts/quality payload).
   const calibBands = qualityData?.conviction_calibration || [];
+
+
 
   // Blademap instant-notify: chime once per newly-seen 75+ conviction
   // alert. Mute toggle lives on the desk bar; autoplay policy means the
@@ -166,7 +178,7 @@ export default function InstitutionalAlertsPanel({ active = true, days = 7, limi
         </div>
         <div className="fsp-conviction-meta">
           <span className="fsp-conviction-count">
-            {hasData ? `${rows.length} / ${feedData.count || rows.length}` : "—"}
+            {hasData ? `${feedRows.length} / ${feedData.count || feedRows.length}` : "—"}
           </span>
           <button
             type="button"

@@ -1262,6 +1262,57 @@ async def institutional_alert_feed(
         return {"alerts": [], "count": 0, "days": days, "error": str(e)}
 
 
+@router.get("/alerts/stream")
+async def institutional_alert_stream(
+    days: int = Query(7, ge=1, le=60),
+    min_conviction: int | None = Query(None, ge=0, le=100),
+    max_seconds: int = Query(300, ge=10, le=1800),
+):
+    """SSE push for the Blademap v3 conviction feed — replaces frontend
+    polling. Emits an `alerts` event whenever the top-of-book conviction
+    changes (new alert or conviction re-rank), plus heartbeats. Auto-ends
+    after max_seconds so connections don't leak; the client EventSource
+    auto-reconnects."""
+    from fastapi.responses import StreamingResponse
+    from services import flow_alerts as fa
+    from services.duckdb_engine import db as duckdb_engine
+
+    import asyncio as _aio
+
+    async def _alert_stream():
+        import json as _json
+
+        fa.init_flow_alert_tables(duckdb_engine)
+        last_fingerprint = None
+        deadline = time.time() + max_seconds
+        while time.time() < deadline:
+            try:
+                alerts = await _aio.to_thread(
+                    fa.read_alert_feed,
+                    duckdb_engine, days=days,
+                    min_conviction=min_conviction,
+                    sort_by="conviction",
+                )
+                # fingerprint = top alert keys + count — cheap change detector
+                fp = (len(alerts), tuple(a.get("key") for a in alerts[:25]))
+                if fp != last_fingerprint:
+                    last_fingerprint = fp
+                    msg = _json.dumps({
+                        "count": len(alerts),
+                        "alerts": alerts[:50],
+                        "ts": datetime.now(_ET).isoformat(),
+                    })
+                    yield f"event: alerts\ndata: {msg}\n\n"
+            except Exception as e:
+                yield f"event: error\ndata: {_json.dumps({'error': str(e)})}\n\n"
+                break
+            hb = _json.dumps({"ts": datetime.now(_ET).isoformat()})
+            yield f"event: heartbeat\ndata: {hb}\n\n"
+            await _aio.sleep(5)
+
+    return StreamingResponse(_alert_stream(), media_type="text/event-stream")
+
+
 @router.get("/alerts/{symbol}")
 async def unusual_activity_alerts(
     symbol: str,
