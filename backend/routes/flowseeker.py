@@ -734,7 +734,9 @@ async def _run_institutional_alerts(rows: list) -> None:
             # own key levels (stop/target) using this scan's spot stamps.
             try:
                 from services.journal_store import (
-                    init_journal_tables, journal_lifecycle, get_engine,
+                    get_engine,
+                    init_journal_tables,
+                    journal_lifecycle,
                 )
                 jeng = get_engine()
                 init_journal_tables(jeng)
@@ -1273,11 +1275,12 @@ async def institutional_alert_stream(
     changes (new alert or conviction re-rank), plus heartbeats. Auto-ends
     after max_seconds so connections don't leak; the client EventSource
     auto-reconnects."""
+    import asyncio as _aio
+
     from fastapi.responses import StreamingResponse
+
     from services import flow_alerts as fa
     from services.duckdb_engine import db as duckdb_engine
-
-    import asyncio as _aio
 
     async def _alert_stream():
         import json as _json
@@ -1659,7 +1662,7 @@ async def regime(ticker: str):
             out["tv_signal"] = tv
         # Paper-accurate GEX metrics (Barbon-Buraschi ΓIB + flip metrics)
         try:
-            from services.gex_paper_accurate import DEFAULT_ADV_SHARES, compute_gamma_imbalance, compute_flip_metrics
+            from services.gex_paper_accurate import DEFAULT_ADV_SHARES, compute_flip_metrics, compute_gamma_imbalance
             if total_gex and spot and spot > 0:
                 out["paper_metrics"] = {
                     "gamma_imbalance": compute_gamma_imbalance(total_gex, spot, adv_shares=DEFAULT_ADV_SHARES),
