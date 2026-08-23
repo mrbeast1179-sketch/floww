@@ -8,6 +8,7 @@ pub mod bindings;
 pub mod gex;
 pub mod greeks;
 pub mod nodes;
+pub mod curve;
 pub mod iv;
 pub mod term;
 pub mod rvol;

@@ -3,6 +3,7 @@
 //! Uses Bound<'_, T> API throughout (PyO3 ≥ 0.21 style).
 
 use crate::gex::{self, RawContract, StrikeRow};
+use crate::curve;
 use crate::greeks;
 use crate::nodes;
 use crate::iv;
@@ -575,6 +576,39 @@ fn classify_nodes(
     Ok(d.into_any().unbind())
 }
 
+
+/// Aggregate GEX curve — parity with gex_core.calc_aggregate_gex_curve.
+/// Columnar input; returns list of {price, gex} dicts (gex in billions).
+#[pyfunction]
+#[pyo3(signature = (spot, strikes, ois, ivs, ts, kinds, div_yield=0.0))]
+fn aggregate_gex_curve(
+    py: Python<'_>,
+    spot: f64,
+    strikes: Vec<f64>, ois: Vec<f64>, ivs: Vec<f64>, ts: Vec<f64>,
+    kinds: Vec<String>, div_yield: f64,
+) -> PyResult<PyObject> {
+    use pyo3::types::{PyDict, PyList};
+    use pyo3::types::PyDictMethods;
+    let n = strikes.len();
+    let raw: Vec<curve::CurveContract> = (0..n)
+        .map(|i| curve::CurveContract {
+            strike: strikes[i], oi: ois[i], iv: ivs[i], t: ts[i],
+            is_call: !kinds[i].to_ascii_lowercase().starts_with('p'),
+        })
+        .collect();
+    let curve = curve::aggregate_gex_curve(spot, &raw, div_yield);
+    let items: Vec<_> = curve
+        .iter()
+        .map(|(price, gex)| {
+            let x = PyDict::new_bound(py);
+            x.set_item("price", price)?;
+            x.set_item("gex", gex)?;
+            Ok(x)
+        })
+        .collect::<PyResult<_>>()?;
+    Ok(PyList::new_bound(py, &items).into_any().unbind())
+}
+
 #[pymodule]
 fn decoder_core(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(bs_gamma, m)?)?;
@@ -592,5 +626,6 @@ fn decoder_core(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(implied_vol_surface, m)?);
     m.add_function(wrap_pyfunction!(realized_volatility, m)?);
     m.add_function(wrap_pyfunction!(classify_nodes, m)?);
+    m.add_function(wrap_pyfunction!(aggregate_gex_curve, m)?);
     Ok(())
 }
