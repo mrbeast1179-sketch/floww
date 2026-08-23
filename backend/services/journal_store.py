@@ -19,12 +19,18 @@ frontend/src/components/flowseeker/autoTrade.js journalSeedKey().
 
 from __future__ import annotations
 
+import contextlib
+import json
 import logging
 import threading
+from datetime import datetime
 from pathlib import Path
 from typing import Any
+from zoneinfo import ZoneInfo
 
 logger = logging.getLogger(__name__)
+
+_ET = ZoneInfo("America/New_York")
 
 # Dedicated FILE-BACKED store. The shared duckdb_engine.db is :memory:
 # (rebuilt each process start) — fine for scan-derived data, wrong for a
@@ -64,6 +70,7 @@ _JOURNAL_DDL = """
         gex_regime TEXT,
         setup TEXT,
         tags TEXT,
+        key_levels_json TEXT,
         source TEXT DEFAULT 'flowseeker-auto',
         created_at TIMESTAMP DEFAULT current_timestamp,
         updated_at TIMESTAMP DEFAULT current_timestamp,
@@ -75,6 +82,9 @@ _JOURNAL_DDL = """
 def init_journal_tables(engine) -> None:
     """Create the journal table if absent; migrate older shapes in place."""
     engine.execute_write(_JOURNAL_DDL)
+    with contextlib.suppress(Exception):
+        engine.execute_write(
+            "ALTER TABLE flow_journal_trades ADD COLUMN IF NOT EXISTS key_levels_json TEXT")
 
 
 def journal_seed_key(seed: dict) -> str:
@@ -110,6 +120,7 @@ def _to_db_row(seed: dict) -> dict[str, Any]:
         "setup": str(seed.get("setup") or ""),
         "tags": str(seed.get("tags") or ""),
         "source": str(seed.get("source") or "flowseeker-auto"),
+        "key_levels_json": json.dumps(seed["key_levels"]) if seed.get("key_levels") else None,
     }
 
 
@@ -126,14 +137,15 @@ def save_seeds(engine, seeds: list[dict]) -> int:
                 INSERT INTO flow_journal_trades (
                     ckey, ticker, type, action, strike, expiry, quantity,
                     entry_price, exit_price, entry_date, exit_date, notes,
-                    gex_regime, setup, tags, source
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    gex_regime, setup, tags, source, key_levels_json
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 [[row["ckey"], row["ticker"], row["type"], row["action"],
                  row["strike"], row["expiry"], row["quantity"],
                  row["entry_price"], row["exit_price"], row["entry_date"],
                  row["exit_date"], row["notes"], row["gex_regime"],
-                 row["setup"], row["tags"], row["source"]]],
+                 row["setup"], row["tags"], row["source"],
+                 row["key_levels_json"]]],
             )
             added += 1
         except Exception as e:
@@ -147,7 +159,7 @@ def save_seeds(engine, seeds: list[dict]) -> int:
 
 _COLS = ("ckey, ticker, type, action, strike, expiry, quantity, entry_price, "
          "exit_price, entry_date, exit_date, notes, gex_regime, setup, tags, "
-         "source, created_at, updated_at")
+         "source, key_levels_json, created_at, updated_at")
 
 
 def read_trades(engine, *, status: str = "all", days: int = 365) -> list[dict]:
@@ -176,6 +188,8 @@ def read_trades(engine, *, status: str = "all", days: int = 365) -> list[dict]:
             "exit_price": r["exit_price"] if r.get("exit_price") is not None else "",
             "exit_date": r.get("exit_date") or "",
             "entry_date": r.get("entry_date") or "",
+            "key_levels": (json.loads(r["key_levels_json"])
+                           if r.get("key_levels_json") else None),
             "created_at": str(r.get("created_at") or ""),
             "updated_at": str(r.get("updated_at") or ""),
         })
@@ -205,6 +219,64 @@ def close_open_by_symbol(engine, symbol: str, *, exit_price: float,
     except Exception as e:
         logger.warning("close_open_by_symbol failed for %s: %s", symbol, e)
         return 0
+
+
+def journal_lifecycle(engine, spot_map: dict) -> int:
+    """Blademap v3 lifecycle pass — close open journal cards against their
+    own key levels using the freshest per-scan spots (same stamps that feed
+    update_moves):
+
+      BULLISH card: spot <= invalidation → stop out; spot >= target → win
+      BEARISH card: mirrored
+
+    Exit price is the LEVEL, not the scan spot (the level is the falsifiable
+    claim; fills at/through it are execution detail). Cards without stored
+    key_levels are never touched. Returns count closed; never raises into
+    the scan loop.
+
+    Bias source: the card's type field — call = bullish, put = bearish
+    (the bridge only seeds BUY-side directional cards).
+    """
+    try:
+        rows = engine.query(
+            "SELECT ticker, type, action, strike, expiry, entry_date, key_levels_json "
+            "FROM flow_journal_trades "
+            "WHERE COALESCE(exit_date, '') = '' AND exit_price IS NULL "
+            "AND key_levels_json IS NOT NULL",
+        )
+    except Exception as e:
+        logger.warning("journal_lifecycle read failed: %s", e)
+        return 0
+
+    closed = 0
+    today = datetime.now(_ET).date().isoformat()
+    for r in rows:
+        under = str(r.get("ticker") or "").upper()
+        spot = spot_map.get(under)
+        if spot is None:
+            continue
+        try:
+            kl = json.loads(r.get("key_levels_json") or "null")
+        except (TypeError, ValueError):
+            kl = None
+        if not isinstance(kl, dict):
+            continue
+        inv, tgt = kl.get("invalidation"), kl.get("target")
+        if inv is None or tgt is None:
+            continue
+        ctype = str(r.get("type") or "call").lower()
+        stop_hit = spot <= float(inv) if ctype == "call" else spot >= float(inv)
+        tgt_hit = spot >= float(tgt) if ctype == "call" else spot <= float(tgt)
+        if not (stop_hit or tgt_hit):
+            continue
+        exit_px = float(tgt) if tgt_hit else float(inv)   # target wins ties
+        key = "|".join(str(r.get(k) or "") for k in
+                       ("ticker", "type", "action", "strike", "expiry", "entry_date"))
+        if close_trade(engine, key, exit_price=exit_px, exit_date=today):
+            closed += 1
+            logger.info("journal lifecycle: %s %s via %s @ %s (spot %s)",
+                        under, "TARGET" if tgt_hit else "STOP", key, exit_px, spot)
+    return closed
 
 
 def close_trade(engine, key: str, *, exit_price: float, exit_date: str) -> bool:

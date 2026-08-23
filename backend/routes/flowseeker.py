@@ -730,6 +730,19 @@ async def _run_institutional_alerts(rows: list) -> None:
             if fresh:
                 fa.persist_alerts(duckdb_engine, fresh)
             fa.update_moves(duckdb_engine, spots)
+            # Blademap v3 lifecycle: close open journal cards against their
+            # own key levels (stop/target) using this scan's spot stamps.
+            try:
+                from services.journal_store import (
+                    init_journal_tables, journal_lifecycle, get_engine,
+                )
+                jeng = get_engine()
+                init_journal_tables(jeng)
+                closed = journal_lifecycle(jeng, spots)
+                if closed:
+                    logger.info("journal lifecycle pass closed %d card(s)", closed)
+            except Exception as le:
+                logger.warning("journal lifecycle pass failed (non-fatal): %s", le)
             return fresh
 
         spots = {r["under"]: r["spot"] for r in normed if r.get("spot")}
