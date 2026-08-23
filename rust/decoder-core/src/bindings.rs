@@ -7,6 +7,7 @@ use crate::greeks;
 use crate::iv;
 use crate::term;
 use crate::vpin;
+use crate::rvol;
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 use rayon::prelude::*;
@@ -388,6 +389,48 @@ fn implied_vol_surface(
     Ok(iv::implied_vol_surface(&market_prices, &spots, &strikes, &ts, &kinds, &qs, &rs, tol, max_iter))
 }
 
+
+/// Realized-volatility estimators over OHLC+prev_close bars.
+/// Columnar inputs; NaN = invalid field (mirrors _safe_positive_float filter).
+/// Returns dict with cc/parkinson/garman_klass/rogers_satchell/yang_zhang
+/// (None where insufficient bars).
+#[pyfunction]
+#[pyo3(signature = (opens, highs, lows, closes, prev_closes, annual_factor=252.0))]
+fn realized_volatility(
+    py: Python<'_>,
+    opens: Vec<f64>, highs: Vec<f64>, lows: Vec<f64>, closes: Vec<f64>,
+    prev_closes: Vec<f64>, annual_factor: f64,
+) -> PyResult<PyObject> {
+    use pyo3::types::{PyDict};
+    use pyo3::types::PyDictMethods;
+    let n = opens.len();
+    if highs.len() != n || lows.len() != n || closes.len() != n {
+        return Err(PyValueError::new_err("column length mismatch"));
+    }
+    // prev_closes may be empty or shorter → treat missing as NaN
+    let pc = |i: usize| -> f64 {
+        prev_closes.get(i).copied().unwrap_or(f64::NAN)
+    };
+    let bars: Vec<rvol::Bar> = (0..n)
+        .map(|i| rvol::Bar {
+            open: opens[i], high: highs[i], low: lows[i],
+            close: closes[i], prev_close: pc(i),
+        })
+        .collect();
+    let [cc, park, gk, rs, yz] = rvol::realized_vol_all(&bars, annual_factor);
+    let d = PyDict::new_bound(py);
+    for (name, v) in [
+        ("close_to_close", cc), ("parkinson", park), ("garman_klass", gk),
+        ("rogers_satchell", rs), ("yang_zhang", yz),
+    ] {
+        match v {
+            Some(x) => d.set_item(name, x)?,
+            None => d.set_item(name, py.None())?,
+        }
+    }
+    Ok(d.into_any().unbind())
+}
+
 #[pymodule]
 fn decoder_core(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(bs_gamma, m)?)?;
@@ -403,5 +446,6 @@ fn decoder_core(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(ingest_batch, m)?);
     m.add_function(wrap_pyfunction!(implied_vol_from_price, m)?);
     m.add_function(wrap_pyfunction!(implied_vol_surface, m)?);
+    m.add_function(wrap_pyfunction!(realized_volatility, m)?);
     Ok(())
 }

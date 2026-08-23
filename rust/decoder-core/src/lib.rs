@@ -9,6 +9,7 @@ pub mod gex;
 pub mod greeks;
 pub mod iv;
 pub mod term;
+pub mod rvol;
 pub mod vpin;
 
 #[cfg(test)]

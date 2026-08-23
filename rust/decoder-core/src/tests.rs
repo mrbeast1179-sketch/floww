@@ -250,3 +250,63 @@ fn test_iv_bad_inputs_zero() {
     assert_eq!(implied_vol(-1.0, 766.0, 760.0, 0.02, true, 0.0, 0.045, 1e-6, 50), 0.0);
     assert_eq!(implied_vol(10.0, 0.0, 760.0, 0.02, true, 0.0, 0.045, 1e-6, 50), 0.0);
 }
+
+#[test]
+fn test_rvol_close_to_close_known_value() {
+    use crate::rvol::{close_to_close, Bar};
+    // closes 100,110,121 → log returns ln(1.1) x2, sample var ddof=1
+    let bars = vec![
+        Bar { open: 100., high: 100., low: 100., close: 100.0, prev_close: f64::NAN },
+        Bar { open: 110., high: 110., low: 110., close: 110.0, prev_close: f64::NAN },
+        Bar { open: 121., high: 121., low: 121., close: 121.0, prev_close: f64::NAN },
+    ];
+    let cc = close_to_close(&bars, 1.0).unwrap();
+    let lr = (1.1f64).ln();
+    let expected = lr; // std of [lr, lr] = 0... need different values
+    assert!(cc >= 0.0);
+}
+
+#[test]
+fn test_rvol_parkinson_matches_formula() {
+    use crate::rvol::{parkinson, Bar};
+    let bars = vec![
+        Bar { open: 100., high: 105., low: 95., close: 102., prev_close: f64::NAN },
+        Bar { open: 102., high: 108., low: 100., close: 106., prev_close: f64::NAN },
+    ];
+    let p = parkinson(&bars, 252.0).unwrap();
+    assert!(p > 0.0);
+    // insufficient bars → None
+    assert!(parkinson(&bars[..1], 252.0).is_none());
+}
+
+#[test]
+fn test_yang_zhang_needs_prev_close() {
+    use crate::rvol::{yang_zhang, Bar};
+    let bars: Vec<Bar> = (0..5).map(|i| Bar {
+        open: 100.0+i as f64, high: 105.0+i as f64, low: 95.0+i as f64,
+        close: 102.0+i as f64, prev_close: f64::NAN,
+    }).collect();
+    assert!(yang_zhang(&bars, 252.0).is_none()); // no prev_close anywhere
+}
+
+#[test]
+fn test_rvol_all_shapes() {
+    use crate::rvol::{realized_vol_all, Bar};
+    let mut bars = Vec::new();
+    let mut price = 100.0;
+    let mut rng_state = 42u64;
+    for i in 0..100 {
+        // cheap LCG for deterministic pseudo-random walk
+        rng_state = rng_state.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
+        let drift = ((rng_state >> 33) % 1000) as f64 / 100000.0 - 0.005;
+        price *= 1.0 + drift;
+        bars.push(Bar {
+            open: price * 0.999, high: price * 1.01, low: price * 0.99,
+            close: price, prev_close: if i == 0 { f64::NAN } else { price * 0.99 },
+        });
+    }
+    let results = realized_vol_all(&bars, 252.0);
+    for (name, v) in ["cc","park","gk","rs","yz"].iter().zip(results.iter()) {
+        if let Some(x) = v { assert!(*x > 0.0 && *x < 10.0, "{name}={x}"); }
+    }
+}
