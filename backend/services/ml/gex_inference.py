@@ -61,30 +61,33 @@ def fetch_options_chain(ticker: str, max_expiries: int = 2) -> dict[str, Any] | 
             if spot is None and not chain.calls.empty:
                 spot = float(chain.calls["strike"].median())
 
-            for _, row in chain.calls.iterrows():
+            # itertuples: ~10x faster than iterrows on wide yfinance frames
+            for row in chain.calls.itertuples(index=False):
+                g = lambda name, default=0.0: float(getattr(row, name, default) or default)
                 contracts.append({
-                    "expiry": exp_str, "strike": float(row.get("strike", 0)),
+                    "expiry": exp_str, "strike": g("strike"),
                     "type": "C",
-                    "oi": int(row.get("openInterest", 0) or 0),
-                    "volume": int(row.get("volume", 0) or 0),
-                    "iv": float(row.get("impliedVolatility", 0) or 0),
-                    "gamma": float(row.get("gamma", 0) or 0),
-                    "delta": float(row.get("delta", 0) or 0),
-                    "bid": float(row.get("bid", 0) or 0),
-                    "ask": float(row.get("ask", 0) or 0),
+                    "oi": int(g("openInterest")),
+                    "volume": int(g("volume")),
+                    "iv": g("impliedVolatility"),
+                    "gamma": g("gamma"),
+                    "delta": g("delta"),
+                    "bid": g("bid"),
+                    "ask": g("ask"),
                 })
 
-            for _, row in chain.puts.iterrows():
+            for row in chain.puts.itertuples(index=False):
+                g = lambda name, default=0.0: float(getattr(row, name, default) or default)
                 contracts.append({
-                    "expiry": exp_str, "strike": float(row.get("strike", 0)),
+                    "expiry": exp_str, "strike": g("strike"),
                     "type": "P",
-                    "oi": int(row.get("openInterest", 0) or 0),
-                    "volume": int(row.get("volume", 0) or 0),
-                    "iv": float(row.get("impliedVolatility", 0) or 0),
-                    "gamma": float(row.get("gamma", 0) or 0),
-                    "delta": float(row.get("delta", 0) or 0),
-                    "bid": float(row.get("bid", 0) or 0),
-                    "ask": float(row.get("ask", 0) or 0),
+                    "oi": int(g("openInterest")),
+                    "volume": int(g("volume")),
+                    "iv": g("impliedVolatility"),
+                    "gamma": g("gamma"),
+                    "delta": g("delta"),
+                    "bid": g("bid"),
+                    "ask": g("ask"),
                 })
 
         if not spot or spot <= 0 or not contracts:
