@@ -540,6 +540,13 @@ export default function App() {
   // Fetch tickers
   useEffect(() => { axios.get(`${API}/tickers`).then(r => setTickers(r.data)).catch(() => {}); }, []);
 
+  // Flowseeker signal cards dispatch this to focus the desk ticker.
+  useEffect(() => {
+    const onFocusTicker = (e) => { if (e.detail?.ticker) setTicker(e.detail.ticker); };
+    window.addEventListener("floww:focus-ticker", onFocusTicker);
+    return () => window.removeEventListener("floww:focus-ticker", onFocusTicker);
+  }, []);
+
   const [loading, setLoading] = useState(false);
 
   // Fetch heatmap data
