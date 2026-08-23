@@ -26,13 +26,14 @@
  * backend/services/cvserver_client.py cadence) and degrades gracefully to
  * a "waiting for first scan" empty state instead of a misleading table.
  */
-import React, { useMemo, useState, useCallback } from "react";
+import React, { useMemo, useState, useCallback, useEffect } from "react";
 import { useFlowseeker } from "../../hooks/useFlowseeker";
 import {
   previewAutoTrades,
   executeAutoTrades,
   persistJournalSeeds,
 } from "./autoTrade";
+import { chimeHighConviction } from "./convictionAlert";
 import {
   compareAlerts,
   clusterChip,
@@ -138,6 +139,19 @@ export default function InstitutionalAlertsPanel({ active = true, days = 7, limi
 
   // Conviction-band calibration strip data (/alerts/quality payload).
   const calibBands = qualityData?.conviction_calibration || [];
+
+  // Blademap instant-notify: chime once per newly-seen 75+ conviction
+  // alert. Mute toggle lives on the desk bar; autoplay policy means the
+  // first chime lands after the desk's first click anywhere.
+  const [muted, setMuted] = useState(false);
+  useEffect(() => {
+    if (muted) return;
+    for (const a of visibleRows) {
+      if (Number(a.conviction || 0) >= 75 && a.key) {
+        chimeHighConviction(a.key, { muted });
+      }
+    }
+  }, [visibleRows, muted]);
 
 
   return (
@@ -262,6 +276,11 @@ export default function InstitutionalAlertsPanel({ active = true, days = 7, limi
             <span className="fsp-desk-count">
               {visibleRows.length}/{rows.length} shown
             </span>
+            <button type="button" className={`fsp-desk-btn ${muted ? "" : "on"}`}
+                    onClick={() => setMuted(m => !m)}
+                    title={muted ? "Unmute high-conviction chime" : "Mute the 75+ conviction chime"}>
+              {muted ? "🔇 muted" : "🔔 chime"}
+            </button>
           </div>
 
         <div className="fsp-conviction-table-wrap">
@@ -369,8 +388,22 @@ export default function InstitutionalAlertsPanel({ active = true, days = 7, limi
                 <span className="fsp-signal-card-title">
                   {a.under} {a.type} {a.strike != null ? `$${fmtStrike(a.strike)}` : ""}
                 </span>
-                <button type="button" className="fsp-at-btn"
-                        onClick={() => setExpandedKey(null)}>✕</button>
+                <span className="fsp-signal-card-actions">
+                  <button type="button" className="fsp-at-btn"
+                          title={`Copy ${a.under} — or jump the desk once the focus-ticker listener is wired`}
+                          onClick={() => {
+                            navigator.clipboard?.writeText(a.under).catch(() => {});
+                            // Event bus: App.js listener (when approved/wired)
+                            // focuses the desk's ticker context on this alert.
+                            window.dispatchEvent(new CustomEvent("floww:focus-ticker", {
+                              detail: { ticker: a.under, alertKey: a.key },
+                            }));
+                          }}>
+                    Focus {a.under}
+                  </button>
+                  <button type="button" className="fsp-at-btn"
+                          onClick={() => setExpandedKey(null)}>✕</button>
+                </span>
               </div>
               {kl && (
                 <div className="fsp-signal-levels">
