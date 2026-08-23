@@ -262,9 +262,13 @@ def test_select_expiries_in_window_pure():
 
 
 def test_screener_income_returns_rows_from_windowed_chain(monkeypatch):
-    put_row = {"strike": 95.0, "expiry": "2026-08-21", "openInterest": 500,
+    # Future expiry — hard-coded dates expired and the min_dte filter
+    # started dropping every row (time-bomb test, fixed 2026-08-23).
+    from datetime import date, timedelta
+    future_exp = (date.today() + timedelta(days=21)).isoformat()
+    put_row = {"strike": 95.0, "expiry": future_exp, "openInterest": 500,
                "volume": 40, "bid": 1.0, "ask": 1.2, "impliedVolatility": 0.25}
-    call_row = {"strike": 105.0, "expiry": "2026-08-21", "openInterest": 300,
+    call_row = {"strike": 105.0, "expiry": future_exp, "openInterest": 300,
                 "volume": 30, "bid": 0.9, "ask": 1.1, "impliedVolatility": 0.22}
     monkeypatch.setattr(
         "routes.steal_three._load_chain_window",
@@ -390,9 +394,13 @@ def test_wheel_income_alias_calls_same_screener_logic(monkeypatch):
     callers that use either URL get the same ranked candidates — the
     alias is a pure URI-rewrite, not a divergent code path.
     """
-    put_row = {"strike": 95.0, "expiry": "2026-08-21", "openInterest": 500,
+    # Future expiry — hard-coded dates expired and the min_dte filter
+    # started dropping every row (time-bomb test, fixed 2026-08-23).
+    from datetime import date, timedelta
+    future_exp = (date.today() + timedelta(days=21)).isoformat()
+    put_row = {"strike": 95.0, "expiry": future_exp, "openInterest": 500,
                "volume": 40, "bid": 1.0, "ask": 1.2, "impliedVolatility": 0.25}
-    call_row = {"strike": 105.0, "expiry": "2026-08-21", "openInterest": 300,
+    call_row = {"strike": 105.0, "expiry": future_exp, "openInterest": 300,
                 "volume": 30, "bid": 0.9, "ask": 1.1, "impliedVolatility": 0.22}
     monkeypatch.setattr(
         "routes.steal_three._load_chain_window",
