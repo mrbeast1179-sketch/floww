@@ -665,6 +665,54 @@ def persist_alerts(engine, alerts, snapshot_date: str | None = None) -> int:
     return len(rows)
 
 
+def conviction_calibration(engine, days: int = 30) -> list[dict]:
+    """Blademap v3 — hit-rate by CONVICTION BAND (the score's own report card).
+
+    Buckets: 50-59 / 60-74 / 75+ (the sizing tiers in flow_trade_bridge).
+    hit = same ≥0.5%-in-direction threshold as alert_quality. If the curve
+    isn't monotonic (75+ hitting no better than 50-59), conviction sizing
+    is decoration and the weights need retuning — this table is how the
+    desk sees that.
+
+    Bands with zero measured alerts still appear (n_measured=0) so the
+    frontend renders an honest "—" rather than dropping the row.
+    """
+    since = (datetime.now(_ET).date() - timedelta(days=max(1, days))).isoformat()
+    try:
+        rows = engine.query("""
+            SELECT CASE
+                     WHEN conviction >= 75 THEN '75+'
+                     WHEN conviction >= 60 THEN '60-74'
+                     WHEN conviction >= 50 THEN '50-59'
+                     ELSE '<50'
+                   END AS band,
+                   count(*) AS n,
+                   count(move_pct) AS n_measured,
+                   CAST(SUM(CASE WHEN move_pct IS NULL THEN 0
+                                 WHEN bias = 'BULLISH' AND move_pct >= 0.5 THEN 1
+                                 WHEN bias = 'BEARISH' AND move_pct <= -0.5 THEN 1
+                                 ELSE 0 END) AS BIGINT) AS wins,
+                   avg(CASE WHEN move_pct IS NULL THEN NULL
+                            WHEN bias = 'BULLISH' AND move_pct >= 0.5 THEN 1.0
+                            WHEN bias = 'BEARISH' AND move_pct <= -0.5 THEN 1.0
+                            ELSE 0.0 END) AS hit_rate,
+                   avg(move_pct) AS avg_move_pct
+            FROM flow_alerts_daily
+            WHERE asof_date >= ? AND bias IS NOT NULL AND conviction IS NOT NULL
+            GROUP BY band
+        """, [since])
+    except Exception as e:
+        logger.warning(f"flow_alerts.conviction_calibration: {e}")
+        rows = []
+    order = {"75+": 0, "60-74": 1, "50-59": 2, "<50": 3}
+    rows.sort(key=lambda r: order.get(r.get("band"), 9))
+    for r in rows:
+        r["wins"] = int(r.get("wins") or 0)
+        r["n_measured"] = int(r.get("n_measured") or 0)
+        r["n"] = int(r.get("n") or 0)
+    return rows
+
+
 def alert_quality(engine, days: int = 30) -> list[dict]:
     """Per rule × tier precision from realized moves — the calibration loop.
 
@@ -816,7 +864,10 @@ def dedup_filter(engine, alerts, now: float | None = None) -> list[dict]:
     try:
         seen = {r["key"]: r for r in engine.query(
             f"SELECT key, last_fired_ts, ttl_s FROM flow_alert_dedup WHERE key IN ({ph})", keys)}
-    except Exception:
+    except Exception as e:
+        # 2026-08-22: fail-open is intentional (alerts still fire on DB error)
+        # but it MUST be observable — silent dedup loss = duplicate alert spam.
+        logger.warning(f"flow_alerts.dedup query failed ({e}) — dedup disabled this cycle")
         seen = {}
     kept = []
     for a in alerts:
@@ -860,8 +911,15 @@ def update_moves(engine, spot_map: dict) -> int:
 
 
 def read_alert_feed(engine, days: int = 7, min_tier: str | None = None,
-                    ticker: str | None = None) -> list[dict]:
-    """The institutional feed: tier-ranked, then most recent first."""
+                    ticker: str | None = None, min_conviction: int | None = None,
+                    sort_by: str = "tier") -> list[dict]:
+    """The institutional feed.
+
+    sort_by="tier" (legacy): tier buckets then most recent.
+    sort_by="conviction" (Blademap): ranked conviction DESC — a 92-conviction
+    SILVER belongs above an 61-conviction GOLD.
+    min_conviction: hard floor (Blademap alerts at >75 by default).
+    """
     since = (datetime.now(_ET).date() - timedelta(days=max(1, days))).isoformat()
     sql = """
         SELECT * FROM flow_alerts_daily WHERE asof_date >= ?
@@ -875,10 +933,16 @@ def read_alert_feed(engine, days: int = 7, min_tier: str | None = None,
         allowed = [t for t, v in _TIER_RANK.items() if v <= rank]
         sql += f" AND tier IN ({','.join('?' for _ in allowed)})"
         params.extend(allowed)
-    sql += """
-        ORDER BY CASE tier WHEN 'GOLD' THEN 0 WHEN 'SILVER' THEN 1 ELSE 2 END,
-                 asof_ts DESC
-    """
+    if min_conviction is not None:
+        sql += " AND COALESCE(conviction, 0) >= ?"
+        params.append(int(min_conviction))
+    if sort_by == "conviction":
+        sql += " ORDER BY COALESCE(conviction, 0) DESC, asof_ts DESC"
+    else:
+        sql += """
+            ORDER BY CASE tier WHEN 'GOLD' THEN 0 WHEN 'SILVER' THEN 1 ELSE 2 END,
+                     asof_ts DESC
+        """
     try:
         return engine.query(sql, params)
     except Exception as e:

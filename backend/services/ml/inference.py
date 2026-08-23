@@ -586,8 +586,12 @@ class InferenceEngine:
             if data_dt.tzinfo is None:
                 data_dt = data_dt.replace(tzinfo=timezone.utc)
             data_age_sec = (now - data_dt).total_seconds()
-        except Exception:
-            data_age_sec = 0.0
+        except Exception as e:
+            # 2026-08-22 fix: 0.0 here reported STALE data as "fresh" to the
+            # dashboard staleness badge. Use a sentinel age that reads as old,
+            # not fresh, and log the failure.
+            log.warning(f"data timestamp parse failed for {ticker}: {e}")
+            data_age_sec = -1.0
 
         # Await GEX
         gex_snapshot = None

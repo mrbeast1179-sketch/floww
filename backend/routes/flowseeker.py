@@ -569,6 +569,20 @@ _scan_cache: dict[str, dict] = {}                # "min_volume:limit" → {ts, d
 # without ever exhausting the plan mid-hour.
 _SCAN_TTL = float(os.environ.get("CV_SCAN_TTL", "240"))
 _scan_backoff = {"until": 0.0, "delay": 30.0}    # exponential, capped at 600s
+
+# 2026-08-22: _scan_cache/_baselines_cache/_contract_oi_cache/_history_cache had
+# writes with no eviction — unbounded growth over long-lived sessions. Trim to
+# a bounded size on each write (same pattern as morning_briefing._trim_prior_cache).
+_FLOWSEEKER_CACHE_MAX = 200
+
+
+def _trim_cache(cache: dict, max_size: int = _FLOWSEEKER_CACHE_MAX) -> None:
+    if len(cache) > max_size:
+        excess = len(cache) - max_size
+        for key in list(cache.keys())[:excess]:
+            cache.pop(key, None)
+
+
 _scan_lock = asyncio.Lock()                       # single-flight for upstream screen calls
 _last_force_refresh = 0.0                         # debounce force refresh
 # Strong refs to fire-and-forget tasks — unreferenced tasks can be GC'd
@@ -953,6 +967,7 @@ async def market_scan(
                 _scan_backoff["until"] = 0.0
                 asof = datetime.now().isoformat()
                 _scan_cache[cache_key] = {"ts": now, "data": rows, "asof": asof}
+                _trim_cache(_scan_cache)
                 _spawn_bg(_record_scan_baseline(rows))
                 _spawn_bg(_run_institutional_alerts(rows))
                 out = _scan_payload(rows, False, asof, columns, cache_age=0)
@@ -1047,6 +1062,7 @@ async def _force_refresh_locked(min_volume: int, limit: int,
             _scan_backoff["until"] = 0.0
             asof = datetime.now().isoformat()
             _scan_cache[cache_key] = {"ts": now, "data": rows, "asof": asof}
+            _trim_cache(_scan_cache)
             _spawn_bg(_record_scan_baseline(rows))
             _spawn_bg(_run_institutional_alerts(rows))
             return _scan_payload(rows, False, asof, columns, cache_age=0)
@@ -1171,6 +1187,11 @@ async def institutional_alert_quality(
             "days": window_list,
             "daily_series": daily_by_tier,
             "daily_series_days": daily_max,
+            # Blademap v3 — conviction-band calibration: hit-rate per
+            # 50-59 / 60-74 / 75+ bucket. Monotonic curve = the score
+            # predicts; flat curve = sizing-by-conviction is decoration.
+            "conviction_calibration": fa.conviction_calibration(
+                duckdb_engine, days=daily_max),
             # v3.x tier-lock hysteresis: per-tier lock state surfaced
             # alongside quality. The retuner consults tier_lock.is_locked()
             # before proposing new thresholds; the frontend reads
@@ -1195,6 +1216,8 @@ async def institutional_alert_feed(
     days: int = Query(7, ge=1, le=60),
     tier: str | None = Query(None, pattern="^(?i)(gold|silver|bronze)$"),
     ticker: str | None = Query(None),
+    min_conviction: int | None = Query(None, ge=0, le=100),
+    sort_by: str = Query("tier", pattern="^(tier|conviction)$"),
 ):
     """Persisted institutional alert feed from the server-side engine.
 
@@ -1202,14 +1225,22 @@ async def institutional_alert_feed(
     convention, cf. /api/news/article). Tier filter is a minimum:
     tier=silver returns GOLD + SILVER. Rows carry side/bias, BS entry
     price, conviction tier, and move-since-alert.
+
+    Blademap v3: sort_by=conviction ranks by weighted score DESC (a
+    92-conviction SILVER above a 61-conviction GOLD); min_conviction is
+    the hard floor (Blademap alerts at >75).
     """
     from services import flow_alerts as fa
     from services.duckdb_engine import db as duckdb_engine
 
     try:
         fa.init_flow_alert_tables(duckdb_engine)
-        rows = fa.read_alert_feed(duckdb_engine, days=days, min_tier=tier, ticker=ticker)
-        return {"alerts": rows, "count": len(rows), "days": days}
+        rows = fa.read_alert_feed(duckdb_engine, days=days, min_tier=tier,
+                                  ticker=ticker,
+                                  min_conviction=min_conviction,
+                                  sort_by=sort_by)
+        return {"alerts": rows, "count": len(rows), "days": days,
+                "sort_by": sort_by, "min_conviction": min_conviction}
     except Exception as e:
         logger.warning(f"alert feed failed: {e}")
         return {"alerts": [], "count": 0, "days": days, "error": str(e)}
@@ -1584,7 +1615,6 @@ async def journal_trades(status: str = Query("all", pattern="^(all|open|closed)$
     """Server-persisted auto-journal entries (survives localStorage clears).
     Shaped as floww_trades_v2 entries + provenance so the frontend can
     merge them into its offline store."""
-    from services.duckdb_engine import db as duckdb_engine
     from services.journal_store import get_engine, init_journal_tables, read_trades
     init_journal_tables(get_engine())
     trades = read_trades(get_engine(), status=status, days=days)

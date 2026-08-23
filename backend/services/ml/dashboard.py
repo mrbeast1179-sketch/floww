@@ -220,8 +220,9 @@ class ModelDashboard:
         ]) if any(m.confidence is not None for m in models) else 0.0
 
         avg_age = np.mean([
-            m.data_age_sec for m in models if m.data_age_sec is not None
-        ]) if any(m.data_age_sec is not None for m in models) else 0.0
+            m.data_age_sec
+            for m in models if m.data_age_sec is not None and m.data_age_sec >= 0
+        ]) if any(m.data_age_sec is not None and m.data_age_sec >= 0 for m in models) else 0.0
 
         return {
             "timestamp": now.isoformat(),
