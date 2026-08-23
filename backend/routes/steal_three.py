@@ -2088,11 +2088,11 @@ def realized_volatility_endpoint(
                 bars.append({
                     "date": i.strftime("%Y-%m-%d")
                     if hasattr(i, "strftime") else str(i),
-                    "open":  float(r["Open"])  if r.get("Open")  is not None else None,
-                    "high":  float(r["High"])  if r.get("High")  is not None else None,
-                    "low":   float(r["Low"])   if r.get("Low")   is not None else None,
-                    "close": float(r["Close"]) if r.get("Close") is not None else None,
-                    "prev_close": float(r["Close"]) if r.get("Close") is not None else None,
+                    "open":  float(o) if (o := getattr(r, "Open", None)) is not None else None,
+                    "high":  float(h) if (h := getattr(r, "High", None)) is not None else None,
+                    "low":   float(l) if (l := getattr(r, "Low", None)) is not None else None,
+                    "close": float(c) if (c := getattr(r, "Close", None)) is not None else None,
+                    "prev_close": float(c) if c is not None else None,
                 })
 
         # 3. ATM IV from the canonical chain loader.

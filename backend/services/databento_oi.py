@@ -110,9 +110,9 @@ def _yfinance_full_chain(ticker: str) -> dict[str, dict[str, Any]]:
             for _df, opt_type in [(chain.calls, "call"), (chain.puts, "put")]:
                 if _df is None or _df.empty:
                     continue
-                for _, row in _df.iterrows():
-                    strike = float(row.get("strike", 0))
-                    oi = _clamp_oi(row.get("openInterest", 0))
+                for row in _df.itertuples(index=False):
+                    strike = float(getattr(row, "strike", 0) or 0)
+                    oi = _clamp_oi(getattr(row, "openInterest", 0) or 0)
                     key = f"{strike}_{expiry}_{opt_type}"
                     result[key] = {
                         "underlying": ticker.upper(),
