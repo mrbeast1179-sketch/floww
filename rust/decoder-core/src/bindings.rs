@@ -4,6 +4,7 @@
 
 use crate::gex::{self, RawContract, StrikeRow};
 use crate::greeks;
+use crate::nodes;
 use crate::iv;
 use crate::term;
 use crate::vpin;
@@ -431,6 +432,149 @@ fn realized_volatility(
     Ok(d.into_any().unbind())
 }
 
+
+/// GEX node classification — parity with gex_core.classify_nodes.
+/// rows: list of dicts with strike/gex/vex/vega/charm/vomma/zomma/
+/// call_gex/put_gex/call_oi/put_oi/total_oi.
+#[pyfunction]
+fn classify_nodes(
+    py: Python<'_>,
+    rows: Vec<std::collections::HashMap<String, pyo3::Bound<'_, PyAny>>>,
+    spot: f64,
+) -> PyResult<PyObject> {
+    use pyo3::types::{PyDict, PyList};
+    use pyo3::types::PyDictMethods;
+
+    let gf = |m: &std::collections::HashMap<String, pyo3::Bound<'_, PyAny>>, name: &str| -> f64 {
+        m.get(name).and_then(|v| v.extract::<f64>().ok()).unwrap_or(0.0)
+    };
+    let parsed: Vec<gex::StrikeRow> = rows
+        .iter()
+        .map(|m| gex::StrikeRow {
+            strike: gf(m, "strike"),
+            gex: gf(m, "gex"),
+            call_gex: gf(m, "call_gex"),
+            put_gex: gf(m, "put_gex"),
+            call_oi: gf(m, "call_oi"),
+            put_oi: gf(m, "put_oi"),
+            total_oi: gf(m, "total_oi"),
+            call_vex: gf(m, "call_vex"),
+            put_vex: gf(m, "put_vex"),
+            vex: gf(m, "vex"),
+            vega: gf(m, "vega"),
+            charm: gf(m, "charm"),
+            vomma: gf(m, "vomma"),
+            zomma: gf(m, "zomma"),
+        })
+        .collect();
+
+    let n = match nodes::classify_nodes(&parsed, spot) {
+        Some(n) => n,
+        None => return Ok(py.None()),
+    };
+
+    let d = PyDict::new_bound(py);
+    // king
+    let king = PyDict::new_bound(py);
+    king.set_item("strike", n.king_strike)?;
+    king.set_item("gex", n.king_gex)?;
+    d.set_item("king", king)?;
+
+    let pairs_list = |py: Python<'_>, v: &[(f64, f64)]| -> PyResult<PyObject> {
+        let items: Vec<_> = v
+            .iter()
+            .map(|(s, g)| {
+                let x = PyDict::new_bound(py);
+                x.set_item("strike", s)?;
+                x.set_item("gex", g)?;
+                Ok(x)
+            })
+            .collect::<PyResult<_>>()?;
+        Ok(PyList::new_bound(py, &items).into_any().unbind())
+    };
+    d.set_item("floors", pairs_list(py, &n.floors)?)?;
+    d.set_item("ceilings", pairs_list(py, &n.ceilings)?)?;
+    d.set_item("gatekeepers", PyList::new_bound(py, &n.gatekeepers))?;
+
+    let aps: Vec<_> = n
+        .air_pockets
+        .iter()
+        .map(|(lo, hi, w)| {
+            let x = PyDict::new_bound(py);
+            x.set_item("low", lo)?;
+            x.set_item("high", hi)?;
+            x.set_item("width", w)?;
+            x.set_item("mid", (lo + hi) / 2.0)?;
+            Ok(x)
+        })
+        .collect::<PyResult<_>>()?;
+    d.set_item("air_pockets", PyList::new_bound(py, &aps))?;
+
+    d.set_item("polarity_level", n.polarity_level)?;
+    d.set_item("regime", n.regime)?;
+    d.set_item("total_gex", n.total_gex)?;
+    d.set_item("near_gex", n.near_gex)?;
+    d.set_item("vex_flip", n.vex_flip)?;
+
+    let stacked: Vec<_> = n
+        .stacked
+        .iter()
+        .map(|(s, cp, pp)| {
+            let x = PyDict::new_bound(py);
+            x.set_item("strike", s)?;
+            x.set_item("call_pct", (cp * 100.0).round() / 100.0)?;
+            x.set_item("put_pct", (pp * 100.0).round() / 100.0)?;
+            Ok(x)
+        })
+        .collect::<PyResult<_>>()?;
+    d.set_item("stacked_nodes", PyList::new_bound(py, &stacked))?;
+
+    let tows: Vec<_> = n
+        .tug_of_war
+        .iter()
+        .map(|(lo, hi, pos, neg)| {
+            let x = PyDict::new_bound(py);
+            x.set_item("low", lo)?;
+            x.set_item("high", hi)?;
+            x.set_item("positive", pos)?;
+            x.set_item("negative", neg)?;
+            Ok(x)
+        })
+        .collect::<PyResult<_>>()?;
+    d.set_item("tug_of_war", PyList::new_bound(py, &tows))?;
+
+    for (k, v) in [
+        ("total_vega", n.total_vega), ("total_charm", n.total_charm),
+        ("total_vomma", n.total_vomma), ("total_zomma", n.total_zomma),
+        ("charm_flip", n.charm_flip),
+    ] {
+        d.set_item(k, v)?;
+    }
+    match n.max_pain {
+        Some(mp) => d.set_item("max_pain", mp)?,
+        None => d.set_item("max_pain", py.None())?,
+    }
+    match n.put_call_ratio {
+        Some(r) => d.set_item("put_call_ratio", (r * 10000.0).round() / 10000.0)?,
+        None => d.set_item("put_call_ratio", py.None())?,
+    }
+    d.set_item("_spot", (spot * 100.0).round() / 100.0)?;
+
+    let rm = PyDict::new_bound(py);
+    rm.set_item("gci", n.gci)?;
+    rm.set_item("pgr", n.pgr)?;
+    rm.set_item("gdw", n.gdw)?;
+    let car_net = if n.total_gex < 0.0 { -1.0 } else { 1.0 }
+        * (0.6 * n.total_zomma + 0.4 * n.total_vomma);
+    let car_gross = 0.6 * n.total_zomma.abs() + 0.4 * n.total_vomma.abs();
+    rm.set_item("car_net", (car_net * 10000.0).round() / 10000.0)?;
+    rm.set_item("car_gross", (car_gross * 10000.0).round() / 10000.0)?;
+    rm.set_item("charm_risk", (n.total_charm * 10000.0).round() / 10000.0)?;
+    d.set_item("risk_metrics", rm)?;
+
+    Ok(d.into_any().unbind())
+}
+
 #[pymodule]
 fn decoder_core(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(bs_gamma, m)?)?;
@@ -447,5 +591,6 @@ fn decoder_core(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(implied_vol_from_price, m)?);
     m.add_function(wrap_pyfunction!(implied_vol_surface, m)?);
     m.add_function(wrap_pyfunction!(realized_volatility, m)?);
+    m.add_function(wrap_pyfunction!(classify_nodes, m)?);
     Ok(())
 }

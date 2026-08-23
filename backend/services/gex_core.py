@@ -69,6 +69,21 @@ def safe_float(v, default=0.0):
         return default
 
 
+def classify_nodes_rust(rows: list[dict[str, Any]], spot: float) -> dict[str, Any] | None:
+    """Rust classify_nodes via decoder_core; None when unavailable/failed."""
+    if not _RUST_GEX:
+        return None
+    try:
+        return _dc.classify_nodes(rows, spot)
+    except Exception as exc:  # pragma: no cover - defensive fallback
+        import logging
+
+        logging.getLogger(__name__).warning(
+            "decoder_core classify_nodes failed (%s) — falling back to python", exc
+        )
+        return None
+
+
 def compute_gex_by_strike(spot: float, contracts: list[dict[str, Any]], ticker: str = "") -> list[dict[str, Any]]:
     """Per-strike net GEX, VEX, and Vega. Convention: dealer-positive convention.
 
@@ -333,7 +348,14 @@ def calc_aggregate_gex_curve(spot: float, contracts: list[dict[str, Any]],
 
 
 def classify_nodes(strikes: list[dict[str, Any]], spot: float) -> dict[str, Any]:
-    """Classify GEX node hierarchy: king, floors, ceilings, gatekeepers, air pockets, risk metrics."""
+    """Classify GEX node hierarchy: king, floors, ceilings, gatekeepers, air pockets, risk metrics.
+
+    Delegates to decoder_core Rust implementation when available (bit-exact
+    parity verified 2026-08-22); falls back to the pure-Python body below."""
+    if _RUST_GEX:
+        rust_result = classify_nodes_rust(strikes, spot)
+        if rust_result is not None:
+            return rust_result
     if not strikes or spot <= 0:
         return {"king": None, "floors": [], "ceilings": [], "gatekeepers": [], "air_pockets": [],
                 "polarity_level": None, "regime": "unknown", "total_gex": 0, "near_gex": 0,
