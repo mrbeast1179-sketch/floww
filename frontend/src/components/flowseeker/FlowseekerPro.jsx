@@ -179,7 +179,7 @@ function FlowScoreCircle({ score }) {
 }
 
 // ── Row Component ────────────────────────────────────────────────────
-const ROW_HEIGHT = 42;
+const ROW_HEIGHTS = { compact: 32, normal: 42, roomy: 56 };
 function Row({ index, style, data }) {
   const event = data.events[index];
   if (!event) return null;
@@ -211,7 +211,7 @@ function Row({ index, style, data }) {
         <span className="fsp-cell exp" onClick={e => { e.stopPropagation(); data.onToggleExpand(event.id); }}>⟩</span>
       </div>
       {isExpanded && (
-        <div className="fsp-row-detail" style={{ top: style.top + ROW_HEIGHT }}>
+        <div className="fsp-row-detail" style={{ top: style.top + 42 }}>  {/* normal density baseline */}
           <div className="fsp-detail-grid">
             <div><label>Delta (total)</label><span>{event.total_delta > 0 ? '+' : ''}{fmtMoney(event.total_delta)}</span></div>
             <div><label>Gamma (total)</label><span>{event.total_gamma.toFixed(4)}</span></div>
@@ -262,6 +262,8 @@ export default function FlowseekerPro({ active = true }) {
   const [showSettings, setShowSettings] = useState(false);
   const [showFilterPanel, setShowFilterPanel] = useState(false);
   const [refreshMs, setRefreshMs] = useState(5000);
+  const [density, setDensity] = useState("normal");
+  const [minConviction, setMinConviction] = useState(0);
   // chime mute lives in InstitutionalAlertsPanel; mirror the state here via
   // localStorage so the settings popover can display it honestly.
   const [muted, setMuted] = useState(() =>
@@ -361,6 +363,13 @@ export default function FlowseekerPro({ active = true }) {
               <i className="fsp-ctrl-dot" />
             )}
           </button>
+          <button type="button" className="fsp-ctrl-btn" title="Refresh now"
+                  onClick={() => { try { refreshLive(); } catch { /* noop */ } }}>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <polyline points="23 4 23 10 17 10" />
+              <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10" />
+            </svg>
+          </button>
         </div>
       </div>
 
@@ -368,6 +377,14 @@ export default function FlowseekerPro({ active = true }) {
       {showSettings && (
         <div className="fsp-popover fsp-popover-settings">
           <div className="fsp-pop-title">Display</div>
+          <label className="fsp-pop-row">
+            <span>Row density</span>
+            <select value={density} onChange={e => setDensity(e.target.value)}>
+              <option value="compact">Compact</option>
+              <option value="normal">Normal</option>
+              <option value="roomy">Roomy</option>
+            </select>
+          </label>
           <label className="fsp-pop-row">
             <span>Auto-refresh</span>
             <select value={refreshMs} onChange={e => setRefreshMs(Number(e.target.value))}>
@@ -394,6 +411,12 @@ export default function FlowseekerPro({ active = true }) {
             <input type="range" min="0" max="100" value={filters.minScore}
                    onChange={e => setFilters({ ...filters, minScore: +e.target.value })} />
             <b>{filters.minScore}</b>
+          </label>
+          <label className="fsp-pop-row">
+            <span>Min conviction</span>
+            <input type="range" min="0" max="95" step="5" value={minConviction}
+                   onChange={e => setMinConviction(Number(e.target.value))} />
+            <b>{minConviction || 'off'}</b>
           </label>
           <label className="fsp-pop-row">
             <span>Min notional ($)</span>
@@ -447,8 +470,8 @@ export default function FlowseekerPro({ active = true }) {
           <span style={{ width: 40 }}></span>
         </div>
         {filtered.length > 0 ? (
-          <List ref={listRef} height={Math.min(600, filtered.length * ROW_HEIGHT + 2)}
-            rowCount={filtered.length} rowHeight={ROW_HEIGHT}
+          <List ref={listRef} height={Math.min(600, filtered.length * ROW_HEIGHTS[density] + 2)}
+            rowCount={filtered.length} rowHeight={ROW_HEIGHTS[density]}
             rowComponent={Row} rowData={listData} className="fsp-list" />
         ) : (
           <div className="fsp-empty">No flows match your filters.</div>
