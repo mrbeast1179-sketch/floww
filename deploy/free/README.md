@@ -95,8 +95,9 @@ Disk watch: Mongo grows slowly (11MB now). `df -h` monthly is enough.
   /health* live outside /api — all explicitly proxied in the Caddyfile now
   (commit 20a6529). If you add backend routes outside /api later, add the
   prefix to the `@backend` matcher or they'll hit the SPA fallback.
-- `/health` (no prefix) returns 404 in current build — healthcheck and Caddy
-  probes use `/api/health` instead. Fixing the route is optional cleanup.
+- ~~`/health` (no prefix) returns 404~~ FIXED at 924f67d: lightweight
+  liveness alias shipped; healthcheck + Caddy probes hit it directly.
+  Deep dependency checks remain at `/api/health`.
 - ~~Frontend hardcoded `http://localhost:8000` fetch bases~~ FIXED at
   `af4e254`: all 14 components resolve same-origin at runtime. No
   REACT_APP_* build args needed — one build works on localhost AND prod.

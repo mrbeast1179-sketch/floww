@@ -128,3 +128,7 @@ backend/services/strategy_builder.py
 **/.tmp/
 deploy/free/.env.prod
 deploy/free/deploy_key_ed25519
+
+# Runtime DuckDB stores (journal etc.) — local state, never commit
+data/*.duckdb
+data/*.duckdb.wal
