@@ -127,3 +127,4 @@ backend/services/strategy_builder.py
 *.tmp
 **/.tmp/
 deploy/free/.env.prod
+deploy/free/deploy_key_ed25519

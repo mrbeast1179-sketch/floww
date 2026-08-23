@@ -113,7 +113,7 @@ def _make_mock_db(
     # -- find_one() for data freshness --
     if latest_ts is not None:
         ts_val = latest_ts.isoformat() if isinstance(latest_ts, datetime) else latest_ts
-        col.find_one = AsyncMock(return_value={"timestamp": ts_val})
+        col.find_one = AsyncMock(return_value={"ts": ts_val})
     else:
         col.find_one = AsyncMock(return_value=None)
 
@@ -155,10 +155,10 @@ class TestAssessModelHealth:
         """Accuracy > 0.52 and < 48h fresh → HEALTHY."""
         now = datetime.now(UTC)
         docs = [
-            {"prediction": 1, "outcome": 1, "timestamp": now.isoformat()}
+            {"prediction": 1, "realized_outcome": 1, "ts": now.isoformat()}
             for _ in range(80)
         ] + [
-            {"prediction": 0, "outcome": 1, "timestamp": now.isoformat()}
+            {"prediction": 0, "realized_outcome": 1, "ts": now.isoformat()}
             for _ in range(20)
         ]
         db = _make_mock_db(predictions=docs, latest_ts=now)
@@ -173,10 +173,10 @@ class TestAssessModelHealth:
         """7d accuracy < 0.50 → CRITICAL."""
         now = datetime.now(UTC)
         docs = [
-            {"prediction": 1, "outcome": 0, "timestamp": now.isoformat()}
+            {"prediction": 1, "realized_outcome": 0, "ts": now.isoformat()}
             for _ in range(70)
         ] + [
-            {"prediction": 1, "outcome": 1, "timestamp": now.isoformat()}
+            {"prediction": 1, "realized_outcome": 1, "ts": now.isoformat()}
             for _ in range(30)
         ]
         db = _make_mock_db(predictions=docs, latest_ts=now)
@@ -193,10 +193,10 @@ class TestAssessModelHealth:
         now = datetime.now(UTC)
         # 40/100 correct = 0.40 → below 0.50 threshold → CRITICAL
         docs = [
-            {"prediction": 1, "outcome": 1, "timestamp": now.isoformat()}
+            {"prediction": 1, "realized_outcome": 1, "ts": now.isoformat()}
             for _ in range(40)
         ] + [
-            {"prediction": 0, "outcome": 1, "timestamp": now.isoformat()}
+            {"prediction": 0, "realized_outcome": 1, "ts": now.isoformat()}
             for _ in range(60)
         ]
         db = _make_mock_db(predictions=docs, latest_ts=now)

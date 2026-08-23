@@ -44,12 +44,23 @@ Cheapest path that works with Let's Encrypt: buy nothing — use **DuckDNS**
 domain you own at the VM IP. Add an A record → VM public IP.
 
 ### C. Provision the server
+
+The repo is PRIVATE, so the one-line curl bootstrap won't work. Use the
+read-only deploy key (already registered as `oracle-vm-deploy` on GitHub):
+
 ```bash
-ssh azureuser@<VM_IP>
-curl -fsSL https://raw.githubusercontent.com/mrbeast1179-sketch/floww/main/deploy/free/server-setup.sh | bash
-# It will stop once and ask you to fill secrets:
-nano /opt/floww/deploy/free/.env.prod    # DOMAIN, ADMIN_EMAIL, API keys
-bash /opt/floww/deploy/free/server-setup.sh   # resumes, builds, starts
+scp -i <vm-key> deploy/free/{oracle-setup.sh,deploy_key_ed25519,server-setup.sh} ubuntu@<VM_IP>:~/
+ssh -i <vm-key> ubuntu@<VM_IP>
+chmod 600 ~/deploy_key_ed25519
+sudo bash ~/oracle-setup.sh          # stops once -> edit .env.prod -> re-run
+```
+
+`.env.prod` values: DOMAIN=confluencedecoder.duckdns.org (or your domain),
+fresh API_SECRET_KEY/JWT_SECRET_KEY, data provider keys from local backend/.env.
+
+Then point DNS at the VM:
+```bash
+curl "https://www.duckdns.org/update?domains=confluencedecoder&token=<DUCKDNS_TOKEN>&ip=$(curl -s ifconfig.me)"
 ```
 
 ### D. Verify

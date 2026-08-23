@@ -78,17 +78,34 @@ class FakeRouter:
 
 
 # Inject the fake agentfield module
-fake_agentfield = MagicMock()
+# The hub does `from agentfield import Agent, ...` at module import time, and
+# agentfield internals do `from agentfield.agent_pause import ...`. A bare
+# MagicMock stub breaks both (submodule imports raise "'agentfield' is not a
+# package"). Use a types.ModuleType shim that carries the four fake names for
+# the hub while exposing __path__ so real submodules still resolve.
+import types  # noqa: E402
+import agentfield as _real_agentfield  # noqa: E402
+
+fake_agentfield = types.ModuleType("agentfield")
+fake_agentfield.__path__ = _real_agentfield.__path__
 fake_agentfield.Agent = FakeAgent
 fake_agentfield.AgentRouter = FakeRouter
 fake_agentfield.AIConfig = FakeAIConfig
 fake_agentfield.CostTracker = FakeCostTracker
 sys.modules["agentfield"] = fake_agentfield
 
-# Now safe to import
+# conftest.py imports `server` at session start, which imports
+# services.agentfield_hub with its names already bound to the REAL agentfield
+# classes (`from agentfield import Agent, ...`). Rebinding the shim on
+# sys.modules isn't enough — patch the hub module's bound names directly.
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
+import services.agentfield_hub as _hub_mod  # noqa: E402
+_hub_mod.Agent = FakeAgent
+_hub_mod.AgentRouter = FakeRouter
+_hub_mod.AIConfig = FakeAIConfig
+_hub_mod.CostTracker = FakeCostTracker
 
-from services.agentfield_hub import AgentFieldHub, get_hub, init_hub  # noqa: E402
+AgentFieldHub, get_hub, init_hub = _hub_mod.AgentFieldHub, _hub_mod.get_hub, _hub_mod.init_hub
 
 # ── Fixtures ────────────────────────────────────────────────────────────────
 

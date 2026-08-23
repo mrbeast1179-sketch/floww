@@ -50,11 +50,13 @@ def _seed_rule(engine, tier, rule, hits, total, sigma_mean):
         # update_moves stamping cadence).
         move_pct = 0.7 if is_hit else -0.2
         sigma = sigma_mean + 0.1 * (i - (total - 1) / 2)
-        rows.append((today, rule, tier, "BULLISH", sigma, move_pct))
+        # key is part of PRIMARY KEY (asof_date, key) — must be non-null and
+        # unique per row so executemany doesn't trip the constraint.
+        rows.append((today, f"{rule}:{tier}:{i}", rule, tier, "BULLISH", sigma, move_pct))
     engine.execute_write(  # one batch INSERT after the loop builds the rows list
 
-            "INSERT INTO flow_alerts_daily(asof_date, rule, tier, bias, sigma, move_pct) "
-            "VALUES (?,?,?,?,?,?)",
+            "INSERT INTO flow_alerts_daily(asof_date, key, rule, tier, bias, sigma, move_pct) "
+            "VALUES (?,?,?,?,?,?,?)",
             rows,
         )
 
@@ -82,10 +84,12 @@ def seeded_quality_db():
     duckdb_engine.execute_write("DELETE FROM flow_alerts_daily", None)  # None (not []) routes through plain _conn.execute(sql), not executemany
 
 
-def test_alerts_quality_v2x_per_row_surface(seeded_quality_db):
+@pytest.mark.asyncio
+async def test_alerts_quality_v2x_per_row_surface(seeded_quality_db):
     """E2E assertion that GET /api/flowseeker/alerts/quality surfaces
-    wins + sigma_median + is_best_rule on every (rule, tier) row."""
-    body = institutional_alert_quality(days="30")
+    wins + sigma_median + is_best_rule on every (rule, tier) row.
+    (Route went async with Blademap v3 conviction_calibration.)"""
+    body = await institutional_alert_quality(days="30")
     assert "error" not in body, f"route returned error: {body.get('error')}"
     rows = body.get("quality") or (
         body.get("quality_windows", {}).get("30") or
@@ -141,7 +145,8 @@ def test_alerts_quality_v2x_per_row_surface(seeded_quality_db):
             )
 
 
-def test_alerts_quality_gold_floor_single_tier_demotes_to_false(seeded_quality_db):
+@pytest.mark.asyncio
+async def test_alerts_quality_gold_floor_single_tier_demotes_to_false(seeded_quality_db):
     """Separate single-purpose test: when GOLD has only ONE rule, even if
     that rule is well-measured, is_best_rule MUST be False. Catches a
     regression where the MIN_N=3 floor is applied but the candidates<2
@@ -151,7 +156,7 @@ def test_alerts_quality_gold_floor_single_tier_demotes_to_false(seeded_quality_d
     # Single GOLD rule, well-measured (n_measured=10), perfect hit_rate.
     _seed_rule(duckdb_engine, "GOLD", "OICONF", hits=10, total=10, sigma_mean=2.0)
 
-    body = institutional_alert_quality(days="30")
+    body = await institutional_alert_quality(days="30")
     rows = body.get("quality") or []
     gold_rows = [r for r in rows if r["tier"] == "GOLD"]
     assert len(gold_rows) == 1
