@@ -29,6 +29,10 @@ ignore = ["E501", "SIM102", "SIM108", "SIM117"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+# pytest-asyncio: auto mode. This file wins over pytest.ini's [tool:pytest]
+# section (which pytest 9 ignores when pyproject has ini_options), so async
+# tests without an explicit marker still run.
+asyncio_mode = "auto"
 
 
 [tool.coverage.run]

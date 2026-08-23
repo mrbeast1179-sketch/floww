@@ -621,9 +621,10 @@ def accumulate_today(
 
 def read_recent_insider(
     engine,
-    ticker: str | None = None,
+    ticker: str | None,
     n_days: int = 14,
     min_value: float | None = None,
+    today: date | None = None,
 ) -> list[dict[str, Any]]:
     """Return insider rows from the last ``n_days`` for ``ticker`` (or all).
 
@@ -632,7 +633,9 @@ def read_recent_insider(
     """
     if n_days <= 0:
         return []
-    cutoff = date.today() - timedelta(days=n_days)
+    if today is None:
+        today = date.today()
+    cutoff = today - timedelta(days=n_days)
     params: list[Any] = []
     if ticker:
         sql = (

@@ -416,6 +416,7 @@ def read_recent_drift(engine, ticker: str, n_days: int = 14) -> list[dict[str, A
 
 def read_recent_drift_per_expiry(
     engine, ticker: str, n_days: int = 30,
+    today: date | None = None,
 ) -> list[dict[str, Any]]:
     """Return per-expiry max_pain_strike history grouped by ``expiry``.
 
@@ -502,7 +503,8 @@ def read_recent_drift_per_expiry(
     # tail). This is the window-respecting step; the SQL filter kept
     # ALL available history to compute first_strike / drift_strike_Nd
     # accurately against any deeper-than-n_days baseline.
-    today = date.today()
+    if today is None:
+        today = date.today()
     cutoff = date.fromordinal(today.toordinal() - int(n_days))
 
     out: list[dict[str, Any]] = []

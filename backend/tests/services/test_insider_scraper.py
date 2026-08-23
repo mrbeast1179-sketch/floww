@@ -350,7 +350,8 @@ def test_accumulate_today_idempotent_upsert(fresh_engine):
                 cost=120.0, shares=600, value=72_000.0, shares_total=1_000)
     accumulate_today(fresh_engine, [row2], snapshot_date=fixed_date)
 
-    rows = read_recent_insider(fresh_engine, ticker="SPY", n_days=30)
+    rows = read_recent_insider(fresh_engine, ticker="SPY", n_days=30,
+                               today=fixed_date)
     assert len(rows) == 1
     assert rows[0]["cost"] == 120.0    # second call's value due to UPSERT
     assert rows[0]["shares"] == 600
@@ -373,17 +374,20 @@ def test_read_recent_filters_ticker_correctly(fresh_engine):
     accumulate_today(fresh_engine, rows_to_add, snapshot_date=today)
 
     # Filter by SPY — should return only SPY rows.
-    spy_rows = read_recent_insider(fresh_engine, ticker="SPY", n_days=30)
+    spy_rows = read_recent_insider(fresh_engine, ticker="SPY", n_days=30,
+                                   today=today)
     assert len(spy_rows) == 1
     assert spy_rows[0]["ticker"] == "SPY"
 
     # Filter by QQQ.
-    qqq_rows = read_recent_insider(fresh_engine, ticker="QQQ", n_days=30)
+    qqq_rows = read_recent_insider(fresh_engine, ticker="QQQ", n_days=30,
+                                   today=today)
     assert len(qqq_rows) == 1
     assert qqq_rows[0]["ticker"] == "QQQ"
 
     # No tickers filter — should return all three.
-    all_rows = read_recent_insider(fresh_engine, ticker=None, n_days=30)
+    all_rows = read_recent_insider(fresh_engine, ticker=None, n_days=30,
+                                   today=today)
     assert len(all_rows) == 3
 
 

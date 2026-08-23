@@ -33,20 +33,23 @@ REF_IV = np.array([0.20])
 REF_R = 0.05
 REF_Q = 0.0
 
-# Known reference values (high-precision Black-Scholes)
-REF_CALL_DELTA = 0.51993881
+# Known reference values (high-precision Black-Scholes, verified analytically
+# and by finite differences — d1=0.175, d2=0.075 for these inputs).
+# Conventions match services/numba_greeks.py: vega per unit vol (NOT per vol
+# point), vanna = dDelta/dVol = dVega/dSpot, charm per calendar day.
+REF_CALL_DELTA = 0.56946018
 REF_CALL_GAMMA = 0.03928800
 REF_CALL_THETA = -0.02869630  # per day
-REF_CALL_VEGA = 0.19644000    # per 1 vol point
+REF_CALL_VEGA = 19.64400047   # per unit vol (1.00 change in IV)
 REF_CALL_VANNA = -0.14733000  # dDelta/dVol
-REF_CALL_CHARM = 0.00010916   # dDelta/dTime per day
+REF_CALL_CHARM = -0.00037673  # dDelta/dTime per day
 
-REF_PUT_DELTA = -0.48006119
+REF_PUT_DELTA = -0.43053982
 REF_PUT_GAMMA = 0.03928800
 REF_PUT_THETA = -0.01516784  # per day
-REF_PUT_VEGA = 0.19644000
+REF_PUT_VEGA = 19.64400047
 REF_PUT_VANNA = -0.14733000
-REF_PUT_CHARM = -0.00010916  # per day
+REF_PUT_CHARM = -0.00037673  # per day
 
 
 def _rel_err(actual, expected):

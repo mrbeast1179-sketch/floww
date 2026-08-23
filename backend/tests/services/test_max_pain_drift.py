@@ -623,10 +623,12 @@ def test_read_recent_drift_per_expiry_groups_by_expiry_and_skips_overall(fresh_e
     """The OVERALL row (``expiry == ''``) is filtered out so the chart
     only sees the per-expiry trajectories. Expiries with rows are
     returned sorted ASC by ISO date string."""
+    from datetime import date as _date
     expected_expiries = _seed_per_expiry_history(
         fresh_engine, "TEST", days=6, n_expiries=3,
     )
-    out = read_recent_drift_per_expiry(fresh_engine, "TEST", n_days=30)
+    out = read_recent_drift_per_expiry(
+        fresh_engine, "TEST", n_days=30, today=_date(2026, 7, 15))
     # One entry per listed expiry, none for the OVERALL row.
     assert [g["expiry"] for g in out] == expected_expiries
     # Each expiry group has 6 history points (6 days seeded).

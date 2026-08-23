@@ -87,7 +87,8 @@ class TestStructuredFormatter:
             msg="x", args=(), exc_info=None,
         )
         data = json.loads(fmt.format(record))
-        assert data["module"] == "test_logging_config"  # this test's module name is used via record.module
+        # record.module derives from record.pathname ("f.py") -> "f"
+        assert data["module"] == "f"
 
     def test_format_line_number(self):
         fmt = StructuredFormatter()
@@ -232,8 +233,25 @@ class TestCorrelationIdMiddleware:
         }
 
     def _make_app(self):
+        # A spy-wrapped ASGI app: assertions on the app still work (it's an
+        # AsyncMock), but calling it actually drives the receive/send channel
+        # like a real endpoint — a bare AsyncMock never awaits the send
+        # callable, so downstream assertions on send fail.
         app = AsyncMock()
-        return app
+
+        async def runner(scope, receive, send):
+            await app(scope, receive, send)
+            if scope.get("type") == "http":
+                await send({"type": "http.response.start", "status": 200,
+                            "headers": []})
+                await send({"type": "http.response.body", "body": b""})
+
+        # Expose the spy for assert_awaited* assertions while remaining a
+        # callable ASGI app.
+        runner.assert_awaited_once = app.assert_awaited_once
+        runner.assert_awaited_once_with = app.assert_awaited_once_with
+        runner.call_args_list = app.call_args_list
+        return runner
 
     @pytest.mark.asyncio
     async def test_generates_cid_when_not_in_headers(self):

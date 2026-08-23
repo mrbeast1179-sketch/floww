@@ -230,7 +230,9 @@ class TestLLMRoutes:
         from routes.llm import router
 
         app = FastAPI()
-        app.include_router(router)
+        # server.py mounts llm_router with prefix="/api"; mirror that or the
+        # /api/* paths in the routes 404.
+        app.include_router(router, prefix="/api")
         client = TestClient(app)
 
         resp = client.get("/api/llm/providers")
@@ -247,7 +249,9 @@ class TestLLMRoutes:
         from routes.llm import router
 
         app = FastAPI()
-        app.include_router(router)
+        # server.py mounts llm_router with prefix="/api"; mirror that or the
+        # /api/* paths in the routes 404.
+        app.include_router(router, prefix="/api")
         client = TestClient(app)
 
         resp = client.get("/api/turboquant/status")
@@ -264,7 +268,9 @@ class TestLLMRoutes:
         from routes.llm import router
 
         app = FastAPI()
-        app.include_router(router)
+        # server.py mounts llm_router with prefix="/api"; mirror that or the
+        # /api/* paths in the routes 404.
+        app.include_router(router, prefix="/api")
         client = TestClient(app)
 
         resp = client.get("/api/turboquant/presets")

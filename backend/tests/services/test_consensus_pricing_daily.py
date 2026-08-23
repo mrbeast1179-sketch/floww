@@ -429,7 +429,9 @@ def test_accumulate_today_idempotent_same_date_overwrites(fresh_engine):
         call_oi=200, put_oi=200,
     )
     accumulate_today(fresh_engine, "SPY", chain2, snapshot_date=fixed_date)
-    rows = read_recent_drift(fresh_engine, "SPY", n_days=30)
+    # today=fixed_date: without it the n_days window slides with the real
+    # clock and the fixed 2026-07-15 snapshot ages out (time-bomb).
+    rows = read_recent_drift(fresh_engine, "SPY", n_days=30, today=fixed_date)
     # Should have one date worth of rows: one per-expiry (2026-08-15) + the
     # overall row (empty expiry sentinel).
     assert len(rows) == 2
@@ -484,7 +486,8 @@ def test_read_recent_with_expiry_filter_returns_match_plus_overall(fresh_engine)
     today = date(2026, 7, 15)
     chain = _build_chain(strike=100, expiry="2026-08-15")
     accumulate_today(fresh_engine, "SPY", chain, snapshot_date=today)
-    rows = read_recent_drift(fresh_engine, "SPY", n_days=30, expiry="2026-08-15")
+    rows = read_recent_drift(fresh_engine, "SPY", n_days=30, expiry="2026-08-15",
+                             today=today)
     assert len(rows) == 2
     expiry_set = {(r.get("expiry") or "") for r in rows}
     assert expiry_set == {"2026-08-15", ""}
