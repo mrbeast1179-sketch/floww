@@ -1055,3 +1055,38 @@ tr.fsp-row-open td { background: rgba(52, 211, 153, 0.04); }
   font-family: ui-monospace, Menlo, monospace;
 }
 
+
+
+/* ── Blademap v3 journal level-status rail (used by TradeJournal) ── */
+.fsp-ls {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-left: 4px;
+}
+.fsp-ls-rail {
+  position: relative;
+  display: inline-block;
+  width: 44px;
+  height: 4px;
+  background: rgba(148, 163, 184, 0.2);
+  border-radius: 2px;
+}
+.fsp-ls-stop, .fsp-ls-tgt {
+  position: absolute;
+  top: -2px;
+  width: 2px;
+  height: 8px;
+  border-radius: 1px;
+}
+.fsp-ls-stop { left: 0; background: #f87171; }
+.fsp-ls-tgt { right: 0; background: #34d399; }
+.fsp-ls-fill {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  background: rgba(147, 197, 253, 0.7);
+  border-radius: 2px;
+}
+.fsp-ls b { font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.4px; }

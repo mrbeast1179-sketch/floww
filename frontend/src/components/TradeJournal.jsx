@@ -98,6 +98,44 @@ function Field({ label, value, onChange, type = "text", select, options, ...prop
 }
 
 // ─── Trade Card ───────────────────────────────────────────────────────────────
+/**
+ * LevelStatus — Blademap v3: for auto-seeded cards carrying key_levels,
+ * show the live position of the underlying between stop and target.
+ * The card's entry_price is the OPTION premium; key_levels are on the
+ * UNDERLYING. Progress = (underlying − entry) / (target − entry),
+ * clamped 0–100%. Underlying spot rides in via trade._spot when the
+ * journal feed provides it; without a live spot we render the static
+ * levels rail so the desk still sees the plan.
+ */
+function LevelStatus({ trade }) {
+  const kl = trade.key_levels;
+  if (!kl || kl.entry == null) return null;
+  const bull = (trade.type || "call") === "call";
+  const span = Math.abs(kl.target - kl.entry) || 1;
+  const spot = Number(trade._spot);
+  let pct = null, label = "OPEN";
+  if (Number.isFinite(spot)) {
+    const prog = bull ? (spot - kl.entry) / span : (kl.entry - spot) / span;
+    pct = Math.max(-20, Math.min(120, prog * 100));
+    if (bull ? spot <= kl.invalidation : spot >= kl.invalidation) label = "STOP ZONE";
+    else if (bull ? spot >= kl.target : spot <= kl.target) label = "TARGET HIT";
+  }
+  return (
+    <span className="fsp-ls" title={`Plan: entry $${kl.entry} · stop $${kl.invalidation} · target $${kl.target}`}>
+      <span className="fsp-ls-rail">
+        <i className="fsp-ls-stop" />
+        <i className="fsp-ls-fill" style={pct != null ? { width: `${Math.max(0, Math.min(100, pct))}%` } : undefined} />
+        <i className="fsp-ls-tgt" />
+      </span>
+      {pct != null && (
+        <b className={label === "TARGET HIT" ? "text-emerald-400" : label === "STOP ZONE" ? "text-rose-400" : "text-slate-400"}>
+          {label}
+        </b>
+      )}
+    </span>
+  );
+}
+
 function TradeCard({ trade, onEdit, onDelete, onClose }) {
   const [exitPrice, setExitPrice] = useState("");
   const [expanded, setExpanded] = useState(false);
@@ -123,6 +161,7 @@ function TradeCard({ trade, onEdit, onDelete, onClose }) {
             <span className="text-[10px] text-slate-500 mono">{trade.strike}</span>
             {trade.expiry && <span className="text-[10px] text-slate-600">{trade.expiry}</span>}
             <span className="text-[10px] text-slate-600">x{trade.quantity}</span>
+            {trade.key_levels && !isClosed && <LevelStatus trade={trade} />}
           </div>
           <div className="flex items-center gap-2">
             {pnl !== null && (
@@ -146,6 +185,14 @@ function TradeCard({ trade, onEdit, onDelete, onClose }) {
             </div>
             {trade.gex_regime && <div className="text-[10px]"><span className="text-slate-500">GEX:</span> <span className="text-amber-400">{trade.gex_regime.replace(/_/g, " ")}</span></div>}
             {trade.setup && <div className="text-[10px]"><span className="text-slate-500">Setup:</span> <span className="text-slate-300">{trade.setup}</span></div>}
+            {trade.key_levels && (
+              <div className="text-[10px] flex gap-3">
+                <span className="text-slate-500">Plan:</span>
+                <span className="mono text-slate-300">entry ${trade.key_levels.entry}</span>
+                <span className="mono text-rose-400">stop ${trade.key_levels.invalidation}</span>
+                <span className="mono text-emerald-400">target ${trade.key_levels.target}</span>
+              </div>
+            )}
             {trade.notes && <div className="text-[10px] text-slate-400 italic mt-1">{trade.notes}</div>}
             <div className="flex gap-1 mt-2">
               {!isClosed && (
