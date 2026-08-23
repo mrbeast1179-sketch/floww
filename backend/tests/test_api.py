@@ -351,7 +351,9 @@ def test_uoa_spy(client, patched_chain):
         row = d["unusual"][0]
         assert "type" in row
         assert "strike" in row
-        assert "signals" in row
+        # services/uoa.py rows carry "reasons" (list of trigger strings),
+        # not the older "signals" key.
+        assert "reasons" in row
 
 
 def test_gamma_flip_endpoint(client, patched_chain):

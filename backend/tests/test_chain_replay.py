@@ -253,12 +253,13 @@ def test_read_payload_explicit_minutes_selects_window_kind():
     for i in range(6):
         cr.push_snapshot(_snap(ANCHOR + timedelta(minutes=i)))
     # Use a huge window so all anchored-at snapshots are kept regardless
-    # of what ``datetime.now()`` returns on the test box — we only need
-    # to assert that ``window_kind`` / ``window_value`` are wired up
-    # correctly so the frontend can read it back.
-    payload = cr.read_payload(minutes=10_000)
+    # of what ``datetime.now()`` returns on the test box (the anchor is a
+    # fixed 2026-06-21 date, so the window must exceed the real elapsed
+    # time since then) — we only need to assert that ``window_kind`` /
+    # ``window_value`` are wired up correctly so the frontend can read it.
+    payload = cr.read_payload(minutes=10_000_000)
     assert payload["window_kind"] == "minutes"
-    assert payload["window_value"] == 10_000
+    assert payload["window_value"] == 10_000_000
     assert len(payload["snapshots"]) == 6
 
 

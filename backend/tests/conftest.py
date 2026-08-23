@@ -90,11 +90,34 @@ async def _reset_event_loop_and_motor(aclient, monkeypatch):
     except Exception:
         pass
 
+    # Step 6: close any DuckDBEngine instances created during this test.
+    # Each live DuckDB connection holds ~ncores spinning scheduler threads;
+    # leaked engines made long pytest runs grind to a halt.
+    try:
+        from services.duckdb_engine import DuckDBEngine
+        for eng in list(getattr(DuckDBEngine, "_live_instances", [])):
+            with_context = getattr(eng, "close", None)
+            if callable(with_context):
+                with_context()
+        DuckDBEngine._live_instances.clear()
+    except Exception:
+        pass
+
     try:
         yield
     finally:
         fresh.close()
         try:
             new_loop.close()
+        except Exception:
+            pass
+        # Teardown-side sweep too (engines created inside the test body).
+        try:
+            from services.duckdb_engine import DuckDBEngine
+            for eng in list(getattr(DuckDBEngine, "_live_instances", [])):
+                closer = getattr(eng, "close", None)
+                if callable(closer):
+                    closer()
+            DuckDBEngine._live_instances.clear()
         except Exception:
             pass

@@ -20,14 +20,16 @@ def test_paid_tickers_empty_when_disabled(monkeypatch):
 
 
 def test_paid_tickers_default_when_not_disabled(monkeypatch):
-    """Without DISABLE_DATABENTO, PAID_TICKERS defaults to {"SPY"}."""
+    """Without DISABLE_DATABENTO, PAID_TICKERS gets all six default tickers."""
     monkeypatch.delenv("DISABLE_DATABENTO", raising=False)
 
     disabled = os.environ.get("DISABLE_DATABENTO", "").lower() in ("1", "true", "yes")
     from server import DEFAULT_PAID_TICKERS
 
     result = set() if disabled else set(DEFAULT_PAID_TICKERS)
-    assert result == {"SPY"}, f"Default PAID_TICKERS should be {{'SPY'}}, got {result}"
+    assert result == {"SPY", "QQQ", "IWM", "DIA", "TLT", "SPX"}, (
+        f"Default PAID_TICKERS should be the six production tickers, got {result}"
+    )
 
 
 def test_paid_tickers_disabled_with_true_variants(monkeypatch):

@@ -91,8 +91,15 @@ async def _execute_with_timeout(
 class DuckDBEngine:
     """Thread-safe DuckDB wrapper with async batch writer."""
 
+    # Test-teardown registry: tests/conftest.py closes these after each test
+    # so leaked connections don't leave ~ncores spinning DuckDB scheduler
+    # threads behind (long pytest runs ground to a halt without this).
+    _live_instances: list = []
+
     def __init__(self, db_path: str = ":memory:"):
         self._conn = duckdb.connect(db_path)
+        self._is_shared_singleton = False
+        DuckDBEngine._live_instances.append(self)
         self._lock = asyncio.Lock()
         # DuckDB connections are NOT thread-safe (threadsafety==1). The async
         # flush loop, the ingestion pipeline, and synchronous readers (e.g. the
@@ -267,6 +274,17 @@ class DuckDBEngine:
         self._flush_task = None
         await self._flush_all()
 
+    def close(self) -> None:
+        """Synchronous teardown: drop the connection so DuckDB's per-connection
+        thread pool is released. Tests create many short-lived engines; without
+        this each leaked connection leaves ~ncores spinning scheduler threads
+        and long pytest runs grind to a halt. Safe to call twice."""
+        conn = getattr(self, '_conn', None)
+        if conn is not None:
+            with contextlib.suppress(Exception):
+                conn.close()
+            self._conn = None
+
     async def insert_tick(self, symbol: str, bid: float, ask: float, last: float,
                           volume: int, oi: int, delta: float, gamma: float,
                           theta: float, vega: float, vanna: float = 0.0,
@@ -437,3 +455,6 @@ class DuckDBEngine:
 
 
 db = DuckDBEngine()
+# Never let test teardown close the shared app singleton.
+db._is_shared_singleton = True
+DuckDBEngine._live_instances.remove(db)

@@ -338,29 +338,54 @@ def simulate_hawkes_ogata(
         # Degenerate case: pure homogeneous Poisson process.
         return _homogeneous_poisson(T, mu, n_max, rng)
 
-    lambda_star = max(mu + alpha * n_max / beta, mu)
-    # Budget = λ★·T (expected thinning iters + 3× headroom); floor n_max·50
-    # prevents the small-T regime from under-budgeting on bursty streams.
-    max_iterations = max(n_max * 50, int(lambda_star * T * 3.0))
+    # Domination rate. The old formula used alpha*n_max/beta, which treats
+    # the event-count CAP as an expected count — with n_max=5000 that yields
+    # lambda_star=1500 and an iteration budget of ~9M, making realistic sims
+    # run for minutes. The process's true long-run intensity is
+    # lambda_bar = mu/(1 - eta); its sup on [0,T] is bounded by
+    # mu + alpha * lambda_bar * T (every historical event contributes at
+    # most alpha, and at most lambda_bar*T events occur). Use the tighter of
+    # the two bounds so thinning stays correct but doesn't explode.
+    eta = alpha / beta if beta > 0 else float("inf")
+    if eta < 1.0:
+        lambda_bar = mu / (1.0 - eta)
+        # Sup of the intensity on [0,T]: at most lambda_bar*T events occur,
+        # each contributing at most alpha to the instantaneous rate.
+        lambda_sup = mu + alpha * (lambda_bar * T + 1.0)
+    else:
+        # Super-critical (eta >= 1): no stationary bound exists; fall back
+        # to a generous cap so the loop still terminates via max_iterations.
+        lambda_bar = mu
+        lambda_sup = mu + alpha * n_max
+    lambda_star = max(lambda_bar, lambda_sup, mu)
+
+    # Budget = lambda_star*T thinning iterations (+50% headroom). With the
+    # tighter domination rate this is now proportional to actual activity.
+    max_iterations = int(lambda_star * T * 1.5) + 1000
     events: list[float] = []
     t = 0.0
     iterations = 0
 
+    # Incremental excitation tracking: A(t) = sum_i exp(-beta*(t - t_i)).
+    # After advancing by w: A *= exp(-beta*w). On an accepted event: A += 1.
+    # This makes each thinning iteration O(1) instead of O(n_events) — the
+    # old path called exponential_intensity (full array scan + np.exp) every
+    # candidate, which is O(n^2) per simulation and minutes-long at scale.
+    A = 0.0
+
     try:
-        arr_buf = np.empty(0, dtype=np.float64)
         while t < T and len(events) < n_max and iterations < max_iterations:
             iterations += 1
             w = rng.exponential(1.0 / lambda_star)
+            A *= math.exp(-beta * w)
             t += w
             if t >= T:
                 break
-            if events:
-                arr_buf[:0] = 0  # cheap no-op; just keeps the buffer live
-                arr_buf = np.array(events, dtype=np.float64)
-            lam_t = exponential_intensity(t, arr_buf, mu, alpha, beta)
+            lam_t = mu + alpha * A
             u = rng.uniform(0.0, 1.0)
             if u <= lam_t / lambda_star:
                 events.append(t)
+                A += 1.0
         # DEBUG-ONLY (`assert` is skipped under ``python -O``): flag silent
         # early exit on iteration-budget exhaustion so downstream analyses
         # never silently consume a truncated trace.
