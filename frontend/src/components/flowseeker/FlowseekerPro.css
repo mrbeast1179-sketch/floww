@@ -1090,3 +1090,77 @@ tr.fsp-row-open td { background: rgba(52, 211, 153, 0.04); }
   border-radius: 2px;
 }
 .fsp-ls b { font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.4px; }
+
+
+/* ── Blademap/Skylit control cluster (header top-right) ── */
+.fsp-header { position: relative; display: flex; align-items: center; }
+.fsp-ctrl-cluster {
+  margin-left: auto;
+  display: inline-flex;
+  gap: 6px;
+}
+.fsp-ctrl-btn {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  background: rgba(15, 23, 42, 0.6);
+  border: 1px solid var(--border-light);
+  border-radius: 5px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all .12s;
+}
+.fsp-ctrl-btn:hover { color: #34d399; border-color: rgba(52, 211, 153, 0.4); }
+.fsp-ctrl-btn.on { color: #34d399; border-color: rgba(52, 211, 153, 0.55); background: rgba(52, 211, 153, 0.08); }
+.fsp-ctrl-dot {
+  position: absolute;
+  top: -3px;
+  right: -3px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #fbbf24;
+}
+
+/* ── Popovers (settings + quick filters) ── */
+.fsp-popover {
+  margin-top: 6px;
+  padding: 12px 14px;
+  background: rgba(10, 15, 26, 0.95);
+  border: 1px solid var(--border-light);
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+}
+.fsp-pop-title {
+  font-size: 11px;
+  font-weight: 700;
+  color: #34d399;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  margin-bottom: 8px;
+}
+.fsp-pop-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 6px 0;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+.fsp-pop-row select,
+.fsp-pop-row input[type="number"] {
+  background: rgba(30, 41, 59, 0.7);
+  border: 1px solid var(--border-light);
+  border-radius: 4px;
+  color: var(--text-secondary);
+  padding: 3px 6px;
+  font-family: inherit;
+  font-size: 11px;
+}
+.fsp-pop-inline { display: inline-flex; align-items: center; gap: 4px; }
+.fsp-pop-inline input { width: 56px; }
+.fsp-pop-row input[type="checkbox"] { accent-color: #34d399; }

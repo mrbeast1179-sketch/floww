@@ -248,7 +248,7 @@ export default function FlowseekerPro({ active = true }) {
     error: liveError,
     refresh: refreshLive,
   } = useFlowseeker('live', {
-    refreshMs: active && !['yesterday', '2_days_ago', '3_days_ago'].includes(filters.timeRange) ? 5000 : 0,
+    refreshMs: active && !['yesterday', '2_days_ago', '3_days_ago'].includes(filters.timeRange) ? refreshMs : 0,
     skip: !active,
     date: getDateParam(filters.timeRange),
     limit: 300,
@@ -258,6 +258,14 @@ export default function FlowseekerPro({ active = true }) {
   const [events, setEvents] = useState([]);
   const [expandedId, setExpandedId] = useState(null);
   const [usingSynthetic, setUsingSynthetic] = useState(false);
+  // Blademap/Skylit control cluster: settings + quick-filter popovers
+  const [showSettings, setShowSettings] = useState(false);
+  const [showFilterPanel, setShowFilterPanel] = useState(false);
+  const [refreshMs, setRefreshMs] = useState(5000);
+  // chime mute lives in InstitutionalAlertsPanel; mirror the state here via
+  // localStorage so the settings popover can display it honestly.
+  const [muted, setMuted] = useState(() =>
+    localStorage.getItem("fsp-chime-muted") === "1");
   const newIdsRef = useRef(new Set());
   const listRef = useRef(null);
 
@@ -330,7 +338,85 @@ export default function FlowseekerPro({ active = true }) {
           <i className={`fsp-live-dot ${usingSynthetic ? 'synthetic' : liveError ? 'error' : ''}`} />
           {getTimeRangeLabel(filters.timeRange)} {usingSynthetic ? '· Synthetic' : ''}
         </span>
+
+        {/* Blademap/Skylit-style control cluster — top-right */}
+        <div className="fsp-ctrl-cluster">
+          <button type="button"
+                  className={`fsp-ctrl-btn ${showSettings ? 'on' : ''}`}
+                  title="Display settings"
+                  onClick={() => { setShowSettings(s => !s); setShowFilterPanel(false); }}>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <circle cx="12" cy="12" r="3" />
+              <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+            </svg>
+          </button>
+          <button type="button"
+                  className={`fsp-ctrl-btn ${showFilterPanel ? 'on' : ''}`}
+                  title="Quick filters"
+                  onClick={() => { setShowFilterPanel(s => !s); setShowSettings(false); }}>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3" />
+            </svg>
+            {(filters.minScore > 0 || filters.side !== 'all' || filters.optionType !== 'all') && (
+              <i className="fsp-ctrl-dot" />
+            )}
+          </button>
+        </div>
       </div>
+
+      {/* Settings dropdown — display preferences */}
+      {showSettings && (
+        <div className="fsp-popover fsp-popover-settings">
+          <div className="fsp-pop-title">Display</div>
+          <label className="fsp-pop-row">
+            <span>Auto-refresh</span>
+            <select value={refreshMs} onChange={e => setRefreshMs(Number(e.target.value))}>
+              <option value={5000}>5s</option>
+              <option value={15000}>15s</option>
+              <option value={30000}>30s</option>
+              <option value={60000}>60s</option>
+              <option value={0}>Off</option>
+            </select>
+          </label>
+          <label className="fsp-pop-row">
+            <span>Chime on 75+</span>
+            <input type="checkbox" checked={!muted} onChange={e => {}} readOnly />
+          </label>
+        </div>
+      )}
+
+      {/* Quick-filter dropdown */}
+      {showFilterPanel && (
+        <div className="fsp-popover fsp-popover-filter">
+          <div className="fsp-pop-title">Quick Filters</div>
+          <label className="fsp-pop-row">
+            <span>Min score</span>
+            <input type="range" min="0" max="100" value={filters.minScore}
+                   onChange={e => setFilters({ ...filters, minScore: +e.target.value })} />
+            <b>{filters.minScore}</b>
+          </label>
+          <label className="fsp-pop-row">
+            <span>Min notional ($)</span>
+            <input type="number" value={filters.minNotional}
+                   onChange={e => setFilters({ ...filters, minNotional: +e.target.value })} />
+          </label>
+          <label className="fsp-pop-row">
+            <span>DTE range</span>
+            <span className="fsp-pop-inline">
+              <input type="number" value={filters.dteMin} placeholder="0"
+                     onChange={e => setFilters({ ...filters, dteMin: +e.target.value })} />
+              –
+              <input type="number" value={filters.dteMax} placeholder="365"
+                     onChange={e => setFilters({ ...filters, dteMax: +e.target.value })} />
+            </span>
+          </label>
+          <button type="button" className="fsp-at-btn" onClick={() =>
+            setFilters({ ...filters, side: 'BUY', optionType: 'all', minScore: 70, minContracts: 0 })
+          }>
+            Blademap preset (BUY · score 70)
+          </button>
+        </div>
+      )}
 
       {/* Conviction v2 institutional feed — the server-side engine's
           persisted alerts (spread demoted, CW-confirmed, BH-FDR-screened,
