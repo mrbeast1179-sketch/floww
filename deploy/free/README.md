@@ -65,9 +65,10 @@ curl "https://www.duckdns.org/update?domains=confluencedecoder&token=<DUCKDNS_TO
 
 ### D. Verify
 ```bash
-curl https://your.domain/api/health
-curl -s "https://your.domain/api/briefing/SPY" | head -c 200
-open https://your.domain
+DOMAIN=confluencedecoder.duckdns.org bash deploy/free/smoke.sh
+# or manually:
+curl https://confluencedecoder.duckdns.org/api/health
+open https://confluencedecoder.duckdns.org
 ```
 
 ## Secrets you must copy to the server

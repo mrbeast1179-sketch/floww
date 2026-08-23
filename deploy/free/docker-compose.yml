@@ -39,7 +39,8 @@ services:
       timeout: 15s
       retries: 3
       start_period: 60s
-    # NOTE: /health (no /api prefix) 404s in the current build — use /api/health.
+    # /health (no prefix) is the lightweight liveness alias (924f67d);
+    # deep dependency checks remain at /api/health.
     deploy:
       resources:
         limits:

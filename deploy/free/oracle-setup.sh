@@ -78,6 +78,7 @@ for i in $(seq 1 30); do
     if curl -sf http://localhost/api/health >/dev/null 2>&1; then
         DOMAIN=$(grep '^DOMAIN=' deploy/free/.env.prod | cut -d= -f2)
         echo "✅ Confluence Decoder LIVE on https://${DOMAIN}"
+        echo "   Verify: DOMAIN=${DOMAIN} bash deploy/free/smoke.sh"
         echo "   Don't forget: update DuckDNS to point at THIS VM's public IP:"
         echo "   curl https://www.duckdns.org/update?domains=confluencedecoder&token=<TOKEN>&ip=$(curl -s ifconfig.me)"
         exit 0
