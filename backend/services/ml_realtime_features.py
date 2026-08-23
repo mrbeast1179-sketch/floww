@@ -77,14 +77,16 @@ def fetch_live_chain(ticker: str, max_expiries: int = 2) -> dict[str, Any] | Non
             if spot is None and not chain.calls.empty:
                 spot = float(chain.calls["strike"].median())
 
-            for _, row in chain.calls.iterrows():
+            for row in chain.calls.itertuples(index=False):
                 # int(NaN) raises — yfinance returns NaN OI/volume on stale
-                # contracts; coerce NaN→0 before the cast (2026-08-22 500 fix)
-                oi = row.get("openInterest", 0)
-                vol = row.get("volume", 0)
+                # contracts; coerce NaN→0 before the cast (2026-08-22 500 fix).
+                # itertuples over iterrows: ~10x faster on wide chains.
+                oi = getattr(row, "openInterest", 0) or 0
+                vol = getattr(row, "volume", 0) or 0
+                strike = getattr(row, "strike", 0) or 0
                 contracts.append({
                     "expiry": exp_str,
-                    "strike": float(row.get("strike", 0)),
+                    "strike": float(strike),
                     "type": "C",
                     "oi": 0 if oi != oi else int(oi),
                     "volume": 0 if vol != vol else int(vol),
@@ -96,12 +98,13 @@ def fetch_live_chain(ticker: str, max_expiries: int = 2) -> dict[str, Any] | Non
                     "last": float(row.get("lastPrice", 0) or 0),
                 })
 
-            for _, row in chain.puts.iterrows():
-                oi = row.get("openInterest", 0)
-                vol = row.get("volume", 0)
+            for row in chain.puts.itertuples(index=False):
+                oi = getattr(row, "openInterest", 0) or 0
+                vol = getattr(row, "volume", 0) or 0
+                strike = getattr(row, "strike", 0) or 0
                 contracts.append({
                     "expiry": exp_str,
-                    "strike": float(row.get("strike", 0)),
+                    "strike": float(strike),
                     "type": "P",
                     "oi": 0 if oi != oi else int(oi),
                     "volume": 0 if vol != vol else int(vol),

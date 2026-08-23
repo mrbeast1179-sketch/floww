@@ -524,11 +524,13 @@ def fetch_spot_and_chains(ticker: str, max_expiries: int = 4) -> dict[str, Any]:
         for df, kind in [(ch.calls, "call"), (ch.puts, "put")]:
             if df is None or df.empty:
                 continue
-            for _, row in df.iterrows():
-                strike = float(row.get("strike", 0))
-                oi = float(row.get("openInterest", 0) or 0)
-                iv = float(row.get("impliedVolatility", 0) or 0)
-                vol = float(row.get("volume", 0) or 0)
+            # 2026-08-22: itertuples replaces iterrows — ~10x faster on
+            # wide yfinance frames (iterrows builds a Series per row).
+            for row in df.itertuples(index=False):
+                strike = float(getattr(row, "strike", 0) or 0)
+                oi = float(getattr(row, "openInterest", 0) or 0)
+                iv = float(getattr(row, "impliedVolatility", 0) or 0)
+                vol = float(getattr(row, "volume", 0) or 0)
                 # Require valid strike; relax OI/IV filter for sparse data (e.g. SPX)
                 if strike <= 0:
                     continue
