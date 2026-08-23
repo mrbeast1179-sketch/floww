@@ -1557,6 +1557,19 @@ _scheduler_started = False
 _scheduler_task: asyncio.Task | None = None
 
 
+async def _warm_default_heatmaps():
+    """Fire heatmap builds for default tickers once at startup so the first
+    user hit gets SWR-stale data instead of a ~4s cold upstream fetch.
+    2026-08-22: pairs with the SWR cache (phase 3) — stale entries serve
+    instantly while this populates fresh ones in background."""
+    for t in ("SPY", "QQQ", "IWM"):
+        try:
+            await build_heatmap(t, max_expiries=4, mode="day")
+            log.info(f"warm heatmaps {t}: ok")
+        except Exception as e:
+            log.warning(f"warm heatmaps {t}: {e}")
+
+
 async def _prefetch_paid_oi():
     """Pre-fetch OI for all paid tickers so first request after open is instant."""
     log.info(f"prefetch OI for {sorted(PAID_TICKERS)}")
@@ -2152,6 +2165,9 @@ async def on_start():
         _background_tasks.add(_scheduler_task)
         _scheduler_task.add_done_callback(_background_tasks.discard)
         log.info(f"scheduler started · prefetch at {PREFETCH_HHMM} ET")
+        _wt = asyncio.create_task(_logged_task(_warm_default_heatmaps(), "_warm_default_heatmaps"))
+        _background_tasks.add(_wt)
+        _wt.add_done_callback(_background_tasks.discard)
     # Start VPIN auto-feed background task for toxicity ensemble
     _t = asyncio.create_task(_logged_task(_vpin_autofeed_loop(), "vpin_autofeed"))
     _background_tasks.add(_t)
