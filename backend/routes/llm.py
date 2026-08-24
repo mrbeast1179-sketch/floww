@@ -159,12 +159,16 @@ async def turboquant_generate(request: TurboQuantGenerateRequest):
         # Load model + tokenizer (cached to avoid re-loading on every request)
         cache_key = request.model_name
         if cache_key not in _MODEL_CACHE:
-            tokenizer = AutoTokenizer.from_pretrained(request.model_name, trust_remote_code=True)
+            tokenizer = AutoTokenizer.from_pretrained(
+                request.model_name, trust_remote_code=True,
+                revision="main",  # noqa: B615
+            )
             model = AutoModelForCausalLM.from_pretrained(
                 request.model_name,
                 torch_dtype=torch.float16,
                 device_map="auto",
                 trust_remote_code=True,
+                revision="main",  # noqa: B615 — user-supplied model name
             )
             _MODEL_CACHE[cache_key] = (model, tokenizer)
         model, tokenizer = _MODEL_CACHE[cache_key]
