@@ -10,7 +10,11 @@ services:
     restart: unless-stopped
     # FTDC (diagnostic.data sampling) hard-crashes mongod when its interim
     # write fails — friend-scale traffic gains nothing from it. Disable.
-    command: ["mongod", "--setParameter", "diagnosticDataCollectionEnabled=false"]
+    # WiredTiger defaults its cache to 50% of (RAM - 1GB) — on this 24GB A1
+    # VM that's ~11.5GB, which would starve npm builds / backend / Caddy.
+    # Cap it explicitly; 2GB covers friend-scale working sets comfortably.
+    command: ["mongod", "--setParameter", "diagnosticDataCollectionEnabled=false",
+              "--wiredTigerCacheSizeGB", "2"]
     volumes:
       - mongo_data:/data/db
     networks:

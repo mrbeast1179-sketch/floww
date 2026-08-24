@@ -119,53 +119,36 @@ export default function TrinityView({ onFocusTicker, onTradeSelect }) {
   const cacheRef = useRef({});
   const mountedRef = useRef(true);
 
-  // Progressive fetch: panel tickers first, then others
+  // Fetch all 7 tickers concurrently (no waterfall). Panel tickers use the
+  // shorter timeout; extras use the longer one. Each resolved ticker is merged
+  // into the cache immediately so a single failure never blocks or blanks others.
+  const applyTicker = useCallback((ticker, data) => {
+    if (!data?.strikes?.length) return;
+    cacheRef.current = { ...cacheRef.current, [ticker]: data };
+    if (mountedRef.current) setAllData({ ...cacheRef.current });
+  }, []);
+
+  const fetchTickers = useCallback((tickers, timeout) =>
+    Promise.allSettled(
+      tickers.map(t =>
+        axios.get(`${API}/data/${t}?expiries=${dteFilter}&mode=day`, { timeout })
+          .then(r => applyTicker(t, r.data))
+      )
+    ), [dteFilter, applyTicker]);
+
   const fetchAll = useCallback(async (isBackground = false) => {
     const panelTickers = ["^SPX", "SPY", "QQQ"];
     const extraTickers = ["^NDX", "IWM", "DIA", "TLT"];
-    
+
     if (!isBackground) setLoading(true);
     setError(null);
 
-    // Phase 1: fetch just the 3 visible panel tickers (fast path)
-    try {
-      const panelResults = await Promise.allSettled(
-        panelTickers.map(t =>
-          axios.get(`${API}/data/${t}?expiries=${dteFilter}&mode=day`, { timeout: 8000 })
-            .then(r => ({ ticker: t, data: r.data }))
-        )
-      );
-      const newData = { ...cacheRef.current };
-      panelResults.forEach(r => {
-        if (r.status === "fulfilled" && r.value.data?.strikes?.length) {
-          newData[r.value.ticker] = r.value.data;
-        }
-      });
-      cacheRef.current = newData;
-      if (mountedRef.current) { setAllData({ ...newData }); }
-    } catch (e) {
-      // ignore phase 1 errors
-    }
-
-    // Phase 2: fetch extra tickers in background (non-blocking)
-    try {
-      const extraResults = await Promise.allSettled(
-        extraTickers.map(t =>
-          axios.get(`${API}/data/${t}?expiries=${dteFilter}&mode=day`, { timeout: 30000 })
-            .then(r => ({ ticker: t, data: r.data }))
-        )
-      );
-      const newData2 = { ...cacheRef.current };
-      extraResults.forEach(r => {
-        if (r.status === "fulfilled" && r.value.data?.strikes?.length) {
-          newData2[r.value.ticker] = r.value.data;
-        }
-      });
-      cacheRef.current = newData2;
-      if (mountedRef.current) { setAllData({ ...newData2 }); }
-    } catch (e) {
-      // ignore phase 2 errors
-    }
+    // Both phases run in parallel; panel results land first because of the
+    // shorter timeout, but we never wait for phase 1 before starting phase 2.
+    await Promise.all([
+      fetchTickers(panelTickers, 8000),
+      fetchTickers(extraTickers, 30000),
+    ]);
 
     if (mountedRef.current) {
       setLastUpdate(new Date());
@@ -175,7 +158,7 @@ export default function TrinityView({ onFocusTicker, onTradeSelect }) {
         setError("No data available. Backend may be degraded.");
       }
     }
-  }, [dteFilter]);
+  }, [dteFilter, fetchTickers]);
 
   useEffect(() => {
     mountedRef.current = true;
@@ -204,7 +187,7 @@ export default function TrinityView({ onFocusTicker, onTradeSelect }) {
         {TRINITY.map((defaultTicker, idx) => {
           const currentTicker = panelTickers[idx] || defaultTicker;
           return (
-            <TrinityPanel key={idx} ticker={currentTicker} data={allData[currentTicker] || allData[defaultTicker]} viewMode={viewMode} gexVexMode={gexVexMode} onFocus={() => onFocusTicker && onFocusTicker(currentTicker)} onTickerChange={(t) => setPanelTickers(prev => ({ ...prev, [idx]: t }))} onTradeSelect={onTradeSelect} />
+            <TrinityPanel key={idx} ticker={currentTicker} data={allData[currentTicker] || allData[defaultTicker]} viewMode={viewMode} gexVexMode={gexVexMode} loading={loading && !allData[currentTicker]} onFocus={() => onFocusTicker && onFocusTicker(currentTicker)} onTickerChange={(t) => setPanelTickers(prev => ({ ...prev, [idx]: t }))} onTradeSelect={onTradeSelect} />
           );
         })}
       </div>
@@ -214,10 +197,13 @@ export default function TrinityView({ onFocusTicker, onTradeSelect }) {
 }
 
 function ConfluenceBar({ data, viewMode, onViewModeChange, gexVexMode, onGexVexChange, dteFilter, onDteChange, lastUpdate, loading }) {
-  const tickers = TRINITY.map(t => data[t]).filter(d => d && !d.error);
-  if (tickers.length === 0) return null;
-  const regimes = tickers.map(d => d.nodes?.regime).filter(Boolean);
-  const confluence = regimes.length > 0 ? regimes.filter(r => r === regimes[0]).length / regimes.length : 0;
+  const { regimes, confluence, hasTickers } = useMemo(() => {
+    const tickers = TRINITY.map(t => data[t]).filter(d => d && !d.error);
+    const regs = tickers.map(d => d.nodes?.regime).filter(Boolean);
+    const conf = regs.length > 0 ? regs.filter(r => r === regs[0]).length / regs.length : 0;
+    return { regimes: regs, confluence: conf, hasTickers: tickers.length > 0 };
+  }, [data]);
+  if (!hasTickers) return null;
   const verdict = confluence === 1 ? "full" : confluence >= 0.66 ? "partial" : "diverge";
   const verdictColor = verdict === "full" ? "trinity-verdict-pos" : verdict === "partial" ? "trinity-verdict-warn" : "trinity-verdict-neg";
   const verdictText = verdict === "full" ? "All three agree. Highest conviction." : verdict === "partial" ? "Two-of-three. Reduced size." : "Disagreement. Wait.";
@@ -236,7 +222,7 @@ function ConfluenceBar({ data, viewMode, onViewModeChange, gexVexMode, onGexVexC
         <div className="trinity-view-toggle">{VIEW_MODES.map(vm => (<button key={vm.id} className={`trinity-view-btn${viewMode === vm.id ? " trinity-view-active" : ""}`} onClick={() => onViewModeChange(vm.id)} title={vm.label}><span className="trinity-view-icon">{vm.icon}</span><span className="trinity-view-label">{vm.label}</span></button>))}</div>
         <div className="trinity-gexvex-toggle">{GEX_VEX_MODES.map(m => (<button key={m.id} className={`trinity-gexvex-btn${gexVexMode === m.id ? " trinity-gexvex-active" : ""}`} onClick={() => onGexVexChange(m.id)}>{m.label}</button>))}</div>
         <div className="trinity-dte-toggle">{/* ids are expiry COUNTS sent as ?expiries= — labels describe the practical window */}
-        {[[1,"0–1DTE"],[3,"~3DTE"],[7,"1 Week"],[12,"All"]].map(([id,label])=>(<button key={d.id} className={`trinity-dte-btn${dteFilter===d.id?" trinity-dte-active":""}`} onClick={()=>onDteChange(d.id)}>{d.label}</button>))}</div>
+        {[[1,"0–1DTE"],[3,"~3DTE"],[7,"1 Week"],[12,"All"]].map(([id,label])=>(<button key={id} className={`trinity-dte-btn${dteFilter===id?" trinity-dte-active":""}`} onClick={()=>onDteChange(id)}>{label}</button>))}</div>
       </div>
     </div>
   );
@@ -245,13 +231,16 @@ function ConfluenceBar({ data, viewMode, onViewModeChange, gexVexMode, onGexVexC
 // ── Mini Sparkline ────────────────────────────────────────────────────
 function MiniSparkline({ data, spot }) {
   // Generate 20 bars from the strikes data around spot
-  if (!data?.strikes?.length || !spot) return null;
-  const strikes = data.strikes;
-  const spotIdx = strikes.reduce((best, s, i) => 
-    Math.abs(s.strike - spot) < Math.abs(strikes[best].strike - spot) ? i : best, 0);
-  const start = Math.max(0, spotIdx - 10);
-  const end = Math.min(strikes.length, spotIdx + 10);
-  const window = strikes.slice(start, end);
+  const window = useMemo(() => {
+    if (!data?.strikes?.length || !spot) return null;
+    const strikes = data.strikes;
+    const spotIdx = strikes.reduce((best, s, i) =>
+      Math.abs(s.strike - spot) < Math.abs(strikes[best].strike - spot) ? i : best, 0);
+    const start = Math.max(0, spotIdx - 10);
+    const end = Math.min(strikes.length, spotIdx + 10);
+    return strikes.slice(start, end);
+  }, [data, spot]);
+  if (!window) return null;
   const maxGex = Math.max(...window.map(s => Math.abs(s.gex || 0)), 1);
   
   return (
@@ -291,7 +280,7 @@ function TimelineBar() {
 
 const PANEL_TICKERS = ["^SPX", "SPY", "QQQ", "^NDX", "IWM", "DIA", "TLT"];
 
-function TrinityPanel({ ticker, data, viewMode, gexVexMode, onFocus, onTickerChange, onTradeSelect }) {
+function TrinityPanel({ ticker, data, viewMode, gexVexMode, loading: panelLoading, onFocus, onTickerChange, onTradeSelect }) {
   const [showTickerMenu, setShowTickerMenu] = useState(false);
   const spot = data?.spot;
   const nodes = data?.nodes;
@@ -374,7 +363,7 @@ function TrinityPanel({ ticker, data, viewMode, gexVexMode, onFocus, onTickerCha
   const regimeLabel = regime === "positive" ? "positive γ" : regime === "negative" ? "negative γ" : "neutral";
 
   const renderView = () => {
-    if (rows.length === 0) return <div className="trinity-no-data">No strike data available</div>;
+    if (rows.length === 0) return <div className="trinity-no-data">{panelLoading ? "Loading…" : "No strike data available"}</div>;
     const ma = Math.max(...rows.map(r => Math.abs(r.gex || 0)), 1);
     switch (viewMode) {
       case "dom": return <DOMView rows={rows} domCols={domCols} spotIdx={spotIdx} kingStrike={kingStrike} flipStrike={flipStrike} tags={tags} maxAbs={ma} onRowClick={handleRowClick} />;
@@ -506,9 +495,14 @@ function ListView({ rows, maxAbs, spotIdx, kingStrike, flipStrike, onRowClick })
 }
 
 function GridView({ rows, expiries, gridData, gridMaxAbs, spotIdx, flipStrike, kingStrike, onRowClick }) {
+  const poc = useMemo(() => {
+    if (!gridData || expiries.length === 0) return { pocS: null, pocE: null, pocA: 0 };
+    let pocS = null, pocE = null, pocA = 0;
+    for (const exp of expiries) { for (const [s, cell] of Object.entries(gridData[exp] || {})) { const v = Math.abs(cell?.gex || 0); if (v > pocA) { pocA = v; pocS = Number(s); pocE = exp; } } }
+    return { pocS, pocE, pocA };
+  }, [gridData, expiries]);
   if (!gridData || expiries.length === 0) return <div className="trinity-no-data">No grid data available</div>;
-  let pocS = null, pocE = null, pocA = 0;
-  for (const exp of expiries) { for (const [s, cell] of Object.entries(gridData[exp] || {})) { const v = Math.abs(cell?.gex || 0); if (v > pocA) { pocA = v; pocS = Number(s); pocE = exp; } } }
+  const { pocS, pocE, pocA } = poc;
   const pocN = Math.min(1, pocA / gridMaxAbs);
   return (<div className="trinity-grid-scroll"><table className="trinity-grid-table"><thead><tr className="trinity-grid-header"><th className="trinity-grid-th-price">Strike</th>{expiries.map(e=>(<th key={e} className="trinity-grid-th">{e.slice(5)}</th>))}</tr></thead><tbody>
     {rows.map((row, i) => {

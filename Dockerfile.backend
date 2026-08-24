@@ -2,9 +2,15 @@ FROM python:3.11-slim AS production
 
 WORKDIR /app
 
-# Install dependencies
+# Install dependencies.
+# torch is ONLY used by backend/tests/* (never imported by server.py or any
+# service at runtime) and adds ~1GB+ to the image for zero runtime benefit.
+# Exclude it from the production image; local dev/test venvs still install it
+# from requirements.txt directly.
 COPY backend/requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+RUN grep -Ev '^\s*torch' requirements.txt > /tmp/req.prod.txt \
+    && pip install --no-cache-dir -r /tmp/req.prod.txt \
+    && rm /tmp/req.prod.txt
 
 # Copy backend code
 COPY backend/ .

@@ -12,9 +12,21 @@ BASE="${SCHEME}://${DOMAIN}"
 CURL_OPTS="${CURL_OPTS:-}"
 
 pass=0; fail=0
+# Cold-start tolerance: the first /health hit after `docker compose up` may
+# land while uvicorn is still importing pandas/numba and JIT-compiling
+# (numba @njit first-call compilation alone can take 30-60s+). Wait for
+# liveness before running checks, and give every request a generous cap so a
+# slow cold endpoint fails with 000 rather than hanging forever.
+echo "── Waiting for backend warm-up (numba JIT cold start can take ~90s) ──"
+for i in $(seq 1 18); do   # up to ~3 minutes
+    code=$(curl $CURL_OPTS -s -o /dev/null -w '%{http_code}' --max-time 120 "${BASE}/health" || echo 000)
+    if [ "$code" = "200" ]; then echo "  ok   warm-up -> 200 (attempt ${i})"; break; fi
+    echo "  ...  attempt ${i}: ${code}; retrying in 10s"; sleep 10
+done
+
 check() { # check <name> <url> <expect_code>
     local name="$1" url="$2" expect="$3" got
-    got=$(curl $CURL_OPTS -s -o /dev/null -w '%{http_code}' "$url" || echo 000)
+    got=$(curl $CURL_OPTS -s -o /dev/null -w '%{http_code}' --max-time 120 "$url" || echo 000)
     if [ "$got" = "$expect" ]; then
         echo "  ok   $name -> $got"; pass=$((pass+1))
     else

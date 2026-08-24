@@ -796,6 +796,8 @@ async def build_heatmap(ticker: str, max_expiries: int = 4, with_taps: bool = Tr
     age = (time.time() - cached["ts"]) if cached else None
     if cached is not None and age is not None:
         if age < _BUILD_HEATMAP_CACHE_TTL:
+            # Contract: frontend StaleDataBadge reads data.stale_age_s (App.js).
+            cached["data"]["stale_age_s"] = round(age, 1)
             return cached["data"]  # fresh
         if (
             age < _BUILD_HEATMAP_STALE_TTL
@@ -807,6 +809,7 @@ async def build_heatmap(ticker: str, max_expiries: int = 4, with_taps: bool = Tr
             asyncio.create_task(_revalidate_heatmap(
                 cache_key, ticker, max_expiries, with_taps, mode, dte, scalp, max_strikes,
             ))
+            cached["data"]["stale_age_s"] = round(age, 1)
             return cached["data"]  # stale-but-serveable, refresh running
     try:
         return await _build_heatmap_impl(ticker, max_expiries, with_taps, mode, dte, scalp, max_strikes)
@@ -993,6 +996,10 @@ async def _build_heatmap_impl(ticker: str, max_expiries: int = 4, with_taps: boo
         "patterns": patterns,
         "velocity": velocity,
         "tap_counts": {str(k): v for k, v in tap_map.items()},
+        # Contract fields read by the frontend (App.js / HeatseekerDashboard):
+        "stale_age_s": 0.0,
+        "data_fallback": False,
+        "gex_regime": nodes.get("regime"),
         "data_source": raw.get("data_source", "yfinance"),
         "mode": mode,
         "asof": datetime.now(UTC).isoformat(),

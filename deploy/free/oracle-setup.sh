@@ -42,6 +42,21 @@ fi
 node --version
 npm --version
 
+echo "── 2c. Swap (1G) — absorbs npm build / numba JIT RAM spikes ──"
+# Oracle A1 free-tier VMs ship with NO swap; the frontend build (~2GB peak)
+# plus cold-start JIT can OOM-kill otherwise.
+if [ ! -f /swapfile ]; then
+    fallocate -l 1G /swapfile
+    chmod 600 /swapfile
+    mkswap /swapfile
+    swapon /swapfile
+    grep -q '^/swapfile' /etc/fstab || echo '/swapfile none swap sw 0 0' >> /etc/fstab
+fi
+swapon --show
+# Low swappiness: swap is an emergency buffer, not working-set storage.
+sysctl -qw vm.swappiness=10
+grep -q '^vm.swappiness' /etc/sysctl.conf || echo 'vm.swappiness=10' >> /etc/sysctl.conf
+
 echo "── 3. Firewall: only SSH + web ──"
 ufw allow OpenSSH
 ufw allow 80/tcp
