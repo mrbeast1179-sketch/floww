@@ -132,6 +132,14 @@ function markNew(rows, prevKeysRef, mode) {
   return rows;
 }
 
+// Days to expiry for an ISO date string; null when unparseable.
+function dteDays(exp) {
+  if (!exp) return null;
+  const t = Date.parse(String(exp).length === 10 ? `${exp}T00:00:00` : exp);
+  if (Number.isNaN(t)) return null;
+  return Math.max(0, Math.round((t - Date.now()) / 86400000));
+}
+
 // ---------- component ----------
 export default function FlowseekerProBlademap({ active = true }) {
   const [tab, setTab] = useState("scanner");   // land on the cross-symbol scanner (the hero view)
@@ -171,6 +179,15 @@ export default function FlowseekerProBlademap({ active = true }) {
   const [notify, setNotify] = useState(!!prefs.notify);
   const [forcing, setForcing] = useState(false);
   const [refreshTick, setRefreshTick] = useState(0);
+  // ── Skylit-style control cluster state (settings + quick filters) ──
+  const [showSettings, setShowSettings] = useState(false);
+  const [showQuickFilters, setShowQuickFilters] = useState(false);
+  const [pollMs, setPollMs] = useState(() => {
+    try { return Number(localStorage.getItem("fsb.pollMs")) || 60000; } catch { return 60000; }
+  });
+  useEffect(() => { try { localStorage.setItem("fsb.pollMs", String(pollMs)); } catch { /* */ } }, [pollMs]);
+  const [minScoreQF, setMinScoreQF] = useState(0);
+  const [dteRange, setDteRange] = useState([null, null]);
   const prevKeysRef = useRef(null);
   const firstSeenRef = useRef(loadFirstSeen());   // { day, map:{contractKey: firstSeenMs} }
   const notifyRef = useRef(false);
@@ -465,9 +482,9 @@ export default function FlowseekerProBlademap({ active = true }) {
     run();
     // Data refreshes on the backend's budgeted cadence (~4 min); a 60s poll
     // re-serves that cache — snappy enough, and free.
-    const id = setInterval(run, 60000);
-    return () => { cancelled = true; ctrl.abort(); clearInterval(id); };
-  }, [active, tab, refreshTick]);
+    const id = pollMs > 0 ? setInterval(run, Math.max(5000, pollMs)) : null;
+    return () => { cancelled = true; ctrl.abort(); if (id) clearInterval(id); };
+  }, [active, tab, refreshTick, pollMs]);
 
   // ---- daily volume history (sparklines + persistence streaks) ----
   // Mongo-only on the backend (no upstream call) and it changes once a day —
@@ -563,6 +580,10 @@ export default function FlowseekerProBlademap({ active = true }) {
         if (scanMinScore && r.score < scanMinScore) return false;
       }
       if (q && !(r.under || "").toUpperCase().includes(q)) return false;
+      // Skylit control-cluster quick filters
+      if (minScoreQF > 0 && (r.score ?? 0) < minScoreQF) return false;
+      if (dteRange[0] != null && dteDays(r.exp) != null && dteDays(r.exp) < dteRange[0]) return false;
+      if (dteRange[1] != null && dteDays(r.exp) != null && dteDays(r.exp) > dteRange[1]) return false;
       return true;
     });
     const k = scanSort.key, dir = scanSort.dir === "desc" ? -1 : 1;
@@ -573,7 +594,7 @@ export default function FlowseekerProBlademap({ active = true }) {
       return (av < bv ? -1 : av > bv ? 1 : 0) * dir;
     });
     return rows;
-  }, [scan, scanTypeF, scanMinVol, scanMinScore, scanQ, scanSort, universe, universeOnly, advanced]);
+  }, [scan, scanTypeF, scanMinVol, scanMinScore, scanQ, scanSort, universe, universeOnly, advanced, minScoreQF, dteRange]);
 
   const scanStats = useMemo(() => {
     let notl = 0, cv = 0, pv = 0, unusual = 0, alerts = 0; const cnt = {};
@@ -805,6 +826,68 @@ export default function FlowseekerProBlademap({ active = true }) {
         <div className="fsb-meta">
           <span className={`fsb-regime-pill ${regime.cls}`}>{regime.label}</span>
           <span>{clock}</span>
+          <button type="button" className="fsb-ctrl" title="Refresh now"
+                  onClick={forceRefresh} disabled={forcing}>
+            {forcing ? "…" : "↻"}
+          </button>
+          <div className="fsb-ctrl-wrap">
+            <button type="button"
+                    className={`fsb-ctrl${(minScoreQF > 0 || dteRange[0] != null || dteRange[1] != null) ? " fsb-ctrl-active" : ""}`}
+                    title="Quick filters"
+                    onClick={() => { setShowQuickFilters((v) => !v); setShowSettings(false); }}>
+              ⧩
+            </button>
+            {showQuickFilters && (
+              <div className="fsb-pop">
+                <div className="fsb-pop-title">Quick filters</div>
+                <label className="fsb-pop-row">
+                  <span>Min score</span>
+                  <input type="range" min="0" max="95" step="5" value={minScoreQF}
+                         onChange={(e) => setMinScoreQF(Number(e.target.value))} />
+                  <b>{minScoreQF || "off"}</b>
+                </label>
+                <label className="fsb-pop-row">
+                  <span>DTE min</span>
+                  <input type="number" min="0" style={{ width: 56 }}
+                         value={dteRange[0] ?? ""}
+                         onChange={(e) => setDteRange([e.target.value === "" ? null : Number(e.target.value), dteRange[1]])} />
+                </label>
+                <label className="fsb-pop-row">
+                  <span>DTE max</span>
+                  <input type="number" min="0" style={{ width: 56 }}
+                         value={dteRange[1] ?? ""}
+                         onChange={(e) => setDteRange([dteRange[0], e.target.value === "" ? null : Number(e.target.value)])} />
+                </label>
+                <button type="button" className="fsb-pop-clear"
+                        onClick={() => { setMinScoreQF(0); setDteRange([null, null]); }}>
+                  Clear
+                </button>
+              </div>
+            )}
+          </div>
+          <div className="fsb-ctrl-wrap">
+            <button type="button" className={`fsb-ctrl${pollMs !== 60000 ? " fsb-ctrl-active" : ""}`}
+                    title="Settings"
+                    onClick={() => { setShowSettings((v) => !v); setShowQuickFilters(false); }}>
+              ⚙
+            </button>
+            {showSettings && (
+              <div className="fsb-pop">
+                <div className="fsb-pop-title">Display</div>
+                <label className="fsb-pop-row">
+                  <span>Poll interval</span>
+                  <select value={pollMs}
+                          onChange={(e) => setPollMs(Number(e.target.value))}>
+                    <option value={5000}>5s</option>
+                    <option value={15000}>15s</option>
+                    <option value={30000}>30s</option>
+                    <option value={60000}>60s</option>
+                    <option value={0}>Off</option>
+                  </select>
+                </label>
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
