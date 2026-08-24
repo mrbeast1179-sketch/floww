@@ -150,6 +150,18 @@ export default function InstitutionalAlertsPanel({ active = true, days = 7, limi
   // Conviction-band calibration strip data (/alerts/quality payload).
   const calibBands = qualityData?.conviction_calibration || [];
 
+  // Per-setup win-rate stats from the closed-trade journal
+  // (/journal/stats). Renders a compact strip under the calibration band.
+  const [setupStats, setSetupStats] = useState(null);
+  useEffect(() => {
+    let alive = true;
+    fetch("http://localhost:8000/api/flowseeker/journal/stats?days=90")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => { if (alive && d) setSetupStats(d); })
+      .catch(() => {});
+    return () => { alive = false; };
+  }, [refreshFeed]);
+
 
 
   // Blademap instant-notify: chime once per newly-seen 75+ conviction
@@ -492,6 +504,25 @@ export default function InstitutionalAlertsPanel({ active = true, days = 7, limi
                 );
               })}
               <span className="fsp-calib-note">by conviction — monotonic = score predicts</span>
+            </div>
+          )}
+
+          {/* Blademap v3 — per-setup win-rate from the closed-trade journal */}
+          {setupStats && setupStats.overall.n > 0 && (
+            <div className="fsp-setup-stats" aria-label="Journal setup win rates">
+              <span className="fsp-calib-band">journal · {setupStats.days}d closed</span>
+              {Object.entries(setupStats.by_setup).map(([name, s]) => (
+                <div key={name} className={`fsp-calib-cell ${s.win_rate >= 0.5 ? "fsp-calib-hot" : ""}`}
+                     title={`${name}: ${s.wins}W/${s.losses}L, avg return ${(s.avg_return * 100).toFixed(1)}%`}>
+                  <span className="fsp-calib-band">{name}</span>
+                  <span className="fsp-calib-hr">{Math.round(s.win_rate * 100)}%</span>
+                  <span className="fsp-calib-n">{s.wins}W/{s.losses}L</span>
+                </div>
+              ))}
+              <span className="fsp-calib-note">
+                overall {setupStats.overall.wins}W/{setupStats.overall.losses}L ·
+                {" "}{(setupStats.overall.avg_return * 100).toFixed(1)}% avg
+              </span>
             </div>
           )}
 

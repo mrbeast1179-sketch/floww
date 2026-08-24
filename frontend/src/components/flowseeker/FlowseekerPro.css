@@ -1164,3 +1164,13 @@ tr.fsp-row-open td { background: rgba(52, 211, 153, 0.04); }
 .fsp-pop-inline { display: inline-flex; align-items: center; gap: 4px; }
 .fsp-pop-inline input { width: 56px; }
 .fsp-pop-row input[type="checkbox"] { accent-color: #34d399; }
+
+
+/* Journal per-setup win-rate strip (Blademap v3) — mirrors .fsp-calib-strip */
+.fsp-setup-stats {
+  display: flex;
+  align-items: stretch;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 6px;
+}

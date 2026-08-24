@@ -308,3 +308,53 @@ def close_trade(engine, key: str, *, exit_price: float, exit_date: str) -> bool:
          action.lower(), strike_f, expiry, entry_date)],
     )
     return True
+
+
+def setup_stats(engine, *, days: int = 90) -> dict:
+    """Per-setup win-rate stats over closed trades. A win is
+    exit_price >= entry_price for BUY (>= for long calls/puts); losses the
+    inverse. Groups by setup label (+ overall), includes gex_regime split."""
+    cutoff = f"current_timestamp - INTERVAL '{int(days)}' DAY"
+    rows = engine.query(
+        f"""SELECT COALESCE(setup, '') AS setup, COALESCE(gex_regime, '') AS regime,
+                   action, entry_price, exit_price
+            FROM flow_journal_trades
+            WHERE NOT (COALESCE(exit_date, '') = '' AND exit_price IS NULL)
+              AND entry_price IS NOT NULL AND exit_price IS NOT NULL
+              AND updated_at > {cutoff}""",
+    )
+    def _bucket():
+        return {"n": 0, "wins": 0, "losses": 0, "pnl_sum": 0.0}
+    by_setup: dict = {}
+    by_regime: dict = {}
+    overall = _bucket()
+    for r in rows:
+        entry = float(r["entry_price"])
+        exitp = float(r["exit_price"])
+        if entry <= 0:
+            continue
+        ret = (exitp - entry) / entry
+        win = exitp >= entry  # all journal entries are BUY-side
+        b = by_setup.setdefault(r["setup"] or "(unlabeled)", _bucket())
+        g = by_regime.setdefault(r["regime"] or "(unknown)", _bucket())
+        for d in (b, g, overall):
+            d["n"] += 1
+            d["wins"] += 1 if win else 0
+            d["losses"] += 0 if win else 1
+            d["pnl_sum"] += ret
+    def _finalize(d):
+        out = {}
+        for k, v in d.items():
+            n = v.pop("n")
+            v["n"] = n
+            v["win_rate"] = round(v["wins"] / n, 4) if n else None
+            v["avg_return"] = round(v["pnl_sum"] / n, 6) if n else None
+            del v["pnl_sum"]
+            out[k] = v
+        return out
+    return {
+        "days": int(days),
+        "overall": _finalize({"all": overall})["all"],
+        "by_setup": _finalize(by_setup),
+        "by_gex_regime": _finalize(by_regime),
+    }

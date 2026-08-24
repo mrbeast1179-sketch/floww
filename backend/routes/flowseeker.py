@@ -1691,6 +1691,15 @@ async def journal_trades(status: str = Query("all", pattern="^(all|open|closed)$
     return {"trades": trades, "count": len(trades)}
 
 
+@router.get("/journal/stats")
+async def journal_stats(days: int = Query(90, ge=1, le=3650)):
+    """Per-setup win-rate stats over closed journaled trades: overall,
+    grouped by setup label, and split by GEX regime."""
+    from services.journal_store import get_engine, init_journal_tables, setup_stats
+    init_journal_tables(get_engine())
+    return setup_stats(get_engine(), days=days)
+
+
 @router.post("/journal/close")
 async def journal_close(request: dict):
     """Close a journaled trade: body {key, exit_price, exit_date} where key
