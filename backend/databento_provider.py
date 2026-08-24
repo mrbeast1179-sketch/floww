@@ -287,10 +287,8 @@ class DatabentoCache:
                     f"skip upstream for {CIRCUIT_OPEN_TTL_SEC}s{err_str})"
                 )
                 if _cb_gauge is not None:
-                    try:
+                    with contextlib.suppress(Exception):
                         _cb_gauge.labels(provider="databento").set(1)
-                    except Exception:  # noqa: BLE001 — observability must never block
-                        pass
         elif not state.is_open():
             # HALF-OPEN phase: probe failed, re-open with bumped close_attempts.
             state.close_attempts += 1
@@ -300,10 +298,8 @@ class DatabentoCache:
                 f"(half-open probe #{state.close_attempts} failed)"
             )
             if _cb_gauge is not None:
-                try:
+                with contextlib.suppress(Exception):
                     _cb_gauge.labels(provider="databento").set(1)
-                except Exception:  # noqa: BLE001
-                    pass
 
     def _on_success(self, parent: str) -> None:
         """Any upstream success (including empty-result) resets consecutive_failures
@@ -330,10 +326,8 @@ class DatabentoCache:
                 f"(recovered after {prior_attempts} half-open probe(s))"
             )
             if _cb_gauge is not None:
-                try:
+                with contextlib.suppress(Exception):
                     _cb_gauge.labels(provider="databento").set(0)
-                except Exception:  # noqa: BLE001
-                    pass
 
     async def get(self, parent: str, day: date_cls) -> dict[str, Any]:
         key = f"{parent}:{day.isoformat()}"
