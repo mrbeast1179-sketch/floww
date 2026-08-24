@@ -467,3 +467,51 @@
   .fsb-meta { gap: 6px; }
   .fsb-tab { padding-left: 10px; padding-right: 10px; }
 }
+
+
+/* ── Blademap v3: calibration/journal strip + conviction signal cards ── */
+.fsb-v3strip {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--fsb-border);
+}
+.fsb-v3cell {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
+  padding: 4px 8px;
+  border: 1px solid var(--fsb-border);
+  border-radius: 6px;
+  min-width: 54px;
+}
+.fsb-v3cell.hot { border-color: rgba(25, 210, 124, 0.5); }
+.fsb-v3lbl { font-size: 9.5px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--fsb-muted); }
+.fsb-v3val { font-size: 13px; font-weight: 600; font-family: var(--fsb-mono); }
+.fsb-v3n { font-size: 9.5px; color: var(--fsb-muted2); }
+
+.fsb-sigcards {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin: 0 0 var(--fsb-gap);
+}
+.fsb-sigcard {
+  cursor: pointer;
+  min-width: 168px;
+  padding: 8px 10px;
+  border: 1px solid var(--fsb-border);
+  border-radius: var(--fsb-radius-sm);
+  background: var(--fsb-panel);
+}
+.fsb-sigcard:hover { border-color: var(--fsb-border2); }
+.fsb-sigcard.hot { border-color: rgba(25, 210, 124, 0.55); box-shadow: 0 0 0 1px rgba(25, 210, 124, 0.25); }
+.fsb-sig-top { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+.fsb-sig-tk { font-weight: 600; font-size: 12.5px; }
+.fsb-sig-conv { font-family: var(--fsb-mono); font-weight: 700; color: var(--fsb-green); }
+.fsb-sig-sub { font-size: 10.5px; color: var(--fsb-muted); margin-top: 2px; }
+.fsb-sig-lv { display: flex; gap: 10px; font-size: 10.5px; font-family: var(--fsb-mono); margin-top: 4px; }
+.fsb-sig-lv .up { color: var(--fsb-green); }
+.fsb-sig-lv .dn { color: var(--fsb-red); }

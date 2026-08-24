@@ -179,6 +179,10 @@ export default function FlowseekerProBlademap({ active = true }) {
   const [notify, setNotify] = useState(!!prefs.notify);
   const [forcing, setForcing] = useState(false);
   const [refreshTick, setRefreshTick] = useState(0);
+  // ── Blademap v3: conviction-ranked feed + calibration + journal stats ──
+  const [convFeed, setConvFeed] = useState([]);
+  const [calibBands, setCalibBands] = useState([]);
+  const [setupStats, setSetupStats] = useState(null);
   // ── Skylit-style control cluster state (settings + quick filters) ──
   const [showSettings, setShowSettings] = useState(false);
   const [showQuickFilters, setShowQuickFilters] = useState(false);
@@ -485,6 +489,21 @@ export default function FlowseekerProBlademap({ active = true }) {
     const id = pollMs > 0 ? setInterval(run, Math.max(5000, pollMs)) : null;
     return () => { cancelled = true; ctrl.abort(); if (id) clearInterval(id); };
   }, [active, tab, refreshTick, pollMs]);
+
+  // Conviction v3 sidecar data: backend-ranked feed, calibration report,
+  // closed-trade journal stats. Silent-fail — the desk works without them.
+  useEffect(() => {
+    if (!active) return;
+    let alive = true;
+    fetch(`${API}/alerts/feed?days=2&sort_by=conviction`).then((r) => (r.ok ? r.json() : null))
+      .then((d) => { if (alive && d) setConvFeed(d.alerts || []); }).catch(() => {});
+    fetch(`${API}/alerts/quality`).then((r) => (r.ok ? r.json() : null))
+      .then((d) => { if (alive && d) setCalibBands(d.conviction_calibration || []); }).catch(() => {});
+    fetch(`${API}/journal/stats?days=90`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => { if (alive && d) setSetupStats(d); }).catch(() => {});
+    return () => { alive = false; };
+  }, [active, refreshTick]);
 
   // ---- daily volume history (sparklines + persistence streaks) ----
   // Mongo-only on the backend (no upstream call) and it changes once a day —
@@ -1222,6 +1241,28 @@ export default function FlowseekerProBlademap({ active = true }) {
             )}
             {alertsOpen && (
               <div className="fsb-alertlog">
+                {/* Blademap v3 — conviction calibration + per-setup win rate */}
+                {(calibBands.length > 0 || (setupStats && setupStats.overall.n > 0)) && (
+                  <div className="fsb-v3strip">
+                    {calibBands.map((b) => (
+                      <div key={b.band}
+                           className={`fsb-v3cell${b.band === "75+" ? " hot" : ""}`}
+                           title={`${b.n} alerts · ${b.n_measured} measured · ${b.wins} hits`}>
+                        <span className="fsb-v3lbl">{b.band}</span>
+                        <span className="fsb-v3val">{b.hit_rate != null ? `${Math.round(b.hit_rate * 100)}%` : "—"}</span>
+                        <span className="fsb-v3n">{b.n_measured}/{b.n}</span>
+                      </div>
+                    ))}
+                    {setupStats && setupStats.overall.n > 0 && Object.entries(setupStats.by_setup).map(([name, s]) => (
+                      <div key={name} className={`fsb-v3cell${s.win_rate >= 0.5 ? " hot" : ""}`}
+                           title={`journal ${setupStats.days}d · ${name}: ${s.wins}W/${s.losses}L, avg ${(s.avg_return * 100).toFixed(1)}%`}>
+                        <span className="fsb-v3lbl">📓 {name}</span>
+                        <span className="fsb-v3val">{Math.round(s.win_rate * 100)}%</span>
+                        <span className="fsb-v3n">{s.wins}W/{s.losses}L</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
                 <div className="fsb-alertlog-h">
                   <span>🏛 Institutional Alerts · {alertLog.length}</span>
                   {alertLog.length > 0 && (
@@ -1310,6 +1351,38 @@ export default function FlowseekerProBlademap({ active = true }) {
                     </tbody>
                   </table>
                 )}
+              </div>
+            )}
+            {/* Blademap v3 — top conviction signal cards (backend-ranked) */}
+            {convFeed.length > 0 && (
+              <div className="fsb-sigcards">
+                {convFeed.slice(0, 5).map((a) => {
+                  const isCall = String(a.type).toLowerCase() === "call";
+                  const kl = (() => { try { return a.key_levels_json ? JSON.parse(a.key_levels_json) : null; } catch { return null; } })();
+                  return (
+                    <div key={a.key} className={`fsb-sigcard${Number(a.conviction) >= 75 ? " hot" : ""}`}
+                         title={`conviction ${a.conviction} · ${a.rule || ""} · click to filter ${a.ticker || a.under || ""}`}
+                         onClick={() => setScanQ(String(a.ticker || a.under || ""))}>
+                      <div className="fsb-sig-top">
+                        <span className={`fsb-sig-tk ${isCall ? "fsb-tcall" : "fsb-tput"}`}>
+                          {a.ticker || a.under} {isCall ? "CALL" : "PUT"} {a.strike}
+                        </span>
+                        <span className="fsb-sig-conv">{a.conviction}</span>
+                      </div>
+                      <div className="fsb-sig-sub">
+                        {a.score != null ? `score ${a.score}` : ""}{a.notional ? ` · $${(a.notional / 1e6).toFixed(1)}M` : ""}
+                        {a.dte != null ? ` · ${a.dte}d` : ""}
+                      </div>
+                      {kl && (kl.stop || kl.target) && (
+                        <div className="fsb-sig-lv">
+                          {kl.entry != null && <span>E {kl.entry}</span>}
+                          {kl.stop != null && <span className="dn">S {kl.stop}</span>}
+                          {kl.target != null && <span className="up">T {kl.target}</span>}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
             )}
             <div className="fsb-scantable">
