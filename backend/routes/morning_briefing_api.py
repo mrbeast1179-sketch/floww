@@ -109,6 +109,27 @@ async def get_briefing(
                             nc["expiry"] = max(float(expiry), 1) / 365.0
                     normalized.append(nc)
                 chain_contracts = normalized
+
+                # Gamma backfill: cvserver chain rows often arrive without
+                # gamma. GexAggregator treats missing gamma as 0 → net_gex 0
+                # and every paper metric empty. Compute gamma via the Rust
+                # solver (bs path) from IV when absent — same as the grid
+                # pipeline does.
+                missing = [c for c in normalized if not c.get("gamma")]
+                if missing:
+                    from bs_greeks import bs_gamma as _bsg
+                    for c in missing:
+                        try:
+                            iv = float(c.get("iv") or 0)
+                            t = float(c.get("expiry") or c.get("T") or 0)
+                            k = float(c.get("strike") or 0)
+                            if iv > 0 and t > 0 and k > 0 and spot > 0:
+                                c["gamma"] = _bsg(spot, k, t, iv, q=0.013)
+                        except Exception:
+                            continue
+                    logger.info(
+                        f"briefing: backfilled gamma for {len(missing)}/{len(normalized)} contracts"
+                    )
         except Exception:
             logger.debug(f"Chain fetch failed for {ticker}, will use fallback")
 
