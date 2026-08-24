@@ -13,7 +13,8 @@
  * (Rust-computed via decoder_core compute_gex_grid.)
  */
 import React, { useMemo } from "react";
-import { useHeatseeker } from "../../hooks/useHeatseeker";
+import { useEffect, useState } from "react";
+import { BACKEND_URL } from "../../config/api";
 
 function fmtM(v) {
   if (v == null || isNaN(v)) return "—";
@@ -30,11 +31,25 @@ function fmtExp(e) {
 }
 
 export default function CharmDecayPanel({ ticker = "SPY", spot = null, maxExpiries = 6 }) {
-  const { data, loading, error } = useHeatseeker(`../heatmap/${encodeURIComponent(ticker)}`, {
-    mode: "day",
-    max_expiries: maxExpiries,
-    refreshMs: 30000,
-  });
+  const [data, setData] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    const ctrl = new AbortController();
+    setLoading(true);
+    fetch(
+      `${BACKEND_URL}/api/heatmap/${encodeURIComponent(ticker)}?mode=day&max_expiries=${maxExpiries}`,
+      { signal: ctrl.signal },
+    )
+      .then((r) => (r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`))))
+      .then((d) => { setData(d); setLoading(false); })
+      .catch((e) => {
+        if (e.name === "AbortError") return;
+        setError(e.message); setLoading(false);
+      });
+    return () => ctrl.abort();
+  }, [ticker, maxExpiries]);
 
   const model = useMemo(() => {
     const grid = data?.grid;
