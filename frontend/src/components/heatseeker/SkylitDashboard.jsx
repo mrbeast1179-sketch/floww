@@ -53,6 +53,7 @@ function SkylitDashboard({
   changePct = null,
   data = null,
   viewMode = "gex",
+  dte = null,
   onViewModeChange,
   timeframe = "5m",
   onTimeframeChange,
@@ -137,6 +138,22 @@ function SkylitDashboard({
             <div className="skylit-loading-overlay">
               <div className="skylit-loading-spinner" />
               <span>Loading market data…</span>
+            </div>
+          )}
+          {!loading && data && (!data.strikes || data.strikes.length === 0) && (
+            <div style={{
+              padding: "24px", textAlign: "center", color: "var(--text-secondary, #94a3b8)",
+              border: "1px dashed rgba(148,163,184,0.3)", borderRadius: 8, margin: "12px",
+            }}>
+              <div style={{ fontWeight: 600, marginBottom: 6 }}>
+                No strikes match the current filters
+              </div>
+              <div style={{ fontSize: 12 }}>
+                {dte != null
+                  ? `No listed expiries within ${dte} DTE right now (weekends/holidays). `
+                  : ""}
+                Try: DTE → All, or Expiries → 4+.
+              </div>
             </div>
           )}
           <SkylitHeatmapGrid

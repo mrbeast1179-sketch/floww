@@ -14,6 +14,11 @@ set -euo pipefail
 APP_DIR="/opt/floww"
 REPO_SSH="git@github.com:mrbeast1179-sketch/floww.git"
 DEPLOY_KEY_SRC="$HOME/deploy_key_ed25519"
+# Under `sudo bash` HOME may reset to /root while the key was scp'd to the
+# invoking user's home — fall back to that path.
+if [ ! -f "$DEPLOY_KEY_SRC" ] && [ -n "${SUDO_USER:-}" ] && [ "$SUDO_USER" != "root" ]; then
+    DEPLOY_KEY_SRC="/home/${SUDO_USER}/deploy_key_ed25519"
+fi
 
 [ "$(id -u)" -eq 0 ] || { echo "run with sudo"; exit 1; }
 [ -f "$DEPLOY_KEY_SRC" ] || { echo "missing $DEPLOY_KEY_SRC — scp deploy/free/deploy_key_ed25519 up first"; exit 1; }
@@ -28,6 +33,14 @@ if ! command -v docker >/dev/null; then
 fi
 docker --version
 docker compose version
+
+echo "── 2b. Node.js (frontend build) ──"
+if ! command -v npm >/dev/null; then
+    curl -fsSL https://deb.nodesource.com/setup_20.x | bash -
+    apt-get install -y -qq nodejs
+fi
+node --version
+npm --version
 
 echo "── 3. Firewall: only SSH + web ──"
 ufw allow OpenSSH
@@ -62,6 +75,13 @@ if [ ! -s deploy/free/.env.prod ] || grep -q "your.domain.com" deploy/free/.env.
     echo "!! Then re-run: sudo bash $APP_DIR/deploy/free/oracle-setup.sh"
     exit 1
 fi
+for k in API_SECRET_KEY JWT_SECRET_KEY; do
+    if ! grep -Eq "^${k}=.+" deploy/free/.env.prod; then
+        echo "!! ${k} is empty in deploy/free/.env.prod — set it before re-running."
+        echo "!!   python3 -c \"import secrets; print(secrets.token_hex(32))\""
+        exit 1
+    fi
+done
 
 echo "── 7. Build frontend ──"
 cd frontend
@@ -80,7 +100,7 @@ for i in $(seq 1 30); do
         echo "✅ Confluence Decoder LIVE on https://${DOMAIN}"
         echo "   Verify: DOMAIN=${DOMAIN} bash deploy/free/smoke.sh"
         echo "   Don't forget: update DuckDNS to point at THIS VM's public IP:"
-        echo "   curl https://www.duckdns.org/update?domains=confluencedecoder&token=<TOKEN>&ip=$(curl -s ifconfig.me)"
+        echo "   curl \"https://www.duckdns.org/update?domains=confluencedecoder&token=<TOKEN>&ip=$(curl -s ifconfig.me)\""
         exit 0
     fi
     sleep 5

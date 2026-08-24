@@ -19,6 +19,14 @@ fi
 docker --version
 docker compose version
 
+echo "── 2b. Node.js (frontend build) ──"
+if ! command -v npm >/dev/null; then
+    curl -fsSL https://deb.nodesource.com/setup_20.x | bash -
+    apt-get install -y -qq nodejs
+fi
+node --version
+npm --version
+
 echo "── 3. Firewall: only SSH + web ──"
 ufw allow OpenSSH
 ufw allow 80/tcp
@@ -38,6 +46,16 @@ if [ ! -f deploy/free/.env.prod ]; then
     echo "!! EDIT $APP_DIR/deploy/free/.env.prod — fill in DOMAIN + API keys, then re-run this script."
     exit 1
 fi
+if grep -q "your.domain.com" deploy/free/.env.prod; then
+    echo "!! deploy/free/.env.prod still contains the placeholder DOMAIN — set DOMAIN first."
+    exit 1
+fi
+for k in API_SECRET_KEY JWT_SECRET_KEY; do
+    if ! grep -Eq "^${k}=.+" deploy/free/.env.prod; then
+        echo "!! ${k} is empty in deploy/free/.env.prod — set it before re-running."
+        exit 1
+    fi
+done
 
 echo "── 6. Build frontend (needs ~2GB RAM; ARM free VMs have it) ──"
 cd frontend

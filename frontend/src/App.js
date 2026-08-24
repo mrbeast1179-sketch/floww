@@ -919,6 +919,7 @@ export default function App() {
                   change={livespot?.change ?? data?.change}
                   changePct={livespot?.change_pct ?? data?.change_pct}
                   data={displayData}
+                  dte={dte}
                   viewMode={viewMode}
                   onViewModeChange={setViewMode}
                   timeframe={mode === "scalp" ? "1m" : mode === "swing" ? "1h" : "5m"}
@@ -954,6 +955,7 @@ export default function App() {
                   change={livespot?.change ?? data?.change}
                   changePct={livespot?.change_pct ?? data?.change_pct}
                   data={displayData}
+                  dte={dte}
                   viewMode={viewMode}
                   onViewModeChange={setViewMode}
                   timeframe={mode === "scalp" ? "1m" : mode === "swing" ? "1h" : "5m"}

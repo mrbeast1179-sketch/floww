@@ -235,7 +235,8 @@ function ConfluenceBar({ data, viewMode, onViewModeChange, gexVexMode, onGexVexC
         <span className={`trinity-verdict ${verdictColor}`}>{verdictText}</span>
         <div className="trinity-view-toggle">{VIEW_MODES.map(vm => (<button key={vm.id} className={`trinity-view-btn${viewMode === vm.id ? " trinity-view-active" : ""}`} onClick={() => onViewModeChange(vm.id)} title={vm.label}><span className="trinity-view-icon">{vm.icon}</span><span className="trinity-view-label">{vm.label}</span></button>))}</div>
         <div className="trinity-gexvex-toggle">{GEX_VEX_MODES.map(m => (<button key={m.id} className={`trinity-gexvex-btn${gexVexMode === m.id ? " trinity-gexvex-active" : ""}`} onClick={() => onGexVexChange(m.id)}>{m.label}</button>))}</div>
-        <div className="trinity-dte-toggle">{[{id:1,label:"0DTE"},{id:3,label:"1DTE"},{id:7,label:"Week"},{id:12,label:"All"}].map(d=>(<button key={d.id} className={`trinity-dte-btn${dteFilter===d.id?" trinity-dte-active":""}`} onClick={()=>onDteChange(d.id)}>{d.label}</button>))}</div>
+        <div className="trinity-dte-toggle">{/* ids are expiry COUNTS sent as ?expiries= — labels describe the practical window */}
+        {[[1,"0–1DTE"],[3,"~3DTE"],[7,"1 Week"],[12,"All"]].map(([id,label])=>(<button key={d.id} className={`trinity-dte-btn${dteFilter===d.id?" trinity-dte-active":""}`} onClick={()=>onDteChange(d.id)}>{d.label}</button>))}</div>
       </div>
     </div>
   );

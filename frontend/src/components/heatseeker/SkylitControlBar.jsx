@@ -111,12 +111,13 @@ function SkylitControlBar({
             onChange={(e) => onTimeframeChange && onTimeframeChange(e.target.value)}
             className="skylit-tf-select"
           >
-            <option value="1m">1m</option>
-            <option value="5m">5m</option>
-            <option value="15m">15m</option>
-            <option value="1h">1h</option>
-            <option value="4h">4h</option>
-            <option value="1d">1D</option>
+            {/* Only timeframes with real behavioral differences: each maps to a
+                distinct mode (scalp/day/swing) which changes strike band and
+                expiry depth server-side. Removed 15m/4h/1d — they collapsed to
+                "day" and made the control feel broken. */}
+            <option value="1m">Scalp · 1m</option>
+            <option value="5m">Day · 5m</option>
+            <option value="1h">Swing · 1h</option>
           </select>
         </div>
 
