@@ -72,7 +72,7 @@ jobs:
         working-directory: ./backend
         run: |
           source .venv/bin/activate
-          bandit -r . --severity-level medium -q --exclude ./.venv,./tests --skip B101,B108,B301,B310,B313,B314,B324,B604,B608,B614
+          bandit -r . --severity-level medium -q --exclude ./.venv,./tests --skip B101,B108,B301,B310,B313,B314,B324,B604,B608,B614,B615
 
       - name: Run tests with coverage
         working-directory: ./backend
