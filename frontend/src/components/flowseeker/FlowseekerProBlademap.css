@@ -571,3 +571,70 @@
 .fsb-v3cell.hot { border-color: rgba(232, 201, 106, 0.5); }
 .fsb-sig-lv .up { color: var(--fsb-green); }
 .fsb-sig-lv .dn { color: var(--fsb-red); }
+
+
+/* ── Visual polish pass (Heatseeker-grade) ── */
+
+/* KPI tiles: gold label, subtle inner glow, hover lift */
+.fsb-skpi {
+  transition: border-color 0.15s ease, transform 0.15s ease, box-shadow 0.15s ease;
+}
+.fsb-skpi:hover {
+  border-color: var(--fsb-gold-border);
+  box-shadow: 0 2px 12px rgba(201, 168, 76, 0.10);
+  transform: translateY(-1px);
+}
+
+/* Signal cards: gradient sheen + stronger presence */
+.fsb-sigcard {
+  background: linear-gradient(160deg, var(--fsb-panel2, #181d28) 0%, var(--fsb-panel, #141821) 100%);
+  transition: border-color 0.15s ease, transform 0.15s ease, box-shadow 0.15s ease;
+}
+.fsb-sigcard:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.45);
+}
+.fsb-sigcard.hot {
+  background: linear-gradient(160deg, rgba(201, 168, 76, 0.12) 0%, var(--fsb-panel) 65%);
+}
+
+/* Calibration cells: mini progress bar under the value */
+.fsb-v3cell { position: relative; overflow: hidden; }
+.fsb-v3cell::after {
+  content: "";
+  position: absolute;
+  left: 0; right: 100%; bottom: 0;
+  height: 2px;
+  background: var(--fsb-gold-bright);
+  transition: right 0.4s ease;
+}
+.fsb-v3cell.hot::after { right: 0; }
+
+/* Scanner table rows: gold hover, zebra hint */
+.fsb-scantable tbody tr { transition: background 0.12s ease; }
+.fsb-scantable tbody tr:hover { background: rgba(201, 168, 76, 0.05); }
+
+/* Topbar: gold underline accent under active tab */
+.fsb-tab { position: relative; }
+.fsb-tab.active::after {
+  content: "";
+  position: absolute;
+  left: 10%; right: 10%; bottom: -9px;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, var(--fsb-gold-bright), transparent);
+}
+
+/* Regime pill: soft glow */
+.fsb-regime-pill { box-shadow: 0 0 10px rgba(0, 0, 0, 0.4); }
+
+/* Scrollbars: thin dark-gold */
+.fsb-root ::-webkit-scrollbar { width: 8px; height: 8px; }
+.fsb-root ::-webkit-scrollbar-thumb { background: #2a3142; border-radius: 4px; }
+.fsb-root ::-webkit-scrollbar-thumb:hover { background: var(--fsb-gold); }
+.fsb-root ::-webkit-scrollbar-track { background: transparent; }
+
+/* Focus visibility in gold */
+.fsb-root button:focus-visible, .fsb-root input:focus-visible, .fsb-root select:focus-visible {
+  outline: 2px solid var(--fsb-gold);
+  outline-offset: 1px;
+}
