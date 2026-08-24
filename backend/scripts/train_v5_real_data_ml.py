@@ -352,7 +352,8 @@ def main():
             results[ticker] = train_and_save(ticker, period=args.period)
         except Exception as e:
             log.error("%s FAILED: %s", ticker, e)
-            import traceback; traceback.print_exc()
+            import traceback
+            traceback.print_exc()
             results[ticker] = {"error": str(e)}
 
     log.info("\n" + "="*70)

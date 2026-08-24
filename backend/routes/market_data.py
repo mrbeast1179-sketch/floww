@@ -190,7 +190,8 @@ async def chain(
     dte_max: int | None = Query(None, ge=0, le=365),
 ):
     from bs_greeks import bs_charm, bs_vanna
-    from server import DIV_YIELD, _sanitize, fetch_spot_and_chains_merged
+    from server import _sanitize, fetch_spot_and_chains_merged
+    from services.gex_server_utils import DIV_YIELD
     t = ticker.strip().upper()
     if t == "SPX":
         t = "^SPX"

@@ -86,7 +86,9 @@ def load_data(ticker: str) -> tuple[pd.DataFrame, str]:
 
     for path in candidates:
         if path.exists():
-            log.info("Loading %s (%d rows)", path.name, sum(1 for _ in open(path)) - 1)
+            with open(path) as _fh:
+                n_rows = sum(1 for _ in _fh) - 1
+            log.info("Loading %s (%d rows)", path.name, n_rows)
             df = pd.read_csv(path)
             # Sort by date
             date_col = "date" if "date" in df.columns else "day"
