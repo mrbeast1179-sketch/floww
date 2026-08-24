@@ -1411,9 +1411,11 @@ export default function FlowseekerProBlademap({ active = true }) {
                     {scanRows.map((r, i) => {
                       const isCall = r.type === "call";
                       const otm = r.delta == null ? "" : (Math.abs(r.delta) < 0.45 ? "OTM" : "ITM");
+                      // POC-style: the single best-score row gets the ★ leader treatment
+                      const isTop = i === 0 && scanSort.key === "score" && scanSort.dir === "desc" && (r.score ?? 0) >= 90;
                       return (
                         <tr key={`${r.under}-${r.strike}-${r.type}-${r.exp}-${i}`}
-                            className={`${r.under === ticker ? "sel " : ""}${r._new ? "new " : ""}${r._new && r.score >= alertScore ? "alert" : ""}`.trim()}
+                            className={`${isTop ? "top " : ""}${r.under === ticker ? "sel " : ""}${r._new ? "new " : ""}${r._new && r.score >= alertScore ? "alert" : ""}`.trim()}
                             onClick={() => { setTicker(r.under); setTab("flow"); }}>
                           <td className="fsb-seen" title={r.firstSeen ? `First seen ${fmtClock(r.firstSeen, true)} · ${fmtAge(r.firstSeen)} ago this session` : ""}>
                             {r._new ? <span className="fsb-newdot" title="New this refresh" /> : null}

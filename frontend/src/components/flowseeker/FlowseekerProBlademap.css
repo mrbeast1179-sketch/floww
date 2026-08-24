@@ -638,3 +638,77 @@
   outline: 2px solid var(--fsb-gold);
   outline-offset: 1px;
 }
+
+
+/* ── Depth & typography precision pass ── */
+
+/* Layered elevation: panels get subtle top-edge light line (Linear trick) */
+.fsb-panel {
+  position: relative;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03), 0 1px 3px rgba(0, 0, 0, 0.3);
+}
+.fsb-panel-h {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.8px;
+}
+
+/* KPI tiles: value emphasis — bigger numerals, tighter label */
+.fsb-skpi { padding: 10px 12px; }
+.fsb-skpi .fsb-skpi-v, .fsb-skpi b {
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.2px;
+}
+
+/* Monospace numerals in the scan table — aligns columns visually */
+.fsb-scantable td { font-variant-numeric: tabular-nums; }
+
+/* Signal card conviction: glow ring on hot */
+.fsb-sigcard.hot .fsb-sig-conv {
+  text-shadow: 0 0 12px rgba(232, 201, 106, 0.6);
+}
+
+/* Tier badge: subtle inner shadow for depth */
+.fsb-sig-tier { box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.25); }
+
+/* Popovers: real elevation + entrance animation */
+.fsb-pop {
+  animation: fsbPopIn 0.14s cubic-bezier(0.2, 0.9, 0.3, 1.2);
+}
+@keyframes fsbPopIn {
+  from { opacity: 0; transform: translateY(-4px) scale(0.98); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+/* Alert log rows: hover reveal + new-row flash retained */
+.fsb-alerttab tr { transition: background 0.12s ease; }
+.fsb-alerttab tr:hover { background: rgba(201, 168, 76, 0.05); }
+
+/* Following strip: gold-tinted chips */
+.fsb-awaychip, [class*="fsb-follow"] {
+  transition: border-color 0.15s ease;
+}
+.fsb-awaychip:hover { border-color: var(--fsb-gold); }
+
+/* Buttons everywhere: consistent press feedback */
+.fsb-root button { transition: background 0.12s ease, border-color 0.12s ease, color 0.12s ease; }
+.fsb-root button:active { transform: translateY(0.5px); }
+
+/* Reduced motion respect */
+@media (prefers-reduced-motion: reduce) {
+  .fsb-root *, .fsb-root *::before, .fsb-root *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+
+/* Top-conviction leader row (POC-style): gold left rail + ★ on score cell */
+.fsb-scantable tr.top { background: rgba(201, 168, 76, 0.07); }
+.fsb-scantable tr.top td:first-child {
+  box-shadow: inset 3px 0 0 var(--fsb-gold-bright);
+}
+.fsb-scantable tr.top .fsb-sc::before {
+  content: "★ ";
+  color: var(--fsb-gold-bright);
+}
