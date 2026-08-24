@@ -1574,6 +1574,40 @@ async def _warm_default_heatmaps():
             log.warning(f"warm heatmaps {t}: {e}")
 
 
+async def _snapshot_chains():
+    """Record a DuckDB chain snapshot per default ticker so the
+    heatseeker top-movers/history/latest endpoints have data.
+    Calls the insert path directly (no self-HTTP)."""
+    from services.heatseeker_snapshots import (
+        bulk_insert,
+        contracts_to_recordbatch,
+        create_snapshot_table,
+    )
+    conn = duckdb_engine.conn if "duckdb_engine" in globals() else None
+    if conn is None:
+        try:
+            from services.duckdb_engine import db as eng
+            conn = eng.conn
+        except Exception as e:
+            log.warning(f"snapshot: no duckdb conn: {e}")
+            return
+    create_snapshot_table(conn)
+    for t in ("SPY", "QQQ", "IWM"):
+        try:
+            raw = await fetch_spot_and_chains_merged(t, 4)
+            if not raw or raw.get("spot") != raw.get("spot"):
+                log.warning(f"chain snapshot {t}: no data")
+                continue
+            batch = contracts_to_recordbatch(raw)
+            n = bulk_insert(conn, batch)
+            log.info(f"chain snapshot {t}: {n} rows")
+        except Exception as e:
+            log.warning(f"chain snapshot {t}: {e}")
+
+
+_last_snapshot_hhmm = ""
+
+
 async def _prefetch_paid_oi():
     """Pre-fetch OI for all paid tickers so first request after open is instant."""
     log.info(f"prefetch OI for {sorted(PAID_TICKERS)}")
@@ -1629,6 +1663,29 @@ async def _scheduler_loop():
                 _t = asyncio.create_task(_logged_task(_prefetch_paid_oi(), "_prefetch_paid_oi"))
                 _background_tasks.add(_t)
                 _t.add_done_callback(_background_tasks.discard)
+
+            # Periodic DuckDB chain snapshots — feeds heatseeker top-movers /
+            # history / latest endpoints (previously nothing wrote to them).
+            # 15-min cadence during ET market hours (09:30–16:00, Mon–Fri).
+            global _last_snapshot_hhmm
+            try:
+                # Bucket to quarter-hours so the 60s scheduler loop fires the
+                # snapshot at :00/:15/:30/:45 only (comment promised 15-min).
+                slot = hhmm[:3] + ("00" if int(hhmm[3:]) < 15 else
+                                   "15" if int(hhmm[3:]) < 30 else
+                                   "30" if int(hhmm[3:]) < 45 else "45")
+                if (
+                    et.weekday() < 5
+                    and "09:30" <= hhmm <= "16:00"
+                    and _last_snapshot_hhmm != today_et + slot
+                ):
+                    _st = asyncio.create_task(_logged_task(
+                        _snapshot_chains(), "_snapshot_chains"))
+                    _background_tasks.add(_st)
+                    _st.add_done_callback(_background_tasks.discard)
+                    _last_snapshot_hhmm = today_et + slot
+            except Exception as e:
+                log.warning(f"snapshot tick err: {e}")
         except Exception as e:
             log.warning(f"scheduler tick err: {e}")
         await asyncio.sleep(60)
