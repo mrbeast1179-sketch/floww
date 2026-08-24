@@ -13,6 +13,7 @@
 import React, { useMemo, useCallback, useState, useEffect, useRef, memo } from "react";
 import { autoDecimate } from "../../utils/dataDecimator";
 import CharmDecayPanel from "./CharmDecayPanel";
+import BriefingStrip from "./BriefingStrip";
 
 // ── Lazy-loaded below-the-fold rows ─────────────────────────────────
 
@@ -258,6 +259,7 @@ export default function HeatseekerDashboard({
       <HeroSection ticker={normalizedTicker} spot={spot} data={data} dataAge={dataAge} dataFallback={dataFallback} />
 
       {/* Gamma regime banner */}
+      <BriefingStrip ticker={normalizedTicker} spot={spot} />
       <GammaRegimeBanner data={{ ...(data || {}), spot: spot ?? data?.spot }} />
 
       {/* ── Row 1: Pattern indicators ──────────────────────────────── */}
