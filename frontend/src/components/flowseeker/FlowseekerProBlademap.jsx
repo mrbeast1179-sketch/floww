@@ -1356,28 +1356,36 @@ export default function FlowseekerProBlademap({ active = true }) {
             {/* Blademap v3 — top conviction signal cards (backend-ranked) */}
             {convFeed.length > 0 && (
               <div className="fsb-sigcards">
-                {convFeed.slice(0, 5).map((a) => {
+                {convFeed.slice(0, 6).map((a) => {
                   const isCall = String(a.type).toLowerCase() === "call";
                   const kl = (() => { try { return a.key_levels_json ? JSON.parse(a.key_levels_json) : null; } catch { return null; } })();
+                  const tier = String(a.tier || "").toUpperCase();
+                  const bear = String(a.bias || "").toUpperCase().includes("BEAR");
+                  const mp = a.move_pct != null ? a.move_pct * 100 : null;
                   return (
                     <div key={a.key} className={`fsb-sigcard${Number(a.conviction) >= 75 ? " hot" : ""}`}
-                         title={`conviction ${a.conviction} · ${a.rule || ""} · click to filter ${a.ticker || a.under || ""}`}
-                         onClick={() => setScanQ(String(a.ticker || a.under || ""))}>
+                         title={`${a.why || "conviction " + a.conviction}${kl && kl.invalidation ? ` · invalidation ${kl.invalidation}` : ""} — click to filter ${a.under || a.ticker || ""}`}
+                         onClick={() => setScanQ(String(a.under || a.ticker || ""))}>
                       <div className="fsb-sig-top">
                         <span className={`fsb-sig-tk ${isCall ? "fsb-tcall" : "fsb-tput"}`}>
-                          {a.ticker || a.under} {isCall ? "CALL" : "PUT"} {a.strike}
+                          {a.under || a.ticker} {isCall ? "CALL" : "PUT"} {a.strike}
                         </span>
-                        <span className="fsb-sig-conv">{a.conviction}</span>
+                        <span className="fsb-sig-badges">
+                          {tier && <span className={`fsb-sig-tier t-${tier.toLowerCase()}`}>{tier}</span>}
+                          <span className="fsb-sig-conv">{a.conviction}</span>
+                        </span>
                       </div>
                       <div className="fsb-sig-sub">
-                        {a.score != null ? `score ${a.score}` : ""}{a.notional ? ` · $${(a.notional / 1e6).toFixed(1)}M` : ""}
+                        <span className={bear ? "dn" : "up"}>{bear ? "▼" : "▲"} {a.bias || ""}</span>
+                        {a.score != null ? ` · score ${a.score}` : ""}{a.notional ? ` · $${(a.notional / 1e6).toFixed(1)}M` : ""}
                         {a.dte != null ? ` · ${a.dte}d` : ""}
+                        {mp != null ? <span className={mp < 0 ? " dn" : " up"}> · {mp >= 0 ? "+" : ""}{mp.toFixed(2)}%</span> : ""}
                       </div>
-                      {kl && (kl.stop || kl.target) && (
+                      {kl && (kl.stop || kl.target || kl.invalidation) && (
                         <div className="fsb-sig-lv">
-                          {kl.entry != null && <span>E {kl.entry}</span>}
-                          {kl.stop != null && <span className="dn">S {kl.stop}</span>}
-                          {kl.target != null && <span className="up">T {kl.target}</span>}
+                          {kl.entry != null && <span>E {Number(kl.entry).toFixed(2)}</span>}
+                          {(kl.stop != null || kl.invalidation != null) && <span className="dn">S {Number(kl.stop ?? kl.invalidation).toFixed(2)}</span>}
+                          {kl.target != null && <span className="up">T {Number(kl.target).toFixed(2)}</span>}
                         </div>
                       )}
                     </div>
