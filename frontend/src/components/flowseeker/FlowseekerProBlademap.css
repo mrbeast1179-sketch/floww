@@ -458,3 +458,12 @@
   color: inherit;
   cursor: pointer;
 }
+
+
+/* Control cluster: keep visible on narrow topbars — shrink gaps, allow wrap */
+.fsb-topbar { grid-template-columns: auto minmax(0, 1fr) auto; }
+@media (max-width: 1500px) {
+  .fsb-topbar { gap: 10px; }
+  .fsb-meta { gap: 6px; }
+  .fsb-tab { padding-left: 10px; padding-right: 10px; }
+}
