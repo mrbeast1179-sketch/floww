@@ -12,6 +12,7 @@
 
 import React, { useMemo, useCallback, useState, useEffect, useRef, memo } from "react";
 import { autoDecimate } from "../../utils/dataDecimator";
+import CharmDecayPanel from "./CharmDecayPanel";
 
 // ── Lazy-loaded below-the-fold rows ─────────────────────────────────
 
@@ -408,6 +409,11 @@ export default function HeatseekerDashboard({
               <CharmChart ticker={normalizedTicker} spot={spot} />
             </React.Suspense>
           </ErrorBoundary>
+        </div>
+        {/* Charm decay timeline — net charm per expiry + per-strike lines
+            (Rust-computed charm_grid from compute_gex_grid). */}
+        <div className="mt-3" data-testid="hs-charm-decay">
+          <CharmDecayPanel ticker={normalizedTicker} spot={spot} maxExpiries={6} />
         </div>
       </LazyRow>
     </div>

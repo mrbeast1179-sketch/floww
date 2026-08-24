@@ -908,6 +908,10 @@ async def _build_heatmap_impl(ticker: str, max_expiries: int = 4, with_taps: boo
     # Dynamic band based on price level: wider bands for low-priced stocks
     if scalp:
         band = 0.02
+    elif dte == 0:
+        # 0DTE auto-tighten: same ±5% focus as scalp-style view without
+        # flipping volume-weighting — the expiry IS the trade horizon.
+        band = 0.05
     elif mode == "swing":
         band = 0.25
     else:
