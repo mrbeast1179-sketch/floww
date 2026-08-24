@@ -712,3 +712,60 @@
   content: "★ ";
   color: var(--fsb-gold-bright);
 }
+
+
+/* ── Heat & glow pass: make data temperature visible ── */
+
+/* Score badges: grade-matched glow (heat reads at a glance) */
+.fsb-sc.crit { box-shadow: 0 0 10px rgba(255, 77, 94, 0.25); }
+.fsb-sc.high { box-shadow: 0 0 10px rgba(232, 201, 106, 0.22); }
+.fsb-sc.elev { box-shadow: 0 0 8px rgba(201, 168, 76, 0.15); }
+
+/* Signal cards: conviction heat bar down the left edge (0-99 → color) */
+.fsb-sigcard { position: relative; overflow: hidden; }
+.fsb-sigcard::before {
+  content: "";
+  position: absolute;
+  left: 0; top: 0; bottom: 0;
+  width: 3px;
+  background: var(--fsb-muted2);
+}
+.fsb-sigcard.heat-crit::before { background: linear-gradient(180deg, #ff4d5e, #ff8a95); box-shadow: 0 0 8px rgba(255,77,94,0.5); }
+.fsb-sigcard.heat-high::before { background: linear-gradient(180deg, var(--fsb-gold), var(--fsb-gold-bright)); box-shadow: 0 0 8px rgba(232,201,106,0.5); }
+.fsb-sigcard.heat-elev::before { background: linear-gradient(180deg, #6fd8ea, #29c5e0); box-shadow: 0 0 6px rgba(41,197,224,0.4); }
+.fsb-sigcard.heat-norm::before { background: var(--fsb-muted2); }
+.fsb-sigcard.heat-crit, .fsb-sigcard.heat-high { padding-left: 13px; }
+
+/* Calibration cells: proportional mini-bar under value (visual weight) */
+.fsb-v3cell .fsb-v3bar {
+  position: absolute;
+  left: 4px; right: 4px; bottom: 3px;
+  height: 2px;
+  border-radius: 1px;
+  background: var(--fsb-border2);
+  overflow: hidden;
+}
+.fsb-v3cell .fsb-v3bar i {
+  display: block;
+  height: 100%;
+  background: var(--fsb-gold-bright);
+  border-radius: 1px;
+}
+.fsb-v3cell { padding-bottom: 8px; }
+
+/* Sticky scan table header with blur — headers stay while scrolling strikes */
+.fsb-scantable thead th {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  background: rgba(13, 16, 24, 0.92);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  box-shadow: 0 1px 0 var(--fsb-border);
+}
+
+/* Alert rule badges: subtle tier glows */
+.fsb-rulebadge { box-shadow: 0 0 6px rgba(0, 0, 0, 0.35); }
+
+/* Following strip: breathing gold dot on the section label */
+.fsb-following-label { position: relative; }

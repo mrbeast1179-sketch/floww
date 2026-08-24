@@ -1250,6 +1250,7 @@ export default function FlowseekerProBlademap({ active = true }) {
                            title={`${b.n} alerts · ${b.n_measured} measured · ${b.wins} hits`}>
                         <span className="fsb-v3lbl">{b.band}</span>
                         <span className="fsb-v3val">{b.hit_rate != null ? `${Math.round(b.hit_rate * 100)}%` : "—"}</span>
+                        <span className="fsb-v3bar"><i style={{ width: `${Math.round((b.hit_rate || 0) * 100)}%` }} /></span>
                         <span className="fsb-v3n">{b.n_measured}/{b.n}</span>
                       </div>
                     ))}
@@ -1363,7 +1364,10 @@ export default function FlowseekerProBlademap({ active = true }) {
                   const bear = String(a.bias || "").toUpperCase().includes("BEAR");
                   const mp = a.move_pct != null ? a.move_pct * 100 : null;
                   return (
-                    <div key={a.key} className={`fsb-sigcard${Number(a.conviction) >= 75 ? " hot" : ""}`}
+                    <div key={a.key} className={`fsb-sigcard${Number(a.conviction) >= 75 ? " hot" : ""} ${
+                        (a.conviction ?? 0) >= 75 ? "heat-crit" :
+                        (a.conviction ?? 0) >= 60 ? "heat-high" :
+                        (a.conviction ?? 0) >= 45 ? "heat-elev" : "heat-norm"}`}
                          title={`${a.why || "conviction " + a.conviction}${kl && kl.invalidation ? ` · invalidation ${kl.invalidation}` : ""} — click to filter ${a.under || a.ticker || ""}`}
                          onClick={() => setScanQ(String(a.under || a.ticker || ""))}>
                       <div className="fsb-sig-top">
