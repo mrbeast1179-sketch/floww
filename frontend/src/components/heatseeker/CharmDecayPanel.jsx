@@ -38,8 +38,9 @@ export default function CharmDecayPanel({ ticker = "SPY", spot = null, maxExpiri
   useEffect(() => {
     const ctrl = new AbortController();
     setLoading(true);
+    // /api/data not /api/heatmap — same shape, ~300x faster (skill pitfall)
     fetch(
-      `${BACKEND_URL}/api/heatmap/${encodeURIComponent(ticker)}?mode=day&max_expiries=${maxExpiries}`,
+      `${BACKEND_URL}/api/data/${encodeURIComponent(ticker)}?mode=day&expiries=${maxExpiries}`,
       { signal: ctrl.signal },
     )
       .then((r) => (r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`))))
