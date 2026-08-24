@@ -24,6 +24,8 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 
+import contextlib
+
 from services.duckdb_engine import DuckDBEngine  # noqa: E402
 from services.journal_store import (  # noqa: E402
     init_journal_tables,
@@ -37,10 +39,8 @@ def engine():
     eng = DuckDBEngine(":memory:")
     init_journal_tables(eng)
     yield eng
-    try:
+    with contextlib.suppress(Exception):
         eng._conn.close()
-    except Exception:
-        pass
 
 
 def _seed(under="SPY", bias="bull", entry_spot=100.0, key=None, **over):

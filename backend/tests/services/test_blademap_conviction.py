@@ -27,10 +27,10 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 
-from services.flow_alerts import norm_rows  # noqa: E402
-
 import math
 from datetime import date, timedelta
+
+from services.flow_alerts import norm_rows  # noqa: E402
 
 
 def _future_exp(biz_days: int) -> str:

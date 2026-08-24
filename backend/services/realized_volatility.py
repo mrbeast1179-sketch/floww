@@ -186,15 +186,15 @@ def _parkinson_estimator(
     hl_pairs: list[tuple[float, float]] = []
     for b in bars:
         h = _safe_positive_float("high", b.get("high"), warnings)
-        l = _safe_positive_float("low", b.get("low"), warnings)
-        if h is not None and l is not None:
-            hl_pairs.append((h, l))
+        lo = _safe_positive_float("low", b.get("low"), warnings)
+        if h is not None and lo is not None:
+            hl_pairs.append((h, lo))
     if len(hl_pairs) < MIN_BARS_FOR_OTHER:
         warnings.append(
             "parkinson: insufficient (high, low) pairs (need ≥2)"
         )
         return None
-    log_hl_sq_sum = sum((math.log(h / l)) ** 2 for h, l in hl_pairs)
+    log_hl_sq_sum = sum((math.log(h / lo)) ** 2 for h, lo in hl_pairs)
     var = log_hl_sq_sum / (PARKINSON_LN2_FACTOR * len(hl_pairs))
     return math.sqrt(var * annual_factor)
 
@@ -207,18 +207,18 @@ def _garman_klass_estimator(
     for b in bars:
         o = _safe_positive_float("open", b.get("open"), warnings)
         h = _safe_positive_float("high", b.get("high"), warnings)
-        l = _safe_positive_float("low", b.get("low"), warnings)
+        lo = _safe_positive_float("low", b.get("low"), warnings)
         c = _safe_positive_float("close", b.get("close"), warnings)
-        if o is not None and h is not None and l is not None and c is not None:
-            valid.append((o, h, l, c))
+        if o is not None and h is not None and lo is not None and c is not None:
+            valid.append((o, h, lo, c))
     if len(valid) < MIN_BARS_FOR_OTHER:
         warnings.append(
             "garman_klass: insufficient OHLC bars (need ≥2)"
         )
         return None
     terms = []
-    for o, h, l, c in valid:
-        log_hl_sq = (math.log(h / l)) ** 2
+    for o, h, lo, c in valid:
+        log_hl_sq = (math.log(h / lo)) ** 2
         log_co_sq = (math.log(c / o)) ** 2
         terms.append(0.5 * log_hl_sq - GK_INTRADAY_BIAS * log_co_sq)
     var = sum(terms) / len(valid)
@@ -233,21 +233,21 @@ def _rogers_satchell_estimator(
     for b in bars:
         o = _safe_positive_float("open", b.get("open"), warnings)
         h = _safe_positive_float("high", b.get("high"), warnings)
-        l = _safe_positive_float("low", b.get("low"), warnings)
+        lo = _safe_positive_float("low", b.get("low"), warnings)
         c = _safe_positive_float("close", b.get("close"), warnings)
-        if o is not None and h is not None and l is not None and c is not None:
-            valid.append((o, h, l, c))
+        if o is not None and h is not None and lo is not None and c is not None:
+            valid.append((o, h, lo, c))
     if len(valid) < MIN_BARS_FOR_OTHER:
         warnings.append(
             "rogers_satchell: insufficient OHLC bars (need ≥2)"
         )
         return None
     terms = []
-    for o, h, l, c in valid:
+    for o, h, lo, c in valid:
         log_hc = math.log(h / c)
         log_ho = math.log(h / o)
-        log_lc = math.log(l / c)
-        log_lo = math.log(l / o)
+        log_lc = math.log(lo / c)
+        log_lo = math.log(lo / o)
         terms.append(log_hc * log_ho + log_lc * log_lo)
     var = sum(terms) / len(valid)
     return math.sqrt(var * annual_factor)
@@ -270,7 +270,7 @@ def _yang_zhang_estimator(
     for b in bars:
         o = _safe_positive_float("open", b.get("open"), warnings)
         h = _safe_positive_float("high", b.get("high"), warnings)
-        l = _safe_positive_float("low", b.get("low"), warnings)
+        lo = _safe_positive_float("low", b.get("low"), warnings)
         c = _safe_positive_float("close", b.get("close"), warnings)
         # Accept either `prev_close` or `prevClose` (yfinance snake_case
         # or camelCase variants — the canonical Mongo underlying_bars
@@ -278,8 +278,8 @@ def _yang_zhang_estimator(
         pc = _safe_positive_float("prev_close", b.get("prev_close"), warnings)
         if pc is None and "prevClose" in b:
             pc = _safe_positive_float("prevClose", b.get("prevClose"), warnings)
-        if all(v is not None for v in (o, h, l, c, pc)):
-            valid.append((o, h, l, c, pc))
+        if all(v is not None for v in (o, h, lo, c, pc)):
+            valid.append((o, h, lo, c, pc))
     if len(valid) < MIN_BARS_FOR_YZ:
         warnings.append(
             "yang_zhang: insufficient (OHLC + prev_close) bars (need ≥3)"
@@ -296,11 +296,11 @@ def _yang_zhang_estimator(
     sigma_intraday_sq = float(log_intraday.var(ddof=1))
     # σ_RS² = mean of per-bar Rogers-Satchell terms
     rs_terms: list[float] = []
-    for o, h, l, c, _pc in valid:
+    for o, h, lo, c, _pc in valid:
         log_hc = math.log(h / c)
         log_ho = math.log(h / o)
-        log_lc = math.log(l / c)
-        log_lo = math.log(l / o)
+        log_lc = math.log(lo / c)
+        log_lo = math.log(lo / o)
         rs_terms.append(log_hc * log_ho + log_lc * log_lo)
     sigma_RS_sq = float(np.mean(rs_terms))
     # k-weight (Yang-Zhang published form)

@@ -20,6 +20,8 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 
+import contextlib
+
 from services.duckdb_engine import DuckDBEngine  # noqa: E402
 from services.flow_alerts import (  # noqa: E402
     init_flow_alert_tables,
@@ -32,10 +34,8 @@ def engine():
     eng = DuckDBEngine(":memory:")
     init_flow_alert_tables(eng)
     yield eng
-    try:
+    with contextlib.suppress(Exception):
         eng._conn.close()
-    except Exception:
-        pass
 
 
 def _alert(key="k", under="PLTR", bias="BULLISH", tier="GOLD", rule="SCORE",

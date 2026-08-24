@@ -455,7 +455,11 @@ def eval_institutional(rows, baselines=None, prev_oi=None, regimes=None, opts=No
     the I/O layer's job so this stays unit-testable.
     """
     from services.flow_quality import (
-        bh_fdr, cluster_biases, cw_iv_spread, detect_spreads, sigma_pvalue,
+        bh_fdr,
+        cluster_biases,
+        cw_iv_spread,
+        detect_spreads,
+        sigma_pvalue,
     )
 
     o = {
@@ -588,27 +592,21 @@ def init_flow_alert_tables(engine) -> None:
             PRIMARY KEY (asof_date, key)
         )
     """)
-    try:
+    with contextlib.suppress(Exception):
         # Migration for pre-Conviction-v2 tables (column added 2026-07-20).
         engine.execute_write(
             "ALTER TABLE flow_alerts_daily ADD COLUMN IF NOT EXISTS cw_spread DOUBLE")
-    except Exception:
-        pass
-    try:
+    with contextlib.suppress(Exception):
         # Migration for v2.1 — cluster factor surfaced to the feed (2026-07-20).
         engine.execute_write(
             "ALTER TABLE flow_alerts_daily ADD COLUMN IF NOT EXISTS cluster BOOLEAN")
-    except Exception:
-        pass
-    try:
+    with contextlib.suppress(Exception):
         # Migration for v2.3 — wins column (BIGINT). The alert_quality() SQL
         # CAST(SUM(...) AS BIGINT) requires this column. Pre-v2.3 prod tables
         # upgrade in place without manual SQL. Mirrors cw_spread / cluster
         # migration pattern above.
         engine.execute_write(
             "ALTER TABLE flow_alerts_daily ADD COLUMN IF NOT EXISTS wins BIGINT")
-    except Exception:
-        pass
     for ddl in (
         "ALTER TABLE flow_alerts_daily ADD COLUMN IF NOT EXISTS conviction INTEGER",
         "ALTER TABLE flow_alerts_daily ADD COLUMN IF NOT EXISTS key_levels_json TEXT",
@@ -771,7 +769,7 @@ def alert_quality(engine, days: int = 30) -> list[dict]:
     by_tier = {}
     for r in rows:
         by_tier.setdefault(str(r.get("tier") or "").upper(), []).append(r)
-    for tier, tier_rows in by_tier.items():
+    for _tier, tier_rows in by_tier.items():
         candidates = [r for r in tier_rows if (r.get("n_measured") or 0) > 0]
         if len(candidates) < _BEST_RULE_MIN_N:
             continue

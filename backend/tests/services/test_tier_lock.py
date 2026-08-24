@@ -56,7 +56,7 @@ def test_monotone_strict_form():
     day-before] (most-recent first). Rising = today > yesterday > daybefore.
     Falling = today < yesterday < daybefore. The STRICT form means equal
     consecutive days disqualify (avoids flat-day noise locking a tier)."""
-    from services.tier_lock import _is_rising, _is_falling
+    from services.tier_lock import _is_falling, _is_rising
 
     # Rising: [0.8, 0.7, 0.6] — today highest
     assert _is_rising([0.8, 0.7, 0.6]) is True

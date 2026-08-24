@@ -146,7 +146,7 @@ async def gex_surface_endpoint(ticker: str, expiries: int = Query(5, ge=1, le=20
         result["status"] = "ok"
         # Paper-accurate metrics (Barbon-Buraschi)
         try:
-            from services.gex_paper_accurate import compute_gamma_imbalance, compute_flip_metrics
+            from services.gex_paper_accurate import compute_flip_metrics, compute_gamma_imbalance
             ng = result.get("net_gex", 0.0)
             zgl = result.get("zero_gamma_levels", [])
             result["gamma_imbalance"] = compute_gamma_imbalance(ng, spot, 75_000_000)

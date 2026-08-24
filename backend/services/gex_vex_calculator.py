@@ -2,9 +2,9 @@
 VEX (Vomma Exposure) Calculator
 ================================
 
-Implements vomma exposure computation - dealers' delta sensitivity to 
-implied volatility changes. This is GEX's "evil twin" - when positive 
-and large, it makes volatility a feedback mechanism that can destabilize 
+Implements vomma exposure computation - dealers' delta sensitivity to
+implied volatility changes. This is GEX's "evil twin" - when positive
+and large, it makes volatility a feedback mechanism that can destabilize
 markets.
 
 Key insights from SqueezeMetrics "Implied Order Book":
@@ -42,31 +42,31 @@ def compute_vex_surface(
 ) -> np.ndarray:
     """
     Compute VEX (Vomma Exposure) surface.
-    
+
     VEX_per_unit = vomma * OI * 100 * spot^2 * 0.01
     Same scaling as GEX but with vomma instead of gamma.
-    
+
     Sign convention: same as GEX (calls +, puts -)
-    
+
     Args:
         spot: Current underlying price
         strikes: Strike prices (1D array)
         vommas: Vomma values (1D array, same shape as strikes)
         ois: Open interest (1D array, same shape as strikes)
         types: Option types (0=call, 1=put, 1D array)
-    
+
     Returns:
         1D array of VEX per strike
     """
     n = len(strikes)
     vex_per_strike = np.zeros(n, dtype=np.float64)
-    
+
     spot_sq_scale = spot * spot * 0.01 * 100.0
-    
+
     for i in range(n):
         sign = 1.0 if types[i] == 0 else -1.0
         vex_per_strike[i] = sign * vommas[i] * ois[i] * spot_sq_scale
-    
+
     return vex_per_strike
 
 
@@ -76,25 +76,25 @@ def compute_gex_plus(
 ) -> dict[str, Any]:
     """
     Compute GEX+ - the combined liquidity measure from GEX and VEX.
-    
+
     GEX+ = GEX + VEX
-    
+
     This gives the "implied order book" - total option-originated liquidity.
-    
+
     Interpretation:
     - GEX+ > 0: Dealers providing liquidity (stabilizing)
     - GEX+ < 0: Dealers taking liquidity (destabilizing)
     - Large negative VEX: Will cause volatility feedback loops
-    
+
     Args:
         net_gex: Net dollar GEX
         net_vex: Net dollar VEX
-    
+
     Returns:
         GEX+ analysis
     """
     gex_plus = net_gex + net_vex
-    
+
     # Classification
     if gex_plus > 5e9:  # $5B
         regime = "strong_liquidity"
@@ -128,7 +128,7 @@ def compute_gex_plus(
             "VEX likely driving this. High flash crash risk. "
             "Avoid short volatility positions."
         )
-    
+
     return {
         "gex_plus": gex_plus,
         "net_gex": net_gex,
@@ -145,15 +145,15 @@ def vex_classification(
 ) -> dict[str, Any]:
     """
     Classify VEX state and its implications.
-    
+
     Per SqueezeMetrics:
     - Negative VEX ~ $-400mm in 2020 "corona crash"
     - VEX becomes positive when dealers are short IV (selling options cheaply)
-    
+
     Args:
         net_vex: Net dollar VEX
         spot: Underlying price
-    
+
     Returns:
         VEX state classification
     """
@@ -196,7 +196,7 @@ def vex_classification(
             "Dealers forced to sell further during IV spikes. "
             "Flash crash risk very high. Consider long vol positioning."
         )
-    
+
     # IV-VEX feedback loop detection
     iv_vex_risk = "LOW"
     if net_vex < 0:
@@ -204,7 +204,7 @@ def vex_classification(
         # Check if this could amplify IV moves
         if abs(net_vex) > 5e8:
             iv_vex_risk = "STRONG"
-    
+
     return {
         "vex_state": vex_state,
         "net_vex": net_vex,
@@ -222,30 +222,30 @@ def full_liquidity_analysis(
 ) -> dict[str, Any]:
     """
     Complete liquidity analysis combining GEX, VEX, and Gamma Imbalance.
-    
+
     This provides the full "implied order book" picture from both
     the practitioner (SqueezeMetrics) and academic (Barbon-Buraschi)
     perspectives.
     """
     # GEX+ analysis
     gex_plus_result = compute_gex_plus(net_gex, net_vex)
-    
+
     # VEX state
     vex_result = vex_classification(net_vex, spot)
-    
+
     # Gamma Imbalance if ADV provided
     gib_result = None
     if adv_shares and adv_shares > 0:
         # Recompute using GEX module
         from services.gex_paper_accurate import compute_gamma_imbalance
         gib_result = compute_gamma_imbalance(net_gex, spot, adv_shares)
-    
+
     return {
         "gex_plus": gex_plus_result,
         "vex_analysis": vex_result,
         "gamma_imbalance": gib_result,
         "combined_liquidity_score": (
-            gex_plus_result["gex_plus"] + 
+            gex_plus_result["gex_plus"] +
             gex_plus_result["net_vex"]
         ) / 1e9 if (gex_plus_result["gex_plus"] != 0 or gex_plus_result["net_vex"] != 0) else 0.0,
     }

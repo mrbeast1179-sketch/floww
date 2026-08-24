@@ -63,7 +63,8 @@ def fetch_options_chain(ticker: str, max_expiries: int = 2) -> dict[str, Any] | 
 
             # itertuples: ~10x faster than iterrows on wide yfinance frames
             for row in chain.calls.itertuples(index=False):
-                g = lambda name, default=0.0: float(getattr(row, name, default) or default)
+                def g(name, default=0.0, _row=row):
+                    return float(getattr(_row, name, default) or default)
                 contracts.append({
                     "expiry": exp_str, "strike": g("strike"),
                     "type": "C",
@@ -77,7 +78,8 @@ def fetch_options_chain(ticker: str, max_expiries: int = 2) -> dict[str, Any] | 
                 })
 
             for row in chain.puts.itertuples(index=False):
-                g = lambda name, default=0.0: float(getattr(row, name, default) or default)
+                def g(name, default=0.0, _row=row):
+                    return float(getattr(_row, name, default) or default)
                 contracts.append({
                     "expiry": exp_str, "strike": g("strike"),
                     "type": "P",

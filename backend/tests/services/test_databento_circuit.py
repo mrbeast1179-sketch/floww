@@ -26,7 +26,6 @@ from databento_provider import (
     _CircuitState,
 )
 
-
 # ── In-memory stand-ins for the Motor collection ─────────────────────
 
 class _FakeCollection:

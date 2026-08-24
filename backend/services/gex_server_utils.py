@@ -7,7 +7,7 @@ Pure functions with no FastAPI, MongoDB, or cache dependencies.
 Extracted 2026-08-07 to reduce server.py from 3321 lines.
 """
 import math
-from datetime import datetime, UTC, date, timedelta
+from datetime import UTC, datetime
 from typing import Any
 
 from scipy.stats import norm
@@ -98,17 +98,6 @@ def compute_gex_grid(spot: float, contracts: list[dict[str, Any]], ticker: str =
 # Import from shared module to avoid circular imports with portfolio.py
 # DOLLAR_MOVE_CONVENTION  = 0.01   (industry-standard 1%-move convention; see bs_greeks.py)
 # CONTRACT_MULTIPLIER     = 100    (shares per equity option contract)
-from bs_greeks import (
-    bs_charm,
-    bs_gamma,
-    bs_vanna,
-    bs_vega,
-    bs_vomma,
-    bs_zomma,
-    dollar_charm_per_contract,
-    dollar_gex_per_contract,
-    dollar_vex_per_contract,
-)
 
 
 # --- restored: calc_probability_distribution ---

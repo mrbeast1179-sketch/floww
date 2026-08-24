@@ -7,14 +7,16 @@ signal-to-trade pipeline). Seeds written at execute-time survive browser
 clears and sync to every device; the frontend localStorage store remains
 the offline cache.
 """
+import contextlib
+
 import pytest
 
 from services.journal_store import (
-    init_journal_tables,
-    save_seeds,
-    read_trades,
     close_trade,
+    init_journal_tables,
     journal_seed_key,
+    read_trades,
+    save_seeds,
 )
 
 
@@ -25,10 +27,8 @@ def engine():
     eng = DuckDBEngine(":memory:")
     init_journal_tables(eng)
     yield eng
-    try:
+    with contextlib.suppress(Exception):
         eng._conn.close()
-    except Exception:
-        pass
 
 
 def _seed(**over):

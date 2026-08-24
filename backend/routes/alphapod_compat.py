@@ -248,8 +248,8 @@ async def deep_dive(ticker: str) -> dict[str, Any]:
 async def gex_spx() -> dict[str, Any]:
     """SPX GEX snapshot in AlphaPod shape."""
     try:
-        from services.gex_core import compute_gex_by_strike
         from server import fetch_spot_and_chains_merged
+        from services.gex_core import compute_gex_by_strike
         raw = await fetch_spot_and_chains_merged("^SPX", 4)
         spot = raw.get("spot") or 0
         rows = compute_gex_by_strike(spot, raw.get("contracts") or [], "^SPX")

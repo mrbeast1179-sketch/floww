@@ -35,8 +35,7 @@ from __future__ import annotations
 
 import logging
 import math
-from datetime import datetime, timedelta
-
+from datetime import datetime
 from zoneinfo import ZoneInfo
 
 logger = logging.getLogger(__name__)

@@ -32,7 +32,7 @@ def _call_openrouter(prompt: str, system_prompt: str, max_tokens: int, model: st
     try:
         from openai import OpenAI
     except ImportError:
-        raise ImportError("openai package required: pip install openai")
+        raise ImportError("openai package required: pip install openai") from None
 
     api_key = os.environ.get("OPENROUTER_API_KEY", "")
     if not api_key:
@@ -68,7 +68,7 @@ def _call_gemini(prompt: str, system_prompt: str, max_tokens: int) -> dict:
     try:
         import google.generativeai as genai
     except ImportError:
-        raise ImportError("google-generativeai package required: pip install google-generativeai")
+        raise ImportError("google-generativeai package required: pip install google-generativeai") from None
 
     api_key = os.environ.get("GEMINI_API_KEY", "")
     if not api_key:

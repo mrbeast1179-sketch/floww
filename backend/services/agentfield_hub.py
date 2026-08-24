@@ -98,11 +98,11 @@ class AgentFieldHub:
                 # ── Paper-accurate metrics (Barbon-Buraschi + Ni-Pearson) ──
                 try:
                     from services.gex_paper_accurate import (  # noqa: F811
-                        compute_gamma_imbalance,
                         compute_flip_metrics,
-                        predict_intraday_regime,
+                        compute_gamma_imbalance,
                         flash_crash_risk,
                         gamma_liquidity_regime,
+                        predict_intraday_regime,
                         vix_gamma_fragility,
                     )
 

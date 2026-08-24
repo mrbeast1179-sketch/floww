@@ -14,7 +14,6 @@ Key Features:
 
 from __future__ import annotations
 
-import math
 from dataclasses import dataclass
 from enum import Enum
 from typing import Any
@@ -68,16 +67,16 @@ def compute_gex_term_structure(
 ) -> dict[str, Any]:
     """
     Compute the term structure of GEX across expiries.
-    
+
     This captures how dealer gamma exposure evolves from current
     expiry through longer-dated options, revealing the term structure
     of market positioning.
-    
+
     Args:
         spot: Current underlying price
-        contracts: List of option contract dicts with expiry, strike, 
+        contracts: List of option contract dicts with expiry, strike,
                   type, gamma, oi fields
-    
+
     Returns:
         Dict with term structure analysis
     """
@@ -105,7 +104,7 @@ def compute_gex_term_structure(
         if expiry not in expiry_groups:
             expiry_groups[expiry] = []
         expiry_groups[expiry].append(c)
-    
+
     # Compute GEX per expiry
     expiry_gex_list: list[ExpiryGEX] = []
     for expiry_days, opts in expiry_groups.items():
@@ -113,26 +112,26 @@ def compute_gex_term_structure(
         strike_gex: dict[float, float] = {}
         call_oi = 0.0
         put_oi = 0.0
-        
+
         for opt in opts:
             gamma = opt.get("gamma", 0)
             oi = opt.get("oi", 0)
             strike = opt.get("strike", 0)
             opt_type = opt.get("type", "CALL").upper()
-            
+
             # GEX formula: gamma * OI * 100 * S^2 * 0.01
             gex = gamma * oi * 100 * spot * spot * 0.01
             sign = 1 if opt_type == "CALL" else -1
             signed_gex = sign * gex
-            
+
             net_gex += signed_gex
             strike_gex[strike] = strike_gex.get(strike, 0) + signed_gex
-            
+
             if opt_type == "CALL":
                 call_oi += oi
             else:
                 put_oi += oi
-        
+
         expiry_gex_list.append(ExpiryGEX(
             expiry=expiry_days,
             net_gex=net_gex,
@@ -140,10 +139,10 @@ def compute_gex_term_structure(
             call_oi=call_oi,
             put_oi=put_oi,
         ))
-    
+
     # Sort by expiry
     expiry_gex_list.sort(key=lambda x: x.expiry)
-    
+
     if len(expiry_gex_list) < 2:
         return {
             "regime": TermStructureRegime.FLAT.value if expiry_gex_list else TermStructureRegime.FLAT.value,
@@ -153,17 +152,17 @@ def compute_gex_term_structure(
             "calendar_spread_impact": 0.0,
             "interpretation": "Insufficient data for term structure analysis."
         }
-    
+
     # Analyze term structure slope
     expiries = np.array([e.expiry for e in expiry_gex_list])
     gex_values = np.array([e.net_gex for e in expiry_gex_list])
-    
+
     # Linear regression for slope
     if len(expiries) > 1:
         slope = np.polyfit(expiries, gex_values, 1)[0]
     else:
         slope = 0.0
-    
+
     # Classify regime
     slope_ratio = abs(slope) / (np.std(gex_values) + 1e-10)
     if slope_ratio > 0.5:
@@ -187,7 +186,7 @@ def compute_gex_term_structure(
             "FLAT term structure: GEX relatively uniform across expiries. "
             "Balanced dealer positioning across time horizons."
         )
-    
+
     # Calendar spread impact
     if len(expiry_gex_list) >= 2:
         near_expiry_gex = expiry_gex_list[0].net_gex
@@ -195,7 +194,7 @@ def compute_gex_term_structure(
         calendar_spread_impact = far_expiry_gex - near_expiry_gex
     else:
         calendar_spread_impact = 0.0
-    
+
     return {
         "regime": regime,
         "expiries": [e.expiry for e in expiry_gex_list],
@@ -218,20 +217,20 @@ def compute_gex_decay_projection(
 ) -> dict[str, Any]:
     """
     Project how GEX decays along a price path.
-    
+
     As the underlying moves, dealers must adjust hedges, causing GEX
     to change dynamically. This projects the trajectory.
-    
+
     Args:
         spot: Current underlying price
         contracts: Full option chain
         price_path: Projected price levels over time
-    
+
     Returns:
         GEX decay projection
     """
     projections = []
-    
+
     for t, projected_spot in enumerate(price_path):
         expiry_gex = compute_gex_term_structure(projected_spot, contracts)
         projections.append({
@@ -240,7 +239,7 @@ def compute_gex_decay_projection(
             "regime": expiry_gex.get("regime"),
             "total_gex": sum(expiry_gex.get("net_gex_by_expiry", [])),
         })
-    
+
     return {
         "projections": projections,
         "start_regime": projections[0]["regime"] if projections else None,
@@ -255,49 +254,49 @@ def compute_gamma_scallop(
 ) -> dict[str, Any]:
     """
     Compute gamma exposure in a window around spot.
-    
-    This captures the "gamma scallop" - how GEX changes as spot 
+
+    This captures the "gamma scallop" - how GEX changes as spot
     moves through different strike levels. The scallop pattern
     reveals liquidity basins and gaps.
-    
+
     Args:
         spot: Current underlying price
         contracts: Full option chain
         window: Windows in basis points (default 10 = 1%)
-    
+
     Returns:
         Scallop analysis
     """
     # Compute GEX per strike
     strike_gex: dict[float, float] = {}
-    
+
     for c in contracts:
         strike = c.get("strike", 0)
         gamma = c.get("gamma", 0)
         oi = c.get("oi", 0)
         opt_type = c.get("type", "CALL").upper()
-        
+
         gex = gamma * oi * 100 * spot * spot * 0.01
         sign = 1 if opt_type == "CALL" else -1
-        
+
         if strike not in strike_gex:
             strike_gex[strike] = 0.0
         strike_gex[strike] += sign * gex
-    
+
     # Find surrounding strikes
     strikes = sorted(strike_gex.keys())
     if not strikes:
         return {"scallop_analysis": [], "liquidity_basins": []}
-    
+
     # Analyze window around spot
     window_pct = window / 10000  # Convert to decimal
     lower = spot * (1 - window_pct)
     upper = spot * (1 + window_pct)
-    
+
     window_strikes = [s for s in strikes if lower <= s <= upper]
-    
+
     total_gex_in_window = sum(strike_gex.get(s, 0) for s in window_strikes)
-    
+
     return {
         "scallop_analysis": {
             "spot": spot,
@@ -316,25 +315,25 @@ def analyze_liquidity_basins(
 ) -> list[dict[str, Any]]:
     """
     Identify liquidity basins - regions where dealers have high gamma exposure.
-    
+
     These basins act as price magnets or barriers depending on sign.
     """
     strikes = sorted(strike_gex.items())
     if len(strikes) < 3:
         return []
-    
+
     basins = []
     window_size = max(5, len(strikes) // 10)  # Adaptive window
-    
+
     for i in range(len(strikes)):
         window_strikes = strikes[max(0, i - window_size):min(len(strikes), i + window_size + 1)]
-        
+
         if not window_strikes:
             continue
-        
+
         total_gex = sum(g for s, g in window_strikes)
         avg_strike = sum(s for s, g in window_strikes) / len(window_strikes)
-        
+
         # Only significant basins
         if abs(total_gex) > 1e8:  # $100M threshold
             basins.append({
@@ -344,7 +343,7 @@ def analyze_liquidity_basins(
                 "width": window_strikes[-1][0] - window_strikes[0][0],
                 "type": "liquidity_magnet" if total_gex > 0 else "liquidity_gap",
             })
-    
+
     # Sort by significance
     basins.sort(key=lambda b: abs(b["net_gex"]), reverse=True)
     return basins[:5]  # Top 5
@@ -358,7 +357,7 @@ def full_term_analysis(
     """Full term structure analysis combining all metrics."""
     term_struct = compute_gex_term_structure(spot, contracts)
     scallop = compute_gamma_scallop(spot, contracts)
-    
+
     return {
         "term_structure": term_struct,
         "scallop": scallop,

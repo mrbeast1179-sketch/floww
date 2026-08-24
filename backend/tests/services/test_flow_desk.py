@@ -19,7 +19,7 @@ from datetime import date, timedelta
 
 import pytest
 
-from services.flow_alerts import eval_institutional, norm_rows, persist_alerts, init_flow_alert_tables
+from services.flow_alerts import eval_institutional, init_flow_alert_tables, norm_rows, persist_alerts
 from services.flow_desk import (
     apply_campaign,
     desk_pass,

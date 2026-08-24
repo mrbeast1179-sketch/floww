@@ -18,20 +18,20 @@ None of the prior v2.x suites pins the three above together at the API
 contract level. This test is the single source of truth for the expanded
 `/alerts/quality` surface.
 """
-from datetime import datetime, timezone
-
-import pytest
-
 # Test env must seed BEFORE `routes.flowseeker` import — the module reads
 # MONGO_URL/DB_NAME/TESTING at import time via conftest-style globals.
 import os
+from datetime import UTC, datetime, timezone
+
+import pytest
+
 os.environ.setdefault("TESTING", "1")
 os.environ.setdefault("MONGO_URL", "mongodb://localhost:27017")
 os.environ.setdefault("DB_NAME", "test_flowseeker_quality")
 
-from routes.flowseeker import institutional_alert_quality            # noqa: E402
-from services.flow_alerts import init_flow_alert_tables               # noqa: E402
-from services.duckdb_engine import db as duckdb_engine                 # noqa: E402
+from routes.flowseeker import institutional_alert_quality  # noqa: E402
+from services.duckdb_engine import db as duckdb_engine  # noqa: E402
+from services.flow_alerts import init_flow_alert_tables  # noqa: E402
 
 
 def _seed_rule(engine, tier, rule, hits, total, sigma_mean):
@@ -40,7 +40,7 @@ def _seed_rule(engine, tier, rule, hits, total, sigma_mean):
     as a win. Sigma values are symmetrically distributed around sigma_mean
     so a DuckDB MEDIAN comes back close to sigma_mean (±half the spread).
     """
-    today = datetime.now(timezone.utc).date().isoformat()
+    today = datetime.now(UTC).date().isoformat()
     rows = []
     for i in range(total):
         is_hit = i < hits
@@ -125,7 +125,7 @@ async def test_alerts_quality_v2x_per_row_surface(seeded_quality_db):
     # though it's the only rule under the floor boundary in our fixture.
     assert score["is_best_rule"] is False
     assert score["is_best_rule"] is False, (
-        f"SCORE (n_measured=2) must NOT win under BEST_RULE_MIN_N=3"
+        "SCORE (n_measured=2) must NOT win under BEST_RULE_MIN_N=3"
     )
 
     # MEDIAN(sigma) per row mirrors our seeded sigma_mean to within ±0.2

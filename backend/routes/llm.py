@@ -67,9 +67,9 @@ async def llm_analyze_trade(request: TradeAnalysisRequest):
         )
         return result
     except ImportError:
-        raise HTTPException(503, "LLM service not configured")
+        raise HTTPException(503, "LLM service not configured") from None
     except Exception as e:
-        raise HTTPException(500, str(e))
+        raise HTTPException(500, str(e)) from e
 
 
 @router.post("/llm/generate")
@@ -85,11 +85,11 @@ async def llm_generate(request: GenerateRequest):
         )
         return result
     except ImportError:
-        raise HTTPException(503, "LLM service not configured")
+        raise HTTPException(503, "LLM service not configured") from None
     except ValueError as e:
-        raise HTTPException(400, str(e))
+        raise HTTPException(400, str(e)) from e
     except Exception as e:
-        raise HTTPException(500, str(e))
+        raise HTTPException(500, str(e)) from e
 
 
 @router.get("/llm/providers")
@@ -104,7 +104,7 @@ async def llm_providers():
             "configured": llm.is_configured,
         }
     except Exception as e:
-        raise HTTPException(500, str(e))
+        raise HTTPException(500, str(e)) from e
 
 
 # ---------------------------------------------------------------------------
@@ -154,7 +154,7 @@ async def turboquant_generate(request: TurboQuantGenerateRequest):
             import torch
             from transformers import AutoModelForCausalLM, AutoTokenizer
         except ImportError:
-            raise HTTPException(503, "transformers/torch not installed")
+            raise HTTPException(503, "transformers/torch not installed") from None
 
         # Load model + tokenizer (cached to avoid re-loading on every request)
         cache_key = request.model_name
@@ -213,4 +213,4 @@ async def turboquant_generate(request: TurboQuantGenerateRequest):
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(500, f"Generation failed: {e}")
+        raise HTTPException(500, f"Generation failed: {e}") from e

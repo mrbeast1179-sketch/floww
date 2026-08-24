@@ -25,6 +25,6 @@ def test_execute_requires_confirm():
     from fastapi import HTTPException
     try:
         _run(fs.auto_trade_execute(confirm=False, tier="SILVER", min_dte=2, equity=100000.0, days=2))
-        assert False, "should have raised"
+        raise AssertionError("should have raised")
     except HTTPException as e:
         assert e.status_code == 400

@@ -84,6 +84,7 @@ class FakeRouter:
 # package"). Use a types.ModuleType shim that carries the four fake names for
 # the hub while exposing __path__ so real submodules still resolve.
 import types  # noqa: E402
+
 import agentfield as _real_agentfield  # noqa: E402
 
 fake_agentfield = types.ModuleType("agentfield")
@@ -100,6 +101,7 @@ sys.modules["agentfield"] = fake_agentfield
 # sys.modules isn't enough — patch the hub module's bound names directly.
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 import services.agentfield_hub as _hub_mod  # noqa: E402
+
 _hub_mod.Agent = FakeAgent
 _hub_mod.AgentRouter = FakeRouter
 _hub_mod.AIConfig = FakeAIConfig

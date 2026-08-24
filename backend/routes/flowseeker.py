@@ -1085,7 +1085,7 @@ async def _force_refresh_locked(min_volume: int, limit: int,
         raise
     except Exception as e:
         logger.warning(f"cvforge force-refresh failed: {e}")
-        raise HTTPException(502, f"force refresh failed: {e}")
+        raise HTTPException(502, f"force refresh failed: {e}") from e
 
 
 # Per-ticker daily history cache — the collection only changes once per scan

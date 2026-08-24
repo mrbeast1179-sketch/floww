@@ -26,11 +26,7 @@ Key additions over the raw practitioner GEX:
 
 from __future__ import annotations
 
-import math
 from typing import Any
-
-import numpy as np
-
 
 # ---------------------------------------------------------------------------
 # 1. Gamma Imbalance (Barbon-Buraschi Eq. 2)
@@ -747,7 +743,7 @@ def stock_order_imbalance_signal(
             result["imbalance_signal"] = "DEALER_NEUTRAL"
             result["predicted_direction"] = "neutral"
             result["interpretation"] = (
-                f"Negative gamma but dealers near delta-neutral. "
+                "Negative gamma but dealers near delta-neutral. "
                 "No directional pressure from rebalancing."
             )
     elif has_positive_gamma:
@@ -762,7 +758,7 @@ def stock_order_imbalance_signal(
         result["imbalance_signal"] = "NEUTRAL_GAMMA"
         result["predicted_direction"] = "neutral"
         result["interpretation"] = (
-            f"Gamma near zero — no strong dealer hedging pressure."
+            "Gamma near zero — no strong dealer hedging pressure."
         )
 
     result["hedge_delta_oi"] = round(hedge_oi, 6)
@@ -809,7 +805,7 @@ def option_demand_pressure(
 
     Args:
         net_gex: Net dollar GEX (negative = dealers short, positive = dealers long)
-        spot: Current spot price  
+        spot: Current spot price
         put_call_ratio_oi: Put/Call OI ratio (optional)
         put_call_ratio_vol: Put/Call volume ratio (optional)
         bid_ask_spread: Relative bid-ask spread (optional)
@@ -939,7 +935,7 @@ def options_order_imbalance(
         if len(trade_direction) == len(trade_volume) == len(trade_deltas):
             ooi = sum(
                 d * v * delta * 100.0
-                for d, v, delta in zip(trade_direction, trade_volume, trade_deltas)
+                for d, v, delta in zip(trade_direction, trade_volume, trade_deltas, strict=False)
             )
             result["ooi_value"] = round(ooi, 2)
 
@@ -1065,7 +1061,7 @@ def charm_hedging_pressure(
     elif near_expiry:
         result["signal"] = "CHARM_NEUTRAL_NEAR_EXPIRY"
         result["interpretation"] = (
-            f"Near expiry but charm near zero. Monitor for acceleration."
+            "Near expiry but charm near zero. Monitor for acceleration."
         )
     else:
         result["signal"] = "CHARM_NEGLIGIBLE"
@@ -1239,7 +1235,7 @@ def dealer_hedging_liquidity_impact(
         result["liquidity_impact"] = "mild_withdrawal"
         result["spread_direction"] = "slightly_widening"
         result["interpretation"] = (
-            f"Mild negative gamma — moderate liquidity impact."
+            "Mild negative gamma — moderate liquidity impact."
         )
     elif has_positive and abs_gib > 1.0:
         result["liquidity_impact"] = "liquidity_provision"
@@ -1321,7 +1317,7 @@ def gamma_liquidity_regime(
         result = {
             "regime": "moderate",
             "dealer_quote_behavior": "normal_spreads",
-            "interpretation": f"Moderate ΓIB — normal option liquidity conditions.",
+            "interpretation": "Moderate ΓIB — normal option liquidity conditions.",
         }
     else:
         result = {
@@ -1771,8 +1767,8 @@ def demand_pressure_premium(
             result["signal"] = "moderate_demand_premium"
             result["iv_prediction"] = "mild_upward_pressure"
             result["interpretation"] = (
-                f"Dealers short gamma with moderate end-user demand. "
-                f"Mild IV premium expected."
+                "Dealers short gamma with moderate end-user demand. "
+                "Mild IV premium expected."
             )
     elif net_gex > 1e9:
         result["demand_premium_bps"] = round(-demand_premium * 0.5, 2)
@@ -2112,9 +2108,7 @@ def overnight_drift_risk(
     # PCR interaction: high PCR + negative gamma = dealers short puts →
     # gap down forces aggressive put hedging at open
     pcr_val = put_call_ratio_oi if put_call_ratio_oi is not None else 0.5
-    if pcr_val > 0.65 and gamma_imbalance_pct < 0:
-        pcr_mult = 1.3
-    elif pcr_val < 0.35 and gamma_imbalance_pct > 0:
+    if pcr_val > 0.65 and gamma_imbalance_pct < 0 or pcr_val < 0.35 and gamma_imbalance_pct > 0:
         pcr_mult = 1.3
     else:
         pcr_mult = 1.0

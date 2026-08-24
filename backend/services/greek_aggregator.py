@@ -32,6 +32,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass, field
+from typing import Any
 
 import numpy as np
 
@@ -194,7 +195,7 @@ class GreekAggregator:
     ) -> dict[str, Any]:
         """Compute Barbon-Buraschi/Ni-Pearson paper metrics from aggregated GEX."""
         try:
-            from services.gex_paper_accurate import DEFAULT_ADV_SHARES, compute_gamma_imbalance, compute_flip_metrics
+            from services.gex_paper_accurate import DEFAULT_ADV_SHARES, compute_flip_metrics, compute_gamma_imbalance
             adv = DEFAULT_ADV_SHARES  # default ADV for general use
             flip = zero_gamma_levels[0] if zero_gamma_levels else None
             gi = compute_gamma_imbalance(net_gex, self.spot, adv)

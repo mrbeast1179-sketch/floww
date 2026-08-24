@@ -31,7 +31,9 @@ class FakeWS:
     async def _capture_send(self, data):
         self.sent_messages.append(data)
 
-    def set_fail_send(self, exc=RuntimeError("broken")):
+    def set_fail_send(self, exc=None):
+        if exc is None:
+            exc = RuntimeError("broken")
         self.send_text.side_effect = exc
 
 

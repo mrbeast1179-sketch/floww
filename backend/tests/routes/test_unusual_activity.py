@@ -17,8 +17,8 @@ import math
 import pytest
 
 from routes.flowseeker import (
-    PREMIUM_CONCENTRATION_MIN,
     DELTA_EXTREME_ABS,
+    PREMIUM_CONCENTRATION_MIN,
     per_side_premiums,
     strike_unusual_flags,
 )
@@ -69,8 +69,8 @@ def test_high_iv_fires_on_put_side():
 
 def test_delta_extreme_fires_on_deep_itm_put_with_zero_call_delta():
     rows = [_strike()]
-    flags = strike_unusual_flags(rows[0], rows, min_vol_oi_ratio=0.05)
-    assert "delta_extreme" in flags or True  # neutral here: delta 0.5 both sides
+    strike_unusual_flags(rows[0], rows, min_vol_oi_ratio=0.05)
+    assert True  # neutral here: delta 0.5 both sides
 
 
 def test_delta_extreme_put_branch_reachable_when_calls_flat():

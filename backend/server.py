@@ -27,14 +27,6 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from motor.motor_asyncio import AsyncIOMotorClient
 from pydantic import BaseModel
-from scipy.stats import norm
-
-from services.gex_server_utils import (
-    safe_float, DIV_YIELD,
-    compute_gex_grid, calc_probability_distribution, detect_opportunities,
-    compute_gex_by_strike, calc_implied_move, calc_aggregate_gex_curve,
-    classify_nodes, detect_patterns, compute_gex_by_strike_volume
-)
 
 from advanced_analytics import (
     calc_charm_integral,
@@ -47,6 +39,17 @@ from advanced_analytics import (
 from databento_provider import fetch_oi_for_ticker, init_cache
 from portfolio import Portfolio, Position, calc_position_size
 from services.duckdb_engine import db as duckdb_engine
+from services.gex_server_utils import (
+    calc_aggregate_gex_curve,
+    calc_implied_move,
+    calc_probability_distribution,
+    classify_nodes,
+    compute_gex_by_strike,
+    compute_gex_by_strike_volume,
+    compute_gex_grid,
+    detect_opportunities,
+    detect_patterns,
+)
 from services.logging_config import CorrelationIdMiddleware, setup_logging
 from services.websocket_streamer import manager as ws_manager
 from vol_analytics import (
@@ -292,8 +295,6 @@ async def performance_middleware(request: Request, call_next):
 _cache: dict[str, dict[str, Any]] = {}
 CACHE_TTL_SEC = 25
 
-# Dividend yields for Black-Scholes
-DIV_YIELD = {"SPY": 0.013, "QQQ": 0.006, "^SPX": 0.013, "IWM": 0.012}
 
 
 def _pos_to_dict(p):
@@ -2207,10 +2208,8 @@ async def _vpin_autofeed_loop():
         except Exception as e:
             log.warning(f"VPIN auto-feed loop error: {e}")
 
-        try:
-            await asyncio.wait_for(_shutdown_event.wait(), timeout=_VPIN_AUTOFETCH_INTERVAL)
-        except TimeoutError:
-            pass  # normal interval timeout, continue loop
+        with contextlib.suppress(TimeoutError):
+            await asyncio.wait_for(_shutdown_event.wait(), timeout=_VPIN_AUTOFETCH_INTERVAL)  # normal interval timeout, continue loop
 
     log.info("VPIN auto-feed: shutdown complete")
 
@@ -2610,6 +2609,7 @@ async def startup_paper_trading():
         # exit. File-backed store; failures are logged, never fatal.
         def _journal_closeout(symbol: str, exit_price: float) -> None:
             from datetime import date
+
             from services.journal_store import close_open_by_symbol, get_engine
             closed = close_open_by_symbol(get_engine(), symbol,
                                           exit_price=float(exit_price),

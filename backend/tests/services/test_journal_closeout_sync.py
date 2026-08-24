@@ -21,6 +21,8 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 
+import contextlib
+
 from services.execution_engine import MarketState  # noqa: E402
 from services.journal_store import (  # noqa: E402
     close_open_by_symbol,
@@ -46,10 +48,8 @@ def jeng():
     eng = DuckDBEngine(":memory:")
     init_journal_tables(eng)
     yield eng
-    try:
+    with contextlib.suppress(Exception):
         eng._conn.close()
-    except Exception:
-        pass
 
 
 def _seed(**over):

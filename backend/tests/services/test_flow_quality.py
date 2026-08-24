@@ -312,7 +312,7 @@ def test_preflight_three_factor_cluster_cw_prime_stack_to_gold():
                 and a.get("rule") in ("SCORE", "WHALE")
                 and a.get("tier") == "GOLD"]
     assert directed, (
-        f"no GOLD SCORE/WHALE PLTR alert fired in the 4-leg fixture; GOT: " +
+        "no GOLD SCORE/WHALE PLTR alert fired in the 4-leg fixture; GOT: " +
         repr([(a.get('rule'), a.get('tier'), a.get('cluster')) for a in alerts])
     )
     # Stamping-v2x cross-receipt: every GOLD PLTR row in the survivor

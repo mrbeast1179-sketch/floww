@@ -581,17 +581,24 @@ async def build_briefing(
     if spot > 0 and not _is_effectively_zero(net_gex):
         try:
             from services.gex_paper_accurate import (
-                full_paper_diagnostic, put_call_ratio_signal,
-                options_order_imbalance, charm_hedging_pressure,
-                dealer_hedging_liquidity_impact, gamma_liquidity_regime,
-                option_demand_pressure, drift_burst_risk,
-                stock_order_imbalance_signal,
-                informed_option_volume_signal,
+                charm_hedging_pressure,
                 cremers_weinbaum_spread,
-                demand_pressure_premium, option_illiquidity_signal,
-                vix_gamma_fragility, overnight_drift_risk,
-                dealer_balance_sheet_fragility, cross_asset_gamma_spillover,
+                cross_asset_gamma_spillover,
+                dealer_balance_sheet_fragility,
+                dealer_hedging_liquidity_impact,
+                demand_pressure_premium,
+                drift_burst_risk,
+                full_paper_diagnostic,
+                gamma_liquidity_regime,
+                informed_option_volume_signal,
+                option_demand_pressure,
+                option_illiquidity_signal,
+                options_order_imbalance,
+                overnight_drift_risk,
+                put_call_ratio_signal,
                 real_drift_burst_risk,
+                stock_order_imbalance_signal,
+                vix_gamma_fragility,
             )
             # ADV proxy — the paper normalises by average daily share volume
             _adv_proxy = {

@@ -11,8 +11,6 @@ Additional endpoints for comprehensive GEX analysis including:
 
 from __future__ import annotations
 
-from typing import Any
-
 from fastapi import APIRouter, Path
 from fastapi.responses import JSONResponse
 
@@ -36,8 +34,9 @@ def _sanitize_json(obj):
 def _get_spot_and_chain(ticker: str) -> tuple[float, list[dict], list[dict]] | None:
     """Fetch spot price and options chain via yfinance."""
     try:
+        from datetime import date, datetime
+
         import yfinance as yf
-        from datetime import datetime, date
 
         yt = yf.Ticker(ticker.upper())
         hist = yt.history(period="5d")
@@ -116,8 +115,8 @@ async def get_gex_term_structure(
     ticker = ticker.upper()
 
     try:
-        from services.gex_term_structure import compute_gex_term_structure
         from services.gex_core import compute_gex_by_strike
+        from services.gex_term_structure import compute_gex_term_structure
 
         result = _get_spot_and_chain(ticker)
         if not result:
@@ -148,9 +147,9 @@ async def get_gex_liquidity_analysis(
     ticker = ticker.upper()
 
     try:
+        from services.gex_core import compute_gex_by_strike
         from services.gex_paper_accurate import DEFAULT_ADV_SHARES, full_paper_diagnostic
         from services.gex_vex_calculator import full_liquidity_analysis
-        from services.gex_core import compute_gex_by_strike
 
         result = _get_spot_and_chain(ticker)
         if not result:
@@ -215,8 +214,8 @@ async def get_flip_points(ticker: str = Path(..., min_length=1, max_length=10)):
     ticker = ticker.upper()
 
     try:
-        from services.gex_paper_accurate import DEFAULT_ADV_SHARES, compute_flip_metrics
         from services.gex_core import compute_gex_by_strike, find_zero_crossings
+        from services.gex_paper_accurate import compute_flip_metrics
 
         result = _get_spot_and_chain(ticker)
         if not result:

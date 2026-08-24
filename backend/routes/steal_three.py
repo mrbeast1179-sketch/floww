@@ -30,6 +30,7 @@ Audit: ``docs/reports/2026-07-11-steal-list-integration-roadmap.md`` #1, #3, #5
 from __future__ import annotations
 
 import logging
+import math
 from datetime import UTC, datetime
 from typing import Any
 
@@ -2090,7 +2091,7 @@ def realized_volatility_endpoint(
                     if hasattr(i, "strftime") else str(i),
                     "open":  float(o) if (o := getattr(r, "Open", None)) is not None else None,
                     "high":  float(h) if (h := getattr(r, "High", None)) is not None else None,
-                    "low":   float(l) if (l := getattr(r, "Low", None)) is not None else None,
+                    "low":   float(lo) if (lo := getattr(r, "Low", None)) is not None else None,
                     "close": float(c) if (c := getattr(r, "Close", None)) is not None else None,
                     "prev_close": float(c) if c is not None else None,
                 })

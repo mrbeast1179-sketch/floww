@@ -16,10 +16,10 @@ import logging
 import time
 from typing import Any
 
-logger = logging.getLogger(__name__)
-
 from fastapi import APIRouter, HTTPException, Path
 from fastapi.responses import HTMLResponse, JSONResponse
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -90,7 +90,7 @@ async def get_briefing(
             if raw:
                 spot = float(raw.get("spot", 0.0) or 0.0)
                 # Normalize contracts: convert date-string expiry to year-fraction T
-                from datetime import datetime, date
+                from datetime import date, datetime
                 today = date.today()
                 normalized = []
                 for c in raw.get("contracts", []):
