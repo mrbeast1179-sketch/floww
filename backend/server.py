@@ -321,11 +321,11 @@ def _pos_from_dict(d: dict[str, Any]) -> Position:
     p.underlying_price = d["underlying_price"]
     p.is_long = d.get("is_long", d["quantity"] > 0)
     p.dte = d.get("dte", 0)
-    p.T = d.get("T", 0)
-    p.delta = d.get("delta", 0)
-    p.gamma = d.get("gamma", 0)
-    p.vega = d.get("vega", 0)
-    p.theta = d.get("theta", 0)
+    p.T = d.get("T") or 0
+    p.delta = d.get("delta") or 0
+    p.gamma = d.get("gamma") or 0
+    p.vega = d.get("vega") or 0
+    p.theta = d.get("theta") or 0
     p.vanna = d.get("vanna", 0)
     p.charm = d.get("charm", 0)
     p.vomma = d.get("vomma", 0)
@@ -852,7 +852,7 @@ async def _build_heatmap_impl(ticker: str, max_expiries: int = 4, with_taps: boo
                     fetch_chain_from_cvserver(ticker, max_expiries=1),
                     timeout=10.0
                 )
-                spot = spot_raw.get("spot", 0) if spot_raw else 0
+                spot = (spot_raw.get("spot") or 0) if spot_raw else 0
                 if spot > 0:
                     heatmap_data = await fetch_chain_for_heatmap(ticker, spot, max_strikes)
                     if heatmap_data and heatmap_data.get("contracts"):
@@ -871,7 +871,7 @@ async def _build_heatmap_impl(ticker: str, max_expiries: int = 4, with_taps: boo
 
     # Safety: limit total contracts to prevent OOM
     if len(raw["contracts"]) > 15000:
-        sorted_c = sorted(raw["contracts"], key=lambda c: abs(c.get("strike", 0) - spot))
+        sorted_c = sorted(raw["contracts"], key=lambda c: abs((c.get("strike") or 0) - spot))
         raw["contracts"] = sorted_c[:15000]
         raw["expiries"] = sorted({c["expiry"] for c in raw["contracts"]})
 
@@ -880,11 +880,11 @@ async def _build_heatmap_impl(ticker: str, max_expiries: int = 4, with_taps: boo
     # Limit strikes to max_strikes unique strikes closest to spot (performance optimization)
     if len(raw["contracts"]) > max_strikes * 2:
         # Get unique strikes, sort by distance from spot
-        unique_strikes = sorted(set(c.get("strike", 0) for c in raw["contracts"]),
+        unique_strikes = sorted(set((c.get("strike") or 0) for c in raw["contracts"]),
                                key=lambda s: abs(s - spot))
         # Keep only max_strikes unique strikes
         kept_strikes = set(unique_strikes[:max_strikes])
-        raw["contracts"] = [c for c in raw["contracts"] if c.get("strike", 0) in kept_strikes]
+        raw["contracts"] = [c for c in raw["contracts"] if (c.get("strike") or 0) in kept_strikes]
         raw["expiries"] = sorted({c["expiry"] for c in raw["contracts"]})
 
     # Scalp mode: force 0DTE only, tight band, volume-weighted
@@ -1394,7 +1394,7 @@ async def calc_hedge_recommendation(portfolio: dict, hedge_request: dict) -> dic
         exp_date = datetime.strptime(opt["expiry"], "%Y-%m-%d").date()
         T = max((exp_date - date_type.today()).days / 365.0, 0.001)
         K = opt["strike"]
-        sigma = opt.get("iv", iv)
+        sigma = opt.get("iv") or iv
         S = spot
         g = bs_gamma(S, K, T, sigma, 0)
         v = bs_vega(S, K, T, sigma, 0)

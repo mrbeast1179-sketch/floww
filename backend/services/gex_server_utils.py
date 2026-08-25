@@ -116,11 +116,11 @@ def calc_probability_distribution(spot: float, contracts: list[dict[str, Any]],
         iv = None
         T = None
         if calls:
-            iv = calls[0].get("iv", 0.2)
-            T = calls[0].get("T", 1/365)
+            iv = calls[0].get("iv") or 0.2
+            T = calls[0].get("T") or 1/365
         elif puts:
-            iv = puts[0].get("iv", 0.2)
-            T = puts[0].get("T", 1/365)
+            iv = puts[0].get("iv") or 0.2
+            T = puts[0].get("T") or 1/365
         if not iv or iv <= 0 or not T or T <= 0:
             continue
         try:
