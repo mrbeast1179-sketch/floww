@@ -678,11 +678,11 @@ def evaluate_strategy(
             expected_pnl = current_payoff
         else:
             weight_in_profit = sum(
-                w for w, p in zip(weights, payoff_grid) if p > 0
+                w for w, p in zip(weights, payoff_grid, strict=True) if p > 0
             )
             pop = weight_in_profit / w_sum
             expected_pnl = sum(
-                w * p for w, p in zip(weights, payoff_grid)
+                w * p for w, p in zip(weights, payoff_grid, strict=True)
             ) / w_sum
 
     # ── 9. VaR / ES (lognormal-weighted payout curve) ────────────────
