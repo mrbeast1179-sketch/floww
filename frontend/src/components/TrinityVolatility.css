@@ -13,11 +13,12 @@
   font-family: inherit;
   transition: background .15s, color .15s, border-color .15s;
 }
-.tv-subtab:hover { color: #b0b8c4; border-color: rgba(255,255,255,.15); }
+.tv-subtab:hover { color: #e6e8ee; border-color: rgba(201,168,76,.35); }
 .tv-subtab.on {
-  background: #3b82f6;
-  color: #fff;
-  border-color: #3b82f6;
+  background: rgba(201, 168, 76, 0.10);
+  color: #e8c96a;
+  border-color: rgba(201, 168, 76, 0.5);
+  box-shadow: inset 0 -2px 0 rgba(232, 201, 106, 0.7);
 }
 
 .tv-root {
