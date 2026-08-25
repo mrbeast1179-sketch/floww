@@ -24,6 +24,11 @@ Run with:
 
 from __future__ import annotations
 
+import pytest
+
+pytest.importorskip("agentfield", reason="agentfield SDK not installed")
+
+
 import os
 import sys
 from pathlib import Path

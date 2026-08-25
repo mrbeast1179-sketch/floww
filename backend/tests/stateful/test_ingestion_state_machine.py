@@ -3,6 +3,7 @@
 NOTE: Skipped due to async timing issues with the mock db.
 """
 
+pytest.importorskip("hypothesis", reason="hypothesis not installed")
 import pytest
 
 pytestmark = pytest.mark.skip(reason="Async timing issues with mock db in stateful test")

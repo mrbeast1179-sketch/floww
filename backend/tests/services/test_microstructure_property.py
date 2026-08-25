@@ -9,6 +9,8 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
 
 import numpy as np
+
+pytest.importorskip("hypothesis", reason="hypothesis not installed")
 import pytest
 from hypothesis import given, settings
 from hypothesis import strategies as st

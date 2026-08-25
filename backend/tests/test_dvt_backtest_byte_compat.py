@@ -32,6 +32,13 @@ from dvt_backtest import DVTBacktester  # noqa: E402
 
 from domain.position_sizing import delta_adjusted_max_loss_size  # noqa: E402
 
+import pytest as _pytest
+
+if __import__("importlib").util.find_spec("dvt_backtest") is None:
+    _pytest.skip(
+        "dvt_backtest.py (machine-local DVT engine) not present", allow_module_level=True
+    )
+
 
 # Legacy formula kept verbatim for cross-checking.
 def _legacy_shares(account: float, risk_per_trade: float, entry: float, stop: float) -> int:
