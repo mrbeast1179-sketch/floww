@@ -779,7 +779,7 @@ async def _revalidate_heatmap(cache_key: str, ticker: str, max_expiries: int,
     """Background refresh — never raises to the caller."""
     try:
         fresh = await _build_heatmap_impl(ticker, max_expiries, with_taps, mode, dte, scalp, max_strikes)
-        if isinstance(fresh, dict) and not fresh.get("error"):
+        if isinstance(fresh, dict) and not fresh.get("error") and (fresh.get("strikes") or fresh.get("grid")):
             _BUILD_HEATMAP_CACHE[cache_key] = {"ts": time.time(), "data": fresh}
     except Exception as e:
         log.warning(f"swr revalidate failed {cache_key}: {e}")
@@ -829,7 +829,12 @@ async def _build_heatmap_impl(ticker: str, max_expiries: int = 4, with_taps: boo
     cache_key = f"{ticker}:{max_expiries}:{mode}:{dte}:{scalp}:{with_taps}:{max_strikes}"
     cached = _BUILD_HEATMAP_CACHE.get(cache_key)
     if cached and (time.time() - cached["ts"]) < _BUILD_HEATMAP_CACHE_TTL:
-        return cached["data"]
+        # Poison-entry guard: a cached payload from a degraded upstream window
+        # (e.g. cvserver 429 partial fill) must not pin zeros for the whole TTL.
+        _d = cached["data"]
+        if _d.get("spot") and (_d.get("strikes") or _d.get("grid")):
+            return _d
+        _BUILD_HEATMAP_CACHE.pop(cache_key, None)  # fall through to rebuild
 
     if mode == "swing":
         max_expiries = max(max_expiries, 8)
