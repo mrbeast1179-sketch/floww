@@ -1,5 +1,5 @@
 /**
- * HeatseekerDashboard.jsx — SKYLIT EDITION
+ * HeatseekerDashboard.jsx — ZENITH EDITION
  *
  * Major improvements:
  *   - Hero section: King Node + Spot + Regime at a glance
@@ -243,7 +243,7 @@ export default function HeatseekerDashboard({
       {/* Header */}
       <div className="flex items-baseline justify-between">
         <div>
-          <div className="label">Skylit Heatseeker</div>
+          <div className="label">Zenith Solstice</div>
           <div className="text-sm font-bold tracking-wider">
             {normalizedTicker}
             <span className="ml-2 text-[10px] uppercase tracking-widest text-slate-500">Wave 1 + 2 + 3</span>
@@ -282,7 +282,7 @@ export default function HeatseekerDashboard({
         </div>
       </div>
 
-      {/* ── Row 3: Confluence & Velocity ───────────────────────────── */}
+      {/* ── Row 3: Meridian & Velocity ───────────────────────────── */}
       {/* Compound Row 3: real-time steal-list signals (#1/#5/#3) sit on
           top per temporal order (now → past), then the historical
           VelocityModeBadge + TrinityConfluenceMeter follow below.
@@ -295,7 +295,7 @@ export default function HeatseekerDashboard({
           max-pain-per-expiry-drift) instead of relying on
           component-internal ids that may shift between versions. */}
       <div data-testid="hs-row3-confluence-velocity">
-        <SectionHeader title="Confluence & Velocity" />
+        <SectionHeader title="Meridian & Velocity" />
         <div className="space-y-4">
           {/* Steal-list sub-section: real-time flow */}
           <div className="space-y-3">
@@ -326,12 +326,12 @@ export default function HeatseekerDashboard({
           {/* Existing velocity + confluence */}
           <div className="space-y-3">
             <div className="text-[9px] uppercase tracking-widest text-slate-500 font-bold">
-              ◆ Velocity mode + Trinity confluence
+              ◆ Velocity mode + Triad confluence
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               <VelocityModeBadge ticker={normalizedTicker} />
               <TrinityConfluenceMeter />
-            </div>              {/* NEW: Max-Pain pin magnet beneath the Trinity grid (steal-list #9 base) */}
+            </div>              {/* NEW: Max-Pain pin magnet beneath the Triad grid (steal-list #9 base) */}
               <div data-testid="hs-steal-max-pain">
                 <MaxPainBadge ticker={normalizedTicker} />
               </div>

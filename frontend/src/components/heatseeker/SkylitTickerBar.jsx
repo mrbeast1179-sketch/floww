@@ -2,7 +2,7 @@ import React, { memo } from "react";
 
 /**
  * SkylitTickerBar — Top ticker tape with quick-select buttons
- * Matches Skylit reference: scrollable row of ticker buttons
+ * Matches Zenith reference: scrollable row of ticker buttons
  */
 const DEFAULT_TICKERS = [
   "SPY", "QQQ", "IWM", "DIA", "AAPL", "NVDA", "TSLA", "META",

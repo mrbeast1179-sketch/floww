@@ -1,5 +1,5 @@
 /**
- * FlowseekerPro.jsx — Complete BladeMap-style FlowSeeker Pro screener
+ * FlowseekerPro.jsx — Complete BladeMap-style Tidehunter Pro screener
  *
  * Integrates: FilterBar, StatsBar, ScreenerTable, FlowEngine
  * Fetches LIVE options flow from /api/flowseeker/live with 5s polling.
@@ -258,7 +258,7 @@ export default function FlowseekerPro({ active = true }) {
   const [events, setEvents] = useState([]);
   const [expandedId, setExpandedId] = useState(null);
   const [usingSynthetic, setUsingSynthetic] = useState(false);
-  // Blademap/Skylit control cluster: settings + quick-filter popovers
+  // Blademap/Zenith control cluster: settings + quick-filter popovers
   const [showSettings, setShowSettings] = useState(false);
   const [showFilterPanel, setShowFilterPanel] = useState(false);
   const [refreshMs, setRefreshMs] = useState(5000);
@@ -341,7 +341,7 @@ export default function FlowseekerPro({ active = true }) {
           {getTimeRangeLabel(filters.timeRange)} {usingSynthetic ? '· Synthetic' : ''}
         </span>
 
-        {/* Blademap/Skylit-style control cluster — top-right */}
+        {/* Blademap/Zenith-style control cluster — top-right */}
         <div className="fsp-ctrl-cluster">
           <button type="button"
                   className={`fsp-ctrl-btn ${showSettings ? 'on' : ''}`}

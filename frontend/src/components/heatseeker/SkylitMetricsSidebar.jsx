@@ -3,7 +3,7 @@ import React, { memo } from "react";
 /**
  * SkylitMetricsSidebar — Right-side metrics panel
  *
- * Matches Skylit reference:
+ * Matches Zenith reference:
  * - KING strike (highest GEX)
  * - |GEX| total absolute gamma
  * - TOP FLOOR (highest support)

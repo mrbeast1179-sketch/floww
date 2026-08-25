@@ -3,7 +3,7 @@ import { fmt } from "../lib/helpers";
 import { strategyRiskReward } from "./tradeMath";
 
 /**
- * Quick Trade Panel — slide-up panel for rapid trade entry from Trinity
+ * Quick Trade Panel — slide-up panel for rapid trade entry from Triad
  *
  * Triggered by clicking any strike row in TrinityView.
  * Pre-populates with strike, spot, GEX data.

@@ -2,13 +2,13 @@ export const SIDEBAR_KEY = "apw.sidebarCollapsed";
 
 // legacy:true tabs render inside a .legacy-theme wrapper (preserved look)
 // These are the pages we keep from the original floww project
-// The original floww Confluence Decoder views — AlphaPod clone removed 2026-06-15.
+// The original floww Meridian views — AlphaPod clone removed 2026-06-15.
 export const NAV_ITEMS = [
   // Decoder
-  { id: "heatseeker", label: "Heatseeker", group: "Decoder", icon: "grid", legacy: true },
-  { id: "trinity",    label: "Trinity",    group: "Decoder", icon: "layers", legacy: true },
-  { id: "skylit",     label: "Skylit",     group: "Decoder", icon: "bar-chart", legacy: true },
-  { id: "flowseeker-pro", label: "Flowseeker Pro", group: "Decoder", icon: "zap", legacy: true },
+  { id: "heatseeker", label: "Solstice", group: "Decoder", icon: "grid", legacy: true },
+  { id: "trinity",    label: "Triad",    group: "Decoder", icon: "layers", legacy: true },
+  { id: "skylit",     label: "Zenith",     group: "Decoder", icon: "bar-chart", legacy: true },
+  { id: "flowseeker-pro", label: "Tidehunter Pro", group: "Decoder", icon: "zap", legacy: true },
 
   // Trading
   { id: "portfolio",  label: "Portfolio",  group: "Trading", icon: "trending-up" },

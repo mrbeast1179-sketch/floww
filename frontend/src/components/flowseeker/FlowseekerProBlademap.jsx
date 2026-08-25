@@ -1,5 +1,5 @@
 /**
- * FlowseekerProBlademap.jsx — Blademap.ai-style FlowSeeker Pro, wired to REAL
+ * FlowseekerProBlademap.jsx — Blademap.ai-style Tidehunter Pro, wired to REAL
  * cvforge data. Ported from the /Users/nav/cv-apps/screener mock; mock used
  * synthetic ticks, this uses the live decoder endpoints:
  *   /api/flowseeker/live  /ofi/{t}  /regime/{t}  /vpin/{t}  /lambda/{t}
@@ -186,7 +186,7 @@ export default function FlowseekerProBlademap({ active = true }) {
   const [convFeed, setConvFeed] = useState([]);
   const [calibBands, setCalibBands] = useState([]);
   const [setupStats, setSetupStats] = useState(null);
-  // ── Skylit-style control cluster state (settings + quick filters) ──
+  // ── Zenith-style control cluster state (settings + quick filters) ──
   const [showSettings, setShowSettings] = useState(false);
   const [showQuickFilters, setShowQuickFilters] = useState(false);
   const [pollMs, setPollMs] = useState(() => {
@@ -508,30 +508,6 @@ export default function FlowseekerProBlademap({ active = true }) {
     return () => { alive = false; };
   }, [active, refreshTick]);
 
-  // Keyboard nav (scanner tab only, ignored while typing in an input)
-  useEffect(() => {
-    if (!active || tab !== "scanner") return;
-    const onKey = (e) => {
-      const t = e.target;
-      if (t && (t.tagName === "INPUT" || t.tagName === "SELECT" || t.tagName === "TEXTAREA")) {
-        if (e.key === "Escape") t.blur();
-        return;
-      }
-      if (e.key === "/") { e.preventDefault(); scanQRef.current && scanQRef.current.focus(); return; }
-      if (e.key === "r" || e.key === "R") { forceRefresh(); return; }
-      const n = scanRows.length;
-      if (!n) return;
-      if (e.key === "j" || e.key === "ArrowDown") { e.preventDefault(); setKbIdx((k) => Math.min(n - 1, k + 1)); }
-      else if (e.key === "k" || e.key === "ArrowUp") { e.preventDefault(); setKbIdx((k) => Math.max(0, k - 1)); }
-      else if (e.key === "g") { e.preventDefault(); setKbIdx(0); }
-      else if (e.key === "G") { e.preventDefault(); setKbIdx(n - 1); }
-      else if (e.key === "Enter" && kbIdx >= 0 && scanRows[kbIdx]) {
-        setTicker(scanRows[kbIdx].under); setTab("flow");
-      } else if (e.key === "Escape") { setKbIdx(-1); }
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [active, tab, scanRows, kbIdx, forceRefresh]);
 
   // ---- daily volume history (sparklines + persistence streaks) ----
   // Mongo-only on the backend (no upstream call) and it changes once a day —
@@ -627,7 +603,7 @@ export default function FlowseekerProBlademap({ active = true }) {
         if (scanMinScore && r.score < scanMinScore) return false;
       }
       if (q && !(r.under || "").toUpperCase().includes(q)) return false;
-      // Skylit control-cluster quick filters
+      // Zenith control-cluster quick filters
       if (minScoreQF > 0 && (r.score ?? 0) < minScoreQF) return false;
       if (dteRange[0] != null && dteDays(r.exp) != null && dteDays(r.exp) < dteRange[0]) return false;
       if (dteRange[1] != null && dteDays(r.exp) != null && dteDays(r.exp) > dteRange[1]) return false;
@@ -642,6 +618,31 @@ export default function FlowseekerProBlademap({ active = true }) {
     });
     return rows;
   }, [scan, scanTypeF, scanMinVol, scanMinScore, scanQ, scanSort, universe, universeOnly, advanced, minScoreQF, dteRange]);
+  // Keyboard nav (scanner tab only, ignored while typing in an input)
+  useEffect(() => {
+    if (!active || tab !== "scanner") return;
+    const onKey = (e) => {
+      const t = e.target;
+      if (t && (t.tagName === "INPUT" || t.tagName === "SELECT" || t.tagName === "TEXTAREA")) {
+        if (e.key === "Escape") t.blur();
+        return;
+      }
+      if (e.key === "/") { e.preventDefault(); scanQRef.current && scanQRef.current.focus(); return; }
+      if (e.key === "r" || e.key === "R") { forceRefresh(); return; }
+      const n = scanRows.length;
+      if (!n) return;
+      if (e.key === "j" || e.key === "ArrowDown") { e.preventDefault(); setKbIdx((k) => Math.min(n - 1, k + 1)); }
+      else if (e.key === "k" || e.key === "ArrowUp") { e.preventDefault(); setKbIdx((k) => Math.max(0, k - 1)); }
+      else if (e.key === "g") { e.preventDefault(); setKbIdx(0); }
+      else if (e.key === "G") { e.preventDefault(); setKbIdx(n - 1); }
+      else if (e.key === "Enter" && kbIdx >= 0 && scanRows[kbIdx]) {
+        setTicker(scanRows[kbIdx].under); setTab("flow");
+      } else if (e.key === "Escape") { setKbIdx(-1); }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [active, tab, scanRows, kbIdx, forceRefresh]);
+
 
   const scanStats = useMemo(() => {
     let notl = 0, cv = 0, pv = 0, unusual = 0, alerts = 0; const cnt = {};
@@ -726,6 +727,7 @@ export default function FlowseekerProBlademap({ active = true }) {
     ["oi", "OI", false], ["oiChgPct", "ΔOI", false], ["volOI", "Vol/OI", false], ["premium", "Prem~", false],
     ["notional", "Notional", false],
     ["iv", "IV", false], ["ftype", "Flow", true], ["lean", "Lean", true],
+    ["trend", "Trd", false],
   ];
   // Simple mode: the columns a decision needs, nothing else.
   const SIMPLE_KEYS = ["firstSeen", "score", "under", "type", "strike", "dte", "vol", "oiChgPct", "premium", "ftype"];
@@ -1516,6 +1518,22 @@ export default function FlowseekerProBlademap({ active = true }) {
                             }>{r.arch}</span> : null}
                           </td>
                           {advanced && <td className="l"><span className={`fsb-lean ${isCall ? "bull" : "bear"}`}>{isCall ? "▲ BULL" : "▼ BEAR"}</span>{otm ? <span className="fsb-sub"> {r.deltaEst ? "~" : ""}{otm}</span> : null}</td>}
+                          {advanced && (() => {
+                            const hist = history[r.under] || [];
+                            const days = hist.slice(-7);
+                            const maxv = Math.max(1, ...days.map((d) => d.total_vol || 0));
+                            const stk = (streaks[r.under] && streaks[r.under].n) || 0;
+                            return (
+                              <td className="fsb-trd" title={`${r.under}: last ${days.length}d volume (elevated-day streak ${stk}d)`}>
+                                {days.length > 1 ? days.map((d, di) => (
+                                  <i key={di}
+                                     className={di === days.length - 1 ? "now" : ""}
+                                     style={{ height: `${Math.max(2, Math.round(((d.total_vol || 0) / maxv) * 12))}px` }}
+                                     title={`${d.date}: ${((d.total_vol || 0) / 1e6).toFixed(1)}M`} />
+                                )) : <span className="fsb-sub">—</span>}
+                              </td>
+                            );
+                          })()}
                         </tr>
                       );
                     })}
@@ -1546,8 +1564,9 @@ export default function FlowseekerProBlademap({ active = true }) {
 
       <div className="fsb-foot">
         <span>Live cvforge data · GEX/OFI/regime from the decoder backend. VPIN/Kyle-λ need a trade-level feed (n/a on cvserver). Vol surface simulated.</span>
-        <span>FlowSeeker Pro · Blademap layout</span>
+        <span>Tidehunter Pro · Blademap layout</span>
       </div>
     </div>
   );
 }
+

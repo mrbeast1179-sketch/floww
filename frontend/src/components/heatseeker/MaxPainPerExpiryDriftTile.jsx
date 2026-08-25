@@ -1,7 +1,7 @@
 /**
  * MaxPainPerExpiryDriftTile.jsx
  *
- * HeatseekerDashboard Row 3 + Skylit steal-list band tile — multi-line SVG
+ * HeatseekerDashboard Row 3 + Zenith steal-list band tile — multi-line SVG
  * chart showing the per-expiry max_pain_strike evolution across the last N
  * days. Fetches GET /api/max_pain_drift/{ticker}/per_expiry_history?days=30
  * (a sibling endpoint of the aggregate /api/max_pain_drift/{ticker} that

@@ -11,15 +11,15 @@ beforeEach(() => localStorage.clear());
 test("renders nav items and reflects active page", () => {
   render(<Sidebar page="trinity" onNavigate={() => {}} />);
   // Pin to current NAV_ITEMS (Flow Alerts left the config long ago; the
-  // Heatseeker entry is the stable first Decoder item).
-  expect(screen.getByRole("button", { name: /Heatseeker/ })).toBeInTheDocument();
-  expect(screen.getByRole("button", { name: /Trinity/ })).toHaveAttribute("aria-current", "page");
+  // Solstice entry is the stable first Decoder item).
+  expect(screen.getByRole("button", { name: /Solstice/ })).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: /Triad/ })).toHaveAttribute("aria-current", "page");
 });
 
 test("clicking a nav item calls onNavigate with its id", () => {
   const onNavigate = jest.fn();
   render(<Sidebar page="trinity" onNavigate={onNavigate} />);
-  fireEvent.click(screen.getByRole("button", { name: /Heatseeker/ }));
+  fireEvent.click(screen.getByRole("button", { name: /Solstice/ }));
   expect(onNavigate).toHaveBeenCalledWith("heatseeker");
 });
 

@@ -1,12 +1,12 @@
 import React, { useEffect, useState, useMemo, useCallback, useRef } from "react";
 import axios from "axios";
-import { fmt, fmtAbs, TRINITY } from "../lib/helpers";
+import { fmt, fmtAbs, TRIAD } from "../lib/helpers";
 import { API as BACKEND_API } from "../config/api";
 
 const API = BACKEND_API;
 
 /**
- * Trinity 3-Panel View — Institutional Redesign
+ * Triad 3-Panel View — Institutional Redesign
  *
  * Improvements:
  * - Stale-while-revalidate: show cached data instantly, refresh in background
@@ -106,7 +106,7 @@ const GEX_VEX_MODES = [
   { id: "vex", label: "VEX" },
 ];
 
-// ── Main Trinity View ────────────────────────────────────────────────
+// ── Main Triad View ────────────────────────────────────────────────
 export default function TrinityView({ onFocusTicker, onTradeSelect }) {
   const [allData, setAllData] = useState({});
   const [loading, setLoading] = useState(true);
@@ -172,7 +172,7 @@ export default function TrinityView({ onFocusTicker, onTradeSelect }) {
     return (
       <div className="trinity-loading">
         <div className="trinity-loading-spinner" />
-        <span>Loading Trinity…</span>
+        <span>Loading Triad…</span>
       </div>
     );
   }
@@ -184,7 +184,7 @@ export default function TrinityView({ onFocusTicker, onTradeSelect }) {
     <div className="trinity-layout" data-testid="trinity-view">
       <ConfluenceBar data={allData} viewMode={viewMode} onViewModeChange={setViewMode} gexVexMode={gexVexMode} onGexVexChange={setGexVexMode} dteFilter={dteFilter} onDteChange={setDteFilter} lastUpdate={lastUpdate} loading={loading} />
       <div className="trinity-panels">
-        {TRINITY.map((defaultTicker, idx) => {
+        {TRIAD.map((defaultTicker, idx) => {
           const currentTicker = panelTickers[idx] || defaultTicker;
           return (
             <TrinityPanel key={idx} ticker={currentTicker} data={allData[currentTicker] || allData[defaultTicker]} viewMode={viewMode} gexVexMode={gexVexMode} loading={loading && !allData[currentTicker]} onFocus={() => onFocusTicker && onFocusTicker(currentTicker)} onTickerChange={(t) => setPanelTickers(prev => ({ ...prev, [idx]: t }))} onTradeSelect={onTradeSelect} />
@@ -198,7 +198,7 @@ export default function TrinityView({ onFocusTicker, onTradeSelect }) {
 
 function ConfluenceBar({ data, viewMode, onViewModeChange, gexVexMode, onGexVexChange, dteFilter, onDteChange, lastUpdate, loading }) {
   const { regimes, confluence, hasTickers } = useMemo(() => {
-    const tickers = TRINITY.map(t => data[t]).filter(d => d && !d.error);
+    const tickers = TRIAD.map(t => data[t]).filter(d => d && !d.error);
     const regs = tickers.map(d => d.nodes?.regime).filter(Boolean);
     const conf = regs.length > 0 ? regs.filter(r => r === regs[0]).length / regs.length : 0;
     return { regimes: regs, confluence: conf, hasTickers: tickers.length > 0 };
@@ -211,7 +211,7 @@ function ConfluenceBar({ data, viewMode, onViewModeChange, gexVexMode, onGexVexC
   return (
     <div className="trinity-summary">
       <div className="trinity-summary-left">
-        <div className="trinity-stat"><span className="trinity-stat-label">Confluence</span><span className={`trinity-stat-value ${confluence === 1 ? "text-emerald-400" : confluence >= 0.66 ? "text-amber-400" : "text-rose-400"}`}>{(confluence * 100).toFixed(0)}%</span></div>
+        <div className="trinity-stat"><span className="trinity-stat-label">Meridian</span><span className={`trinity-stat-value ${confluence === 1 ? "text-emerald-400" : confluence >= 0.66 ? "text-amber-400" : "text-rose-400"}`}>{(confluence * 100).toFixed(0)}%</span></div>
         <div className="trinity-divider" />
         <div className="trinity-stat"><span className="trinity-stat-label">Regime</span><span className={`trinity-stat-value ${regimes[0] === "positive" ? "text-emerald-400" : regimes[0] === "negative" ? "text-rose-400" : "text-slate-400"}`}>{regimes[0] || "—"}</span></div>
         <div className="trinity-divider" />

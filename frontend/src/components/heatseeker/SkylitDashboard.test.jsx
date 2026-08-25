@@ -20,7 +20,7 @@ global.IntersectionObserver = class IntersectionObserver {
   unobserve() {};
 };
 
-// Mock Skylit sub-components to null-mounts (no network calls; faster).
+// Mock Zenith sub-components to null-mounts (no network calls; faster).
 jest.mock("./SkylitTickerBar",       () => () => <div data-testid="mock-ticker-bar" />);
 jest.mock("./SkylitControlBar",      () => () => <div data-testid="mock-control-bar" />);
 jest.mock("./SkylitHeatmapGrid",     () => () => <div data-testid="mock-heatmap" />);
@@ -56,7 +56,7 @@ describe("SkylitDashboard", () => {
       render(<SkylitDashboard ticker="SPY" />);
     });
 
-    // Skylit chrome (top → bottom)
+    // Zenith chrome (top → bottom)
     expect(screen.getByTestId("mock-ticker-bar")).toBeInTheDocument();
     expect(screen.getByTestId("mock-control-bar")).toBeInTheDocument();
     expect(screen.getByTestId("mock-heatmap")).toBeInTheDocument();

@@ -1,5 +1,5 @@
 /**
- * NewsBadge.jsx — Heatseeker Row 4 (3rd-column) news pulse tile.
+ * NewsBadge.jsx — Solstice Row 4 (3rd-column) news pulse tile.
  *
  * Fetches GET /api/news/{ticker}/history?days={N} (default days=14) and surfaces
  * 5 fields the steal-list .md explicitly lists for Flowseeker alert correlation:

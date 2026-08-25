@@ -1,5 +1,5 @@
 {
-  "name": "Confluence Decoder",
+  "name": "Meridian",
   "short_name": "Floww",
   "description": "Institutional GEX Terminal — Real-time options flow, gamma exposure, and market analytics",
   "start_url": "/",
@@ -30,8 +30,8 @@
   ],
   "shortcuts": [
     {
-      "name": "Heatseeker",
-      "short_name": "Heatseeker",
+      "name": "Solstice",
+      "short_name": "Solstice",
       "description": "GEX Heatmap",
       "url": "/?page=heatseeker"
     },

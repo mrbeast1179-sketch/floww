@@ -1,5 +1,5 @@
 /**
- * Tests for useHeatseeker — the fetch hook backing every Heatseeker panel.
+ * Tests for useHeatseeker — the fetch hook backing every Solstice panel.
  *
  * Behaviour under test:
  *   1. Initial render returns {data: null, loading: true, error: null} while the

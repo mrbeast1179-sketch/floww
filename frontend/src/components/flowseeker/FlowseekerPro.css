@@ -1,4 +1,4 @@
-/* FlowseekerPro.css — Complete BladeMap dark theme for FlowSeeker Pro */
+/* FlowseekerPro.css — Complete BladeMap dark theme for Tidehunter Pro */
 .fsp-root {
   --bg-primary: #0a0e17;
   --bg-secondary: #111827;
@@ -1092,7 +1092,7 @@ tr.fsp-row-open td { background: rgba(52, 211, 153, 0.04); }
 .fsp-ls b { font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.4px; }
 
 
-/* ── Blademap/Skylit control cluster (header top-right) ── */
+/* ── Blademap/Zenith control cluster (header top-right) ── */
 .fsp-header { position: relative; display: flex; align-items: center; }
 .fsp-ctrl-cluster {
   margin-left: auto;

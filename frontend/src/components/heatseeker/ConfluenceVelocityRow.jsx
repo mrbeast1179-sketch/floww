@@ -2,7 +2,7 @@
  * ConfluenceVelocityRow.jsx — historical steal-list signals tile.
  *
  * Renders a 7-column grid of tiles that lift the 7 newly-shipped
- * backend services onto the Skylit dashboard Row 3 ("Confluence &
+ * backend services onto the Zenith dashboard Row 3 ("Meridian &
  * Velocity"). Each tile is a small standalone fetcher (axios +
  * AbortController for unmount cleanup) so swapping tickers doesn't
  * cascade into a single state-tree cleanup race.
@@ -28,7 +28,7 @@
  *
  * Steal intent: aggregate rank #6 (consensus) + #7 (RV/VRP) + #9
  * (max-pain-drift) + #10 (strike-cone) + #14 (OCC who-traded) + #20
- * (insider-scraper) into a single Confluence row visible above the
+ * (insider-scraper) into a single Meridian row visible above the
  * existing real-time steal-list sub-section.
  */
 
@@ -398,7 +398,7 @@ function OCCVolumeTile({ ticker }) {
 // Short-vol-favored when IV > RV (premium being collected exceeds
 // what the market actually delivers); long-vol-favored when IV < RV.
 // Mirrors the speculative-grade chip shown on the OptionsFlowCard but
-// scaled for the historical Confluence & Velocity row.
+// scaled for the historical Meridian & Velocity row.
 
 function RawVsRealizedBadge({ ticker }) {
   const { data, loading, error } = useFetch(ticker, "/api/vol/realized", {

@@ -2,7 +2,7 @@ import React, { useMemo } from "react";
 import { fmt } from "../lib/helpers";
 
 /**
- * DOM/Level 2 Order Book Heatmap — Skylit reference style
+ * DOM/Level 2 Order Book Heatmap — Zenith reference style
  *
  * Reference: TSLA DOM heatmap at $406.43
  * - Background: #1a1a1a (dark charcoal)

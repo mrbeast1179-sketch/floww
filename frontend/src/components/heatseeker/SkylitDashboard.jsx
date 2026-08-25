@@ -13,29 +13,29 @@ import MaxPainBadge from "./MaxPainBadge";
 import MaxPainPerExpiryDriftTile from "./MaxPainPerExpiryDriftTile";
 // NEW (2026-07-16): steal-list #10 (strike cone) + #8 (opportunity
 // engine) — surfaced into the skylit bottom band so the steal-three
-// is visible without scrolling to Heatseeker Row 4. Pairs with the
+// is visible without scrolling to Solstice Row 4. Pairs with the
 // existing Dual-GEX / IV-Mid / Wheel-Income / Max-Pain mounts already
 // in the skylit-steal-list-band container below.
 import StrikeConeBadge from "./StrikeConeBadge";
 import OpportunityBadge from "./OpportunityBadge";
-// Steal-list news/pulse — Row 3.5 tile on Skylit's bottom band,
-// mirrors the Heatseeker Dashboard top-3 pattern so users see the
+// Steal-list news/pulse — Row 3.5 tile on Zenith's bottom band,
+// mirrors the Solstice Dashboard top-3 pattern so users see the
 // same signals on either layout.
 import NewsBadge from "./NewsBadge";
 // Steal-list #4 — Risk-Neutral Density full-width tile beneath the
 // strike-cone / opportunity band so the PDF + CDF SVG gets horizontal
-// real estate. (Mirrors Heatseeker Row 4b mount.)
+// real estate. (Mirrors Solstice Row 4b mount.)
 import RndDensityPanel from "./RndDensityPanel";
 
 /**
- * SkylitDashboard — Full Skylit-style trading dashboard
+ * SkylitDashboard — Full Zenith-style trading dashboard
  *
  * Layout:
  *   1. TickerBar (top ticker tape)
  *   2. ControlBar (GEX/VEX, price, timeframe)
  *   3. Main area: HeatmapGrid + MetricsSidebar
  *
- * Matches Skylit reference from screenshots:
+ * Matches Zenith reference from screenshots:
  * - Dark background (#0a0e1a)
  * - Ticker buttons at top
  * - GEX/VEX toggle + LIVE badge
@@ -177,13 +177,13 @@ function SkylitDashboard({
         </div>
       </div>
 
-      {/* 3.5 Confluence & Velocity — bottom band of steal-list signals */}
+      {/* 3.5 Meridian & Velocity — bottom band of steal-list signals */}
       {/* Mirrors HeatseekerDashboard Row 3 so the steal-list top-3 appear on
-          BOTH the default Heatseeker page (this component) AND the
-          Sidebar→Skylit page (HeatseekerDashboard legacy layout). */}
+          BOTH the default Solstice page (this component) AND the
+          Sidebar→Zenith page (HeatseekerDashboard legacy layout). */}
       <div className="px-3 py-3 space-y-3 border-t border-slate-800/40" data-testid="skylit-steal-list-band">
         <div className="text-[9px] uppercase tracking-widest text-slate-500 font-bold">
-          ◆ Confluence & Velocity · #1 Dual-GEX · #5 IV-Mid · #3 Wheel income
+          ◆ Meridian & Velocity · #1 Dual-GEX · #5 IV-Mid · #3 Wheel income
         </div>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
           <div data-testid="skylit-steal-dual-gex">
@@ -221,11 +221,11 @@ function SkylitDashboard({
         </div>
 
         {/* NEW (2026-07-16): News pulse + Risk-Neutral Density — extend
-            the Skylit bottom band to mirror the Heatseeker Dashboard
-            Row 4 (news) + Row 4b (RND full-width). The Skylit layout
+            the Zenith bottom band to mirror the Solstice Dashboard
+            Row 4 (news) + Row 4b (RND full-width). The Zenith layout
             keeps the existing max-pain-drift multi-line chart at the
             top and appends these two tiles below it so the
-            visualisation cadence matches the Heatseeker iteration:
+            visualisation cadence matches the Solstice iteration:
             analytics → flow → expected-moves → RND. */}
         <div className="pt-1" data-testid="skylit-steal-news-band">
           <NewsBadge ticker={ticker} days={14} />

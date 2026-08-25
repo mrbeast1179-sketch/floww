@@ -1,5 +1,5 @@
 /**
- * BriefingStrip — Heatseeker top strip showing the paper-accurate briefing
+ * BriefingStrip — Solstice top strip showing the paper-accurate briefing
  * metrics that were previously invisible in the UI (net GEX, regime, gamma
  * imbalance, flip level, intraday regime prediction).
  *

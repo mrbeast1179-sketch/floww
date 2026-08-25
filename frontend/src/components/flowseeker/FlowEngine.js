@@ -1,5 +1,5 @@
 /**
- * FlowEngine.js — Pure JS module with ALL math for FlowSeeker Pro.
+ * FlowEngine.js — Pure JS module with ALL math for Tidehunter Pro.
  *
  * Exports:
  *   - flowClassification(legs) → "SWEEP" | "BLOCK" | "SPLIT" | "VWAP_ALGO" | "UNKNOWN"

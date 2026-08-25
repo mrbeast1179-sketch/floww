@@ -9,10 +9,10 @@
  *      → { regime, opportunity_score, opportunity_tier, direction,
  *          trade_type, trade_bias, invalidation, components, warnings }
  *
- * so the Heatseeker page shows a direct, readable readout of "what the
+ * so the Solstice page shows a direct, readable readout of "what the
  * market regime is + what the engine is recommending + why you'd
  * invalidate it" — the precise surface the steal-list .md entry #8
- * promises ("Surface as a new Skylit 'Trade Ideas' card next to
+ * promises ("Surface as a new Zenith 'Trade Ideas' card next to
  * Flowseeker").
  *
  * Visual treatment mirrors `HeatseekerDashboard.jsx`'s slate palette

@@ -4,8 +4,8 @@
  * Renders all three top-ranked steals (#1 Dual-GEX badge, #3 Wheel income
  * panel, #5 IV-Mid badge) in a layout that matches HeatseekerDashboard's
  * visual tier. Intended to be the entry point for the "Steal Three"
- * nav-item delivered by this turn. Confluence-decoder surface: this
- * page lives alongside Heatseeker, Trinity, Flowseeker Pro in the
+ * nav-item delivered by this turn. Meridian-decoder surface: this
+ * page lives alongside Solstice, Triad, Tidehunter Pro in the
  * Decoder group.
  *
  * Endpoint base: http://localhost:8000 (canonical floww backend; the same
@@ -16,8 +16,8 @@
  *   { id: "steal-three", label: "Steal Three", group: "Decoder",
  *     icon: "sparkles" }
  * to frontend/src/shell/navConfig.js. If AppShell's router is id-based
- * the page renders automatically (existing convention for Trinity,
- * Flowseeker Pro, etc.).
+ * the page renders automatically (existing convention for Triad,
+ * Tidehunter Pro, etc.).
  */
 
 import React, { memo, useState } from "react";
@@ -36,7 +36,7 @@ function StealThreePreview({ defaultTicker = "SPY" }) {
       {/* Page Header */}
       <div className="flex items-baseline justify-between gap-3 flex-wrap">
         <div>
-          <div className="label">Confluence Decoder · Steal Three</div>
+          <div className="label">Meridian · Steal Three</div>
           <div className="text-sm font-bold tracking-wider flex items-center gap-2">
             <span className="w-1.5 h-1.5 rounded-full bg-sky-400 animate-pulse" />
             {ticker}

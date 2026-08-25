@@ -10,7 +10,7 @@
   overflow-x: hidden;
 }
 
-/* Heatseeker layout - mobile first */
+/* Solstice layout - mobile first */
 .heatseeker-layout {
   display: flex;
   flex-direction: column;
@@ -130,7 +130,7 @@
 
 /* ===== TABLET (768px+) ===== */
 @media (min-width: 768px) {
-  /* Heatseeker: left sidebar visible, right sidebar hidden */
+  /* Solstice: left sidebar visible, right sidebar hidden */
   .heatseeker-layout {
     display: grid;
     grid-template-columns: 240px 1fr;
@@ -283,7 +283,7 @@
   to   { opacity: 0; transform: translateY(-12px) scale(0.95); }
 }
 
-/* ===== SKYLIT 2D GRID — dark navy/viridis styling ===== */
+/* ===== ZENITH 2D GRID — dark navy/viridis styling ===== */
 .skylit-grid-container {
   background: #0a0e1a !important;
   border-radius: 6px;
@@ -306,7 +306,7 @@
   background: #0a0e1a;
 }
 
-/* Skylit two-column layout override (no left sidebar = no dead column) */
+/* Zenith two-column layout override (no left sidebar = no dead column) */
 @media (min-width: 1024px) {
   .skylit-layout {
     grid-template-columns: 1fr 280px !important;
@@ -318,7 +318,7 @@
   }
 }
 
-/* ===== SKYLIT full-width dashboard ===== */
+/* ===== ZENITH full-width dashboard ===== */
 .skylit-dashboard {
   flex: 1;
   min-height: 0;
@@ -416,7 +416,7 @@
 }
 
 /* ================================================================
-   DOM / Level 2 Order Book Heatmap — Skylit reference style
+   DOM / Level 2 Order Book Heatmap — Zenith reference style
    No column headers, 5 data cells per row, price axis left.
    Background: #1a1a1a (dark charcoal)
    Price axis: #2d3a4d (blue-gray)
@@ -662,7 +662,7 @@
   margin-left: auto;
 }
 
-/* ── Heatseeker sidebar metric grid ── */
+/* ── Solstice sidebar metric grid ── */
 .heatseeker-sidebar-left .grid-cols-2 {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -683,7 +683,7 @@
   font-weight: 600;
 }
 
-/* ── Heatseeker sidebar panel sections ── */
+/* ── Solstice sidebar panel sections ── */
 .heatseeker-sidebar-left .panel {
   background: rgba(255,255,255,0.02);
   border: 1px solid rgba(255,255,255,0.04);
@@ -694,7 +694,7 @@
   margin-top: 6px;
 }
 
-/* ── Heatseeker sidebar button groups ── */
+/* ── Solstice sidebar button groups ── */
 .heatseeker-sidebar-left .btn {
   font-size: 8px;
   padding: 3px 6px;
@@ -718,7 +718,7 @@
   border-color: rgba(94,234,212,0.3);
 }
 
-/* ── Heatseeker sidebar labels ── */
+/* ── Solstice sidebar labels ── */
 .heatseeker-sidebar-left .label {
   font-size: 9px;
   color: #94a3b8;
@@ -728,7 +728,7 @@
   display: block;
 }
 
-/* ── Heatseeker sidebar LIVE indicator ── */
+/* ── Solstice sidebar LIVE indicator ── */
 .heatseeker-sidebar-left .flash-pulse {
   animation: heatseeker-live-pulse 2s ease-in-out infinite;
 }
@@ -737,7 +737,7 @@
   50% { opacity: 0.4; }
 }
 
-/* ── Heatseeker sidebar divider ── */
+/* ── Solstice sidebar divider ── */
 .heatseeker-sidebar-left .dotted-divider {
   border-top: 1px dotted rgba(255,255,255,0.08);
   margin: 10px 0;
@@ -764,7 +764,7 @@
 }
 
 /* ================================================================
-   Multi-Ticker Heatmap — Skylit reference style
+   Multi-Ticker Heatmap — Zenith reference style
    Rows = SPY strikes (descending), Columns = tickers
    Cell color = Net GEX for that ticker at that strike
    ================================================================ */
@@ -856,7 +856,7 @@
 .multi-heatmap-container::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.06); border-radius: 2px; }
 
 /* ================================================================
-   Trinity 3-Panel View — Heatseeker-matched aesthetic
+   Triad 3-Panel View — Solstice-matched aesthetic
    Three side-by-side panels with price ladder + heatmap bars
    ================================================================ */
 
@@ -869,7 +869,7 @@
   background: #0b0f19;
 }
 
-/* ── Summary bar (matches Heatseeker top bar) ── */
+/* ── Summary bar (matches Solstice top bar) ── */
 .trinity-summary {
   display: flex;
   align-items: center;
@@ -908,7 +908,7 @@
 .trinity-verdict-warn { color: #f5b042; background: rgba(245,176,66,0.1); }
 .trinity-verdict-neg { color: #ff4d5e; background: rgba(255,77,94,0.1); }
 
-/* ── View toggle buttons (pill-shaped like Heatseeker) ── */
+/* ── View toggle buttons (pill-shaped like Solstice) ── */
 .trinity-view-toggle {
   display: flex;
   gap: 2px;
@@ -941,7 +941,7 @@
 .trinity-view-icon { font-size: 11px; }
 .trinity-view-label { font-size: 9px; text-transform: uppercase; letter-spacing: 0.04em; }
 
-/* ── GEX/VEX toggle (matches Heatseeker chips) ── */
+/* ── GEX/VEX toggle (matches Solstice chips) ── */
 .trinity-gexvex-toggle {
   display: flex;
   gap: 2px;
@@ -1073,7 +1073,7 @@
   50% { opacity: 0.6; box-shadow: 0 0 0 3px rgba(25,210,124,0); }
 }
 
-/* ── Skylit live pill ── */
+/* ── Zenith live pill ── */
 .skylit-live-pill {
   font-size: 9px;
   font-weight: 700;
@@ -1306,7 +1306,7 @@
 .trinity-grid::-webkit-scrollbar-track { background: transparent; }
 .trinity-grid::-webkit-scrollbar-thumb { background: #1e293b; border-radius: 2px; }
 
-/* ── Heatmap bar style for rows (like Heatseeker) ── */
+/* ── Heatmap bar style for rows (like Solstice) ── */
 .trinity-bar-row {
   display: flex;
   align-items: center;
@@ -2490,7 +2490,7 @@
   font-family: "JetBrains Mono", monospace;
 }
 
-/* ===== FLOWSEEKER PRO TAB — Skylit reference style ===== */
+/* ===== TIDEHUNTER PRO TAB — Zenith reference style ===== */
 .flowseeker-layout {
   display: flex;
   flex-direction: row;
@@ -2848,8 +2848,8 @@ button, select, input {
 .gex-row-low { background: rgba(148,163,184,0.08) !important; }
 
 /* ============================================================
-   SKYLIT FULL DASHBOARD — Institutional Trading UI
-   Matches Skylit reference screenshots
+   ZENITH FULL DASHBOARD — Institutional Trading UI
+   Matches Zenith reference screenshots
    ============================================================ */
 
 /* ── Full Dashboard Container ── */
@@ -3635,13 +3635,13 @@ button, select, input {
   }
 }
 
-/* ── Skylit Dashboard in legacy theme context ── */
+/* ── Zenith Dashboard in legacy theme context ── */
 .legacy-theme .skylit-full-dashboard {
   background: #0a0e1a;
 }
 
 
-/* ── Skylit heatseeker matrix (strike × expiry) ─────────────────────── */
+/* ── Zenith heatseeker matrix (strike × expiry) ─────────────────────── */
 .trin-grid-table {
   border-collapse: collapse;
   font-family: "SF Mono", "JetBrains Mono", Menlo, Consolas, monospace;
@@ -3753,7 +3753,7 @@ button, select, input {
 
 /* ============================================================
    GLOBAL THEME UNIFICATION — match everything to the
-   Heatseeker dark/gold design system (index.css :root tokens)
+   Solstice dark/gold design system (index.css :root tokens)
    Retints legacy slate/teal/sky utility styling to gold/dark.
    ============================================================ */
 

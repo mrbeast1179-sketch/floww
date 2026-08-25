@@ -32,10 +32,10 @@ export const tagFor = (kind) => ({
 export const expFmt = (e) => { try { const [, m, d] = e.split("-"); return `${m}-${d}`; } catch { return e; } };
 
 // ============ Color Scale ============
-// Default GEX: teal (positive) / purple (negative). Skylit: VIRIDIS colormap.
+// Default GEX: teal (positive) / purple (negative). Zenith: VIRIDIS colormap.
 
 // 8-stop VIRIDIS colormap. t in [0,1] -> {r,g,b}. Robust to NaN / out-of-range so
-// cellColor() can never read .r/.g/.b off undefined (the bug that crashed Skylit:
+// cellColor() can never read .r/.g/.b off undefined (the bug that crashed Zenith:
 // this function was called but never defined).
 export function viridisColor(t) {
   const STOPS = [
@@ -77,7 +77,7 @@ export function cellColor(v, maxAbs, isKing = false, mode = "gex", skylitTheme =
     else { const alpha = 0.18 + 0.7 * norm; return { bg: `rgba(219, 39, 119, ${alpha})`, text: norm > 0.5 ? "#fdf4ff" : "#f9a8d4" }; }
   }
 
-  // ── Skylit VIRIDIS theme ──────────────────────────────────────
+  // ── Zenith VIRIDIS theme ──────────────────────────────────────
   if (skylitTheme) {
     if (isKing) {
       return { bg: `rgba(224, 64, 251, ${0.6 + 0.35 * norm})`, text: norm > 0.3 ? "#ffffff" : "#f5d0fe" };
@@ -100,6 +100,6 @@ export function cellColor(v, maxAbs, isKing = false, mode = "gex", skylitTheme =
 }
 
 // ============ Constants ============
-export const TRINITY = ["^SPX", "SPY", "QQQ"];
+export const TRIAD = ["^SPX", "SPY", "QQQ"];
 export const DEFAULT_TICKERS = ["SPY", "QQQ", "^SPX", "IWM", "AAPL", "NVDA", "TSLA", "META", "AMZN", "MSFT", "KO", "XOM", "GM", "MCD", "^VIX"];
 export const REFRESH_MS = 30000;

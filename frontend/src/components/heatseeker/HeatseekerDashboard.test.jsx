@@ -71,7 +71,7 @@ describe("HeatseekerDashboard", () => {
     await act(async () => {
       render(<HeatseekerDashboard ticker="SPY" spot={500} />);
     });
-    expect(screen.getByText("Skylit Heatseeker")).toBeInTheDocument();
+    expect(screen.getByText("Zenith Solstice")).toBeInTheDocument();
     expect(screen.getByText(/Wave 1 \+ 2 \+ 3/i)).toBeInTheDocument();
   });
 
@@ -92,7 +92,7 @@ describe("HeatseekerDashboard", () => {
       "hs-velocity-mode",
       "hs-trinity-confluence",
       // Steal-list top-3 (rank #1, #5, #3) mounted into Row 3 so the new
-      // signals appear on the main Heatseeker page, not just /steal-three.
+      // signals appear on the main Solstice page, not just /steal-three.
       "hs-dual-gex",
       "hs-iv-mid",
       "hs-wheel-income",

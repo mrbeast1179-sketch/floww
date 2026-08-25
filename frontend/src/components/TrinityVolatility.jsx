@@ -21,7 +21,7 @@ class ErrorBoundary extends React.Component {
   render() {
     if (this.state.hasError) return (
       <div style={{color:'#ff6b6b', padding:'20px', fontFamily:'monospace'}}>
-        Trinity component error: {this.state.error?.message}
+        Triad component error: {this.state.error?.message}
       </div>
     );
     return this.props.children;
@@ -298,7 +298,7 @@ export default function TrinityVolatility({ ticker = "SPY", expiries = 8 }) {
     <ErrorBoundary>
     <div className="tv-root">
       <div className="tv-header">
-        <span className="tv-title">△ Trinity Volatility</span>
+        <span className="tv-title">△ Triad Volatility</span>
         <span className="tv-sub">{ticker} · spot {spot ? spot.toFixed(2) : "—"} · {expiryList.length} expiries</span>
         <span className="tv-controls">
           <label>Expiry:&nbsp;

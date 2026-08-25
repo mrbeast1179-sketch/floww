@@ -27,7 +27,7 @@ describe("TrinityConfluenceMeter", () => {
       refresh: jest.fn(),
     });
     render(<TrinityConfluenceMeter />);
-    expect(screen.getByText("Trinity Confluence")).toBeInTheDocument();
+    expect(screen.getByText("Triad Meridian")).toBeInTheDocument();
     expect(screen.getByText("72")).toBeInTheDocument();
     expect(screen.getByText("Aligned bull")).toBeInTheDocument();
     expect(screen.getByText(/GEX/)).toBeInTheDocument();

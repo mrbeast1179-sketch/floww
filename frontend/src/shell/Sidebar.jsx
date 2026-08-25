@@ -110,7 +110,7 @@ export default function Sidebar({ page, onNavigate, userEmail, userTier }) {
             className="display font-bold tracking-[0.12em]"
             style={{ fontSize: 13, color: "var(--text-primary)" }}
           >
-            CONFLUENCE
+            MERIDIAN
           </span>
         )}
         <button

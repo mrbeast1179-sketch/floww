@@ -1,9 +1,9 @@
 import React, { memo, useEffect, useMemo, useRef, useState } from "react";
 
 /**
- * SkylitHeatmapGrid — Skylit heatseeker matrix
+ * SkylitHeatmapGrid — Zenith heatseeker matrix
  *
- * Matches the Skylit reference exactly: a 2D matrix of
+ * Matches the Zenith reference exactly: a 2D matrix of
  *   STRIKE rows (descending, sticky left rail) × EXPIRATION-DATE columns.
  * Each cell is the GEX / VEX / CHARM at that (strike, expiry), colored on a
  * viridis scale over the signed value across the whole matrix.

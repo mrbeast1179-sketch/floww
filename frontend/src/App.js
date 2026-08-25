@@ -3,7 +3,7 @@ import axios from "axios";
 import "@/App.css";
 import { useAuth } from "./context/AuthContext";
 
-import { fmt, fmtAbs, pctClass, tagFor, TRINITY, DEFAULT_TICKERS } from "./lib/helpers";
+import { fmt, fmtAbs, pctClass, tagFor, TRIAD, DEFAULT_TICKERS } from "./lib/helpers";
 import { buildHeatmapQuery } from "./lib/heatmapQuery";
 import GridHeatmap from "./components/GridHeatmap";
 import DomHeatmap from "./components/DomHeatmap";
@@ -749,7 +749,7 @@ export default function App() {
 
         {/* ===== DECODER PAGES ===== */}
 
-        {/* Trinity View */}
+        {/* Triad View */}
         {page === "trinity" && (
           <div className="legacy-theme p-4 flex-1 overflow-auto" style={{ position: "relative" }}>
             {/* Sub-tab toggle */}
@@ -776,7 +776,7 @@ export default function App() {
               selection={tradeSelection}
               onClose={() => setTradeSelection(null)}
               onSubmit={(trade) => {
-                console.log("[Trinity] Trade submitted:", trade);
+                console.log("[Triad] Trade submitted:", trade);
                 setTradeSelection(null);
                 // TODO: send to backend / journal
               }}
@@ -784,7 +784,7 @@ export default function App() {
           </div>
         )}
 
-        {/* Single Ticker Heatseeker — Skylit Edition with Left Sidebar */}
+        {/* Single Ticker Solstice — Zenith Edition with Left Sidebar */}
         {page === "heatseeker" && (
           <div className="legacy-theme heatseeker-layout">
             {/* Left Sidebar - Filters & Summary (PRESERVED) */}
@@ -902,7 +902,7 @@ export default function App() {
               </div>
             </aside>
 
-            {/* Main Content — view-switchable: 2D Grid (Skylit) / Bars / Chain / Multi / Profile */}
+            {/* Main Content — view-switchable: 2D Grid (Zenith) / Bars / Chain / Multi / Profile */}
             <main className="heatseeker-main" style={{ display: "flex", flexDirection: "column", flex: 1, minHeight: 0, overflow: "hidden" }}>
               {view === "bar" ? (
                 <BarHeatmap data={displayData} filters={filters} compact={false} viewMode={viewMode} />
@@ -1003,7 +1003,7 @@ export default function App() {
           </div>
         )}
 
-        {/* Skylit — GEX Grid + Analytics Column (legacy skylit page) */}
+        {/* Zenith — GEX Grid + Analytics Column (legacy skylit page) */}
         {page === "skylit" && (
           <div className="legacy-theme skylit-dashboard">
             <ErrorBoundary>
@@ -1063,7 +1063,7 @@ export default function App() {
           <TradeJournal ticker={ticker} />
         )}
 
-        {/* Flowseeker Pro Tab */}
+        {/* Tidehunter Pro Tab */}
         {page === "flowseeker-pro" && (
           <div className="flex-1 overflow-auto">
             <ErrorBoundary>
@@ -1105,7 +1105,7 @@ export default function App() {
           <span className="hidden md:inline text-slate-700">
             Keys: 1/2/3 pages · G/B/C views · D/S/X modes · E/V/H overlays · ↑↓ tickers · ? shortcuts
           </span>
-          <span>Confluence Decoder · Institutional Grade · {new Date().getFullYear()}</span>
+          <span>Meridian · Institutional Grade · {new Date().getFullYear()}</span>
         </footer>
 
         {/* Shortcuts Modal */}

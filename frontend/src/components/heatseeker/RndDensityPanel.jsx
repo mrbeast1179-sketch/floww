@@ -19,7 +19,7 @@
  * shows the same amber offline card pattern StrikeConeBadge uses —
  * consistent with the dashboard's other steal-list tiles.
  *
- * Distinct from the OS-served Heatseeker and Skylit rows — this tile
+ * Distinct from the OS-served Solstice and Zenith rows — this tile
  * is Row 4b, full-width beneath the 3-col Row 4 grid (StrikeCone +
  * Opportunity + NewsBadge) per the user's spec "alongside the
  * just-shipped StrikeCone + Opportunity" interpreted as a dedicated

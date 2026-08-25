@@ -4,7 +4,7 @@ import React, { memo, useState, useEffect } from "react";
  * SkylitControlBar — Second header bar with GEX/VEX tabs, LIVE badge,
  * price display, timeframe selector, and action buttons.
  *
- * Matches Skylit reference:
+ * Matches Zenith reference:
  *   Left: GEX/VEX toggles + info icon
  *   Center: Ticker name, price, change, timeframe dropdown
  *   Right: Refresh, playback, view, share

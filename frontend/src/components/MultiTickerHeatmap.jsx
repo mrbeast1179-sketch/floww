@@ -1,12 +1,12 @@
 import React, { useEffect, useState, useMemo } from "react";
 import axios from "axios";
-import { fmt, TRINITY, DEFAULT_TICKERS } from "../lib/helpers";
+import { fmt, TRIAD, DEFAULT_TICKERS } from "../lib/helpers";
 import { API as BACKEND_API } from "../config/api";
 
 const API = BACKEND_API;
 
 /**
- * Multi-Ticker Heatmap — Skylit reference style
+ * Multi-Ticker Heatmap — Zenith reference style
  *
  * Rows = SPY strike prices (descending)
  * Columns = GEX | VEX | AMD | AMZN | GOOGL | ...

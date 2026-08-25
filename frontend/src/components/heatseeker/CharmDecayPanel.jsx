@@ -1,5 +1,5 @@
 /**
- * CharmDecayPanel — Heatseeker steal-list extension
+ * CharmDecayPanel — Solstice steal-list extension
  *
  * Shows how CHARM decays across listed expiries at the strikes nearest
  * spot: one line per strike, x = expiry date, y = net charm ($).
