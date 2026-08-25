@@ -91,13 +91,29 @@ Subject line: `<type>(<scope>): <one-line>`. Types: `feat`, `fix`, `docs`, `test
 
 ---
 
-## Current state (as of last update)
+## Current state (as of 2026-08-24)
+
+- **Deploy-ready:** full Oracle Always Free runbook at `deploy/free/README.md` +
+  [[Confluence Decoder Oracle Deploy]] in Obsidian. Bootstrap via
+  `deploy/free/oracle-setup.sh` + read-only deploy key `oracle-vm-deploy`.
+  Awaiting Nav's VM provisioning.
+- **Test suite:** backend ~4546 passed (full suite completes in ~6.5 min);
+  frontend 277 passed via `npx craco test --watchAll=false`. pytest.ini uses
+  `[pytest]` header with asyncio_mode=auto; flaky_env marker registered.
+- **Codebase intel:** `.planning/codebase/` — 7 GSD map documents
+  (STACK/INTEGRATIONS/ARCHITECTURE/STRUCTURE/CONVENTIONS/TESTING/CONCERNS).
+- **Learnings:** `.planning/LEARNINGS.md` — decisions/lessons/patterns/surprises
+  extracted from the 2026-08-23/24 deploy-prep + test-infra session.
+- Historical round notes (9/10) preserved below and in docs/.
+
+<details>
+<summary>Historical: Round 9/10 state</summary>
 
 - **Round 9: CLOSED** at `4e1c1b8`. 50+ commits across 10 Owl Alphas + DS Pro v1 + DS Pro v2 closure.
-- **Round 10: IN PROGRESS.** Plan at `docs/ROUND10_PLAN.md`. P0 tickets:
+- **Round 10 plan:** `docs/ROUND10_PLAN.md`. P0 tickets:
   - P0.1: conftest waiver + apply (drops 23 collection errors → 0)
   - P0.2: restore `fetch_spot_and_chains` (heatseeker flip-zones returns degraded)
-  - P0.3: A9 STALE_IMPORT cleanup
+  - P0.3: A9 STALE_IMPORT cleanup</details>
 - **Phase 6 Task 10 (silent-failure audit): CLOSED** at `654a377`. Audit doc: `docs/superpowers/research/2026-06-20-decoder-endpoint-silent-failure-audit.md` (initial `ebd5f77`). All 4 Decision Queue fixes shipped on `origin/main`:
   - DQ #1 `routes/ml_api.py` 5× silent excepts → `5f0dec5` (observability contract; partial-data preserved over audit's `HTTPException(500)` recommendation)
   - DQ #2 `routes/gemini.py` 9× silent error returns → `23baf34` (`JSONResponse(503)` shim)
@@ -111,7 +127,7 @@ Subject line: `<type>(<scope>): <one-line>`. Types: `feat`, `fix`, `docs`, `test
 
 | Layer | Tech | Entry point |
 |---|---|---|
-| Backend | FastAPI · Python 3.13 | `backend/server.py` → `uvicorn server:app --port 8000` |
+| Backend | FastAPI · Python 3.12 | `backend/server.py` → `uvicorn server:app --port 8000` |
 | Async DB | Motor (MongoDB) | `from server import db` |
 | Tick DB | DuckDB | `backend/services/duckdb_engine.py` |
 | ML | sklearn gbm + walk-forward CV | `backend/services/ml/inference.py` (frozen), `health_monitor.py`, `backtest.py` |
@@ -121,6 +137,7 @@ Subject line: `<type>(<scope>): <one-line>`. Types: `feat`, `fix`, `docs`, `test
 | Lint | ruff (E, E722, F, W, I; ignore E501) | `cd backend && .venv/bin/ruff check .` |
 | Tests | pytest (asyncio auto mode) | `cd backend && .venv/bin/python3 -m pytest -q` |
 | Frontend tests | jest | `cd frontend && npx jest` |
+| Deploy | Caddy + docker-compose (free-tier ARM) | `deploy/free/README.md` |
 | CI | GitHub Actions | `.github/workflows/lint.yml` |
 
 **Venv:** `backend/.venv/bin/python3` (Python 3.12). Always use this — never the system Python.

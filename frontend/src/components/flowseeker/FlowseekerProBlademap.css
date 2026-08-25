@@ -886,3 +886,12 @@
 
 /* Alert seen-dot: gold for fresh, dims with age via existing classes */
 .fsb-newdot { box-shadow: 0 0 8px rgba(232, 201, 106, 0.8); }
+
+
+/* ── Keyboard cursor ── */
+.fsb-scantable tr.kbcursor {
+  outline: none;
+  background: rgba(232, 201, 106, 0.10);
+  box-shadow: inset 3px 0 0 var(--fsb-gold-bright);
+}
+.fsb-scantable tr.kbcursor td:first-child { padding-left: 8px; }
