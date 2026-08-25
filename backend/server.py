@@ -40,6 +40,10 @@ from databento_provider import fetch_oi_for_ticker, init_cache
 from portfolio import Portfolio, Position, calc_position_size
 from services.duckdb_engine import db as duckdb_engine
 
+# GSD #10 O-2 — exposure alerts (used inside _snapshot_chains below)
+from services.exposure_alert_writer import evaluate_and_convert
+from services.flow_alerts import init_flow_alert_tables, persist_alerts
+
 # Rust-backed implementations (decoder_core delegation with pure-Python fallback,
 # bit-exact parity verified 2026-08-22). Was gex_server_utils (pure Python).
 from services.gex_core import (
@@ -53,6 +57,7 @@ from services.gex_core import (
     detect_opportunities,
     detect_patterns,
 )
+from services.gex_core import compute_gex_grid as _compute_gex_grid_top
 from services.logging_config import CorrelationIdMiddleware, setup_logging
 from services.websocket_streamer import manager as ws_manager
 from vol_analytics import (
@@ -1615,10 +1620,7 @@ async def _snapshot_chains():
             log.warning(f"snapshot: no duckdb conn: {e}")
             return
     create_snapshot_table(conn)
-    from services.exposure_alert_writer import evaluate_and_convert
-    from services.gex_core import compute_gex_grid
-    from services.flow_alerts import init_flow_alert_tables, persist_alerts
-    _grid_cache: dict[str, dict] = getattr(_snapshot_chains, "_grid_cache", {})
+    _grid_cache: dict = getattr(_snapshot_chains, "_grid_cache", {})
     for t in ("SPY", "QQQ", "IWM"):
         try:
             raw = await fetch_spot_and_chains_merged(t, 4)
@@ -1633,7 +1635,7 @@ async def _snapshot_chains():
             # flow-alerts feed (same DuckDB table the conviction feed reads).
             try:
                 spot = raw.get("spot") or 0.0
-                new_grid = compute_gex_grid(spot, raw.get("contracts") or [], t)
+                new_grid = _compute_gex_grid_top(spot, raw.get("contracts") or [], t)
                 old_grid = _grid_cache.get(t)
                 if old_grid:
                     alerts = evaluate_and_convert(
