@@ -1,0 +1,34 @@
+# GSD ingest manifest — floww (curated high-signal planning docs)
+# Precedence: ADR > SPEC > PRD > DOC
+docs:
+  - path: CLAUDE.md
+    type: DOC
+    precedence: 100   # operating contract: conventions, frozen files, test discipline
+
+  - path: docs/adr/0001-model-promotion-policy.md
+    type: ADR
+    precedence: 90    # model promotion decision record
+
+  - path: ARCHITECTURE.md
+    type: SPEC
+    precedence: 80    # system architecture spec
+
+  - path: docs/ROUND10_PLAN.md
+    type: PLAN
+    precedence: 70    # active round plan with P0 tickets
+
+  - path: IMPLEMENTATION_PLAN.md
+    type: PLAN
+    precedence: 60
+
+  - path: BACKLOG.md
+    type: DOC
+    precedence: 50    # backlog items to promote into roadmap
+
+  - path: deploy/free/README.md
+    type: DOC
+    precedence: 50    # go-live runbook (Oracle)
+
+  - path: .planning/LEARNINGS.md
+    type: DOC
+    precedence: 40    # extracted session learnings
