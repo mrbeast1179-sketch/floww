@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><title>Meridian — unified topbar sketches</title>
+<style>
+  :root { --bg:#0b0f19; --panel:#12161f; --border:#232a38; --gold:#e8c96a; --gold-bright:#f5d98a;
+          --text:#e6e8ee; --muted:#8b93a5; --green:#19d27c; }
+  * { margin:0; box-sizing:border-box; }
+  body { background:var(--bg); color:var(--text); font:13px 'SF Mono',ui-monospace,monospace; padding:24px; }
+  h1 { font-size:14px; letter-spacing:1px; color:var(--gold); margin-bottom:4px; }
+  .sub { color:var(--muted); font-size:11px; margin-bottom:20px; }
+  .variant { border:1px solid var(--border); border-radius:10px; margin-bottom:28px; overflow:hidden; }
+  .vlabel { padding:8px 14px; background:var(--panel); font-size:11px; color:var(--muted); letter-spacing:.5px; }
+  .topbar { display:flex; align-items:center; gap:14px; padding:10px 16px; background:linear-gradient(180deg,#141926,#0e121c); border-bottom:1px solid var(--border); }
+  .logo { width:26px; height:26px; border-radius:6px; display:flex; align-items:center; justify-content:center;
+          background:linear-gradient(135deg,var(--gold),#b8963e); color:#0b0f19; font-weight:800; font-size:13px; }
+  .brand { font-weight:800; font-size:14px; letter-spacing:.5px; }
+  .brand b { color:var(--gold-bright); }
+  .chip { font-size:9px; padding:2px 8px; border-radius:10px; border:1px solid var(--gold); color:var(--gold); letter-spacing:1px; }
+  .tabs { display:flex; gap:2px; margin-left:12px; }
+  .tab { padding:7px 13px; font-size:11px; color:var(--muted); border-radius:6px; cursor:pointer; letter-spacing:.4px; }
+  .tab.on { color:var(--gold-bright); background:rgba(232,201,106,.08); box-shadow:inset 0 -2px 0 var(--gold); }
+  .tab:hover { color:var(--text); }
+  .spacer { flex:1; }
+  .clock { color:var(--muted); font-size:11px; }
+  .ctrl { width:26px; height:26px; border:1px solid var(--border); border-radius:6px; display:flex; align-items:center;
+          justify-content:center; color:var(--muted); font-size:11px; cursor:pointer; }
+  .ctrl:hover { border-color:var(--gold); color:var(--gold); }
+  .crumb { font-size:10px; color:var(--muted); padding:6px 16px; border-bottom:1px solid var(--border); }
+  .crumb b { color:var(--text); }
+
+  /* V2: minimal centered */
+  .v2 .topbar { justify-content:center; position:relative; }
+  .v2 .tabs { position:absolute; left:16px; margin:0; }
+  .v2 .right { position:absolute; right:16px; display:flex; gap:8px; align-items:center; }
+  .v2 .brand { font-size:15px; letter-spacing:2px; }
+
+  /* V3: command-bar style */
+  .v3 .topbar { gap:10px; }
+  .v3 .cmdbar { flex:1; max-width:420px; display:flex; align-items:center; gap:8px; background:var(--panel);
+                border:1px solid var(--border); border-radius:8px; padding:6px 12px; color:var(--muted); font-size:11px; }
+  .v3 .cmdbar kbd { margin-left:auto; font-size:9px; border:1px solid var(--border); border-radius:4px; padding:1px 5px; }
+  .v3 .tab.on { background:transparent; box-shadow:none; border-bottom:2px solid var(--gold); border-radius:0; }
+</style>
+</head>
+<body>
+<h1>MERIDIAN — UNIFIED TOPBAR SYSTEM</h1>
+<div class="sub">3 variants · one brand language across Solstice / Triad / Zenith / Tidehunter Pro · throwaway sketch</div>
+
+<div class="variant">
+  <div class="vlabel">V1 — CLASSIC (current, refined): logo left, tabs center-left, controls right</div>
+  <div class="topbar">
+    <div class="logo">◢</div>
+    <div class="brand">MERIDIAN <b>Pro</b></div>
+    <span class="chip">LIVE · CVFORGE</span>
+    <div class="tabs">
+      <div class="tab on">Solstice</div><div class="tab">Triad</div>
+      <div class="tab">Zenith</div><div class="tab">Tidehunter Pro</div>
+    </div>
+    <div class="spacer"></div>
+    <span class="clock">23:59:14 · SPY $763.65</span>
+    <div class="ctrl">↻</div><div class="ctrl">⧩</div><div class="ctrl">⚙</div>
+  </div>
+  <div class="crumb">Decoder › <b>Solstice</b> · NEGATIVE Γ regime · 4 exp</div>
+</div>
+
+<div class="variant v2">
+  <div class="vlabel">V2 — CENTERED MONOLITH: brand centered, tabs left, ticker clock right</div>
+  <div class="topbar">
+    <div class="tabs">
+      <div class="tab on">Solstice</div><div class="tab">Triad</div>
+      <div class="tab">Zenith</div><div class="tab">Tidehunter Pro</div>
+    </div>
+    <div class="brand">◢ MERIDIAN</div>
+    <div class="right">
+      <span class="chip">LIVE</span>
+      <span class="clock">SPY $763.65 · 23:59</span>
+      <div class="ctrl">⚙</div>
+    </div>
+  </div>
+  <div class="crumb">Decoder › <b>Solstice</b></div>
+</div>
+
+<div class="variant v3">
+  <div class="vlabel">V3 — COMMAND BAR: ticker search integrated, underline tabs, densest</div>
+  <div class="topbar">
+    <div class="logo">◢</div>
+    <div class="brand">MERIDIAN</div>
+    <div class="cmdbar">SPY · jump to ticker… <kbd>/</kbd></div>
+    <div class="tabs">
+      <div class="tab on">Solstice</div><div class="tab">Triad</div>
+      <div class="tab">Zenith</div><div class="tab">Tidehunter Pro</div>
+    </div>
+    <div class="spacer"></div>
+    <span class="clock">SPY $763.65</span>
+    <div class="ctrl">↻</div><div class="ctrl">⚙</div>
+  </div>
+  <div class="crumb">Decoder › <b>Solstice</b> · press / to search</div>
+</div>
+</body>
+</html>
