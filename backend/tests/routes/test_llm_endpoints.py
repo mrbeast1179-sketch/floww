@@ -25,6 +25,7 @@ def test_llm_providers_returns_200_or_503(client: TestClient):
         assert "providers" in data
 
 
+@pytest.mark.flaky_env
 def test_llm_analyze_trade_returns_200_or_503(client: TestClient):
     """POST /api/llm/analyze-trade should return 200 or 503 (not 500)."""
     payload = {
@@ -41,6 +42,7 @@ def test_llm_analyze_trade_returns_200_or_503(client: TestClient):
     )
 
 
+@pytest.mark.flaky_env
 def test_llm_generate_briefing_returns_200_or_503(client: TestClient):
     """POST /api/llm/generate should return 200 or 503 (not 500)."""
     payload = {

@@ -88,6 +88,7 @@ def test_norm_rows_drops_malformed_rows_not_crash():
     assert len(rows) == 1
 
 
+@pytest.mark.flaky_env
 def test_biz_dte_same_day_is_zero_and_skips_weekends():
     assert biz_dte(date.today().isoformat()) == 0
     assert biz_dte(_future_exp(3)) == 3

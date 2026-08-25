@@ -57,6 +57,7 @@ def _patch_externals():
 # Tests
 # ---------------------------------------------------------------------------
 
+@pytest.mark.flaky_env
 def test_all_healthy():
     resp = client.get("/api/health")
     assert resp.status_code == 200

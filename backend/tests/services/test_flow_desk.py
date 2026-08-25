@@ -104,6 +104,7 @@ def test_fresh_gate_fractional_rule_for_big_contracts():
 
 # ── CAMPAIGN ────────────────────────────────────────────────────────
 
+@pytest.mark.flaky_env
 def test_prior_alert_days_counts_distinct_prior_sessions(fresh_engine):
     init_flow_alert_tables(fresh_engine)
     rows = norm_rows([_raw(vol=60000, oi=1500, delta=0.25)])

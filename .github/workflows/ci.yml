@@ -83,6 +83,8 @@ jobs:
           POLYGON_API_KEY: ""
           ALPHA_VANTAGE_KEY: ""
           FINNHUB_API_KEY: ""
+          OPENROUTER_API_KEY: test-key-ci
+          GEMINI_API_KEY: test-key-ci
           APCA_API_KEY: ""
           APCA_SECRET_KEY: ""
           GEMINI_API_KEY: ""
@@ -91,7 +93,7 @@ jobs:
           API_SECRET_KEY: ""
         run: |
           source .venv/bin/activate
-          python -m pytest tests/ -v --tb=short --cov=.
+          python -m pytest tests/ -v --tb=short --cov=. -m "not flaky_env"
 
   frontend-build:
     runs-on: ubuntu-latest

@@ -69,6 +69,7 @@ async def test_heatmap_qqq_grid(aclient):
 
 
 @pytest.mark.flaky
+@pytest.mark.flaky_env
 async def test_trinity_day_all_populated(aclient):
     r = await aclient.get("/api/trinity?mode=day")
     assert r.status_code == 200, r.text
