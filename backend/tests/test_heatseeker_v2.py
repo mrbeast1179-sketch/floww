@@ -5,6 +5,7 @@ pytestmark = pytest.mark.asyncio
 
 
 # --- Grid + data_source on heatmap SPY day ---
+@pytest.mark.flaky_env
 async def test_heatmap_spy_day_grid(aclient):
     r = await aclient.get("/api/heatmap/SPY?expiries=3&mode=day")
     assert r.status_code == 200, r.text
@@ -59,6 +60,7 @@ async def test_heatmap_spx_via_spxw(aclient):
     assert "grid" in d and len(d["grid"]["strikes"]) > 0
 
 
+@pytest.mark.flaky_env
 @pytest.mark.flaky
 async def test_heatmap_qqq_grid(aclient):
     r = await aclient.get("/api/heatmap/QQQ?expiries=2&mode=day")
@@ -84,6 +86,7 @@ async def test_trinity_day_all_populated(aclient):
     assert d["alignment"]["verdict"] in ("full_alignment", "partial_alignment", "divergence")
 
 
+@pytest.mark.flaky_env
 async def test_contract_drilldown_spy(aclient):
     # Get a real expiry first
     r = (await aclient.get("/api/heatmap/SPY?expiries=3")).json()

@@ -4,7 +4,9 @@
 name: Deploy to Azure
 
 on:
-  push:
+  workflow_run:
+    workflows: ["CI/CD"]
+    types: [completed]
     branches: [main]
 
 permissions:
@@ -12,6 +14,7 @@ permissions:
 
 jobs:
   deploy-backend:
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -28,7 +31,7 @@ jobs:
           source .venv/bin/activate
           pip install -r requirements.txt pytest-asyncio pytest-cov
 
-      - name: Run tests
+      - name: Smoke import check
         working-directory: ./backend
         env:
           MONGO_URL: mongodb://localhost:27017
@@ -36,7 +39,7 @@ jobs:
           OPENROUTER_API_KEY: test-key-ci
         run: |
           source .venv/bin/activate
-          python -m pytest tests/ -v --tb=short -m "not flaky_env"
+          python -c "import server; print('server imports OK')"
 
       - name: Deploy to Azure Web App
         uses: azure/webapps-deploy@v3
