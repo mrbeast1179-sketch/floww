@@ -51,6 +51,7 @@ async def test_heatmap_swing_more_expiries_wider_band(aclient):
 
 
 @pytest.mark.flaky
+@pytest.mark.flaky_env
 async def test_heatmap_spx_via_spxw(aclient):
     r = await aclient.get("/api/heatmap/%5ESPX?expiries=2&mode=day")
     assert r.status_code == 200, r.text
