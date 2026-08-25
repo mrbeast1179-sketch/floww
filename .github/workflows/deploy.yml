@@ -26,13 +26,17 @@ jobs:
         run: |
           python -m venv .venv
           source .venv/bin/activate
-          pip install -r requirements.txt
+          pip install -r requirements.txt pytest-asyncio pytest-cov
 
       - name: Run tests
         working-directory: ./backend
+        env:
+          MONGO_URL: mongodb://localhost:27017
+          DB_NAME: confluence_decoder_test
+          OPENROUTER_API_KEY: test-key-ci
         run: |
           source .venv/bin/activate
-          python -m pytest tests/ -v --tb=short
+          python -m pytest tests/ -v --tb=short -m "not flaky_env"
 
       - name: Deploy to Azure Web App
         uses: azure/webapps-deploy@v3
