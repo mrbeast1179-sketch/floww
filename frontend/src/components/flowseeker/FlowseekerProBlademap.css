@@ -841,3 +841,48 @@
 /* Remove old left heat rail — ring color codes instead */
 .fsb-sigcard::before { display: none; }
 .fsb-sigcard.heat-crit, .fsb-sigcard.heat-high { padding-left: 10px; }
+
+
+/* ── Skeletons & micro-interactions ── */
+
+/* Skeleton shimmer for loading cards */
+.fsb-skel { pointer-events: none; }
+.skel-ring {
+  border-radius: 50%;
+  background: var(--fsb-panel3, #1d2330);
+  animation: fsbSkel 1.4s ease-in-out infinite;
+}
+.skel-line {
+  height: 9px;
+  border-radius: 4px;
+  background: var(--fsb-panel3, #1d2330);
+  margin: 5px 0;
+  animation: fsbSkel 1.4s ease-in-out infinite;
+}
+.skel-line.w60 { width: 60%; }
+.skel-line.w40 { width: 40%; }
+.skel-line.w75 { width: 75%; }
+@keyframes fsbSkel {
+  0%, 100% { opacity: 0.45; }
+  50% { opacity: 1; }
+}
+
+/* Feed-fresh pulse dot: flashes gold on each refresh, fades to dim */
+.fsb-fedotp {
+  width: 7px; height: 7px;
+  border-radius: 50%;
+  background: var(--fsb-gold-bright);
+  animation: fsbFed 2.4s ease-out 1;
+  align-self: center;
+}
+@keyframes fsbFed {
+  0% { box-shadow: 0 0 0 0 rgba(232, 201, 106, 0.7); opacity: 1; }
+  70% { box-shadow: 0 0 0 9px rgba(232, 201, 106, 0); opacity: 1; }
+  100% { box-shadow: none; opacity: 0.35; }
+}
+
+/* Ring fill animates on mount (transition on the custom property's effect) */
+.fsb-sig-ring { transition: background 0.6s ease; }
+
+/* Alert seen-dot: gold for fresh, dims with age via existing classes */
+.fsb-newdot { box-shadow: 0 0 8px rgba(232, 201, 106, 0.8); }

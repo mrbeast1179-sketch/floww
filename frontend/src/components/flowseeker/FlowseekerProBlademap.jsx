@@ -1355,10 +1355,31 @@ export default function FlowseekerProBlademap({ active = true }) {
               </div>
             )}
             {/* Blademap v3 — top conviction signal cards (backend-ranked) */}
+            {active && convFeed.length === 0 && (
+              <div className="fsb-sigwrap">
+                <div className="fsb-sigh">
+                  <span className="fsb-sigh-t">◈ Top Conviction</span>
+                  <span className="fsb-sigh-s">loading ranked signals…</span>
+                </div>
+                <div className="fsb-sigcards">
+                  {[0, 1, 2, 3].map((n) => (
+                    <div key={n} className="fsb-sigcard fsb-skel" aria-hidden="true">
+                      <div className="fsb-sig-ring skel-ring" />
+                      <div className="fsb-sig-body">
+                        <div className="skel-line w60" />
+                        <div className="skel-line w40" />
+                        <div className="skel-line w75" />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
             {convFeed.length > 0 && (
               <div className="fsb-sigwrap">
                 <div className="fsb-sigh">
                   <span className="fsb-sigh-t">◈ Top Conviction</span>
+                  <span key={refreshTick} className="fsb-fedotp" title={`feed refreshed · ${convFeed.length} signals`} />
                   <span className="fsb-sigh-s">ranked by Blademap v3 · click to filter</span>
                 </div>
                 <div className="fsb-sigcards">
