@@ -864,7 +864,7 @@ export default function FlowseekerProBlademap({ active = true }) {
       <div className="fsb-topbar">
         <div className="fsb-brand">
           <span className="fsb-logo">◢</span>
-          <span className="fsb-brand-name">FlowSeeker <span className="fsb-pro">Pro</span></span>
+          <span className="fsb-brand-name">Tidehunter <span className="fsb-pro">Pro</span></span>
           <span className="fsb-status-chip" title="Live cvforge data. Vol surface is simulated (no IV-surface backend).">LIVE · CVFORGE</span>
         </div>
         <div className="fsb-tabs">
@@ -1547,7 +1547,7 @@ export default function FlowseekerProBlademap({ active = true }) {
         {/* ACADEMY VIEW */}
         <div className={`fsb-view${tab === "academy" ? " active" : ""}`} style={{ gridTemplateColumns: "1fr" }}>
           <div className="fsb-panel" style={{ overflow: "auto" }}>
-            <div className="fsb-panel-h"><span>FlowSeeker Academy</span><span className="fsb-muted fsb-small">process · not signals</span></div>
+            <div className="fsb-panel-h"><span>Tidehunter Academy</span><span className="fsb-muted fsb-small">process · not signals</span></div>
             <div className="fsb-academy-grid">
               {[["01", "Market Microstructure", "Order flow, options mechanics, and dealer hedging — the mechanics behind every signal."],
                 ["02", "Reading the Flow", "Sweep vs. block vs. split. How urgency, size, and persistence reveal institutional intent."],

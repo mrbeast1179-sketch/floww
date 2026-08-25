@@ -97,6 +97,9 @@ export default class ErrorBoundary extends Component {
           <div className="text-sm font-semibold text-slate-200 mb-1">
             Something went wrong
           </div>
+          <div className="text-[10px] text-red-400 mb-2 max-w-xs font-mono break-all" style={{ maxHeight: 80, overflow: "auto" }}>
+            {String(this.state.error?.message || this.state.error || "").slice(0, 300)}
+          </div>
 
           <div className="text-[11px] text-slate-500 mb-4 max-w-xs">
             {isRepeated
