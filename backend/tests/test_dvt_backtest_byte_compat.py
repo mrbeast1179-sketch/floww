@@ -28,11 +28,10 @@ for _p in (str(PROJECT_ROOT), str(FLOWW_BACKEND)):
         sys.path.insert(0, _p)
 
 
+import pytest as _pytest
 from dvt_backtest import DVTBacktester  # noqa: E402
 
 from domain.position_sizing import delta_adjusted_max_loss_size  # noqa: E402
-
-import pytest as _pytest
 
 if __import__("importlib").util.find_spec("dvt_backtest") is None:
     _pytest.skip(
