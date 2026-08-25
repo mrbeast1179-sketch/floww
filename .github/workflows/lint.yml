@@ -15,7 +15,7 @@ jobs:
         with:
           python-version: '3.13'
       - name: Install ruff
-        run: pip install ruff
+        run: pip install "ruff==0.15.22"
       - name: Check F841 (unused variables)
         working-directory: backend
         run: ruff check . --select F841

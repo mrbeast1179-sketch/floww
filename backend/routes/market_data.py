@@ -191,7 +191,7 @@ async def chain(
 ):
     from bs_greeks import bs_charm, bs_vanna
     from server import _sanitize, fetch_spot_and_chains_merged
-    from services.gex_server_utils import DIV_YIELD
+    from services.gex_core import DIV_YIELD
     t = ticker.strip().upper()
     if t == "SPX":
         t = "^SPX"
