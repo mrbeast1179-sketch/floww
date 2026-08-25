@@ -822,3 +822,5 @@ def compute_gex_by_strike_volume(spot: float, contracts: list[dict[str, Any]], t
             bucket["put_vol"] += vol
             bucket["put_oi"] += c["oi"]
 
+    return sorted(agg.values(), key=lambda s: abs(s["strike"] - spot))
+

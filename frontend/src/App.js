@@ -500,7 +500,13 @@ const regimeColor = (regime) => regime === "positive" ? "text-emerald-400" : reg
 // ============ Main App ============
 export default function App() {
   const { token, user, isAuthenticated, logout } = useAuth();
-  const [page, setPage] = useState("heatseeker");
+  const [page, setPage] = useState(() => {
+    try {
+      const q = new URLSearchParams(window.location.search).get("page");
+      if (q && ["heatseeker", "trinity", "skylit", "flowseeker-pro", "journal", "portfolio"].includes(q)) return q;
+    } catch {}
+    return "heatseeker";
+  });
   const [ticker, setTicker] = useState(() => {
     try { return localStorage.getItem("floww_settings") ? JSON.parse(localStorage.getItem("floww_settings")).defaultTicker || "SPY" : "SPY"; } catch { return "SPY"; }
   });
