@@ -1356,7 +1356,12 @@ export default function FlowseekerProBlademap({ active = true }) {
             )}
             {/* Blademap v3 — top conviction signal cards (backend-ranked) */}
             {convFeed.length > 0 && (
-              <div className="fsb-sigcards">
+              <div className="fsb-sigwrap">
+                <div className="fsb-sigh">
+                  <span className="fsb-sigh-t">◈ Top Conviction</span>
+                  <span className="fsb-sigh-s">ranked by Blademap v3 · click to filter</span>
+                </div>
+                <div className="fsb-sigcards">
                 {convFeed.slice(0, 6).map((a) => {
                   const isCall = String(a.type).toLowerCase() === "call";
                   const kl = (() => { try { return a.key_levels_json ? JSON.parse(a.key_levels_json) : null; } catch { return null; } })();
@@ -1370,6 +1375,12 @@ export default function FlowseekerProBlademap({ active = true }) {
                         (a.conviction ?? 0) >= 45 ? "heat-elev" : "heat-norm"}`}
                          title={`${a.why || "conviction " + a.conviction}${kl && kl.invalidation ? ` · invalidation ${kl.invalidation}` : ""} — click to filter ${a.under || a.ticker || ""}`}
                          onClick={() => setScanQ(String(a.under || a.ticker || ""))}>
+                      <div className="fsb-sig-ring"
+                           style={{ "--pct": `${Math.max(0, Math.min(99, Number(a.conviction) || 0))}` }}
+                           title={`conviction ${a.conviction}/99`}>
+                        <span>{a.conviction}</span>
+                      </div>
+                      <div className="fsb-sig-body">
                       <div className="fsb-sig-top">
                         <span className={`fsb-sig-tk ${isCall ? "fsb-tcall" : "fsb-tput"}`}>
                           {a.under || a.ticker} {isCall ? "CALL" : "PUT"} {a.strike}
@@ -1392,9 +1403,11 @@ export default function FlowseekerProBlademap({ active = true }) {
                           {kl.target != null && <span className="up">T {Number(kl.target).toFixed(2)}</span>}
                         </div>
                       )}
+                      </div>
                     </div>
                   );
                 })}
+                </div>
               </div>
             )}
             <div className="fsb-scantable">

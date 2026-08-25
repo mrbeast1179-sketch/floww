@@ -769,3 +769,75 @@
 
 /* Following strip: breathing gold dot on the section label */
 .fsb-following-label { position: relative; }
+
+
+/* ── Radial conviction ring + section header ── */
+.fsb-sigwrap {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: var(--fsb-gap);
+}
+.fsb-sigh {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 0 2px;
+}
+.fsb-sigh-t {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.8px;
+  text-transform: uppercase;
+  color: var(--fsb-gold-bright);
+}
+.fsb-sigh-s {
+  font-size: 10px;
+  color: var(--fsb-muted2);
+}
+
+/* Conviction ring: conic-gradient progress around the number */
+.fsb-sig-ring {
+  --pct: 0;
+  flex: 0 0 auto;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  align-self: center;
+  background:
+    radial-gradient(farthest-side, var(--fsb-panel2, #181d28) 78%, transparent 80%),
+    conic-gradient(var(--fsb-gold-bright) calc(var(--pct) * 1%), var(--fsb-border2) 0);
+  font-family: var(--fsb-mono);
+  font-size: 13px;
+  font-weight: 800;
+  color: var(--fsb-text);
+}
+.heat-crit .fsb-sig-ring {
+  background:
+    radial-gradient(farthest-side, var(--fsb-panel2, #181d28) 78%, transparent 80%),
+    conic-gradient(#ff4d5e calc(var(--pct) * 1%), var(--fsb-border2) 0);
+  color: #ff8a95;
+}
+.heat-high .fsb-sig-ring {
+  background:
+    radial-gradient(farthest-side, var(--fsb-panel2, #181d28) 78%, transparent 80%),
+    conic-gradient(var(--fsb-gold-bright) calc(var(--pct) * 1%), var(--fsb-border2) 0);
+  color: var(--fsb-gold-bright);
+}
+.heat-elev .fsb-sig-ring {
+  background:
+    radial-gradient(farthest-side, var(--fsb-panel2, #181d28) 78%, transparent 80%),
+    conic-gradient(#29c5e0 calc(var(--pct) * 1%), var(--fsb-border2) 0);
+  color: #6fd8ea;
+}
+.fsb-sigcard { display: flex; gap: 10px; align-items: center; }
+.fsb-sig-body { flex: 1; min-width: 0; }
+.fsb-sig-top { justify-content: space-between; }
+.fsb-sigcard .fsb-sig-conv { display: none; }  /* ring shows the number now */
+
+/* Remove old left heat rail — ring color codes instead */
+.fsb-sigcard::before { display: none; }
+.fsb-sigcard.heat-crit, .fsb-sigcard.heat-high { padding-left: 10px; }
