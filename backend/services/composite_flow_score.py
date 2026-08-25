@@ -351,5 +351,5 @@ def _safe_gex_imbalance(gex_out=None):
             gi = compute_gamma_imbalance(net_gex, spot, _adv)
             return {"gamma_imbalance_pct": gi["gamma_imbalance_pct"], "regime": gi["regime"]}
     except Exception:
-        pass
+        pass  # silent by design: gamma-imbalance sub-score is optional; caller gets None and skips it
     return None

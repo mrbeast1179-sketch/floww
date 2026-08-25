@@ -21,7 +21,7 @@ def _compute_paper_metrics(snapshot: dict) -> dict:
         if spot > 0:
             return {"gamma_imbalance": compute_gamma_imbalance(net_gex, spot, adv_shares=DEFAULT_ADV_SHARES)}
     except Exception:
-        pass
+        pass  # silent by design: endpoint returns {} degraded instead of 500; outer contract documented
     return {}
 
 # Global alert engine instance

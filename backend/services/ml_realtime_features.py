@@ -60,7 +60,7 @@ def fetch_live_chain(ticker: str, max_expiries: int = 2) -> dict[str, Any] | Non
             if candidate > 0:
                 spot = candidate
         except Exception:
-            pass
+            pass  # silent by design: spot extraction is best-effort; features degrade gracefully
 
         contracts = []
         for exp_str in selected:
@@ -271,7 +271,7 @@ def compute_gex_features(chain: dict[str, Any]) -> dict[str, float]:
             features["paper_gib_pct"] = gi["gamma_imbalance_pct"]
             features["paper_gib_regime"] = 1.0 if gi["regime"] in ("positive_gamma", "strong_positive_gamma") else (-1.0 if gi["regime"] in ("negative_gamma", "strong_negative_gamma") else 0.0)
         except Exception:
-            pass
+            pass  # silent by design: GIB overlay is optional enrichment; base features still returned
 
     return features
 

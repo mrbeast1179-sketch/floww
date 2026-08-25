@@ -187,7 +187,7 @@ def dual_gex(ticker: str) -> dict[str, Any]:
             gi = compute_gamma_imbalance(net_gex, spot, 75_000_000)
             result["gamma_imbalance"] = gi
         except Exception:
-            pass
+            pass  # silent by design: gamma_imbalance key simply absent from result; response stays 200
 
         return result
     except Exception as exc:    # pragma: no cover (defensive degrade)

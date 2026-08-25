@@ -120,7 +120,7 @@ def _resolve_iv(row: dict, spot: float, T: float, r: float) -> float:
             if sigma > 0.0:
                 return float(sigma)
         except Exception:
-            pass
+            pass  # silent by design: first IV estimate failed; explicit second estimator follows
     try:
         sigma = float(implied_vol_from_price(
             mid, spot, K, T, kind=kind, q=0.0, r=r,

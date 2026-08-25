@@ -199,7 +199,7 @@ class FederatedMemorySync:
                                 logger.debug(f"LWW: local wins for {event.entry_id[:8]}")
                                 return False
                 except Exception:
-                    pass
+                    pass  # silent by design: LWW conflict probe failure falls through to remote-write apply
 
                 # Apply remote write
                 logger.info(f"Federation: applying write {event.entry_id[:8]} from {event.node_id}")

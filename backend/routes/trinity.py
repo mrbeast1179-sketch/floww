@@ -137,6 +137,6 @@ async def get_trinity_for_ticker(ticker: str, expiries: int = Query(4, ge=1, le=
                 sector="broad",
             )
         except Exception:
-            pass
+            pass  # silent by design: sector fallback to broad; response otherwise complete
 
     return response

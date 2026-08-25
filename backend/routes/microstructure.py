@@ -153,7 +153,7 @@ async def gex_surface_endpoint(ticker: str, expiries: int = Query(5, ge=1, le=20
             if zgl:
                 result["flip_metrics"] = compute_flip_metrics(spot, zgl[0], ng)
         except Exception:
-            pass
+            pass  # silent by design: flip_metrics omitted; outer handler at L157 logs
         return result
     except Exception as e:
         logger.error(f"GEX surface error for {ticker}: {e}")

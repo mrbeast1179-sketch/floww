@@ -47,7 +47,7 @@ def fetch_options_chain(ticker: str, max_expiries: int = 2) -> dict[str, Any] | 
             if candidate > 0:
                 spot = candidate
         except Exception:
-            pass
+            pass  # silent by design: spot extraction is best-effort; inference proceeds with chain spot
 
         contracts = []
 
