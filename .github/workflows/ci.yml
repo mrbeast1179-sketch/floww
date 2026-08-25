@@ -87,7 +87,6 @@ jobs:
           GEMINI_API_KEY: test-key-ci
           APCA_API_KEY: ""
           APCA_SECRET_KEY: ""
-          GEMINI_API_KEY: ""
           FLASHALPHA_API_KEY: ""
           MARKETSTACK_API_KEY: ""
           API_SECRET_KEY: ""
