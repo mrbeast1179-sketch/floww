@@ -179,9 +179,6 @@ export default function FlowseekerProBlademap({ active = true }) {
   const [notify, setNotify] = useState(!!prefs.notify);
   const [forcing, setForcing] = useState(false);
   const [refreshTick, setRefreshTick] = useState(0);
-  // ── Keyboard navigation: j/k cursor, Enter focus, / search, r refresh ──
-  const [kbIdx, setKbIdx] = useState(-1);
-  const scanQRef = useRef(null);
   // ── Blademap v3: conviction-ranked feed + calibration + journal stats ──
   const [convFeed, setConvFeed] = useState([]);
   const [calibBands, setCalibBands] = useState([]);
@@ -507,31 +504,6 @@ export default function FlowseekerProBlademap({ active = true }) {
       .then((d) => { if (alive && d) setSetupStats(d); }).catch(() => {});
     return () => { alive = false; };
   }, [active, refreshTick]);
-
-  // Keyboard nav (scanner tab only, ignored while typing in an input)
-  useEffect(() => {
-    if (!active || tab !== "scanner") return;
-    const onKey = (e) => {
-      const t = e.target;
-      if (t && (t.tagName === "INPUT" || t.tagName === "SELECT" || t.tagName === "TEXTAREA")) {
-        if (e.key === "Escape") t.blur();
-        return;
-      }
-      if (e.key === "/") { e.preventDefault(); scanQRef.current && scanQRef.current.focus(); return; }
-      if (e.key === "r" || e.key === "R") { forceRefresh(); return; }
-      const n = scanRows.length;
-      if (!n) return;
-      if (e.key === "j" || e.key === "ArrowDown") { e.preventDefault(); setKbIdx((k) => Math.min(n - 1, k + 1)); }
-      else if (e.key === "k" || e.key === "ArrowUp") { e.preventDefault(); setKbIdx((k) => Math.max(0, k - 1)); }
-      else if (e.key === "g") { e.preventDefault(); setKbIdx(0); }
-      else if (e.key === "G") { e.preventDefault(); setKbIdx(n - 1); }
-      else if (e.key === "Enter" && kbIdx >= 0 && scanRows[kbIdx]) {
-        setTicker(scanRows[kbIdx].under); setTab("flow");
-      } else if (e.key === "Escape") { setKbIdx(-1); }
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [active, tab, scanRows, kbIdx, forceRefresh]);
 
   // ---- daily volume history (sparklines + persistence streaks) ----
   // Mongo-only on the backend (no upstream call) and it changes once a day —
@@ -1216,7 +1188,7 @@ export default function FlowseekerProBlademap({ active = true }) {
               </select>
               <input type="number" min="0" step="1000" placeholder="Min Vol" value={scanMinVol || ""} onChange={(e) => setScanMinVol(parseFloat(e.target.value) || 0)} />
               <input type="number" min="0" max="100" step="5" placeholder="Min Score" value={scanMinScore || ""} onChange={(e) => setScanMinScore(parseFloat(e.target.value) || 0)} />
-              <input ref={scanQRef} placeholder="Ticker…  ( / )" value={scanQ} onChange={(e) => setScanQ((e.target.value || "").toUpperCase())} />
+              <input placeholder="Ticker…" value={scanQ} onChange={(e) => setScanQ((e.target.value || "").toUpperCase())} />
               <span className="fsb-presets">
                 {[["Top Score", { key: "score", dir: "desc" }], ["Big Money", { key: "notional", dir: "desc" }],
                   ["Unusual", { key: "volOI", dir: "desc" }], ["Short Fuse", { key: "dte", dir: "asc" }],
@@ -1481,7 +1453,7 @@ export default function FlowseekerProBlademap({ active = true }) {
                       const isTop = i === 0 && scanSort.key === "score" && scanSort.dir === "desc" && (r.score ?? 0) >= 90;
                       return (
                         <tr key={`${r.under}-${r.strike}-${r.type}-${r.exp}-${i}`}
-                            className={`${kbIdx === i ? "kbcursor " : ""}${isTop ? "top " : ""}${r.under === ticker ? "sel " : ""}${r._new ? "new " : ""}${r._new && r.score >= alertScore ? "alert" : ""}`.trim()}
+                            className={`${isTop ? "top " : ""}${r.under === ticker ? "sel " : ""}${r._new ? "new " : ""}${r._new && r.score >= alertScore ? "alert" : ""}`.trim()}
                             onClick={() => { setTicker(r.under); setTab("flow"); }}>
                           <td className="fsb-seen" title={r.firstSeen ? `First seen ${fmtClock(r.firstSeen, true)} · ${fmtAge(r.firstSeen)} ago this session` : ""}>
                             {r._new ? <span className="fsb-newdot" title="New this refresh" /> : null}
@@ -1516,22 +1488,6 @@ export default function FlowseekerProBlademap({ active = true }) {
                             }>{r.arch}</span> : null}
                           </td>
                           {advanced && <td className="l"><span className={`fsb-lean ${isCall ? "bull" : "bear"}`}>{isCall ? "▲ BULL" : "▼ BEAR"}</span>{otm ? <span className="fsb-sub"> {r.deltaEst ? "~" : ""}{otm}</span> : null}</td>}
-                          {advanced && (() => {
-                            const hist = history[r.under] || [];
-                            const days = hist.slice(-7);
-                            const maxv = Math.max(1, ...days.map((d) => d.total_vol || 0));
-                            const stk = (streaks[r.under] && streaks[r.under].n) || 0;
-                            return (
-                              <td className="fsb-trd" title={`${r.under}: last ${days.length}d volume (elevated-day streak ${stk}d)`}>
-                                {days.length > 1 ? days.map((d, di) => (
-                                  <i key={di}
-                                     className={di === days.length - 1 ? "now" : ""}
-                                     style={{ height: `${Math.max(2, Math.round(((d.total_vol || 0) / maxv) * 12))}px` }}
-                                     title={`${d.date}: ${((d.total_vol || 0) / 1e6).toFixed(1)}M`} />
-                                )) : <span className="fsb-sub">—</span>}
-                              </td>
-                            );
-                          })()}
                         </tr>
                       );
                     })}
