@@ -15,7 +15,7 @@
 set -e
 
 REPO_ROOT="$HOME/Documents/GitHub/floww"
-PWA_PATH="$HOME/Applications/Chrome Apps.localized/Confluence Decoder.app"
+PWA_PATH="$HOME/Applications/Chrome Apps.localized/Meridian.app"
 BACKEND_PORT=8000
 REACT_PORT=3000
 RESTART=${1:-}

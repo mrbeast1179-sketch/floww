@@ -115,7 +115,7 @@ async def _logged_task(coro, name: str):
         log.warning(f"background task {name!r} raised: {type(e).__name__}: {e}", exc_info=True)
 
 
-app = FastAPI(title="Confluence Decoder")
+app = FastAPI(title="Meridian — GEX Terminal")
 app.add_middleware(CorrelationIdMiddleware)
 
 # ----------------------------- Safe Float Helper -----------------------------
