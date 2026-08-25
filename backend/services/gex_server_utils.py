@@ -417,9 +417,11 @@ def calc_implied_move(spot: float, contracts: list[dict[str, Any]]) -> dict[str,
     if not atm_calls or not atm_puts:
         return None
     # Use IV to estimate straddle price via BS
-    call_iv = atm_calls[0].get("iv", 0.2)
-    put_iv = atm_puts[0].get("iv", 0.2)
-    T = atm_calls[0].get("T", 1/365)
+    # .get(k, default) returns None when the key exists with a None value
+    # (cvserver 429-degraded payloads do this) — coalesce explicitly.
+    call_iv = atm_calls[0].get("iv") or 0.2
+    put_iv = atm_puts[0].get("iv") or 0.2
+    T = atm_calls[0].get("T") or 1/365
     if T <= 0:
         T = 1/365
     avg_iv = (call_iv + put_iv) / 2
