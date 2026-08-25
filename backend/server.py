@@ -1612,6 +1612,10 @@ async def _snapshot_chains():
             log.warning(f"snapshot: no duckdb conn: {e}")
             return
     create_snapshot_table(conn)
+    from services.exposure_alert_writer import evaluate_and_convert
+    from services.gex_core import compute_gex_grid
+    from services.flow_alerts import init_flow_alert_tables, persist_alerts
+    _grid_cache: dict[str, dict] = getattr(_snapshot_chains, "_grid_cache", {})
     for t in ("SPY", "QQQ", "IWM"):
         try:
             raw = await fetch_spot_and_chains_merged(t, 4)
@@ -1621,8 +1625,26 @@ async def _snapshot_chains():
             batch = contracts_to_recordbatch(raw)
             n = bulk_insert(conn, batch)
             log.info(f"chain snapshot {t}: {n} rows")
+            # GSD #10 O-2 — exposure alerts: compare this snapshot's VEX/charm
+            # grid against the previous one and write events into the shared
+            # flow-alerts feed (same DuckDB table the conviction feed reads).
+            try:
+                spot = raw.get("spot") or 0.0
+                new_grid = compute_gex_grid(spot, raw.get("contracts") or [], t)
+                old_grid = _grid_cache.get(t)
+                if old_grid:
+                    alerts = evaluate_and_convert(
+                        new_grid, old_grid, t, float(spot or 0.0))
+                    if alerts:
+                        init_flow_alert_tables(conn)
+                        k = persist_alerts(conn, alerts)
+                        log.info(f"exposure alerts {t}: {k} events")
+                _grid_cache[t] = new_grid
+            except Exception as e:  # alerts must never break snapshots
+                log.warning(f"exposure alert eval {t}: {e}")
         except Exception as e:
             log.warning(f"chain snapshot {t}: {e}")
+    _snapshot_chains._grid_cache = _grid_cache
 
 
 _last_snapshot_hhmm = ""
