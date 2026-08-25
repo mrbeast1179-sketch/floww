@@ -58,7 +58,7 @@ jobs:
         working-directory: ./backend
         run: |
           source .venv/bin/activate
-          pip install ruff
+          pip install "ruff==0.15.22"
           ruff check . --output-format=github
 
       - name: Type check with mypy
