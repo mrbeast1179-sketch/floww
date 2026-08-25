@@ -29,6 +29,7 @@ for _p in (str(PROJECT_ROOT), str(FLOWW_BACKEND)):
 
 
 import importlib.util
+
 import pytest as _pytest
 
 if importlib.util.find_spec("dvt_backtest") is None:
