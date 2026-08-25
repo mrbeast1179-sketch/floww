@@ -39,7 +39,10 @@ from advanced_analytics import (
 from databento_provider import fetch_oi_for_ticker, init_cache
 from portfolio import Portfolio, Position, calc_position_size
 from services.duckdb_engine import db as duckdb_engine
-from services.gex_server_utils import (
+
+# Rust-backed implementations (decoder_core delegation with pure-Python fallback,
+# bit-exact parity verified 2026-08-22). Was gex_server_utils (pure Python).
+from services.gex_core import (
     calc_aggregate_gex_curve,
     calc_implied_move,
     calc_probability_distribution,

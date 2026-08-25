@@ -1,3 +1,21 @@
+name: lint
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  ruff:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.13'
+      - name: Install ruff
+        run: pip install "ruff==0.15.22"
       - name: Check F841 (unused variables)
         working-directory: backend
         run: ruff check . --select F841

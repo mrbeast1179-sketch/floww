@@ -264,11 +264,11 @@ def calc_probability_distribution(spot: float, contracts: list[dict[str, Any]],
         iv = None
         T = None
         if calls:
-            iv = calls[0].get("iv", 0.2)
-            T = calls[0].get("T", 1/365)
+            iv = calls[0].get("iv") or 0.2
+            T = calls[0].get("T") or 1/365
         elif puts:
-            iv = puts[0].get("iv", 0.2)
-            T = puts[0].get("T", 1/365)
+            iv = puts[0].get("iv") or 0.2
+            T = puts[0].get("T") or 1/365
         if not iv or iv <= 0 or not T or T <= 0:
             continue
         try:
@@ -301,9 +301,9 @@ def calc_implied_move(spot: float, contracts: list[dict[str, Any]]) -> dict[str,
     atm_puts = [c for c in contracts if c["strike"] == atm and c["type"] == "put"]
     if not atm_calls or not atm_puts:
         return None
-    call_iv = atm_calls[0].get("iv", 0.2)
-    put_iv = atm_puts[0].get("iv", 0.2)
-    T = atm_calls[0].get("T", 1/365)
+    call_iv = atm_calls[0].get("iv") or 0.2
+    put_iv = atm_puts[0].get("iv") or 0.2
+    T = atm_calls[0].get("T") or 1/365
     if T <= 0:
         T = 1/365
     avg_iv = (call_iv + put_iv) / 2
@@ -729,7 +729,7 @@ def detect_patterns(strikes: list[dict[str, Any]], nodes: dict[str, Any], spot: 
     if not king or spot <= 0:
         return patterns
 
-    king_strike = king.get("strike", spot)
+    king_strike = king.get("strike") or spot
     if king_strike and king_strike > 0:
         distance_pct = abs(spot - king_strike) / king_strike
         if distance_pct > 0.005:
@@ -826,7 +826,7 @@ def find_zero_crossings(spot: float, contracts: list[dict]) -> list[float]:
     # Aggregate GEX by strike
     by_strike = {}
     for c in contracts:
-        strike = c.get("strike", 0)
+        strike = c.get("strike") or 0
         gex_val = c.get("gex", 0)
         if isinstance(gex_val, dict):
             gex_val = gex_val.get("net_gex", 0)
