@@ -895,3 +895,22 @@
   box-shadow: inset 3px 0 0 var(--fsb-gold-bright);
 }
 .fsb-scantable tr.kbcursor td:first-child { padding-left: 8px; }
+
+
+/* ── Trd sparkline column: 7-day mini volume bars ── */
+.fsb-trd {
+  white-space: nowrap;
+}
+.fsb-trd i {
+  display: inline-block;
+  width: 3px;
+  margin-right: 1.5px;
+  border-radius: 1px 1px 0 0;
+  background: var(--fsb-border2);
+  vertical-align: bottom;
+  min-height: 2px;
+}
+.fsb-trd i.now {
+  background: var(--fsb-gold-bright);
+  box-shadow: 0 0 5px rgba(232, 201, 106, 0.55);
+}

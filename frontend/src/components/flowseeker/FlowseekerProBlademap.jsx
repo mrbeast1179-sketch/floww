@@ -1516,6 +1516,22 @@ export default function FlowseekerProBlademap({ active = true }) {
                             }>{r.arch}</span> : null}
                           </td>
                           {advanced && <td className="l"><span className={`fsb-lean ${isCall ? "bull" : "bear"}`}>{isCall ? "▲ BULL" : "▼ BEAR"}</span>{otm ? <span className="fsb-sub"> {r.deltaEst ? "~" : ""}{otm}</span> : null}</td>}
+                          {advanced && (() => {
+                            const hist = history[r.under] || [];
+                            const days = hist.slice(-7);
+                            const maxv = Math.max(1, ...days.map((d) => d.total_vol || 0));
+                            const stk = (streaks[r.under] && streaks[r.under].n) || 0;
+                            return (
+                              <td className="fsb-trd" title={`${r.under}: last ${days.length}d volume (elevated-day streak ${stk}d)`}>
+                                {days.length > 1 ? days.map((d, di) => (
+                                  <i key={di}
+                                     className={di === days.length - 1 ? "now" : ""}
+                                     style={{ height: `${Math.max(2, Math.round(((d.total_vol || 0) / maxv) * 12))}px` }}
+                                     title={`${d.date}: ${((d.total_vol || 0) / 1e6).toFixed(1)}M`} />
+                                )) : <span className="fsb-sub">—</span>}
+                              </td>
+                            );
+                          })()}
                         </tr>
                       );
                     })}
