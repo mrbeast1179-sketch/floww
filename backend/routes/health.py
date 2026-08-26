@@ -42,7 +42,11 @@ async def health_check():
 
     # DuckDB check
     try:
-        duckdb_engine._conn.execute("SELECT 1").fetchone()
+        # Take the conn lock — touching _conn directly races the ingestion
+        # writer thread (duckdb connections are not thread-safe) and can
+        # deadlock the event loop.
+        with duckdb_engine._conn_lock:
+            duckdb_engine._conn.execute("SELECT 1").fetchone()
         checks["duckdb"] = {"status": "healthy"}
     except Exception as e:
         logger.warning(f"Health check: DuckDB unhealthy: {e}")
