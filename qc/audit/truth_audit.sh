@@ -126,7 +126,7 @@ fi
 # can't poison the check.
 if echo "$COMMIT_MSG" | grep -qiE "mongo|load.*dataset|backfill"; then
     MONGO_PATHS=()
-    for p in scripts backend/scripts; do
+    for p in scripts backend/scripts backend/services; do
         [ -d "$p" ] && MONGO_PATHS+=("$p")
     done
     if [ ${#MONGO_PATHS[@]} -gt 0 ] && \
