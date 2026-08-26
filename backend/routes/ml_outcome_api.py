@@ -26,14 +26,6 @@ from fastapi import APIRouter, HTTPException, Query
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/ml/outcome", tags=["ml-outcome"])
 
-# ── Helpers ────────────────────────────────────────────────────────────
-
-async def _get_db():
-    """Get MongoDB database handle."""
-    from server import db
-    return db
-
-
 # ── Record Predictions ────────────────────────────────────────────────
 
 @router.post("/record")
@@ -130,18 +122,18 @@ async def compute_outcomes():
     3. Mark accuracy
     """
     from services.ml.inference import compute_live_features
+    from services.ml_repository import (
+        predictions_due_for_outcome,
+        set_outcome,
+    )
 
-    db = await _get_db()
     now = datetime.now(UTC)
 
     # Find predictions needing outcome computation
-    cursor = db["ml_predictions"].find({
-        "outcome_date": {"$lte": now},
-        "realized_outcome": None,
-    }).sort("predicted_at", -1).limit(100)
+    pending = await predictions_due_for_outcome(now, limit=100)
 
     updated = 0
-    async for doc in cursor:
+    for doc in pending:
         ticker = doc["ticker"]
         try:
             # Get the latest return data
@@ -169,15 +161,12 @@ async def compute_outcomes():
             # Accuracy
             accurate = (doc["prediction"] == realized)
 
-            await db["ml_predictions"].update_one(
-                {"_id": doc["_id"]},
-                {"$set": {
-                    "realized_outcome": realized,
-                    "realized_return_pct": round(float(actual_return), 6),
-                    "accurate": accurate,
-                    "computed_at": now,
-                }}
-            )
+            await set_outcome(doc["_id"], {
+                "realized_outcome": realized,
+                "realized_return_pct": round(float(actual_return), 6),
+                "accurate": accurate,
+                "computed_at": now,
+            })
             updated += 1
         except Exception as e:
             logger.warning(f"Outcome compute failed for {ticker}: {e}")
@@ -197,7 +186,6 @@ async def get_accuracy(
 
     Overall, per-class, per-ticker, and calibration.
     """
-    db = await _get_db()
     since = datetime.now(UTC) - timedelta(days=days)
 
     match = {
@@ -209,86 +197,22 @@ async def get_accuracy(
     if model_id:
         match["model_id"] = model_id
 
-    pipeline = [
-        {"$match": match},
-        {"$group": {
-            "_id": None,
-            "total": {"$sum": 1},
-            "correct": {"$sum": {"$cond": ["$accurate", 1, 0]}},
-            "avg_confidence": {"$avg": "$confidence"},
-            "avg_return_when_correct": {"$avg": {"$cond": ["$accurate", "$realized_return_pct", None]}},
-            "avg_return_when_wrong": {"$avg": {"$cond": [{"$not": ["$accurate"]}, "$realized_return_pct", None]}},
-        }}
-    ]
+    from services.ml_repository import accuracy_stats, calibration_buckets
 
-    cursor = db["ml_predictions"].aggregate(pipeline)
-    stats = None
-    async for doc in cursor:
-        stats = doc
-        break
+    stats, by_ticker, by_class_raw = await accuracy_stats(match)
 
-    # Per-ticker breakdown
-    by_ticker = {}
-    pipeline2 = [
-        {"$match": match},
-        {"$group": {
-            "_id": "$ticker",
-            "total": {"$sum": 1},
-            "correct": {"$sum": {"$cond": ["$accurate", 1, 0]}},
-            "avg_confidence": {"$avg": "$confidence"},
-        }}
-    ]
-    cursor2 = db["ml_predictions"].aggregate(pipeline2)
-    async for doc in cursor2:
-        by_ticker[doc["_id"]] = {
-            "total": doc["total"],
-            "correct": doc["correct"],
-            "accuracy": round(doc["correct"] / doc["total"], 4) if doc["total"] > 0 else 0,
-            "avg_confidence": round(doc.get("avg_confidence", 0), 4),
-        }
-
-    # Per-class breakdown
+    # Per-class breakdown (labeled)
     by_class = {}
-    for cls, label in [(0, "DOWN"), (1, "HOLD"), (2, "UP")]:
-        cls_match = {**match, "prediction": cls}
-        pipeline3 = [
-            {"$match": cls_match},
-            {"$group": {
-                "_id": None,
-                "total": {"$sum": 1},
-                "correct": {"$sum": {"$cond": ["$accurate", 1, 0]}},
-            }}
-        ]
-        cursor3 = db["ml_predictions"].aggregate(pipeline3)
-        async for doc in cursor3:
-            by_class[label] = {
-                "total": doc["total"],
-                "correct": doc["correct"],
-                "accuracy": round(doc["correct"] / doc["total"], 4) if doc["total"] > 0 else 0,
-            }
+    class_labels = {0: "DOWN", 1: "HOLD", 2: "UP"}
+    for cls, label in class_labels.items():
+        entry = by_class_raw.get(cls)
+        if entry:
+            by_class[label] = entry
 
     # Calibration: how often is confidence ≈ accuracy?
-    cal_pipeline = [
-        {"$match": match},
-        {"$bucket": {
-            "groupBy": "$confidence",
-            "boundaries": [0, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0],
-            "default": "other",
-            "output": {
-                "count": {"$sum": 1},
-                "accuracy": {"$avg": {"$cond": ["$accurate", 1.0, 0.0]}},
-            }
-        }}
-    ]
     calibration = []
     try:
-        cursor4 = db["ml_predictions"].aggregate(cal_pipeline)
-        async for doc in cursor4:
-            calibration.append({
-                "confidence_bucket": doc["_id"],
-                "count": doc["count"],
-                "accuracy": round(doc["accuracy"], 4),
-            })
+        calibration = await calibration_buckets(match)
     except Exception as e:
         logger.warning(f"Calibration pipeline failed: {e}")
 
@@ -316,18 +240,10 @@ async def get_recent(
     with_outcomes_only: bool = Query(False),
 ):
     """Get recent predictions, optionally filtered to those with outcomes."""
-    db = await _get_db()
+    from services.ml_repository import recent_predictions
 
-    query = {}
-    if ticker:
-        query["ticker"] = ticker.upper()
-    if with_outcomes_only:
-        query["realized_outcome"] = {"$ne": None}
-
-    cursor = db["ml_predictions"].find(query).sort("predicted_at", -1).limit(limit)
-    results = []
-    async for doc in cursor:
-        doc["_id"] = str(doc["_id"])
-        results.append(doc)
+    results = await recent_predictions(
+        ticker=ticker, limit=limit, with_outcomes_only=with_outcomes_only
+    )
 
     return {"predictions": results, "count": len(results)}
