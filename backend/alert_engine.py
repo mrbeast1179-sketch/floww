@@ -76,6 +76,24 @@ class GEXSnapshot:
             self.timestamp = datetime.now(UTC).isoformat()
 
 
+# Single source of truth for alert-type metadata (type, priority, description).
+# /api/alerts/types serves this directly; keep in sync with detect_alerts().
+ALERT_TYPE_CATALOG: list[tuple[str, str, str]] = [
+    ("GAMMA_FLIP", "HIGH", "Regime change from positive to negative gamma"),
+    ("GAMMA_SQUEEZE", "HIGH", "Negative gamma + spot near flip + volume spike"),
+    ("MOMENTUM_EXTREME", "HIGH", "Strong bullish or bearish momentum"),
+    ("WALL_BREACH", "MEDIUM", "Spot crosses through call/put wall"),
+    ("GEX_MAGNITUDE_SHIFT", "MEDIUM", "Total GEX changed > 40%"),
+    ("GAMMA_FLIP_PROXIMITY", "MEDIUM", "Spot within 0.3% of gamma flip point"),
+    ("PIN_RISK", "LOW", "Spot near max gamma strike"),
+    ("CHARM_PINNING", "HIGH", "Charm-driven pinning (0DTE)"),
+    ("VANNA_REGIME_CHANGE", "HIGH", "Sign flip in net VEX above floor"),
+    ("UNUSUAL_PC_OI_RATIO", "MEDIUM", "Put OI / call OI ratio > 2x"),
+    ("MAX_PAIN_MAGNET", "LOW", "Spot within 1% of max pain in positive gamma"),
+    ("VOLUME_SPIKE", "MEDIUM", "Real contract-volume spike at a near-ATM strike"),
+]
+
+
 class AlertEngine:
     """
     Detects trading alerts by comparing GEX snapshots over time.
@@ -446,5 +464,5 @@ class AlertEngine:
             "alert_count": len(alerts),
             "high_priority": len([a for a in alerts if a.priority == "HIGH"]),
             "alerts": [a.to_dict() for a in alerts],
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(UTC).isoformat(),
         }

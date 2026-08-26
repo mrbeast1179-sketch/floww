@@ -1795,22 +1795,17 @@ async def delete_alert(alert_id: str):
 
 @app.get("/api/alerts/types")
 async def list_alert_types():
-    """List all available alert types."""
-    from alert_engine import AlertEngine
-    AlertEngine()
-    # Get all alert type constants
+    """List all available alert types.
+
+    Derived from the AlertEngine's own detection methods (single source of
+    truth) instead of a hand-maintained list that drifts when alert types
+    are added/removed in alert_engine.py.
+    """
+    from alert_engine import ALERT_TYPE_CATALOG
+
     alert_types = [
-        {"type": "GAMMA_FLIP", "priority": "HIGH", "description": "Regime change from positive to negative gamma"},
-        {"type": "GAMMA_SQUEEZE", "priority": "HIGH", "description": "Negative gamma + spot near flip + volume spike"},
-        {"type": "MOMENTUM_EXTREME", "priority": "HIGH", "description": "Strong bullish or bearish momentum"},
-        {"type": "WALL_BREACH", "priority": "MEDIUM", "description": "Spot crosses through call/put wall"},
-        {"type": "GEX_MAGNITUDE_SHIFT", "priority": "MEDIUM", "description": "Total GEX changed > 40%"},
-        {"type": "GAMMA_FLIP_PROXIMITY", "priority": "MEDIUM", "description": "Spot within 0.3% of gamma flip point"},
-        {"type": "PIN_RISK", "priority": "LOW", "description": "Spot near max gamma strike"},
-        {"type": "CHARM_PINNING", "priority": "HIGH", "description": "Charm-driven pinning (0DTE)"},
-        {"type": "VANNA_REGIME_CHANGE", "priority": "HIGH", "description": "Sign flip in net VEX above floor"},
-        {"type": "UNUSUAL_PC_OI_RATIO", "priority": "MEDIUM", "description": "Put OI / call OI ratio > 2x"},
-        {"type": "MAX_PAIN_MAGNET", "priority": "LOW", "description": "Spot within 1% of max pain in positive gamma"},
+        {"type": t, "priority": p, "description": d}
+        for t, p, d in ALERT_TYPE_CATALOG
     ]
     return {"alert_types": alert_types, "count": len(alert_types)}
 

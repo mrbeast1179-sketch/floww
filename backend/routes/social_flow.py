@@ -6,7 +6,7 @@ Mount these in server.py.
 import json
 import logging
 import os
-from datetime import datetime
+from datetime import UTC, datetime
 
 from fastapi import APIRouter
 
@@ -135,5 +135,5 @@ async def get_pipeline_status():
         "xurl_authenticated": xurl_auth,
         "cached_reports": reports,
         "data_dir": DATA_DIR,
-        "timestamp": datetime.utcnow().isoformat(),
+        "timestamp": datetime.now(UTC).isoformat(),
     }
