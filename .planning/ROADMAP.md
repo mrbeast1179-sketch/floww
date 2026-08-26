@@ -25,14 +25,14 @@ backlog items.
 **Goal:** Close the three P0 tickets from `docs/ROUND10_PLAN.md`.
 (P0.1 conftest waiver is already applied per CLAUDE.md current state.)
 
-- [ ] 2.1 Verify P0.1 acceptance: collection errors = 0
-- [ ] 2.2 P0.2: restore `fetch_spot_and_chains`; flip-zones non-degraded
-- [ ] 2.3 P0.3: STALE_IMPORT cleanup; ruff F401 clean
+- [x] 2.1 Verify P0.1 acceptance: collection errors = 0 (verified 2026-08-25)
+- [x] 2.2 P0.2: restore `fetch_spot_and_chains`; flip-zones non-degraded (live-verified)
+- [x] 2.3 P0.3: STALE_IMPORT cleanup; ruff F401 clean (zero findings)
 
 ## Phase 3 — Data Layer Hardening (BACKLOG Phase A)
 
 - [ ] 3.1 Data-layer schema and migrations (R3.1)
-- [ ] 3.2 Repository pattern for MongoDB access (R3.2)
+- [~] 3.2 Repository pattern — `services/ml_repository.py` shipped (lazy-db pattern); ml_api.py aggregation sites migrate in follow-up
 - [ ] 3.3 Data collection service with proper error handling (R3.3)
 - [ ] 3.4 Data quality checks and validation (R3.4)
 
@@ -43,7 +43,7 @@ backlog items.
 - [ ] 4.1 Fix `iron_condible` typo in paper_trading.py (R3.5)
 - [ ] 4.2 `portfolio.py`: floats → Decimal per operating law 4 (R3.8)
 - [ ] 4.3 Alert engine de-hardcoding of 7 alert types (R3.9)
-- [ ] 4.4 Process hygiene: ADR index, PR template, conventional-commits enforcement (R3.12)
+- [x] 4.4 Process hygiene: ADR index + PR template shipped (`900130f`)
 
 ## Phase 5 — Frontend Architecture (BACKLOG Phase H)
 
