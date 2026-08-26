@@ -50,6 +50,37 @@ async def update_outcome(ticker: str, asof: str, fields: dict[str, Any]) -> int:
     return res.modified_count
 
 
+async def latest_prediction(ticker: str) -> dict[str, Any] | None:
+    """Most recent prediction document for a ticker (any outcome state)."""
+    return await _col("ml_predictions").find_one(
+        {"ticker": ticker.upper()},
+        sort=[("ts", -1)],
+    )
+
+
+async def predictions_with_outcomes(ticker: str, limit: int = 30) -> list[dict[str, Any]]:
+    """Recent predictions that have realized outcomes + confidence (calibration)."""
+    cursor = (
+        _col("ml_predictions")
+        .find({
+            "ticker": ticker.upper(),
+            "realized_outcome": {"$ne": None},
+            "confidence": {"$ne": None},
+        })
+        .sort("ts", -1)
+        .limit(limit)
+    )
+    return await cursor.to_list(length=limit)
+
+
+async def active_model_summary(ticker: str) -> dict[str, Any] | None:
+    """Active model manifest with promotion metadata for a ticker."""
+    return await _col("ml_models").find_one(
+        {"ticker": ticker.upper(), "status": "active"},
+        {"_id": 0, "model_id": 1, "created_at": 1, "promoted_at": 1},
+    )
+
+
 async def latest_model_doc(ticker: str) -> dict[str, Any] | None:
     """The active model manifest for a ticker."""
     return await _col("ml_models").find_one(

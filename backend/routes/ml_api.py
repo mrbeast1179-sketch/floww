@@ -720,16 +720,11 @@ async def get_calibration(ticker: str, window: int = Query(default=30, ge=7, le=
     Query params:
         window: Number of recent predictions to analyze (default 30, max 90)
     """
-    from server import db
-    preds_col = db["ml_predictions"]
+    from services.ml_repository import predictions_with_outcomes
     ticker = ticker.upper()
 
     # Fetch recent predictions with realized outcomes
-    recent = await preds_col.find({
-        "ticker": ticker,
-        "realized_outcome": {"$ne": None},
-        "confidence": {"$ne": None},
-    }).sort("ts", -1).limit(window).to_list(length=window)
+    recent = await predictions_with_outcomes(ticker, limit=window)
 
     if not recent:
         return {
@@ -851,8 +846,6 @@ async def ml_compare(
 
     import numpy as np
 
-    from server import db
-
     DEFAULT_TICKERS = ["SPY", "QQQ", "DIA", "IWM", "TLT"]
 
     target_tickers = [t.strip().upper() for t in tickers.split(",") if t.strip()] if tickers else DEFAULT_TICKERS
@@ -864,11 +857,8 @@ async def ml_compare(
             ticker_data: dict[str, Any] = {}
 
             # 1. Latest prediction from ml_predictions
-            preds_col = db["ml_predictions"]
-            latest_pred = await preds_col.find_one(
-                {"ticker": ticker},
-                sort=[("ts", -1)],
-            )
+            from services.ml_repository import latest_prediction as _latest_pred
+            latest_pred = await _latest_pred(ticker)
 
             if latest_pred:
                 prediction_val = latest_pred.get("prediction")
@@ -899,11 +889,8 @@ async def ml_compare(
                 ticker_data["model_id"] = None
 
             # 2. Model metadata (last retrain date) from ml_models
-            models_col = db["ml_models"]
-            active_model = await models_col.find_one(
-                {"ticker": ticker, "status": "active"},
-                {"_id": 0, "model_id": 1, "created_at": 1, "promoted_at": 1},
-            )
+            from services.ml_repository import active_model_summary
+            active_model = await active_model_summary(ticker)
             if active_model:
                 ticker_data["model_id"] = ticker_data.get("model_id") or active_model.get("model_id")
                 ticker_data["last_retrain_date"] = active_model.get("promoted_at") or active_model.get("created_at")
@@ -926,7 +913,8 @@ async def ml_compare(
                 }},
             ]
             try:
-                agg_result = await preds_col.aggregate(pipeline).to_list(length=1)
+                from services.ml_repository import _col
+                agg_result = await _col("ml_predictions").aggregate(pipeline).to_list(length=1)
                 if agg_result and agg_result[0].get("returns"):
                     returns = [float(r) for r in agg_result[0]["returns"]]
                     n = len(returns)
