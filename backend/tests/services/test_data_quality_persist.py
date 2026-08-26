@@ -68,6 +68,7 @@ def test_persist_never_raises(checker):
 def test_lazy_db_no_module_level_binding():
     """The module must not import server.db at module level (test-mocking hazard)."""
     import services.data_quality as dq
-    src = open(dq.__file__).read()
+    with open(dq.__file__) as f:
+        src = f.read()
     assert "from server import db\n" not in src.split("def ")[0], \
         "module-level db binding found"
