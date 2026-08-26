@@ -2328,6 +2328,10 @@ from routes.data_providers import router as data_providers_router
 
 app.include_router(data_providers_router, tags=["data"])
 
+from routes.data_quality_api import router as data_quality_router
+
+app.include_router(data_quality_router, prefix="/api", tags=["data-quality"])
+
 from routes.flashalpha import router as flashalpha_router
 
 app.include_router(flashalpha_router, tags=["flashalpha"])
