@@ -34,7 +34,7 @@ backlog items.
 - [ ] 3.1 Data-layer schema and migrations (R3.1)
 - [x] 3.2 Repository pattern — `services/ml_repository.py` shipped; all ml_api.py sites migrated (`280890f`, agent 2)
 - [ ] 3.3 Data collection service with proper error handling (R3.3)
-- [ ] 3.4 Data quality checks and validation (R3.4)
+- [x] 3.4 Data quality checks — /api/data-quality/{ticker} cross-source GEX consistency endpoint shipped (`a34980f`)
 
 ## Phase 4 — Code Hygiene Sweep
 
