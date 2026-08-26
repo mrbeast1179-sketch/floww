@@ -18,6 +18,7 @@ from datetime import UTC, datetime
 from typing import Any
 
 import numpy as np
+from scipy.stats import norm
 
 from services.numba_greeks import compute_all_greeks
 
@@ -177,72 +178,90 @@ class MockSchwabFeed:
                 logger.error(f"Tick handler error: {e}")
 
     async def _generate_chain(self):
-        """Generate options chain updates for all symbols."""
+        """Generate options chain updates for all symbols.
+
+        Vectorized: builds the whole strike×type×expiry grid as arrays and
+        computes Greeks in ONE compute_all_greeks call per symbol (the old
+        per-contract numpy-of-size-1 loop burned ~117% CPU and saturated
+        the ingestion queue).
+        """
         now = datetime.now(UTC)
         for symbol in self.symbols:
             spot = self._current_prices[symbol]
             spot_config = self.spots.get(symbol, {"vol": 0.15})
             base_iv = spot_config["vol"]
 
-            # Generate strikes around ATM
+            # Build the full contract grid as flat arrays (vectorized)
             atm_strike = round(spot / STRIKE_STEP) * STRIKE_STEP
-            strikes = [atm_strike + (i - NUM_STRIKES // 2) * STRIKE_STEP for i in range(NUM_STRIKES)]
+            strikes_list = [atm_strike + (i - NUM_STRIKES // 2) * STRIKE_STEP for i in range(NUM_STRIKES)]
+            dtes = OPTION_EXPIRIES[:3]  # nearest 3 expiries
 
-            for dte in OPTION_EXPIRIES[:3]:  # nearest 3 expiries
+            rows: list[tuple[float, float, float, int, str, float]] = []
+            # (strike, T, iv, type_code, opt_type, expiry_str)
+            moneyness = [s / spot for s in strikes_list]
+            for dte in dtes:
                 T = dte / 365.0
-                for strike in strikes:
-                    for opt_type in ["call", "put"]:
-                        # Compute Greeks using our Numba calculator
-                        type_code = 0 if opt_type == "call" else 1
-                        # Slight IV skew
-                        moneyness = strike / spot
-                        iv = base_iv * (1 + 0.1 * (moneyness - 1) ** 2)
+                expiry_str = (now.replace(hour=0, minute=0, second=0) + __import__("datetime").timedelta(days=dte)).strftime("%Y-%m-%d")
+                for strike, mn in zip(strikes_list, moneyness, strict=True):
+                    iv_skew = base_iv * (1 + 0.1 * (mn - 1) ** 2)
+                    for type_code, opt_type in [(0, "call"), (1, "put")]:
+                        rows.append((strike, T, iv_skew, type_code, opt_type, expiry_str))
 
-                        greeks = compute_all_greeks(
-                            spot,
-                            np.array([strike]),
-                            np.array([T]),
-                            np.array([iv]),
-                            np.array([type_code]),
-                        )
+            n = len(rows)
+            strikes_arr = np.array([r[0] for r in rows])
+            ts_arr = np.array([r[1] for r in rows])
+            ivs_arr = np.array([r[2] for r in rows])
+            types_arr = np.array([r[3] for r in rows])
 
-                        # BS price for bid/ask
-                        from scipy.stats import norm
-                        d1 = (math.log(spot / strike) + (0.05 + 0.5 * iv**2) * T) / (iv * math.sqrt(T))
-                        if opt_type == "call":
-                            theo = spot * norm.cdf(d1) - strike * math.exp(-0.05 * T) * norm.cdf(d1 - iv * math.sqrt(T))
-                        else:
-                            theo = strike * math.exp(-0.05 * T) * norm.cdf(-(d1 - iv * math.sqrt(T))) - spot * norm.cdf(-d1)
+            # ONE vectorized Greeks call for the entire symbol grid
+            greeks = compute_all_greeks(spot, strikes_arr, ts_arr, ivs_arr, types_arr)
+            deltas = np.asarray(greeks["delta"])
+            gammas = np.asarray(greeks["gamma"])
+            thetas = np.asarray(greeks["theta"])
+            vegas = np.asarray(greeks["vega"])
 
-                        theo = max(theo, 0.01)
-                        spread = max(0.05, theo * 0.02)
+            # Vectorized Black-Scholes theoretical price
+            sq_t = np.sqrt(ts_arr)
+            d1 = (np.log(spot / strikes_arr) + (0.05 + 0.5 * ivs_arr**2) * ts_arr) / (ivs_arr * sq_t)
+            d2 = d1 - ivs_arr * sq_t
+            is_call = types_arr == 0
+            theo = np.where(
+                is_call,
+                spot * norm.cdf(d1) - strikes_arr * np.exp(-0.05 * ts_arr) * norm.cdf(d2),
+                strikes_arr * np.exp(-0.05 * ts_arr) * norm.cdf(-d2) - spot * norm.cdf(-d1),
+            )
+            theo = np.maximum(theo, 0.01)
+            spreads = np.maximum(0.05, theo * 0.02)
 
-                        expiry_str = (now.replace(hour=0, minute=0, second=0) + __import__("datetime").timedelta(days=dte)).strftime("%Y-%m-%d")
+            volumes = self.rng.integers(0, 500, size=n)
+            ois = self.rng.integers(1000, 50000, size=n)
 
-                        chain = {
-                            "timestamp": now.isoformat(),
-                            "symbol": symbol,
-                            "option_symbol": f"{symbol} {expiry_str[-5:].replace('-', '')}{'C' if opt_type == 'call' else 'P'}{int(strike*1000):08d}",
-                            "expiry": expiry_str,
-                            "strike": strike,
-                            "type": opt_type,
-                            "bid": round(theo - spread / 2, 2),
-                            "ask": round(theo + spread / 2, 2),
-                            "last": round(theo + self.rng.normal(0, spread * 0.3), 2),
-                            "volume": int(self.rng.integers(0, 500)),
-                            "oi": int(self.rng.integers(1000, 50000)),
-                            "delta": round(float(greeks["delta"][0]), 6),
-                            "gamma": round(float(greeks["gamma"][0]), 6),
-                            "theta": round(float(greeks["theta"][0]), 6),
-                            "vega": round(float(greeks["vega"][0]), 6),
-                            "source": "mock",
-                        }
+            for i, (strike, _T, _iv, type_code, opt_type, expiry_str) in enumerate(rows):
+                spread_i = float(spreads[i])
+                chain = {
+                    "timestamp": now.isoformat(),
+                    "symbol": symbol,
+                    "option_symbol": f"{symbol} {expiry_str[-5:].replace('-', '')}{'C' if type_code == 0 else 'P'}{int(strike*1000):08d}",
+                    "expiry": expiry_str,
+                    "strike": strike,
+                    "type": opt_type,
+                    "bid": round(float(theo[i]) - spread_i / 2, 2),
+                    "ask": round(float(theo[i]) + spread_i / 2, 2),
+                    "last": round(float(theo[i]) + self.rng.normal(0, spread_i * 0.3), 2),
+                    "volume": int(volumes[i]),
+                    "oi": int(ois[i]),
+                    "delta": round(float(deltas[i]), 6),
+                    "gamma": round(float(gammas[i]), 6),
+                    "theta": round(float(thetas[i]), 6),
+                    "vega": round(float(vegas[i]), 6),
+                    "source": "mock",
+                }
 
-                        for h in self._chain_handlers:
-                            try:
-                                await h(chain) if asyncio.iscoroutinefunction(h) else h(chain)
-                            except Exception as e:
-                                logger.error(f"Chain handler error: {e}")
+                for h in self._chain_handlers:
+                    try:
+                        await h(chain) if asyncio.iscoroutinefunction(h) else h(chain)
+                    except Exception as e:
+                        logger.error(f"Chain handler error: {e}")
 
     async def _generate_lob(self):
         """Generate a top-of-book LOB snapshot."""
