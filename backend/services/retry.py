@@ -30,14 +30,14 @@ def _jittered_delay(attempt: int, base_delay: float, cap: float = 10.0) -> float
     return random.uniform(raw * 0.5, raw)
 
 
-def retry_sync[T](
-    fn: Callable[..., T],
+def retry_sync(
+    fn: Callable[..., Any],
     *args: Any,
     attempts: int = 3,
     base_delay: float = 0.5,
     retry_on: tuple[type[BaseException], ...] = RETRYABLE_EXCEPTIONS,
     **kwargs: Any,
-) -> T:
+) -> Any:
     """Call fn(*args, **kwargs), retrying on failure with jittered backoff.
 
     Re-raises the last exception after exhausting attempts.
