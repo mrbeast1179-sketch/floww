@@ -31,9 +31,9 @@ backlog items.
 
 ## Phase 3 — Data Layer Hardening (BACKLOG Phase A)
 
-- [ ] 3.1 Data-layer schema and migrations (R3.1)
+- [x] 3.1 Data-layer schema and migrations — versioned append-only DuckDB migration system in `services/duckdb_engine.py` (`schema_migrations` table, migrations 002/003 shipped) (`ad77c90`, agent 3)
 - [x] 3.2 Repository pattern — `services/ml_repository.py` shipped; all ml_api.py sites migrated (`280890f`, agent 2)
-- [ ] 3.3 Data collection service with proper error handling (R3.3)
+- [x] 3.3 Retry/error handling — `services/retry.py` (sync+async jittered backoff); first consumer `yfinance_fetcher.fetch_underlying_ohlcv` retries transient failures AND empty frames (`640773c`, agent 2)
 - [x] 3.4 Data quality checks — /api/data-quality/{ticker} cross-source GEX consistency endpoint shipped (`a34980f`)
 
 ## Phase 4 — Code Hygiene Sweep
