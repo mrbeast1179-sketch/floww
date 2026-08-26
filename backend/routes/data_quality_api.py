@@ -61,9 +61,13 @@ async def data_quality(
             log.warning(f"data-quality: yfinance fetch failed for {t}: {yf_chain}")
             yf_chain = []
 
-        if not cv_chain and not yf_chain:
-            return {"ticker": t, "status": "NO_DATA", "rel_err": None,
-                    "cv_contracts": 0, "yf_contracts": 0}
+        # A single-sided comparison is meaningless: an empty source yields
+        # gex=0 on that side, which reads as a false "OK" (rel_err can even be
+        # 1.0 or 0.0 by accident). Require both sides populated.
+        if not cv_chain or not yf_chain:
+            return {"ticker": t, "status": "INSUFFICIENT_DATA", "rel_err": None,
+                    "cv_contracts": len(cv_chain), "yf_contracts": len(yf_chain),
+                    "detail": "cross-source check needs both sources populated"}
 
         result = await _checker.check_gex_consistency(cv_chain, yf_chain, t)
         result["cv_contracts"] = len(cv_chain)
