@@ -13,6 +13,7 @@ Features:
 
 import math
 from datetime import UTC, date, datetime
+from decimal import Decimal as D
 from typing import Any
 
 from scipy.stats import norm
@@ -148,15 +149,22 @@ class Position:
         }
 
     def pnl(self, current_price: float) -> dict[str, float]:
-        """Calculate P&L for this position."""
+        """Calculate P&L for this position.
+
+        Money accumulation uses Decimal (operating law 4: no float money
+        math); results are returned as floats rounded to cents for JSON.
+        """
         sign = 1 if self.is_long else -1
-        per_contract = (current_price - self.entry_price) * sign
-        total = per_contract * abs(self.quantity) * 100
+        entry = D(str(self.entry_price))
+        current = D(str(current_price))
+        qty = D(abs(self.quantity)) * 100
+        per_contract = (current - entry) * sign
+        total = per_contract * qty
         return {
-            "per_contract": round(per_contract, 2),
-            "total": round(total, 2),
-            "entry_value": round(self.entry_price * abs(self.quantity) * 100, 2),
-            "current_value": round(current_price * abs(self.quantity) * 100, 2),
+            "per_contract": round(float(per_contract), 2),
+            "total": round(float(total), 2),
+            "entry_value": round(float(entry * qty), 2),
+            "current_value": round(float(current * qty), 2),
         }
 
 
@@ -171,25 +179,33 @@ class Portfolio:
     def add_position(self, position: Position):
         self.positions.append(position)
         sign = 1 if position.is_long else -1
-        self.cash -= position.entry_price * abs(position.quantity) * 100 * sign
+        # Decimal money math (operating law 4); stored back as float so the
+        # Mongo round-trip shape is unchanged.
+        outlay = D(str(position.entry_price)) * abs(D(position.quantity)) * 100 * sign
+        self.cash = float(D(str(self.cash)) - outlay)
 
     def total_pnl(self, spot: float, iv: float) -> dict[str, float]:
-        """Calculate total portfolio P&L."""
-        total_pnl = 0
-        total_entry = 0
-        total_current = 0
+        """Calculate total portfolio P&L.
+
+        Aggregation accumulates in Decimal (operating law 4); each position's
+        pnl() already returns cent-rounded floats — re-rounding here only
+        trims accumulated representation noise, never real cents.
+        """
+        total_pnl = D("0")
+        total_entry = D("0")
+        total_current = D("0")
         for pos in self.positions:
             g = pos.current_greeks(spot, iv)
             current_price = g.get("price", 0)
             p = pos.pnl(current_price)
-            total_pnl += p["total"]
-            total_entry += p["entry_value"]
-            total_current += p["current_value"]
+            total_pnl += D(str(p["total"]))
+            total_entry += D(str(p["entry_value"]))
+            total_current += D(str(p["current_value"]))
         return {
-            "total_pnl": round(total_pnl, 2),
-            "total_entry_value": round(total_entry, 2),
-            "total_current_value": round(total_current, 2),
-            "pct_pnl": round((total_pnl / total_entry) * 100, 2) if total_entry else 0,
+            "total_pnl": round(float(total_pnl), 2),
+            "total_entry_value": round(float(total_entry), 2),
+            "total_current_value": round(float(total_current), 2),
+            "pct_pnl": round(float(total_pnl / total_entry) * 100, 2) if total_entry else 0,
         }
 
 def calc_position_size(account_size: float, risk_per_trade_pct: float,
@@ -199,30 +215,36 @@ def calc_position_size(account_size: float, risk_per_trade_pct: float,
     Calculate position size based on GEX levels and risk parameters.
     Near high-GEX strikes, reduce size (more predictable but crowded).
     Near low-GEX strikes, increase size (more volatile but less crowded).
+
+    Risk math uses Decimal (operating law 4); outputs are floats for JSON.
     """
-    risk_amount = account_size * risk_per_trade_pct
-    max_position_value = account_size * max_position_pct
+    acct = D(str(account_size))
+    risk_amount = acct * D(str(risk_per_trade_pct))
+    max_position_value = acct * D(str(max_position_pct))
+    spot_d = D(str(spot))
 
     # GEX-based sizing factor
     # High GEX = more dealer hedging = more predictable = can size larger
     # But also more crowded = wider stops needed
-    gex_factor = min(1.0, abs(gex_level) / 1e9) if gex_level else 0.5
-    gex_factor = max(0.2, min(1.0, gex_factor))
+    gex_factor = min(D("1.0"), D(str(abs(gex_level))) / D("1e9")) if gex_level else D("0.5")
+    gex_factor = max(D("0.2"), min(D("1.0"), gex_factor))
 
     # Distance to nearest GEX wall
     # Closer to wall = smaller position (risk of reversal)
     # Further from wall = larger position (more room to run)
 
-    contracts = int(risk_amount / (spot * 0.01 * 100))  # Risk per 1% move
-    contracts = min(contracts, int(max_position_value / (spot * 100)))
+    contracts = int(risk_amount / (spot_d * D("0.01") * 100))  # Risk per 1% move
+    contracts = min(contracts, int(max_position_value / (spot_d * 100)))
     contracts = max(1, contracts)
+
+    position_value = D(contracts) * spot_d * 100
 
     return {
         "account_size": account_size,
-        "risk_per_trade": risk_amount,
-        "max_position_value": max_position_value,
+        "risk_per_trade": float(risk_amount),
+        "max_position_value": float(max_position_value),
         "recommended_contracts": contracts,
-        "gex_factor": round(gex_factor, 2),
-        "position_value": round(contracts * spot * 100, 2),
-        "position_pct_of_account": round((contracts * spot * 100) / account_size * 100, 2),
+        "gex_factor": round(float(gex_factor), 2),
+        "position_value": round(float(position_value), 2),
+        "position_pct_of_account": round(float(position_value / acct) * 100, 2),
     }
