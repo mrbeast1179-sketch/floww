@@ -32,7 +32,7 @@ backlog items.
 ## Phase 3 — Data Layer Hardening (BACKLOG Phase A)
 
 - [ ] 3.1 Data-layer schema and migrations (R3.1)
-- [~] 3.2 Repository pattern — `services/ml_repository.py` shipped (lazy-db pattern); ml_api.py aggregation sites migrate in follow-up
+- [x] 3.2 Repository pattern — `services/ml_repository.py` shipped; all ml_api.py sites migrated (`280890f`, agent 2)
 - [ ] 3.3 Data collection service with proper error handling (R3.3)
 - [ ] 3.4 Data quality checks and validation (R3.4)
 
@@ -40,7 +40,7 @@ backlog items.
 
 **Goal:** Burn down actionable discovered issues from `BACKLOG.md`.
 
-- [ ] 4.1 Fix `iron_condible` typo in paper_trading.py (R3.5)
+- [x] 4.1 `iron_condible` typo — already fixed in paper_trading.py (verified: DEFAULT_STRATEGY="iron_condor")
 - [ ] 4.2 `portfolio.py`: floats → Decimal per operating law 4 (R3.8)
 - [x] 4.3 Alert engine de-hardcoding (R3.9) — done by agent 1 in `beb02cc` (ALERT_TYPE_CATALOG single-source, 12 types)
 - [x] 4.4 Process hygiene: ADR index + PR template shipped (`900130f`)
