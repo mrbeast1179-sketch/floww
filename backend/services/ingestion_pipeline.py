@@ -207,10 +207,12 @@ class IngestionPipeline:
     # ------------------------------------------------------------------
 
     async def _insert_ticks(self, ticks: list):
-        """Bulk INSERT ticks into DuckDB."""
-        rows = []
-        for t in ticks:
-            rows.append((
+        """Bulk INSERT ticks into DuckDB (columnar batch)."""
+        cols = ["timestamp", "symbol", "bid", "ask", "last", "volume", "oi",
+                "delta_val", "gamma_val", "theta_val", "vega_val", "vanna_val",
+                "charm_val", "vomma_val", "data_source", "delay_seconds"]
+        rows = [
+            (
                 t.get("timestamp", datetime.now(UTC).isoformat()),
                 t.get("symbol", ""),
                 t.get("bid", 0.0),
@@ -226,51 +228,52 @@ class IngestionPipeline:
                 float(t.get("charm", 0.0)),
                 float(t.get("vomma", 0.0)),
                 t.get("data_source", "Yahoo"),
-                t.get("delay_seconds", 0),
-            ))
-        await asyncio.to_thread(
-            lambda: self.db.execute_write(
-                "INSERT INTO ticks VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
-                rows,
+                int(t.get("delay_seconds", 0)),
             )
+            for t in ticks
+        ]
+        await asyncio.to_thread(
+            lambda: self.db.execute_write_bulk("ticks", cols, rows)
         )
 
     async def _insert_chains(self, chains: list):
-        """Bulk INSERT chain data into DuckDB chains table."""
-        rows = []
-        for c in chains:
-            rows.append((
-                c.get("timestamp", datetime.now(UTC).isoformat()),  # timestamp
-                c.get("symbol", ""),                                  # symbol
-                c.get("ticker", c.get("symbol", "")),                # ticker
-                float(c.get("strike", 0.0)),                         # strike
-                c.get("expiry", ""),                                  # expiry
-                c.get("type", "call"),                               # type
-                float(c.get("bid", 0.0)),                            # bid
-                float(c.get("ask", 0.0)),                            # ask
-                float(c.get("last", 0.0)),                           # last
-                int(c.get("volume", 0)),                             # volume
-                int(c.get("oi", c.get("open_interest", 0))),         # open_interest
-                float(c.get("iv", 0.0)),                             # iv
-                float(c.get("delta", 0.0)),                          # delta_val
-                float(c.get("gamma", 0.0)),                          # gamma_val
-                float(c.get("theta", 0.0)),                          # theta_val
-                float(c.get("vega", 0.0)),                           # vega_val
-                c.get("data_source", "Yahoo"),                        # data_source
-                int(c.get("delay_seconds", 0)),                      # delay_seconds
-            ))
-        await asyncio.to_thread(
-            lambda: self.db.execute_write(
-                "INSERT INTO chains VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
-                rows,
+        """Bulk INSERT chain data into DuckDB (columnar batch)."""
+        cols = ["timestamp", "symbol", "ticker", "strike", "expiry", "type",
+                "bid", "ask", "last", "volume", "open_interest", "iv",
+                "delta_val", "gamma_val", "theta_val", "vega_val",
+                "data_source", "delay_seconds"]
+        rows = [
+            (
+                c.get("timestamp", datetime.now(UTC).isoformat()),
+                c.get("symbol", ""),
+                c.get("ticker", c.get("symbol", "")),
+                float(c.get("strike", 0.0)),
+                c.get("expiry", ""),
+                c.get("type", "call"),
+                float(c.get("bid", 0.0)),
+                float(c.get("ask", 0.0)),
+                float(c.get("last", 0.0)),
+                int(c.get("volume", 0)),
+                int(c.get("oi", c.get("open_interest", 0))),
+                float(c.get("iv", 0.0)),
+                float(c.get("delta", 0.0)),
+                float(c.get("gamma", 0.0)),
+                float(c.get("theta", 0.0)),
+                float(c.get("vega", 0.0)),
+                c.get("data_source", "Yahoo"),
+                int(c.get("delay_seconds", 0)),
             )
+            for c in chains
+        ]
+        await asyncio.to_thread(
+            lambda: self.db.execute_write_bulk("chains", cols, rows)
         )
 
     async def _insert_lob(self, lob_snapshots: list):
-        """Bulk INSERT LOB snapshots into DuckDB."""
-        rows = []
-        for lob in lob_snapshots:
-            rows.append((
+        """Bulk INSERT LOB snapshots into DuckDB (columnar batch)."""
+        cols = ["timestamp", "symbol", "bid_size", "ask_size", "bid_price", "ask_price", "level"]
+        rows = [
+            (
                 lob.get("timestamp", datetime.now(UTC).isoformat()),
                 lob.get("symbol", ""),
                 lob.get("bid_size", 0),
@@ -278,19 +281,19 @@ class IngestionPipeline:
                 lob.get("bid_price", 0.0),
                 lob.get("ask_price", 0.0),
                 lob.get("level", 0),
-            ))
-        await asyncio.to_thread(
-            lambda: self.db.execute_write(
-                "INSERT INTO lob_snapshots VALUES (?,?,?,?,?,?,?)",
-                rows,
             )
+            for lob in lob_snapshots
+        ]
+        await asyncio.to_thread(
+            lambda: self.db.execute_write_bulk("lob_snapshots", cols, rows)
         )
 
     async def _insert_lob_depth(self, depth_rows: list):
-        """Bulk INSERT Level-2 LOB depth into DuckDB."""
-        rows = []
-        for d in depth_rows:
-            rows.append((
+        """Bulk INSERT Level-2 LOB depth into DuckDB (columnar batch)."""
+        cols = ["timestamp", "symbol", "expiry", "strike", "option_type",
+                "level", "bid_size", "bid_price", "ask_size", "ask_price"]
+        rows = [
+            (
                 d.get("timestamp", datetime.now(UTC).isoformat()),
                 d.get("symbol", ""),
                 d.get("expiry", ""),
@@ -301,12 +304,11 @@ class IngestionPipeline:
                 d.get("bid_price", 0.0),
                 d.get("ask_size", 0),
                 d.get("ask_price", 0.0),
-            ))
-        await asyncio.to_thread(
-            lambda: self.db.execute_write(
-                "INSERT INTO lob_depth VALUES (?,?,?,?,?,?,?,?,?,?)",
-                rows,
             )
+            for d in depth_rows
+        ]
+        await asyncio.to_thread(
+            lambda: self.db.execute_write_bulk("lob_depth", cols, rows)
         )
 
     # ------------------------------------------------------------------
