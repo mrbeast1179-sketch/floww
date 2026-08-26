@@ -75,6 +75,10 @@ class DataQualityChecker:
             "timestamp": datetime.now(UTC).isoformat(),
         }
         self._history.append(result)
+        if result["status"] != "OK":
+            # Persist only anomalies — OK rows add volume without signal.
+            # (History endpoint still returns the in-memory series.)
+            self._persist(result)
         return result
 
     def _compute_net_gex(self, chain: list[dict[str, Any]]) -> float:
@@ -89,6 +93,18 @@ class DataQualityChecker:
             gex = sign * gamma * oi * 100 * spot * spot * 0.01
             net_gex += gex
         return net_gex
+
+    def _persist(self, result: dict[str, Any]) -> None:
+        """Best-effort persist to Mongo (data_quality_history).
+
+        Lazy db access — never bind at module import (tests patch server.db).
+        Failures are logged, never raised: monitoring must not break the app.
+        """
+        try:
+            from server import db
+            db["data_quality_history"].insert_one(dict(result))
+        except Exception as e:  # noqa: BLE001 — monitoring must not raise
+            logger.warning(f"data-quality persist failed: {e}")
 
     def get_history(self, limit: int = 100) -> list[dict[str, Any]]:
         return self._history[-limit:]
