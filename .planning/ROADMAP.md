@@ -42,7 +42,7 @@ backlog items.
 
 - [ ] 4.1 Fix `iron_condible` typo in paper_trading.py (R3.5)
 - [ ] 4.2 `portfolio.py`: floats → Decimal per operating law 4 (R3.8)
-- [ ] 4.3 Alert engine de-hardcoding of 7 alert types (R3.9)
+- [x] 4.3 Alert engine de-hardcoding (R3.9) — done by agent 1 in `beb02cc` (ALERT_TYPE_CATALOG single-source, 12 types)
 - [x] 4.4 Process hygiene: ADR index + PR template shipped (`900130f`)
 
 ## Phase 5 — Frontend Architecture (BACKLOG Phase H)
