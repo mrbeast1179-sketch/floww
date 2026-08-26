@@ -88,6 +88,32 @@ async def _execute_with_timeout(
         raise
 
 
+# ── Versioned schema migrations (GSD 3.1) ─────────────────────────────
+#
+# Each entry: (version, name, fn(conn)). Append-only — a migration that
+# shipped must never be edited or reordered; add the next version instead.
+# Migration 1 formalizes the pre-migration-era baseline (tables + indexes
+# are created unconditionally in _init_schema before this runs).
+
+
+def _mig_002_chains_expiry_index(conn) -> None:
+    """Speed up expiry-filtered chain reads (outcome/heatmap queries)."""
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_chains_expiry ON chains(expiry)")
+
+
+def _mig_003_ticks_symbol_ts_composite(conn) -> None:
+    """Composite for per-symbol time-window scans (VPIN / replay)."""
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_ticks_symbol_ts ON ticks(symbol, timestamp)"
+    )
+
+
+MIGRATIONS: list[tuple[int, str, Any]] = [
+    (2, "idx_chains_expiry", _mig_002_chains_expiry_index),
+    (3, "idx_ticks_symbol_ts", _mig_003_ticks_symbol_ts_composite),
+]
+
+
 class DuckDBEngine:
     """Thread-safe DuckDB wrapper with async batch writer."""
 
@@ -121,7 +147,46 @@ class DuckDBEngine:
         self._create_chains_table()
         self._apply_delayed_data_migration()
         self._create_indexes()
+        self._run_migrations()
         logger.info("DuckDB schema initialized with delayed-data support")
+
+    # ------------------------------------------------------------------
+    # Versioned migrations (GSD 3.1)
+    #
+    # DuckDB has no PRAGMA user_version, so applied migrations are tracked
+    # in a schema_migrations table. Each migration runs once, under the
+    # conn lock. Append new migrations to the END of MIGRATIONS — never
+    # edit or reorder an applied one.
+    # ------------------------------------------------------------------
+
+    def _applied_versions(self) -> set[int]:
+        with self._conn_lock:
+            self._conn.execute("""
+                CREATE TABLE IF NOT EXISTS schema_migrations (
+                    version    INTEGER PRIMARY KEY,
+                    name       VARCHAR,
+                    applied_at TIMESTAMP DEFAULT now()
+                )
+            """)
+            rows = self._conn.execute("SELECT version FROM schema_migrations").fetchall()
+        return {r[0] for r in rows}
+
+    def _run_migrations(self) -> None:
+        applied = self._applied_versions()
+        ran = False
+        for version, name, fn in MIGRATIONS:
+            if version in applied:
+                continue
+            logger.info(f"duckdb migration {version}: applying {name}")
+            with self._conn_lock:
+                fn(self._conn)
+                self._conn.execute(
+                    "INSERT OR REPLACE INTO schema_migrations (version, name) VALUES (?, ?)",
+                    [version, name],
+                )
+            ran = True
+        if ran:
+            logger.info(f"duckdb migrations complete (schema at v{MIGRATIONS[-1][0]})")
 
     def _create_base_tables(self):
         self._conn.execute("""
