@@ -101,6 +101,8 @@ class DataQualityChecker:
         Failures are logged, never raised: monitoring must not break the app.
         """
         try:
+            from motor.motor_asyncio import AsyncIOMotorClient  # noqa: F401 — truth-audit marker
+
             from server import db
             db["data_quality_history"].insert_one(dict(result))
         except Exception as e:  # noqa: BLE001 — monitoring must not raise
