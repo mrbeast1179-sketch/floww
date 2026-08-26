@@ -688,13 +688,9 @@ async def rolling_accuracy(
 @router.get("/retrain-status/{ticker}")
 async def retrain_status(ticker: str) -> dict[str, Any]:
     """Get the retrain history for a ticker."""
-    from server import db
+    from services.ml_repository import retrain_history
     try:
-        col = db["ml_retrain"]
-        cursor = col.find(
-            {"ticker": ticker.upper()}, {"_id": 0}
-        ).sort("created_at", -1).limit(10)
-        history = await cursor.to_list(length=10)
+        history = await retrain_history(ticker, limit=10)
         return {"ticker": ticker.upper(), "history": history, "count": len(history)}
     except Exception as e:
         logger.error(f"Retrain status failed for {ticker}: {e}", exc_info=True)
