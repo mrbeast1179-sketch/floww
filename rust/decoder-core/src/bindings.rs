@@ -615,17 +615,18 @@ fn aggregate_gex_curve(
 /// 2D GEX grid — parity with gex_core.compute_gex_grid.
 /// Columnar; returns {expiries, strikes, grid, charm_grid, vex_grid, strike_totals}.
 #[pyfunction]
-#[pyo3(signature = (spot, strikes, ts, ois, ivs, kinds, expiries, div_yield=0.0))]
+#[pyo3(signature = (spot, strikes, ts, ois, ivs, kinds, expiries, div_yield=0.0, weight_volume=false))]
 fn compute_gex_grid(
     py: Python<'_>,
     spot: f64,
     strikes: Vec<f64>, ts: Vec<f64>, ois: Vec<f64>, ivs: Vec<f64>,
     kinds: Vec<bool>, expiries: Vec<String>, div_yield: f64,
+    weight_volume: bool,
 ) -> PyResult<PyObject> {
     use pyo3::types::{PyDict, PyList};
     use pyo3::types::PyDictMethods;
 
-    let out = match grid::compute_gex_grid(spot, &strikes, &ts, &ois, &ivs, &kinds, &expiries, div_yield) {
+    let out = match grid::compute_gex_grid(spot, &strikes, &ts, &ois, &ivs, &kinds, &expiries, div_yield, weight_volume) {
         Some(g) => g,
         None => {
             let d = PyDict::new_bound(py);

@@ -318,7 +318,7 @@ fn test_gex_grid_signs() {
         766.0,
         &[760.0, 770.0], &[0.02, 0.02], &[500.0, 500.0], &[0.2, 0.2],
         &[true, false],
-        &["2026-09-04".into(), "2026-09-04".into()], 0.013,
+        &["2026-09-04".into(), "2026-09-04".into()], 0.013, false,
     ).unwrap();
     assert_eq!(out.expiries.len(), 1);
     assert_eq!(out.strikes.len(), 2);
@@ -331,7 +331,7 @@ fn test_gex_grid_signs() {
 #[test]
 fn test_gex_grid_empty() {
     use crate::grid::compute_gex_grid;
-    assert!(compute_gex_grid(0.0, &[760.0], &[0.02], &[500.0], &[0.2], &[true], &["x".into()], 0.0).is_none());
+    assert!(compute_gex_grid(0.0, &[760.0], &[0.02], &[500.0], &[0.2], &[true], &["x".into()], 0.0, false).is_none());
 }
 
 #[test]

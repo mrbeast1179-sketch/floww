@@ -280,6 +280,43 @@ def compute_gex_grid_volume(spot: float, contracts: list[dict[str, Any]],
     if spot <= 0 or not contracts:
         return {"expiries": [], "strikes": [], "grid": {}, "charm_grid": {}, "vex_grid": {}}
     q = DIV_YIELD.get(ticker, 0.0)
+    if _RUST_GEX:
+        try:
+            strikes_c: list[float] = []
+            ts_c: list[float] = []
+            vols_c: list[float] = []
+            ivs_c: list[float] = []
+            kinds_c: list[bool] = []
+            expiries_c: list[str] = []
+            for c in contracts:
+                vol = safe_float(c.get("volume"))
+                iv = safe_float(c.get("iv"))
+                t = safe_float(c.get("T"))
+                strike = safe_float(c.get("strike"))
+                expiry = c.get("expiry") or ""
+                if vol <= 0 or iv <= 0 or t <= 0 or strike <= 0 or not expiry:
+                    continue
+                strikes_c.append(strike)
+                ts_c.append(t)
+                vols_c.append(vol)
+                ivs_c.append(iv)
+                kinds_c.append((c.get("type") or "call") == "call")
+                expiries_c.append(expiry)
+            out = _dc.compute_gex_grid(spot, strikes_c, ts_c, vols_c, ivs_c,
+                                       kinds_c, expiries_c, q, True)
+            if out is not None and out.get("grid"):
+                return {
+                    "expiries": out["expiries"],
+                    "strikes": out["strikes"],
+                    "grid": out["grid"],
+                    "charm_grid": out["charm_grid"],
+                    "vex_grid": out["vex_grid"],
+                    "strike_totals": out["strike_totals"],
+                }
+        except Exception as exc:  # pragma: no cover - fallback path
+            import logging
+            logging.getLogger(__name__).warning(
+                "decoder_core compute_gex_grid(volume) failed (%s) — python fallback", exc)
     grid: dict[str, dict[float, float]] = {}
     charm_grid: dict[str, dict[float, float]] = {}
     vex_grid: dict[str, dict[float, float]] = {}

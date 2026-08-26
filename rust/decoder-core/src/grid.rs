@@ -73,6 +73,7 @@ pub fn compute_gex_grid(
     kinds: &[bool], // true = call
     expiries: &[String],
     div_yield: f64,
+    weight_volume: bool,
 ) -> Option<GridOut> {
     if spot <= 0.0 || strikes_in.is_empty() {
         return None;
@@ -99,9 +100,23 @@ pub fn compute_gex_grid(
             }
             let charm = bs_charm_scalar(spot, strike, t, iv, 0.05, div_yield, is_call);
             let vanna = bs_vanna_scalar(spot, strike, t, iv, 0.05, div_yield);
-            let gex_unit = gamma * oi * 100.0 * spot * spot * 0.01;
-            let charm_unit = charm * oi * 100.0 * spot * 0.01;
-            let vex_unit = vanna * oi * 100.0 * spot * 0.01;
+            // Two weighting modes (parity with gex_core.compute_gex_grid and
+            // gex_core.compute_gex_grid_volume):
+            //   OI mode:     gex = gamma*w*100*spot^2*0.01 ; charm/vex signed
+            //   volume mode: gex = gamma*w*spot*100      ; charm/vex abs()*sign
+            let (gex_unit, charm_unit, vex_unit) = if weight_volume {
+                (
+                    gamma * oi * spot * 100.0,
+                    charm.abs() * oi * spot * 100.0,
+                    vanna.abs() * oi * spot * 100.0,
+                )
+            } else {
+                (
+                    gamma * oi * 100.0 * spot * spot * 0.01,
+                    charm * oi * 100.0 * spot * 0.01,
+                    vanna * oi * 100.0 * spot * 0.01,
+                )
+            };
             let sign = if is_call { 1.0 } else { -1.0 };
             Some(Cell {
                 expiry_idx: 0, // filled below by grouping
