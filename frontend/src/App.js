@@ -757,6 +757,7 @@ export default function App() {
 
         {/* Triad View */}
         {page === "trinity" && (
+          <ErrorBoundary>
           <div className="legacy-theme p-4 flex-1 overflow-auto" style={{ position: "relative" }}>
             {/* Sub-tab toggle */}
             <div className="flex gap-2 mb-3">
@@ -788,10 +789,12 @@ export default function App() {
               }}
             />
           </div>
+          </ErrorBoundary>
         )}
 
         {/* Single Ticker Solstice — Zenith Edition with Left Sidebar */}
         {page === "heatseeker" && (
+          <ErrorBoundary>
           <div className="legacy-theme heatseeker-layout">
             {/* Left Sidebar - Filters & Summary (PRESERVED) */}
             <aside className={`heatseeker-sidebar-left ${showLeftSidebar ? 'open' : ''}`}>
@@ -993,6 +996,7 @@ export default function App() {
               )}
             </main>
           </div>
+          </ErrorBoundary>
         )}
 
         {/* Mobile Toggle Bar */}
