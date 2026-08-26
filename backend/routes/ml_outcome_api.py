@@ -55,7 +55,6 @@ async def record_prediction(
     except Exception as e:
         raise HTTPException(status_code=503, detail=f"Prediction failed: {e}") from e
 
-    db = await _get_db()
     now = datetime.now(UTC)
 
     # Outcome date = next trading day (simply tomorrow for now)
@@ -85,7 +84,8 @@ async def record_prediction(
         "accurate": None,
     }
 
-    await db["ml_predictions"].insert_one(doc)
+    from services.ml_repository import record_prediction
+    await record_prediction(doc)
 
     return {
         "ok": True,
