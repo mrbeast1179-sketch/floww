@@ -1737,8 +1737,15 @@ async def auto_trade_preview(
     alerts = fa.read_alert_feed(duckdb_engine, days=days)
     trades = build_auto_trades(alerts, account_equity=equity,
                                min_tier=tier, min_dte=min_dte)
+
+    # Kill-switch visibility on the preview (GSD risk wiring) — advisory
+    # only here; the hard gate lives in /auto-trade/execute.
+    from services import auto_trade_risk
+    kill_switch_status = auto_trade_risk.status(equity)
+
     return {"trades": trades, "count": len(trades),
-            "gates": {"min_tier": tier, "min_dte": min_dte, "equity": equity}}
+            "gates": {"min_tier": tier, "min_dte": min_dte, "equity": equity,
+                      "kill_switch": kill_switch_status}}
 
 
 @router.post("/auto-trade/execute")
@@ -1763,6 +1770,20 @@ async def auto_trade_execute(
     alerts = fa.read_alert_feed(duckdb_engine, days=days)
     trades = build_auto_trades(alerts, account_equity=equity,
                                min_tier=tier, min_dte=min_dte)
+
+    # ── Kill-switch gate (GSD risk wiring) ──────────────────────────────
+    # Tripped switch (-2% daily loss / -5% drawdown from peak) blocks ALL
+    # new auto-trades for the day. Manual reset via /auto-trade/risk-reset.
+    from services import auto_trade_risk
+    allowed, risk_reason = auto_trade_risk.ensure_trading_allowed(equity)
+    if not allowed:
+        return {
+            "executed": [], "rejected": [
+                {"ckey": t["ckey"], "error": risk_reason} for t in trades],
+            "journal_seeds": [], "journal_added_server": 0,
+            "count": 0, "accepted": 0,
+            "kill_switch": auto_trade_risk.status(equity),
+        }
 
     executed, rejected, journal_seeds = [], [], []
     # Server-side journal persistence — file-backed (data/journal.duckdb),
@@ -1800,6 +1821,13 @@ async def auto_trade_execute(
             )
             result["ckey"] = t["ckey"]
             executed.append(result)
+            # Feed post-trade equity into the kill switch so a losing
+            # streak trips it mid-batch, stopping the remaining orders.
+            if result.get("status") == "accepted":
+                if auto_trade_risk.record_fill(equity):
+                    rejected.append({"ckey": None,
+                                     "error": "kill switch tripped mid-batch — remaining orders cancelled"})
+                    break
         except Exception as e:
             logger.warning("auto-trade submit failed for %s: %s", t["ckey"], e)
             rejected.append({"ckey": t["ckey"], "error": str(e)})
@@ -1810,4 +1838,13 @@ async def auto_trade_execute(
         "journal_seeds": journal_seeds,
         "journal_added_server": journal_added,
         "count": len(trades), "accepted": ok,
+        "kill_switch": auto_trade_risk.status(equity),
     }
+
+
+@router.post("/auto-trade/risk-reset")
+async def auto_trade_risk_reset():
+    """Manually reset the auto-trade kill switch (requires human review
+    per risk policy — this endpoint IS the manual reset)."""
+    from services import auto_trade_risk
+    return {"reset": True, "kill_switch": auto_trade_risk.reset()}
