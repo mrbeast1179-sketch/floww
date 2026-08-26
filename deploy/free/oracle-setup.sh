@@ -109,7 +109,9 @@ docker compose -f deploy/free/docker-compose.yml --env-file deploy/free/.env.pro
 
 echo ""
 echo "Waiting for backend health..."
-for i in $(seq 1 30); do
+# 60 x 5s = 300s: cold numba JIT on first request can take ~90s+ on ARM,
+# plus Mongo init + Caddy cert issuance. smoke.sh has its own longer warm-up.
+for i in $(seq 1 60); do
     if curl -sf http://localhost/api/health >/dev/null 2>&1; then
         DOMAIN=$(grep '^DOMAIN=' deploy/free/.env.prod | cut -d= -f2)
         echo "✅ Confluence Decoder LIVE on https://${DOMAIN}"
