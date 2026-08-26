@@ -923,9 +923,10 @@ async def _build_heatmap_impl(ticker: str, max_expiries: int = 4, with_taps: boo
             # Yahoo suppresses OI in certain windows (overnight/throttle) — all OI=0
             # would blank the desk. Volume-weighted GEX keeps it alive; tagged so the
             # UI can show the degraded source honestly.
+            from services.gex_core import compute_gex_grid_volume
             strikes = compute_gex_by_strike_volume(spot, raw["contracts"], ticker)
-            grid = {"expiries": raw["expiries"], "strikes": [], "grid": {}, "strike_totals": []}
-            log.warning(f"build_heatmap: OI unavailable for {ticker} — volume-weighted GEX fallback")
+            grid = compute_gex_grid_volume(spot, raw["contracts"], ticker)
+            log.warning(f"build_heatmap: OI unavailable for {ticker} — volume-weighted GEX fallback (grid populated)")
 
     # Band: scalp=±2%, day=±15%, swing=±25%
     # Dynamic band based on price level: wider bands for low-priced stocks

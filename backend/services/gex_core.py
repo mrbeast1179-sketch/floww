@@ -175,6 +175,42 @@ def compute_gex_grid(spot: float, contracts: list[dict[str, Any]], ticker: str =
     if spot <= 0 or not contracts:
         return {"expiries": [], "strikes": [], "grid": {}, "charm_grid": {}, "vex_grid": {}}
     q = DIV_YIELD.get(ticker, 0.0)
+    if _RUST_GEX:
+        try:
+            strikes_c: list[float] = []
+            ts_c: list[float] = []
+            ois_c: list[float] = []
+            ivs_c: list[float] = []
+            kinds_c: list[bool] = []
+            expiries_c: list[str] = []
+            for c in contracts:
+                oi = safe_float(c.get("oi"))
+                iv = safe_float(c.get("iv"))
+                t = safe_float(c.get("T"))
+                strike = safe_float(c.get("strike"))
+                expiry = c.get("expiry") or ""
+                if oi <= 0 or iv <= 0 or t <= 0 or strike <= 0 or not expiry:
+                    continue
+                strikes_c.append(strike)
+                ts_c.append(t)
+                ois_c.append(oi)
+                ivs_c.append(iv)
+                kinds_c.append((c.get("type") or "call") == "call")
+                expiries_c.append(expiry)
+            out = _dc.compute_gex_grid(spot, strikes_c, ts_c, ois_c, ivs_c,
+                                       kinds_c, expiries_c, q)
+            if out is not None and out.get("grid"):
+                return {
+                    "expiries": out["expiries"],
+                    "strikes": out["strikes"],
+                    "grid": out["grid"],
+                    "charm_grid": out["charm_grid"],
+                    "vex_grid": out["vex_grid"],
+                    "strike_totals": out["strike_totals"],
+                }
+        except Exception as exc:  # pragma: no cover - fallback path
+            import logging
+            logging.getLogger(__name__).warning("decoder_core compute_gex_grid failed (%s) — python fallback", exc)
     grid: dict[str, dict[float, float]] = {}
     charm_grid: dict[str, dict[float, float]] = {}
     vex_grid: dict[str, dict[float, float]] = {}
@@ -214,6 +250,72 @@ def compute_gex_grid(spot: float, contracts: list[dict[str, Any]], ticker: str =
         dc[strike] = dc.get(strike, 0.0) + charm_cell
         dv = vex_grid.setdefault(expiry, {})
         dv[strike] = dv.get(strike, 0.0) + vex_cell
+        strike_totals[strike] = strike_totals.get(strike, 0.0) + cell
+
+    expiries = sorted(grid.keys())
+    strikes = sorted(strike_totals.keys())
+
+    def _k(x: float) -> str:
+        return str(int(x)) if float(x).is_integer() else str(x)
+
+    return {
+        "expiries": expiries,
+        "strikes": strikes,
+        "grid": {e: {_k(k): v for k, v in grid[e].items()} for e in expiries},
+        "charm_grid": {e: {_k(k): v for k, v in charm_grid[e].items()} for e in expiries},
+        "vex_grid": {e: {_k(k): v for k, v in vex_grid[e].items()} for e in expiries},
+        "strike_totals": [{"strike": k, "gex": v} for k, v in sorted(strike_totals.items())],
+    }
+
+
+def compute_gex_grid_volume(spot: float, contracts: list[dict[str, Any]],
+                            ticker: str = "") -> dict[str, Any]:
+    """2D GEX grid weighted by VOLUME instead of OI.
+
+    OI-suppression fallback: when the upstream feed blanks open interest
+    (Yahoo overnight/throttle windows), compute_gex_grid skips every contract
+    and the heatmap renders blank. Volume is still reported, so weight by it —
+    same per-cell structure as compute_gex_grid so the frontend needs no changes.
+    """
+    if spot <= 0 or not contracts:
+        return {"expiries": [], "strikes": [], "grid": {}, "charm_grid": {}, "vex_grid": {}}
+    q = DIV_YIELD.get(ticker, 0.0)
+    grid: dict[str, dict[float, float]] = {}
+    charm_grid: dict[str, dict[float, float]] = {}
+    vex_grid: dict[str, dict[float, float]] = {}
+    strike_totals: dict[float, float] = {}
+    for c in contracts:
+        vol = safe_float(c.get("volume"))
+        if vol <= 0:
+            continue
+        iv = safe_float(c.get("iv"))
+        if iv <= 0:
+            continue
+        T = safe_float(c.get("T"))
+        if T <= 0:
+            continue
+        strike = safe_float(c.get("strike"))
+        if strike <= 0:
+            continue
+        expiry = c.get("expiry") or ""
+        if not expiry:
+            continue
+        contract_type = c.get("type") or "call"
+        gamma = bs_gamma(spot, strike, T, iv, q=q)
+        charm = bs_charm(spot, strike, T, iv, q=q, kind=contract_type)
+        vanna = bs_vanna(spot, strike, T, iv, q=q)
+        # Weight by volume directly (contracts traded) rather than OI.
+        gex_unit = gamma * vol * spot * 100.0
+        charm_unit = abs(charm) * vol * spot * 100.0
+        vex_unit = abs(vanna) * vol * spot * 100.0
+        sign = 1.0 if contract_type == "call" else -1.0
+        cell = sign * gex_unit
+        d = grid.setdefault(expiry, {})
+        d[strike] = d.get(strike, 0.0) + cell
+        dc = charm_grid.setdefault(expiry, {})
+        dc[strike] = dc.get(strike, 0.0) + sign * charm_unit
+        dv = vex_grid.setdefault(expiry, {})
+        dv[strike] = dv.get(strike, 0.0) + sign * vex_unit
         strike_totals[strike] = strike_totals.get(strike, 0.0) + cell
 
     expiries = sorted(grid.keys())
