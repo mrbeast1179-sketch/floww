@@ -57,9 +57,20 @@ def fetch_underlying_ohlcv(
         DataFrame with columns: timestamp, symbol, open, high, low, close, volume.
         Returns empty DataFrame on failure.
     """
+    from services.retry import retry_sync
     try:
-        yf_ticker = yf.Ticker(ticker)
-        df = yf_ticker.history(period=period, interval=interval)
+        def _fetch() -> pd.DataFrame:
+            df = yf.Ticker(ticker).history(period=period, interval=interval)
+            if df.empty:
+                # Empty is often transient (rate-limit window); let retry handle it
+                raise ValueError(f"empty history for {ticker}")
+            return df
+
+        # yfinance rate-limits aggressively; retry transient empties/failures
+        try:
+            df = retry_sync(_fetch, attempts=3, base_delay=0.5)
+        except ValueError:
+            return pd.DataFrame()
 
         if df.empty:
             logger.warning(f"No data returned for {ticker}")
