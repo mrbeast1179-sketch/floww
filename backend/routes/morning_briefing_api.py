@@ -143,7 +143,7 @@ async def get_briefing(
                         chain_contracts = cached_gex.get("contracts")
                         logger.debug(f"Using cached GEX contracts for {ticker}")
             except Exception:
-                pass
+                pass  # silent by design: cache-miss path; build_briefing fetches contracts itself
 
         result: BriefingResult = await build_briefing(
             ticker=ticker,

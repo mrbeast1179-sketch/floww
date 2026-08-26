@@ -230,7 +230,7 @@ async def deep_dive(ticker: str) -> dict[str, Any]:
             gex_rows, key=lambda r: abs(r.get("gex", 0)), reverse=True
         )[:5]
     except Exception:
-        pass
+        pass  # silent by design: legacy compat route; missing top-walls degrade to empty list
 
     return {
         "ticker": t,
@@ -268,7 +268,7 @@ async def gex_spx() -> dict[str, Any]:
                 from services.gex_paper_accurate import compute_gamma_imbalance
                 resp["gamma_imbalance"] = compute_gamma_imbalance(total_gex, spot, 3_500_000)
             except Exception:
-                pass
+                pass  # silent by design: legacy compat route; gamma_imbalance field simply absent
         return resp
     except Exception as e:
         return {

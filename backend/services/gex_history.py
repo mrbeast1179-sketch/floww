@@ -332,7 +332,7 @@ def calc_gex_timeframes(
                 _adv = 10_000_000  # default ADV fallback
                 paper_gib = compute_gamma_imbalance(net_gex, spot, _adv)
             except Exception:
-                pass
+                pass  # silent by design: paper_gib omitted from history row; core gex fields unaffected
 
         return {
             "gex_total": round(abs(call_gex) + abs(put_gex), 2),

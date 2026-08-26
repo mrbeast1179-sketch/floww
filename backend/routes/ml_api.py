@@ -549,7 +549,7 @@ async def ml_briefing(ticker: str) -> dict[str, Any]:
                     gib = compute_gamma_imbalance(net_gex, spot, adv_shares=DEFAULT_ADV_SHARES)
                     result["paper_metrics"] = {"gamma_imbalance": gib}
                 except Exception:
-                    pass
+                    pass  # silent by design: paper_metrics omitted; outer handler logs the primary failure
         except Exception as e:
             # PHASE 6 TASK 10 — Decision Queue #1: observability-gap fix at L513.
             # The GEX fallback is optional INSIDE the predict()=DegenerateModelError

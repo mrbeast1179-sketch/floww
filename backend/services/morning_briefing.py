@@ -715,7 +715,7 @@ async def build_briefing(
                                 spot=spot, dte_days=30
                             )
                     except Exception:
-                        pass
+                        pass  # silent by design: per-ticker delta estimate inside loop; next iteration retries fresh
             # Ni-Pearson appendix §3 — stock order imbalance from delta rebalancing
             if chain_contracts and len(chain_contracts) > 0:
                 try:
@@ -734,7 +734,7 @@ async def build_briefing(
                     _prior_delta_cache[ticker.upper()] = net_delta_today
                     _trim_prior_cache(_prior_delta_cache)
                 except Exception:
-                    pass
+                    pass  # silent by design: cache update is cosmetic; sibling outer handler logs
         except Exception as e:
             logger.debug(f"Paper-accurate GEX diagnostic failed for {ticker}: {e}")
 

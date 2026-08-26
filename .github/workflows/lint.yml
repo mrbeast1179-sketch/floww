@@ -22,3 +22,22 @@ jobs:
       - name: Run full ruff check
         working-directory: backend
         run: ruff check .
+      - name: Gate — no NEW silent except-pass without justification (GSD #11)
+        working-directory: backend
+        run: |
+          # Silent `except Exception: pass` must carry an inline justification:
+          # either "# silent by design: <reason>" or a pre-existing explanatory
+          # comment on the same line. Tests are exempt.
+          offenders=$(grep -rn --include='*.py' -A1 'except Exception' services routes server.py \
+            | grep -E '^[^:]+:[0-9]+-\s*pass\s*$' \
+            | cut -d- -f1 | cut -d: -f1,2 || true)
+          bad=0
+          for site in $offenders; do
+            f=${site%%:*}; l=$((${site##*:} + 1))
+            line=$(sed -n "${l}p" "$f")
+            case "$line" in
+              *"silent by design"*|*"#"*) ;;  # justified
+              *) echo "SILENT EXCEPT (unjustified): $f:$l -> $line"; bad=1 ;;
+            esac
+          done
+          exit $bad

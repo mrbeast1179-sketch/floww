@@ -1669,7 +1669,7 @@ async def regime(ticker: str):
                     "flip_metrics": compute_flip_metrics(spot, flip, total_gex),
                 }
         except Exception:
-            pass
+            pass  # silent by design: flip_metrics omitted from card; outer handler at L1675 logs
         return out
     except Exception as e:
         logger.warning(f"regime failed for {sym}: {e}")

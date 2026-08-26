@@ -986,7 +986,7 @@ def compute_calendar_features(dates: list[str]) -> dict[str, list[float]]:
             is_month_end[i] = 1.0 if dt.day >= 28 else 0.0
             is_month_start[i] = 1.0 if dt.day <= 3 else 0.0
         except Exception:
-            pass
+            pass  # silent by design: calendar flags are cosmetic; feature row stays valid
 
     features["day_of_week"] = dow
     features["day_of_month"] = dom

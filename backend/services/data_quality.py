@@ -113,7 +113,7 @@ class DataQualityChecker:
                         "regime": gi["regime"],
                     }
             except Exception:
-                pass
+                pass  # silent by design: regime tag is advisory; quality verdict computed without it
 
         return {
             "checks": len(self._history),
