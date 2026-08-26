@@ -296,6 +296,10 @@ async def performance_middleware(request: Request, call_next):
         log.warning(f"server.py: perf_monitor / set_request_id raise swallowed (response+header preserved): {e}", exc_info=True)
 
     response.headers["X-Response-Time-Ms"] = str(round(duration_ms, 2))
+    # Market-data API responses must never be browser-cached — a stale heatmap
+    # is worse than a slow one. Static assets are handled by Caddy's cache headers.
+    if request.url.path.startswith(("/api/", "/gex/")):
+        response.headers["Cache-Control"] = "no-store, max-age=0"
     return response
 
 

@@ -137,7 +137,16 @@ async def trinity(
     biases = []
     for r in out.values():
         if isinstance(r, dict) and r.get("patterns"):
-            biases.extend(p["bias"] for p in r["patterns"])
+            # Pattern dicts come from services.gex_core.detect_patterns whose
+            # schema carries "direction"/"confidence"; older
+            # gex_server_utils entries carried "bias". Read defensively so a
+            # pattern without either key never 500s the alignment block.
+            biases.extend(
+                b for b in (
+                    p.get("bias") or p.get("direction")
+                    for p in r["patterns"] if isinstance(p, dict)
+                ) if b
+            )
 
     if regimes:
         most_regime = max(set(regimes), key=regimes.count)
