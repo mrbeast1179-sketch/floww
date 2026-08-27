@@ -41,7 +41,7 @@ backlog items.
 **Goal:** Burn down actionable discovered issues from `BACKLOG.md`.
 
 - [x] 4.1 `iron_condible` typo — already fixed in paper_trading.py (verified: DEFAULT_STRATEGY="iron_condor")
-- [ ] 4.2 `portfolio.py`: floats → Decimal per operating law 4 (R3.8)
+- [x] 4.2 `portfolio.py`: floats → Decimal per operating law 4 (R3.8) — commit 0bea9b5 (Position.pnl, add_position cash, total_pnl, calc_position_size all accumulate in Decimal; outputs are cent-rounded floats for JSON/Mongo round-trip)
 - [x] 4.3 Alert engine de-hardcoding (R3.9) — done by agent 1 in `beb02cc` (ALERT_TYPE_CATALOG single-source, 12 types)
 - [x] 4.4 Process hygiene: ADR index + PR template shipped (`900130f`)
 
