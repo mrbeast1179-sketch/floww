@@ -33,7 +33,7 @@
 - [x] Paper trading module
 - [x] Morning briefing email system
 - [x] Round 10 P0 tickets (conftest, fetch_spot_and_chains, STALE_IMPORT)
-- [x] KillSwitch wired into auto-trade pipeline (`2d23602`)
+- [x] KillSwitch wired into auto-trade pipeline (`c5fe895` — /api/risk/killswitch endpoint + reset bug fix)
 - [x] Columnar DuckDB bulk insert — ingestion 65x faster (`6648006`)
 - [x] Rust decoder-core GEX path + volume-grid fallback (`98c8fd7`, `69691e4`)
 
