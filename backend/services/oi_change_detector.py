@@ -148,7 +148,7 @@ class OiChangeDetector:
 # Internal helpers
 # ------------------------------------------------------------------
 
-def _safe_float(v) -> float:
+def _safe_float(v: Any) -> float:
     try:
         if v is None:
             return 0.0

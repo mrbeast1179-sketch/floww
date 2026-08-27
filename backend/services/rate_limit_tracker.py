@@ -13,8 +13,8 @@ class RateLimitTracker:
     def __init__(self, per_minute: int = 5, per_day: int = 500) -> None:
         self.per_minute = per_minute
         self.per_day = per_day
-        self._minute_window: deque = deque()
-        self._day_window: deque = deque()
+        self._minute_window: deque[float] = deque()
+        self._day_window: deque[float] = deque()
 
     def _prune(self, now: float | None = None) -> None:
         if now is None:
@@ -46,7 +46,7 @@ class RateLimitTracker:
         self._prune()
         return max(0, self.per_day - len(self._day_window))
 
-    def get_status(self) -> dict:
+    def get_status(self) -> dict[str, dict[str, int | float]]:
         self._prune()
         return {
             "per_minute": {"limit": self.per_minute, "used": len(self._minute_window), "remaining": self.remaining_minute},

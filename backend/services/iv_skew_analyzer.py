@@ -310,7 +310,7 @@ class IvSkewAnalyzer:
 # Module-level helpers
 # ------------------------------------------------------------------
 
-def _is_float(v) -> bool:
+def _is_float(v: Any) -> bool:
     try:
         float(v)
         return True

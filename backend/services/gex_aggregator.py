@@ -233,7 +233,7 @@ class GexAggregator:
     )
 
     @staticmethod
-    def _resolve(contract: dict, key_aliases: tuple, default: Any = None) -> Any:
+    def _resolve(contract: dict[str, Any], key_aliases: tuple[str, ...], default: Any = None) -> Any:
         """Resolve a value from a dict using multiple possible key names."""
         for key in key_aliases:
             if key in contract:
@@ -259,7 +259,7 @@ class GexAggregator:
             return 1
         raise ValueError(f"Unrecognised option type: {val!r}")
 
-    def compute(self, spot: float, contracts: list[dict]) -> dict[str, Any]:
+    def compute(self, spot: float, contracts: list[dict[str, Any]]) -> dict[str, Any]:
         """
         Compute GEX/VEX surfaces and summary metrics from a list of contract dicts.
 

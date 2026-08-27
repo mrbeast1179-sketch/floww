@@ -241,7 +241,7 @@ class GreekAggregator:
         T: np.ndarray,
         IV: np.ndarray,
         kind: np.ndarray,
-    ) -> tuple:
+    ) -> tuple[str, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
         """Fill NaN values in upstream Greeks via BS fallback.
 
         Returns:
@@ -276,7 +276,7 @@ class GreekAggregator:
         greeks: dict[str, np.ndarray],
         OI: np.ndarray,
         kind: np.ndarray,
-    ) -> list[dict]:
+    ) -> list[dict[str, Any]]:
         """Build contract dicts for GexAggregator."""
         contracts: list[dict] = []
         for i in range(len(K)):
