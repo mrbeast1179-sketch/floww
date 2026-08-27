@@ -22,6 +22,7 @@ import math
 from dataclasses import dataclass, field
 
 import numpy as np
+from typing import Any
 
 # Significant change threshold (absolute %)
 OI_CHANGE_THRESHOLD = 0.10  # 10%

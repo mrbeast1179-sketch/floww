@@ -241,7 +241,7 @@ class GreekAggregator:
         T: np.ndarray,
         IV: np.ndarray,
         kind: np.ndarray,
-    ) -> tuple[str, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    ) -> tuple[dict[str, np.ndarray], int]:
         """Fill NaN values in upstream Greeks via BS fallback.
 
         Returns:
@@ -292,7 +292,11 @@ class GreekAggregator:
 
     @staticmethod
     def _compute_vanna_exposure(
-        vanna: np.ndarray, oi: np.ndarray, delta: np.ndarray, spot: float
+        self,
+        vanna: np.ndarray,
+        oi: np.ndarray,
+        delta: np.ndarray,
+        spot: float,
     ) -> np.ndarray:
         """Vanna exposure = vanna * OI * spot * 0.01.
 
@@ -303,7 +307,11 @@ class GreekAggregator:
 
     @staticmethod
     def _compute_charm_exposure(
-        charm: np.ndarray, oi: np.ndarray, delta: np.ndarray, spot: float
+        self,
+        charm: np.ndarray,
+        oi: np.ndarray,
+        delta: np.ndarray,
+        spot: float,
     ) -> np.ndarray:
         """Charm exposure = charm * OI * spot * 0.01.
 
