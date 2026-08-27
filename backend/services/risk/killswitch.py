@@ -65,6 +65,7 @@ class KillSwitch:
         self._tripped = False
         self._trip_reason = ""
         self._trip_time = None
+        self._current_equity = self._daily_starting_equity
         logger.info("KillSwitch: manually reset")
 
     def start_day(self, starting_equity: float):
@@ -74,6 +75,7 @@ class KillSwitch:
         self._loss_count_today = 0
         self._daily_starting_equity = starting_equity
         self._peak_equity = starting_equity
+        self._current_equity = starting_equity
         if self.config.auto_reset_next_day:
             self.reset()
         logger.info(f"KillSwitch: new day, equity=${starting_equity:.2f}")

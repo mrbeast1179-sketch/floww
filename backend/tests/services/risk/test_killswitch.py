@@ -6,7 +6,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent.parent))
 
-from backend.services.risk.killswitch import KillSwitch, KillSwitchConfig
+from services.risk.killswitch import KillSwitch, KillSwitchConfig
 
 
 class TestKillSwitchInit:

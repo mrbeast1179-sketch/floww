@@ -1848,3 +1848,32 @@ async def auto_trade_risk_reset():
     per risk policy — this endpoint IS the manual reset)."""
     from services import auto_trade_risk
     return {"reset": True, "kill_switch": auto_trade_risk.reset()}
+
+
+# ── Dedicated risk/killswitch endpoint ──────────────────────────────────────────
+# Standalone read/write endpoints for the kill switch, separate from the
+# auto-trade pipeline (which already gates via auto_trade_risk internally).
+# The frontend uses these for a risk-status card + manual reset button.
+
+@router.get("/risk/killswitch")
+async def risk_killswitch_status(equity: float = Query(100000.0, gt=0)):
+    """Current kill-switch status. equity is the current account equity used
+    to seed start_day() on first call of a new day."""
+    from services import auto_trade_risk
+    return auto_trade_risk.status(equity)
+
+
+@router.post("/risk/killswitch/reset")
+async def risk_killswitch_reset():
+    """Manual reset (human review required per risk policy)."""
+    from services import auto_trade_risk
+    return {"reset": True, "kill_switch": auto_trade_risk.reset()}
+
+
+@router.post("/risk/killswitch/trip")
+async def risk_killswitch_trip(equity: float = Query(100000.0, gt=0)):
+    """Manually trip the kill switch for testing. Returns the new status."""
+    from services import auto_trade_risk
+    ks = auto_trade_risk.get_kill_switch(equity=equity)
+    ks._trip("manual_trip_via_api")
+    return ks.get_status()
