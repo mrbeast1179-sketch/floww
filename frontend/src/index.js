@@ -1,5 +1,7 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
+import { QueryClientProvider } from "@tanstack/react-query";
+import { queryClient } from "@/lib/hooks/queryClient";
 import "@/index.css";
 import App from "@/App";
 import { ThemeProvider } from "@/context/ThemeContext";
@@ -33,12 +35,14 @@ class ErrorBoundary extends React.Component {
 const root = ReactDOM.createRoot(document.getElementById("root"));
 root.render(
   <React.StrictMode>
-    <ErrorBoundary>
-      <ThemeProvider>
-        <AuthProvider>
-          <App />
-        </AuthProvider>
-      </ThemeProvider>
-    </ErrorBoundary>
+    <QueryClientProvider client={queryClient}>
+      <ErrorBoundary>
+        <ThemeProvider>
+          <AuthProvider>
+            <App />
+          </AuthProvider>
+        </ThemeProvider>
+      </ErrorBoundary>
+    </QueryClientProvider>
   </React.StrictMode>
 );

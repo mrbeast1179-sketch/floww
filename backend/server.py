@@ -849,6 +849,7 @@ async def _build_heatmap_impl(ticker: str, max_expiries: int = 4, with_taps: boo
     # For large symbols (index options), use screen API to avoid timeout
     # Screen API filters server-side by strike range and OI
     is_index = ticker.startswith("^") or ticker.startswith("I:")
+    raw = None  # initialize before cvserver fast-path; falls through to merged fetch
     if is_index and not scalp:
         # First get spot price from a quick chain fetch (just 1 expiry, minimal fields)
         from services.cvserver_client import CVSERVER_API_KEY, fetch_chain_for_heatmap, fetch_chain_from_cvserver
@@ -863,15 +864,39 @@ async def _build_heatmap_impl(ticker: str, max_expiries: int = 4, with_taps: boo
                 if spot > 0:
                     heatmap_data = await fetch_chain_for_heatmap(ticker, spot, max_strikes)
                     if heatmap_data and heatmap_data.get("contracts"):
-                        heatmap_data["data_source"] = "cvserver"
-                        _BUILD_HEATMAP_CACHE[cache_key] = {"ts": time.time(), "data": heatmap_data}
-                        return heatmap_data
+                        # Fast path supplies contracts only — fall through to the
+                        # full GEX computation below instead of returning early.
+                        # The previous early return served a payload with no
+                        # grid/strikes/nodes/patterns whenever cvserver answered
+                        # (CI: test_heatmap_spx_via_spxw failed on missing grid).
+                        raw = {
+                            "spot": heatmap_data["spot"],
+                            "contracts": heatmap_data["contracts"],
+                            "expiries": heatmap_data["expiries"],
+                            "data_source": "cvserver",
+                        }
+                        log.info(f"build_heatmap: screen API contracts for {ticker} ({len(raw['contracts'])}), computing GEX")
+                    else:
+                        raw = None
+                else:
+                    raw = None
             except TimeoutError:
                 log.warning(f"cvserver timeout for index {ticker}, falling back to yfinance")
+                raw = None
             except Exception as e:
                 log.warning(f"cvserver failed for index {ticker}: {e}")
+                raw = None
+        else:
+            raw = None
 
-    raw = await fetch_spot_and_chains_merged(ticker, max_expiries)
+    if raw is None:
+        try:
+            raw = await fetch_spot_and_chains_merged(ticker, max_expiries)
+        except HTTPException:
+            raise
+        except Exception as e:
+            log.error(f"fetch_spot_and_chains_merged failed for {ticker}: {e}")
+            raise HTTPException(404, f"No options data for {ticker}") from e
     spot = raw["spot"]
     if not spot or spot != spot or not raw["contracts"]:  # spot != spot catches NaN
         raise HTTPException(404, f"No options data for {ticker}")
