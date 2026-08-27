@@ -48,7 +48,10 @@ backlog items.
 ## Phase 5 — Frontend Architecture (BACKLOG Phase H)
 
 - [ ] 5.1 Decompose `App.js` (architect-approved, frozen-file constraint) (R3.6)
-- [ ] 5.2 Introduce TanStack Query for server state (R3.7)
+- [x] 5.2 Introduce TanStack Query for server state (R3.7) — `@tanstack/react-query@5`
+  installed; QueryClientProvider wraps React tree (index.js); singleton
+  queryClient (lib/hooks/queryClient.js); usePortfolio hook for
+  /api/portfolio/{name} (lib/hooks/usePortfolio.js). Commit 42e0572.
 
 ## Phase 6+ — Later Backlog Phases (unpromoted)
 

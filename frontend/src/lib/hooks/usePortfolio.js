@@ -1,18 +1,13 @@
 /**
- * usePortfolio.js — TanStack Query hook for /api/portfolio/{name}.
+ * usePortfolio — fetches and caches a portfolio summary.
  *
- * Replaces the raw fetch/useState pattern with declarative server-state
- * management: caching, background refetch, loading/error states, and
- * automatic garbage collection.
- *
- * Backend routes (backend/routes/portfolio.py):
- *   GET    /api/portfolio/{name}            — portfolio summary
- *   GET    /api/portfolio/{name}/scenario  — scenario analysis
- *   POST   /api/portfolio/{name}/position  — add position (mutation)
- *   DELETE /api/portfolio/{name}/position/{index} — remove position (mutation)
- *
- * The hook exports query keys + mutation functions so consuming components
- * can stay declarative while the library handles the async lifecycle.
+ * Parameters:
+ *   name   - Portfolio name (path parameter on the backend route).
+ *   opts   - Options object.
+ *   opts.spot  - Current spot price for summary calc (default 0).
+ *   opts.iv    - Implied vol for summary calc (default 0.15).
+ *   opts.enabled - Whether to auto-fetch (default true).
+ * Returns: TanStack query result.
  */
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -21,9 +16,7 @@ import { BACKEND_URL } from "../config/api";
 const API = `${BACKEND_URL}/api`;
 
 /**
- * Shared query key factory — single source of truth for portfolio cache keys.
- * Callers pass the portfolio name; the hook and any invalidation logic use
- * this factory so keys never drift out of sync.
+ * Shared query key factory - single source of truth for portfolio cache keys.
  */
 export const portfolioKeys = {
   /** All portfolio queries (invalidates every portfolio cache) */
@@ -35,14 +28,7 @@ export const portfolioKeys = {
 };
 
 /**
- * usePortfolio — fetches and caches a portfolio summary.
- *
- * @param {string} name   Portfolio name (path parameter on the backend route).
- * @param {object} [opts] Options.
- * @param {number} [opts.spot=0]   Current spot price for summary calc.
- * @param {number} [opts.iv=0.15] Implied vol for summary calc.
- * @param {boolean} [opts.enabled=true] Whether to auto-fetch.
- * @returns {QueryObserverResult} TanStack query result.
+ * usePortfolio - fetches and caches a portfolio summary.
  */
 export function usePortfolio(name, opts = {}) {
   const { spot = 0, iv = 0.15, enabled = true } = opts;
@@ -70,11 +56,7 @@ export function usePortfolio(name, opts = {}) {
 }
 
 /**
- * usePortfolioScenario — fetches scenario analysis for a portfolio.
- *
- * @param {string} name   Portfolio name.
- * @param {object} [opts] Options (spot, iv, enabled).
- * @returns {QueryObserverResult} TanStack query result.
+ * usePortfolioScenario - fetches scenario analysis for a portfolio.
  */
 export function usePortfolioScenario(name, opts = {}) {
   const { spot = 0, iv = 0.15, enabled = true } = opts;
@@ -97,21 +79,18 @@ export function usePortfolioScenario(name, opts = {}) {
       return res.json();
     },
     enabled,
-    staleTime: 1000 * 60 * 5,
+    staleTime: 1000 * 60 * 5, // 5 min
   });
 }
 
 /**
- * useAddPosition — mutation to POST a new position to a portfolio.
- * On success, invalidates the portfolio query so the summary refetches.
- *
- * @returns {MutationObserverResult} TanStack mutation result.
+ * useAddPosition - mutation to add a position to a portfolio.
  */
-export function useAddPosition() {
+export function useAddPosition(name) {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async ({ name, position }) => {
+    mutationFn: async (position) => {
       const res = await fetch(`${API}/portfolio/${encodeURIComponent(name)}/position`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -123,23 +102,20 @@ export function useAddPosition() {
       }
       return res.json();
     },
-    onSuccess: (_data, variables) => {
-      queryClient.invalidateQueries({ queryKey: portfolioKeys.individual(variables.name) });
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: portfolioKeys.individual(name) });
     },
   });
 }
 
 /**
- * useRemovePosition — mutation to DELETE a position from a portfolio.
- * On success, invalidates the portfolio query.
- *
- * @returns {MutationObserverResult} TanStack mutation result.
+ * useRemovePosition - mutation to remove a position from a portfolio.
  */
-export function useRemovePosition() {
+export function useRemovePosition(name) {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async ({ name, index }) => {
+    mutationFn: async (index) => {
       const res = await fetch(`${API}/portfolio/${encodeURIComponent(name)}/position/${index}`, {
         method: "DELETE",
       });
@@ -149,8 +125,8 @@ export function useRemovePosition() {
       }
       return res.json();
     },
-    onSuccess: (_data, variables) => {
-      queryClient.invalidateQueries({ queryKey: portfolioKeys.individual(variables.name) });
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: portfolioKeys.individual(name) });
     },
   });
 }
