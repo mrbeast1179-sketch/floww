@@ -49,7 +49,7 @@ implied volatility — important for vol-of-vol and skew dynamics.
 import os
 from typing import Any
 
-import numba
+import numba  # type: ignore[import-untyped]
 import numpy as np
 
 # ----------------------------------------------------------------------
@@ -80,7 +80,7 @@ def _short_dte_volume_enabled() -> bool:
     return raw.strip().lower() in ("1", "true", "yes", "on")
 
 
-@numba.njit
+@numba.njit  # type: ignore[untyped-decorator]
 def compute_gex_surface(
     spot: float,
     strikes: np.ndarray,
@@ -158,7 +158,7 @@ def compute_gex_surface(
     return gex_surface, vex_surface
 
 
-@numba.njit
+@numba.njit  # type: ignore[untyped-decorator]
 def aggregate_gex_1d(
     spot: float,
     strikes: np.ndarray,
