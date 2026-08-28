@@ -1,4 +1,8 @@
 /**
+ * @jest-environment jsdom
+ */
+
+/**
  * VannaChart.test.jsx
  */
 jest.mock("react-plotly.js", () => {

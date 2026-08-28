@@ -1,4 +1,8 @@
 /**
+ * @jest-environment jsdom
+ */
+
+/**
  * InstitutionalAlertsPanel.test.jsx — Tier-lock sigil wire-up (v3.x)
  *
  * Mount tests via @testing-library/react with a mocked useFlowseeker

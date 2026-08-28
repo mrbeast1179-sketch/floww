@@ -1,3 +1,7 @@
+/**
+ * @jest-environment jsdom
+ */
+
 import React from "react";
 import { render, screen, waitFor, fireEvent } from "@testing-library/react";
 import FlowseekerTab from "./FlowseekerTab";

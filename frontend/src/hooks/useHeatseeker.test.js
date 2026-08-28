@@ -1,4 +1,8 @@
 /**
+ * @jest-environment jsdom
+ */
+
+/**
  * Tests for useHeatseeker — the fetch hook backing every Solstice panel.
  *
  * Behaviour under test:

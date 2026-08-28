@@ -42,16 +42,16 @@ async def test_token_expiry_mid_stream_triggers_reauth(
 
     mock_token_manager.is_expired.side_effect = is_expired_side_effect
     mock_token_manager.refresh_token = AsyncMock(return_value="reauth-token-99")
+    mock_token_manager.get_access_token.return_value = "stale-token-00"
 
     connect_count = 0
 
     async def fail_once_then_stop() -> None:
         nonlocal connect_count
         connect_count += 1
-        # Trigger token validation so refresh_token is consulted on reconnect
-        await streamer._get_valid_token()
-        if connect_count >= 2:
-            streamer._running = False
+        # Let _connect_and_stream run normally; it calls _get_valid_token().
+        # Patch websockets.connect below to drop after connect, triggering
+        # start()'s reconnect loop which calls _get_valid_token again.
         raise ConnectionError(f"drop {connect_count}")
 
     streamer._connect_and_stream = fail_once_then_stop
