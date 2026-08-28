@@ -278,7 +278,7 @@ class GreekAggregator:
         kind: np.ndarray,
     ) -> list[dict[str, Any]]:
         """Build contract dicts for GexAggregator."""
-        contracts: list[dict] = []
+        contracts: list[dict[str, Any]] = []
         for i in range(len(K)):
             contracts.append({
                 "strike": float(K[i]),
@@ -292,7 +292,6 @@ class GreekAggregator:
 
     @staticmethod
     def _compute_vanna_exposure(
-        self,
         vanna: np.ndarray,
         oi: np.ndarray,
         delta: np.ndarray,
@@ -307,7 +306,6 @@ class GreekAggregator:
 
     @staticmethod
     def _compute_charm_exposure(
-        self,
         charm: np.ndarray,
         oi: np.ndarray,
         delta: np.ndarray,

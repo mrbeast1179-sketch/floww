@@ -1290,7 +1290,7 @@ def gamma_liquidity_regime(
     abs_gib = abs(gamma_imbalance_pct)
     near_flip = flip_distance_pct is not None and abs(flip_distance_pct) < 2.0
 
-    # Gamma imbalance drives dealer inventory risk → wider option spreads
+    result: dict[str, Any]
     if abs_gib > 2.0 and near_flip:
         regime = "critically_illiquid"
         quote_behavior = "wide_quotes_withdrawing"

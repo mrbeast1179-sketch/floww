@@ -174,8 +174,16 @@ async def test_resubscribe_after_reconnect(streamer, mock_token_manager):
     _original_subscribe = streamer._subscribe_default
 
     async def tracking_subscribe():
+        # Re-enact production _subscribe_default: send real subscription
+        # messages so we verify the wire format, and track which symbols
+        # get added to _subscribed_symbols.
+        await streamer._subscribe_equities(["SPY", "QQQ", "DIA", "IWM"])
+        await streamer._subscribe_options("SPY", num_strikes=20)
+        await streamer._subscribe_options("QQQ", num_strikes=20)
+        await streamer._subscribe_lob_depth("SPY")
+        await streamer._subscribe_lob_depth("QQQ")
+        # Track that _subscribe_default was invoked (for the assertion below).
         subscribe_calls.append("subscribe_default")
-        # Don't actually send — just track that it was called
 
     streamer._subscribe_default = tracking_subscribe
 
@@ -189,6 +197,20 @@ async def test_resubscribe_after_reconnect(streamer, mock_token_manager):
 
     # Verify _subscribe_default was called (re-subscribe happens)
     assert len(subscribe_calls) == 1, "Should re-subscribe after reconnect"
+    # Verify the real subscription wire messages were sent for each default
+    # symbol/underlying. _subscribe_default touches 4 services:
+    #   LEVELONE_EQUITIES  (SPY, QQQ, DIA, IWM)
+    #   LEVELONE_OPTIONS   (SPY, QQQ)
+    #   LEVEL_TWO          (SPY, QQQ lob depth)
+    levels = [m.get("service") for m in sent_messages]
+    assert "LEVELONE_EQUITIES" in levels, "Missing equity subscription"
+    assert levels.count("LEVELONE_EQUITIES") == 1
+    assert "LEVELONE_OPTIONS" in levels, "Missing options subscription"
+    assert levels.count("LEVELONE_OPTIONS") == 2  # SPY + QQQ
+    # Spot-check the equity keys field carries all four tickers
+    eq_msg = next(m for m in sent_messages if m.get("service") == "LEVELONE_EQUITIES")
+    keys = eq_msg["parameters"]["keys"].split(",")
+    assert set(keys) == {"SPY", "QQQ", "DIA", "IWM"}, f"Equity keys wrong: {keys}"
 
 
 # ---------------------------------------------------------------------------

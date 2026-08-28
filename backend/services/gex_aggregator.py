@@ -245,7 +245,7 @@ class GexAggregator:
         )
 
     @staticmethod
-    def _parse_option_type(val) -> int:
+    def _parse_option_type(val: Any) -> int:
         """
         Parse option type to 0 (call) or 1 (put).
         Accepts: 'C', 'c', 'call', 'CALL', 'P', 'p', 'put', 'PUT', 0, 1.
