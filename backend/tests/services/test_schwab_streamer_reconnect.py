@@ -77,22 +77,7 @@ def _connect_side_effect(ws=None, raise_on_enter=None, capture_headers=None):
 # Fixtures
 # ---------------------------------------------------------------------------
 
-@pytest.fixture
-def mock_token_manager():
-    """Mock SchwabTokenManager that returns a fake token."""
-    tm = MagicMock()
-    tm.get_access_token.return_value = "fake-access-token-12345"
-    tm.is_expired.return_value = False
-    tm.refresh_token = AsyncMock(return_value="refresh-token-67890")
-    return tm
 
-
-@pytest.fixture
-def streamer(mock_token_manager):
-    """Create a SchwabStreamer with mocked token manager."""
-    from services.schwab_streamer import SchwabStreamer
-    s = SchwabStreamer(token_manager=mock_token_manager)
-    return s
 
 
 # ---------------------------------------------------------------------------

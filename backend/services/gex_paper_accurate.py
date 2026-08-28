@@ -1303,9 +1303,9 @@ def gamma_liquidity_regime(
                 "option market makers widen spreads significantly. "
                 "Option liquidity critically impaired."
             ),
-        }
+        }  # type: ignore[no-redef]
     elif abs_gib > 2.0:
-        result = {
+        result: dict[str, Any] = {
             "regime": "illiquid",
             "dealer_quote_behavior": "wider_spreads",
             "interpretation": (
