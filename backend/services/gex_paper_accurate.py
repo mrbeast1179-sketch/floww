@@ -1290,7 +1290,6 @@ def gamma_liquidity_regime(
     abs_gib = abs(gamma_imbalance_pct)
     near_flip = flip_distance_pct is not None and abs(flip_distance_pct) < 2.0
 
-    result: dict[str, Any]
     if abs_gib > 2.0 and near_flip:
         regime = "critically_illiquid"
         quote_behavior = "wide_quotes_withdrawing"
@@ -1305,7 +1304,7 @@ def gamma_liquidity_regime(
             ),
         }
     elif abs_gib > 2.0:
-        result = {
+        result: dict[str, Any] = {
             "regime": "illiquid",
             "dealer_quote_behavior": "wider_spreads",
             "interpretation": (
@@ -1314,13 +1313,13 @@ def gamma_liquidity_regime(
             ),
         }
     elif abs_gib > 0.5:
-        result = {
+        result: dict[str, Any] = {
             "regime": "moderate",
             "dealer_quote_behavior": "normal_spreads",
             "interpretation": "Moderate ΓIB — normal option liquidity conditions.",
         }
     else:
-        result = {
+        result: dict[str, Any] = {
             "regime": "liquid",
             "dealer_quote_behavior": "tight_spreads",
             "interpretation": (
