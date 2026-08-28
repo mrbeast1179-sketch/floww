@@ -1314,13 +1314,13 @@ def gamma_liquidity_regime(
             ),
         }
     elif abs_gib > 0.5:
-        result = {
+        result: dict[str, Any] = {
             "regime": "moderate",
             "dealer_quote_behavior": "normal_spreads",
             "interpretation": "Moderate ΓIB — normal option liquidity conditions.",
         }
     else:
-        result = {
+        result: dict[str, Any] = {
             "regime": "liquid",
             "dealer_quote_behavior": "tight_spreads",
             "interpretation": (
