@@ -302,7 +302,8 @@ class GreekAggregator:
         Represents the dollar impact of a 1 vol point change on delta
         positioning across all open contracts.
         """
-        return vanna * oi * spot * 0.01  # type: ignore[no-any-return]
+        vanna_exposure: np.ndarray = vanna * oi * spot * 0.01
+        return vanna_exposure
 
     @staticmethod
     def _compute_charm_exposure(
@@ -315,4 +316,5 @@ class GreekAggregator:
 
         Represents the daily delta decay across all open contracts.
         """
-        return charm * oi * spot * 0.01  # type: ignore[no-any-return]
+        charm_exposure: np.ndarray = charm * oi * spot * 0.01
+        return charm_exposure
