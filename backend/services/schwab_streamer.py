@@ -343,7 +343,7 @@ class SchwabStreamer:
             except (ValueError, TypeError) as e:
                 logger.debug(f"Equity parse error: {e}")
 
-    async def _parse_option(self, msg: dict[str, Any]):
+    async def _parse_option(self, msg: dict[str, Any]) -> None:
         """Parse a Level 1 option message into a chain dict."""
         content = msg.get("content", [])
         for item in content:
@@ -379,7 +379,7 @@ class SchwabStreamer:
             except (ValueError, TypeError, IndexError) as e:
                 logger.debug(f"Option parse error: {e}")
 
-    async def _parse_lob_depth(self, msg: dict[str, Any]):
+    async def _parse_lob_depth(self, msg: dict[str, Any]) -> None:
         """Parse a Level 2 options depth message."""
         content = msg.get("content", [])
         for item in content:

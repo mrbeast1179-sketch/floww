@@ -2621,7 +2621,7 @@ async def startup_ingestion():
         log.warning(f"Ingestion startup failed (non-fatal): {e}")
 
 @app.on_event("shutdown")
-async def shutdown_ingestion():
+async def shutdown_ingestion() -> None:
     """Drain queue and stop ingestion on shutdown."""
     global _ingestion_pipeline, _mock_feed, _mock_feed_task
     try:
@@ -2644,7 +2644,7 @@ from services.paper_trading import PaperTradingEngine
 _paper_engine: PaperTradingEngine | None = None
 
 @app.on_event("startup")
-async def startup_paper_trading():
+async def startup_paper_trading() -> None:
     """Initialize paper trading engine on startup."""
     global _paper_engine
     try:

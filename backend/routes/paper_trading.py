@@ -6,8 +6,12 @@ Paper trading routes with Almgren-Chriss execution.
 from __future__ import annotations
 
 import logging
+from typing import TYPE_CHECKING
 
 from fastapi import APIRouter, HTTPException, Query
+
+if TYPE_CHECKING:
+    from services.paper_trading import PaperTradingEngine
 
 logger = logging.getLogger(__name__)
 
@@ -17,7 +21,7 @@ router = APIRouter()
 _paper_engine = None
 
 
-def set_paper_engine(engine):
+def set_paper_engine(engine: PaperTradingEngine | None) -> None:
     """Called by server.py to inject the paper trading engine."""
     global _paper_engine
     _paper_engine = engine

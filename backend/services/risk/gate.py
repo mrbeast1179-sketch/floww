@@ -16,6 +16,7 @@ import os
 import time
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -359,7 +360,7 @@ class RiskGate:
 
         return RiskResult(approved=True, reason="All checks passed", rule="")
 
-    def after_trade(self, intent: TradeIntent, pnl: float):
+    def after_trade(self, intent: TradeIntent, pnl: float) -> None:
         """Update internal state after a trade completes."""
         self._trade_history.append({
             "ticker": intent.ticker,
@@ -373,12 +374,12 @@ class RiskGate:
         else:
             logger.info(f"RiskGate: profit trade {intent.ticker} PnL=${pnl:.2f}")
 
-    def _trip_circuit_breaker(self, reason: str):
+    def _trip_circuit_breaker(self, reason: str) -> None:
         self._circuit_breaker_tripped = True
         self._circuit_breaker_reason = reason
         logger.critical(f"RiskGate: CIRCUIT BREAKER TRIPPED — {reason}")
 
-    def get_trade_history(self) -> list[dict]:
+    def get_trade_history(self) -> list[dict[str, Any]]:
         return list(self._trade_history)
 
 
