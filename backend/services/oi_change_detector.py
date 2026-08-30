@@ -20,9 +20,9 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass, field
+from typing import Any
 
 import numpy as np
-from typing import Any
 
 # Significant change threshold (absolute %)
 OI_CHANGE_THRESHOLD = 0.10  # 10%
