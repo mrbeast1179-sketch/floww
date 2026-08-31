@@ -63,7 +63,7 @@ backlog items.
 - `backend/.env.example` (+PUBLIC_API_KEY template)
 - `kanban/cards/agent_*_status.md` (refreshed)
 
-## Phase 4 — Tidehunter Pro Integration [GATED]
+## Phase 4 — Tidehunter Pro Integration [ACTIVE]
 
 **Goal:** Paid-tier fallback for heatmap when Public API is limited. **Only built if Phase 3 live testing shows real Public API limits.** Don't start until Phase 3 is verified against live Public API.
 
