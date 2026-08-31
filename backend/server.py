@@ -2703,6 +2703,10 @@ from routes.quant import router as quant_router
 
 app.include_router(quant_router, tags=["quant"])
 
+from routes.quant_full import router as quant_full_router
+
+app.include_router(quant_full_router, tags=["quant"])
+
 from routes.chain import router as chain_router
 
 app.include_router(chain_router, tags=["chain"])
