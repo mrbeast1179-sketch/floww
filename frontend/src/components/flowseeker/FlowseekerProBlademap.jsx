@@ -180,6 +180,8 @@ export default function FlowseekerProBlademap({ active = true }) {
   const [signals, setSignals] = useState([]);     // merged feed, newest first
   const [selected, setSelected] = useState(null);
   const [filter, setFilter] = useState("all");
+  // Flow feed time-frame preset: All / 0DTE / 1-7D / Weekly / Monthly / Qtrly / LEAPS
+  const [dteFilter, setDteFilter] = useState("all");
   const [subtab, setSubtab] = useState("ofi");
   const [regime, setRegime] = useState({ label: "—", cls: "chop" });
   const [clock, setClock] = useState("");
@@ -628,6 +630,18 @@ export default function FlowseekerProBlademap({ active = true }) {
   const filtered = useMemo(() => signals.filter((s) => {
     const side = String(s.type || "").toLowerCase().startsWith("c") ? "CALL" : "PUT";
     const cls = String(s.classification || "").toUpperCase();
+    const dte = Number(dteOf(s.expiration)) || 0;
+    // DTE preset filter (applied first — narrows the time window)
+    switch (dteFilter) {
+      case "0dte": if (dte !== 0) return false; break;
+      case "1-7d": if (dte < 1 || dte > 7) return false; break;
+      case "weekly": if (dte < 1 || dte > 7) return false; break;
+      case "monthly": if (dte < 8 || dte > 35) return false; break;
+      case "qtrly": if (dte < 36 || dte > 90) return false; break;
+      case "leaps": if (dte < 91) return false; break;
+      default: break;   // "all" — no DTE filter
+    }
+    // Classification filter (type/conviction)
     switch (filter) {
       case "CALL": return side === "CALL";
       case "PUT": return side === "PUT";
@@ -636,7 +650,7 @@ export default function FlowseekerProBlademap({ active = true }) {
       case "high": return s._conv >= 80;
       default: return true;
     }
-  }), [signals, filter]);
+  }), [signals, filter, dteFilter]);
 
   // scanner: filter + sort + KPI rollup. Simple mode ignores the hidden
   // advanced knobs (a Min-Vol set weeks ago must not silently filter an
@@ -1014,6 +1028,12 @@ export default function FlowseekerProBlademap({ active = true }) {
               <div className="fsb-chips">
                 {[["all", "All"], ["CALL", "Calls"], ["PUT", "Puts"], ["SWEEP", "Sweep"], ["BLOCK", "Block"], ["high", "≥80"]].map(([v, l]) => (
                   <button key={v} className={`fsb-chip${filter === v ? " active" : ""}`} onClick={() => setFilter(v)}>{l}</button>
+                ))}
+              </div>
+              <div className="fsb-panel-h fsb-panel-h-sm" style={{ marginTop: 8 }}>DTE</div>
+              <div className="fsb-chips">
+                {[["all", "All"], ["0dte", "0DTE"], ["1-7d", "1-7D"], ["weekly", "Wk"], ["monthly", "Mo"], ["qtrly", "Qtr"], ["leaps", "LEAPS"]].map(([v, l]) => (
+                  <button key={v} className={`fsb-chip fsb-chip-sm${dteFilter === v ? " active" : ""}`} onClick={() => setDteFilter(v)}>{l}</button>
                 ))}
               </div>
             </div>

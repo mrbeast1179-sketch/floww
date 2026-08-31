@@ -914,3 +914,29 @@
   background: var(--fsb-gold-bright);
   box-shadow: 0 0 5px rgba(232, 201, 106, 0.55);
 }
+
+/* ── NEW: DTE filter chip styles (Phase 6 continuation) ── */
+.fsb-panel-h-sm {
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  color: var(--fsb-text2);
+  padding: 4px 10px 2px;
+  border-bottom: 1px solid var(--fsb-border);
+  margin-bottom: 4px;
+}
+.fsb-chip-sm {
+  font-size: 10px;
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: var(--fsb-panel2);
+  color: var(--fsb-text2);
+  border: 1px solid var(--fsb-border2);
+  cursor: pointer;
+}
+.fsb-chip-sm.active {
+  background: var(--fsb-blue);
+  color: #fff;
+  border-color: var(--fsb-blue);
+}
+/* ────────────────────────────────────────────────────────────── */
