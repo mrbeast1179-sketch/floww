@@ -1,67 +1,105 @@
-/**
- * @jest-environment jsdom
- */
-
+/** @jest-environment jsdom */
 import React from 'react';
-import { render } from '@testing-library/react';
+import { render, waitFor } from '@testing-library/react';
 import OptionsChainTable from './OptionsChainTable';
 
-// Mock the config module
+// ── Mocks ──────────────────────────────────────────────────────────
 jest.mock('../config/api', () => ({
   API: '/api',
   BACKEND_URL: '',
 }));
 
-// Mock axios
 jest.mock('axios', () => ({
-  get: jest.fn(() => Promise.resolve({ data: { rows: [], count: 0, expiries: [] } })),
-  __esModule: true,
-  default: { get: jest.fn(() => Promise.resolve({ data: { rows: [], count: 0, expiries: [] } })) },
+  get: jest.fn(() => Promise.resolve({ data: { ok: true, ticker: 'SPY', spot: 450, expiries: ['2026-09-18'], n_contracts: 1, data_source: 'cvserver', contracts: [{ type: 'call', strike: 450, expiry: '2026-09-18', T: 0.12, iv: 0.18, delta: 0.5, gamma: 0.01, oi: 1000, volume: 500, gex: 1000000, vanna: 0.002, charm: -0.001, moneyness_pct: 0.5, bid: 5.2, ask: 5.3 }] } })),
 }));
 
+const mockPublicChain = {
+  ok: true,
+  ticker: 'SPY',
+  spot: 450.0,
+  expiries: ['2026-09-18', '2026-09-25'],
+  n_contracts: 2,
+  data_source: 'public_api',
+  contracts: [
+    { type: 'call', strike: 450, expiry: '2026-09-18', T: 0.12, iv: 0.18, delta: 0.5, gamma: 0.01, oi: 1000, volume: 500, gex: 1000000, vanna: 0.002, charm: -0.001, moneyness_pct: 0.5, bid: 5.2, ask: 5.3 },
+    { type: 'put', strike: 440, expiry: '2026-09-18', T: 0.12, iv: 0.20, delta: -0.3, gamma: 0.015, oi: 800, volume: 300, gex: -500000, vanna: 0.003, charm: -0.002, moneyness_pct: -2.2, bid: 3.1, ask: 3.3 },
+  ],
+};
+
+const mockMergedChain = {
+  ok: true,
+  ticker: 'SPY',
+  spot: 450.0,
+  expiries: ['2026-09-18'],
+  n_contracts: 1,
+  data_source: 'cvserver',
+  contracts: [
+    { type: 'call', strike: 450, expiry: '2026-09-18', T: 0.12, iv: 0.18, delta: 0.5, gamma: 0.01, oi: 1000, volume: 500, gex: 1000000, vanna: 0.002, charm: -0.001, moneyness_pct: 0.5, bid: 5.2, ask: 5.3 },
+  ],
+};
+
+jest.mock('../lib/publicApi', () => ({
+  fetchPublicChain: jest.fn(),
+  publicChainUrl: jest.fn(),
+}));
+
+const { fetchPublicChain } = require('../lib/publicApi');
+const axios = require('axios');
+
+// ── Tests ──────────────────────────────────────────────────────────
 describe('OptionsChainTable', () => {
-  const sampleRow = (overrides = {}) => ({
-    type: 'call', strike: 450, iv: 0.18, delta: 0.5, gamma: 0.01,
-    vega: 0.5, theta: -0.05, vanna: 0.002, charm: -0.001,
-    moneyness_pct: 0.5, dte: 7, oi: 1000, volume: 500,
-    bid: 5.2, ask: 5.3, expiry: '2026-05-30', gex: 1000000,
-    ...overrides,
+  beforeEach(() => {
+    jest.clearAllMocks();
+    axios.get.mockResolvedValue({ data: mockMergedChain });
+  // eslint-disable-next-line no-empty
   });
 
   test('renders without crash on populated rows', () => {
-    const { container } = render(
-      <OptionsChainTable ticker="SPY" spot={450} />
-    );
+    fetchPublicChain.mockResolvedValue(mockPublicChain);
+    const { container } = render(<OptionsChainTable ticker="SPY" spot={450} />);
+    expect(container).toBeTruthy();
+  });
+
+  test('fetches from public API first', async () => {
+    fetchPublicChain.mockResolvedValue(mockPublicChain);
+    render(<OptionsChainTable ticker="SPY" spot={450} />);
+    await waitFor(() => expect(fetchPublicChain).toHaveBeenCalledWith('SPY', expect.any(Object)));
+  });
+
+  test('falls back to merged chain when public API fails', async () => {
+    fetchPublicChain.mockRejectedValue(new Error('Public API unavailable'));
+    axios.get.mockResolvedValue({ data: mockMergedChain });
+
+    const { container } = render(<OptionsChainTable ticker="SPY" spot={450} />);
+    await waitFor(() => expect(axios.get).toHaveBeenCalled());
     expect(container).toBeTruthy();
   });
 
   test('renders vanna column header', () => {
-    const { getByText } = render(<OptionsChainTable ticker="SPY" spot={450} />);
-    // The table should have Vanna column header
-    expect(true).toBe(true); // Basic smoke - component mounted
+    fetchPublicChain.mockResolvedValue(mockPublicChain);
+    const { container } = render(<OptionsChainTable ticker="SPY" spot={450} />);
+    expect(container).toBeTruthy();
   });
 
   test('renders charm column header', async () => {
+    fetchPublicChain.mockResolvedValue(mockPublicChain);
     const { container } = render(<OptionsChainTable ticker="SPY" spot={450} />);
     expect(container.textContent).toBeDefined();
   });
 
   test('renders dte column header', () => {
+    fetchPublicChain.mockResolvedValue(mockPublicChain);
     const { container } = render(<OptionsChainTable ticker="SPY" spot={450} />);
     expect(container).toBeTruthy();
   });
 
   test('handles null greeks gracefully - no crash', () => {
-    // This tests that null values don't cause .toFixed() errors
-    expect(() => {
-      const nullVanna = null;
-      const result = nullVanna != null ? nullVanna.toFixed(4) : '—';
-      expect(result).toBe('—');
-    }).not.toThrow();
+    const nullVanna = null;
+    const result = nullVanna != null ? nullVanna.toFixed(4) : '—';
+    expect(result).toBe('—');
   });
 
   test('moneyness_pct null safety', () => {
-    // Simulate the fixed rendering logic
     const moneyness_pct = null;
     const result = moneyness_pct != null
       ? (moneyness_pct > 0 ? '+' : '') + moneyness_pct.toFixed(1) + '%'

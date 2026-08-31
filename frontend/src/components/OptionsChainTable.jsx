@@ -1,10 +1,13 @@
 import React, { useEffect, useState, useMemo, useRef, useCallback } from "react";
 import axios from "axios";
 import { fmt, fmtAbs, pctClass } from "../lib/helpers";
-import { BACKEND_URL, API } from "../config/api";
+import { API } from "../config/api";
+import { fetchPublicChain } from "../lib/publicApi";
 
-// API imported from config/api.js
+// API endpoints
+const CHAIN_API = `${API}/chain`;          // /api/chain?ticker=SPY — merged path (Public API → cvserver → yfinance)
 
+// Sort options
 const SORT_OPTIONS = [
   { v: "strike", l: "Strike" }, { v: "expiry", l: "Expiry" },
   { v: "oi", l: "OI" }, { v: "volume", l: "Vol" },
@@ -13,9 +16,45 @@ const SORT_OPTIONS = [
   { v: "vanna", l: "Vanna" }, { v: "charm", l: "Charm" },
 ];
 
+/**
+ * Transform a public-chain response into the rows shape the table expects.
+ * Public API returns {contracts: [...]} with floww-shaped contract dicts
+ * (same fields the adapter produces: type, strike, expiry, T, iv, delta,
+ * gamma, oi, volume, gex, vanna, charm, moneyness_pct, ...).
+ */
+function chainRespToRows(resp) {
+  if (!resp) return null;
+  const contracts = resp.contracts || [];
+  return {
+    rows: contracts.map(c => ({
+      type: c.type === "call" ? "call" : "put",
+      strike: c.strike,
+      expiry: c.expiry,
+      dte: c.T != null ? Math.round(c.T * 365) : null,
+      iv: c.iv,
+      delta: c.delta,
+      gamma: c.gamma,
+      oi: c.oi,
+      volume: c.volume,
+      gex: c.gex != null ? c.gex : 0,
+      vanna: c.vanna != null ? c.vanna : 0,
+      charm: c.charm != null ? c.charm : 0,
+      moneyness_pct: c.moneyness_pct,
+      bid: c.bid,
+      ask: c.ask,
+    })),
+    count: resp.n_contracts != null ? resp.n_contracts : contracts.length,
+    expiries: resp.expiries || [],
+    spot: resp.spot,
+    ticker: resp.ticker,
+    data_source: resp.data_source,
+  };
+}
+
 export default function OptionsChainTable({ ticker, spot }) {
   const [chain, setChain] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
   const [expiry, setExpiry] = useState("");
   const [moneyness, setMoneyness] = useState("all");
   const [minOi, setMinOi] = useState(100);
@@ -30,6 +69,7 @@ export default function OptionsChainTable({ ticker, spot }) {
 
     const fetchChain = async () => {
       setLoading(true);
+      setError(null);
       try {
         const params = new URLSearchParams({
           min_oi: minOi, sort_by: sortBy, sort_dir: sortDir,
@@ -37,8 +77,39 @@ export default function OptionsChainTable({ ticker, spot }) {
         });
         if (expiry) params.set("expiry", expiry);
         if (dteMax !== null) params.set("dte_max", String(dteMax));
-        const res = await axios.get(`${API}/chain/${ticker}?${params}`, { signal: controller.signal });
-        if (mounted) setChain(res.data);
+
+        // Phase 5.1: try direct Public API endpoint first.
+        // Falls back to merged /api/chain if Public API unavailable.
+        let chainData = null;
+
+        try {
+          chainData = await fetchPublicChain(ticker, { signal: controller.signal });
+          if (mounted && chainData) {
+            chainData = chainRespToRows(chainData);
+          }
+        } catch (pubErr) {
+          if (pubErr.name === "AbortError" || pubErr.code === "ERR_CANCELED") throw pubErr;
+          // Public API failed — fall through to merged endpoint
+        }
+
+        // Fallback: merged /api/chain (Public API → cvserver → yfinance)
+        if (!chainData || !mounted) {
+          try {
+            const mergedRes = await axios.get(
+              `${CHAIN_API}/${ticker}?${params}`,
+              { signal: controller.signal, timeout: 30000 }
+            );
+            if (mounted) {
+              const mergedData = chainRespToRows(mergedRes.data);
+              chainData = mergedData || { rows: [], count: 0, expiries: [], spot: 0, ticker: ticker.toUpperCase(), data_source: "unknown" };
+            }
+          } catch (mergedErr) {
+            if (mergedErr.name === "AbortError" || mergedErr.code === "ERR_CANCELED") throw mergedErr;
+            if (mounted) setError(`Chain fetch failed: ${mergedErr.message}`);
+          }
+        }
+
+        if (mounted && chainData) setChain(chainData);
       } catch (err) {
         if (err.name === "AbortError" || err.code === "ERR_CANCELED") return;
         if (mounted) console.error("Chain fetch failed:", err);

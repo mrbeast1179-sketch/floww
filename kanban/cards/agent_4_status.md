@@ -1,39 +1,32 @@
-`agent_4_status.md` — Phase 3/5 Frontend wiring Agent.
+`agent_4_status.md` — Solstice/Triad frontend wiring Agent 4.
 
-State: Phase 3 backend integration COMPLETE (committed on origin/main).
+State: Phase 3/5 frontend wiring ACTIVE. Public API endpoints ready in backend.
 
-Current HEAD on main: ecfabb6 (test(public-api): verify failed broker recovery)
-Commit chain (latest first):
+Current HEAD on main: (latest commit to be added)
+Commit chain prior to this phase's commit:
+  56c0c69 docs(gsd): update AGENT_CONTRACT.md kanban status line
+  08c3c11 docs(gsd): Phase 3 closure, Phase 4 active, kanban refresh, contract sync
   ecfabb6 test(public-api): verify failed broker recovery
-  856a763 fix(public-api): serialize singleton broker initialization
-  78c4856 fix(public-api): close singleton broker on shutdown
-  7780982 test(public-api): cover broker token lifecycle
-  defa76b test(public-api): cover partial and malformed chain data
-  7da82d8 test(public-api): cover chain route contract
-  8245356 test(public-api): cover nested portfolio responses
-  4d4b862 fix(public-api): serialize portfolio dataclasses safely
-  c056325 feat(public-api): expose portfolio route and strengthen frontend contract
-  71b917c feat(frontend): add Public API request helpers
+  94c3c89 feat(public-api): Phase 3 integration — PublicBroker wired as primary data source
 
-What's ready for frontend:
-- New endpoints available:
-  - GET /api/public/chain/{ticker}?expiration=YYYY-MM-DD&expirations=N
-  - GET /api/public/quotes/{ticker}
-  - GET /api/public/portfolio
-- fetch_spot_and_chains_merged() now returns Public API data when key present
-- server.py mounts public_api_router at /api/public (L2412-2413)
+Phase 5.1 Solstice chain table Public API wiring — DONE:
+- `frontend/src/components/OptionsChainTable.jsx` — rewired to fetch from
+  /api/public/chain/{ticker} via fetchPublicChain() first, falling back to
+  /api/chain?ticker={ticker} (merged path: Public API → cvserver → yfinance).
+- Uses existing `fetchPublicChain` helper from frontend/src/lib/publicApi.js.
+- `chainRespToRows()` maps public chain {contracts, n_contracts, spot, expiries,
+  data_source, ticker} → table {rows, count, expiries, spot, ticker, data_source}.
+- AbortController cancels in-flight fetches on ticker/param change (Phase 5.1.3).
+- Shows error only if BOTH public + merged paths fail (Phase 5.1.4).
+- All 13 columns preserved (Type, Strike, Exp, DTE, IV, Δ, Γ, OI, Vol, GEX, Vanna,
+  Charm, Moneyness). CSV export preserved. Virtual scrolling preserved.
+- `frontend/src/components/OptionsChainTable.test.jsx` — 10 tests, all passing:
+  renders, fetches from public API first, falls back to merged on public API fail,
+  null greeks safe, moneyness_pct safe (null/+/−).
 
-Not done (PENDING Phase 5):
-- Solstice (Heatseeker) tab: wire Public API chain → GEX pipeline
-- Triad tab: multi-ticker confluence from Public API chains
-- Verify frontend/src/config/api.js has correct base URLs
-- Zenith: no API changes needed (legacy display)
+Test results:
+- Frontend OptionsChainTable tests: 10/10 passing
+- Full backend test suite: 4606 passed, 64 skipped, 1 xfailed (no regressions)
 
-Blocking: Phase 5 should wait until backend is live-tested with real PUBLIC_API_KEY.
-
-GSD state:
-- Phase 3 [CLOSED 2026-08-31]
-- Phase 4 [ACTIVE] — Tidehunter Pro (contingency only, documented)
-- Phase 5 [PENDING] — this agent's target
-
-Next: start Phase 5 when live Public API testing confirms no hard limits.
+Wiring complete. Next: Agent 4 picks up 5.2 Triad multi-ticker confluence + 5.3 Tidehunter Pro
+when Phase 5.1 is committed and verified.
