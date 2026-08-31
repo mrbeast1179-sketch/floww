@@ -133,9 +133,10 @@ class BacktestEngine:
                 position.quantity = cfg.contracts_per_trade
                 position.entry_bar_idx = i
 
-                # Deduct entry cost from equity: commission only (slippage is in the price).
-                # The position notional is tracked separately; equity is cash.
-                cost = commission_cost
+                # Deduct entry cost from equity: commission + slippage.
+                # Slippage is embedded in entry_price AND deducted as cash cost.
+                # This ensures equity tracks actual cash spent.
+                cost = commission_cost + slippage_cost
                 equity -= cost
                 result.total_buy_calls += 1
 
@@ -154,8 +155,8 @@ class BacktestEngine:
                 position.quantity = cfg.contracts_per_trade
                 position.entry_bar_idx = i
 
-                # Deduct entry cost from equity: commission only (slippage is in the price).
-                cost = commission_cost
+                # Deduct entry cost from equity: commission + slippage.
+                cost = commission_cost + slippage_cost
                 equity -= cost
                 result.total_buy_puts += 1
 
@@ -185,12 +186,10 @@ class BacktestEngine:
                         pnl=gross_pnl,
                         commission=entry_commission + commission_cost,
                         slippage=entry_slippage + slippage_cost,  # stored for reporting only
-                        net_pnl=gross_pnl - entry_commission - commission_cost,
+                        net_pnl=gross_pnl - entry_commission - commission_cost - entry_slippage - slippage_cost,
                     )
                     result.trades.append(trade)
-                    equity += exit_price * position.quantity + trade.net_pnl
-                    # Simplified: equity already had entry cost subtracted, add exit proceeds
-                    equity += exit_price * position.quantity
+                    equity = result.initial_capital + sum(t.net_pnl for t in result.trades)
                     # Correct: equity was reduced by entry_cost, now add exit_value
                     # Actually let's be precise:
                     # At entry: equity -= entry_price * qty + comm + slip
@@ -260,7 +259,7 @@ class BacktestEngine:
                         pnl=gross_pnl,
                         commission=entry_commission + commission_cost,
                         slippage=entry_slippage + slippage_cost,
-                        net_pnl=gross_pnl - entry_commission - commission_cost,
+                        net_pnl=gross_pnl - entry_commission - commission_cost - entry_slippage - slippage_cost,
                     )
                     result.trades.append(trade)
                     equity = result.initial_capital + sum(t.net_pnl for t in result.trades)
@@ -268,14 +267,11 @@ class BacktestEngine:
                     position.quantity = 0
                     position.side = None
                     position.direction = None
-                    result.total_sell_puts += 1
-
-            # Track equity and drawdown. Equity tracks cash.
-        # Entry fees were deducted at buy time; exit fees/proceeds handled at sell time.
-        # Unrealized P&L for open positions is tracked separately in the position object
-        # but not added to the equity curve (cash-basis avoids double counting).
-        total_equity = equity
-        result.equity_curve.append(total_equity)
+                    result.total_sell_puts += 1            # Track equity and drawdown. Equity is cash.
+            # Entry: commission deducted at buy. Exit: fees/proceeds handled at sell.
+            # Unrealized P&L in position object not added to equity curve (cash-basis).
+            total_equity = equity
+            result.equity_curve.append(total_equity)
 
         if total_equity > peak_equity:
             peak_equity = total_equity
