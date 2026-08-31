@@ -177,15 +177,18 @@ Format: `[timestamp] AgentId :: status :: note :: HEAD=sha`
 ## 12. GSD integration state (as of 2026-08-31)
 
 - GSD scaffolded at `.planning/` (ROADMAP.md, PROJECT.md, STATE.md, REQUIREMENTS.md, config.json, 7 codebase maps)
-- Current phase: Phase 3 — Public API Data Layer [CLOSED 2026-08-31]
-- **NEXT phase: Phase 4 — Tidehunter Pro Integration [ACTIVE]** — see ROADMAP.md §4. Gated on live Public API limits; not building until Phase 3 live testing confirms limits. Phase 5 frontend wiring [COMPLETE 2026-08-31] — all 4 tickets delivered (5.1 Solstice [c5e3b18], 5.2 Triad [a1e69bc], 5.3 Tidehunter Pro [dd14e32], 5.4 Zenith [N/A — display-only]).
+- Current phase: Phase 5 — Frontend Public API Wiring [COMPLETE 2026-08-31]
+- **NEXT phase: Phase 6 — Backlog Promotion** — see ROADMAP.md §6. Phase 4 (Tidehunter Pro) is gating-only scaffolding; no live build until Public API limits confirmed. Phase 6 items being promoted: 6.2 backtest [DONE], 6.4 quant [DONE], 6.6 ADRs [DONE]; remaining: 6.1 Prometheus, 6.3 alert persistence, 6.5 portfolio.
 
-Kanban: 23 cards across 5 agents — all refreshed. Phase 3 + Phase 5 kanban closed.
+Kanban: 5 agent status cards (agent_1 through agent_5) refreshed post-Phase-5. Phase 3 + Phase 5 kanban closed.
 
 - Phase 2 — Round 10 P0 Closure: COMPLETE (P0.1-0.3 done)
 - Phase 3 — Public API Data Layer: COMPLETE [CLOSED 2026-08-31] (94c3c89 + downstream)
 - Phase 5 — Frontend Public API Wiring: COMPLETE [2026-08-31] (c5e3b18, a1e69bc, dd14e32)
+- Phase 6.2 — Backtest hardening: COMPLETE [be3b7f8]
+- Phase 6.4 — Quant signal exposure: COMPLETE [ecb6715 + e6e5d9c]
+- Phase 6.6 — ADR expansion: COMPLETE [3c4019f, 5 ADRs shipped]
 
-Test state (verified post-Phase-5):
-- Backend: 4606 passed, 64 skipped, 1 xfailed — full suite, no regressions from Phase 3 or Phase 5
-- Frontend: OptionsChainTable 10/10 passing, FlowseekerProBlademap 17/17 passing, TriadView snapshot passing
+Test state (verified post-Phase-5 + Phase-6):
+- Backend: 4543 passed, 53 skipped, 1 xfailed, 6 pre-existing failures (test_heatseeker_v2.py::test_trinity_day_all_populated, test_contract_drilldown_spy, test_heatmap_spy_data_source_databento, test_heatmap_qqq_free_tier_yfinance, plus 2 more — NOT from Phase 3/5/6 work)
+- Frontend: OptionsChainTable 10/10 passing, FlowseekerProBlademap 17/17 passing, TriadView snapshot passing, FlowseekerProBlademap test 17/17

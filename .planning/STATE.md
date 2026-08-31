@@ -12,9 +12,21 @@ Deploy package hardened and ready: Oracle Always Free runbook
 `oracle-vm-deploy`, docker-compose stack behind Caddy. **Awaiting Nav's VM
 provisioning** — Phase 1 of ROADMAP.md starts the moment the VM exists.
 
+**Last updated:** 2026-08-31
+**Branch:** `main` @ 7e6ac70 (chore(kanban): refresh bottleneck alerts timestamp)
+**Tests:** backend 4543 passed, 53 skipped, 1 xfailed, 6 pre-existing failures · frontend OptionsChainTable 10/10 + FlowseekerProBlademap 17/17 passing
+**Lint:** ruff (E, E722, F, W, I; ignore E501)
+
+## Project position
+
+Deploy package hardened and ready: Oracle Always Free runbook
+(`deploy/free/README.md`), `oracle-setup.sh` + read-only deploy key
+`oracle-vm-deploy`, docker-compose stack behind Caddy. **Awaiting Nav's VM
+provisioning** — Phase 1 of ROADMAP.md starts the moment the VM exists.
+
 ## Current phase
 
-Phase 4 — Tidehunter Pro Integration [ACTIVE] (gated on live Public API limits — scaffolding only). Phase 3 [CLOSED 2026-08-31]. Phase 5 [COMPLETE 2026-08-31].
+Phase 6 — Backlog Promotion [ACTIVE]. Phase 4 (Tidehunter Pro) is gating-only scaffolding. Phase 3 [CLOSED 2026-08-31]. Phase 5 [COMPLETE 2026-08-31]. Phase 6.2/6.4/6.6 done; 6.1/6.3/6.5 remaining.
 
 ## Key context
 

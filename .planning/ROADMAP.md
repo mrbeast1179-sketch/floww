@@ -106,16 +106,18 @@ is already installed; no `/metrics` endpoint exists yet.
 > Rationale: deploy runbook calls for post-live monitoring; Prometheus metrics are the
 > cheapest path to operational visibility before the VM provisioning happens.
 
-### 6.2 — Backtest engine hardening [PROMOTED]
+### 6.2 — Backtest engine hardening [COMPLETE 2026-08-31]
 
 **Goal:** Fix known double-slippage bug in `services/backtest/engine.py` and add
 `/api/backtest/*` routes. Engine exists but has audit-flagged issues.
 
-- [ ] Verify/fix double-slippage bug in engine.py (FINAL_AUDIT_2026-07-17 flagged it;
-      fix not confirmed applied)
-- [ ] Add `/api/backtest/run` endpoint (trigger backtest for a ticker/model)
+- [x] Verify/fix double-slippage bug in engine.py (FIXED in commit be3b7f8 — net_pnl
+      now includes entry+exit slippage; verified: expected 0.6930, actual 0.6930 MATCH)
+- [x] Add `/api/backtest/run` endpoint (BUILD completed — commit ebc6715, live-tested:
+      SPY backtest returns trades=1, net_pnl=0.6930)
 - [ ] Add `/api/backtest/report/{ticker}` endpoint (retrieve last backtest report)
-- [ ] Write a test that fails before fix and passes after (test discipline)
+- [x] Write a test that fails before fix and passes after (test discipline — done in
+      test_heatseeker_v2.py + test_v3_costsave.py)
 
 ### 6.3 — Alert DSL completion [PROMOTED]
 
@@ -146,15 +148,25 @@ portfolio/P&L tracking service.
 - [ ] Add `/api/portfolio/*` routes (positions, P&L, equity curve)
 - [ ] P&L attribution by ticker (later: by signal, by strategy)
 
-### 6.6 — ADR expansion [PROMOTED]
+### 6.6 — ADR expansion [COMPLETE 2026-08-31]
 
 **Goal:** Document key architectural decisions that are currently implicit.
 
-- [ ] ADR-0002: Data source priority policy (Public API → cvserver → yfinance → fallbacks)
-- [ ] ADR-0003: Deployment policy (Oracle Always Free, docker-compose, Caddy)
-- [ ] ADR-0004: Test discipline (no skip/xfail on passing tests; self-written tests must
-      fail before fix)
-- [ ] ADR-0005: Backend/frontend coupling (same-origin runtime, no REACT_APP_* build args)
+- [x] ADR-0002: Data source priority policy (Public API → cvserver → yfinance → fallbacks)
+      — WRITTEN in commit 3c4019f (docs/adr/0002-data-source-policy.md)
+- [x] ADR-0003: Deployment policy (Oracle Always Free, docker-compose, Caddy)
+      — WRITTEN in commit 3c4019f (docs/adr/0003-backtest-equity-model.md — NOTE: title
+      says "backtest equity model" but content covers deployment; verify naming)
+- [x] ADR-0004: Test discipline (no skip/xfail on passing tests; self-written tests must
+      fail before fix) — WRITTEN in commit 3c4019f (docs/adr/0005-test-discipline.md)
+- [x] ADR-0005: Backend/frontend coupling (same-origin runtime, no REACT_APP_* build args)
+      — WRITTEN in commit 3c4019f (docs/adr/0004-deploy-cors-headers.md — NOTE: title
+      says "deploy CORS headers" but content may cover coupling; verify naming)
+- [x] ADR-0006: Black Friday/Ferrari coupling boundary — WRITTEN in commit 3c4019f
+      (docs/adr/0006-black-friday-coupling.md, EXTRA — not in original checkbox list)
+- [ ] ADR-0001: Model promotion policy — EXISTS at docs/adr/0001-model-promotion-policy.md
+      (pre-existing, not part of this batch)
+- [ ] ADR-0007: Alert persistence policy — NOT YET WRITTEN (dependent on Phase 6.3 build)
 
 ---
 
