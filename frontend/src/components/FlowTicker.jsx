@@ -122,7 +122,6 @@ export default function FlowTicker({ ticker }) {
     }
     // Also tell backend to stop
     axios.post(`${API}/live/tape/stop`).catch((e) => {
-      console.error("FlowTicker stop tape failed:", e);
       setError("Failed to stop tape stream");
     });
     setStatus("idle");
