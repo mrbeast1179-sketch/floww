@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -77,3 +78,23 @@ async def test_close_broker_closes_and_clears_singleton() -> None:
 
     assert adapter.BROKER is None
     client.aclose.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_concurrent_get_broker_creates_one_singleton() -> None:
+    broker = MagicMock()
+    broker.auth = AsyncMock()
+    broker.get_accounts = AsyncMock()
+    broker.close = AsyncMock()
+
+    with patch.dict("os.environ", {"PUBLIC_API_KEY": "secret"}, clear=True), patch(
+        "services.public_api_adapter.PublicBroker", return_value=broker
+    ):
+        adapter.BROKER = None
+        results = await asyncio.gather(
+            adapter._get_broker(), adapter._get_broker(), adapter._get_broker()
+        )
+
+    assert results == [broker, broker, broker]
+    broker.auth.assert_awaited_once()
+    broker.get_accounts.assert_awaited_once()

@@ -18,6 +18,7 @@ Routing priority (in fetch_spot_and_chains_merged):
 """
 from __future__ import annotations
 
+import asyncio
 import logging
 from datetime import UTC, datetime
 from typing import Any
@@ -27,35 +28,44 @@ from services.public_api import PublicBroker
 log = logging.getLogger(__name__)
 
 BROKER: PublicBroker | None = None
+_BROKER_LOCK = asyncio.Lock()
 
 
 async def close_broker() -> None:
     """Close and clear the lazily-created broker client during shutdown."""
     global BROKER
-    broker = BROKER
-    BROKER = None
-    if broker is not None:
-        await broker.close()
+    async with _BROKER_LOCK:
+        broker = BROKER
+        BROKER = None
+        if broker is not None:
+            await broker.close()
 
 
 async def _get_broker() -> PublicBroker | None:
     """Lazy-init the singleton PublicBroker (auths on first use)."""
     global BROKER
-    if BROKER is None:
-        import os
-        secret_key = os.environ.get("PUBLIC_API_KEY", "")
-        if not secret_key:
-            log.warning("PUBLIC_API_KEY not set — Public API unavailable")
-            return None
-        BROKER = PublicBroker(secret_key=secret_key)
+    if BROKER is not None:
+        return BROKER
+
+    import os
+    secret_key = os.environ.get("PUBLIC_API_KEY", "")
+    if not secret_key:
+        log.warning("PUBLIC_API_KEY not set — Public API unavailable")
+        return None
+
+    async with _BROKER_LOCK:
+        if BROKER is not None:
+            return BROKER
+        broker = PublicBroker(secret_key=secret_key)
         try:
-            await BROKER.auth()
-            await BROKER.get_accounts()
+            await broker.auth()
+            await broker.get_accounts()
         except Exception as e:
+            await broker.close()
             log.warning("PublicBroker auth failed: %s", e)
-            BROKER = None
             return None
-    return BROKER
+        BROKER = broker
+        return BROKER
 
 
 def _normalize_symbol(symbol: str) -> str:
