@@ -11,6 +11,10 @@ describe("public API helpers", () => {
       .toContain("/api/public/chain/%5ESPX?expiration=2026-09-18&expirations=2");
   });
 
+  test("uses four expirations by default", () => {
+    expect(publicChainUrl("spy")).toContain("/api/public/chain/SPY?expirations=4");
+  });
+
   test("builds a quote URL", () => {
     expect(publicQuoteUrl("spy")).toContain("/api/public/quotes/SPY");
   });

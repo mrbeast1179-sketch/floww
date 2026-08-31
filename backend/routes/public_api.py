@@ -22,6 +22,7 @@ import logging
 from fastapi import APIRouter, HTTPException, Query
 
 from services.public_api_adapter import (
+    _get_broker,
     fetch_chain_from_public_api,
     fetch_spot_from_public_api,
 )
@@ -81,5 +82,33 @@ async def get_public_quotes(ticker: str):
         "ok": True,
         "ticker": ticker.upper(),
         "spot": spot,
+        "data_source": "public_api",
+    }
+
+
+@router.get("/portfolio")
+async def get_public_portfolio():
+    """Return the authenticated Public.com paper-trading portfolio."""
+    broker = await _get_broker()
+    if broker is None:
+        raise HTTPException(
+            status_code=502,
+            detail="Public API unavailable — key may be missing or API call failed",
+        )
+
+    account = broker.get_trading_account()
+    if account is None:
+        raise HTTPException(status_code=502, detail="No trading account available")
+
+    try:
+        portfolio = await broker.get_portfolio(account.account_id)
+    except Exception as exc:
+        log.warning("Public API portfolio failed: %s", exc)
+        raise HTTPException(status_code=502, detail="Public API portfolio unavailable") from exc
+
+    return {
+        "ok": True,
+        "account_id": account.account_id,
+        "portfolio": portfolio,
         "data_source": "public_api",
     }
