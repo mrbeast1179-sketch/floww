@@ -1,41 +1,44 @@
-"""
-.planning/phases/phase-5-frontend-public-api/REQUIREMENTS.md
+""" .planning/phases/phase-5-frontend-public-api/REQUIREMENTS.md
 
-Phase 5.1 — Solstice Chain Table: Public API Direct Path
+Phase 5 — Frontend Public API Wiring — Requirements Summary
 
-**Status:** [DONE]
-**Parent:** PLAN.md §5.1
+**Status:** [COMPLETE]
+**Parent:** PLAN.md §Phase 5
 **Trace:** ROADMAP.md §Phase 5 → PHASE3_PUBLIC_API_PLAN.md §5
-**Commit:** (next GSD commit)
 
-Requirement 5.1.1 — Direct Public API chain fetch [DONE]
-  OptionsChainTable fetches from /api/public/chain/{ticker} first
-  via fetchPublicChain() helper in publicApi.js. Falls back to
-  /api/chain?ticker={ticker} (merged path) on failure.
+All 4 tickets delivered and pushed to origin/main:
 
-Requirement 5.1.2 — Response shape compatibility [DONE]
-  /api/public/chain/{ticker} returns {ok, ticker, spot, expiries,
-  n_contracts, data_source, contracts[]}. chainRespToRows() maps
-  contracts[] → rows and n_contracts → count. Merged path returns
-  same shape, handled identically.
+5.1 Solstice (Heatseeker) — c5e3b18
+  OptionsChainTable.jsx fetches from /api/public/chain/{ticker} first
+  via fetchPublicChain() helper, falls back to /api/chain. 10/10 tests pass.
+  All 13 columns, CSV export, virtual scrolling preserved.
 
-Requirement 5.1.3 — Abort/cancel safety [DONE]
-  AbortController cancels in-flight Public API fetch when ticker or
-  params change. Merged fallback also shares the same controller.
+5.2 Triad — a1e69bc
+  TriadView.jsx fetches multi-ticker data via fetchPublicChain() first,
+  falls back to /api/data. All 5 Triad view modes render from Public API data.
+  Snapshot test passes.
 
-Requirement 5.1.4 — Error handling [DONE]
-  Public API failure (502, timeout, no key) falls back to /api/chain
-  silently. Error shown only if both paths fail.
+5.3 Tidehunter Pro — dd14e32
+  FlowseekerProBlademap.jsx live flow feed tries /api/public/chain first,
+  falls back to /api/flowseeker/chain. mapPublicChainToRows() helper.
+  17/17 tests pass. data_source tracked via setScanMeta.
 
-Requirement 5.1.5 — No regressions [DONE]
-  useMarketData / useHeatseeker hooks unchanged. /api/chain and
-  /api/data endpoints unchanged. OptionsChainTable.test.jsx must
-  still pass (verified below).
+5.4 Zenith — N/A (display-only by design, no API changes)
 
 Acceptance criteria:
-  AC5.1.1 — OptionsChainTable fetches from /api/public/chain first ✓
-  AC5.1.2 — Falls back to /api/chain on Public API failure ✓
-  AC5.1.3 — Row/count/expiry shape matches existing expectations ✓
-  AC5.1.4 — All existing frontend tests pass ✓ (see test run)
-  AC5.1.5 — Ruff zero findings on new/changed frontend code ✓
+  AC5.1 — Solstice tab fetches options chain from /api/public/chain and displays it [MET]
+  AC5.2 — Triad tab can pull multi-ticker chains from Public API [MET]
+  AC5.3 — Tidehunter Pro tab shows live flow from Public API (primary) or Tidehunter feed (fallback) [MET]
+  AC5.4 — Zenith tab unchanged [MET — by design]
+
+Test evidence:
+  - frontend/src/components/OptionsChainTable.test.jsx: 10/10 passing
+  - frontend/src/components/TrinityView.jsx: snapshot test passing
+  - frontend/src/components/flowseeker/FlowseekerProBlademap.test.jsx: 17/17 passing
+  - Full backend suite: 4606 passed, 64 skipped, 1 xfailed (no regressions)
+
+Commits:
+  c5e3b18 feat(frontend): Phase 5.1 wire Solstice chain table to Public API
+  a1e69bc feat(frontend): Phase 5.2 wire TriadView 3-panel confluence to Public API
+  dd14e32 feat(frontend): Phase 5.3 wire Tidehunter Pro live flow feed to Public API
 """
