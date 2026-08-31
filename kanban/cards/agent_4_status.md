@@ -20,7 +20,7 @@ Blocking: Phase 5 should wait until backend is live-tested with real PUBLIC_API_
 
 GSD state:
 - Phase 3 [CLOSED 2026-08-31]
-- Phase 4 [ACTIVE] — Tidehunter Pro (contingency only)
+- Phase 4 [GATED] — Tidehunter Pro (contingency only)
 - Phase 5 [PENDING] — this agent's target
 
 Next: start Phase 5 when live Public API testing confirms no hard limits.

@@ -5,7 +5,9 @@
 ## APIs & External Services
 
 **Market Data — Options Chains:**
-- cvserver (CVForge / ConvexValue) — primary options-chain source: 32 expiries, 171 strikes, greeks included
+- Public API (Public.com via `PublicBroker`) — primary options-chain and spot source when `PUBLIC_API_KEY` is configured
+  - Client: `backend/services/public_api.py` + adapter `backend/services/public_api_adapter.py`
+- cvserver (CVForge / ConvexValue) — secondary options-chain source: 32 expiries, 171 strikes, greeks included
   - Client: `backend/services/cvserver_client.py` (`fetch_chain_from_cvserver`, `fetch_chain_for_heatmap`)
   - Endpoint: MCP-style API at `https://tap.convexvalue.com/api/data/mcp` (override via `CVSERVER_URL` env var)
   - Auth: Bearer token in `CVSERVER_API_KEY`
@@ -94,7 +96,7 @@
 **Development:**
 - Required env vars: `MONGO_URL`, `DB_NAME`, `API_SECRET_KEY`; data providers as available: `CVSERVER_API_KEY`, `DATABENTO_API_KEY`, `POLYGON_API_KEY`, `ALPHA_VANTAGE_KEY`, `FINNHUB_API_KEY`, `FLASHALPHA_API_KEY`, `GEMINI_API_KEY`, `OPENROUTER_API_KEY`, `OPENROUTER_MODEL`, `LLM_PROVIDER`, `WS_API_TOKEN`, `JWT_SECRET_KEY`, `FLOWW_DATA_SOURCE`
 - Secrets location: `backend/.env` (gitignored); template in `backend/.env.example`
-- Degraded mode: every keyed provider has a no-key fallback path (cvserver→yfinance→Databento)
+- Degraded mode: Public API falls back to cvserver, then yfinance→Databento; every keyed provider has a no-key fallback path
 
 **Production:**
 - Secrets management: `deploy/free/.env.prod` (adds `DOMAIN`, `ADMIN_EMAIL`, `CORS_ORIGINS`); never committed values

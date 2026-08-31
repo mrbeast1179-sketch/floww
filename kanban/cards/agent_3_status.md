@@ -14,7 +14,7 @@ Not done (intentional):
 
 GSD state:
 - Phase 3 [CLOSED 2026-08-31] — backend integration done
-- Phase 4 [ACTIVE] — Tidehunter Pro (contingency only, gated on live Public API limits)
+- Phase 4 [GATED] — Tidehunter Pro (contingency only, gated on live Public API limits)
 - Phase 5 [PENDING] — Frontend wiring (Agent 4)
 
 Next: Agent 4 picks up 3.8/5.1 when Phase 5 is ready. Agent 1 does 4.1 Tidehunter Pro API assessment when triggered.

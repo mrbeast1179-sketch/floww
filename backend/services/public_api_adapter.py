@@ -41,10 +41,7 @@ async def _get_broker() -> PublicBroker | None:
         BROKER = PublicBroker(secret_key=secret_key)
         try:
             await BROKER.auth()
-            accounts = await BROKER.get_accounts()
-            trading = BROKER.get_trading_account()
-            if trading is None and accounts:
-                trading = BROKER.get_trading_account()
+            await BROKER.get_accounts()
         except Exception as e:
             log.warning("PublicBroker auth failed: %s", e)
             BROKER = None
@@ -95,9 +92,9 @@ async def fetch_chain_from_public_api(
     # 2. Get spot quote
     try:
         quotes = await pb.get_quotes([symbol], account_id)
-        spot = quotes[0].mid_price if quotes else 0.0
+        spot = quotes[0].mid_price if quotes else None
         if spot is None:
-            spot = quotes[0].last if quotes else 0.0
+            spot = quotes[0].last if quotes else None
         if spot is None:
             spot = 0.0
     except Exception as e:
@@ -174,7 +171,7 @@ async def fetch_spot_from_public_api(
         quotes = await pb.get_quotes([symbol], trading.account_id)
         if quotes:
             q = quotes[0]
-            return q.mid_price or q.last or 0.0
+            return q.mid_price if q.mid_price is not None else (q.last or 0.0)
     except Exception as e:
         log.warning("Public API spot fail for %s: %s", ticker, e)
         return None

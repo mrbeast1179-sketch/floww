@@ -24,7 +24,7 @@ Not done (intentional):
 
 GSD state:
 - Phase 3 [CLOSED 2026-08-31] in ROADMAP.md (commit 94c3c89)
-- Phase 4 [ACTIVE] — Tidehunter Pro Integration (contingency only, don't build until live Public API limits confirmed)
+- Phase 4 [GATED] — Tidehunter Pro Integration (contingency only, don't build until live Public API limits confirmed)
 - Phase 5 [PENDING] — Frontend Public API Wiring (Solstice/Triad)
 
 Next agent handoff: Agent 4 picks up 3.8/5.1 Frontend wiring when Phase 5 is ready.

@@ -1,13 +1,10 @@
 # Phase 4 — Tidehunter Pro Integration
 
-> NOTE: this file was written in Python-docstring style by mistake; content is plain planning markdown.
-
-"""
 .planning/phases/phase-4-tidehunter-pro/PLAN.md
 
 Phase 4 — Tidehunter Pro Integration
 
-**Status:** [ACTIVE] (contingency — don't build until live Public API limits confirmed)
+**Status:** [GATED] (contingency — do not build until live Public API limits are confirmed)
 **Parent:** ROADMAP.md §Phase 4
 **Source:** `.planning/PHASE3_PUBLIC_API_PLAN.md` §6 (Tidehunter Pro fallback design)
 
@@ -37,4 +34,3 @@ What's NOT in scope:
   - Replacing Public API as primary (it stays primary)
   - Building a Tidehunter Pro UI tab (Phase 5.3 covers that if needed)
   - Any frontend work before 4.1 assessment is done
-"""
