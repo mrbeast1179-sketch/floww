@@ -98,3 +98,28 @@ async def test_concurrent_get_broker_creates_one_singleton() -> None:
     assert results == [broker, broker, broker]
     broker.auth.assert_awaited_once()
     broker.get_accounts.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_failed_initialization_closes_client_and_allows_retry() -> None:
+    failed = MagicMock()
+    failed.auth = AsyncMock(side_effect=RuntimeError("auth failed"))
+    failed.get_accounts = AsyncMock()
+    failed.close = AsyncMock()
+
+    recovered = MagicMock()
+    recovered.auth = AsyncMock()
+    recovered.get_accounts = AsyncMock()
+
+    with patch.dict("os.environ", {"PUBLIC_API_KEY": "secret"}, clear=True), patch(
+        "services.public_api_adapter.PublicBroker",
+        side_effect=[failed, recovered],
+    ):
+        adapter.BROKER = None
+        assert await adapter._get_broker() is None
+        assert adapter.BROKER is None
+        failed.close.assert_awaited_once()
+        assert await adapter._get_broker() is recovered
+
+    recovered.auth.assert_awaited_once()
+    recovered.get_accounts.assert_awaited_once()
