@@ -29,31 +29,37 @@ backlog items.
 - [x] 2.2 P0.2: restore `fetch_spot_and_chains`; flip-zones non-degraded (live-verified)
 - [x] 2.3 P0.3: STALE_IMPORT cleanup; ruff F401 clean (zero findings)
 
-## Phase 3 — Data Layer Hardening (BACKLOG Phase A)
+## Phase 3 — Public API Data Layer [NEXT]
 
-- [x] 3.1 Data-layer schema and migrations — versioned append-only DuckDB migration system in `services/duckdb_engine.py` (`schema_migrations` table, migrations 002/003 shipped) (`ad77c90`, agent 3)
-- [x] 3.2 Repository pattern — `services/ml_repository.py` shipped; all ml_api.py sites migrated (`280890f`, agent 2)
-- [x] 3.3 Retry/error handling — `services/retry.py` (sync+async jittered backoff); first consumer `yfinance_fetcher.fetch_underlying_ohlcv` retries transient failures AND empty frames (`640773c`, agent 2)
-- [x] 3.4 Data quality checks — /api/data-quality/{ticker} cross-source GEX consistency endpoint shipped (`a34980f`)
+**Goal:** Replace mock/Schwab-dependent chain data with Public API brokerage feeds. Heatmap (Solstice) uses Public API as primary, Tidehunter Pro as fallback. Building all data flow around Public API — not Schwab, not Zenith.
 
-## Phase 4 — Code Hygiene Sweep
+**Source:** `.planning/DATA_SOURCES.md`, `.planning/AGENT_CONTRACT.md`
 
-**Goal:** Burn down actionable discovered issues from `BACKLOG.md`.
+- [ ] 3.1 Confirm Public API key — Finnhub key (`d84ic5pr01qutij93meg`) in `.env` is NOT Public API; need Nav to generate Public.com API key from Account Settings → Security → API
+- [ ] 3.2 Public API chain endpoint integration — options chain with OI, strikes, expiries; mock-testable without live key
+- [ ] 3.3 Public API spot endpoint — live price replacement for yfinance spot
+- [ ] 3.4 Rate limit / degradation handling — Public API limit → Tidehunter Pro fallback switch; yfinance spot fallback
+- [ ] 3.5 cvserver MCP alignment — ensure cvserver tools reflect Public API data shape; update `AGENTS.md` data docs
+- [ ] 3.6 Tests: chain endpoint returns non-degraded response (mock Public API if no live key yet)
 
-- [x] 4.1 `iron_condible` typo — already fixed in paper_trading.py (verified: DEFAULT_STRATEGY="iron_condor")
-- [x] 4.2 `portfolio.py`: floats → Decimal per operating law 4 (R3.8) — commit 0bea9b5 (Position.pnl, add_position cash, total_pnl, calc_position_size all accumulate in Decimal; outputs are cent-rounded floats for JSON/Mongo round-trip)
-- [x] 4.3 Alert engine de-hardcoding (R3.9) — done by agent 1 in `beb02cc` (ALERT_TYPE_CATALOG single-source, 12 types)
-- [x] 4.4 Process hygiene: ADR index + PR template shipped (`900130f`)
+## Phase 4 — Tidehunter Pro Integration
 
-## Phase 5 — Frontend Architecture (BACKLOG Phase H)
+**Goal:** Paid-tier fallback for heatmap when Public API is limited. Only built if Public API has real limits — don't over-build before knowing the constraints.
 
-- [ ] 5.1 Decompose `App.js` (architect-approved, frozen-file constraint) (R3.6)
-- [x] 5.2 Introduce TanStack Query for server state (R3.7) — `@tanstack/react-query@5`
-  installed; QueryClientProvider wraps React tree (index.js); singleton
-  queryClient (lib/hooks/queryClient.js); usePortfolio hook for
-  /api/portfolio/{name} (lib/hooks/usePortfolio.js). Commit 42e0572.
+- [ ] 4.1 Tidehunter Pro API assessment — endpoints, data shape, rate limits, cost
+- [ ] 4.2 Fallback routing — Solstice heatmap detects Public API limit, switches to Tidehunter Pro seamlessly
+- [ ] 4.3 Threshold policy — when does Tidehunter kick in vs. just waiting for Public API recovery
 
-## Phase 6+ — Later Backlog Phases (unpromoted)
+> **Note:** Zenith is a UI tab (legacy Skylit GEX grid), NOT a data service. API calls do NOT route to Zenith. Zenith displays data produced by Solstice/Triad/Tidehunter Pro — no API changes needed for Zenith itself.
+
+## Phase 5 — Frontend Public API Wiring
+
+- [ ] 5.1 Solstice (Heatseeker) tab: Public API chain → GEX computation pipeline
+- [ ] 5.2 Triad tab: multi-ticker confluence from Public API chains
+- [ ] 5.3 Tidehunter Pro tab: live flow from Public API (primary) or Tidehunter Pro feed (fallback)
+- [ ] 5.4 Zenith tab: legacy display — no API changes, data comes from above layers
+
+## Phase 6 — Later Backlog Phases (unpromoted)
 
 Quant analytics (B), ML pipeline (C), Backtester (D), Alert DSL (E), Trading
 execution (F), Portfolio & P&L (G), Observability & ops incl. Prometheus (I),
