@@ -127,7 +127,10 @@ async def fetch_chain_from_public_api(
                 contracts.append({
                     "expiry": oc.expiration,
                     "T": T,
-                    "type": "CALL" if side == "calls" else "PUT",
+                    # cvserver convention: lowercase "call"/"put".
+                    # gex_core.py and analytics.py compare c["type"] == "call"
+                    # exactly — uppercase here would flip every GEX sign.
+                    "type": "call" if side == "calls" else "put",
                     "strike": oc.strike,
                     "oi": oc.open_interest or 0,
                     "iv": oc.iv or 0.0,

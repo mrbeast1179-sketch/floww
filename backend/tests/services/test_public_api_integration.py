@@ -185,8 +185,8 @@ class TestFetchChainFromPublicApi:
             result = await fetch_chain_from_public_api("SPY")
 
         types = {c["type"] for c in result["contracts"]}
-        assert "CALL" in types
-        assert "PUT" in types
+        assert "call" in types
+        assert "put" in types
 
     @pytest.mark.asyncio
     async def test_max_expiries_limit_respected(self, mock_broker):
