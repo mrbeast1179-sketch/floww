@@ -82,9 +82,88 @@ backlog items.
 
 Phase 5 complete. All 4 tickets delivered. See `.planning/phases/phase-5-frontend-public-api/` for full plan + requirements.
 
-## Phase 6 — Later Backlog Phases (unpromoted)
+## Phase 6 — Backlog Promotion (2026-08-31)
 
-Quant analytics (B), ML pipeline (C), Backtester (D), Alert DSL (E), Trading
-execution (F), Portfolio & P&L (G), Observability & ops incl. Prometheus (I),
-Quality processes & ADRs (J) — from `BACKLOG.md` Pending list. Promote into
-numbered phases when prioritized.
+**Goal:** Promote actionable backlog items from `BACKLOG.md` into numbered sub-phases
+with clear scoping. Many items are already partially built — this phase is mostly
+consolidation, exposure, and closing known gaps.
+
+**Source:** `BACKLOG.md` (synced 2026-08-31). State: most phases partially built;
+Phase A complete, Phase C mostly built, Phase F (paper trading) operational.
+
+### 6.1 — Observability & Prometheus (`/metrics` endpoint) [PROMOTED]
+
+**Goal:** Expose Prometheus metrics for production monitoring. `prometheus_client`
+is already installed; no `/metrics` endpoint exists yet.
+
+- [ ] Add `/metrics` route exposing: request latency histogram, error rate counter,
+      data source fallback counter, yfinance-429 counter, MongoDB connection pool metrics
+- [ ] Add per-endpoint latency histogram (especially /api/heatmap, /api/chain, /api/spot)
+- [ ] Add data provider health counters (Public API success/fail, cvserver success/fail,
+      yfinance success/fail, databento success/fail)
+- [ ] Scrape test: `curl localhost:8000/metrics` returns prometheus-formatted text
+
+> Rationale: deploy runbook calls for post-live monitoring; Prometheus metrics are the
+> cheapest path to operational visibility before the VM provisioning happens.
+
+### 6.2 — Backtest engine hardening [PROMOTED]
+
+**Goal:** Fix known double-slippage bug in `services/backtest/engine.py` and add
+`/api/backtest/*` routes. Engine exists but has audit-flagged issues.
+
+- [ ] Verify/fix double-slippage bug in engine.py (FINAL_AUDIT_2026-07-17 flagged it;
+      fix not confirmed applied)
+- [ ] Add `/api/backtest/run` endpoint (trigger backtest for a ticker/model)
+- [ ] Add `/api/backtest/report/{ticker}` endpoint (retrieve last backtest report)
+- [ ] Write a test that fails before fix and passes after (test discipline)
+
+### 6.3 — Alert DSL completion [PROMOTED]
+
+**Goal:** Persist alert rules to MongoDB (currently in-memory, lost on restart) and
+add alert quality dashboard endpoint.
+
+- [ ] Persist `_alert_rules` to MongoDB (create alerts collection + CRUD sync)
+- [ ] Persist `_alert_history` to MongoDB (triggered alert history)
+- [ ] Add `/api/alert-quality` endpoint (quality scores per rule/tier)
+- [ ] Alert YAML validation (schema check on `alerts/definitions/gex_alerts.yaml`)
+
+### 6.4 — Quant signal exposure [PROMOTED]
+
+**Goal:** Expose available quant signals through a catalog endpoint. Much of the
+infrastructure exists (`signal_translator`, `flow_alerts`, `trading_signals`,
+`composite_flow_score`, `hmm_regime`) but there's no unified entry point.
+
+- [ ] Add `/api/quant/signals` endpoint listing available signals + their state
+- [ ] Add signal health/status per ticker (which signals are active for SPY/QQQ/etc.)
+- [ ] Normalize factor/z-score output across signal types
+
+### 6.5 — Portfolio & P&L foundation [PROMOTED]
+
+**Goal:** Basic portfolio state service. Paper trading exists but there's no
+portfolio/P&L tracking service.
+
+- [ ] Add `services/portfolio.py` — position state, P&L, exposure tracking
+- [ ] Add `/api/portfolio/*` routes (positions, P&L, equity curve)
+- [ ] P&L attribution by ticker (later: by signal, by strategy)
+
+### 6.6 — ADR expansion [PROMOTED]
+
+**Goal:** Document key architectural decisions that are currently implicit.
+
+- [ ] ADR-0002: Data source priority policy (Public API → cvserver → yfinance → fallbacks)
+- [ ] ADR-0003: Deployment policy (Oracle Always Free, docker-compose, Caddy)
+- [ ] ADR-0004: Test discipline (no skip/xfail on passing tests; self-written tests must
+      fail before fix)
+- [ ] ADR-0005: Backend/frontend coupling (same-origin runtime, no REACT_APP_* build args)
+
+---
+
+**Phase 6 scope note:** Items 6.1–6.6 are ordered by dependency + impact. 6.1
+(Prometheus) is the cheapest high-value item and unblocks Phase 1 deploy monitoring.
+6.2 (backtest fix) is blocking Phase E alert gating. 6.3 (alert persistence) is
+blocking alert reliability. 6.4–6.6 are incremental improvements.
+
+**Not in Phase 6 (deferred):** Phase F live execution (needs ADR), Phase G full
+portfolio/P&L (6.5 is the foundation only), Phase H App.js decomposition (architect
+sign-off needed), ML pipeline OOS harness (Phase C — verify `scripts/backtest_oos.py`
+exists first).
