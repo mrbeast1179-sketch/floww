@@ -1775,6 +1775,13 @@ async def _scheduler_loop():
             except Exception:
                 obs_metrics.schwab_token_expires_in_seconds.set(0)
 
+            # Update provider health Prometheus gauges from DataProviderMonitor
+            try:
+                from services.meta_observability import provider_monitor
+                provider_monitor.update_prometheus()
+            except Exception:
+                pass
+
             try:
                 from zoneinfo import ZoneInfo
                 et = datetime.now(ZoneInfo("America/New_York"))

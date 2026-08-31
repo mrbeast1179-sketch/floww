@@ -33,7 +33,8 @@ async def quant_signal_catalog(
         - unit: human-readable unit
         - description: one-line explanation
     """
-    t = ticker.strip().upper()
+    _ticker = ticker.get("ticker", ticker) if isinstance(ticker, dict) else ticker
+    t = _ticker.strip().upper()
     if t == "SPX":
         t = "^SPX"
 
