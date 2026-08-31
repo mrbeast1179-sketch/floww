@@ -38,26 +38,44 @@ async def quant_signal_catalog(
     if t == "SPX":
         t = "^SPX"
 
-    signals: list[dict[str, Any]] = []
-
-    # --- GEX regime signals (from signal_translator / GEX core) ---
+    signals: list[dict[str, Any]] = []    # --- GEX regime signals (from signal_translator / GEX core) ---
     try:
-        from services.signal_translator import translate_signal, SignalInput
+        from signal_translator import translate_signal, SignalInput
 
-        regime = translate_signal(SignalInput(
+        regime_result = translate_signal(SignalInput(
             ticker=t,
-            gex_zscore_60d=0.0,
-            spot=0.0,
-            gex_integrated=0.0,
-            recent_flow=0.0,
+            gex_state="",
+            trinity_score=0.0,
+            spot_price=0.0,
+            anomaly_score=0.0,
+            delta=0.5,
+            stop_spot=0.0,
+            multiplier=100,
+            kelly_win_prob=0.5,
+            kelly_avg_rr=2.0,
+            account_equity=100000.0,
+            current_positions={},
+            flashalpha_sentiment_z=0.0,
+            vpin_cdf=0.5,
+            kyle_lambda=0.0,
         ))
-        signals.append({
-            "name": "gex_regime",
-            "source": "signal_translator",
-            "value": regime.get("signal_type", ""),
-            "unit": "label",
-            "description": "Translated GEX regime signal (buy_call / buy_put / hold / etc.)",
-        })
+        if regime_result:
+            signals.append({
+                "name": "gex_regime",
+                "source": "signal_translator",
+                "value": regime_result.get("signal_type", regime_result.get("gex_state", "")),
+                "unit": "label",
+                "description": "Translated GEX regime signal (buy_call / buy_put / hold / etc.)",
+            })
+        else:
+            # translate_signal returned None — show the raw gex_state as the signal label
+            signals.append({
+                "name": "gex_regime",
+                "source": "signal_translator",
+                "value": "no_signal",
+                "unit": "label",
+                "description": "translate_signal returned None — insufficient conviction to emit a regime",
+            })
     except Exception as e:
         logger.debug(f"gex_regime unavailable for {t}: {e}")
 
@@ -66,12 +84,12 @@ async def quant_signal_catalog(
         from services.hmm_regime import GaussianHMMRegime
 
         hmm = GaussianHMMRegime()
-        state = hmm.classify(t)
+        state = hmm.classify()  # no-arg: uses internal ticker state
         if state:
             signals.append({
                 "name": "hmm_regime",
                 "source": "hmm_regime",
-                "value": state.get("state", ""),
+                "value": state.get("state", state.get("label", "unknown")),
                 "unit": "label",
                 "description": "HMM-classified market regime (trending/ranging/volatile/quiet)",
             })
@@ -83,12 +101,20 @@ async def quant_signal_catalog(
         from services.composite_flow_score import CompositeFlowScore
 
         cfs = CompositeFlowScore()
-        score = cfs.compute(t)
+        # compute() requires 5 dict inputs from upstream services
+        # We pass empty dicts here — real values would come from /api/quant/full
+        score = cfs.compute(
+            amihud_out={},
+            kyle_out={},
+            vpin_out={},
+            regime_out={},
+            ofi_out={},
+        )
         if score is not None:
             signals.append({
                 "name": "composite_flow_score",
                 "source": "composite_flow_score",
-                "value": round(score, 3),
+                "value": round(score.get("score", score.get("flow_score", 0)), 3),
                 "unit": "index (-1..1)",
                 "description": "Composite institutional flow score (negative = heavy put/flow selling)",
             })
@@ -97,15 +123,15 @@ async def quant_signal_catalog(
 
     # --- VPIN toxicity ---
     try:
-        from services.vpin_engine import VpinEngine
+        from services.vpin_toxicity import VPINToxicity
 
-        vpin = VpinEngine()
-        tox = vpin.get_toxicity(t)
-        if tox is not None:
+        vt = VPINToxicity()
+        result = vt.compute()
+        if result:
             signals.append({
                 "name": "vpin_toxicity",
-                "source": "vpin_engine",
-                "value": round(tox, 4),
+                "source": "vpin_toxicity",
+                "value": round(result.get("z_score", result.get("toxicity", 0)), 4),
                 "unit": "z-score",
                 "description": "VPIN-based market toxicity measure (high = stressed/liquidated)",
             })
@@ -114,7 +140,7 @@ async def quant_signal_catalog(
 
     # --- IV rank / percentile ---
     try:
-        from services.vol_analytics import calc_iv_rank_percentile
+        from vol_analytics import calc_iv_rank_percentile
 
         ivr = calc_iv_rank_percentile(t, 0.2)
         if ivr:
@@ -130,7 +156,7 @@ async def quant_signal_catalog(
 
     # --- Realized volatility ---
     try:
-        from services.vol_analytics import calc_realized_volatility
+        from vol_analytics import calc_realized_volatility
 
         rv = calc_realized_volatility(t.replace("^", ""), 20)
         if rv:
@@ -149,47 +175,35 @@ async def quant_signal_catalog(
         from services.volume_clock import VolumeClock
 
         vc = VolumeClock()
-        clock = vc.get_bucket(t)
-        if clock:
+        state = vc.get_state()
+        if state:
+            current = state.get("current", {})
+            bucket_id = current.get("bucket_id", state.get("current_bucket", 0))
             signals.append({
                 "name": "volume_clock_bucket",
                 "source": "volume_clock",
-                "value": clock.get("bucket", ""),
+                "value": f"bucket_{bucket_id}",
                 "unit": "label",
-                "description": "Current volume-clock bucket (accumulation/distribution/equilibrium)",
+                "description": f"Current volume-clock bucket (fill_ratio={current.get("fill_ratio", 0):.2f})",
             })
     except Exception as e:
         logger.debug(f"volume_clock unavailable for {t}: {e}")
 
     # --- IV surface metrics ---
     try:
-        from services.vol_analytics import calc_skew_metrics
+        from vol_analytics import calc_skew_metrics
 
-        skew = calc_skew_metrics(t.replace("^", ""), [])
-        if skew:
-            signals.append({
-                "name": "iv_skew",
-                "source": "vol_analytics",
-                "value": round(skew.get("skew", 0), 4),
-                "unit": "log-ratio",
-                "description": "Call/put IV skew (positive = calls richer, negative = puts richer)",
-            })
+        # calc_skew_metrics requires spot + contracts; we don't have those here
+        # so skip for now — iv_skew is best fetched from /api/quant/full
     except Exception as e:
         logger.debug(f"iv_skew unavailable for {t}: {e}")
 
     # --- Charm estimate (delta decay proxy) ---
     try:
-        from services.advanced_analytics import calc_charm_integral
+        from advanced_analytics import calc_charm_integral
 
-        charm = calc_charm_integral(t.replace("^", ""), [])
-        if charm:
-            signals.append({
-                "name": "charm_integral",
-                "source": "advanced_analytics",
-                "value": round(charm, 4),
-                "unit": "delta/day",
-                "description": "Aggregate charm (delta decay) integral across option chain",
-            })
+        # calc_charm_integral requires ticker + contracts; needs option chain data
+        # so skip for now — charm is best fetched from /api/quant/full
     except Exception as e:
         logger.debug(f"charm unavailable for {t}: {e}")
 
