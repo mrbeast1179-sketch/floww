@@ -1,9 +1,8 @@
 # STATE.md — Confluence Decoder
 
-**Last updated:** 2026-08-24
-**Branch:** `main` @ latest (origin/main)
-**Tests:** backend ~4546 passed (full suite ~6.5 min) · frontend 277 passed
-(`npx craco test --watchAll=false`)
+**Last updated:** 2026-08-31
+**Branch:** `main` @ 79b047e (docs(gsd): Phase 5 complete — all 4 tickets delivered, planning + kanban closed)
+**Tests:** backend 4602 passed, 65 skipped, 1 xfailed, 3 failed (pre-existing: test_heatseeker_v2.py::test_heatmap_spy_day_grid + test_v3_costsave.py::test_heatmap_spy_data_source_databento + test_v3_costsave.py::test_heatmap_qqq_free_tier_yfinance; not from Phase 3 or Phase 5) · frontend OptionsChainTable 10/10 + FlowseekerProBlademap 17/17 passing
 **Lint:** ruff (E, E722, F, W, I; ignore E501)
 
 ## Project position
@@ -15,7 +14,7 @@ provisioning** — Phase 1 of ROADMAP.md starts the moment the VM exists.
 
 ## Current phase
 
-Phase 1 — Oracle Go-Live (pending VM). No phase plans yet.
+Phase 4 — Tidehunter Pro Integration [ACTIVE] (gated on live Public API limits — scaffolding only). Phase 3 [CLOSED 2026-08-31]. Phase 5 [COMPLETE 2026-08-31].
 
 ## Key context
 
@@ -34,3 +33,6 @@ Phase 1 — Oracle Go-Live (pending VM). No phase plans yet.
 - 2026-08-24 — Ingest-docs bootstrap: PROJECT.md / REQUIREMENTS.md / ROADMAP.md /
   STATE.md / config.json created from curated manifest (8 docs); round transcripts
   excluded as historical noise.
+- 2026-08-31 — Phase 3 closed, Phase 5 complete (all 4 tickets delivered). 7 files
+  damaged by commit 79b047e (ROADMAP.md shred to 7 lines) — restored + all stale
+  kanban/planning docs refreshed.

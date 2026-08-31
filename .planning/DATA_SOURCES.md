@@ -4,7 +4,7 @@
 
 ---
 
-## Status: 2026-08-30 (Phase 3 ACTIVE)
+## Status: 2026-08-31 (Phase 3 CLOSED, Phase 5 COMPLETE)
 
 - Schwab: **DELIBERATELY OUT.** Not using it, not building around it. Mock feed only for tests.
 - Zenith: **UI tab only**, not a data service. API calls do not route to Zenith.

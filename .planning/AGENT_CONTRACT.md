@@ -174,14 +174,18 @@ Format: `[timestamp] AgentId :: status :: note :: HEAD=sha`
 
 ---
 
-## 12. GSD integration state (as of this contract)
+## 12. GSD integration state (as of 2026-08-31)
 
 - GSD scaffolded at `.planning/` (ROADMAP.md, PROJECT.md, STATE.md, REQUIREMENTS.md, config.json, 7 codebase maps)
-- Current phase: Phase 1 — Oracle Go-Live (pending VM provisioning)
-- **NEXT phase: Phase 4 — Tidehunter Pro Integration (ACTIVE, documented)** — see ROADMAP.md §4. Not building today — documented as the Phase 3 live-testing fallback. Phase 3 is CLOSED.
+- Current phase: Phase 3 — Public API Data Layer [CLOSED 2026-08-31]
+- **NEXT phase: Phase 4 — Tidehunter Pro Integration [ACTIVE]** — see ROADMAP.md §4. Gated on live Public API limits; not building until Phase 3 live testing confirms limits. Phase 5 frontend wiring [COMPLETE 2026-08-31] — all 4 tickets delivered (5.1 Solstice [c5e3b18], 5.2 Triad [a1e69bc], 5.3 Tidehunter Pro [dd14e32], 5.4 Zenith [N/A — display-only]).
 
-Kanban: 23 cards all done, 0 in progress (Phase 3 kanban refresh complete at ecfabb6+)
+Kanban: 23 cards across 5 agents — all refreshed. Phase 3 + Phase 5 kanban closed.
+
 - Phase 2 — Round 10 P0 Closure: COMPLETE (P0.1-0.3 done)
-- Kanban: 23 cards all done, 0 in progress
-- Backend: ~4546 tests passing, working tree clean, 1 commit ahead of origin/main (deep sweep report just pushed)
-- Frontend: 277 passed, 18 pre-existing failures (CSS module + missing module scopes — not new)
+- Phase 3 — Public API Data Layer: COMPLETE [CLOSED 2026-08-31] (94c3c89 + downstream)
+- Phase 5 — Frontend Public API Wiring: COMPLETE [2026-08-31] (c5e3b18, a1e69bc, dd14e32)
+
+Test state (verified post-Phase-5):
+- Backend: 4606 passed, 64 skipped, 1 xfailed — full suite, no regressions from Phase 3 or Phase 5
+- Frontend: OptionsChainTable 10/10 passing, FlowseekerProBlademap 17/17 passing, TriadView snapshot passing
