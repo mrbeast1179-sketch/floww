@@ -66,7 +66,7 @@ A Dash app at `/dashboard/` is an embedded tab in the React UI — not a separat
 
 Public URL serves the full Decoder to friend-scale traffic at $0/month with all
 endpoints healthy (`deploy/free/smoke.sh` green) and test suites green
-(backend 4602 passed, 65 skipped, 1 xfailed, 3 pre-existing failures · Phase 3 [CLOSED] · Phase 5 [COMPLETE 2026-08-31] — frontend OptionsChainTable 10/10 + FlowseekerProBlademap 17/17 passing).
+(backend 4606 passed, 64 skipped, 1 xfailed, 0 failed · Phase 3 [CLOSED] · Phase 5 [COMPLETE 2026-08-31] — frontend OptionsChainTable 10/10 + FlowseekerProBlademap 17/17 passing).
 
 ## Key documents
 

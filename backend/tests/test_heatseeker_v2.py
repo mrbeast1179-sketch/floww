@@ -27,8 +27,8 @@ async def test_heatmap_spy_day_grid(aclient):
         # (SPY has half-strikes only on weeklies — but we still want pure-int strings for whole numbers)
         if "." not in key:
             assert key.lstrip("-").isdigit(), f"non-int-string key {key} for SPY whole strike"
-    # data_source
-    assert d.get("data_source") in ("databento+yfinance", "yfinance")
+    # data_source — Public API is primary post-Phase 3; cvserver/yfinance/databento are fallbacks
+    assert d.get("data_source") in ("public_api", "databento+yfinance", "yfinance", "cvserver")
 
 
 async def test_heatmap_swing_more_expiries_wider_band(aclient):

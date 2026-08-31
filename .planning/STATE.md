@@ -2,7 +2,7 @@
 
 **Last updated:** 2026-08-31
 **Branch:** `main` @ 79b047e (docs(gsd): Phase 5 complete — all 4 tickets delivered, planning + kanban closed)
-**Tests:** backend 4602 passed, 65 skipped, 1 xfailed, 3 failed (pre-existing: test_heatseeker_v2.py::test_heatmap_spy_day_grid + test_v3_costsave.py::test_heatmap_spy_data_source_databento + test_v3_costsave.py::test_heatmap_qqq_free_tier_yfinance; not from Phase 3 or Phase 5) · frontend OptionsChainTable 10/10 + FlowseekerProBlademap 17/17 passing
+**Tests:** backend 4606 passed, 64 skipped, 1 xfailed, 0 failed · frontend OptionsChainTable 10/10 + FlowseekerProBlademap 17/17 passing
 **Lint:** ruff (E, E722, F, W, I; ignore E501)
 
 ## Project position

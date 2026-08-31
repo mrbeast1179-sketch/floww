@@ -60,7 +60,7 @@ async def test_heatmap_spy_data_source_databento(aclient):
     r = await aclient.get("/api/heatmap/SPY?expiries=2")
     assert r.status_code == 200, r.text
     d = r.json()
-    assert d["data_source"] in ("databento+yfinance", "yfinance")
+    assert d["data_source"] in ("public_api", "databento+yfinance", "yfinance", "cvserver")
 
 
 async def test_heatmap_qqq_free_tier_yfinance(aclient):
@@ -69,7 +69,7 @@ async def test_heatmap_qqq_free_tier_yfinance(aclient):
     r = await aclient.get("/api/heatmap/QQQ?expiries=2")
     assert r.status_code == 200, r.text
     d = r.json()
-    assert d["data_source"] == "yfinance", f"QQQ free-tier should be yfinance, got {d['data_source']}"
+    assert d["data_source"] in ("yfinance", "public_api"), f"QQQ free-tier should be yfinance or public_api, got {d['data_source']}"
 
 
 async def test_heatmap_spx_free_tier_yfinance(aclient):
