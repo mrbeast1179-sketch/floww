@@ -18,6 +18,8 @@ Mounted in server.py: app.include_router(public_api_router, prefix="/api/public"
 from __future__ import annotations
 
 import logging
+from dataclasses import asdict, is_dataclass
+from typing import Any
 
 from fastapi import APIRouter, HTTPException, Query
 
@@ -30,6 +32,17 @@ from services.public_api_adapter import (
 log = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/public", tags=["public_api"])
+
+
+def _jsonable(value: Any) -> Any:
+    """Convert PublicBroker dataclasses recursively for explicit API output."""
+    if is_dataclass(value) and not isinstance(value, type):
+        return {key: _jsonable(item) for key, item in asdict(value).items()}
+    if isinstance(value, list):
+        return [_jsonable(item) for item in value]
+    if isinstance(value, dict):
+        return {key: _jsonable(item) for key, item in value.items()}
+    return value
 
 
 @router.get("/chain/{ticker}")
@@ -109,6 +122,6 @@ async def get_public_portfolio():
     return {
         "ok": True,
         "account_id": account.account_id,
-        "portfolio": portfolio,
+        "portfolio": _jsonable(portfolio),
         "data_source": "public_api",
     }

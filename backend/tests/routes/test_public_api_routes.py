@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import dataclass
 from unittest.mock import AsyncMock, MagicMock, patch
 
 from fastapi.testclient import TestClient
@@ -9,9 +10,15 @@ from server import app
 client = TestClient(app)
 
 
+@dataclass
+class PortfolioFixture:
+    cash: float
+    positions: list[dict[str, str]]
+
+
 def test_public_portfolio_returns_normalized_payload() -> None:
     account = MagicMock(account_id="acct-1")
-    portfolio = {"cash": 1000.0, "positions": []}
+    portfolio = PortfolioFixture(cash=1000.0, positions=[])
     broker = MagicMock()
     broker.get_trading_account.return_value = account
     broker.get_portfolio = AsyncMock(return_value=portfolio)
