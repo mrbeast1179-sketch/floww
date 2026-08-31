@@ -2,7 +2,7 @@
 
 State: Phase 3/5 frontend wiring ACTIVE. Public API endpoints ready in backend.
 
-Current HEAD on main: (latest commit to be added)
+Current HEAD on main: c5e3b18 (feat(frontend): Phase 5.1 wire Solstice chain table to Public API)
 Commit chain prior to this phase's commit:
   56c0c69 docs(gsd): update AGENT_CONTRACT.md kanban status line
   08c3c11 docs(gsd): Phase 3 closure, Phase 4 active, kanban refresh, contract sync

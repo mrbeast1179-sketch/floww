@@ -2,6 +2,7 @@ import React, { useEffect, useState, useMemo, useCallback, useRef } from "react"
 import axios from "axios";
 import { fmt, fmtAbs, TRIAD } from "../lib/helpers";
 import { API as BACKEND_API } from "../config/api";
+import { fetchPublicChain } from "../lib/publicApi";
 
 const API = BACKEND_API;
 
@@ -118,6 +119,79 @@ export default function TrinityView({ onFocusTicker, onTradeSelect }) {
   const [lastUpdate, setLastUpdate] = useState(null);
   const cacheRef = useRef({});
   const mountedRef = useRef(true);
+  const abortRef = useRef(null);
+
+  // Phase 5.2: fetch a single ticker — Public API first, /api/data fallback.
+  const fetchTickerData = useCallback(async (ticker, timeout) => {
+    // Try Public API chain endpoint first.
+    try {
+      const pubRes = await fetchPublicChain(ticker, { timeout: Math.min(timeout, 20000), expirations: dteFilter });
+      if (pubRes?.ok && pubRes?.contracts?.length) {
+        // Map public chain → triad data shape.
+        const contracts = pubRes.contracts || [];
+        const strikes = contracts.map(c => ({
+          strike: c.strike,
+          gex: c.gex,
+          call_gex: c.gex >= 0 ? c.gex : 0,
+          put_gex: c.gex < 0 ? c.gex : 0,
+          iv: c.iv,
+          delta: c.delta,
+          gamma: c.gamma,
+          vega: c.vega,
+          theta: c.theta,
+          vanna: c.vanna,
+          charm: c.charm,
+          oi: c.oi,
+          total_oi: c.oi,
+          volume: c.volume,
+          bid: c.bid,
+          ask: c.ask,
+          dte: c.T ? Math.round(c.T * 365) : null,
+          expiry: c.expiry,
+          type: c.type,
+          moneyness_pct: c.moneyness_pct,
+        }));
+        const grid = { grid: { "0": {} } };
+        for (const c of contracts.slice(0, 200)) {
+          const expKey = c.expiry || "2026-09-18";
+          if (!grid.grid[expKey]) grid.grid[expKey] = {};
+          grid.grid[expKey][String(c.strike)] = {
+            gex: c.gex, iv: c.iv, delta: c.delta, charm: c.charm,
+            vanna: c.vanna, vex: 0, call_gex: c.gex >= 0 ? c.gex : 0, put_gex: c.gex < 0 ? c.gex : 0,
+          };
+        }
+        const spot = pubRes.spot || 0;
+        // Approximate nodes from contract data.
+        const netGex = strikes.reduce((s, c) => s + (c.gex || 0), 0);
+        const kingStrike = strikes.reduce((best, c) => Math.abs(c.gex || 0) > Math.abs(best?.gex || 0) ? c : best, null);
+        return {
+          ticker,
+          spot,
+          change_pct: 0,
+          nodes: {
+            regime: netGex > 0 ? "positive" : netGex < 0 ? "negative" : "neutral",
+            king: kingStrike || null,
+            gamma_flip: null,
+            floors: [],
+            ceilings: [],
+            gatekeepers: [],
+            air_pockets: [],
+            polarity_level: Math.min(1, Math.abs(netGex) / (spot || 1) * 100),
+          },
+          strikes,
+          grid,
+          vix: 20,
+          expiries_used: [...new Set(contracts.map(c => c.expiry).filter(Boolean))].slice(0, dteFilter),
+          data_source: pubRes.data_source || "public_api",
+        };
+      }
+    } catch (pubErr) {
+      if (pubErr.name === "AbortError" || pubErr.code === "ERR_CANCELED") throw pubErr;
+    }
+    // Fallback: merged /api/data (Public API → cvserver → yfinance)
+    const res = await axios.get(`${API}/data/${ticker}?expiries=${dteFilter}&mode=day`, { timeout, signal: AbortSignal.timeout(timeout) });
+    return res.data;
+  }, [dteFilter]);
 
   // Fetch all 7 tickers concurrently (no waterfall). Panel tickers use the
   // shorter timeout; extras use the longer one. Each resolved ticker is merged
@@ -131,10 +205,9 @@ export default function TrinityView({ onFocusTicker, onTradeSelect }) {
   const fetchTickers = useCallback((tickers, timeout) =>
     Promise.allSettled(
       tickers.map(t =>
-        axios.get(`${API}/data/${t}?expiries=${dteFilter}&mode=day`, { timeout })
-          .then(r => applyTicker(t, r.data))
+        fetchTickerData(t, timeout).then(r => applyTicker(t, r))
       )
-    ), [dteFilter, applyTicker]);
+    ), [dteFilter, fetchTickerData, applyTicker]);
 
   const fetchAll = useCallback(async (isBackground = false) => {
     const panelTickers = ["^SPX", "SPY", "QQQ"];
