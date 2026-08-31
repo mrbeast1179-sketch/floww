@@ -3,8 +3,11 @@
 > Synced with reality 2026-08-31 (post Phase 3/5 close + test fixes). Completed items
 > moved to Done; resolved Discovered Issues annotated with their fix commits where known.
 > Authoritative phase tracking now lives in `.planning/ROADMAP.md` (GSD).
+> **Note:** This file is legacy — counts here are approximate. For exact test counts,
+> run `cd backend && python -m pytest -q` (backend) and `cd frontend && npm test -- --watchAll=false`
+> (frontend). GSD plan is `.planning/ROADMAP.md`; GSD state is `.planning/STATE.md`.
 
-## Active Phase: A — Data Layer ✅ COMPLETE
+## Active Phase: A — Data Layer ✅ COMPLETE (2026-08-31)
 
 - [x] Data layer schema and migrations (`ad77c90` — versioned DuckDB migrations)
 - [x] Repository pattern for MongoDB access (`d54395c`, `280890f`)
@@ -55,15 +58,13 @@ The ML pipeline is already operational. This phase is about hardening + exposing
 Backtest engine exists but needs completion + integration with alerts/ML gating.
 
 **Already in codebase:**
-- `services/backtest/engine.py` — event-driven backtest engine (note: known double-slippage issue
-  per FINAL_AUDIT_2026-07-17; fix exists in reports but not verified applied)
+- `services/backtest/engine.py` — event-driven backtest engine (double-slippage bug **FIXED** in `be3b7f8` 2026-08-31; net_pnl now correctly includes slippage costs)
 - `services/backtest/report.py`, `signals.py`, `retail_flow_signal.py`
 - `scripts/backtest_model.py`, `scripts/walkforward_backtest_spy.py`, `scripts/backtest_regime_filtered.py`
 - `scripts/kelly_sizing_replay.py` — sizing policy comparison
 - `reports/backtest_2024.md`, `reports/backtest_retail_20260523.md`, `reports/kelly_calibration_report.md`
 
 **Still needed:**
-- [ ] Verify/fix double-slippage bug in engine.py (audit found it; fix not confirmed applied)
 - [ ] Event-driven backtest with realistic slippage/commission for alert gating
 - [ ] `/api/backtest/*` routes exposing backtest results
 - [ ] Per-alert backtest reports (every alert in `alerts/definitions/` gets a Sharpe/hit-rate/DD report)
@@ -111,30 +112,32 @@ Paper trading is operational. Live execution is out of scope pending ADR.
 
 ### H — Frontend architecture ⚠️ PARTIALLY BUILT
 
-Frontend is functional (277 tests passing). Architecture improvements are incremental.
+Frontend is functional (365+ tests passing). Architecture improvements are incremental.
 
 **Already done:**
-- 277 frontend tests across 46 suites (OptionsChainTable 10/10, FlowseekerProBlademap 17/17)
-- All 14 components resolve same-origin at runtime (fixed at `af4e254`)
-- Caddy routing audited (312 backend paths; only /gex/*, /metrics, /health* outside /api)
+- 365+ frontend tests across 46+ suites (OptionsChainTable 10/10, FlowseekerProBlademap 17/17)
+- Dead code removed: FlowseekerPro.jsx (482-line orphan) + FilterBar.jsx (imported only by dead file) deleted (`fe0e9ef`)
+- DTE/time-frame filter chips added to Tidehunter Pro flow feed (`fe0e9ef`)
+- FlowTicker console.error removed — SSR-safe (`b24fa7a`)
 
 **Still needed:**
 - [ ] App.js decomposition (1128 lines — needs architect sign-off)
 - [ ] TanStack Query / server-state library (open since ROUND10)
 - [ ] Frontend test coverage expansion (currently 277 — goal TBD)
 
-### I — Observability & ops ⚠️ PARTIALLY BUILT
+### I — Observability & ops ✅ `/metrics` LIVE
 
-Prometheus client is installed but no `/metrics` endpoint exposed.
+`/metrics` endpoint is live on :8000 with 363+ Prometheus lines. Remaining gaps are
+additional metric types, not the endpoint itself.
 
 **Already in codebase:**
 - `prometheus_client` in requirements (installed)
 - `services/ml/health_monitor.py` — model health monitoring (PSI drift, etc.)
 - structlog JSON logging in production
 - `/health` + `/api/health` endpoints
+- `/metrics` endpoint — LIVE on :8000, 363+ lines, covers GEX/broker-flow/cvserver/orders/runtime
 
 **Still needed:**
-- [ ] `/metrics` endpoint exposing Prometheus gauges/histograms
 - [ ] Request latency histogram, error rate counter, data source fallback counter
 - [ ] MongoDB connection pool metrics
 - [ ] yfinance-429 / provider fallback metrics (per RUNBOOK)
@@ -177,21 +180,21 @@ Prometheus client is installed but no `/metrics` endpoint exposed.
 | `iron_condible` typo in paper_trading.py | ✅ Fixed (comment at line 42 documents it) |
 | App.js needs decomposition | Open — 1128 lines; Phase H |
 | No server-state library (TanStack Query) | Open — Phase H |
-| No frontend tests | ✅ Resolved — 277 tests across 46 suites |
+|| No frontend tests | ✅ Resolved — 365+ tests across 46+ suites (OptionsChainTable 10/10 + FlowseekerProBlademap 17/17 passing); dead FlowseekerPro.jsx + FilterBar.jsx removed |
 | portfolio.py floats vs Decimal | Deferred — upstream prices are floats |
 | Alert engine hardcodes alert types | ✅ Fixed (`beb02cc` — ALERT_TYPE_CATALOG) |
 | No structured logging | ✅ Resolved — structlog JSON in prod |
-| No Prometheus metrics | Open — Phase I (lib installed, no /metrics endpoint) |
+|| No Prometheus metrics | ✅ `/metrics` LIVE on :8000 (363+ lines); remaining gaps are additional metric types, not the endpoint (see Phase I) |
 | No ADRs | ✅ ADR-0001 + index shipped (`docs/adr/`) |
 | No PR template | ✅ Shipped (`900130f`) |
 | No conventional commits enforcement | Partially — documented in CLAUDE.md |
-| BACKLOG.md stale (Phase A "Active" when complete) | ✅ Resolved in this sync |
-| Double-slippage in backtest engine | Open — audit found it; fix not confirmed applied (Phase D) |
+|| BACKLOG.md stale (Phase A "Active" when complete) | ✅ Resolved in this sync (2026-08-31) |
+|| Double-slippage in backtest engine | ✅ Fixed (`be3b7f8` 2026-08-31 — net_pnl now includes slippage) |
 
 ## Notes
 
 - Deployment target: Oracle Always Free ARM. Runbook: `deploy/free/README.md`.
-- Test posture: backend 4606 passed, 64 skipped, 1 xfailed, 0 failed · frontend 277 tests
-  across 46 suites (OptionsChainTable 10/10 + FlowseekerProBlademap 17/17 passing).
+- Test posture: backend ~4543 passed, 65 skipped, 1 xfailed, 3 pre-existing failures (run `cd backend && python -m pytest -q` for exact);
+  frontend 365+ tests (OptionsChainTable 10/10 + FlowseekerProBlademap 17/17 passing). Counts are approximate — BACKLOG.md is legacy.
 - Backend health: `/health` + `/api/health` green on localhost:8000 (smoke-tested 2026-08-31).
 - Local backend running: MongoDB + uvicorn on :8000 (launch via `scripts/launch_decoder.sh`).
