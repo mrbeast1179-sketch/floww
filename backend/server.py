@@ -553,12 +553,29 @@ def fetch_spot_and_chains(ticker: str, max_expiries: int = 4) -> dict[str, Any]:
 
 
 async def fetch_spot_and_chains_merged(ticker: str, max_expiries: int = 4) -> dict[str, Any]:
-    """Try cvserver first (CVForge free data), then fall back to yfinance + Databento.
+    """Try Public API first, then cvserver, then yfinance + Databento.
 
     Priority:
-      1. cvserver (CVForge) — 32 expiries, 171 strikes, all greeks included
-      2. yfinance + Databento OI overlay (legacy path)
+      1. Public API (public.com brokerage) — chain data with full greeks
+      2. cvserver (CVForge) — 32 expiries, 171 strikes, all greeks included
+      3. yfinance + Databento OI overlay (legacy path)
     """
+    # ── 0. Try Public API first (with timeout) ──
+    PUBLIC_API_KEY = os.environ.get("PUBLIC_API_KEY", "")
+    if PUBLIC_API_KEY:
+        try:
+            from services.public_api_adapter import fetch_chain_from_public_api
+            pub_data = await asyncio.wait_for(
+                fetch_chain_from_public_api(ticker, max_expiries=max_expiries),
+                timeout=30.0
+            )
+            if pub_data and pub_data.get("contracts") and pub_data.get("spot", 0) > 0:
+                return pub_data
+        except TimeoutError:
+            log.info(f"Public API timeout for {ticker}, falling back to cvserver")
+        except Exception as e:
+            log.info(f"Public API fetch failed for {ticker}: {e}")
+
     # ── 1. Try cvserver first (with timeout) ──
     try:
         from services.cvserver_client import fetch_chain_from_cvserver
@@ -2385,6 +2402,9 @@ app.include_router(heatseeker_router, tags=["heatseeker"])
 from routes.heatseeker_snapshots_api import router as heatseeker_snapshots_router
 
 app.include_router(heatseeker_snapshots_router, prefix="/api/heatseeker", tags=["heatseeker-snapshots"])
+
+from routes.public_api import router as public_api_router
+app.include_router(public_api_router, tags=["public_api"])
 
 from routes.ml_predict_api import router as ml_predict_router
 
