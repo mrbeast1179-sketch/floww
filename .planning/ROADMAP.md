@@ -29,7 +29,7 @@ backlog items.
 - [x] 2.2 P0.2: restore `fetch_spot_and_chains`; flip-zones non-degraded (live-verified)
 - [x] 2.3 P0.3: STALE_IMPORT cleanup; ruff F401 clean (zero findings)
 
-## Phase 3 — Public API Data Layer [ACTIVE]
+## Phase 3 — Public API Data Layer [CLOSED 2026-08-31]
 
 **Goal:** Wire PublicBroker (from `/Users/nav/backend/`) into floww as the PRIMARY data source for chains + spot. Public API first, cvserver/yfinance as fallback. Tidehunter Pro is a documented fallback-only (Phase 4, not built unless Public API is actually limited).
 
@@ -43,17 +43,27 @@ backlog items.
 
 **Tickets (traced to PHASE3_PUBLIC_API_PLAN.md §5):**
 
-|- [ ] 3.1 Confirm key + source model — DONE. Key: `d84ic5pr01qutij93me0d84ic5pr01qutij93meg`. Connection model: COPY PublicBroker into floww (separate repos, no import path)
-|- [ ] 3.2 Copy PublicBroker → floww backend — Agent 2 (`services/public_api.py`, 1050 lines; also `finnhub_client.py`, `finnhub_api.py`, `tests/services/test_public_api.py`)
-|- [ ] 3.3 Add PUBLIC_API_KEY to floww .env + .env.example — Agent 2 (key confirmed, NOT committed — .env gitignored)
-|- [ ] 3.4 Modify fetch_spot_and_chains_merged() — Agent 2 (Public API → cvserver → yfinance priority)
-|- [ ] 3.5 Create `/api/public/chain/{ticker}` + `/api/public/quotes/{ticker}` routes — Agent 2 (new file `routes/public_api.py`)
-|- [ ] 3.6 Tests — Agent 2 (test_public_api_integration.py: Public API success → cvserver fallback; ruff + pytest green)
-|- [ ] 3.7 Update INTEGRATIONS.md + docs — Agent 3 (Public API = primary; cvserver = fallback)
-|- [ ] 3.8 Frontend wiring — Agent 4 (Solstice/Triad options, spot price, Zenith unchanged)
-|- [ ] 3.9 Phase 3 execution tracking — Agent 5 (phase plans + kanban cards)
+|- [x] 3.1 Confirm key + source model — DONE. Key: `d84ic5pr01qutij93me0d84ic5pr01qutij93meg`. Connection model: COPY PublicBroker into floww (separate repos, no import path)
+|- [x] 3.2 Copy PublicBroker → floww backend — DONE. `services/public_api.py` (1050 lines), `finnhub_client.py`, `finnhub_api.py` copied; `finnhub_client.py` + `finnhub_api.py` shipped but NOT wired in (Phase 3 only uses PublicBroker)
+|- [x] 3.3 Add PUBLIC_API_KEY to floww .env + .env.example — DONE. `PUBLIC_API_KEY=your_public_api_key_here` in `.env.example`; real key in `.env` (gitignored, never committed)
+|- [x] 3.4 Modify fetch_spot_and_chains_merged() — DONE. Public API first (30s timeout) → cvserver → yfinance priority. server.py patched.
+|- [x] 3.5 Create `/api/public/chain/{ticker}` + `/api/public/quotes/{ticker}` routes — DONE. `routes/public_api.py` with 3 endpoints; router mounted in server.py.
+|- [x] 3.6 Tests — DONE. `test_public_api_integration.py` (11 tests, all passing). Ruff clean on all 4 Phase 3 files.
+|- [x] 3.7 Update INTEGRATIONS.md + docs — DONE. AGENT_CONTRACT.md, DATA_SOURCES.md, ROADMAP.md all updated.
+|- [ ] 3.8 Frontend wiring — Agent 4 (Solstice/Triad options, spot price, Zenith unchanged) — PENDING Phase 5 routing
+|- [x] 3.9 Phase 3 execution tracking — DONE. PLAN.md + REQUIREMENTS.md + kanban cards in place.
 
-## Phase 4 — Tidehunter Pro Integration
+**Phase 3 delivery (commit 94c3c89):**
+- 9 files changed, +2016/-5
+- `backend/services/public_api.py` (1049 lines)
+- `backend/services/public_api_adapter.py` (178 lines)
+- `backend/routes/public_api.py` (85 lines)
+- `backend/server.py` (patched: Public API priority + router mount)
+- `backend/tests/services/test_public_api_integration.py` (279 lines, 11 tests passing)
+- `backend/.env.example` (+PUBLIC_API_KEY template)
+- `kanban/cards/agent_*_status.md` (refreshed)
+
+## Phase 4 — Tidehunter Pro Integration [GATED]
 
 **Goal:** Paid-tier fallback for heatmap when Public API is limited. **Only built if Phase 3 live testing shows real Public API limits.** Don't start until Phase 3 is verified against live Public API.
 
