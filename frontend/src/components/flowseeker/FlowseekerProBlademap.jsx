@@ -1,9 +1,9 @@
 /**
  * FlowseekerProBlademap.jsx — Blademap.ai-style Tidehunter Pro, wired to REAL
- * cvforge data. Ported from the /Users/nav/cv-apps/screener mock; mock used
- * synthetic ticks, this uses the live decoder endpoints:
+ * market data. Phase 5.3 (2026-08-31): live flow feed now tries Public API
+ * (/api/public/chain) first, falls back to cvserver (/api/flowseeker/chain).
  *   /api/flowseeker/live  /ofi/{t}  /regime/{t}  /vpin/{t}  /lambda/{t}
- *   /api/heatmap/{t} (real GEX grid)
+ *   /api/heatmap/{t} (real GEX grid)  /api/public/chain/{t} (Phase 5.3)
  * Vol surface stays synthetic (no IV-surface backend) and is labelled SIM.
  *
  * Self-contained: scoped CSS (.fsb-root, fsb-* classes), Plotly via CDN.
@@ -59,6 +59,39 @@ function rowConviction(p) {
   const urg = dte <= 1 ? 14 : dte <= 7 ? 9 : dte <= 30 ? 5 : 2;                              // 2-14 urgency
   const conv = Math.round(Math.max(20, Math.min(99, pat + size + stat + urg)));
   return { pat: +pat.toFixed(1), size: +size.toFixed(1), stat: +stat.toFixed(1), urg: +urg.toFixed(1), conv };
+}
+
+// Map Public API flat contract list to flow-feed row shape.
+// Filters: vol >= 100, vol/oi >= 0.4. Sorts by vol_oi_ratio desc, caps at 100.
+// Exported for Jest tests (Phase 5.3).
+export function mapPublicChainToRows(contracts, spot, ticker) {
+  const rows = [];
+  for (const c of contracts) {
+    const vol = Number(c.volume) || 0;
+    if (vol < NOISE_FLOOR * 20) continue;
+    const oi = Number(c.oi) || 0;
+    const voi = oi > 0 ? vol / oi : vol / 100;
+    if (voi < 0.4) continue;
+    const iv = Number(c.iv) || 0;
+    const bid = Number(c.bid) || 0;
+    const ask = Number(c.ask) || 0;
+    const last = Number(c.last) || 0;
+    const mid = last || ((bid + ask) / 2) || estPrice(Number(c.strike), iv, c.expiry);
+    const premium = Math.round(vol * mid * 100);
+    const dte = dteOf(c.expiry);
+    const cls = premium >= 5e7 ? "block" : dte <= 2 ? "sweep" : "unusual";
+    const p = {
+      ticker, type: String(c.type || "").toLowerCase(), classification: cls,
+      strike: Number(c.strike), expiration: c.expiry, timestamp: Date.now(),
+      volume: vol, oi, vol_oi_ratio: voi, iv: iv < 1 ? iv * 100 : iv, premium,
+    };
+    const cd = rowConviction(p);
+    p._conv = cd.conv;
+    p._cd = cd;
+    rows.push(p);
+  }
+  rows.sort((a, b) => b.vol_oi_ratio - a.vol_oi_ratio);
+  return rows.slice(0, 100);
 }
 
 // ---------- cross-symbol scanner (scenner34 BladeMap grid) ----------
@@ -365,11 +398,9 @@ export default function FlowseekerProBlademap({ active = true }) {
     return () => clearInterval(id);
   }, []);
 
-  // ---- live flow feed from CVFORGE (unusual options activity) ----
-  // cvserver serves day-aggregated chain SNAPSHOTS (not a trade stream — day_volume
-  // is static between short polls), so a per-trade tape isn't possible. Instead we
-  // surface the most unusual activity by volume-vs-open-interest each refresh.
-  // 100% cvserver data — the same source that powers GEX/regime here.
+  // ---- live flow feed: Public API (primary) -> cvserver (fallback) ----
+  // Phase 5.3: tries /api/public/chain first (Public.com real-time option data);
+  // falls back to /api/flowseeker/chain (cvserver day-aggregated) when unavailable.
   useEffect(() => {
     // Feeds the Smart Order Flow tab only — pausing it on the Scanner tab keeps
     // the browser's 6-per-host connection budget free for /scan (chain calls
@@ -378,49 +409,71 @@ export default function FlowseekerProBlademap({ active = true }) {
     let cancelled = false;
     const ctrl = new AbortController();
     const poll = async () => {
+      // Path A: Public API chain (primary) — flat contract list with
+      // volume/oi/iv/bid/ask/last. Filters: vol >= 100, vol/oi >= 0.4.
+      let rows = null;
+      let ds = null;                       // data_source: "public_api" | "cvserver"
       try {
-        const d = await getJSON(`${API}/chain/${ticker}?fields=oi,volume,iv,bid,ask,lastPrice`, ctrl.signal);
+        const d = await getJSON(
+          `${API}/public/chain/${ticker}?expirations=4&fields=strike,type,expiration,volume,openInterest,impliedVolatility,bid,ask,lastPrice`,
+          ctrl.signal,
+        );
         if (cancelled) return;
-        const params = d.params || [];
-        const vi = (name) => { const i = params.indexOf(name); return i > 0 ? i - 1 : -1; }; // vals skip strike
-        const iVol = vi("volume"), iOI = vi("openInterest"), iIV = vi("impliedVolatility");
-        const iBid = vi("bid"), iAsk = vi("ask"), iLast = vi("lastPrice");
-        const rows = [];
-        for (const exp of (d.chain || [])) {
-          for (const s of (exp.strikes || [])) {
-            const strike = s[0];
-            for (const [sideU, vals] of [["CALL", s[1] || []], ["PUT", s[2] || []]]) {
-              const vol = Number(vals[iVol]) || 0;
-              if (vol < NOISE_FLOOR * 20) continue;             // only notable activity (>=100)
-              const oi = Number(vals[iOI]) || 0;
-              const voi = oi > 0 ? vol / oi : vol / 100;
-              if (voi < 0.4) continue;                          // skip plain-vanilla
-              const iv = Number(vals[iIV]) || 0;
-              const last = Number(vals[iLast]) || 0;
-              const mid = last || (((Number(vals[iBid]) || 0) + (Number(vals[iAsk]) || 0)) / 2) || estPrice(strike, iv, exp.expiration);
-              const premium = Math.round(vol * mid * 100);
-              const dte = dteOf(exp.expiration);
-              // No trade-level tape on cvserver (bid/ask/prints are null), so the old
-              // voi>=1.5 sweep test flagged EVERY row "sweep" (voi runs into the 1000s
-              // here). Classify by live positioning proxies instead: institutional
-              // notional = block, near-term urgency = sweep, otherwise unusual.
-              const cls = premium >= 5e7 ? "block" : dte <= 2 ? "sweep" : "unusual";
-              const p = {
-                ticker, type: sideU.toLowerCase(), classification: cls,
-                strike, expiration: exp.expiration, timestamp: Date.now(),
-                volume: vol, oi, vol_oi_ratio: voi, iv: iv < 1 ? iv * 100 : iv,
-                premium,
-              };
-              const cd = rowConviction(p);
-              p._conv = cd.conv;
-              p._cd = cd;
-              rows.push(p);
+        if (d?.ok && Array.isArray(d.contracts) && d.contracts.length > 0) {
+          rows = mapPublicChainToRows(d.contracts, d.spot, ticker);
+          ds = "public_api";
+        }
+      } catch { /* Public API unavailable — fall through to cvserver */ }
+      // Path B: cvserver chain (fallback) — nested chain[].strikes[] shape.
+      if (!rows) {
+        try {
+          const d = await getJSON(
+            `${API}/chain/${ticker}?fields=oi,volume,iv,bid,ask,lastPrice`,
+            ctrl.signal,
+          );
+          if (cancelled) return;
+          const params = d.params || [];
+          const vi = (name) => { const i = params.indexOf(name); return i > 0 ? i - 1 : -1; }; // vals skip strike
+          const iVol = vi("volume"), iOI = vi("openInterest"), iIV = vi("impliedVolatility");
+          const iBid = vi("bid"), iAsk = vi("ask"), iLast = vi("lastPrice");
+          const cvRows = [];
+          for (const exp of (d.chain || [])) {
+            for (const s of (exp.strikes || [])) {
+              const strike = s[0];
+              for (const [sideU, vals] of [["CALL", s[1] || []], ["PUT", s[2] || []]]) {
+                const vol = Number(vals[iVol]) || 0;
+                if (vol < NOISE_FLOOR * 20) continue;
+                const oi = Number(vals[iOI]) || 0;
+                const voi = oi > 0 ? vol / oi : vol / 100;
+                if (voi < 0.4) continue;
+                const iv = Number(vals[iIV]) || 0;
+                const last = Number(vals[iLast]) || 0;
+                const mid = last || (((Number(vals[iBid]) || 0) + (Number(vals[iAsk]) || 0)) / 2) || estPrice(strike, iv, exp.expiration);
+                const premium = Math.round(vol * mid * 100);
+                const dte = dteOf(exp.expiration);
+                const cls = premium >= 5e7 ? "block" : dte <= 2 ? "sweep" : "unusual";
+                const p = {
+                  ticker, type: sideU.toLowerCase(), classification: cls,
+                  strike, expiration: exp.expiration, timestamp: Date.now(),
+                  volume: vol, oi, vol_oi_ratio: voi, iv: iv < 1 ? iv * 100 : iv,
+                  premium,
+                };
+                const cd = rowConviction(p);
+                p._conv = cd.conv;
+                p._cd = cd;
+                cvRows.push(p);
+              }
             }
           }
-        }
-        rows.sort((a, b) => b.vol_oi_ratio - a.vol_oi_ratio);
-        setSignals(rows.slice(0, 100));
-      } catch { /* transient cvserver hiccup — keep last data */ }
+          cvRows.sort((a, b) => b.vol_oi_ratio - a.vol_oi_ratio);
+          rows = cvRows.slice(0, 100);
+          ds = "cvserver";
+        } catch { /* both paths failed — keep last data */ }
+      }
+      if (rows) {
+        setSignals(rows);
+        setScanMeta((m) => ({ ...m, data_source: ds }));
+      }
     };
     poll();
     const id = setInterval(poll, 15000);

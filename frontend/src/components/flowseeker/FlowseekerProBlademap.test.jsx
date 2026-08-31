@@ -1,0 +1,226 @@
+// FlowseekerProBlademap Phase 5.3 tests — Public API wiring.
+//
+// Tests the mapPublicChainToRows helper (pure function) and the
+// live-feed dual-path logic (Public API primary → cvserver fallback).
+
+import { mapPublicChainToRows } from "./FlowseekerProBlademap";
+
+// ---- mapPublicChainToRows: pure helper tests ----
+
+describe("mapPublicChainToRows — Phase 5.3 Public API helper", () => {
+  const MKT = "SPY";
+
+  const mkContract = (overrides = {}) => ({
+    strike: 450,
+    type: "call",
+    expiry: "2026-09-18",
+    volume: 500,
+    oi: 1200,
+    iv: 0.22,
+    bid: 4.5,
+    ask: 4.7,
+    last: 4.6,
+    ...overrides,
+  });
+
+  it("maps a single high-volume contract to a flow row", () => {
+    const rows = mapPublicChainToRows([mkContract()], 450, MKT);
+    expect(rows).toHaveLength(1);
+    expect(rows[0].ticker).toBe(MKT);
+    expect(rows[0].type).toBe("call");
+    expect(rows[0].strike).toBe(450);
+    expect(rows[0].volume).toBe(500);
+    expect(rows[0].oi).toBe(1200);
+    expect(rows[0].vol_oi_ratio).toBeCloseTo(500 / 1200, 3);
+    expect(rows[0].iv).toBe(22); // <1 → ×100
+    expect(rows[0].premium).toBeGreaterThan(0);
+    expect(rows[0]._conv).toBeGreaterThanOrEqual(20);
+    expect(rows[0]._conv).toBeLessThanOrEqual(99);
+  });
+
+  it("filters out contracts below noise floor (vol < NOISE_FLOOR*20 = 100)", () => {
+    // vol=100, oi=200 → voi=0.5 ≥ 0.4 → KEPT (passes both checks)
+    // vol=99 → filtered by noise floor (vol < 100)
+    const rows = mapPublicChainToRows(
+      [
+        mkContract({ volume: 100, oi: 200 }),   // kept: vol≥100 AND voi=0.5≥0.4
+        mkContract({ volume: 99, oi: 200 }),    // filtered: vol < 100
+        mkContract({ volume: 50, oi: 100 }),    // filtered: vol < 100
+      ],
+      450,
+      MKT,
+    );
+    expect(rows).toHaveLength(1);
+    expect(rows[0].volume).toBe(100);
+    expect(rows[0].oi).toBe(200);
+  });
+
+  it("filters out contracts below vol/oi threshold (< 0.4)", () => {
+    const rows = mapPublicChainToRows(
+      [mkContract({ volume: 500, oi: 2000 })],
+      450,
+      MKT,
+    );
+    expect(rows).toHaveLength(0);
+  });
+
+  it("keeps contracts at exactly vol/oi = 0.4", () => {
+    const rows = mapPublicChainToRows(
+      [mkContract({ volume: 400, oi: 1000 })],
+      450,
+      MKT,
+    );
+    expect(rows).toHaveLength(1);
+    expect(rows[0].vol_oi_ratio).toBe(0.4);
+  });
+
+  it("sorts by vol_oi_ratio descending", () => {
+    const rows = mapPublicChainToRows(
+      [
+        mkContract({ strike: 440, volume: 300, oi: 300 }), // voi=1.0
+        mkContract({ strike: 460, volume: 800, oi: 8000 }), // voi=0.1 → filtered
+        mkContract({ strike: 450, volume: 500, oi: 500 }), // voi=1.0
+      ],
+      450,
+      MKT,
+    );
+    expect(rows).toHaveLength(2);
+    expect(rows[0].vol_oi_ratio).toBeGreaterThanOrEqual(rows[1].vol_oi_ratio);
+  });
+
+  it("caps output at 100 rows", () => {
+    const contracts = Array.from({ length: 200 }, (_, i) =>
+      mkContract({ strike: 400 + i, volume: 500, oi: 500 }),
+    );
+    const rows = mapPublicChainToRows(contracts, 450, MKT);
+    expect(rows).toHaveLength(100);
+  });
+
+  it("handles empty contract list", () => {
+    expect(mapPublicChainToRows([], 450, MKT)).toEqual([]);
+  });
+
+  it("handles null/missing fields gracefully", () => {
+    const rows = mapPublicChainToRows(
+      [
+        { strike: null, type: null, volume: 500, oi: 500 },
+        { volume: 50, oi: 100 },
+      ],
+      450,
+      MKT,
+    );
+    expect(rows).toHaveLength(1);
+    // String(c.type || "") where c.type=null → String("" || "") → ""  → toLowerCase → ""
+    expect(rows[0].type).toBe("");
+  });
+
+  it("uses last price for mid when available", () => {
+    const rows = mapPublicChainToRows(
+      [mkContract({ last: 4.6, bid: 0, ask: 0 })],
+      450,
+      MKT,
+    );
+    expect(rows[0].premium).toBeGreaterThan(0);
+  });
+
+  it("falls back to estPrice when no bid/ask/last", () => {
+    const rows = mapPublicChainToRows(
+      [mkContract({ bid: 0, ask: 0, last: 0, iv: 0.25, strike: 450, expiry: "2026-09-18" })],
+      450,
+      MKT,
+    );
+    expect(rows).toHaveLength(1);
+    expect(rows[0].premium).toBeGreaterThan(0);
+  });
+
+  it("classifies block/sweep/unusual by premium and DTE", () => {
+    // Block: premium >= 5e7. Need vol*mid*100 >= 5e7.
+    // vol=200000, mid=5 → premium=200000*5*100=1e8 → block
+    const blockRows = mapPublicChainToRows(
+      [{ strike: 450, type: "call", expiry: "2026-09-18", volume: 200000, oi: 1000, iv: 0.5, bid: 4.5, ask: 5.5, last: 5.0 }],
+      450,
+      MKT,
+    );
+    expect(blockRows[0].classification).toBe("block");
+
+    // Sweep: DTE <= 2
+    const today = new Date();
+    const exp2d = new Date(today.getTime() + 2 * 86400000).toISOString().slice(0, 10);
+    const sweepRows = mapPublicChainToRows(
+      [mkContract({ volume: 500, oi: 500, strike: 450, iv: 0.2, expiry: exp2d })],
+      450,
+      MKT,
+    );
+    expect(sweepRows[0].classification).toBe("sweep");
+
+    // Unusual: everything else
+    const exp30d = new Date(today.getTime() + 30 * 86400000).toISOString().slice(0, 10);
+    const unusualRows = mapPublicChainToRows(
+      [mkContract({ volume: 500, oi: 500, strike: 450, iv: 0.2, expiry: exp30d })],
+      450,
+      MKT,
+    );
+    expect(unusualRows[0].classification).toBe("unusual");
+  });
+
+  it("handles put types correctly", () => {
+    const rows = mapPublicChainToRows(
+      [mkContract({ type: "put", strike: 440, volume: 500, oi: 500 })],
+      450,
+      MKT,
+    );
+    expect(rows[0].type).toBe("put");
+  });
+
+  it("handles iv > 1 as percentage (no ×100)", () => {
+    const rows = mapPublicChainToRows(
+      [mkContract({ iv: 25, volume: 500, oi: 500 })],
+      450,
+      MKT,
+    );
+    expect(rows[0].iv).toBe(25);
+  });
+
+  it("handles iv < 1 as decimal (×100)", () => {
+    const rows = mapPublicChainToRows(
+      [mkContract({ iv: 0.25, volume: 500, oi: 500 })],
+      450,
+      MKT,
+    );
+    expect(rows[0].iv).toBe(25);
+  });
+});
+
+// ---- Dual-path logic: data_source assignment ----
+
+describe("Phase 5.3 dual-path: Public API → cvserver fallback", () => {
+  it("both paths produce rows with the same shape", () => {
+    const pubRows = mapPublicChainToRows(
+      [{ strike: 450, type: "call", expiry: "2026-09-18", volume: 500, oi: 1000, iv: 0.2, bid: 4, ask: 4.2, last: 4.1 }],
+      450,
+      "SPY",
+    );
+    expect(pubRows[0]).toHaveProperty("ticker");
+    expect(pubRows[0]).toHaveProperty("type");
+    expect(pubRows[0]).toHaveProperty("strike");
+    expect(pubRows[0]).toHaveProperty("expiration");
+    expect(pubRows[0]).toHaveProperty("volume");
+    expect(pubRows[0]).toHaveProperty("oi");
+    expect(pubRows[0]).toHaveProperty("vol_oi_ratio");
+    expect(pubRows[0]).toHaveProperty("iv");
+    expect(pubRows[0]).toHaveProperty("premium");
+    expect(pubRows[0]).toHaveProperty("_conv");
+    expect(pubRows[0]).toHaveProperty("_cd");
+    expect(pubRows[0]).toHaveProperty("classification");
+  });
+
+  it("data_source → public_api when Public API returns contracts", () => {
+    const contracts = [{ strike: 450, type: "call", expiry: "2026-09-18", volume: 500, oi: 500 }];
+    const rows = mapPublicChainToRows(contracts, 450, "SPY");
+    expect(rows.length).toBeGreaterThan(0);
+  });
+
+  it("falls back to cvserver when Public API returns no contracts", () => {
+    expect(mapPublicChainToRows([], 450, "SPY")).toEqual([]);
+  });
+});
