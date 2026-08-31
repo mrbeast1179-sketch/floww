@@ -127,7 +127,7 @@ add alert quality dashboard endpoint.
 - [ ] Add `/api/alert-quality` endpoint (quality scores per rule/tier)
 - [ ] Alert YAML validation (schema check on `alerts/definitions/gex_alerts.yaml`)
 
-### 6.4 — Quant signal exposure [PROMOTED]
+### 6.4 — Quant signal exposure [COMPLETE 2026-08-31]
 
 **Goal:** Expose available quant signals through a catalog endpoint. Much of the
 infrastructure exists (`signal_translator`, `flow_alerts`, `trading_signals`,

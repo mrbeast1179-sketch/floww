@@ -5,8 +5,7 @@ Full quant signal endpoint — Phase 6.4 supplement.
 
 Returns all 6 catalog signals PLUS spot, IV surface data, GEX totals,
 and the full option chain (contracts) for a ticker. Uses the live heatmap
-data so signals that need market data (iv_rank, realized_vol, etc.) get
-real values instead of defaults.
+data so signals that need market data get real values.
 """
 
 from __future__ import annotations
@@ -28,8 +27,8 @@ async def quant_full(
 ) -> dict[str, Any]:
     """Return full quant signal data with live market data.
 
-    Combines the catalog signals (from /api/quant/signals) with live
-    spot, IV surface, GEX totals, and contract data from the heatmap.
+    Calls build_heatmap to get live spot, contracts, GEX totals, and IV surface.
+    Falls back to empty fields if heatmap is unavailable.
     """
     t = ticker.strip().upper()
     if t == "SPX":
@@ -68,7 +67,6 @@ async def quant_full(
                 "polarity_level": hm.get("nodes", {}).get("polarity_level", ""),
                 "regime": hm.get("nodes", {}).get("regime", ""),
             }
-            # IV surface from heatmap nodes
             if hm.get("nodes"):
                 nodes = hm["nodes"]
                 result["iv_surface"] = {
@@ -81,7 +79,7 @@ async def quant_full(
     except Exception as e:
         logger.debug(f"heatmap unavailable for {t}: {e}")
 
-    # --- Catalog signals (same as /api/quant/signals) ---
+    # --- Catalog signals ---
     signals = await _catalog_signals(t)
     result["signals"] = signals
 
@@ -91,12 +89,11 @@ async def quant_full(
 async def _catalog_signals(ticker: str) -> list[dict[str, Any]]:
     """Return the 6-signal catalog (same logic as /api/quant/signals)."""
     from vol_analytics import calc_iv_rank_percentile, calc_realized_volatility
-    from volume_clock import VolumeClock
-    from services.volume_clock import VolumeClock as VC2
+    from services.volume_clock import VolumeClock
     from services.vpin_toxicity import VPINToxicity
     from services.composite_flow_score import CompositeFlowScore
     from services.hmm_regime import GaussianHMMRegime
-    from signal_translator import translate_signal, SignalInput
+    from services.signal_translator import translate_signal, SignalInput
 
     signals: list[dict[str, Any]] = []
     t = ticker
@@ -217,7 +214,7 @@ async def _catalog_signals(ticker: str) -> list[dict[str, Any]]:
 
     # --- Volume clock ---
     try:
-        vc = VC2()
+        vc = VolumeClock()
         state = vc.get_state()
         if state:
             current = state.get("current", {})
