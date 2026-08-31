@@ -570,11 +570,26 @@ async def fetch_spot_and_chains_merged(ticker: str, max_expiries: int = 4) -> di
                 timeout=30.0
             )
             if pub_data and pub_data.get("contracts") and pub_data.get("spot", 0) > 0:
+                try:
+                    from data_providers import _record_provider_call
+                    _record_provider_call("public_api", True)
+                except Exception:
+                    pass
                 return pub_data
         except TimeoutError:
             log.info(f"Public API timeout for {ticker}, falling back to cvserver")
+            try:
+                from data_providers import _record_provider_call
+                _record_provider_call("public_api", False)
+            except Exception:
+                pass
         except Exception as e:
             log.info(f"Public API fetch failed for {ticker}: {e}")
+            try:
+                from data_providers import _record_provider_call
+                _record_provider_call("public_api", False)
+            except Exception:
+                pass
 
     # ── 1. Try cvserver first (with timeout) ──
     try:
@@ -586,14 +601,48 @@ async def fetch_spot_and_chains_merged(ticker: str, max_expiries: int = 4) -> di
         if cv_data and cv_data.get("contracts") and cv_data.get("spot", 0) > 0:
             for c in cv_data["contracts"]:
                 c["oi_source"] = "cvserver"
+            try:
+                from data_providers import _record_provider_call
+                _record_provider_call("cvserver", True)
+            except Exception:
+                pass
             return cv_data
     except TimeoutError:
         log.warning(f"cvserver timeout for {ticker}, falling back to yfinance")
+        try:
+            from data_providers import _record_provider_call
+            _record_provider_call("cvserver", False)
+        except Exception:
+            pass
     except Exception as e:
         log.warning(f"cvserver fetch failed for {ticker}: {e}")
+        try:
+            from data_providers import _record_provider_call
+            _record_provider_call("cvserver", False)
+        except Exception:
+            pass
 
     # ── 2. Fallback: yfinance + Databento ──
-    yf_data = await asyncio.to_thread(fetch_spot_and_chains, ticker, max_expiries)
+    yf_success = True
+    try:
+        yf_data = await asyncio.to_thread(fetch_spot_and_chains, ticker, max_expiries)
+        if not yf_data or not yf_data.get("spot"):
+            yf_success = False
+    except Exception:
+        yf_success = False
+        yf_data = {"spot": 0, "contracts": []}
+    if yf_success:
+        try:
+            from data_providers import _record_provider_call
+            _record_provider_call("yfinance", True)
+        except Exception:
+            pass
+    else:
+        try:
+            from data_providers import _record_provider_call
+            _record_provider_call("yfinance", False)
+        except Exception:
+            pass
     yf_data["spot"]
 
     # Free-tier short-circuit: use yfinance OI only
@@ -604,10 +653,18 @@ async def fetch_spot_and_chains_merged(ticker: str, max_expiries: int = 4) -> di
         return {**yf_data, "data_source": "yfinance"}
 
     dbn_oi = {}
+    dbn_success = False
     try:
         dbn_oi = await fetch_oi_for_ticker(ticker)
+        if dbn_oi:
+            dbn_success = True
     except Exception as e:
         log.warning(f"databento OI lookup fail {ticker}: {e}")
+    try:
+        from data_providers import _record_provider_call
+        _record_provider_call("databento", dbn_success)
+    except Exception:
+        pass
 
     if not dbn_oi:
         for c in yf_data["contracts"]:
@@ -1764,6 +1821,148 @@ async def _scheduler_loop():
 _alert_rules: list[dict[str, Any]] = []
 _alert_history: list[dict[str, Any]] = []
 _alert_id_seq = itertools.count(1)  # monotonic — never rewinds on delete
+_alert_collection: Any = None  # MongoDB alerts collection (lazy-init in on_start)
+
+
+async def _init_alert_collection():
+    """Lazy-init the alerts MongoDB collection. Safe to call multiple times."""
+    global _alert_collection
+    if _alert_collection is not None:
+        return
+    try:
+        _alert_collection = db["alerts"]
+        # Index for ticker lookups
+        await _alert_collection.create_index("ticker", name="alerts_ticker_idx", sparse=True)
+        await _alert_collection.create_index("created_at", name="alerts_created_at_idx")
+        log.info("MongoDB alerts collection initialized")
+    except Exception as e:
+        log.warning(f"Failed to init MongoDB alerts collection: {e}")
+
+
+async def _sync_rules_to_mongo():
+    """Persist all in-memory alert rules to MongoDB. Idempotent upsert."""
+    if _alert_collection is None:
+        return
+    try:
+        for rule in _alert_rules:
+            await _alert_collection.update_one(
+                {"_id": rule["id"]},
+                {"$set": rule},
+                upsert=True,
+            )
+    except Exception as e:
+        log.warning(f"Failed to sync alert rules to MongoDB: {e}")
+
+
+async def _sync_history_to_mongo(trigger: dict[str, Any] | None = None):
+    """Persist triggered alert history to MongoDB. If trigger is provided, insert it;
+    otherwise sync nothing (used after bulk adds)."""
+    if _alert_collection is None:
+        return
+    try:
+        if trigger is not None:
+            await _alert_collection.insert_one(trigger)
+    except Exception as e:
+        log.warning(f"Failed to persist alert history to MongoDB: {e}")
+
+
+async def _load_rules_from_mongo():
+    """Load persisted alert rules from MongoDB into in-memory store on startup."""
+    if _alert_collection is None:
+        return
+    try:
+        cursor = _alert_collection.find({"active": True})
+        async for doc in cursor:
+            doc.pop("_id", None)  # MongoDB _id not needed in memory
+            if doc not in _alert_rules:
+                _alert_rules.append(doc)
+        log.info(f"Loaded {len(_alert_rules)} active alert rules from MongoDB")
+    except Exception as e:
+        log.warning(f"Failed to load alert rules from MongoDB: {e}")
+
+
+# ---------------------------------------------------------------------------
+# Alert quality + provider health endpoints (Phase 6.3 / 6.1 exposure)
+# ---------------------------------------------------------------------------
+
+
+@app.get("/api/alert-quality")
+async def alert_quality():
+    """Return per-rule per-tier alert quality scores.
+
+    Aggregates triggered alert history into (rule, tier, count, last_triggered)
+    buckets so the UI and backtest gating can see which alerts are actually
+    firing vs. sitting dormant.
+    """
+    from collections import defaultdict
+    quality: dict[str, dict[str, Any]] = {}
+    tier_counts: dict[str, dict[str, int]] = defaultdict(lambda: defaultdict(int))
+    for t in _alert_history[-500:]:
+        rule_id = t.get("rule_id") or t.get("id") or "unknown"
+        tier = t.get("tier", "unknown")
+        key = str(rule_id)
+        if key not in quality:
+            quality[key] = {
+                "rule_id": key,
+                "trigger_count": 0,
+                "last_triggered": t.get("ts") or t.get("created_at", ""),
+                "tiers": {},
+            }
+        quality[key]["trigger_count"] += 1
+        quality[key]["last_triggered"] = max(
+            quality[key]["last_triggered"],
+            t.get("ts") or t.get("created_at", ""),
+        )
+        tier_counts[key][tier] += 1
+    for k, v in quality.items():
+        v["tiers"] = dict(tier_counts[k])
+        # Derive tier bucket from counts (bronze/silver/gold)
+        c = v["tiers"]
+        total = sum(c.values())
+        if total >= 10:
+            v["tier_bucket"] = "gold"
+        elif total >= 3:
+            v["tier_bucket"] = "silver"
+        elif total >= 1:
+            v["tier_bucket"] = "bronze"
+        else:
+            v["tier_bucket"] = "none"
+    return {
+        "quality": list(quality.values()),
+        "total_triggers": len(_alert_history),
+        "active_rules": len([r for r in _alert_rules if r.get("active", True)]),
+    }
+
+
+@app.get("/api/provider-health")
+async def provider_health():
+    """Return data provider health from the DataProviderMonitor.
+
+    Exposes rolling success rates, window calls, seconds since last success,
+    and active alerts per provider. Useful for ops dashboards and the deploy
+    runbook's yfinance-429 fallback check.
+    """
+    try:
+        from services.meta_observability import provider_monitor
+        health = provider_monitor.get_health()
+        # enrich with Prometheus gauge values for convenience
+        try:
+            from services.observability import (
+                provider_success_rate,
+                provider_last_success_seconds_ago,
+                provider_calls_total,
+                get_metrics_bytes,
+            )
+            for name, stats in health["providers"].items():
+                stats["prometheus_success_rate"] = round(
+                    provider_success_rate.labels(provider=name)._value.get() or 0.0, 4
+                )
+        except Exception:
+            pass
+        return health
+    except Exception as e:
+        log.warning(f"provider_health endpoint failed: {e}")
+        return {"providers": {}, "error": str(e)}, 503
 
 
 class AlertRule(BaseModel):
@@ -1778,8 +1977,8 @@ class AlertRule(BaseModel):
 
 @app.post("/api/alerts")
 async def create_alert(rule: AlertRule):
-    """Create a new GEX alert rule."""
-    rule_dict = rule.dict()
+    """Create a new GEX alert rule. Persisted to MongoDB for durability across restarts."""
+    rule_dict = rule.model_dump()
     # Monotonic id — len(_alert_rules)+1 collided after any delete (deleting the
     # middle rule then creating one reused a live id → wrong-target deletes and
     # double-counted triggers).
@@ -1788,6 +1987,8 @@ async def create_alert(rule: AlertRule):
     rule_dict["active"] = True
     rule_dict["trigger_count"] = 0
     _alert_rules.append(rule_dict)
+    # Persist to MongoDB
+    await _sync_rules_to_mongo()
     return {"status": "created", "rule": rule_dict}
 
 
@@ -1829,9 +2030,14 @@ async def list_alerts(ticker: str | None = None, active_only: bool = True):
 
 @app.delete("/api/alerts/{alert_id}")
 async def delete_alert(alert_id: str):
-    """Delete an alert rule."""
+    """Delete an alert rule. Removed from both in-memory store and MongoDB."""
     global _alert_rules
     _alert_rules = [r for r in _alert_rules if r["id"] != alert_id]
+    if _alert_collection is not None:
+        try:
+            await _alert_collection.delete_one({"id": alert_id})
+        except Exception as e:
+            log.warning(f"Failed to delete alert {alert_id} from MongoDB: {e}")
     return {"status": "deleted"}
 
 
@@ -1912,6 +2118,7 @@ async def check_alerts(ticker: str):
             triggered.append(trigger)
             rule["trigger_count"] = rule.get("trigger_count", 0) + 1
             _alert_history.append(trigger)
+            await _sync_history_to_mongo(trigger)
 
     return {"triggered": triggered, "spot": spot, "asof": datetime.now(UTC).isoformat()}
 
@@ -2278,6 +2485,8 @@ async def on_start():
         cache = init_cache(db)
         await cache.ensure_index()
         await _load_policy_from_mongo()
+        await _init_alert_collection()
+        await _load_rules_from_mongo()
         log.info("MongoDB connected and indexes created")
     except Exception as e:
         log.warning(f"MongoDB unavailable during startup ({type(e).__name__}): {e}")
@@ -2478,6 +2687,14 @@ app.include_router(ml_api_router, tags=["ml_api"])
 from routes.ml_dashboard import router as ml_dashboard_router
 
 app.include_router(ml_dashboard_router, tags=["ml-dashboard"])
+
+from routes.backtest import router as backtest_router
+
+app.include_router(backtest_router, tags=["backtest"])
+
+from routes.quant import router as quant_router
+
+app.include_router(quant_router, tags=["quant"])
 
 from routes.chain import router as chain_router
 

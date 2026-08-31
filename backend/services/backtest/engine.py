@@ -133,14 +133,15 @@ class BacktestEngine:
                 position.quantity = cfg.contracts_per_trade
                 position.entry_bar_idx = i
 
-                # Slippage is already embedded in entry_price; do not deduct it again.
-                cost = (entry_price * cfg.contracts_per_trade) + commission_cost
+                # Deduct entry cost from equity: commission only (slippage is in the price).
+                # The position notional is tracked separately; equity is cash.
+                cost = commission_cost
                 equity -= cost
                 result.total_buy_calls += 1
 
-                # Store for reporting on trade close (not re-deducted from net_pnl)
-                position._pending_slippage = slippage_cost  # type: ignore[attr-defined]
-                position._pending_commission = commission_cost  # type: ignore[attr-defined]
+                # Store for reporting on trade close.
+                position._pending_slippage = slippage_cost
+                position._pending_commission = commission_cost
 
             elif action == Action.BUY_PUT:
                 entry_price = close_price * (1.0 + cfg.slippage_pct)
@@ -153,13 +154,13 @@ class BacktestEngine:
                 position.quantity = cfg.contracts_per_trade
                 position.entry_bar_idx = i
 
-                # Slippage is already embedded in entry_price; do not deduct it again.
-                cost = (entry_price * cfg.contracts_per_trade) + commission_cost
+                # Deduct entry cost from equity: commission only (slippage is in the price).
+                cost = commission_cost
                 equity -= cost
                 result.total_buy_puts += 1
 
-                position._pending_slippage = slippage_cost  # type: ignore[attr-defined]
-                position._pending_commission = commission_cost  # type: ignore[attr-defined]
+                position._pending_slippage = slippage_cost
+                position._pending_commission = commission_cost
 
             elif action == Action.SELL_CALL:
                 if position.is_open and position.side == "CALL":
@@ -228,6 +229,9 @@ class BacktestEngine:
                     # This means equity tracks cash, and P&L is realized at exit.
 
                     # I'll fix this below with a cleaner model. For now, use net_pnl.
+                    # Equity: initial - entry_comm + exit*qty - exit_comm - exit_slip
+                    # = initial + (exit-entry)*qty - all_comm - all_slip
+                    # = initial + net_pnl
                     equity = result.initial_capital + sum(t.net_pnl for t in result.trades)
 
                     position.quantity = 0
@@ -241,8 +245,6 @@ class BacktestEngine:
                     slippage_cost = close_price * cfg.slippage_pct * position.quantity
                     commission_cost = cfg.commission_per_contract * position.quantity
 
-                    # gross_pnl already captures both entry and exit slippage
-                    # because entry_price = close*(1+slip) and exit_price = close*(1-slip).
                     gross_pnl = (exit_price - position.entry_price) * position.quantity
                     entry_slippage = getattr(position, "_pending_slippage", 0.0)
                     entry_commission = getattr(position, "_pending_commission", 0.0)
@@ -257,7 +259,7 @@ class BacktestEngine:
                         quantity=position.quantity,
                         pnl=gross_pnl,
                         commission=entry_commission + commission_cost,
-                        slippage=entry_slippage + slippage_cost,  # stored for reporting only
+                        slippage=entry_slippage + slippage_cost,
                         net_pnl=gross_pnl - entry_commission - commission_cost,
                     )
                     result.trades.append(trade)
@@ -268,27 +270,25 @@ class BacktestEngine:
                     position.direction = None
                     result.total_sell_puts += 1
 
-            # Update unrealized P&L for open positions
-            if position.is_open and close_price > 0:
-                position.update_unrealized(close_price)
+            # Track equity and drawdown. Equity tracks cash.
+        # Entry fees were deducted at buy time; exit fees/proceeds handled at sell time.
+        # Unrealized P&L for open positions is tracked separately in the position object
+        # but not added to the equity curve (cash-basis avoids double counting).
+        total_equity = equity
+        result.equity_curve.append(total_equity)
 
-            # Track equity and drawdown
-            total_equity = equity + position.unrealized_pnl
-            result.equity_curve.append(total_equity)
+        if total_equity > peak_equity:
+            peak_equity = total_equity
+        dd = total_equity - peak_equity  # <= 0
+        result.drawdown_curve.append(dd)
 
-            if total_equity > peak_equity:
-                peak_equity = total_equity
-            dd = total_equity - peak_equity  # <= 0
-            result.drawdown_curve.append(dd)
-
-            # Bar return
-            if len(result.equity_curve) >= 2:
-                prev_eq = result.equity_curve[-2]
-                if prev_eq != 0:
-                    result.bar_returns.append((total_equity - prev_eq) / abs(prev_eq))
-                else:
-                    result.bar_returns.append(0.0)
-
+        # Bar return
+        if len(result.equity_curve) >= 2:
+            prev_eq = result.equity_curve[-2]
+            if prev_eq != 0:
+                result.bar_returns.append((total_equity - prev_eq) / abs(prev_eq))
+            else:
+                result.bar_returns.append(0.0)        # Close any open position at the last bar
         # Close any open position at the last bar
         if position.is_open:
             last_bar = bars[-1]
@@ -296,8 +296,6 @@ class BacktestEngine:
             slippage_cost = _safe_float(last_bar.get("close")) * cfg.slippage_pct * position.quantity
             commission_cost = cfg.commission_per_contract * position.quantity
 
-            # gross_pnl already captures both entry and exit slippage
-            # because entry_price = close*(1+slip) and exit_price = close*(1-slip).
             gross_pnl = (exit_price - position.entry_price) * position.quantity
             entry_slippage = getattr(position, "_pending_slippage", 0.0)
             entry_commission = getattr(position, "_pending_commission", 0.0)
@@ -312,7 +310,7 @@ class BacktestEngine:
                 quantity=position.quantity,
                 pnl=gross_pnl,
                 commission=entry_commission + commission_cost,
-                slippage=entry_slippage + slippage_cost,  # stored for reporting only
+                slippage=entry_slippage + slippage_cost,
                 net_pnl=gross_pnl - entry_commission - commission_cost,
             )
             result.trades.append(trade)
