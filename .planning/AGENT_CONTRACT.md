@@ -179,6 +179,8 @@ Format: `[timestamp] AgentId :: status :: note :: HEAD=sha`
 - GSD scaffolded at `.planning/` (ROADMAP.md, PROJECT.md, STATE.md, REQUIREMENTS.md, config.json, 7 codebase maps)
 - Current phase: Phase 1 — Oracle Go-Live (pending VM provisioning)
 - **NEXT phase: Phase 4 — Tidehunter Pro Integration (ACTIVE, documented)** — see ROADMAP.md §4. Not building today — documented as the Phase 3 live-testing fallback. Phase 3 is CLOSED.
+
+Kanban: 23 cards all done, 0 in progress (Phase 3 kanban refresh complete at ecfabb6+)
 - Phase 2 — Round 10 P0 Closure: COMPLETE (P0.1-0.3 done)
 - Kanban: 23 cards all done, 0 in progress
 - Backend: ~4546 tests passing, working tree clean, 1 commit ahead of origin/main (deep sweep report just pushed)
