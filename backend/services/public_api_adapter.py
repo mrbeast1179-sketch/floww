@@ -29,6 +29,15 @@ log = logging.getLogger(__name__)
 BROKER: PublicBroker | None = None
 
 
+async def close_broker() -> None:
+    """Close and clear the lazily-created broker client during shutdown."""
+    global BROKER
+    broker = BROKER
+    BROKER = None
+    if broker is not None:
+        await broker.close()
+
+
 async def _get_broker() -> PublicBroker | None:
     """Lazy-init the singleton PublicBroker (auths on first use)."""
     global BROKER

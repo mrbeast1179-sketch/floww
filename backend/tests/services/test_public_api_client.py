@@ -4,6 +4,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+import services.public_api_adapter as adapter
 from services.public_api import PublicBroker
 
 
@@ -63,3 +64,16 @@ async def test_close_does_not_close_already_closed_client() -> None:
     await broker.close()
 
     client.aclose.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_close_broker_closes_and_clears_singleton() -> None:
+    client = MagicMock(is_closed=False)
+    client.aclose = AsyncMock()
+    broker = PublicBroker("secret", client=client)
+    adapter.BROKER = broker
+
+    await adapter.close_broker()
+
+    assert adapter.BROKER is None
+    client.aclose.assert_awaited_once()

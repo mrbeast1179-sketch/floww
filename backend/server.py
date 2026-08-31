@@ -2328,6 +2328,12 @@ async def on_stop():
 
     # Finally close MongoDB
     client.close()
+    try:
+        from services.public_api_adapter import close_broker
+        await close_broker()
+    except Exception as e:
+        log.warning(f"on_stop: Public API client close failed: {e}")
+
     log.info("on_stop: shutdown complete")
 
 
