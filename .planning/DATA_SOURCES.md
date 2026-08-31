@@ -4,12 +4,13 @@
 
 ---
 
-## Status: 2026-08-30
+## Status: 2026-08-30 (Phase 3 ACTIVE)
 
 - Schwab: **DELIBERATELY OUT.** Not using it, not building around it. Mock feed only for tests.
 - Zenith: **UI tab only**, not a data service. API calls do not route to Zenith.
-- Public API: **PRIMARY for everything.** Building all data flow around it.
-- Tidehunter Pro: **fallback** for heatmap when Public API is limited.
+- **Public API (public.com):** **PRIMARY for everything.** Building all data flow around it. Key confirmed: `d84ic5pr01qutij93me0d84ic5pr01qutij93meg`.
+- **Tidehunter Pro:** **fallback** for heatmap ONLY when Public API is limited — see Phase 4 (built only if needed).
+- PublicBroker implementation: already exists at `/Users/nav/backend/services/public_api.py` (1050 lines, tested with 547-line test suite). Copy into floww backend + wire as primary. See `.planning/PHASE3_PUBLIC_API_PLAN.md`.
 
 ---
 
@@ -19,10 +20,12 @@
 
 | Priority | Source | When |
 |---|---|---|
-| 1 | **Public API** (`/Users/nav/backend/services/public_api.py` → `PublicBroker`) | Default — always try first. Key: `d84ic5pr01qutij93me0d84ic5pr01qutij93meg` |
-| 2 | **Tidehunter Pro** | Public API rate-limited, down, or insufficient coverage |
+| 1 | **Public API** (`PublicBroker` in `backend/services/public_api.py`) | Default — always try first. Key: `d84ic5pr01qutij93me0d84ic5pr01qutij93meg` |
+| 2 | **cvserver** (CVForge/MCP, `cvserver_client.py`) | Public API rate-limited/down |
+| 3 | **yfinance** + **Databento** OI overlay | Both Public API + cvserver unavailable |
+| 4 | **Tidehunter Pro** | Only if Public API + cvserver + yfinance ALL fail on chain data (Phase 4, built only if needed) |
 
-**Rule:** Solstice heatmap always attempts Public API first. If Public API returns a rate-limit/error or the response is degraded, switch to Tidehunter Pro. yfinance is NOT acceptable as a chain source for heatmap — it doesn't have OI data.
+**Rule:** Solstice heatmap always attempts Public API first. If Public API returns a rate-limit/error or the response is degraded, cascade through: cvserver → yfinance + Databento. yfinance alone is NOT acceptable as a chain source for heatmap — it doesn't have OI data. Tidehunter Pro is a Phase 4 fallback only when all other sources fail.
 
 ### Spot price + IV
 
@@ -82,16 +85,12 @@ The local proxy (`cv-bootstrap.js`) adds auth server-side. The page never handle
 **Test coverage:** `/Users/nav/backend/tests/services/test_public_api.py` (547 lines) — all network calls mocked, covers error paths (no key, API returning None, bulk quote mixed success/failure).
 
 **Gaps to fill for Phase 3:**
-1. Confirm which key is active (`d84ic...` vs `PkdDG...`)
-2. Wire PublicBroker into floww backend (currently floww uses cvserver_client.py for chain data)
-3. Add `/api/public/chain/{ticker}` endpoint to floww backend that uses PublicBroker under the hood
-4. Add rate-limit handling → Tidehunter Pro fallback
-5. Frontend wiring: Solstice/Triad/Tidehunter Pro tabs call the new floww backend endpoints
-
-**Connection model (to decide in Phase 3.1):**
-- Option A: Copy/import `PublicBroker` into floww backend's services/ and add endpoints
-- Option B: The `/Users/nav/backend/` layer IS a separate service that floww talks to via HTTP
-- Option C: Floww backend adds PublicBroker as a new data provider alongside cvserver_client
+1. ✅ Confirm which key is active — DONE. Key: `d84ic5pr01qutij93me0d84ic5pr01qutij93meg` (user-provided). Old env.example key `PkdDGcMzqMie0f6I823q6nHtmkGJyRsu` should be overwritten.
+2. ✅ Decide connection model — DONE. Option A: Copy PublicBroker into floww backend's `services/`. See PHASE3_PUBLIC_API_PLAN.md §3.3.
+3. Wire PublicBroker into floww backend — modify `fetch_spot_and_chains_merged()` to try Public API first, then cvserver, then yfinance+Databento
+4. Add `/api/public/chain/{ticker}` + `/api/public/quotes/{ticker}` endpoints
+5. Frontend wiring: Solstice/Triad tabs call new floww backend endpoints
+6. Tidehunter Pro fallback — Phase 4, NOT started yet (only if Public API is actually limited)
 
 ---
 
@@ -107,20 +106,26 @@ The local proxy (`cv-bootstrap.js`) adds auth server-side. The page never handle
 
 ```
 IF need options chain / OI / Greeks (heatmap):
-  → Try Public API (PublicBroker.get_option_chain_parsed / get_option_greeks)
-  → If Public API fails/rate-limited → Tidehunter Pro
-  → Do NOT fall back to yfinance for chain data
+  → Try Public API first (PublicBroker.get_option_chain_parsed / get_option_greeks)
+  → If Public API fails/rate-limited → cvserver (existing cvserver_client.py)
+  → If cvserver also fails → yfinance + Databento OI overlay (existing)
+  → Only if ALL fail → Tidehunter Pro (Phase 4, not yet built)
+  → yfinance alone is NOT acceptable for chain data (no OI)
 
 IF need spot price:
   → Try Public API (PublicBroker.get_quotes)
   → If unavailable → yfinance (5s cache)
 
+IF need bars / OHLCV:
+  → Try Public API (PublicBroker.get_bars)
+  → If unavailable → yfinance
+
 IF designing / inspecting data (agent, not runtime):
   → Use cvserver MCP tools (existing floww backend capability)
 
 IF runtime page:
-  → Use window.cvApi (goes through local proxy, auth server-side)
-  → OR call floww backend endpoints that use PublicBroker under the hood
+  → Call floww backend endpoints that use PublicBroker under the hood
+  → OR window.cvApi (goes through local proxy, auth server-side)
 ```
 
 ---
@@ -129,4 +134,4 @@ IF runtime page:
 
 - **Zenith API** — Zenith is a UI tab, not a service. No API calls go here.
 - **Schwab live key** — doesn't exist. Don't try to wire it.
-- **Tidehunter Pro key** — not yet in any .env. Only needed if Public API is actually limited.
+- **Tidehunter Pro key** — not yet needed. Only Phase 4 fallback when Public API is actually limited.

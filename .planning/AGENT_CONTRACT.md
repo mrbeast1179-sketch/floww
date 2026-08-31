@@ -102,17 +102,50 @@ Round 7's fabricated completion log is the negative-example floor — never repe
 
 | Need | Primary | Fallback |
 |---|---|---|
-| Options chain / OI / Greeks (heatmap) | **Public API** (brokerage) | Tidehunter Pro (paid tier) |
-| Spot price + IV | Public API spot endpoint | yfinance (5s cache) |
+| Options chain / OI / Greeks (heatmap) | **Public API** (PublicBroker) | cvserver → yfinance → Databento |
+| Spot price + IV | Public API (PublicBroker.get_quotes) | yfinance (5s cache) |
+| Bars / OHLCV | Public API (PublicBroker.get_bars) | yfinance |
 | Design-time data inspection | cvserver MCP tools | — |
 | Runtime page data | `window.cvApi` via local proxy | — |
 | Schwab | **NOT USED** — mock feed only for tests | — |
 
 **Schwab is out.** Do not plan anything around it. Do not wire agents to it. The `schwab_streamer.py` module exists but has no live key — mock only.
 
-- **Public API key: EXISTS** — `d84ic5pr01qutij93me0d84ic5pr01qutij93meg`. The `/Users/nav/backend/services/public_api.py` already has a full `PublicBroker` implementation. The connection between the standalone `/Users/nav/backend/` layer and floww backend is the open question (see `.planning/DATA_SOURCES.md`). Do NOT add any real API key to the repo. The `.env` files are gitignored.
+- **Public API key: EXISTS and CONFIRMED** — `d84ic5pr01qutij93me0d84ic5pr01qutij93meg`. The standalone `/Users/nav/backend/services/public_api.py` has a full `PublicBroker` class (1050 lines) with chain, quotes, portfolio, orders, greeks, bars — tested by a 547-line mocked test suite. The connection model is: **copy PublicBroker into floww backend** (two separate repos, no import path between them). The key goes in `backend/.env` (gitignored) + documented in `backend/.env.example`. See `.planning/PHASE3_PUBLIC_API_PLAN.md` for the full deep-dive + agent fleet + routing decision tree.
 
-**Zenith is a UI tab, not a data service.** API calls do NOT route to Zenith. Zenith (legacy Skylit GEX grid) is display-only; data comes from Solstice/Triad/Tidehunter Pro.
+- **Connection model decided:** `/Users/nav/backend/` is a standalone service layer (NOT a server, NOT a git repo). It has NOTHING wired into floww. The PublicBroker must be COPIED into `/Users/nav/Documents/GitHub/floww/backend/services/public_api.py` and wired as the primary data source. The fallback chain is: Public API → cvserver (existing `cvserver_client.py`) → yfinance + Databento (existing).
+
+- **Zenith is a UI tab, not a data service.** API calls do NOT route to Zenith. Zenith (legacy Skylit GEX grid) is display-only; data comes from Solstice/Triad/Tidehunter Pro.
+
+---
+
+## 13. GSD Active Phase — Phase 3: Public API Data Layer
+
+**Status:** ACTIVE (2026-08-30). See ROADMAP.md §3 for ticket list.
+
+**Agent fleet (all spawn from this repo):**
+
+| Agent | Lane | Repo | Mission |
+|---|---|---|---|
+| **Agent 1** (you) | Planning + coordination + git | `floww` | Write plan, push contract/docs, spawn fleet, monitor |
+| **Agent 2** | Backend integration | `floww` | Copy PublicBroker → add PUBLIC_API_KEY → modify fetch_spot_and_chains_merged → new routes → tests |
+| **Agent 3** | cvserver alignment | `floww` | Verify fallback path compatibility, update INTEGRATIONS.md |
+| **Agent 4** | Frontend wiring | `floww` | Solstice/Triad: use Public API endpoints. Zenith unchanged. |
+| **Agent 5** | GSD execution | `floww` | Phase plans, kanban cards, tracking |
+
+**Lane boundaries (CRITICAL — prevents cross-agent collisions):**
+- Agent 2: `backend/services/` (new files only), `backend/routes/` (new files), `backend/.env` + `.env.example` (non-committed), `backend/tests/services/` (new test files). Does NOT touch `backend/server.py` logic except adding the new router include line.
+- Agent 3: `.planning/codebase/INTEGRATIONS.md`, `backend/.env.example` (docs only). Does NOT modify cvserver_client.py logic.
+- Agent 4: `frontend/src/components/heatseeker/`, `frontend/src/lib/hooks/` (data fetch hooks). Does NOT touch `frontend/src/App.js` (frozen).
+- Agent 5: `.planning/phases/`, `kanban/cards/`. Does NOT touch backend/frontend code.
+
+**Launch sequence:**
+1. Agent 1 pushes Phase 3 plan + contract updates (this commit)
+2. Agent 1 spawns Agent 2 + Agent 3 simultaneously
+3. Agent 2 + Agent 3 sync on the PublicBroker data shape vs cvserver data shape (fallback contract)
+4. Agent 2 ships routes + tests → Agent 1 approves
+5. Agent 4 spawns once Agent 2's routes are committed
+6. Agent 5 tracks all phases end-to-end
 
 ---
 
@@ -145,7 +178,8 @@ Format: `[timestamp] AgentId :: status :: note :: HEAD=sha`
 
 - GSD scaffolded at `.planning/` (ROADMAP.md, PROJECT.md, STATE.md, REQUIREMENTS.md, config.json, 7 codebase maps)
 - Current phase: Phase 1 — Oracle Go-Live (pending VM provisioning)
-- Next phase being added: Phase 3 — Public API Data Layer
+- **NEXT phase: Phase 3 — Public API Data Layer (ACTIVE)** — see ROADMAP.md §3 + PHASE3_PUBLIC_API_PLAN.md
+- Phase 2 — Round 10 P0 Closure: COMPLETE (P0.1-0.3 done)
 - Kanban: 23 cards all done, 0 in progress
 - Backend: ~4546 tests passing, working tree clean, 1 commit ahead of origin/main (deep sweep report just pushed)
 - Frontend: 277 passed, 18 pre-existing failures (CSS module + missing module scopes — not new)
