@@ -110,7 +110,7 @@ Round 7's fabricated completion log is the negative-example floor — never repe
 
 **Schwab is out.** Do not plan anything around it. Do not wire agents to it. The `schwab_streamer.py` module exists but has no live key — mock only.
 
-**Public API key status: UNCONFIRMED.** The Finnhub key in `backend/.env` (`d84ic5pr01qutij93meg`) is a Finnhub key, NOT a Public API key. Public API (public.com) is a separate brokerage. Need Nav to provide the Public API key or confirm whether one exists. See `.planning/DATA_SOURCES.md`.
+- **Public API key: EXISTS** — `d84ic5pr01qutij93me0d84ic5pr01qutij93meg`. The `/Users/nav/backend/services/public_api.py` already has a full `PublicBroker` implementation. The connection between the standalone `/Users/nav/backend/` layer and floww backend is the open question (see `.planning/DATA_SOURCES.md`). Do NOT add any real API key to the repo. The `.env` files are gitignored.
 
 **Zenith is a UI tab, not a data service.** API calls do NOT route to Zenith. Zenith (legacy Skylit GEX grid) is display-only; data comes from Solstice/Triad/Tidehunter Pro.
 

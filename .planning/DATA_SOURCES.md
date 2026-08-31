@@ -19,7 +19,7 @@
 
 | Priority | Source | When |
 |---|---|---|
-| 1 | **Public API** (brokerage) | Default — always try first |
+| 1 | **Public API** (`/Users/nav/backend/services/public_api.py` → `PublicBroker`) | Default — always try first. Key: `d84ic5pr01qutij93me0d84ic5pr01qutij93meg` |
 | 2 | **Tidehunter Pro** | Public API rate-limited, down, or insufficient coverage |
 
 **Rule:** Solstice heatmap always attempts Public API first. If Public API returns a rate-limit/error or the response is degraded, switch to Tidehunter Pro. yfinance is NOT acceptable as a chain source for heatmap — it doesn't have OI data.
@@ -28,15 +28,15 @@
 
 | Priority | Source | When |
 |---|---|---|
-| 1 | **Public API spot endpoint** | Default |
+| 1 | **Public API** (`PublicBroker.get_quotes()`) | Default |
 | 2 | **yfinance** | Public API spot unavailable, 5s cache |
 
 ### Design-time data inspection (you, the agent)
 
 | Source | Use for |
 |---|---|
-| **cvserver MCP tools** | Inspect data, sanity-check assumptions, pull small samples to design around |
-| `window.cvApi` (runtime) | What the rendered page actually calls |
+| **cvserver MCP tools** | Inspect data, sanity-check assumptions, pull small samples to design around. floww backend already has `cvserver_client.py`. |
+| `window.cvApi` (runtime) | What the rendered page actually calls via local proxy |
 
 ### Runtime page data (the rendered SPA)
 
@@ -51,31 +51,47 @@ The local proxy (`cv-bootstrap.js`) adds auth server-side. The page never handle
 
 ## Key registry
 
-| Key | Value (masked) | Source | Status |
+| Key | Value | Source | Status |
 |---|---|---|---|
-| Finnhub | `d84ic5pr01qutij93meg` | `backend/.env` | **NOT Public API** — Finnhub is a separate data provider |
-| Databento | `db-PBR...GFrN` | `backend/.env` | OPRA OI cache — data moat |
-| Polygon | `NT_RXl...kz1n` | `backend/.env` | Alternative chain/OI source |
-| AlphaVantage | `cDNhZU...4Yz0` | `backend/.env` | Quote/ fundamentals |
-| CVSERVER | `cv_liv...U6dY` | `backend/.env` | Local MCP proxy auth |
-| **Public API** | **??? NEEDED** | Public.com account settings → Security → API | **NOT YET IN .env** — need Nav to generate |
+| **Public API** | `d84ic5pr01qutij93me0d84ic5pr01qutij93meg` | User-provided (paste 2026-08-30) | **ACTIVE KEY** — this is the Public.com brokerage API key to use for everything. The `/Users/nav/backend/` service layer already has `PublicBroker` in `public_api.py`. |
+| Public API (env.example) | `PkdDGcMzqMie0f6I823q6nHtmkGJyRsu` | `/Users/nav/backend/.env.example` | **STALE?** — existing env.example key. The user-provided key `d84ic...` supersedes this. Confirm which to use. |
+| CVSERVER | `cv_liv...U6dY` | `backend/.env` (floww) | Local MCP proxy auth — existing floww capability |
+| Databento | `db-PBR...GFrN` | `backend/.env` (floww) | OPRA OI cache — data moat |
+| Polygon | `NT_RXl...kz1n` | `backend/.env` (floww) | Alternative chain/OI source |
+| AlphaVantage | `cDNhZU...4Yz0` | `backend/.env` (floww) | Quote/fundamentals |
+| Finnhub | `d84ic5pr01qutij93meg` | `backend/.env` (floww) | **NOTE:** same value as Public API key — may be a copy/paste or the same key used for both. Verify. |
 
 ---
 
-## Public API key — ACTION REQUIRED
+## Public API — EXISTING IMPLEMENTATION (`/Users/nav/backend/services/public_api.py`)
 
-The Finnhub key in `.env` (`d84ic5pr01qutij93meg`) is **not** a Public API key. Public API (public.com) is a separate brokerage with its own API key system.
+**Full `PublicBroker` class already built and tested.** The `/Users/nav/backend/` service layer is a standalone Python backend with:
 
-**To get the Public API key:**
-1. Log into Public.com account
-2. Go to Account Settings → Security → API
-3. Generate API key
-4. Add to `backend/.env` as `PUBLIC_API_KEY=<key>` (or whatever the env var name should be — confirm with Nav)
+**Auth:** `PUBLIC_API_KEY` env var → JWT access token (55 min default validity, max 1440)
+**Endpoints implemented:**
+- `get_accounts()` — list all accounts
+- `get_trading_account()` — active trading account
+- `get_portfolio(account_id)` — cash, positions, P&L, options buying power
+- `get_quotes([symbols], account_id)` — live quotes
+- `get_option_chain(symbol, expiration, account_id)` — raw chain
+- `get_option_chain_parsed(symbol, expiration, account_id)` — `{"calls": [...], "puts": [...]}` with `OptionContract` objects (strike, expiration, OI, IV, delta, gamma, theta, vega, bid, ask)
+- `get_option_greeks(osi_symbols, account_id)` — max 250 symbols per call
+- `get_bars(symbol, period, ...)` — OHLCV, multiple aggregations (1m to 1y)
+- `place_order(...)` — equity/options/crypto/bond, market/limit/stop/stop-limit
 
-**Until the Public API key is in .env:**
-- Agent 2 (backend integration) should build against the Public API spec but test with mock data / cvserver samples
-- Frontend agents should wire to `window.cvApi` which goes through the local proxy — the proxy will need the key server-side
-- Do NOT commit any real API key to the repo. The `.env` is gitignored.
+**Test coverage:** `/Users/nav/backend/tests/services/test_public_api.py` (547 lines) — all network calls mocked, covers error paths (no key, API returning None, bulk quote mixed success/failure).
+
+**Gaps to fill for Phase 3:**
+1. Confirm which key is active (`d84ic...` vs `PkdDG...`)
+2. Wire PublicBroker into floww backend (currently floww uses cvserver_client.py for chain data)
+3. Add `/api/public/chain/{ticker}` endpoint to floww backend that uses PublicBroker under the hood
+4. Add rate-limit handling → Tidehunter Pro fallback
+5. Frontend wiring: Solstice/Triad/Tidehunter Pro tabs call the new floww backend endpoints
+
+**Connection model (to decide in Phase 3.1):**
+- Option A: Copy/import `PublicBroker` into floww backend's services/ and add endpoints
+- Option B: The `/Users/nav/backend/` layer IS a separate service that floww talks to via HTTP
+- Option C: Floww backend adds PublicBroker as a new data provider alongside cvserver_client
 
 ---
 
@@ -91,19 +107,20 @@ The Finnhub key in `.env` (`d84ic5pr01qutij93meg`) is **not** a Public API key. 
 
 ```
 IF need options chain / OI / Greeks (heatmap):
-  → Try Public API first
+  → Try Public API (PublicBroker.get_option_chain_parsed / get_option_greeks)
   → If Public API fails/rate-limited → Tidehunter Pro
   → Do NOT fall back to yfinance for chain data
 
 IF need spot price:
-  → Try Public API spot endpoint
+  → Try Public API (PublicBroker.get_quotes)
   → If unavailable → yfinance (5s cache)
 
 IF designing / inspecting data (agent, not runtime):
-  → Use cvserver MCP tools
+  → Use cvserver MCP tools (existing floww backend capability)
 
 IF runtime page:
   → Use window.cvApi (goes through local proxy, auth server-side)
+  → OR call floww backend endpoints that use PublicBroker under the hood
 ```
 
 ---
@@ -112,4 +129,4 @@ IF runtime page:
 
 - **Zenith API** — Zenith is a UI tab, not a service. No API calls go here.
 - **Schwab live key** — doesn't exist. Don't try to wire it.
-- **Public API key in .env** — not there yet. See above.
+- **Tidehunter Pro key** — not yet in any .env. Only needed if Public API is actually limited.

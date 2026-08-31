@@ -35,12 +35,13 @@ backlog items.
 
 **Source:** `.planning/DATA_SOURCES.md`, `.planning/AGENT_CONTRACT.md`
 
-- [ ] 3.1 Confirm Public API key — Finnhub key (`d84ic5pr01qutij93meg`) in `.env` is NOT Public API; need Nav to generate Public.com API key from Account Settings → Security → API
-- [ ] 3.2 Public API chain endpoint integration — options chain with OI, strikes, expiries; mock-testable without live key
-- [ ] 3.3 Public API spot endpoint — live price replacement for yfinance spot
-- [ ] 3.4 Rate limit / degradation handling — Public API limit → Tidehunter Pro fallback switch; yfinance spot fallback
-- [ ] 3.5 cvserver MCP alignment — ensure cvserver tools reflect Public API data shape; update `AGENTS.md` data docs
-- [ ] 3.6 Tests: chain endpoint returns non-degraded response (mock Public API if no live key yet)
+|- [ ] 3.1 Confirm which Public API key is active — user-provided `d84ic5pr01qutij93me0d84ic5pr01qutij93meg` vs env.example `PkdDGcMzqMie0f6I823q6nHtmkGJyRsu`; the user-provided key supersedes
+|- [ ] 3.2 Audit `/Users/nav/backend/services/public_api.py` — existing `PublicBroker` class, full chain/quotes/portfolio/orders/greeks/bars pipeline, tested in `test_public_api.py` (547 lines)
+|- [ ] 3.3 Decide connection model — copy/import PublicBroker into floww backend vs. HTTP service vs. new data provider alongside cvserver_client
+|- [ ] 3.4 Wire Public API as primary chain source for Solstice heatmap (replace/augment cvserver as primary)
+|- [ ] 3.5 Add `/api/public/chain/{ticker}` endpoint to floww backend using PublicBroker
+|- [ ] 3.6 Add `/api/public/quotes/{ticker}` endpoint for spot price
+|- [ ] 3.7 Rate-limit / degradation handling — Public API limit → Tidehunter Pro fallback; yfinance spot fallback
 
 ## Phase 4 — Tidehunter Pro Integration
 
