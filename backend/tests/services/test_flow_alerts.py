@@ -258,7 +258,9 @@ def test_persist_and_read_round_trip(fresh_engine):
 def test_dedup_filter_suppresses_within_ttl_and_refires_after(fresh_engine):
     init_flow_alert_tables(fresh_engine)
     rows = norm_rows([_raw(vol=60000, oi=1500)])
-    alerts = eval_institutional(rows)
+    # Low the alert gates so this tests the DEDUP mechanics, not the alert
+    # thresholds (which tightened in the 2026-09-02 noise pass).
+    alerts = eval_institutional(rows, opts={"min_score": 1, "whale_premium": 1.0})
     first = dedup_filter(fresh_engine, alerts, now=1000.0)
     assert len(first) == 1
     again = dedup_filter(fresh_engine, alerts, now=1000.0 + 60)
@@ -270,7 +272,7 @@ def test_dedup_filter_suppresses_within_ttl_and_refires_after(fresh_engine):
 def test_update_moves_sets_move_pct_from_new_spot(fresh_engine):
     init_flow_alert_tables(fresh_engine)
     rows = norm_rows([_raw(vol=60000, oi=1500, spot=133.0)])
-    persist_alerts(fresh_engine, eval_institutional(rows))
+    persist_alerts(fresh_engine, eval_institutional(rows, opts={"min_score": 1, "whale_premium": 1.0}))
     changed = update_moves(fresh_engine, {"PLTR": 138.2})
     assert changed == 1
     f = read_alert_feed(fresh_engine, days=3)[0]
@@ -297,7 +299,8 @@ def test_read_alert_feed_min_tier_filter_and_order(fresh_engine):
 
 def test_persist_same_key_same_day_upserts_not_duplicates(fresh_engine):
     init_flow_alert_tables(fresh_engine)
-    alerts = eval_institutional(norm_rows([_raw(vol=60000, oi=1500)]))
+    alerts = eval_institutional(norm_rows([_raw(vol=60000, oi=1500)]),
+                                opts={"min_score": 1, "whale_premium": 1.0})
     persist_alerts(fresh_engine, alerts)
     persist_alerts(fresh_engine, alerts)
     assert len(read_alert_feed(fresh_engine, days=3)) == 1

@@ -150,6 +150,12 @@ export function evalAlerts(rows, opts = {}) {
     zeroDteScore = 70,
     oiConfPct = 0.30,
     oiConfNotional = 1e6,
+    // 2026-09-02 noise pass: per-ticker alert cap per scan. Contract rules
+    // fire on NEW rows; a 60-name breadth day can legitimately flag 60 rows
+    // — that is data, but 60 notifications is noise. Top-cap keeps the
+    // strongest claims per ticker; count stays truthful (engine still
+    // evaluated everything).
+    perTickerCap = 2,
     enabled = { score: true, whale: true, zerodte: true, oiconf: true },
     allow = null,
   } = opts;
@@ -189,14 +195,18 @@ export function evalAlerts(rows, opts = {}) {
   // Pass 2 — intraday rules on NEW rows. Rows that won an OICONF slot skip
   // this (one alert per row, strongest claim wins); rows that qualified but
   // ranked 6+ fall through here so their one-shot _new alert isn't swallowed.
+  // Side gate on intraday rules: oiconf stays side-agnostic.
+  const sideGate = typeof opts.side === "string" && opts.side !== "all"
+    ? opts.side : null;
   for (const r of rows || []) {
     if (!r._new || inTop.has(r)) continue;
     if (allowSet && !allowSet.has(r.under)) continue;
+    if (sideGate && r.type !== sideGate) continue;
     let rule = null, why = null;
-    if (enabled.score && r.score >= minScore) {
+    if (enabled.score && r.score >= (enabled.scoreMin ?? minScore)) {
       rule = "SCORE";
       why = `score ${r.score} — vol ${r.volOI >= 99 ? "99+" : (r.volOI ?? 0).toFixed(1)}× OI${r.premium != null ? `, ~${fmtUSD(r.premium)} premium` : ""}${r.dte != null ? `, ${r.dte} DTE` : ""}`;
-    } else if (enabled.whale && r.premium != null && r.premium >= whalePremium) {
+    } else if (enabled.whale && r.premium != null && r.premium >= (enabled.whaleMin ?? whalePremium)) {
       rule = "WHALE";
       why = `~${fmtUSD(r.premium)} estimated premium on a single line`;
     } else if (enabled.zerodte && r.dte != null && r.dte <= 1 && r.score >= zeroDteScore) {
@@ -205,6 +215,24 @@ export function evalAlerts(rows, opts = {}) {
     }
     if (!rule) continue;
     out.push(mkHit(r, rule, { why }));
+  }
+  // Per-ticker cap — contract rules only, priority order OICONF > WHALE >
+  // SCORE > 0DTE (mirrors the fire-banner precedence). OICONF pass-1 hits are
+  // exempt (already capped at top-5 globally by % build).
+  if (perTickerCap > 0) {
+    const prio = { SCORE: 0, WHALE: 1, "0DTE": 2 };
+    const perTicker = new Map();
+    const kept = [];
+    for (const h of out) {
+      if (!prio.hasOwnProperty(h.rule)) { kept.push(h); continue; }   // OICONF etc exempt
+      const n = perTicker.get(h.under) || 0;
+      if (n >= perTickerCap) continue;
+      perTicker.set(h.under, n + 1);
+      kept.push(h);
+    }
+    kept.sort((a, b) => (prio[a.rule] ?? 9) - (prio[b.rule] ?? 9));
+    out.length = 0;
+    out.push(...kept);
   }
   return out;
 }
@@ -290,7 +318,7 @@ export function evalTickerAlerts(rollup, baselines = {}, streaks = {}, opts = {}
     if (enabled.sigma) {
       const b = baselines[e.under];
       const s = volSigma(e.callVol + e.putVol, b);
-      if (s != null && s >= sigmaMin) {
+      if (s != null && s >= (enabled.sigmaMin ?? sigmaMin)) {
         out.push({
           ...base, key: `sigma|${e.under}`, rule: "SIGMA", sigma: s,
           label: `${e.under} options volume ${s}σ above its ${b.days}-day baseline (${fmtK(e.callVol + e.putVol)} vs ~${fmtK(b.avg)} avg)`,
@@ -300,7 +328,7 @@ export function evalTickerAlerts(rollup, baselines = {}, streaks = {}, opts = {}
     }
     if (enabled.follow) {
       const st = streaks[e.under];
-      if (st && st.n >= followDays) {
+      if (st && st.n >= (enabled.followMin ?? followDays)) {
         out.push({
           ...base, key: `follow|${e.under}`, rule: "FOLLOW", streak: st.n,
           label: `${e.under} elevated options volume ${st.n} straight days (≥${st.mult}× its median) — persistent positioning`,

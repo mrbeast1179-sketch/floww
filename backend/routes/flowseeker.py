@@ -867,7 +867,10 @@ def _scan_payload(rows: list, stale: bool, asof: str, columns: list, cache_age: 
 
 @router.get("/scan")
 async def market_scan(
-    min_volume: int = Query(1000, ge=0),
+    # 2026-09-02 noise pass: default floor 1000→2500 — sub-2500-contract day
+    # volume on liquid names is dealer churn; the client's quality gate was
+    # filtering it anyway, so stop paying the wire cost for it.
+    min_volume: int = Query(2500, ge=0),
     limit: int = Query(300, ge=1, le=1000),
     force: bool = Query(False),
 ):

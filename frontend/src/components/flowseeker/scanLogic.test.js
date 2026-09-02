@@ -736,3 +736,66 @@ describe("pickBanner", () => {
     expect(pickBanner([mk("FOLLOW")]).rule).toBe("FOLLOW");
   });
 });
+
+describe("evalAlerts noise pass (2026-09-02)", () => {
+  const mk = (over = {}) => ({
+    under: "SPY", type: "call", strike: 745, exp: "2099-01-08",
+    score: 90, premium: 2e6, notional: 5e7, volOI: 3, dte: 5, _new: true, ...over,
+  });
+  it("enabled.scoreMin overrides the legacy minScore default (92 > 85)", () => {
+    // No explicit minScore — the tightened default must come from enabled.scoreMin.
+    const hits = evalAlerts([mk({ score: 88 })], { enabled: { score: true, scoreMin: 92 } });
+    expect(hits).toHaveLength(0);
+    const hits2 = evalAlerts([mk({ score: 93 })], { enabled: { score: true, scoreMin: 92 } });
+    expect(hits2).toHaveLength(1);
+  });
+  it("enabled.whaleMin overrides the legacy whalePremium default ($25M)", () => {
+    const hits = evalAlerts([mk({ score: 40, premium: 12e6 })], { enabled: { whale: true, whaleMin: 25e6 } });
+    expect(hits).toHaveLength(0);
+    const hits2 = evalAlerts([mk({ score: 40, premium: 26e6 })], { enabled: { whale: true, whaleMin: 25e6 } });
+    expect(hits2[0].rule).toBe("WHALE");
+  });
+  it("perTickerCap keeps the strongest claims per ticker, priority SCORE > WHALE > 0DTE", () => {
+    const rows = [
+      mk({ under: "SPY", strike: 700, score: 95, premium: 1e6 }),                       // SCORE #1
+      mk({ under: "SPY", strike: 705, score: 93, premium: 1e6 }),                       // SCORE #2
+      mk({ under: "SPY", strike: 710, score: 91, premium: 30e6 }),                      // WHALE — cap hit
+      mk({ under: "QQQ", strike: 500, score: 90, premium: 1e6 }),                       // other ticker untouched
+    ];
+    const hits = evalAlerts(rows, { perTickerCap: 2, enabled: { score: true, scoreMin: 85, whale: true, whaleMin: 25e6 } });
+    const spy = hits.filter((h) => h.under === "SPY");
+    expect(spy).toHaveLength(2);
+    expect(spy.map((h) => h.strike).sort()).toEqual([700, 705]);   // strongest scores kept
+    expect(hits.some((h) => h.under === "QQQ")).toBe(true);
+  });
+  it("perTickerCap=0 disables the cap (old behavior)", () => {
+    const rows = [mk({ strike: 700 }), mk({ strike: 705 }), mk({ strike: 710 })];
+    const hits = evalAlerts(rows, { perTickerCap: 0, enabled: { score: true, scoreMin: 85 } });
+    expect(hits).toHaveLength(3);
+  });
+  it("side gate filters intraday rules by contract side, OICONF exempt", () => {
+    const rows = [mk({ type: "put", score: 95 }), mk({ type: "call", score: 95 })];
+    const callsOnly = evalAlerts(rows, { side: "call", enabled: { score: true, scoreMin: 85 } });
+    expect(callsOnly).toHaveLength(1);
+    expect(callsOnly[0].type).toBe("call");
+    expect(evalAlerts(rows, { side: "all", enabled: { score: true, scoreMin: 85 } })).toHaveLength(2);
+  });
+});
+
+describe("evalTickerAlerts noise pass (2026-09-02)", () => {
+  const rollup = (under, vol) => [{ under, callVol: vol / 2, putVol: vol / 2, prem: 0, callPrem: 0, putPrem: 0, count: 1, maxScore: 90 }];
+  const baseline = { avg: 8000, std: 4000, days: 5 };
+  it("enabled.sigmaMin overrides the legacy sigmaMin default (6 > 4)", () => {
+    // vol 36000 → σ = (36000-8000)/4000 = 7.0
+    const hit7 = evalTickerAlerts(rollup("SPY", 36000), { SPY: baseline }, {}, { enabled: { sigma: true, sigmaMin: 6 } });
+    expect(hit7).toHaveLength(1);
+    const hit5 = evalTickerAlerts(rollup("SPY", 28000), { SPY: baseline }, {}, { enabled: { sigma: true, sigmaMin: 6 } });
+    expect(hit5).toHaveLength(0);   // σ = 5.0 — passed the old 4σ gate, fails 6σ
+  });
+  it("enabled.followMin overrides the legacy followDays default (3 > 2)", () => {
+    const streaks = { SPY: { n: 2, mult: 1.5, median: 10000, thr: 15000 } };
+    expect(evalTickerAlerts(rollup("SPY", 36000), {}, streaks, { enabled: { follow: true, followMin: 3 } })).toHaveLength(0);
+    streaks.SPY.n = 3;
+    expect(evalTickerAlerts(rollup("SPY", 36000), {}, streaks, { enabled: { follow: true, followMin: 3 } })).toHaveLength(1);
+  });
+});

@@ -2,9 +2,11 @@
  * FlowseekerProBlademap.jsx — Blademap.ai-style Tidehunter Pro, wired to REAL
  * market data. Phase 5.3 (2026-08-31): live flow feed now tries Public API
  * (/api/public/chain) first, falls back to cvserver (/api/flowseeker/chain).
- *   /api/flowseeker/live  /ofi/{t}  /regime/{t}  /vpin/{t}  /lambda/{t}
+ *   /api/flowseeker/live  /regime/{t}  /api/vpin/{t} (microstructure router)
  *   /api/heatmap/{t} (real GEX grid)  /api/public/chain/{t} (Phase 5.3)
- * Vol surface stays synthetic (no IV-surface backend) and is labelled SIM.
+ * NOTE: /api/flowseeker/ofi/{t} and /lambda/{t} DO NOT EXIST on the backend —
+ * the fetches below .catch(() => null) by design; VPIN/λ stay blank until a
+ * trade-level feed exists. Vol surface tab removed from the tab strip.
  *
  * Self-contained: scoped CSS (.fsb-root, fsb-* classes), Plotly via CDN.
  * The agent's FlowseekerProTab.jsx is left untouched.
@@ -17,6 +19,11 @@ import "./FlowseekerProBlademap.css";
 const API = `${BACKEND_URL}/api/flowseeker`;
 const WATCH = ["SPY", "QQQ", "IWM", "NVDA", "TSLA", "AAPL", "MSFT", "AMZN", "META", "GOOGL"];
 const NOISE_FLOOR = 5; // ignore day-volume deltas below this many contracts
+// Desk noise budget: max tape-visible alerts per rule per hour. The eval
+// engines still count EVERY hit (deltas + ⚡badge stay truthful); this only
+// caps what reaches the tape. 0 = unlimited (kept for parity with the old
+// behavior if a desk wants the flood back).
+const ALERT_NOISE_CAP_H = 4;
 
 const PL = {
   paper: "rgba(0,0,0,0)", plot: "rgba(0,0,0,0)", grid: "#1c2230", axis: "#3a4358",
@@ -108,7 +115,14 @@ const ALERTS_KEY = "fsb-scan-alerts-v1";
 const ALERTSEEN_KEY = "fsb-scan-alertseen-v1";
 // Rule defaults are MERGED over stored prefs — a pref blob saved before a new
 // rule existed must not silently disable it. Order = tape-summary display order.
-const DEFAULT_RULES = { oiconf: true, follow: true, sigma: true, score: true, whale: true, zerodte: true };
+// 2026-09-02 institutional noise pass: SCORE 85→92, WHALE $10M→$25M, SIGMA 4σ→6σ,
+// FOLLOW 2d→3d. The chips stay user-toggleable — an existing pref blob keeps its
+// saved thresholds (merge only fills keys that don't exist yet), so nobody's
+// setup changes under them without a click.
+const DEFAULT_RULES = {
+  oiconf: true, follow: true, sigma: true, score: true, whale: true, zerodte: true,
+  scoreMin: 92, whaleMin: 25e6, sigmaMin: 6, followMin: 3,
+};
 const RULES_ORDER = ["OICONF", "FOLLOW", "SIGMA", "SCORE", "WHALE", "0DTE", "SOURCE"];
 const FIRSTSEEN_KEY = "fsb-scan-firstseen-v1";
 const LASTSEEN_KEY = "fsb-scan-lastseen-v1";
@@ -194,7 +208,13 @@ export default function FlowseekerProBlademap({ active = true }) {
   const [scanSort, setScanSort] = useState(prefs.scanSort || { key: "score", dir: "desc" });
   const [scanTypeF, setScanTypeF] = useState(prefs.scanTypeF || "all");
   const [scanMinVol, setScanMinVol] = useState(prefs.scanMinVol || 0);
+  const [scanMinPrem, setScanMinPrem] = useState(prefs.scanMinPrem || 0);
+  const [scanMinOI, setScanMinOI] = useState(prefs.scanMinOI || 0);
   const [scanMinScore, setScanMinScore] = useState(prefs.scanMinScore || 0);
+  // DTE time-frame preset for the SCAN table too — the flow feed has had this
+  // since fe0e9ef; the Scanner lost it in the Simple-mode consolidation. Same
+  // presets, same semantics as the flow feed's dteFilter.
+  const [scanDteF, setScanDteF] = useState(prefs.scanDteF || "all");
   const [scanQ, setScanQ] = useState("");
   const [scanMeta, setScanMeta] = useState({ mode: null, stale: false, symbols: 0 });
   const [baselines, setBaselines] = useState({});   // {ticker: {avg, std, days}} from /scan
@@ -204,12 +224,14 @@ export default function FlowseekerProBlademap({ active = true }) {
   const [alertRules, setAlertRules] = useState({ ...DEFAULT_RULES, ...(prefs.alertRules || {}) });
   const [history, setHistory] = useState({});   // {ticker: [{date, total_vol, call_vol, put_vol}]} from /scan/history
   const [alertLog, setAlertLog] = useState(loadAlertLog);
+  const [suppressedCount, setSuppressedCount] = useState(0);   // noise-budget overflow (truthful, session-scoped)
   // Simple mode (default): institutional alerts + a best-only table, no knobs.
   // ⚙ Advanced reveals the full filter/preset/universe/rule-chip toolkit.
   const [advanced, setAdvanced] = useState(!!prefs.advanced);
   const [alertsOpen, setAlertsOpen] = useState(true);   // the feed IS the product — open by default
   const [alertOrder, setAlertOrder] = useState("new");   // tape order: newest | oldest first
   const [alertUnivOnly, setAlertUnivOnly] = useState(prefs.alertUnivOnly ?? true);   // scope alerts to My Universe
+  const [scanSideF, setScanSideF] = useState(prefs.scanSideF || "all");   // Calls/Puts — visible in both modes
   const [away, setAway] = useState(null);                 // "while you were away" digest, null = hidden
   const [notify, setNotify] = useState(!!prefs.notify);
   const [forcing, setForcing] = useState(false);
@@ -282,14 +304,12 @@ export default function FlowseekerProBlademap({ active = true }) {
   // Poll effect reads alert config via ref so rule tweaks don't re-arm the interval.
   const alertCfgRef = useRef({});
   useEffect(() => {
-    alertCfgRef.current = { minScore: alertScore, enabled: alertRules, allow: alertUnivOnly ? universe : null };
-  }, [alertScore, alertRules, alertUnivOnly, universe]);
+    alertCfgRef.current = { minScore: alertScore, enabled: alertRules, allow: alertUnivOnly ? universe : null, side: scanSideF };
+  }, [alertScore, alertRules, alertUnivOnly, universe, scanSideF]);
 
-  useEffect(() => {
-    try {
-      localStorage.setItem(PREFS_KEY, JSON.stringify({ scanTypeF, scanMinVol, scanMinScore, scanSort, universe, universeOnly, alertScore, alertRules, notify, alertUnivOnly, advanced }));
+  useEffect(() => {    try { localStorage.setItem(PREFS_KEY, JSON.stringify({ scanTypeF, scanMinVol, scanMinPrem, scanMinOI, scanMinScore, scanSideF, scanDteF, scanSort, universe, universeOnly, alertScore, alertRules, notify, alertUnivOnly, advanced }));
     } catch { /* private mode — prefs just don't persist */ }
-  }, [scanTypeF, scanMinVol, scanMinScore, scanSort, universe, universeOnly, alertScore, alertRules, notify, alertUnivOnly, advanced]);
+  }, [scanTypeF, scanMinVol, scanMinPrem, scanMinOI, scanMinScore, scanSideF, scanDteF, scanSort, universe, universeOnly, alertScore, alertRules, notify, alertUnivOnly, advanced]);
 
   // "While you were away" — keep the last-seen stamp current while visible
   // (the previous visit's value was snapshotted at module load, see AWAY_FROM).
@@ -344,6 +364,10 @@ export default function FlowseekerProBlademap({ active = true }) {
   // the standalone alertSeen store — NOT the display tape — so tape eviction
   // or Clear can't re-fire still-true alerts; tape display caps at 100.
   const alertSeenRef = useRef(loadAlertSeen());
+  // Mirror of the tape for the noise-budget window counts — reads stay OUTSIDE
+  // the setAlertLog updater (updaters must stay pure; StrictMode double-invokes).
+  const alertLogRef = useRef(alertLog);
+  useEffect(() => { alertLogRef.current = alertLog; }, [alertLog]);
   const ingestAlerts = useCallback((rows, mode) => {
     const cfg = alertCfgRef.current;
     const hits = [
@@ -356,25 +380,46 @@ export default function FlowseekerProBlademap({ active = true }) {
         { enabled: { ...cfg.enabled, sigma: !!cfg.enabled.sigma && mode === "market" }, allow: cfg.allow }),
     ];
     if (!hits.length) return;
-    setAlertLog((prev) => {
-      const now = Date.now();
-      const seen = alertSeenRef.current;
-      const fresh = hits.filter((h) => (seen[h.key] ?? 0) < now - (h.ttl || 30 * 60e3))
-        .map((h) => ({ ...h, t: now, time: fmtClock(now, true), src: mode, day: sessionDay(),
-          firstSeen: rows.find((r) => `${r.under}|${r.type}|${r.strike}|${r.exp}` === (h.ckey || h.key))?.firstSeen }));
-      if (!fresh.length) return prev;
-      for (const h of fresh) seen[h.key] = now;
-      try { localStorage.setItem(ALERTSEEN_KEY, JSON.stringify(seen)); } catch { /* private mode */ }
-      if (notifyRef.current && document.hidden && "Notification" in window && Notification.permission === "granted") {
-        try {
-          new Notification(`⚡ ${fresh.length} flow alert${fresh.length > 1 ? "s" : ""}`, {
-            body: fresh.slice(0, 3).map((h) => h.label
-              ? `${h.rule}: ${h.label}`
-              : `${h.rule} ${h.under} ${h.type === "call" ? "C" : "P"}${h.strike}${h.why ? ` — ${h.why}` : ""}`).join("\n"),
-          });
-        } catch { /* notification constructor can throw on some platforms */ }
+    const now = Date.now();
+    const seen = alertSeenRef.current;
+    const fresh = hits.filter((h) => (seen[h.key] ?? 0) < now - (h.ttl || 30 * 60e3))
+      .map((h) => ({ ...h, t: now, time: fmtClock(now, true), src: mode, day: sessionDay(),
+        firstSeen: rows.find((r) => `${r.under}|${r.type}|${r.strike}|${r.exp}` === (h.ckey || h.key))?.firstSeen }));
+    if (!fresh.length) return;
+    // Desk noise budget: after dedup, cap tape-visible fires per rule per
+    // hour (ALERT_NOISE_CAP_H). Overflow is counted, not dropped silently —
+    // the ⚡ Alerts KPI shows +N held back so the total stays truthful.
+    // Suppressed fires STILL get dedup-marked below: the budget limits tape
+    // delivery, not evaluation — otherwise a static all-day SIGMA would
+    // re-fire every poll and inflate the held-back counter meaninglessly.
+    const capped = [];
+    let suppressed = 0;
+    if (ALERT_NOISE_CAP_H > 0) {
+      for (const h of fresh) {
+        const rule = String(h.rule || "").toUpperCase();
+        const nRecent = alertLogRef.current.filter((a) => a.rule === rule && now - a.t < 3600e3).length
+          + capped.filter((a) => a.rule === rule).length;
+        if (nRecent >= ALERT_NOISE_CAP_H) { suppressed++; continue; }
+        capped.push(h);
       }
-      const next = [...fresh, ...prev].slice(0, 100);
+    } else {
+      capped.push(...fresh);
+    }
+    if (suppressed) setSuppressedCount((c) => c + suppressed);
+    if (!capped.length) return;
+    for (const h of fresh) seen[h.key] = now;   // ALL fresh — capped + suppressed
+    try { localStorage.setItem(ALERTSEEN_KEY, JSON.stringify(seen)); } catch { /* private mode */ }
+    if (notifyRef.current && document.hidden && "Notification" in window && Notification.permission === "granted") {
+      try {
+        new Notification(`⚡ ${capped.length} flow alert${capped.length > 1 ? "s" : ""}${suppressed ? ` (+${suppressed} held back)` : ""}`, {
+          body: capped.slice(0, 3).map((h) => h.label
+            ? `${h.rule}: ${h.label}`
+            : `${h.rule} ${h.under} ${h.type === "call" ? "C" : "P"}${h.strike}${h.why ? ` — ${h.why}` : ""}`).join("\n"),
+        });
+      } catch { /* notification constructor can throw on some platforms */ }
+    }
+    setAlertLog((prev) => {
+      const next = [...capped, ...prev].slice(0, 100);
       try { localStorage.setItem(ALERTS_KEY, JSON.stringify(next)); } catch { /* private mode */ }
       return next;
     });
@@ -596,7 +641,7 @@ export default function FlowseekerProBlademap({ active = true }) {
       const chartsVisible = tab !== "scanner";
       const [reg, vpin, lam, ofi, heat] = await Promise.all([
         getJSON(`${API}/regime/${ticker}`, ctrl.signal).catch(() => null),
-        chartsVisible ? getJSON(`${API}/vpin/${ticker}`, ctrl.signal).catch(() => null) : null,
+        chartsVisible ? getJSON(`${BACKEND_URL}/api/vpin/${ticker}`, ctrl.signal).catch(() => null) : null,
         chartsVisible ? getJSON(`${API}/lambda/${ticker}`, ctrl.signal).catch(() => null) : null,
         chartsVisible ? getJSON(`${API}/ofi/${ticker}`, ctrl.signal).catch(() => null) : null,
         chartsVisible ? getJSON(`${BACKEND_URL}/api/heatmap/${ticker}?expiries=6&mode=day`, ctrl.signal).catch(() => null) : null,
@@ -656,18 +701,37 @@ export default function FlowseekerProBlademap({ active = true }) {
   // advanced knobs (a Min-Vol set weeks ago must not silently filter an
   // interface with no visible controls) and applies one opinionated quality
   // gate instead: only rows an institutional desk would look at.
+  // Side + DTE-preset + Min-Prem~/Min-OI apply in BOTH modes (side and DTE
+  // are visible controls; the number inputs are advanced-only).
   const scanRows = useMemo(() => {
     const q = (scanQ || "").trim().toUpperCase();
     const isBest = (r) => r.score >= 70 || r.arch === "WHALE"
       || (r.oiChgPct ?? 0) >= 0.3 || (r.premium ?? 0) >= 1e6;
+    const dteIn = (r, preset) => {
+      const d = r.dte;
+      switch (preset) {
+        case "0dte": return d === 0;
+        case "1-7d": return d >= 1 && d <= 7;
+        case "weekly": return d >= 1 && d <= 7;
+        case "monthly": return d >= 8 && d <= 35;
+        case "qtrly": return d >= 36 && d <= 90;
+        case "leaps": return d >= 91;
+        default: return true;
+      }
+    };
     const rows = scan.filter((r) => {
-      if (!advanced) {
-        if (!isBest(r)) return false;
-      } else {
+      if (scanSideF !== "all" && r.type !== scanSideF) return false;
+      if (!dteIn(r, scanDteF)) return false;
+      if (advanced) {
         if (universeOnly && !universe.includes(r.under)) return false;
         if (scanTypeF !== "all" && r.type !== scanTypeF) return false;
         if (scanMinVol && r.vol < scanMinVol) return false;
+        if (scanMinPrem && (r.premium ?? 0) < scanMinPrem) return false;
+        if (scanMinOI && (r.oi ?? 0) < scanMinOI) return false;
         if (scanMinScore && r.score < scanMinScore) return false;
+      } else {
+        if (scanMinPrem && (r.premium ?? 0) < scanMinPrem) return false;
+        if (!isBest(r)) return false;
       }
       if (q && !(r.under || "").toUpperCase().includes(q)) return false;
       // Zenith control-cluster quick filters
@@ -684,7 +748,7 @@ export default function FlowseekerProBlademap({ active = true }) {
       return (av < bv ? -1 : av > bv ? 1 : 0) * dir;
     });
     return rows;
-  }, [scan, scanTypeF, scanMinVol, scanMinScore, scanQ, scanSort, universe, universeOnly, advanced, minScoreQF, dteRange]);
+  }, [scan, scanSideF, scanDteF, scanTypeF, scanMinVol, scanMinPrem, scanMinOI, scanMinScore, scanQ, scanSort, universe, universeOnly, advanced, minScoreQF, dteRange]);
   // Keyboard nav (scanner tab only, ignored while typing in an input)
   useEffect(() => {
     if (!active || tab !== "scanner") return;
@@ -1160,15 +1224,17 @@ export default function FlowseekerProBlademap({ active = true }) {
         {/* SCANNER VIEW — cross-symbol BladeMap scanner (scenner34 grid) */}
         <div className={`fsb-view${tab === "scanner" ? " active" : ""}`} style={{ gridTemplateColumns: "1fr" }}>
           <div className="fsb-scanwrap">
-            <div className="fsb-scanbar">
-              {[
-                ["Source", scanMeta.mode === "market" ? `LIVE · mkt-wide ·${scanMeta.symbols}` : scanMeta.mode === "fallback" ? `FALLBACK ·${scanMeta.symbols} sym` : "—",
+            <div className="fsb-scanbar">                {[
+                  ["Source", scanMeta.mode === "market" ? `LIVE · mkt-wide ·${scanMeta.symbols}` : scanMeta.mode === "fallback" ? `FALLBACK ·${scanMeta.symbols} sym` : "—",
                   scanMeta.stale ? "y" : scanMeta.mode === "market" ? "g" : scanMeta.mode ? "y" : ""],
                 ["Contracts", `${scanRows.length} / ${scan.length}${scanRows.length > 200 ? " ·top200" : ""}`, "b"],
                 ["Notional Σ", fmtUSD(scanStats.notl), ""],
                 ["Call/Put Vol", scanStats.tv > 0 ? `${scanStats.cpct}% / ${100 - scanStats.cpct}%` : "—", scanStats.cpct >= 50 ? "g" : "r"],
                 ["Unusual (≥2×)", String(scanStats.unusual), "y"],
-                ["⚡ Alerts", `${scanStats.alerts} · log ${alertLog.length}`, scanStats.alerts ? "r" : "", "Open the alert log"],
+                ...((alertRules.scoreMin ?? 92) > 85 || (alertRules.whaleMin ?? 25e6) > 10e6
+                  ? [["Quality gate", `SCORE≥${alertRules.scoreMin ?? 92} · WHALE≥$${Math.round((alertRules.whaleMin ?? 25e6) / 1e6)}M · SIGMA≥${alertRules.sigmaMin ?? 6}σ`, "b"]]
+                  : []),
+                ["⚡ Alerts", `${alertLog.length}${suppressedCount ? ` ·+${suppressedCount} held` : ""}`, alertLog.length ? "r" : "", "Open the alert log — count includes every fire this session; held back = noise-budget overflow that stayed truthful but off the tape"],
                 ["Updated",
                   scanMeta.stale
                     ? `STALE${scanMeta.retry ? ` ·retry ${Math.round(scanMeta.retry)}s` : ""} · ${scanAt || "—"}`
@@ -1184,7 +1250,7 @@ export default function FlowseekerProBlademap({ active = true }) {
                   </>,
                   heartbeat.dot,
                   heartbeat.tier === "fresh" && scanAt ? `${heartbeat.hint} · last fetch ${scanAt}` : heartbeat.hint],
-              ].filter(([l]) => advanced || ["Source", "⚡ Alerts", "Updated", "Heartbeat"].includes(l))
+              ].filter(([l]) => advanced || ["Source", "⚡ Alerts", "Updated", "Heartbeat", "Quality gate"].includes(l))
                 .map(([l, v, c, tip]) => (
                 <div key={l} className={`fsb-skpi${l === "⚡ Alerts" ? " fsb-skpi-click" : ""}`}
                   onClick={l === "⚡ Alerts" ? () => setAlertsOpen((o) => !o) : undefined}
@@ -1285,11 +1351,27 @@ export default function FlowseekerProBlademap({ active = true }) {
                 </span>
               </div>
             )}
+            {/* Institutional: side + DTE presets always visible (the lost filter — restored, both modes). */}
+            <div className="fsb-scanctrl fsb-scanctrl-always">
+              <select value={scanSideF} onChange={(e) => setScanSideF(e.target.value)}>
+                <option value="all">All Side</option><option value="call">Calls</option><option value="put">Puts</option>
+              </select>
+              <span className="fsb-presets">
+                {["all", "0dte", "1-7d", "weekly", "monthly", "qtrly", "leaps"].map((p) => (
+                  <button key={p} className={`fsb-preset${scanDteF === p ? " on" : ""}`}
+                    onClick={() => setScanDteF(p)}>
+                    {p === "all" ? "All DTE" : p === "0dte" ? "0DTE" : p === "1-7d" ? "1-7D" : p === "weekly" ? "Wk" : p === "monthly" ? "Mo" : p === "qtrly" ? "Qtr" : "LEAPS"}
+                  </button>
+                ))}
+              </span>
+            </div>
             {advanced && <div className="fsb-scanctrl">
               <select value={scanTypeF} onChange={(e) => setScanTypeF(e.target.value)}>
                 <option value="all">All Types</option><option value="call">Calls</option><option value="put">Puts</option>
               </select>
               <input type="number" min="0" step="1000" placeholder="Min Vol" value={scanMinVol || ""} onChange={(e) => setScanMinVol(parseFloat(e.target.value) || 0)} />
+              <input type="number" min="0" step="250000" placeholder="Min Prem~" value={scanMinPrem || ""} onChange={(e) => setScanMinPrem(parseFloat(e.target.value) || 0)} />
+              <input type="number" min="0" step="500" placeholder="Min OI" value={scanMinOI || ""} onChange={(e) => setScanMinOI(parseFloat(e.target.value) || 0)} />
               <input type="number" min="0" max="100" step="5" placeholder="Min Score" value={scanMinScore || ""} onChange={(e) => setScanMinScore(parseFloat(e.target.value) || 0)} />
               <input ref={scanQRef} placeholder="Ticker…  ( / )" value={scanQ} onChange={(e) => setScanQ((e.target.value || "").toUpperCase())} />
               <span className="fsb-presets">
@@ -1313,8 +1395,14 @@ export default function FlowseekerProBlademap({ active = true }) {
                 title="Comma-separated tickers — used by the fallback scan and the 'My universe' filter"
                 onBlur={(e) => { const u = (e.target.value || "").toUpperCase().split(/[,\s]+/).filter(Boolean); if (u.length) setUniverse(u); }} />
               <input className="fsb-alertn" type="number" min="50" max="100" value={alertScore}
-                title="Alert when a NEW contract scores ≥ this"
-                onChange={(e) => setAlertScore(Math.max(50, Math.min(100, parseInt(e.target.value, 10) || 85)))} />
+                title="Alert when a NEW contract scores ≥ this (drives the SCORE rule)"
+                onChange={(e) => {
+                  const v = Math.max(50, Math.min(100, parseInt(e.target.value, 10) || 85));
+                  setAlertScore(v);
+                  // SCORE rule reads enabled.scoreMin first — keep both in sync
+                  // so this visible control stays the source of truth.
+                  setAlertRules((r) => ({ ...r, scoreMin: v }));
+                }} />
               <span className="fsb-scannote">Live cross-symbol flow · cvforge day-volume vs OI. No per-trade tape on this feed — Flow-type = volume-magnitude class; Lean = contract-type bias.</span>
             </div>}
             {away && (
@@ -1387,8 +1475,8 @@ export default function FlowseekerProBlademap({ active = true }) {
                       <button className={`fsb-rulechip${alertUnivOnly ? " on" : ""}`}
                         title="Scope alerts + notifications to My Universe tickers only — off = whole market (700+ symbols)"
                         onClick={() => setAlertUnivOnly((v) => !v)}>🎯 UNIV</button>
-                      {[["oiconf", "ΔOI CONF"], ["follow", "FOLLOW 2d+"], ["sigma", "SIGMA ≥4σ"],
-                        ["score", `SCORE≥${alertScore}`], ["whale", "WHALE ≥$10M~"], ["zerodte", "0DTE HOT"]].map(([k, lbl]) => (
+                      {[["oiconf", "ΔOI CONF"], ["follow", `FOLLOW ${alertRules.followMin ?? 3}d+`], ["sigma", `SIGMA ≥${alertRules.sigmaMin ?? 6}σ`],
+                        ["score", `SCORE≥${alertRules.scoreMin ?? 92}`], ["whale", `WHALE ≥$${Math.round((alertRules.whaleMin ?? 25e6) / 1e6)}M~`], ["zerodte", "0DTE HOT"]].map(([k, lbl]) => (
                         <button key={k} className={`fsb-rulechip${alertRules[k] ? " on" : ""}`}
                           title="Toggle this alert rule"
                           onClick={() => setAlertRules((r) => ({ ...r, [k]: !r[k] }))}>{lbl}</button>
@@ -1415,7 +1503,7 @@ export default function FlowseekerProBlademap({ active = true }) {
                 </div>
                 {alertLog.length === 0 ? (
                   <div className="fsb-muted" style={{ padding: 10 }}>
-                    No alerts yet — rows crossing an enabled rule log here with arrival time, source, and the reason they fired. Confirmation tier: ΔOI CONF = overnight open-interest build proves yesterday's flow held; FOLLOW = multiple straight days of elevated volume; SIGMA = volume ≥4σ vs the ticker's own baseline. Intraday tier: SCORE / WHALE / 0DTE on newly arrived contracts (deduped 30min). Tape keeps today + yesterday; 🎯 UNIV scopes alerts to your universe.
+                    No alerts yet — rows crossing an enabled rule log here with arrival time, source, and the reason they fired. Confirmation tier: ΔOI CONF = overnight open-interest build proves yesterday's flow held; FOLLOW = 3+ straight days of elevated volume; SIGMA = volume ≥6σ vs the ticker's own baseline. Intraday tier: SCORE ≥92 / WHALE ≥$25M~ / 0DTE on newly arrived contracts (deduped, noise-budget capped at 4/rule/hour). Tape keeps today + yesterday; 🎯 UNIV scopes alerts to your universe.
                   </div>
                 ) : (
                   <table className="fsb-alerttab">

@@ -1,5 +1,38 @@
 /* Tidehunter Pro — Blademap aesthetic, scoped under .fsb-root so it never
    collides with the decoder's global .panel/.tab/.chip/.view classes. */
+
+/* Institutional noise pass 2026-09-02: always-on side + DTE preset row on the
+   Scanner (restores the lost DTE filter in BOTH simple and advanced modes). */
+.fsb-scanctrl-always {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding: 6px 12px;
+  border-bottom: 1px solid var(--fsb-border);
+}
+.fsb-scanctrl-always .fsb-presets {
+  display: inline-flex;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+.fsb-scanctrl-always select {
+  background: rgba(0, 0, 0, 0.25);
+  color: var(--fsb-text2);
+  border: 1px solid var(--fsb-border2);
+  border-radius: 4px;
+  padding: 3px 6px;
+  font: 11px ui-monospace, Menlo, monospace;
+}
+.fsb-scanctrl-always .fsb-preset {
+  opacity: 0.75;
+}
+.fsb-scanctrl-always .fsb-preset.on {
+  opacity: 1;
+  border-color: var(--fsb-blue);
+  color: var(--fsb-blue);
+}
+
 .fsb-root {
   --fsb-bg: #0b0d12;
   --fsb-bg2: #0f121a;

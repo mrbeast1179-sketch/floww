@@ -317,7 +317,7 @@ def build_key_levels(r: dict, bias: str | None,
 
 _INDICATOR_LABELS = (
     ("score90", "Top-decile composite score"),
-    ("whale", "Whale premium (≥$10M)"),
+    ("whale", "Whale premium (≥$25M)"),
     ("sigma_ticker", "σ spike (BH-FDR surviving)"),
     ("informed_band", "Informed-positioning band (7–90 DTE, Pan-Poteshman)"),
     ("regime_confluent", "Regime-confluent tenor"),
@@ -431,7 +431,7 @@ def _common_factors(r: dict, regimes: dict, sigma_tickers: set,
 
     return {
         "score90": (r.get("_score") or 0) >= 90,
-        "whale": (r.get("premium") or 0) >= 10e6,
+        "whale": (r.get("premium") or 0) >= 25e6,
         "sigma_ticker": r["under"] in sigma_tickers,
         "informed_band": dte is not None and 7 <= dte <= 90 and vol_oi >= 3 and (r.get("premium") or 0) >= 25e3,
         "regime_confluent": (reg == "negative" and dte is not None and dte <= 7)
@@ -463,8 +463,12 @@ def eval_institutional(rows, baselines=None, prev_oi=None, regimes=None, opts=No
     )
 
     o = {
-        "min_score": 85, "whale_premium": 10e6, "zero_dte_score": 70,
-        "oiconf_pct": 0.30, "oiconf_notional": 1e6, "sigma_min": 3.0,
+        # 2026-09-02 institutional noise pass — mirrors the frontend's tightened
+        # defaults (scanLogic.js / FlowseekerProBlademap.jsx DEFAULT_RULES):
+        # SCORE 85→92, WHALE $10M→$25M, SIGMA 3.0→6.0. Parity contract: the
+        # frontend tape and this feed must never disagree about what qualifies.
+        "min_score": 92, "whale_premium": 25e6, "zero_dte_score": 70,
+        "oiconf_pct": 0.30, "oiconf_notional": 1e6, "sigma_min": 6.0,
         "fdr_q": 0.10,
         **(opts or {}),
     }
