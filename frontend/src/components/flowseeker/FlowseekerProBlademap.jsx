@@ -244,7 +244,8 @@ export default function FlowseekerProBlademap({ active = true }) {
       if (c && c.ok) setCalibration(c);
     } catch { /* model endpoint cold — panel stays empty */ }
   }, []);
-  useEffect(() => { if (active) loadOutcomes(); }, [active, loadOutcomes, refreshTick]);
+  // NOTE: the refreshTick-consuming effect lives BELOW refreshTick's
+  // declaration (TDZ: `const` is not usable before its initializer runs).
   // Simple mode (default): institutional alerts + a best-only table, no knobs.
   // ⚙ Advanced reveals the full filter/preset/universe/rule-chip toolkit.
   const [advanced, setAdvanced] = useState(!!prefs.advanced);
@@ -256,6 +257,9 @@ export default function FlowseekerProBlademap({ active = true }) {
   const [notify, setNotify] = useState(!!prefs.notify);
   const [forcing, setForcing] = useState(false);
   const [refreshTick, setRefreshTick] = useState(0);
+  // Outcomes/model refresh — declared here because refreshTick is declared
+  // above this line (TDZ-safe; the hook reads it in its dependency array).
+  useEffect(() => { if (active) loadOutcomes(); }, [active, loadOutcomes, refreshTick]);
   // ── Keyboard navigation: j/k cursor, Enter focus, / search, r refresh ──
   const [kbIdx, setKbIdx] = useState(-1);
   const scanQRef = useRef(null);
