@@ -163,6 +163,36 @@ async def _outcome_ledger_metrics(horizon: int = 2) -> dict[str, Any]:
         return {"available": False, "reason": f"outcome ledger read failed: {type(e).__name__}"}
 
 
+def _outcome_narrative_line(ao: dict[str, Any] | None) -> str:
+    """One honest sentence about the alert ledger, appended to the brief text.
+
+    Contracts: unavailable/cold ledger → empty string (the brief never lies
+    about measurement it doesn't have); only rules with measured precision
+    are quoted; negative lift is called out because that's the number that
+    says a rule is currently worse than coin-flipping vs its control cohort.
+    """
+    if not ao or not ao.get("available"):
+        return ""
+    all_rules = ao.get("rules") or []
+    measured = [r for r in all_rules
+                if not r.get("uncalibrated") and isinstance(r.get("precision"), (int, float))
+                and isinstance(r.get("lift"), (int, float))]
+    if not measured:
+        n = sum(r.get("n_measured", 0) for r in all_rules)
+        return (f"Alert ledger: {n} measured alert(s) — not yet enough for "
+                "per-rule hit rates.") if n else ""
+    best = max(measured, key=lambda r: r["lift"])
+    segs = [f"{best['rule']} {best['precision']:.0%} hit, lift {best['lift']:+.2f}"]
+    worst = min(measured, key=lambda r: r["lift"])
+    if worst is not best and worst["lift"] < 0:
+        segs.append(f"{worst['rule']} lift {worst['lift']:+.2f}")
+    line = "Measured alert quality: " + "; ".join(segs)
+    overall = ao.get("overall_precision")
+    if isinstance(overall, (int, float)):
+        line += f" — overall {overall:.0%}"
+    return line + "."
+
+
 # ────────────────────────────────────────────────────────────────────────
 # Regime Classifier
 # ────────────────────────────────────────────────────────────────────────
@@ -645,6 +675,16 @@ async def build_briefing(
         call_oi=call_oi_total,
         put_oi=put_oi_total,
     )
+
+    # Tidehunter outcome ledger — one honest sentence on whether recent
+    # alerts actually predicted (nightly cron's precomputed snapshot;
+    # empty until the ledger accumulates). Must never break the brief.
+    try:
+        _ao_line = _outcome_narrative_line(await _outcome_ledger_metrics())
+        if _ao_line:
+            narrative = f"{narrative}\n\n{_ao_line}"
+    except Exception:
+        logger.debug("outcome narrative line skipped", exc_info=True)
 
     # ── Paper-accurate GEX diagnostic (Ni-Pearson + Barbon-Buraschi) ────
     paper_metrics = {}

@@ -123,3 +123,42 @@ def test_brief_includes_alert_outcomes_key_in_metrics():
     src = inspect.getsource(mb.build_briefing)
     assert "await _outcome_ledger_metrics()" in src
     assert '"alert_outcomes"' in src
+
+
+def _ao(*rules, overall=None, available=True):
+    return {
+        "available": available,
+        "rules": [
+            {"rule": r[0], "n_measured": r[1], "precision": r[2],
+             "lift": r[3], "uncalibrated": r[4]}
+            for r in rules
+        ],
+        "overall_precision": overall,
+    }
+
+
+def test_narrative_line_unavailable_is_silent():
+    """No measured state → no sentence. The brief never fabricates."""
+    assert mb._outcome_narrative_line(None) == ""
+    assert mb._outcome_narrative_line({"available": False, "reason": "x"}) == ""
+    assert mb._outcome_narrative_line(_ao()) == ""
+
+
+def test_narrative_line_cold_ledger_counts_not_rates():
+    out = mb._outcome_narrative_line(
+        _ao(("SCORE", 40, None, None, True), ("WHALE", 3, None, None, True)))
+    assert out == "Alert ledger: 43 measured alert(s) — not yet enough for per-rule hit rates."
+
+
+def test_narrative_line_quotes_best_and_negative_lift():
+    out = mb._outcome_narrative_line(_ao(
+        ("SCORE", 28, 0.4286, 0.3286, False),
+        ("WHALE", 10, 0.2, -0.15, False),
+        ("0DTE", 8, None, None, True),   # uncalibrated — never quoted
+        overall=0.35,
+    ))
+    assert out.startswith("Measured alert quality: ")
+    assert "SCORE 43% hit, lift +0.33" in out
+    assert "WHALE lift -0.15" in out
+    assert "0DTE" not in out          # uncalibrated rule stays out of prose
+    assert out.endswith("— overall 35%.")

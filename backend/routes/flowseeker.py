@@ -12,7 +12,7 @@ import logging
 import math
 import os
 import time
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from zoneinfo import ZoneInfo
 
 import httpx
@@ -1930,12 +1930,74 @@ async def _load_outcomes(days: int, horizon: int) -> dict | None:
 
 
 @router.post("/outcomes/refresh")
-async def alert_outcomes_refresh(days: int = Query(60, ge=7, le=180), horizon: int = Query(2, ge=1, le=10)):
-    """Cache-warm signal from the nightly cron (--push). Cheap: re-reads Mongo.
-    Always 200 — the cron owns the actual compute; this just drops our
-    in-process cache so the next GET re-reads the fresh snapshot."""
-    _outcome_cache.clear()
-    return {"ok": True, "invalidated": True, "days": days, "horizon": horizon}
+async def alert_outcomes_refresh(
+    days: int = Query(60, ge=7, le=180),
+    horizon: int = Query(2, ge=1, le=10),
+):
+    """In-process outcome recompute — the nightly cron's actual workhorse.
+
+    Why in-process: DuckDBEngine is a per-process :memory: singleton, so the
+    ledger (flow_alerts_daily) only exists inside THIS server process — a
+    separate cron process reads its own empty DB and can never see the
+    alerts. The cron therefore triggers this endpoint (fail-closed behind
+    X-API-Key) and the result is written to Mongo flow_outcome_cache, where
+    the brief's outcome section reads it.
+
+    Always 200 with a status field: cold ledger (no_alerts) and missing
+    bars (no_bars) are normal nightly states, not errors.
+    """
+    import time as _time
+
+    from services import flow_calibration as fc
+    from services import flow_outcomes as fo
+    from services.duckdb_engine import db as duckdb_engine
+
+    alerts = fo.read_alert_history(duckdb_engine, days=days)
+    if not alerts:
+        _outcome_cache.clear()
+        return {"ok": True, "status": "no_alerts", "days": days,
+                "message": "ledger cold — nothing to refresh"}
+
+    tickers = sorted({a.get("under") for a in alerts if a.get("under")})
+    loop = asyncio.get_running_loop()
+    bars = await loop.run_in_executor(None, fo.fetch_bars_yfinance, tickers)
+    vix = await loop.run_in_executor(None, fo.fetch_bars_yfinance, ["^VIX"])
+    if not bars:
+        return {"ok": True, "status": "no_bars", "days": days,
+                "message": "yfinance bars unavailable — last good cache stays"}
+
+    stats = fo.compute_outcomes(alerts, bars, vix.get("^VIX"), horizon=horizon)
+    stats["ok"] = True
+    stats["lookback_days"] = days
+    stats["computed_at"] = datetime.now(UTC).isoformat()
+    stats["status"] = "ok"
+    stats.setdefault("source", "recompute")
+
+    mongo_url = os.environ.get("MONGO_URL", "mongodb://localhost:27017")
+    db_name = os.environ.get("DB_NAME", "floww")
+    from motor.motor_asyncio import AsyncIOMotorClient
+    client = AsyncIOMotorClient(mongo_url, serverSelectionTimeoutMS=5000)
+    try:
+        mdb = client[db_name]
+        await mdb.flow_outcome_cache.update_one(
+            {"_id": f"outcomes_h{horizon}"}, {"$set": stats}, upsert=True)
+        # Calibration snapshot — same labeling pass feeds the stage ladder.
+        try:
+            labeled = fo.label_alerts(alerts, bars, vix.get("^VIX"), horizon=horizon)
+            cal = fc.fit_calibration(labeled)
+            cal_doc = {"ok": True, "computed_at": stats["computed_at"], **cal}
+            await mdb.flow_outcome_cache.update_one(
+                {"_id": "calibration_latest"}, {"$set": cal_doc}, upsert=True)
+        except Exception as e:  # calibration fit is additive, never fatal
+            logger.warning("outcomes/refresh: calibration fit skipped: %s", e)
+    finally:
+        client.close()
+
+    # Refresh this process's view immediately (don't wait for TTL).
+    _outcome_cache[f"{days}:{horizon}"] = (_time.time(), stats)
+    return {"ok": True, "status": "ok", "days": days, "horizon": horizon,
+            "alerts": len(alerts), "computed_at": stats["computed_at"],
+            "rules": sorted((stats.get("per_rule") or {}).keys())}
 
 
 @router.get("/model")
