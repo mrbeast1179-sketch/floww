@@ -225,6 +225,19 @@ export default function FlowseekerProBlademap({ active = true }) {
   const [history, setHistory] = useState({});   // {ticker: [{date, total_vol, call_vol, put_vol}]} from /scan/history
   const [alertLog, setAlertLog] = useState(loadAlertLog);
   const [suppressedCount, setSuppressedCount] = useState(0);   // noise-budget overflow (truthful, session-scoped)
+  // ── Outcome ledger: measured alert quality (per-rule precision/lift) ──
+  // Backend joins the alert ledger to forward returns + a matched control
+  // cohort; rules below min_alerts come back precision=null → we render
+  // "uncalibrated · n=k", never a fabricated hit rate.
+  const [outcomes, setOutcomes] = useState(null);
+  const [outcomesOpen, setOutcomesOpen] = useState(true);
+  const loadOutcomes = useCallback(async () => {
+    try {
+      const d = await getJSON(`${API}/outcomes?days=60`);
+      if (d && d.ok) setOutcomes(d);
+    } catch { /* ledger cold or bars slow — the strip just stays empty */ }
+  }, []);
+  useEffect(() => { if (active) loadOutcomes(); }, [active, loadOutcomes, refreshTick]);
   // Simple mode (default): institutional alerts + a best-only table, no knobs.
   // ⚙ Advanced reveals the full filter/preset/universe/rule-chip toolkit.
   const [advanced, setAdvanced] = useState(!!prefs.advanced);
@@ -1405,6 +1418,61 @@ export default function FlowseekerProBlademap({ active = true }) {
                 }} />
               <span className="fsb-scannote">Live cross-symbol flow · cvforge day-volume vs OI. No per-trade tape on this feed — Flow-type = volume-magnitude class; Lean = contract-type bias.</span>
             </div>}
+            {/* Outcome ledger — per-rule measured precision/lift vs matched controls.
+                The desk trusts hit rates, not scores; this is where thresholds get
+                argued from data instead of defaults. precision=null → uncalibrated. */}
+            {outcomesOpen && outcomes && (outcomes.per_rule && Object.keys(outcomes.per_rule).length > 0) && (
+              <div className="fsb-outcomes">
+                <div className="fsb-outcomes-h">
+                  <span>📏 Outcome Ledger</span>
+                  <span className="fsb-muted fsb-small">
+                    hit = |side-signed move| ≥ {outcomes.sigma_k}σ in {outcomes.horizon_sessions} sessions · vs matched controls
+                  </span>
+                  <button className="fsb-alertclear" onClick={() => setOutcomesOpen(false)} title="Collapse">—</button>
+                </div>
+                <table className="fsb-outcometab">
+                  <thead><tr>
+                    <th>Rule</th><th className="num">n</th><th className="num">Precision</th>
+                    <th className="num">Control</th><th className="num">Lift</th><th className="num">95% CI</th><th className="num">MFE/MAE σ</th>
+                  </tr></thead>
+                  <tbody>
+                    {Object.entries(outcomes.per_rule).map(([rule, s]) => (
+                      <tr key={rule}>
+                        <td><span className={`fsb-rulebadge r-${rule.toLowerCase()}`}>{rule}</span></td>
+                        <td className="num">{s.n_measured}{s.n_censored ? <span className="fsb-muted"> +{s.n_censored}⧗</span> : ""}</td>
+                        {s.uncalibrated ? (
+                          <td className="num fsb-muted" colSpan={2} title={`only ${s.n_measured} measured alerts — no honest number yet`}>uncalibrated · n={s.n_measured}</td>
+                        ) : (
+                          <>
+                            <td className="num"><b>{Math.round(s.precision * 100)}%</b></td>
+                            <td className="num fsb-muted">{s.control_rate != null ? `${Math.round(s.control_rate * 100)}% · ${s.n_controls}` : "—"}</td>
+                          </>
+                        )}
+                        {!s.uncalibrated && (
+                          <>
+                            <td className={`num ${s.lift != null && s.lift > 0 ? "pos" : s.lift != null && s.lift < 0 ? "neg" : ""}`}>
+                              {s.lift != null ? `${s.lift > 0 ? "+" : ""}${Math.round(s.lift * 100)}pp` : "—"}
+                            </td>
+                            <td className="num fsb-muted">{s.lift_ci ? `[${Math.round(s.lift_ci[0] * 100)}pp, ${Math.round(s.lift_ci[1] * 100)}pp]` : s.precision_ci ? `[${Math.round(s.precision_ci[0] * 100)}%, ${Math.round(s.precision_ci[1] * 100)}%]` : "—"}</td>
+                            <td className="num fsb-muted">{s.median_mfe_sigma != null ? `${s.median_mfe_sigma}/${s.median_mae_sigma}` : "—"}</td>
+                          </>
+                        )}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                {outcomes.overall && outcomes.overall.n_measured > 0 && (
+                  <div className="fsb-outcomes-f fsb-muted fsb-small">
+                    overall {outcomes.overall.precision != null ? `${Math.round(outcomes.overall.precision * 100)}%` : "uncalibrated"} across {outcomes.overall.n_measured} measured alerts · {outcomes.tickers_measured?.length || 0} tickers · ⧗ = censored (window not yet complete — excluded, not zero-filled)
+                  </div>
+                )}
+              </div>
+            )}
+            {outcomesOpen && !outcomes && (
+              <div className="fsb-outcomes fsb-muted" style={{ padding: 10 }}>
+                📏 Outcome ledger: measuring alert precision vs matched controls… (fills as the alert ledger accumulates)
+              </div>
+            )}
             {away && (
               <div className="fsb-away">
                 <span className="fsb-away-t">☾ While you were away · {fmtAge(Date.now() - away.gapMs)}</span>

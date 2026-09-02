@@ -1,6 +1,42 @@
 /* Tidehunter Pro — Blademap aesthetic, scoped under .fsb-root so it never
    collides with the decoder's global .panel/.tab/.chip/.view classes. */
 
+/* Outcome ledger — measured alert precision/lift vs matched controls. */
+.fsb-outcomes {
+  border-top: 1px solid var(--fsb-border);
+  padding: 8px 12px;
+}
+.fsb-outcomes-h {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  margin-bottom: 6px;
+  font: 11px ui-monospace, Menlo, monospace;
+  color: var(--fsb-text);
+}
+.fsb-outcomes-h > span:first-child { font-weight: 700; }
+.fsb-outcometab {
+  width: 100%;
+  border-collapse: collapse;
+  font: 11px ui-monospace, Menlo, monospace;
+}
+.fsb-outcometab th {
+  text-align: left;
+  color: var(--fsb-muted);
+  font-weight: 500;
+  padding: 2px 8px 4px 0;
+  border-bottom: 1px solid var(--fsb-border2);
+}
+.fsb-outcometab td {
+  padding: 3px 8px 3px 0;
+  color: var(--fsb-text2);
+  border-bottom: 1px solid var(--fsb-border);
+}
+.fsb-outcometab .num { text-align: right; }
+.fsb-outcometab td.pos { color: var(--fsb-green); }
+.fsb-outcometab td.neg { color: var(--fsb-red); }
+.fsb-outcomes-f { margin-top: 6px; }
+
 /* Institutional noise pass 2026-09-02: always-on side + DTE preset row on the
    Scanner (restores the lost DTE filter in BOTH simple and advanced modes). */
 .fsb-scanctrl-always {

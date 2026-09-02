@@ -1880,3 +1880,54 @@ async def risk_killswitch_trip(equity: float = Query(100000.0, gt=0)):
     ks = auto_trade_risk.get_kill_switch(equity=equity)
     ks._trip("manual_trip_via_api")
     return ks.get_status()
+
+
+# ── Outcome ledger: measured alert quality ──────────────────────────
+
+@router.get("/outcomes")
+async def alert_outcomes(
+    days: int = Query(60, ge=7, le=180, description="Alert-history lookback window"),
+    horizon: int = Query(2, ge=1, le=10, description="Forward sessions to measure each alert over"),
+    sigma_k: float = Query(0.75, gt=0, le=5, description="Hit threshold: |side-signed cum return| ≥ k·σ20"),
+    min_alerts: int = Query(5, ge=1, le=50, description="Below this many measured alerts a rule reports precision=null (uncalibrated)"),
+):
+    """Control-matched per-rule precision/lift for the alert ledger.
+
+    Joins flow_alerts_daily (DuckDB, read-only) to yfinance daily bars and
+    VIX (free — zero cvforge budget), labels each alert hit/miss against the
+    vol-scaled forward move, builds a matched control cohort from non-alert
+    ticker-days, and reports precision, control rate, lift, Wilson CI,
+    cluster-bootstrap lift CI, and MFE/MAE payoff stats per rule.
+
+    Rules below min_alerts measured alerts report precision=null +
+    uncalibrated=true — the dashboard shows 'uncalibrated: n=k', never a
+    fabricated small-n number. This endpoint is the source of truth the
+    alert thresholds eventually get tuned from (replaces hand-picked
+    defaults with measured hit rates).
+    """
+    from services import flow_outcomes as fo
+    from services.duckdb_engine import db as duckdb_engine
+
+    alerts = fo.read_alert_history(duckdb_engine, days=days)
+    if not alerts:
+        return {
+            "ok": True, "status": "no_alerts",
+            "message": "No alerts in flow_alerts_daily within the lookback — "
+                       "the ledger fills as the institutional engine fires.",
+            "lookback_days": days, "per_rule": {}, "overall": {"n_measured": 0, "precision": None},
+        }
+    tickers = sorted({a.get("under") for a in alerts if a.get("under")})
+    bars = await asyncio.get_running_loop().run_in_executor(
+        None, fo.fetch_bars_yfinance, tickers)
+    vix = await asyncio.get_running_loop().run_in_executor(
+        None, fo.fetch_bars_yfinance, ["^VIX"])
+    vix_series = vix.get("^VIX")
+    stats = fo.compute_outcomes(
+        alerts, bars, vix_series,
+        horizon=horizon, sigma_k=sigma_k, min_alerts=min_alerts,
+    )
+    stats["ok"] = True
+    stats["lookback_days"] = days
+    stats["tickers_measured"] = tickers
+    stats["bars_available"] = sorted(bars.keys())
+    return stats
