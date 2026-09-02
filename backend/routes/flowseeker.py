@@ -671,12 +671,32 @@ async def _record_scan_baseline(rows: list) -> None:
                     upsert=True,
                 ))
         for t, e in per.items():
+            # IVR piggyback (2026-09-02, zero extra upstream calls): today's
+            # standardized ATM IV = median row IV over |K/S−1| ≤ 5% from THIS
+            # scan snapshot. Scan-row layout (SCAN_COLUMNS): 3=strike, 6=OI,
+            # 7=IV, 9=underlying price. IV > 3 is the percent convention →
+            # normalize to decimal so cross-source medians stay comparable.
+            # The nightly cron turns these into RICH/CHEAP-able IVR series;
+            # alerts consume derived tags, never raw snapshot IV.
+            trows = [r for r in rows if r[0] == t and r[7] and r[3] and r[9]]
+            atm_ivs = sorted(
+                (lambda iv: iv / 100.0 if iv > 3.0 else iv)(float(r[7]))
+                for r in trows
+                if abs(float(r[3]) / float(r[9]) - 1.0) <= 0.05
+            ) if trows else []
+            atm_iv = round(atm_ivs[len(atm_ivs) // 2], 4) if atm_ivs else None
+            max_ops = {"total_vol": e["call_vol"] + e["put_vol"],
+                       "call_vol": e["call_vol"], "put_vol": e["put_vol"]}
+            if atm_iv is not None:
+                max_ops["atm_iv"] = atm_iv   # intraday $max = the day's best
+            update = {
+                "$max": max_ops,
+                "$set": {"updated_at": time.time()},
+            }
+            if atm_iv is not None:
+                update["$inc"] = {"iv_obs": 1}
             await db.flow_scan_daily.update_one(
-                {"ticker": t, "date": today},
-                {"$max": {"total_vol": e["call_vol"] + e["put_vol"],
-                          "call_vol": e["call_vol"], "put_vol": e["put_vol"]},
-                 "$set": {"updated_at": time.time()}},
-                upsert=True,
+                {"ticker": t, "date": today}, update, upsert=True,
             )
         if oi_ops:
             await db.flow_scan_contract_oi.bulk_write(oi_ops, ordered=False)
@@ -701,6 +721,7 @@ async def _run_institutional_alerts(rows: list) -> None:
         if not normed:
             return
         baselines = await _volume_baselines()
+        await load_earnings_dates()
         prev_occ = await _prev_contract_oi()
         # prev-OI store is keyed by OCC symbol (r[1]); the engine keys by
         # contract identity — re-key here at the boundary.
@@ -712,6 +733,7 @@ async def _run_institutional_alerts(rows: list) -> None:
         alerts = fa.eval_institutional(
             normed, baselines=baselines, prev_oi=prev, regimes=_cached_regimes(),
             gex_context=_cached_gex_context(sorted({r["under"] for r in normed})),
+            oi_tags=_compute_oi_tags(normed, prev),
         )
         # DuckDB calls are synchronous — run them off the event loop so a
         # slow query never stalls concurrent requests (this runs in a
@@ -786,6 +808,69 @@ def _cached_gex_context(tickers: list[str]) -> dict[str, dict]:
             }
         return out
     except Exception:
+        return {}
+
+
+_earnings_cache: dict[str, tuple[float, dict[str, str]]] = {"ts": 0.0, "data": {}}
+
+
+async def load_earnings_dates() -> dict[str, str]:
+    """{underlying: ISO report date} for names in today's scan, 6h cached.
+
+    Reads the flow_earnings Mongo store (populated by record_earnings_dates;
+    yfinance calendar on the fetch side). Fails soft to {} — callers then
+    surface 'earnings window unknown' tags instead of silently skipping.
+    """
+    if time.time() - _earnings_cache["ts"] < 6 * 3600:
+        return _earnings_cache["data"]
+    out: dict[str, str] = {}
+    try:
+        from server import db  # deferred: circular import
+
+        today = _today_et()
+        async for doc in db.flow_earnings.find(
+            {"date": {"$gte": today}}, {"ticker": 1, "date": 1}
+        ).limit(2000):
+            out[doc["ticker"]] = doc["date"]
+    except Exception as e:
+        logger.debug(f"earnings dates unavailable: {e}")
+    _earnings_cache["ts"] = time.time()
+    _earnings_cache["data"] = out
+    return out
+
+
+def record_earnings_dates(dates: dict[str, str]) -> int:
+    """Upsert {ticker: 'YYYY-MM-DD'} into Mongo flow_earnings. Called by the
+    ops script scripts/fetch_earnings.py (yfinance calendar, cached in
+    flow_earnings_fetch); never on the hot path."""
+    import asyncio
+
+    from pymongo import UpdateOne
+
+    from server import db
+
+    ops = [UpdateOne({"ticker": t}, {"$set": {"date": d, "updated_at": time.time()}},
+                     upsert=True) for t, d in (dates or {}).items()]
+    if not ops:
+        return 0
+    n = asyncio.get_event_loop().run_until_complete(
+        db.flow_earnings.bulk_write(ops, ordered=False)).modified_count
+    _earnings_cache["ts"] = 0.0   # invalidate
+    return int(n or len(ops))
+
+
+def _compute_oi_tags(normed: list[dict], prev: dict[str, int]) -> dict[str, dict]:
+    """ΔOI hygiene tags for one scan — computed ONCE on the server, consumed
+    identically by the server engine (gating) and the client tape (labels).
+    Earnings dates are scope-limited to today's underlyings."""
+    from services.oi_hygiene import oi_hygiene_tags
+
+    try:
+        earnings = {t: d for t, d in _earnings_cache.get("data", {}).items()
+                    if any(r.get("under") == t for r in normed[:400])} or None
+        return oi_hygiene_tags(normed, prev, earnings_dates=earnings)
+    except Exception as e:
+        logger.debug(f"oi_hygiene tags skipped: {e}")
         return {}
 
 
@@ -923,6 +1008,15 @@ async def market_scan(
     if hit:
         hit["baselines"] = await _volume_baselines()
         hit["prev_oi"] = await _prev_contract_oi()
+        from services import flow_alerts as _fa_local  # local import: cached-hit path has no fa binding
+
+        _normed_hit = _fa_local.norm_rows(hit.get("data") or [], hit.get("columns"))
+        _prev_hit = {
+            r["ckey"]: hit["prev_oi"][r["occ"]]
+            for r in _normed_hit
+            if r.get("occ") and hit["prev_oi"].get(r["occ"]) is not None
+        }
+        hit["oi_tags"] = _compute_oi_tags(_normed_hit, _prev_hit)
         return hit
     limited = _backing_off(now)
     if limited:
@@ -991,6 +1085,15 @@ async def market_scan(
                 out = _scan_payload(rows, False, asof, columns, cache_age=0)
                 out["baselines"] = await _volume_baselines()
                 out["prev_oi"] = await _prev_contract_oi()
+                from services import flow_alerts as _fa_local2  # local import: scan path scope
+
+                _normed_now = _fa_local2.norm_rows(rows, columns)
+                _prev_rekey = {
+                    r["ckey"]: out["prev_oi"][r["occ"]]
+                    for r in _normed_now
+                    if r.get("occ") and out["prev_oi"].get(r["occ"]) is not None
+                }
+                out["oi_tags"] = _compute_oi_tags(_normed_now, _prev_rekey)
                 return out
         except HTTPException:
             raise

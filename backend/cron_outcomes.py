@@ -75,9 +75,66 @@ def main() -> int:
     status = body.get("status")
     if status == "no_alerts":
         log.info("ledger cold — nothing to refresh (normal until the engine fires)")
-        return 0
-    log.info("done: %s", body)
-    return 0
+    else:
+        log.info("done: %s", body)
+
+    # 2. IVR series refresh (free — Mongo-only): per ticker, ATM IV history
+    # from flow_scan_daily (populated intraday by _record_scan_baseline) →
+    # percentile rank over the trailing window → RICH/CHEAP tags. Warmup is
+    # contractual: under 60 obs → ivr=None, never a fabricated rank.
+    try:
+        n = await _refresh_ivr()
+        log.info("ivr refreshed for %d ticker(s)", n)
+    except Exception as e:
+        log.warning("ivr refresh skipped: %s", e)
+    return 0 if status in ("ok", "no_alerts") else 1
+
+
+async def _refresh_ivr(window: int = 252, warmup: int = 60) -> int:
+    import os as _os
+    from datetime import UTC, datetime
+
+    from motor.motor_asyncio import AsyncIOMotorClient
+    from pymongo import UpdateOne
+
+    mongo_url = _os.environ.get("MONGO_URL", "mongodb://localhost:27017")
+    db_name = _os.environ.get("DB_NAME", "floww")
+    client = AsyncIOMotorClient(mongo_url, serverSelectionTimeoutMS=5000)
+    try:
+        mdb = client[db_name]
+        # ATM IV per ticker-day (only days that actually recorded one).
+        cursor = mdb.flow_scan_daily.find(
+            {"atm_iv": {"$exists": True, "$gt": 0}},
+            {"ticker": 1, "date": 1, "atm_iv": 1},
+        ).sort("date", 1).limit(20000)
+        series: dict[str, list[tuple[str, float]]] = {}
+        async for doc in cursor:
+            series.setdefault(doc["ticker"], []).append((doc["date"], doc["atm_iv"]))
+        if not series:
+            return 0
+        ops: list[UpdateOne] = []
+        for t, obs in series.items():
+            obs = obs[-window:]
+            if len(obs) < warmup:
+                continue   # warmup contract: no rank until 60 obs
+            vals = sorted(v for _, v in obs)
+            latest_date, latest_iv = obs[-1]
+            below = sum(1 for v in vals if v <= latest_iv)
+            ivr = round(100.0 * below / len(vals), 1)
+            tag = "RICH" if ivr >= 75 else "CHEAP" if ivr <= 25 else None
+            # One doc per (ticker, date): the day's final IVR is the truth.
+            ops.append(UpdateOne(
+                {"ticker": t, "date": latest_date},
+                {"$set": {"ivr": ivr, "atm_iv": latest_iv,
+                          "iv_tag": tag, "n_obs": len(obs),
+                          "updated_at": datetime.now(UTC).isoformat()}},
+                upsert=True,
+            ))
+        if ops:
+            await mdb.flow_iv_daily.bulk_write(ops, ordered=False)
+        return len(ops)
+    finally:
+        client.close()
 
 
 if __name__ == "__main__":

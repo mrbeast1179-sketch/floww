@@ -448,6 +448,30 @@ describe("evalAlerts OICONF (overnight OI confirmation)", () => {
   });
 });
 
+describe("evalAlerts ΔOI hygiene parity (server: services/oi_hygiene.py)", () => {
+  const mk = (over) => ({
+    under: "NVDA", type: "call", strike: 100, exp: "2099-01-08",
+    score: 40, premium: 2e5, notional: 5e7, volOI: 1, dte: 10, _new: false, ...over,
+  });
+  it("rollover-tagged OI pops never fire OICONF (migration ≠ new flow)", () => {
+    const hits = evalAlerts([mk({ oiChg: { abs: 5000, pct: 0.5, tag: { rollover: true, expiring: false, earnings: null } } })]);
+    expect(hits).toEqual([]);
+  });
+  it("expiring-tagged rows never fire OICONF", () => {
+    const hits = evalAlerts([mk({ oiChg: { abs: 5000, pct: 0.9, tag: { expiring: true, rollover: false, earnings: null } } })]);
+    expect(hits).toEqual([]);
+  });
+  it("earnings-tagged OICONF still fires (never-remove) with the ambiguity suffix", () => {
+    const [hit] = evalAlerts([mk({ oiChg: { abs: 5000, pct: 0.5, tag: { expiring: false, rollover: false, earnings: { days_to: 2 } } } })]);
+    expect(hit.rule).toBe("OICONF");
+    expect(hit.why).toContain("earnings in 2 session(s) — direction ambiguous");
+  });
+  it("untagged rows behave exactly as before (no suffix, no suppression)", () => {
+    const [hit] = evalAlerts([mk({ oiChg: { abs: 5000, pct: 0.5 } })]);
+    expect(hit.why).not.toContain("[");
+  });
+});
+
 describe("streakOf (multi-day persistence)", () => {
   // 2026-07-06 = Monday; all base dates are weekdays.
   const day = (date, total_vol) => ({ date, total_vol });

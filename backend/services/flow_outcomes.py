@@ -413,6 +413,9 @@ def outcome_stats(
             "median_mfe_sigma": round(sorted(mfe)[len(mfe) // 2], 3) if mfe else None,
             "median_mae_sigma": round(sorted(mae)[len(mae) // 2], 3) if mae else None,
             "uncalibrated": n < min_alerts,
+            # Rule-decay governance (2026-09-02): ledger-driven status. Display
+            # only — thresholds stay the desk's dials, nothing auto-tuned.
+            **_decay_status(lift, rows),
         }
         overall_hits += h
         overall_n += n
@@ -455,6 +458,26 @@ def compute_outcomes(
     stats["horizon_sessions"] = horizon
     stats["sigma_k"] = sigma_k
     return stats
+
+
+def _decay_status(lift: float | None, rows: list[dict[str, Any]]) -> dict[str, Any]:
+    """Governance status from the ledger itself: a rule whose lift sits below
+    1.0 across the last 30 days of measured alerts is AMBER (display/status
+    only — thresholds are the desk's dials, never auto-tuned)."""
+    import datetime as _dt
+
+    if lift is None:
+        return {"status": "OK", "decayed": False}
+    cutoff = (_dt.date.today() - _dt.timedelta(days=30)).isoformat()
+    recent = [r for r in rows
+              if str(r.get("asof_date") or "")[:10] >= cutoff
+              and r.get("hit") is not None and not r.get("censored")]
+    if len(recent) < 10:
+        return {"status": "OK", "decayed": False}   # too thin to judge
+    recent_hits = sum(1 for r in recent if r["hit"])
+    if recent_hits / len(recent) < lift:   # precision below the rule's own lift line
+        return {"status": "AMBER", "decayed": True}
+    return {"status": "OK", "decayed": False}
 
 
 def read_alert_history(engine: Any, days: int = DEFAULT_LOOKBACK_DAYS) -> list[dict[str, Any]]:

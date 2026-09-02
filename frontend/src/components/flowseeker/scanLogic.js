@@ -176,9 +176,25 @@ export function evalAlerts(rows, opts = {}) {
   // real" proof a print-less feed offers (open interest that JUMPED overnight
   // means the positioning held). Doesn't require _new; capped to the top 5 by
   // % build so the tape gets the strongest follow-through, not 50 rows of +30%.
+  // ΔOI hygiene parity (server: services/oi_hygiene.py): rows carry a hygiene
+  // tag (r.oiChg.tag, shipped on /scan payload as oi_tags) — rollover/expiring
+  // contracts are migration artifacts, never "new flow"; earnings-window
+  // alerts still fire but the why-string carries the ambiguity tag.
+  const hygieneSuffix = (tag) => {
+    if (!tag) return "";
+    const parts = [];
+    if (tag.rollover) parts.push("rollover detected — position migrated expiries, not new flow");
+    if (tag.earnings && typeof tag.earnings === "object") {
+      if (tag.earnings.unknown) parts.push("earnings window unknown — direction ambiguous");
+      else if (tag.earnings.days_to != null) parts.push(`earnings in ${tag.earnings.days_to} session(s) — direction ambiguous`);
+    }
+    return parts.length ? " [" + parts.join("; ") + "]" : "";
+  };
   const cand = [];
   for (const r of rows || []) {
     if (allowSet && !allowSet.has(r.under)) continue;
+    const tag = (r.oiChg && r.oiChg.tag) || null;
+    if (tag && (tag.rollover || tag.expiring)) continue;
     const addNotl = r.oiChg ? r.oiChg.abs * 100 * (r.strike || 0) : 0;
     if (enabled.oiconf && r.oiChg && r.oiChg.pct >= oiConfPct && addNotl >= oiConfNotional) {
       cand.push({ r, addNotl });
@@ -189,7 +205,8 @@ export function evalAlerts(rows, opts = {}) {
   const inTop = new Set(topConf.map((c) => c.r));
   const out = topConf.map(({ r, addNotl }) => mkHit(r, "OICONF", {
     oiChgPct: r.oiChg.pct,
-    why: `OI +${Math.round(r.oiChg.pct * 100)}% overnight (+${fmtK(r.oiChg.abs)} contracts, ${fmtUSD(addNotl)} notional) — prior-day flow HELD as new positioning`,
+    why: `OI +${Math.round(r.oiChg.pct * 100)}% overnight (+${fmtK(r.oiChg.abs)} contracts, ${fmtUSD(addNotl)} notional) — prior-day flow HELD as new positioning`
+      + hygieneSuffix(r.oiChg && r.oiChg.tag),
     ttl: 20 * 3600e3,
   }));
   // Pass 2 — intraday rules on NEW rows. Rows that won an OICONF slot skip

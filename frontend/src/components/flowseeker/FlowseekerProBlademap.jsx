@@ -568,11 +568,31 @@ export default function FlowseekerProBlademap({ active = true }) {
         if (d && Array.isArray(d.rows)) {
           const regimes = d.regimes || {};
           const prevOI = d.prev_oi || {};
+          // ΔOI hygiene tags (server: services/oi_hygiene.py) — keyed by OCC
+          // ticker here; expired-today contracts are nulled locally as a
+          // fallback when the server predates the tag payload.
+          const oiTags = d.oi_tags || {};
+          const occTag = (occ) => {
+            const t = oiTags[occ];
+            if (t) return t;
+            const m = typeof occ === "string" && occ.match(/(\d{6})[CP]\d+$/);
+            if (m) {
+              const ey = 2000 + parseInt(m[1].slice(0, 2), 10);
+              const exp = `${ey}-${m[1].slice(2, 4)}-${m[1].slice(4, 6)}`;
+              const today = new Date().toISOString().slice(0, 10);
+              if (exp <= today) return { expiring: true, rollover: false, earnings: null };
+            }
+            return null;
+          };
           const rows = d.rows.map((r) => {
             const row = mkScanRow(r[0], r[2], r[3], r[4], Number(r[5]) || 0, Number(r[6]) || 0,
               r[7], r[8], Number(r[9]) || null, regimes[r[0]] || null);
             // Join yesterday's OI for this exact contract (OCC ticker r[1]).
-            row.oiChg = oiChange(row.oi, prevOI[r[1]]);
+            const tag = occTag(r[1]);
+            row.oiChg = (tag && (tag.expiring || tag.rollover))
+              ? null
+              : oiChange(row.oi, prevOI[r[1]]);
+            if (row.oiChg && tag) row.oiChg.tag = tag;   // engine + UI consume
             row.oiChgPct = row.oiChg ? row.oiChg.pct : null;   // sortable scalar
             return row;
           });
@@ -1007,7 +1027,13 @@ export default function FlowseekerProBlademap({ active = true }) {
 
   // ---------- render ----------
   // Focused on institutional smart order flow — dropped Vol Surface (synthetic) + Academy (education).
-  const TABS = [["flow", "Smart Order Flow"], ["gamma", "Dealer Positioning"], ["scanner", "Scanner"]];
+  const TABS = [
+    ["flow", "Smart Order Flow"],
+    ["gamma", "Dealer Positioning"],
+    ["wti", "WTI Crude"],
+    ["pairs", "Stat-Arb Pairs"],
+    ["scanner", "Scanner"],
+  ];
   return (
     <div className="fsb-root">
       <div className="fsb-topbar">
@@ -1236,6 +1262,20 @@ export default function FlowseekerProBlademap({ active = true }) {
               <div ref={gammaCurveRef} className="fsb-chart" />
             </div>
             <div className="fsb-notes"><strong>Read:</strong> red bars = dealer short-gamma (hedging amplifies moves), green = long-gamma (dampens). The cumulative line crosses zero at gamma-flip levels.</div>
+          </div>
+        </div>
+
+        {/* WTI VIEW — HAR-IV crude oil vol forecast */}
+        <div className={`fsb-view${tab === "wti" ? " active" : ""}`} style={{ gridTemplateColumns: "1fr" }}>
+          <div className="fsb-panel fsb-wti-wrap">
+            <Wtipanel />
+          </div>
+        </div>
+
+        {/* PAIRS VIEW — Russell 3000 stat-arb scanner */}
+        <div className={`fsb-view${tab === "pairs" ? " active" : ""}`} style={{ gridTemplateColumns: "1fr" }}>
+          <div className="fsb-panel fsb-pairs-wrap">
+            <RussellPanel />
           </div>
         </div>
 

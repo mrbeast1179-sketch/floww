@@ -62,7 +62,12 @@ STAGE3_MIN = 500
 # least this Brier margin out-of-time, else stage 1 stays (parsimony rule).
 STAGE2_BRIER_MARGIN = 0.02
 
-FEATURE_NAMES = ["log_vol_oi", "log_premium_k", "dte", "abs_delta", "sigma", "bias_bullish"]
+# Feature freeze v2 (2026-09-02): mins_since_open added as a frozen covariate
+# — retro-trained models see EOD volumes while live alerts fire intraday, so
+# time-of-day is the known confounder (plan §2). Sentinel −1.0 = fired outside
+# RTH / unknown, kept distinct from any real minute count.
+FEATURE_NAMES = ["log_vol_oi", "log_premium_k", "dte", "abs_delta", "sigma",
+                 "mins_since_open", "bias_bullish"]
 
 
 # ── features ────────────────────────────────────────────────────────────────
@@ -86,6 +91,8 @@ def feature_vector(a: dict[str, Any]) -> list[float] | None:
         abs_delta = 0.5 if delta is None else min(abs(float(delta)), 1.0)
         sigma = a.get("sigma")
         sigma_v = 0.0 if sigma is None else min(abs(float(sigma)), 10.0)
+        mso = a.get("mins_since_open")
+        mso_v = -1.0 if mso is None else min(max(float(mso), -1.0), 390.0)
         side = str(a.get("side") or a.get("type") or "").lower()
         bias = str(a.get("bias") or "").upper()
         bull = 1.0 if (side.startswith("c") or bias == "BULLISH") else 0.0
@@ -95,6 +102,7 @@ def feature_vector(a: dict[str, Any]) -> list[float] | None:
             dte,
             abs_delta,
             sigma_v,
+            mso_v,
             bull,
         ]
     except (TypeError, ValueError):
@@ -169,7 +177,8 @@ def fit_logistic_model(rows: list[dict[str, Any]]) -> dict[str, Any] | None:
         logger.info("flow_calibration: sklearn unavailable — staying at stage 1")
         return None
 
-    measured = [r for r in rows if r.get("hit") is not None and not r.get("censored")]
+    measured = [r for r in rows if r.get("hit") is not None and not r.get("censored")
+                and not r.get("earnings_ambiguous")]
     if len(measured) < STAGE2_MIN:
         return None
     X, y, dates, scores = [], [], [], []
@@ -249,7 +258,8 @@ def fit_calibration(labeled_rows: list[dict[str, Any]]) -> dict[str, Any]:
     Returns a status blob: {stage, model, n, method_note}. stage follows the
     ladder; model is None at stage 0.
     """
-    measured = [r for r in (labeled_rows or []) if r.get("hit") is not None and not r.get("censored")]
+    measured = [r for r in (labeled_rows or []) if r.get("hit") is not None
+                and not r.get("censored") and not r.get("earnings_ambiguous")]
     n = len(measured)
     if n < STAGE1_MIN:
         return {"stage": 0, "model": None, "n": n,

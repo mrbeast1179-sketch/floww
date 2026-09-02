@@ -360,6 +360,19 @@ def build_context(r: dict, factors: dict) -> dict:
 
 # ── the engine ──────────────────────────────────────────────────────
 
+def minutes_since_open_now() -> float | None:
+    """Minutes since today's 09:30 ET open (seconds-precision frozen at call
+    time). None outside RTH — the caller freezes None honestly rather than a
+    fake number; weekends/holidays are not special-cased (a holiday scan
+    would freeze minutes-since-midnight, harmless for a covariate)."""
+    now = datetime.now(_ET)
+    open_dt = now.replace(hour=9, minute=30, second=0, microsecond=0)
+    secs = (now - open_dt).total_seconds()
+    if secs < 0:
+        return None
+    return round(secs / 60.0, 1)
+
+
 def _mk_alert(r: dict, rule: str, extra: dict, factors: dict, asof: str) -> dict:
     side, bias = infer_side_bias(r)
     regime = factors.get("gex_regime") if isinstance(factors, dict) else None
@@ -391,6 +404,8 @@ def _mk_alert(r: dict, rule: str, extra: dict, factors: dict, asof: str) -> dict
         "why": extra.get("why", ""),
         "ttl_s": _TTL_S.get(rule, 2 * 3600),
         "asof": asof,
+        # Feature freeze (2026-09-02): intraday context frozen at fire time.
+        "mins_since_open": minutes_since_open_now(),
     }
     return a
 
@@ -447,7 +462,7 @@ def _common_factors(r: dict, regimes: dict, sigma_tickers: set,
 
 
 def eval_institutional(rows, baselines=None, prev_oi=None, regimes=None, opts=None,
-                       gex_context: dict | None = None):
+                       gex_context: dict | None = None, oi_tags: dict | None = None):
     """Evaluate normalized rows into enriched institutional alerts.
 
     One alert per contract, strongest claim first (OICONF > SCORE > WHALE >
@@ -525,8 +540,17 @@ def eval_institutional(rows, baselines=None, prev_oi=None, regimes=None, opts=No
 
     # Pass 1 — OICONF: overnight OI build is the one hard "yesterday's flow
     # was real" proof a print-less feed offers. Top 5 by % build.
+    # ΔOI hygiene (services/oi_hygiene.py, 2026-09-02): rollover/expiring
+    # contracts are skipped entirely — a roll's next-expiry pop is migration,
+    # not new flow. Earnings-window alerts still fire (never-remove) but the
+    # why-string carries the ambiguity tag and tier is capped below GOLD.
+    from services.oi_hygiene import oi_hygiene_why_suffix
+
     cand = []
     for r in rows:
+        tag = (oi_tags or {}).get(r["ckey"]) or {}
+        if tag.get("rollover") or tag.get("expiring"):
+            continue
         prev = prev_oi.get(r["ckey"])
         if prev is None or prev <= 0 or not r.get("oi"):
             continue
@@ -534,18 +558,24 @@ def eval_institutional(rows, baselines=None, prev_oi=None, regimes=None, opts=No
         pct = chg / prev
         add_notl = abs(chg) * 100 * r["strike"]
         if pct >= o["oiconf_pct"] and add_notl >= o["oiconf_notional"]:
-            cand.append((pct, add_notl, r))
+            cand.append((pct, add_notl, r, tag))
     cand.sort(key=lambda c: c[0], reverse=True)
     winners = set()
-    for pct, add_notl, r in cand[:5]:
+    for pct, add_notl, r, tag in cand[:5]:
         winners.add(r["ckey"])
         f = _common_factors(r, regimes, sigma_tickers, cw_map, clusters,
                             gex_context=gex_context)
         f["oiconf"] = True
-        out.append(_finalize(_mk_alert(r, "OICONF", {
+        a = _finalize(_mk_alert(r, "OICONF", {
             "oi_chg_pct": round(pct, 4),
             "why": f"OI +{round(pct * 100)}% overnight (${add_notl / 1e6:.1f}M added notional) — prior-day flow HELD as new positioning",
-        }, f, asof), r, cw_map))
+        }, f, asof), r, cw_map)
+        suffix = oi_hygiene_why_suffix(tag)
+        if suffix:
+            a["why"] += suffix
+            if isinstance(tag.get("earnings"), dict) and a["tier"] == "GOLD":
+                a["tier"] = "SILVER"   # direction ambiguous into the event
+        out.append(a)
 
     # Pass 2 — intraday per-contract rules, strongest first, one per contract.
     for r in rows:
@@ -637,6 +667,9 @@ def init_flow_alert_tables(engine) -> None:
         # Outcome-ledger / calibration columns (2026-09-02): p_move provenance
         # persisted at fire time so stage promotion can be audited retroactively.
         "ALTER TABLE flow_alerts_daily ADD COLUMN IF NOT EXISTS p_move DOUBLE",
+        # Feature-freeze columns (2026-09-02): frozen at fire time so the
+        # stage-2 logistic trains on the snapshot the alert actually saw.
+        "ALTER TABLE flow_alerts_daily ADD COLUMN IF NOT EXISTS mins_since_open DOUBLE",
         "ALTER TABLE flow_alerts_daily ADD COLUMN IF NOT EXISTS p_method TEXT",
     ):
         with contextlib.suppress(Exception):
@@ -668,14 +701,16 @@ def persist_alerts(engine, alerts, snapshot_date: str | None = None) -> int:
         json.dumps(a.get("context")) if a.get("context") else None,
         # Calibration provenance (2026-09-02): server-computed p_move.
         a.get("p_move"), a.get("p_method"),
+        a.get("mins_since_open"),
     ] for a in alerts]
     engine.execute_write("""
         INSERT INTO flow_alerts_daily (
             asof_date, asof_ts, key, ckey, rule, tier, side, bias, under, type,
             strike, exp, dte, score, est_entry, premium, notional, vol_oi,
             sigma, oi_chg_pct, under_price, cw_spread, cluster, why,
-            conviction, key_levels_json, context_json, p_move, p_method
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            conviction, key_levels_json, context_json, p_move, p_method,
+            mins_since_open
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT (asof_date, key) DO UPDATE SET
             asof_ts = excluded.asof_ts, tier = excluded.tier, side = excluded.side,
             bias = excluded.bias, score = excluded.score,
