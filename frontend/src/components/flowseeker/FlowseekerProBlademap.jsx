@@ -14,6 +14,8 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { BACKEND_URL } from "../../config/api";
 import { mkScanRow, evalAlerts, evalTickerAlerts, streakOf, cleanHistory, tickerRollup, volSigma, annotateFirstSeen, sessionDay, fmtClock, fmtAge, awaySummary, scanRowsToCSV, oiChange, fmtUSD, fmtK, fmtIV, scoreGradeOf, pulseState, elapsedClock, formatFOLLOWStrip, tierOf, selectFires, pickBanner } from "./scanLogic";
+import Wtipanel from "../Wtipanel";
+import RussellPanel from "../RussellPanel";
 import "./FlowseekerProBlademap.css";
 
 const API = `${BACKEND_URL}/api/flowseeker`;
@@ -589,6 +591,7 @@ export default function FlowseekerProBlademap({ active = true }) {
               r[7], r[8], Number(r[9]) || null, regimes[r[0]] || null);
             // Join yesterday's OI for this exact contract (OCC ticker r[1]).
             const tag = occTag(r[1]);
+            row.oiTag = tag || null;   // surface hygiene state even when ΔOI is nulled
             row.oiChg = (tag && (tag.expiring || tag.rollover))
               ? null
               : oiChange(row.oi, prevOI[r[1]]);
@@ -1485,8 +1488,8 @@ export default function FlowseekerProBlademap({ active = true }) {
                   </tr></thead>
                   <tbody>
                     {Object.entries(outcomes.per_rule).map(([rule, s]) => (
-                      <tr key={rule}>
-                        <td><span className={`fsb-rulebadge r-${rule.toLowerCase()}`}>{rule}</span></td>
+                      <tr key={rule} className={s.decayed ? "fsb-amber-row" : ""}>
+                        <td><span className={`fsb-rulebadge r-${rule.toLowerCase()}`}>{rule}</span>{s.status === "AMBER" ? <span className="fsb-amber-chip" title="rule's recent precision dropped below its own lift line (30d window) — measured decay, review thresholds">⚠ AMBER</span> : null}</td>
                         <td className="num">{s.n_measured}{s.n_censored ? <span className="fsb-muted"> +{s.n_censored}⧗</span> : ""}</td>
                         {s.uncalibrated ? (
                           <td className="num fsb-muted" colSpan={2} title={`only ${s.n_measured} measured alerts — no honest number yet`}>uncalibrated · n={s.n_measured}</td>
@@ -1776,10 +1779,17 @@ export default function FlowseekerProBlademap({ active = true }) {
                           <td className={r.oiChg ? (r.oiChg.pct >= 0 ? "fsb-oiup" : "fsb-oidn") : ""}
                               title={r.oiChg
                                 ? `Open interest ${r.oiChg.abs >= 0 ? "+" : ""}${fmtK(r.oiChg.abs)} vs last session (${fmtK(r.oi - r.oiChg.abs)} → ${fmtK(r.oi)})${r.arch === "FRESH" ? (r.oiChg.pct >= 0.1 ? " — FRESH held: new positioning stuck" : r.oiChg.pct <= -0.1 ? " — FRESH faded: intraday churn, OI fell back" : "") : ""}`
+                                : (r.oiTag && r.oiTag.expiring) ? "Contract expires today — ΔOI suppressed (OI is about to evaporate; hygiene gate)"
+                                : (r.oiTag && r.oiTag.rollover) ? "Rollover detected — position migrated expiries, ΔOI suppressed (not new flow)"
                                 : "No prior-day record for this contract yet — ΔOI appears next session"}>
                             {r.oiChg
                               ? `${r.oiChg.pct >= 0 ? "+" : ""}${(r.oiChg.pct * 100).toFixed(0)}%`
+                              : (r.oiTag && r.oiTag.expiring) ? <span className="fsb-oitag" title="expires today — ΔOI suppressed">EXP</span>
+                              : (r.oiTag && r.oiTag.rollover) ? <span className="fsb-oitag" title="rollover — ΔOI suppressed">ROLL</span>
                               : <span className="fsb-sub">—</span>}
+                            {r.oiChg && r.oiChg.tag && r.oiChg.tag.earnings ? (
+                              <span className="fsb-oitag fe" title={r.oiChg.tag.earnings.unknown ? "earnings window unknown — direction ambiguous" : `earnings in ${r.oiChg.tag.earnings.days_to} session(s) — direction ambiguous`}>E</span>
+                            ) : null}
                           </td>
                           {advanced && <td>{r.volOI >= 99 ? "99+" : `${r.volOI.toFixed(1)}x`}</td>}
                           <td title="Estimated premium spent — no quote feed on cvserver, BS-lite estimate">{r.premium != null ? `~${fmtUSD(r.premium)}` : "—"}</td>

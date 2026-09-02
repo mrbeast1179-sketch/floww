@@ -88,7 +88,7 @@ def main() -> int:
                 cutoff = (date.today() - timedelta(days=args.from_scan)).isoformat()
                 docs = await client[os.environ.get("DB_NAME", "floww")].flow_scan_daily.distinct(
                     "ticker", {"date": {"$gte": cutoff}})
-                return list(docs)[:200]
+                return list(docs)[:600]
             finally:
                 client.close()
         tickers = list(dict.fromkeys(tickers + asyncio.run(_scan_tickers())))
