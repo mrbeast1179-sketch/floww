@@ -202,6 +202,39 @@ def test_eval_whale_rule_premium_floor():
     assert any(a["rule"] == "WHALE" for a in alerts)
 
 
+def test_calibration_attached_stage0_uncalibrated_never_blocks():
+    """Stage-0 calibration → every fired alert carries p_move=None +
+    method 'uncalibrated' and NO alert is suppressed (None never gates)."""
+    rows = norm_rows([_raw(vol=60000, oi=1500)])
+    cal = {"stage": 0, "model": None, "n": 42, "method_note": "uncalibrated: n=42 < 60"}
+    alerts = eval_institutional(rows, opts={"min_score": 1, "whale_premium": 1.0,
+                                            "calibration": cal})
+    assert alerts, "alerts must still fire with an uncalibrated model"
+    for a in alerts:
+        assert a["p_move"] is None
+        assert a["p_method"] == "uncalibrated"
+        assert a["p_n"] == 42
+
+
+def test_calibration_attached_stage1_real_p_on_alerts():
+    """Stage-1 decile model → fired alerts carry the measured decile p."""
+    rows = norm_rows([_raw(vol=60000, oi=1500)])
+    # Fixture alert scores 89 → decile 8. Cover BOTH 8 and 9 so the test
+    # pins the p-attach contract, not the fixture's exact score.
+    cal = {"stage": 1, "n": 120, "method_note": "decile",
+           "model": {"kind": "decile", "n": 120,
+                     "table": {"8": {"n": 40, "hits": 16, "p": 0.4, "ci": [0.26, 0.56]},
+                               "9": {"n": 40, "hits": 20, "p": 0.5, "ci": [0.35, 0.65]}}}}
+    alerts = eval_institutional(rows, opts={"min_score": 1, "whale_premium": 1.0,
+                                            "calibration": cal})
+    scored = [a for a in alerts if a.get("score") is not None and (a["score"] or 0) >= 80]
+    assert scored, "fixture must produce a SCORE-band alert"
+    for a in scored:
+        d = str(min(9, int(a["score"] or 0) // 10))
+        assert a["p_move"] == cal["model"]["table"][d]["p"]
+        assert a["p_method"] == "decile"
+
+
 def test_eval_oiconf_capped_at_top5_by_pct():
     rows = []
     for i in range(8):

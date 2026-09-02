@@ -470,6 +470,12 @@ def eval_institutional(rows, baselines=None, prev_oi=None, regimes=None, opts=No
         "min_score": 92, "whale_premium": 25e6, "zero_dte_score": 70,
         "oiconf_pct": 0.30, "oiconf_notional": 1e6, "sigma_min": 6.0,
         "fdr_q": 0.10,
+        # calibration: pre-fitted stage blob from flow_calibration.fit_calibration
+        # (loaded by the caller from the cron's Mongo snapshot). When supplied,
+        # every fired alert gains p_move/p_method/p_n — server-computed,
+        # structural parity. GATING on p is intentionally inert until the
+        # model promotes past stage 0: p_move=None must never block a fire.
+        "calibration": None,
         **(opts or {}),
     }
     baselines = baselines or {}
@@ -578,6 +584,19 @@ def eval_institutional(rows, baselines=None, prev_oi=None, regimes=None, opts=No
         a["cw_spread"] = round(cw, 4) if cw is not None else None
         out.append(a)
 
+    # Calibration provenance — attach the server-computed p_move to every
+    # fired alert. Stage-0 model → p_move=None + "uncalibrated" on each row:
+    # the tape stays complete and the ledger records WHAT the model knew at
+    # fire time (auditable stage promotion later). Gating on p is a future
+    # change gated on stage ≥ 1 by design — never let None block a fire.
+    cal = o.get("calibration")
+    if cal is not None:
+        from services.flow_calibration import predict_p_move
+        for a in out:
+            try:
+                a.update(predict_p_move(cal, {**a, "score": a.get("score")}))
+            except Exception:
+                a["p_move"], a["p_method"] = None, "calibration_error"
     return out
 
 
@@ -615,9 +634,12 @@ def init_flow_alert_tables(engine) -> None:
         "ALTER TABLE flow_alerts_daily ADD COLUMN IF NOT EXISTS conviction INTEGER",
         "ALTER TABLE flow_alerts_daily ADD COLUMN IF NOT EXISTS key_levels_json TEXT",
         "ALTER TABLE flow_alerts_daily ADD COLUMN IF NOT EXISTS context_json TEXT",
+        # Outcome-ledger / calibration columns (2026-09-02): p_move provenance
+        # persisted at fire time so stage promotion can be audited retroactively.
+        "ALTER TABLE flow_alerts_daily ADD COLUMN IF NOT EXISTS p_move DOUBLE",
+        "ALTER TABLE flow_alerts_daily ADD COLUMN IF NOT EXISTS p_method TEXT",
     ):
         with contextlib.suppress(Exception):
-            # Blademap v3 contract columns (2026-08-22).
             engine.execute_write(ddl)
     engine.execute_write("""
         CREATE TABLE IF NOT EXISTS flow_alert_dedup (
@@ -644,14 +666,16 @@ def persist_alerts(engine, alerts, snapshot_date: str | None = None) -> int:
         a.get("conviction"),
         json.dumps(a.get("key_levels")) if a.get("key_levels") else None,
         json.dumps(a.get("context")) if a.get("context") else None,
+        # Calibration provenance (2026-09-02): server-computed p_move.
+        a.get("p_move"), a.get("p_method"),
     ] for a in alerts]
     engine.execute_write("""
         INSERT INTO flow_alerts_daily (
             asof_date, asof_ts, key, ckey, rule, tier, side, bias, under, type,
             strike, exp, dte, score, est_entry, premium, notional, vol_oi,
             sigma, oi_chg_pct, under_price, cw_spread, cluster, why,
-            conviction, key_levels_json, context_json
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            conviction, key_levels_json, context_json, p_move, p_method
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT (asof_date, key) DO UPDATE SET
             asof_ts = excluded.asof_ts, tier = excluded.tier, side = excluded.side,
             bias = excluded.bias, score = excluded.score,
@@ -662,7 +686,8 @@ def persist_alerts(engine, alerts, snapshot_date: str | None = None) -> int:
             cluster = excluded.cluster, why = excluded.why,
             conviction = excluded.conviction,
             key_levels_json = excluded.key_levels_json,
-            context_json = excluded.context_json
+            context_json = excluded.context_json,
+            p_move = excluded.p_move, p_method = excluded.p_method
     """, rows)
     return len(rows)
 

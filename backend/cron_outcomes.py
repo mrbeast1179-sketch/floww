@@ -96,14 +96,20 @@ async def refresh(days: int, horizon: int, push: bool) -> dict:
     finally:
         client.close()
 
-    # 4. Optional: warm a RUNNING backend's in-process view too
+    # 4. Optional: warm a RUNNING backend's in-process view too. POSTs are
+    # fail-closed behind X-API-Key (auth middleware) — the cron reads the same
+    # .env, so it sends the header itself.
     if push:
         import httpx
         try:
+            headers = {}
+            api_key = os.environ.get("API_SECRET_KEY", "")
+            if api_key:
+                headers["X-API-Key"] = api_key
             async with httpx.AsyncClient(timeout=10) as hc:
-                await hc.post("http://localhost:8000/api/flowseeker/outcomes/refresh",
-                              json={"days": days, "horizon": horizon})
-            log.info("pushed refresh signal to :8000")
+                resp = await hc.post("http://localhost:8000/api/flowseeker/outcomes/refresh",
+                                     json={"days": days, "horizon": horizon}, headers=headers)
+            log.info("pushed refresh signal to :8000 (HTTP %s)", resp.status_code)
         except Exception as e:  # backend down is fine — cache is in Mongo
             log.info("push skipped (backend not reachable): %s", e)
 
