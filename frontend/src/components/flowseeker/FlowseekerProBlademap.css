@@ -1010,7 +1010,20 @@
 }
 /* ────────────────────────────────────────────────────────────── */
 
-/* ── ΔOI hygiene tags + outcome governance chips (2026-09-02) ── */
+/* ── WTI + Pairs view containers (Tidehunter Pro sub-tabs) ── */
+.fsbwtiwrap,
+.fsbpairswrap {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+/* Top-conviction badge row (conviction + tier) */
+.fsb-sig-badges {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  align-items: center;
+}
 .fsb-oitag {
   display: inline-block;
   margin-left: 4px;
