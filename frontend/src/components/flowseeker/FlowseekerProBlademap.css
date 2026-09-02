@@ -1009,3 +1009,38 @@
   border-color: var(--fsb-blue);
 }
 /* ────────────────────────────────────────────────────────────── */
+
+/* ── ΔOI hygiene tags + outcome governance chips (2026-09-02) ── */
+.fsb-oitag {
+  display: inline-block;
+  margin-left: 4px;
+  padding: 0 4px;
+  border-radius: 3px;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.4px;
+  line-height: 14px;
+  vertical-align: middle;
+  background: rgba(245, 158, 11, 0.14);
+  color: var(--fsb-amber, #f59e0b);
+  border: 1px solid rgba(245, 158, 11, 0.3);
+  cursor: help;
+}
+.fsb-oitag.fe {
+  background: rgba(59, 130, 246, 0.12);
+  color: #60a5fa;
+  border-color: rgba(59, 130, 246, 0.3);
+}
+.fsb-amber-row td { opacity: 0.75; }
+.fsb-amber-chip {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 0 5px;
+  border-radius: 3px;
+  font-size: 9px;
+  font-weight: 700;
+  line-height: 14px;
+  background: rgba(245, 158, 11, 0.14);
+  color: var(--fsb-amber, #f59e0b);
+  border: 1px solid rgba(245, 158, 11, 0.3);
+}
