@@ -461,18 +461,20 @@ def read_alert_history(engine: Any, days: int = DEFAULT_LOOKBACK_DAYS) -> list[d
     """Read the persisted alert ledger (flow_alerts_daily) for measurement.
 
     Read-only — the DuckDB invariant (writes only via execute_write) is
-    untouched; this module never writes.
+    untouched; this module never writes. Uses engine.query (returns
+    list[dict]) per the DuckDBEngine contract.
     """
     try:
-        rows = engine.execute("SELECT * FROM flow_alerts_daily").fetchall()
-        cols = [d[0] for d in engine.execute("SELECT * FROM flow_alerts_daily LIMIT 0").description]
-        out = []
         cutoff = (date.today() - timedelta(days=days)).isoformat()
-        for r in rows:
-            d = dict(zip(cols, r, strict=False))
+        rows = engine.query(
+            "SELECT * FROM flow_alerts_daily WHERE asof_date >= ?",
+            [cutoff],
+        )
+        out = []
+        for d in rows or []:
+            d = dict(d)
             d["asof_date"] = str(d.get("asof_date") or "")[:10]
-            if d["asof_date"] >= cutoff:
-                out.append(d)
+            out.append(d)
         return out
     except Exception as e:
         logger.warning("flow_outcomes: could not read flow_alerts_daily: %s", e)

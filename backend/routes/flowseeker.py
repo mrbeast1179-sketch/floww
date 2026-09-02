@@ -1884,6 +1884,92 @@ async def risk_killswitch_trip(equity: float = Query(100000.0, gt=0)):
 
 # ── Outcome ledger: measured alert quality ──────────────────────────
 
+_outcome_cache: dict[str, tuple[float, dict]] = {}   # key -> (ts, payload)
+_OUTCOME_TTL = 6 * 3600   # nightly cron refreshes Mongo; in-process cache is a courtesy
+
+
+async def _load_outcomes(days: int, horizon: int) -> dict | None:
+    """Precomputed stats from the nightly cron (Mongo flow_outcome_cache);
+    falls back to computing live when the cron hasn't run yet."""
+    import time as _time
+
+    from services import flow_outcomes as fo
+    from services.duckdb_engine import db as duckdb_engine
+
+    key = f"{days}:{horizon}"
+    hit = _outcome_cache.get(key)
+    if hit and _time.time() - hit[0] < _OUTCOME_TTL:
+        return hit[1]
+    # 1. nightly cron's precomputed snapshot
+    try:
+        from server import db as mongo_db  # deferred: circular import
+        doc = await mongo_db.flow_outcome_cache.find_one({"_id": f"outcomes_h{horizon}"})
+        if doc and doc.get("status") == "ok":
+            stats = {k: v for k, v in doc.items() if k != "_id"}
+            stats.setdefault("source", "cron")
+            _outcome_cache[key] = (_time.time(), stats)
+            return stats
+    except Exception:
+        pass  # Mongo down — fall through to live compute
+    # 2. live compute fallback (cron cold — e.g. fresh deploy)
+    try:
+        alerts = fo.read_alert_history(duckdb_engine, days=days)
+        if not alerts:
+            return None
+        tickers = sorted({a.get("under") for a in alerts if a.get("under")})
+        bars = await asyncio.get_running_loop().run_in_executor(None, fo.fetch_bars_yfinance, tickers)
+        vix = await asyncio.get_running_loop().run_in_executor(None, fo.fetch_bars_yfinance, ["^VIX"])
+        stats = fo.compute_outcomes(alerts, bars, vix.get("^VIX"), horizon=horizon)
+        stats["ok"] = True
+        stats["lookback_days"] = days
+        stats["source"] = "live"
+        _outcome_cache[key] = (_time.time(), stats)
+        return stats
+    except Exception:
+        return None
+
+
+@router.post("/outcomes/refresh")
+async def alert_outcomes_refresh(days: int = Query(60, ge=7, le=180), horizon: int = Query(2, ge=1, le=10)):
+    """Cache-warm signal from the nightly cron (--push). Cheap: re-reads Mongo.
+    Always 200 — the cron owns the actual compute; this just drops our
+    in-process cache so the next GET re-reads the fresh snapshot."""
+    _outcome_cache.clear()
+    return {"ok": True, "invalidated": True, "days": days, "horizon": horizon}
+
+
+@router.get("/model")
+async def calibration_model():
+    """Calibrated P(move) status + coefficients.
+
+    The server computes p_move and attaches it to rows/alerts — this endpoint
+    exposes WHICH model, its stage ladder position, and its provenance so the
+    desk can see whether the probability on the tape is measured or honest-
+    uncalibrated. Structural parity: the frontend never recomputes p.
+    """
+    from services import flow_calibration as fc
+    from services import flow_outcomes as fo
+    from services.duckdb_engine import db as duckdb_engine
+
+    alerts = fo.read_alert_history(duckdb_engine, days=90)
+    if not alerts:
+        return {
+            "ok": True, "stage": 0, "n": 0,
+            "method_note": "no alerts in ledger — calibration has nothing to fit",
+            "p_move": None,
+        }
+    tickers = sorted({a.get("under") for a in alerts if a.get("under")})
+    bars = await asyncio.get_running_loop().run_in_executor(None, fo.fetch_bars_yfinance, tickers)
+    vix = await asyncio.get_running_loop().run_in_executor(None, fo.fetch_bars_yfinance, ["^VIX"])
+    labeled = fo.label_alerts(alerts, bars, vix.get("^VIX"))
+    cal = fc.fit_calibration(labeled)
+    out = {"ok": True, **fc.calibration_status_blob(cal)}
+    # Sample the p semantics on one row so consumers see the shape honestly.
+    if labeled:
+        out["p_move_sample"] = fc.predict_p_move(cal, labeled[0])
+    return out
+
+
 @router.get("/outcomes")
 async def alert_outcomes(
     days: int = Query(60, ge=7, le=180, description="Alert-history lookback window"),
@@ -1901,33 +1987,20 @@ async def alert_outcomes(
 
     Rules below min_alerts measured alerts report precision=null +
     uncalibrated=true — the dashboard shows 'uncalibrated: n=k', never a
-    fabricated small-n number. This endpoint is the source of truth the
-    alert thresholds eventually get tuned from (replaces hand-picked
-    defaults with measured hit rates).
+    fabricated small-n number. Serves the nightly cron's precomputed snapshot
+    (Mongo flow_outcome_cache) when present; falls back to live compute.
+    This endpoint is the source of truth the alert thresholds eventually get
+    tuned from (replaces hand-picked defaults with measured hit rates).
     """
-    from services import flow_outcomes as fo
-    from services.duckdb_engine import db as duckdb_engine
-
-    alerts = fo.read_alert_history(duckdb_engine, days=days)
-    if not alerts:
+    stats = await _load_outcomes(days, horizon)
+    if stats is None:
         return {
             "ok": True, "status": "no_alerts",
             "message": "No alerts in flow_alerts_daily within the lookback — "
                        "the ledger fills as the institutional engine fires.",
             "lookback_days": days, "per_rule": {}, "overall": {"n_measured": 0, "precision": None},
         }
-    tickers = sorted({a.get("under") for a in alerts if a.get("under")})
-    bars = await asyncio.get_running_loop().run_in_executor(
-        None, fo.fetch_bars_yfinance, tickers)
-    vix = await asyncio.get_running_loop().run_in_executor(
-        None, fo.fetch_bars_yfinance, ["^VIX"])
-    vix_series = vix.get("^VIX")
-    stats = fo.compute_outcomes(
-        alerts, bars, vix_series,
-        horizon=horizon, sigma_k=sigma_k, min_alerts=min_alerts,
-    )
+    stats = dict(stats)
+    stats.setdefault("sigma_k", sigma_k)
     stats["ok"] = True
-    stats["lookback_days"] = days
-    stats["tickers_measured"] = tickers
-    stats["bars_available"] = sorted(bars.keys())
     return stats

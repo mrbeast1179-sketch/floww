@@ -230,12 +230,17 @@ export default function FlowseekerProBlademap({ active = true }) {
   // cohort; rules below min_alerts come back precision=null → we render
   // "uncalibrated · n=k", never a fabricated hit rate.
   const [outcomes, setOutcomes] = useState(null);
+  const [calibration, setCalibration] = useState(null);
   const [outcomesOpen, setOutcomesOpen] = useState(true);
   const loadOutcomes = useCallback(async () => {
     try {
       const d = await getJSON(`${API}/outcomes?days=60`);
       if (d && d.ok) setOutcomes(d);
     } catch { /* ledger cold or bars slow — the strip just stays empty */ }
+    try {
+      const c = await getJSON(`${API}/model`);
+      if (c && c.ok) setCalibration(c);
+    } catch { /* model endpoint cold — panel stays empty */ }
   }, []);
   useEffect(() => { if (active) loadOutcomes(); }, [active, loadOutcomes, refreshTick]);
   // Simple mode (default): institutional alerts + a best-only table, no knobs.
@@ -1427,6 +1432,9 @@ export default function FlowseekerProBlademap({ active = true }) {
                   <span>📏 Outcome Ledger</span>
                   <span className="fsb-muted fsb-small">
                     hit = |side-signed move| ≥ {outcomes.sigma_k}σ in {outcomes.horizon_sessions} sessions · vs matched controls
+                    {calibration && (
+                      <> · P(move): <b className={calibration.stage >= 1 ? "" : "fsb-muted"}>{calibration.stage >= 1 ? `stage ${calibration.stage} (${calibration.model_kind || "decile"})` : `uncalibrated · n=${calibration.n}`}</b></>
+                    )}
                   </span>
                   <button className="fsb-alertclear" onClick={() => setOutcomesOpen(false)} title="Collapse">—</button>
                 </div>
