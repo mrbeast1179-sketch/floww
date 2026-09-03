@@ -327,8 +327,6 @@
 .fsb-presets { display: inline-flex; gap: 4px; }
 .fsb-preset { background: #131722; border: 1px solid #2a2e39; color: #9aa0ae; font-size: 10px; padding: 3px 8px; border-radius: 4px; cursor: pointer; }
 .fsb-preset.on, .fsb-preset:hover { color: #e6e8ee; border-color: #29c5e0; }
-.fsb-uonly { font-size: 10px; color: #9aa0ae; display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
-.fsb-univ { min-width: 180px; }
 .fsb-alertn { width: 56px; }
 .fsb-gtag { font-size: 8px; margin-left: 2px; }
 .fsb-gtag.gp { color: #19d27c; }

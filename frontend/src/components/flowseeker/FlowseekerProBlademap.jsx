@@ -169,10 +169,10 @@ export function aggregatePulse(rows, windowMs = 90e3, now = Date.now()) {
 }
 
 // ---------- cross-symbol scanner (scenner34 BladeMap grid) ----------
-// A broader universe than the flow watchlist so the scan surfaces hot names
-// (ENPH, AMD, PLTR…) the way a market-wide screen does. Used only as the
-// fallback path — when the efficient backend /scan endpoint is deployed the
-// component prefers that (one call, the whole market).
+// Fallback-loop ticker list only — the live path is the market-wide backend
+// /scan endpoint (one call, the whole market). SCAN_UNIVERSE is used solely
+// if a per-ticker fallback loop is ever reintroduced; nothing filters or
+// alerts by it.
 const SCAN_UNIVERSE = ["SPY", "QQQ", "IWM", "NVDA", "TSLA", "AAPL", "MSFT", "AMZN", "META", "GOOGL", "AMD", "PLTR", "ENPH", "NFLX", "AVGO", "MU", "COIN", "SMCI"];
 // (scanner math — bizDTE/scanTypeOf/scanScoreOf/estimateDelta/approxSpot/mkScanRow
 // and the fmt* helpers — lives in ./scanLogic.js, tested in scanLogic.test.js)
@@ -267,7 +267,9 @@ export default function FlowseekerProBlademap({ active = true }) {
   const [regime, setRegime] = useState({ label: "—", cls: "chop" });
   const [clock, setClock] = useState("");
   const [plotlyReady, setPlotlyReady] = useState(!!window.Plotly);
-  // cross-symbol scanner state (Scanner tab) — filters/sort/universe persist in localStorage
+  // cross-symbol scanner state (Scanner tab) — filters/sort persist in localStorage.
+  // The universe is FULLY OPEN: no allowlists, no My-universe filter, no
+  // alert scoping — the market-wide scan alerts on any symbol.
   const prefs = useMemo(loadScanPrefs, []);
   const [scan, setScan] = useState([]);
   const [scanAt, setScanAt] = useState("");
@@ -284,8 +286,6 @@ export default function FlowseekerProBlademap({ active = true }) {
   const [scanQ, setScanQ] = useState("");
   const [scanMeta, setScanMeta] = useState({ mode: null, stale: false, symbols: 0 });
   const [baselines, setBaselines] = useState({});   // {ticker: {avg, std, days}} from /scan
-  const [universe, setUniverse] = useState(prefs.universe || SCAN_UNIVERSE);
-  const [universeOnly, setUniverseOnly] = useState(!!prefs.universeOnly);
   const [alertScore, setAlertScore] = useState(prefs.alertScore ?? 92);
   const [alertRules, setAlertRules] = useState({ ...DEFAULT_RULES, ...(prefs.alertRules || {}) });
   const [history, setHistory] = useState({});   // {ticker: [{date, total_vol, call_vol, put_vol}]} from /scan/history
@@ -310,12 +310,11 @@ export default function FlowseekerProBlademap({ active = true }) {
   }, []);
   // NOTE: the refreshTick-consuming effect lives BELOW refreshTick's
   // declaration (TDZ: `const` is not usable before its initializer runs).
-  // Simple mode (default): institutional alerts + a best-only table, no knobs.
-  // ⚙ Advanced reveals the full filter/preset/universe/rule-chip toolkit.
+  // Simple mode (default): institutional alerts + the full quality-gated table,
+  // no knobs. ⚙ Advanced reveals the full filter/preset/rule-chip toolkit.
   const [advanced, setAdvanced] = useState(!!prefs.advanced);
   const [alertsOpen, setAlertsOpen] = useState(true);   // the feed IS the product — open by default
   const [alertOrder, setAlertOrder] = useState("new");   // tape order: newest | oldest first
-  const [alertUnivOnly, setAlertUnivOnly] = useState(prefs.alertUnivOnly ?? true);   // scope alerts to My Universe
   const [scanSideF, setScanSideF] = useState(prefs.scanSideF || "all");   // Calls/Puts — visible in both modes
   const [away, setAway] = useState(null);                 // "while you were away" digest, null = hidden
   const [notify, setNotify] = useState(!!prefs.notify);
@@ -365,7 +364,7 @@ export default function FlowseekerProBlademap({ active = true }) {
   useEffect(() => { baselinesRef.current = baselines; }, [baselines]);
 
   // Log (and optionally notify) when the scan source flips market↔fallback —
-  // a coverage change from 700+ symbols to 18 is something a desk wants to know.
+  // a coverage change is something a desk wants to know.
   const lastModeRef = useRef(null);
   const noteSourceFlip = useCallback((mode, symbols) => {
     const prev = lastModeRef.current;
@@ -391,14 +390,15 @@ export default function FlowseekerProBlademap({ active = true }) {
     }
   }, []);
   // Poll effect reads alert config via ref so rule tweaks don't re-arm the interval.
+  // Alerting is market-wide: allow=null (whole market), no universe scoping.
   const alertCfgRef = useRef({});
   useEffect(() => {
-    alertCfgRef.current = { minScore: alertScore, enabled: alertRules, allow: alertUnivOnly ? universe : null, side: scanSideF };
-  }, [alertScore, alertRules, alertUnivOnly, universe, scanSideF]);
+    alertCfgRef.current = { minScore: alertScore, enabled: alertRules, allow: null, side: scanSideF };
+  }, [alertScore, alertRules, scanSideF]);
 
-  useEffect(() => {    try { localStorage.setItem(PREFS_KEY, JSON.stringify({ scanTypeF, scanMinVol, scanMinPrem, scanMinOI, scanMinScore, scanSideF, scanDteF, scanSort, universe, universeOnly, alertScore, alertRules, notify, alertUnivOnly, advanced }));
+  useEffect(() => {    try { localStorage.setItem(PREFS_KEY, JSON.stringify({ scanTypeF, scanMinVol, scanMinPrem, scanMinOI, scanMinScore, scanSideF, scanDteF, scanSort, alertScore, alertRules, notify, advanced }));
     } catch { /* private mode — prefs just don't persist */ }
-  }, [scanTypeF, scanMinVol, scanMinPrem, scanMinOI, scanMinScore, scanSideF, scanDteF, scanSort, universe, universeOnly, alertScore, alertRules, notify, alertUnivOnly, advanced]);
+  }, [scanTypeF, scanMinVol, scanMinPrem, scanMinOI, scanMinScore, scanSideF, scanDteF, scanSort, alertScore, alertRules, notify, advanced]);
 
   // "While you were away" — keep the last-seen stamp current while visible
   // (the previous visit's value was snapshotted at module load, see AWAY_FROM).
@@ -621,9 +621,8 @@ export default function FlowseekerProBlademap({ active = true }) {
   }, [active, ticker, tab, flowPaused, flowNonce]);
 
   // ---- cross-symbol market scan (Scanner tab, scenner34 grid) ----
-  // Prefer the efficient backend /scan endpoint (ONE market-wide cvforge screen);
-  // if it isn't deployed yet, fall back to looping the live per-ticker /chain over
-  // a universe. Both are 100% live cvserver day-volume-vs-OI — no synthetic data.
+  // Market-wide backend /scan endpoint (ONE cvforge screen, the whole market).
+  // 100% live cvserver day-volume-vs-OI — no synthetic data.
   useEffect(() => {
     if (!active || tab !== "scanner") return;   // poll only while the Scanner tab is visible
     let cancelled = false;
@@ -857,14 +856,13 @@ export default function FlowseekerProBlademap({ active = true }) {
 
   // scanner: filter + sort + KPI rollup. Simple mode ignores the hidden
   // advanced knobs (a Min-Vol set weeks ago must not silently filter an
-  // interface with no visible controls) and applies one opinionated quality
-  // gate instead: only rows an institutional desk would look at.
+  // interface with no visible controls). The universe is fully open — no
+  // priority gate, no allowlist: quality gates (SCORE ≥92 / DTE / side /
+  // search) do the filtering, not a ticker list.
   // Side + DTE-preset + Min-Prem~/Min-OI apply in BOTH modes (side and DTE
   // are visible controls; the number inputs are advanced-only).
   const scanRows = useMemo(() => {
     const q = (scanQ || "").trim().toUpperCase();
-    const isBest = (r) => r.score >= 70 || r.arch === "WHALE"
-      || (r.oiChgPct ?? 0) >= 0.3 || (r.premium ?? 0) >= 1e6;
     const dteIn = (r, preset) => {
       const d = r.dte;
       switch (preset) {
@@ -881,7 +879,6 @@ export default function FlowseekerProBlademap({ active = true }) {
       if (scanSideF !== "all" && r.type !== scanSideF) return false;
       if (!dteIn(r, scanDteF)) return false;
       if (advanced) {
-        if (universeOnly && !universe.includes(r.under)) return false;
         if (scanTypeF !== "all" && r.type !== scanTypeF) return false;
         if (scanMinVol && r.vol < scanMinVol) return false;
         if (scanMinPrem && (r.premium ?? 0) < scanMinPrem) return false;
@@ -889,7 +886,6 @@ export default function FlowseekerProBlademap({ active = true }) {
         if (scanMinScore && r.score < scanMinScore) return false;
       } else {
         if (scanMinPrem && (r.premium ?? 0) < scanMinPrem) return false;
-        if (!isBest(r)) return false;
       }
       if (q && !(r.under || "").toUpperCase().includes(q)) return false;
       // Zenith control-cluster quick filters
@@ -906,7 +902,7 @@ export default function FlowseekerProBlademap({ active = true }) {
       return (av < bv ? -1 : av > bv ? 1 : 0) * dir;
     });
     return rows;
-  }, [scan, scanSideF, scanDteF, scanTypeF, scanMinVol, scanMinPrem, scanMinOI, scanMinScore, scanQ, scanSort, universe, universeOnly, advanced, minScoreQF, dteRange]);
+  }, [scan, scanSideF, scanDteF, scanTypeF, scanMinVol, scanMinPrem, scanMinOI, scanMinScore, scanQ, scanSort, advanced, minScoreQF, dteRange]);
   // Keyboard nav (scanner tab only, ignored while typing in an input)
   useEffect(() => {
     if (!active || tab !== "scanner") return;
@@ -999,9 +995,9 @@ export default function FlowseekerProBlademap({ active = true }) {
     now: Date.now(), ttlMs: 60_000,
     minScoreForFire: alertScore,
     enabled: alertRules,
-    allow: alertUnivOnly ? universe : null,
+    allow: null,
     acked: ackedKeys,
-  }), [alertLog, alertScore, alertRules, alertUnivOnly, universe, ackedKeys]);
+  }), [alertLog, alertScore, alertRules, ackedKeys]);
   const fireBanner = useMemo(() => pickBanner(fires), [fires]);
   useEffect(() => {
     if (!fireBanner) return;
@@ -1433,7 +1429,7 @@ export default function FlowseekerProBlademap({ active = true }) {
                 </div>
               ))}
               <button className="fsb-preset fsb-advtoggle"
-                title={advanced ? "Back to the simple view — alerts + best flow only" : "Show all filters, presets, universe and alert-rule controls"}
+              title={advanced ? "Back to the simple view — alerts + full flow table" : "Show all filters, presets and alert-rule controls"}
                 onClick={() => setAdvanced((a) => !a)}>
                 ⚙ {advanced ? "Simple" : "Advanced"}
               </button>
@@ -1562,12 +1558,6 @@ export default function FlowseekerProBlademap({ active = true }) {
                   title="Download the current filtered view as CSV (premium column is an estimate)"
                   onClick={() => exportCSV(scanRows)}>⤓ CSV</button>
               </span>
-              <label className="fsb-uonly" title="Filter the scan to your universe list">
-                <input type="checkbox" checked={universeOnly} onChange={(e) => setUniverseOnly(e.target.checked)} /> My universe
-              </label>
-              <input className="fsb-univ" defaultValue={universe.join(",")} placeholder="Universe…"
-                title="Comma-separated tickers — used by the fallback scan and the 'My universe' filter"
-                onBlur={(e) => { const u = (e.target.value || "").toUpperCase().split(/[,\s]+/).filter(Boolean); if (u.length) setUniverse(u); }} />
               <input className="fsb-alertn" type="number" min="50" max="100" value={alertScore}
                 title="Alert when a NEW contract scores ≥ this (drives the SCORE rule)"
                 onChange={(e) => {
@@ -1704,9 +1694,6 @@ export default function FlowseekerProBlademap({ active = true }) {
                       title="Browser notification when alerts fire while this tab is hidden"
                       onClick={toggleNotify}>🔔 Notify</button>
                     {advanced && <>
-                      <button className={`fsb-rulechip${alertUnivOnly ? " on" : ""}`}
-                        title="Scope alerts + notifications to My Universe tickers only — off = whole market (700+ symbols)"
-                        onClick={() => setAlertUnivOnly((v) => !v)}>🎯 UNIV</button>
                       {[["oiconf", "ΔOI CONF"], ["follow", `FOLLOW ${alertRules.followMin ?? 3}d+`], ["sigma", `SIGMA ≥${alertRules.sigmaMin ?? 6}σ`],
                         ["score", `SCORE≥${alertRules.scoreMin ?? 92}`], ["whale", `WHALE ≥$${Math.round((alertRules.whaleMin ?? 25e6) / 1e6)}M~`], ["zerodte", "0DTE HOT"]].map(([k, lbl]) => (
                         <button key={k} className={`fsb-rulechip${alertRules[k] ? " on" : ""}`}
@@ -1735,7 +1722,7 @@ export default function FlowseekerProBlademap({ active = true }) {
                 </div>
                 {alertLog.length === 0 ? (
                   <div className="fsb-muted" style={{ padding: 10 }}>
-                    No alerts yet — rows crossing an enabled rule log here with arrival time, source, and the reason they fired. Confirmation tier: ΔOI CONF = overnight open-interest build proves yesterday's flow held; FOLLOW = 3+ straight days of elevated volume; SIGMA = volume ≥6σ vs the ticker's own baseline. Intraday tier: SCORE ≥92 / WHALE ≥$25M~ / 0DTE on newly arrived contracts (deduped, noise-budget capped at 4/rule/hour). Tape keeps today + yesterday; 🎯 UNIV scopes alerts to your universe.
+                    No alerts yet — rows crossing an enabled rule log here with arrival time, source, and the reason they fired. Confirmation tier: ΔOI CONF = overnight open-interest build proves yesterday's flow held; FOLLOW = 3+ straight days of elevated volume; SIGMA = volume ≥6σ vs the ticker's own baseline. Intraday tier: SCORE ≥92 / WHALE ≥$25M~ / 0DTE on newly arrived contracts (deduped, noise-budget capped at 4/rule/hour). Tape keeps today + yesterday; alerts cover the whole market.
                   </div>
                 ) : (
                   <table className="fsb-alerttab">
@@ -1746,7 +1733,7 @@ export default function FlowseekerProBlademap({ active = true }) {
                             onClick={a.rule === "SOURCE" ? undefined
                               : a.label ? () => setScanQ(scanQ === a.under ? "" : a.under)
                               : () => { setTicker(a.under); setTab("flow"); }}>
-                          <td title={a.src === "fallback" ? "18-symbol fallback scan" : a.src === "market" ? "market-wide scan" : ""}>
+                          <td title={a.src === "fallback" ? "fallback scan" : a.src === "market" ? "market-wide scan" : ""}>
                             <span className={`fsb-srcdot ${a.src || ""}`} />
                           </td>
                           <td className="fsb-sub" title={`${fmtAge(a.t)} ago`}>
@@ -1867,7 +1854,7 @@ export default function FlowseekerProBlademap({ active = true }) {
               {scanMeta.err ? (
                 <div className="fsb-muted" style={{ padding: 16 }}>Flow scan fetch failed — not a filter issue. <button className="fsb-chip fsb-chip-sm" onClick={() => { setScanMeta((m) => ({ ...m, err: false })); setRefreshTick((t) => t + 1); }}>Retry</button></div>
               ) : scan.length === 0 ? (
-                <div className="fsb-muted" style={{ padding: 16 }}>Scanning market flow across {SCAN_UNIVERSE.length} symbols…</div>
+                <div className="fsb-muted" style={{ padding: 16 }}>Scanning market-wide flow{scanMeta.symbols ? ` across ${scanMeta.symbols} symbols` : ""}…</div>
               ) : scanRows.length === 0 ? (
                 <div className="fsb-muted" style={{ padding: 16 }}>No contracts pass these filters.</div>
               ) : (

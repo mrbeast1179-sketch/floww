@@ -141,8 +141,8 @@ export function estPremium(r) {
 // fires at most one alert (first matching rule wins, in priority order).
 // Every hit carries a plain-English `why` (a desk explains its alerts) and an
 // optional `ttl` — how long ingest should dedupe this key before re-firing.
-// opts.allow: optional ticker allowlist (array) — scopes alerting to the
-// user's universe so market-wide scans don't ping for 700 random symbols.
+// The universe is FULLY OPEN: no ticker allowlist — market-wide scans alert
+// on any symbol. A legacy `opts.allow` is accepted and ignored (back-compat).
 export function evalAlerts(rows, opts = {}) {
   const {
     // Post-tightening gates (2026-09-02 noise pass, enforced Phase 7.1):
@@ -156,12 +156,11 @@ export function evalAlerts(rows, opts = {}) {
     // fire on NEW rows; a 60-name breadth day can legitimately flag 60 rows
     // — that is data, but 60 notifications is noise. Top-cap keeps the
     // strongest claims per ticker; count stays truthful (engine still
-    // evaluated everything).
+    // evaluated everything). This is a NOTIFICATION throttle, not a universe
+    // limit — every ticker is still evaluated.
     perTickerCap = 2,
     enabled = { score: true, whale: true, zerodte: true, oiconf: true },
-    allow = null,
   } = opts;
-  const allowSet = allow && allow.length ? new Set(allow) : null;
   // key is rule-namespaced so dedup ttls stay independent across rules — a
   // SCORE fire yesterday afternoon must not suppress this morning's OICONF
   // confirmation on the same contract. ckey keeps the raw contract identity.
@@ -194,7 +193,6 @@ export function evalAlerts(rows, opts = {}) {
   };
   const cand = [];
   for (const r of rows || []) {
-    if (allowSet && !allowSet.has(r.under)) continue;
     const tag = (r.oiChg && r.oiChg.tag) || null;
     if (tag && (tag.rollover || tag.expiring)) continue;
     const addNotl = r.oiChg ? r.oiChg.abs * 100 * (r.strike || 0) : 0;
@@ -219,7 +217,6 @@ export function evalAlerts(rows, opts = {}) {
     ? opts.side : null;
   for (const r of rows || []) {
     if (!r._new || inTop.has(r)) continue;
-    if (allowSet && !allowSet.has(r.under)) continue;
     if (sideGate && r.type !== sideGate) continue;
     let rule = null, why = null;
     if (enabled.score && r.score >= (enabled.scoreMin ?? minScore)) {
@@ -328,11 +325,9 @@ export function streakOf(days, { mult = 1.5, minDays = 4, today = sessionDay() }
 //           positioning; institutions building over days, not one print.
 // Hits use the label pathway (no strike) and long ttls so the tape stays signal.
 export function evalTickerAlerts(rollup, baselines = {}, streaks = {}, opts = {}) {
-  const { sigmaMin = 6, followDays = 2, enabled = { sigma: true, follow: true }, allow = null } = opts;
-  const allowSet = allow && allow.length ? new Set(allow) : null;
+  const { sigmaMin = 6, followDays = 2, enabled = { sigma: true, follow: true } } = opts;
   const out = [];
   for (const e of rollup || []) {
-    if (allowSet && !allowSet.has(e.under)) continue;
     const base = { under: e.under, type: "", strike: "", exp: "", score: e.maxScore ?? null, premium: null, dte: null };
     if (enabled.sigma) {
       const b = baselines[e.under];
@@ -553,14 +548,13 @@ export function tierOf(hit, { minScoreForFire = 90 } = {}) {
 
 // Select banner-eligible fires from the (already-dedup'd by alertSeen) alertLog.
 // Returns the subset tagged _tier="high" sorted banner-priority. Defensive on
-// each axis: respects per-rule enabled flags + universe allow (mirrors the
-// evalAlerts/evalTickerAlerts gating) and drops entries older than ttlMs
+// each axis: respects per-rule enabled flags (universe is fully open — no
+// allowlist) and drops entries older than ttlMs
 // (alertLog is already deduped, but TTL handling stays here for stub tests).
 // acked accepts either a Set<string> or a plain {key: ms} object.
 export function selectFires(alertLog, opts = {}) {
-  const { now = Date.now(), ttlMs = 60_000, minScoreForFire = 90, enabled, allow, acked } = opts;
+  const { now = Date.now(), ttlMs = 60_000, minScoreForFire = 90, enabled, acked } = opts;
   const ackedSet = acked instanceof Set ? acked : new Set(Object.keys(acked || {}));
-  const allowSet = allow && allow.length ? new Set(allow) : null;
   const enabledMap = enabled || {};
   const out = [];
   for (const hit of alertLog || []) {
@@ -569,7 +563,6 @@ export function selectFires(alertLog, opts = {}) {
     const rl = String(hit.rule || "").toLowerCase();
     // enabled-map is keyed by lowercase rule names (oiconf / whale / zerodte etc)
     if (enabledMap[rl] === false) continue;
-    if (allowSet && hit.under && !allowSet.has(hit.under)) continue;
     if (hit.t != null && now - hit.t > ttlMs) continue;
     const t = tierOf(hit, { minScoreForFire });
     if (t !== "high") continue;

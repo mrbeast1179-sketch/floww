@@ -195,16 +195,19 @@ describe("evalAlerts", () => {
   });
 });
 
-describe("evalAlerts allowlist", () => {
+describe("evalAlerts universe fully open (no allowlist)", () => {
   const rows = [
     { _new: true, under: "SPY", type: "call", strike: 750, exp: "2099-01-08", score: 95, premium: 1e6, dte: 5 },
     { _new: true, under: "ZZTOP", type: "put", strike: 10, exp: "2099-01-08", score: 99, premium: 1e6, dte: 5 },
   ];
-  it("scopes alerts to the allowlist when provided", () => {
-    const hits = evalAlerts(rows, { allow: ["SPY", "QQQ"] });
-    expect(hits.map((h) => h.under)).toEqual(["SPY"]);
+  it("fires for a non-universe ticker with default opts (whole market)", () => {
+    const hits = evalAlerts([rows[1]]);
+    expect(hits).toHaveLength(1);
+    expect(hits[0].under).toBe("ZZTOP");
+    expect(hits[0].rule).toBe("SCORE");
   });
-  it("empty or missing allowlist means market-wide (back-compat)", () => {
+  it("a legacy allow opt is accepted but ignored — both rows still fire", () => {
+    expect(evalAlerts(rows, { allow: ["SPY", "QQQ"] })).toHaveLength(2);
     expect(evalAlerts(rows, { allow: [] })).toHaveLength(2);
     expect(evalAlerts(rows, {})).toHaveLength(2);
   });
@@ -553,9 +556,9 @@ describe("evalTickerAlerts (SIGMA + FOLLOW)", () => {
     expect(hits[0].rule).toBe("FOLLOW");
     expect(hits[0].label).toMatch(/3 straight days/);
   });
-  it("respects the allowlist and enabled flags", () => {
+  it("ignores any legacy allow opt and respects enabled flags", () => {
     const streaks = { NVDA: { n: 2, mult: 1.5, median: 40000 } };
-    expect(evalTickerAlerts(roll, baselines, streaks, { allow: ["SPY"] })).toEqual([]);
+    expect(evalTickerAlerts(roll, baselines, streaks, { allow: ["SPY"] })).toHaveLength(2);   // allow ignored: whole market
     const only = evalTickerAlerts(roll, baselines, streaks, { enabled: { sigma: false, follow: true } });
     expect(only.map((h) => h.rule)).toEqual(["FOLLOW"]);
   });
@@ -726,9 +729,9 @@ describe("selectFires", () => {
     const out = selectFires(log, { now: baseT, enabled: { whale: false, oiconf: true } });
     expect(out.map((h) => h.rule)).toEqual(["OICONF"]);
   });
-  it("respects allow list (universe scoping)", () => {
+  it("ignores any legacy allow opt (universe fully open)", () => {
     const log = [mk({ under: "NVDA", rule: "OICONF" }), mk({ under: "QQQ", rule: "OICONF" })];
-    expect(selectFires(log, { now: baseT, allow: ["NVDA"] }).map((h) => h.under)).toEqual(["NVDA"]);
+    expect(selectFires(log, { now: baseT, allow: ["NVDA"] }).map((h) => h.under)).toEqual(["NVDA", "QQQ"]);
   });
   it("drops entries older than ttlMs (defensive; alertLog usually pre-trims)", () => {
     const log = [mk({ rule: "OICONF", t: baseT - 90_000 })];
