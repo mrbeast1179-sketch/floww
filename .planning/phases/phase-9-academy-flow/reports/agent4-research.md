@@ -99,6 +99,12 @@ write backend docstring patches (Agent 3 B8 lane) — all queued.
   position is "mixed, SPX-only, regime-dependent". Checklist gains fragility-qualifier rule.
 - Round 10: BJZZ abstract verified verbatim (10bp/wk, <half persistence, suggestive-only) — claim-map
   numbers now sourced, not remembered.
+- Round 11: 5 more abstracts verified verbatim (Zhu, CFP+DOI, CW-51bp, XZZ-10.9%, An — caught own
+  decile/quintile error); phantom §1 row corrected (Charming! variant present per V6).
+- Round 12 (/loop): backend :8000 unreachable from agent shell (timeouts) — live API confirmation of V16
+  blocked without restarting another lane's server; NOT attempted. Code-level propagation stands.
+  Audited Agent-2 W2 fingerprints (973bbb3): honest, added to clean list. New F19 (P2): "negotiated
+  single fill" block tooltip.
 
 ## Agent 4 status block (per task prompt)
 
