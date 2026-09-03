@@ -618,3 +618,41 @@ export function formatFOLLOWStrip(streaks, { top = 6 } = {}) {
   arr.sort((a, b) => (b.n - a.n) || (b.mult - a.mult) || a.under.localeCompare(b.under));
   return arr.slice(0, Math.max(0, top));
 }
+
+// ---------- W1 tracer: spread position + overview bar (Phase 9) ----------
+// Spread position: where last traded inside [bid, ask]. 0 = at bid, 1 = at ask.
+// Returns {pos, state}: state NO_QUOTE when bid/ask missing or crossed —
+// the bar must say so, never guess (C4).
+export function spreadPosition(bid, ask, last) {
+  const b = Number(bid), a = Number(ask), l = Number(last);
+  if (!Number.isFinite(b) || !Number.isFinite(a) || !Number.isFinite(l)
+    || b <= 0 || a <= 0 || l <= 0 || a <= b) {
+    return { pos: null, state: "NO_QUOTE" };
+  }
+  return { pos: Math.max(0, Math.min(1, (l - b) / (a - b))), state: "OK" };
+}
+
+// Overview bar rollup over Pulse rows. Direction proxy (snapshot chains carry
+// no bought/sold flags): bullish leg = (call&ASK)|(put&BID), bearish leg =
+// (call&BID)|(put&ASK). FIR = |bull-bear|/(bull+bear); Lean gated at 0.3 (H1).
+// RVOL needs baselines we don't have → always honest-empty here (H2 daily
+// resolution lands with B1 cadence).
+export function overviewStats(rows) {
+  let bull = 0, bear = 0, callPrem = 0, putPrem = 0, n = 0;
+  for (const r of rows || []) {
+    const prem = Number(r._aggPrem ?? r.premium) || 0;
+    if (prem <= 0) continue;
+    const isCall = String(r.type || "").toLowerCase().startsWith("c");
+    const ask = String(r.side || "").toUpperCase() === "ASK";
+    if ((isCall && ask) || (!isCall && !ask)) bull += prem;
+    else bear += prem;
+    if (isCall) callPrem += prem; else putPrem += prem;
+    n += 1;
+  }
+  const total = bull + bear;
+  const fir = total > 0 ? Math.abs(bull - bear) / total : 0;
+  const netPrem = bull - bear;
+  const pc = callPrem > 0 ? putPrem / callPrem : (putPrem > 0 ? Infinity : 0);
+  const lean = fir >= 0.3 ? (netPrem > 0 ? "Bullish" : netPrem < 0 ? "Bearish" : "Neutral") : "Neutral";
+  return { bullPrem: bull, bearPrem: bear, netPrem, callPrem, putPrem, fir, pc, lean, n, rvol: null };
+}

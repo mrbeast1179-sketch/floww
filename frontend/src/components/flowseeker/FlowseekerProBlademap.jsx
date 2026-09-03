@@ -13,7 +13,7 @@
  */
 import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { BACKEND_URL } from "../../config/api";
-import { mkScanRow, evalAlerts, evalTickerAlerts, streakOf, cleanHistory, tickerRollup, volSigma, annotateFirstSeen, sessionDay, fmtClock, fmtAge, awaySummary, scanRowsToCSV, oiChange, fmtUSD, fmtK, fmtIV, scoreGradeOf, pulseState, elapsedClock, formatFOLLOWStrip, tierOf, selectFires, pickBanner, bizDTE } from "./scanLogic";
+import { mkScanRow, evalAlerts, evalTickerAlerts, streakOf, cleanHistory, tickerRollup, volSigma, annotateFirstSeen, sessionDay, fmtClock, fmtAge, awaySummary, scanRowsToCSV, oiChange, fmtUSD, fmtK, fmtIV, scoreGradeOf, pulseState, elapsedClock, formatFOLLOWStrip, tierOf, selectFires, pickBanner, bizDTE, spreadPosition, overviewStats } from "./scanLogic";
 import Wtipanel from "../Wtipanel";
 import RussellPanel from "../RussellPanel";
 import "./FlowseekerProBlademap.css";
@@ -94,6 +94,8 @@ export function mapPublicChainToRows(contracts, spot, ticker) {
       strike: strikeN, expiration: c.expiry, timestamp: Date.now(),
       volume: vol, oi, vol_oi_ratio: voi, iv: iv < 1 ? iv * 100 : iv, premium,
       mid, side, spot: sp || null, otm,
+      bid: bid > 0 ? bid : null, ask: ask > 0 ? ask : null,
+      last: last > 0 ? last : null,
     };
     const cd = rowConviction(p);
     p._conv = cd.conv;
@@ -596,6 +598,8 @@ export default function FlowseekerProBlademap({ active = true }) {
                   strike, expiration: exp.expiration, timestamp: Date.now(),
                   volume: vol, oi, vol_oi_ratio: voi, iv: iv < 1 ? iv * 100 : iv,
                   premium, mid, side, spot: null, otm: null,
+                  bid: bidV > 0 ? bidV : null, ask: askV > 0 ? askV : null,
+                  last: last > 0 ? last : null,
                 };
                 const cd = rowConviction(p);
                 p._conv = cd.conv;
@@ -853,6 +857,9 @@ export default function FlowseekerProBlademap({ active = true }) {
     return aggregatePulse(gated, 90e3, now);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pulseTick, leftPass, pulseTicker, pulseDte, pulseScore]);
+
+  // Overview bar rollup over the visible 90s tape (Phase 9 W1 tracer).
+  const pulseOv = useMemo(() => overviewStats(pulseRows), [pulseRows]);
 
   // scanner: filter + sort + KPI rollup. Simple mode ignores the hidden
   // advanced knobs (a Min-Vol set weeks ago must not silently filter an
@@ -1258,6 +1265,13 @@ export default function FlowseekerProBlademap({ active = true }) {
               <div><button className="fsb-howto" onClick={() => setHowTo((h) => !h)}>ⓘ HOW TO READ</button></div>
               {howTo && <div className="fsb-howto-pop">SIDE = where the print crossed: ASK (lifted the offer → aggressive buy) vs BID (hit the bid). SIGNAL follows SIDE: ASK→BULLISH, BID→BEARISH, calls and puts alike. BADGES: SILVER every row; GOLDEN ≥$900K rolled premium; WHALE ≥$1M (tape size tier — not the $25M alert rule). HEDGE? = put bought aggressively, often protection rather than direction. SCORE = conviction/10. PREM subline = 90s rolled premium (print count).</div>}
               <div className="fsb-pulsebar">
+                <span className="fsb-ovbar" title="Session rollup over the visible 90s tape (direction = premium-flow proxy, not confirmed buys/sells)">
+                  <span className={`fsb-pill ${pulseOv.lean === "Bullish" ? "fsb-sig-bullish" : pulseOv.lean === "Bearish" ? "fsb-sig-bearish" : "fsb-badge-silver"}`}>{pulseOv.lean}</span>
+                  <span className="fsb-ovmetric" title="Bullish-leg premium minus bearish-leg premium">Net {pulseOv.netPrem < 0 ? "−" : "+"}{fmtUSD(pulseOv.netPrem)}</span>
+                  <span className="fsb-ovmetric" title="Put premium / call premium">P/C {Number.isFinite(pulseOv.pc) ? pulseOv.pc.toFixed(2) : "—"}</span>
+                  <span className="fsb-ovmetric" title="Flow imbalance ratio |bull-bear|/(bull+bear)">FIR {pulseOv.fir.toFixed(2)}</span>
+                  <span className="fsb-ovmetric" title="Relative volume needs time-of-day baselines">RVOL needs baseline</span>
+                </span>
                 <label className="fsb-muted fsb-small">Ticker&nbsp;
                   <select value={pulseTicker} onChange={(e) => { const v = e.target.value; setPulseTicker(v); if (v !== "ALL") setTicker(v); }}>
                     <option value="ALL">All tickers</option>
@@ -1278,10 +1292,10 @@ export default function FlowseekerProBlademap({ active = true }) {
               <div className="fsb-flow-wrap">
                 <table className="fsb-table fsb-pulse">
                   <thead><tr>
-                    <th title="Local time of the latest print in the 90s window">FLOW ET</th><th>SYM</th><th className="num">STRIKE</th><th>C/P</th><th className="num" title="Absolute distance of strike from spot at print time">OTM</th><th>EXP</th><th className="num" title="Trading days to expiry">DTE</th><th className="num" title="Per-contract price (mid, else premium/volume)">PRICE</th><th title="ASK = lifted the offer (aggressive buy); BID = hit the bid">SIDE</th><th title="Follows SIDE: ASK→BULLISH, BID→BEARISH">SIGNAL</th><th title="SILVER always; GOLDEN ≥$900K; WHALE ≥$1M rolled premium">BADGES</th><th className="num" title="Conviction mapped 0-10">SCORE</th><th className="num" title="Contracts in the 90s window">SIZE</th><th className="num" title="Rolled premium in the 90s window">PREM</th>
+                    <th title="Local time of the latest print in the 90s window">FLOW ET</th><th>SYM</th><th className="num">STRIKE</th><th>C/P</th><th className="num" title="Absolute distance of strike from spot at print time">OTM</th><th>EXP</th><th className="num" title="Trading days to expiry">DTE</th><th className="num" title="Price paid per contract (last print; mid when last is missing)">FILL</th><th title="ASK = lifted the offer (aggressive buy); BID = hit the bid">SIDE</th><th title="Where last traded inside bid-ask: left = bid, right = ask">SPREAD</th><th title="Follows SIDE: ASK→BULLISH, BID→BEARISH">SIGNAL</th><th title="SILVER always; GOLDEN ≥$900K; WHALE ≥$1M rolled premium">BADGES</th><th className="num" title="Conviction mapped 0-10">SCORE</th><th className="num" title="Contracts in the 90s window">SIZE</th><th className="num" title="Rolled premium in the 90s window">PREM</th>
                   </tr></thead>
                   <tbody>
-                    {pulseRows.length === 0 && <tr><td colSpan={14} className="fsb-muted" style={{ padding: 14, lineHeight: 1.7 }}>No prints pass the Pulse gates (DTE {pulseDte} · score {pulseScore === 0 ? "ALL" : pulseScore + "+"} · {pulseTicker}).{pulseTicker !== "ALL" && pulseTicker !== ticker ? ` Pulse is scoped to ${pulseTicker} but the feed is ${ticker} — the dropdown already switched the feed, wait one poll.` : " Trailing-90s tape: Public API first, cvserver fallback, ranked by aggregated premium…"}</td></tr>}
+                    {pulseRows.length === 0 && <tr><td colSpan={15} className="fsb-muted" style={{ padding: 14, lineHeight: 1.7 }}>No prints pass the Pulse gates (DTE {pulseDte} · score {pulseScore === 0 ? "ALL" : pulseScore + "+"} · {pulseTicker}).{pulseTicker !== "ALL" && pulseTicker !== ticker ? ` Pulse is scoped to ${pulseTicker} but the feed is ${ticker} — the dropdown already switched the feed, wait one poll.` : " Trailing-90s tape: Public API first, cvserver fallback, ranked by aggregated premium…"}</td></tr>}
                     {pulseRows.map((p, i) => {
                       const conv = p._conv;
                       const score = pulseScore10(conv);
@@ -1290,6 +1304,8 @@ export default function FlowseekerProBlademap({ active = true }) {
                       const badges = pulseBadges(p._aggPrem ?? p.premium);
                       const cp = String(p.type || "").toLowerCase().startsWith("c") ? "CALL" : "PUT";
                       const price = Number(p.mid) || (Number(p.volume) > 0 ? (Number(p.premium) || 0) / (Number(p.volume) * 100) : 0);
+                      const fill = Number(p.last) || 0;
+                      const sp = spreadPosition(p.bid, p.ask, p.last);
                       return (
                         <tr key={`${p.ticker}-${p.strike}-${String(p.expiration || "").slice(0, 10)}-${i}`} className={selected === p ? "selected" : ""}
                             tabIndex={0} onClick={() => selectSignal(p)}
@@ -1301,8 +1317,9 @@ export default function FlowseekerProBlademap({ active = true }) {
                           <td className="num">{p.otm == null ? "—" : `+${Number(p.otm).toFixed(1)}%`}</td>
                           <td className="fsb-muted">{String(p.expiration || "").slice(0, 10)}</td>
                           <td className="num">{bizDTE(p.expiration)}</td>
-                          <td className="num">{price > 0 ? price.toFixed(2) : "—"}</td>
+                          <td className="num">{fill > 0 ? fill.toFixed(2) : price > 0 ? price.toFixed(2) : "—"}</td>
                           <td><span className={`fsb-pill fsb-side-${side.toLowerCase()}`}>{side}</span></td>
+                          <td>{sp.state === "NO_QUOTE" ? <span className="fsb-muted fsb-small">no quote</span> : <span className="fsb-spreadbar" title={`last at ${(sp.pos * 100).toFixed(0)}% of bid-ask spread`}><span className="fsb-spreadmark" style={{ left: `${(sp.pos * 100).toFixed(1)}%` }} /></span>}</td>
                           <td><span className={`fsb-pill fsb-sig-${sig.toLowerCase()}`}>{sig}</span>{pulseHedge(p.type, side) && <span className="fsb-pill fsb-hedge" title="Put bought aggressively — often a hedge, not directional bullishness">HEDGE?</span>}</td>
                           <td>{badges.map((b) => <span key={b} className={`fsb-pill fsb-badge-${b.toLowerCase()}`} title={b === "WHALE" ? "Tape size tier: ≥$1M rolled premium in 90s — not the $25M alert rule" : b === "GOLDEN" ? "Premium ≥ $900K rolled in 90s" : "Baseline badge: every print starts here"}>{b}</span>)}</td>
                           <td className="num">{score.toFixed(1)}</td>

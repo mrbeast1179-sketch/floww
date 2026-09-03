@@ -4,7 +4,7 @@ import {
   archetypeOf, volSigma, annotateFirstSeen, sessionDay, fmtClock, fmtAge,
   awaySummary, scanRowsToCSV, oiChange, streakOf, isTradingDay, evalTickerAlerts,
   pulseState, elapsedClock, formatFOLLOWStrip,
-  tierOf, selectFires, pickBanner,
+  tierOf, selectFires, pickBanner, spreadPosition, overviewStats,
 } from "./scanLogic";
 
 describe("estimateDelta", () => {
@@ -839,5 +839,48 @@ describe("evalTickerAlerts noise pass (2026-09-02)", () => {
     expect(evalTickerAlerts(rollup("SPY", 36000), {}, streaks, { enabled: { follow: true, followMin: 3 } })).toHaveLength(0);
     streaks.SPY.n = 3;
     expect(evalTickerAlerts(rollup("SPY", 36000), {}, streaks, { enabled: { follow: true, followMin: 3 } })).toHaveLength(1);
+  });
+});
+
+describe("W1 tracer — spreadPosition", () => {
+  it("maps bid->0, mid->0.5, ask->1, clamps outside", () => {
+    expect(spreadPosition(4, 4.2, 4)).toEqual({ pos: 0, state: "OK" });
+    expect(spreadPosition(4, 4.2, 4.1).pos).toBeCloseTo(0.5, 5);
+    expect(spreadPosition(4, 4.2, 4.2)).toEqual({ pos: 1, state: "OK" });
+    expect(spreadPosition(4, 4.2, 9).pos).toBe(1);
+    expect(spreadPosition(4, 4.2, 1).pos).toBe(0);
+  });
+  it("NO_QUOTE on missing, zero, or crossed quotes", () => {
+    expect(spreadPosition(null, 4.2, 4.1).state).toBe("NO_QUOTE");
+    expect(spreadPosition(4, null, 4.1).state).toBe("NO_QUOTE");
+    expect(spreadPosition(4, 4.2, null).state).toBe("NO_QUOTE");
+    expect(spreadPosition(0, 0, 5).state).toBe("NO_QUOTE");
+    expect(spreadPosition(4.2, 4, 4.1).state).toBe("NO_QUOTE");
+  });
+});
+
+describe("W1 tracer — overviewStats", () => {
+  const r = (type, side, premium) => ({ type, side, premium });
+  it("rolls bull/bear legs, FIR, P/C, lean per H1", () => {
+    const s = overviewStats([
+      r("call", "ASK", 100000), r("call", "ASK", 50000),
+      r("put", "BID", 30000), r("put", "ASK", 20000),
+    ]);
+    // bull = 100k+50k calls ASK + 30k puts BID = 180k; bear = 20k puts ASK
+    expect(s.bullPrem).toBe(180000);
+    expect(s.bearPrem).toBe(20000);
+    expect(s.netPrem).toBe(160000);
+    expect(s.fir).toBeCloseTo(0.8, 5);
+    expect(s.pc).toBeCloseTo(50000 / 150000, 5);
+    expect(s.lean).toBe("Bullish");
+    expect(s.n).toBe(4);
+    expect(s.rvol).toBeNull();
+  });
+  it("Neutral below FIR 0.3; empty tape is Neutral zeros", () => {
+    const s = overviewStats([r("call", "ASK", 100), r("put", "ASK", 90)]);
+    expect(s.fir).toBeCloseTo(10 / 190, 5);
+    expect(s.lean).toBe("Neutral");
+    const e = overviewStats([]);
+    expect(e).toMatchObject({ bullPrem: 0, bearPrem: 0, netPrem: 0, fir: 0, lean: "Neutral", n: 0 });
   });
 });
