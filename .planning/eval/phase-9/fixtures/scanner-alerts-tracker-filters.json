@@ -1,0 +1,124 @@
+{
+ "_note": "Scanner rows, alerts (gate/TTL/cap), tracker items, filter subtractiveness. Each case has expected output.",
+ "scanner_rows": [
+  {
+   "id": "SC1_whale",
+   "ticker": "SPY",
+   "premium": 30000000,
+   "expected": {
+    "badges": [
+     "WHALE"
+    ],
+    "alert": "WHALE rule fires"
+   }
+  },
+  {
+   "id": "SC2_sigma",
+   "ticker": "QQQ",
+   "zscore": 6.5,
+   "expected": {
+    "alert": "SIGMA rule fires"
+   }
+  },
+  {
+   "id": "SC3_0dte",
+   "ticker": "SPY",
+   "dte": 0,
+   "volOI": 2.0,
+   "expected": {
+    "alert": "0DTE rule fires (boundary inclusive)"
+   }
+  },
+  {
+   "id": "SC4_below",
+   "ticker": "IWM",
+   "premium": 20000,
+   "expected": {
+    "alert": "none - below $25K floor"
+   }
+  }
+ ],
+ "alerts": [
+  {
+   "id": "A1",
+   "rule": "SCORE",
+   "score": 95,
+   "expected": "fires"
+  },
+  {
+   "id": "A2",
+   "rule": "SCORE",
+   "score": 91,
+   "expected": "suppressed - below 92"
+  },
+  {
+   "id": "A3",
+   "rule": "SCORE",
+   "contract": "SPY-760C-0904",
+   "repeat_inside_ttl": true,
+   "expected": "suppressed - TTL dedup, counted"
+  },
+  {
+   "id": "A4",
+   "rule": "WHALE",
+   "repeat_inside_ttl": true,
+   "expected": "suppressed - per-rule TTL independent of SCORE clock"
+  },
+  {
+   "id": "A5",
+   "rule": "SCORE",
+   "premium_vs_firing": 2.1,
+   "inside_ttl": true,
+   "expected": "RECOMMENDED refire - escalation override (not yet implemented)"
+  },
+  {
+   "id": "A6",
+   "rule": "SIGMA",
+   "fifth_in_hour": true,
+   "expected": "suppressed - 4/hour cap plus visible counter"
+  }
+ ],
+ "tracker": [
+  {
+   "id": "T1",
+   "mark_priority": "mid then last then stale",
+   "statuses": [
+    "STILL IN",
+    "PENDING",
+    "PARTIAL N%",
+    "EXITED",
+    "EXPIRED",
+    "UNKNOWN"
+   ],
+   "expected": {
+    "close_detection": "labeled proxy (OI drift/volume)"
+   }
+  }
+ ],
+ "filter_subtractiveness": [
+  {
+   "id": "F1",
+   "rows_before": 500,
+   "filter": "sweep-only proxy",
+   "rows_after": 120,
+   "expected": {
+    "after_lt_before": true,
+    "bars": "not rescaled upward"
+   }
+  },
+  {
+   "id": "F2",
+   "filter": "NOT-SPY exclusion",
+   "expected": {
+    "no_SPY_rows_remain": true
+   }
+  },
+  {
+   "id": "F3",
+   "sort": "Premium",
+   "expected": {
+    "floor": "premium >= 25000 applied for non-Time sorts"
+   }
+  }
+ ]
+}

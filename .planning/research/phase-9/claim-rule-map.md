@@ -1,0 +1,115 @@
+# Claim-to-Rule Map — Agent 4
+
+**Rule:** confidence confirmed = abstract+record opened · partial = abstract-only or secondary ·
+unverified = not confirmed, never cite. Every product rule carries its WITH § cite.
+
+## Informed-flow papers
+
+### Pan & Poteshman 2006 — CONFIRMED
+- Core claim: buyer-open put-call volume ratio predicts; low PC (call-heavy) outperforms high PC by
+  >40bp next day, >1% next week; stronger for high-leverage OTM.
+- Product rule: unsigned put/call concentration rising + short-dated OTM puts bid up →
+  bearish-informed-positioning candidate; requires second confirmation (smirk or parity gate) before score ≥92.
+- UI allowed: "put-heavy positioning vs calls (unsigned snapshot proxy)".
+- UI prohibited: any "7–90 DTE band", "3×OI rule", "$25k rule" attributed to P&P (REFUTED attributions).
+- Fixture: pulse-rows put/call concentration pair.
+
+### Johnson & So 2012 (JFE, NOT a Reg-SHO paper) — CONFIRMED
+- Core claim: high O/S predicts lower future returns; stronger when short-sale costs high.
+- Product rule: hard-to-borrow/high-short-interest + abnormally high options share → upweight bearish
+  options signals; borrow-constraint tag.
+- UI allowed: "elevated options share with borrow constraints (Johnson–So 2012 context)".
+- UI prohibited: citing it as a Reg-SHO / short-sale-constraint paper.
+- Fixture: Reg SHO context + scanner row with borrow flag.
+
+### Roll, Schwartz & Subrahmanyam 2010 — CONFIRMED
+- Core claim: O/S rises around earnings; higher O/S predicts lower post-earnings abnormal returns.
+- Product rule: earnings ≤7d + elevated options share → bearish-leaning bias; tighten stops; demand
+  smirk confirmation for bullish alerts.
+- UI allowed: "elevated activity into earnings — efficiency literature leans cautious".
+- UI prohibited: "earnings will pop/drop".
+- Fixture: earnings-proximity scanner rows.
+
+### Cremers & Weinbaum 2010 — CONFIRMED
+- Core claim: call-IV-minus-put-IV (matched pairs) predicts; expensive calls outperform by ~51bp/wk;
+  not explained by short-sale constraints.
+- Product rule: persistent positive call-minus-put IV across ≥2 strikes (borrow/div/rate sanity-checked)
+  → bullish informed tilt; mirror for bearish.
+- UI allowed: "calls priced rich vs puts on matched strikes".
+- UI prohibited: "parity guarantees convergence".
+- Fixture: overview/scanner IV-deviation rows.
+
+### Xing, Zhang & Zhao 2010 — CONFIRMED
+- Core claim: OTM-put-minus-ATM-call smirk; steepest smirk underperforms ~10.9%/yr; worst next-quarter
+  earnings shocks; persists ≥6 months.
+- Product rule: smirk in top decile of name's own 6-mo history → bearish informed flag; gates bullish alerts.
+- UI allowed: "steep smirk vs own history (defensive positioning)".
+- UI prohibited: "crash coming".
+- Fixture: smirk-boundary scanner rows.
+
+### An, Ang, Bali & Cakici 2014 — CONFIRMED
+- Core claim: 1-month CHANGES in call IV (+) / put IV (−) predict returns (~1%/mo decile spread, ~6-mo persistence).
+- Product rule: use IV changes on monthly lookback, not levels.
+- UI allowed: "call IV rising on the month".
+- UI prohibited: "high IV is bullish" (levels claim — refuted as attribution).
+- Fixture: IV-change tracker items.
+
+### Ge, Lin & Pearson 2016 — CONFIRMED
+- Core claim: opening call purchases strongest predictor; closings mostly uninformative; OTM/high-leverage stronger.
+- Product rule: weight OI-increase + volume proxies far above OI-decrease signals; falling-OI-only
+  signals suppressed below 92.
+- UI allowed: "new-positioning proxy (OI rising)".
+- UI prohibited: "confirmed opening buy".
+- Fixture: ΔOI column cases (rising vs falling OI).
+
+## Gamma papers
+
+### Ni et al. 2021 RFS — CONFIRMED mechanism, REFUTED formula/sign-rule attributions
+- Core claim: hedger net-long gamma dampens, net-short gamma amplifies (trade WITH the move when short).
+  Daily horizon, modest economics, no intraday timing, no dollar threshold.
+- Product rule: sign-of-gamma → amplify/dampen zone labels only.
+- UI allowed: "negative dealer-gamma zone — hedge flow leans with the move (Ni et al. 2021 mechanism)".
+- UI prohibited: GX formula as "Ni et al."; calls(+)/puts(−) sign rule as paper claim; "short-gamma moves chase" quote.
+- Fixture: gamma-zone scanner rows (± sign).
+
+### Barbon & Buraschi Gamma Fragility — CONFIRMED paper, MIXED sub-claims
+- Core claim (abstract): dealer gamma imbalance × illiquidity → intraday momentum (negative) / reversal
+  (positive); related to flash-crash frequency/magnitude (association, NOT calibrated probability).
+- Product rule: negative gamma + illiquid → "momentum-risk (fragile)" tag; positive → "reversal-lean";
+  never a crash probability number.
+- UI allowed: "fragile — illiquid + short gamma".
+- UI prohibited: ΓIB formula as "Barbon–Buraschi"; zero-gamma flip as academic; intraday regime
+  prediction; crash probability.
+- Fixture: fragility-tag boundary cases.
+
+### Baltussen et al. 2021 — CONFIRMED
+- Core claim: rest-of-day return positively predicts last-30-min return (hedging demand); reverts after.
+- Product rule: large day-move into close + negative dealer gamma → EOD momentum lean; never promise
+  next-day continuation.
+- UI allowed: "end-of-day momentum lean (fades next session)".
+- UI prohibited: "will continue tomorrow".
+- Fixture: EOD-lean alert case (TTL/dedup interaction).
+
+## Dark / retail papers
+
+### Zhu 2014 — CONFIRMED, QUALIFIED (model, conditional)
+- Core claim: informed cluster lit; adding dark pool CAN improve discovery under conditions. Says nothing
+  about any single print's direction.
+- Product rule: ATS share shown as venue mix with delay stamp; never bull/bear language.
+- Fixture: FINRA context payload.
+
+### Comerton-Forde & Putnins 2015 — CONFIRMED (key honest-product paper)
+- Core claim: dark trades less informed than lit; block dark trades show NO evidence of impeding discovery.
+- Product rule: blocks labeled "execution footprint, no direction"; high non-block dark share = market-structure
+  context, not a trade signal.
+- Fixture: dark-pool level payloads.
+
+### Boehmer et al. 2021 — CONFIRMED with hard scope limit
+- Core claim: SIGNED retail imbalance from subpenny TAQ markers predicts ~10bp/wk. Requires signed data.
+- Product rule: with only unsigned aggregates → display "NOT computable here", no retail arrow.
+- UI prohibited: any retail prediction without signed TAQ imbalance.
+- Fixture: missing-field state (unsigned → unavailable).
+
+### Barber & Odean 2000/2011 — CONFIRMED (behavioral, not directional)
+- Product rule: retail-sentiment proxy carries "frequent trading historically lowers net returns" context.
+- UI prohibited: "retail bought so price rises".
