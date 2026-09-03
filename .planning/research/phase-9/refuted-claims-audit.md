@@ -14,7 +14,7 @@ backend/routes, backend/tests, docs, .planning. Excludes node_modules/.git.
 | ΓIB-as-Barbon (`ΓIB = GEX/(S×ADSV)×100` as "Barbon-Buraschi Eq. 2") | REFUTED as cited (full text: imbalance is Eq. 3/4, see V3 verdict) | backend/services/gex_paper_accurate.py:40 "1. Gamma Imbalance (% of ADV) — Barbon-Buraschi Eq. (2)" + formula derivation lines 40–50 |
 | flip-as-academic (zero-gamma flip detection as Barbon–Buraschi) | REFUTED as paper claim | gex_paper_accurate.py:19 "2. Zero-Gamma Flip Distance — Barbon-Buraschi Section II.B" |
 | Crash probabilities | REFUTED (association only, never calibrated) | gex_paper_accurate.py:24,428,447: `flash_crash_risk()` returns `crash_probability_estimate` with hardcoded 1%/3%/8%/18% bands; line ~1111 comment "flash crash probability ≈ 2-5x" |
-| Phantom papers ("Ni et al. Option Market Maker Hedging and Stock Market Liquidity"; "Charming!/retail follow-up") | REFUTED (not found in indexes) | Not found in repo — clean |
+| Phantom papers ("Ni et al. Option Market Maker Hedging and Stock Market Liquidity"; "Charming!/retail follow-up") | "Hedging/Liquidity" title not found in repo — clean. "Charming!" VARIANT PRESENT: gex_paper_accurate.py:1005-1007 cites 'Charming! Retail Option Volume, Delta Hedging, and the...' SSRN 5054370 — see V6 (round-1 "clean" verdict for this row superseded) |
 | -$200mm folklore (GEX rarely < −$200mm as SqueezeMetrics claim) | REFUTED | No "-200mm"/"200mm" string in backend/services, docs, .planning (only correctly as folklore in planning docs) — clean |
 | VPIN-from-snapshots | PROHIBITED as "VPIN" label | backend/routes/vpin.py (full VPIN API), backend/services/vpin_toxicity.py (bulk-volume VPIN over call/put volume buckets — NOT signed trade flow), backend/routes/microstructure.py:124, backend/routes/quant.py:124-136 ("VPIN-based market toxicity"), backend/routes/ensemble.py (VPIN+QI ensemble). FRONTEND COPY IS HONEST: FlowseekerProBlademap.jsx:1353,1948 correctly state VPIN/Kyle-λ need a trade-level feed (n/a on snapshot chains); ToxicityGauge.jsx:136 honest empty state |
 | Dark pool buy/sell claims | PROHIBITED | None found in frontend/src, backend, docs — clean |
@@ -97,6 +97,14 @@ New violations missed in round 1, all with file:line. Severity upgraded where us
   next-day power". P&P did find next-day (+weekly) predictability, so the horizon heuristic is defensible —
   but it must read "heuristic" not derivation. oi_hygiene.py:18-20 + fetch_earnings.py:7-9 cite P&P as a
   caveat ("semantics don't transfer") — CORRECT usage, no action.
+- V20 (P1, round 13): FIR DEFINITION DIVERGENCE. CONTRACTS (agent1 branch, overview payload ~:104) defines
+  fir = |callPrem−putPrem|/(callPrem+putPrem) with sessionLean from |FIR|≥0.3. Shipped overviewStats
+  (scanLogic.js:640-657) computes fir = |bullPrem−bearPrem|/(bull+bear) where bull/bear are SIGNAL-side
+  premiums (call-ASK+put-BID vs opposite) — a different ratio with different semantics (directional
+  conviction vs call-put positioning). Same name, same 0.3 threshold, different quantity. Lean thresholds
+  match, rvol:null honest — but any evaluator built on the contract FIR (incl. Agent-4's own fixture
+  P-overview 0.185) will disagree with the implementation. Fix: rename code's metric (e.g. signalFIR) or
+  align to contract; Agent 1 triages at merge.
 - V7 (P1): GPP year shuffle — `option_demand_pressure` says "(2008)" (gex_paper_accurate.py:781),
   `demand_pressure_premium` says "(2009) RFS" (:1676). Verified 2026-09-03: Garleanu-Pedersen-Poteshman,
   "Demand-Based Option Pricing", RFS 22(10):4259 (RFS vol 22 = 2009; 2008 = SSRN WP year) —

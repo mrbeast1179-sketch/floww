@@ -116,7 +116,10 @@
    "FIR": 0.185,
    "session": "Neutral",
    "note": "FIR<0.3 so Neutral despite NetPrem>0"
-  }
+  },
+  "contract_FIR_definition": "|callPrem-putPrem|/(callPrem+putPrem) = 0.1852 -> Neutral",
+  "implementation_FIR_definition": "overviewStats uses |bullPrem-bearPrem|/(bull+bear) over SIGNAL-side premium - DIFFERENT quantity (see V20)",
+  "expected_after_fix": "one definition, one name; evaluator and implementation agree"
  },
  "highlighting": [
   {

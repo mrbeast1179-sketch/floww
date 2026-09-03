@@ -105,6 +105,12 @@ write backend docstring patches (Agent 3 B8 lane) — all queued.
   blocked without restarting another lane's server; NOT attempted. Code-level propagation stands.
   Audited Agent-2 W2 fingerprints (973bbb3): honest, added to clean list. New F19 (P2): "negotiated
   single fill" block tooltip.
+- Round 13 (/loop): recovered dangling round-11 commit f554e4f (branch moved under agent) via checkout of
+  own lane files. New V20 (P1): FIR divergence — contract (agent1 branch) defines call-put FIR, shipped
+  overviewStats computes signal-side FIR; same name/threshold, different quantity. BRANCH RISK (P1
+  process): Agent-1 planning (CONTRACTS 1305 lines, CONTRACT_REQUESTS 611 lines) unmerged on
+  phase9/agent1-architect; Agent-4 lane split across main + dangling commit; CONTRACT_REQUESTS has NO
+  Agent-4 triage — F1–F19+R1–R4 still parked in agent4 report. Agent 1 must reconcile at merge.
 
 ## Agent 4 status block (per task prompt)
 
