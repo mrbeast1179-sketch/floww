@@ -70,3 +70,18 @@ Propagation upgrade: V1/V5–V8 all served via morning_briefing API — briefing
 Fixtures added: sweep_definition_conflict, side_fallback, popover_copy evaluator cases.
 Claim-rule-map carries P&P OI caveat. What round 2 did NOT do: open GPP PDF, pull 0DTE full texts,
 write backend docstring patches (Agent 3 B8 lane) — all queued.
+
+## Rounds 3–5 hardening addendum
+
+- Round 3: V15 (P&P band +4 LIVE in flow_alerts.py:165-167, label :322, 8 wired imports — round-1 "clean"
+  verdict corrected), V16 (briefing API serves crash_prob wholesale — CLOSED as served), V14 (split gap),
+  V17 (ΓIB double-weight), score-spec reconciliation, runnable check_fixtures.py (caught 3 malformed cases).
+- Round 4: V6 upgraded — phantom 'Charming!' + SSRN 5054370 named verbatim (:1005-1007); GPP full text
+  fetched (RFS 22(10) 2009, doi 10.1093/rfs/hhp005) with middle-section findings (dealer-short-index,
+  crashophobia OTM puts, ~1/3 expensiveness, demand↔smirk); Bollen-Whaley 2004 queued; V19 acceptable-use
+  note; all fixture math mechanically recomputed.
+- Round 5: Barbon FULL TEXT fetched (UniSG Alexandria OA PDF). V3 → REFUTED-as-cited (imbalance is Eq. 3/4
+  not Eq. 2; §II.B is definitions not flip; flash is §IV not §III.C; ~15bps spread is Table VII not V).
+  V13 → Table VIII real but code's numbers contradict paper (t=5.99 vs claimed −2.97) + no-causation caveat
+  and post-2010 decay omitted. V18 CLOSED as no-violation (matched-pairs confirmed). Claim map carries
+  full-text numbers with qualifier requirements. V15 wiring recounted to 8 imports.

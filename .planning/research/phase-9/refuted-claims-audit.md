@@ -36,8 +36,16 @@ All in backend lane (Agent 3 / backend owner). Agent 4 proposes relabeling only:
    docstring itself admits differs ~13× from paper scale. Fix: drop "Eq. (2)" attribution or verify
    against full text; label ours.
 4. backend/services/gex_paper_accurate.py:19 (:19 in docstring list) + flip function — "Barbon-Buraschi
-   Section II.B" zero-gamma flip. Section refs unverified (full text not opened — abstract-only).
+   "Section II.B" zero-gamma flip. FULL-TEXT VERDICT (round 5): REFUTED — §II.B is "Gamma Imbalance" (the
+   definition subsection); no flip/zero-gamma-level concept exists anywhere in the paper.
    Fix: remove section numbers until verified; label flip a practitioner level.
+- V3-FULL-TEXT VERDICT (round 5 — UniSG Alexandria open-access PDF verified 2026-09-03): code's
+  "Barbon-Buraschi Eq. (2)" for ΓIB cites the WRONG EQUATION — Eq. (2) defines dollar-gamma aggregates;
+  the imbalance proxies are Eq. (3) ΓIB¹=(Γ$Call−Γ$Put)/ADV×100 (dealers-long-calls/short-puts assumption)
+  and Eq. (4) ΓIB²=(Γ$Call+Γ$Put)/ADV×100 (long-both). Code's GEX/(S×ADSV)×100 matches neither and drops
+  the dealer-position assumption. Also the spread result (~15bps per −1σ) is Table VII, not Table V as
+  code :449 claims (Table V = illiquid×negative interaction — real). Fix: cite Eq. (3)/(4) with assumption
+  stated, or drop paper numbering and label ΓIB-proxy ours.
 5. backend/services/gex_paper_accurate.py:24,428-470 — `flash_crash_risk()` / "Flash Crash Probability
    Proxy — Barbon-Buraschi Sec. III.C" returning `crash_probability_estimate` (1/3/8/18% bands).
    REFUTED: paper shows association only. Fix: replace numeric probability with fragile/stable tag;
@@ -116,12 +124,16 @@ New violations missed in round 1, all with file:line. Severity upgraded where us
   Fix: NO_QUOTE rows render SIDE as "—" (unknown), never fallback-guess.
 - V12 (P2): WHALE naming collision — $1M tape badge vs $25M alert rule. Mitigated by in-popover disclaimer
   (:1266). Keep disclaimer; consider rename to avoid desk confusion.
-- V13 (P1): drift-burst language (:1111-1162): "flash crash probability ≈ 2-5x", "Per Barbon-Buraschi
-  Table VIII" (unverified — full text abstract-only), "CONFIRMED drift burst" + "crash risk elevated"
-  per Christensen-Oomen-Renò. Verified 2026-09-03 the COR paper is real ("The Drift Burst Hypothesis",
-  SSRN 2842535) but (a) code spells "Reno" (actual: Renò), (b) COR detects bursts from high-frequency
-  PRICES, not gamma imbalance — the gamma_proxy fallback path attributes price-based detection theory to
-  a gamma proxy. Fix: statistical-flag language only; drop gamma→COR attribution.
+- V13-FULL-TEXT VERDICT (round 5): Table VIII is REAL (flash-crash dummy regression) but the code
+  contradicts it: paper reports t-stat 5.99 ("−1σ shift DOUBLES crash probability; +25% when negative");
+  code :1091 claims "coefficient −1.15, t=−2.97". Paper adds an explicit no-causation caveat ("correlation
+  does not imply causation... do not interpret as evidence dealers cause flash crashes") and notes the effect
+  weakened after 2010 circuit breakers — both omitted by the code. Sample: 77 large caps, 1997–2015,
+  672 events (~1 crash/2yrs/stock, avg drawdown 3.71%, 5% if negative-gamma vs 3% if positive).
+  Code's 1/3/8/18% bands remain fabricated; "≈2-5x" happens to rhyme with "doubles" but is presented as a
+  general probability, which the paper never licenses. COR 2018 confirmed in-text (correct spelling Renò);
+  COR detects bursts from high-frequency PRICES (30-min bandwidth, |T| crossing 3, ≥1% drop) — the gamma_proxy
+  fallback path still misattributes price-based detection theory to a gamma proxy. Fix per V13.
 
 Propagation note: V1/V5–V8 all flow into morning_briefing metrics (morning_briefing.py:885-925) served via
 API — audit scope must henceforth include briefing consumers, not just gex_paper_accurate.py.
@@ -132,8 +144,9 @@ API — audit scope must henceforth include briefing consumers, not just gex_pap
   +4 to the 0–100 composite when `7 <= dte <= 90 and vol_oi >= 3 and premium >= 25e3`, commented
   "Informed-positioning band (Pan & Poteshman, RFS 2006)". The 7–90 band, 3×OI, and $25k rules are all
   REFUTED as P&P attributions (P&P used buyer-open volume, no DTE band). User-facing label
-  (flow_alerts.py:322): "Informed-positioning band (7–90 DTE, Pan-Poteshman)". WIRED: 6 call sites in
-  backend/routes/flowseeker.py (lines 716, 1011, 1088, 1265, 1357, 1388) + alphapod_compat.py:78.
+  (flow_alerts.py:322): "Informed-positioning band (7–90 DTE, Pan-Poteshman)". WIRED: 8 import sites in
+  backend/routes/flowseeker.py (lines 716, 1011, 1088, 1265, 1357, 1388, 1838, 1871 — round-5 recount;
+  earlier "6" was undercounted) + alphapod_compat.py:78.
   CORRECTION: round-1 verdict "no P&P occurrence in product code" was WRONG — the grep missed the
   en-dash "7–90" form and under-searched backend/services. Fix: strip +4 band and citation, or relabel
   "internal tenor heuristic (not P&P)" with outcomes read.
@@ -146,9 +159,9 @@ API — audit scope must henceforth include briefing consumers, not just gex_pap
 - V17 (P1): flow_alerts.py:247 comment "paper-accurate ΓIB is our hardest" + :270-273 double-weights
   `gex_confluent` in confluence scoring on the unverified ΓIB formula (V3). Fix: down-weight until V3
   verified; label "ΓIB-proxy confluence".
-- V18 (P2, verify-not-violation): "cw_confirm — Cremers-Weinbaum IV spread confirms" (flow_alerts.py:326,
-  impl ~:475-510). CW requires MATCHED strike-expiry call-minus-put IV; flag for Agent 3 to confirm the
-  construction is matched-pairs before the label stands. Not a violation finding — an open check.
+- V18-CLOSED (round 5, NO VIOLATION): cw_iv_spread (flow_quality.py:82) pairs SAME under+exp+strike
+  call-vs-put IV with min-volume weighting — exactly the matched-pairs construction CW requires. Label
+  "Cremers-Weinbaum IV spread confirms" stands; suggest "volume-weighted CW proxy" polish (P2, optional).
 - Score-spec reconciliation: product scores 0–100 backend composite (flow_alerts) / 0–10 pulse display
   (pulseScore10) / SILVER-GOLDEN-WHALE premium tiers. The signed −100..+100 spec is a NEW display overlay:
   sign = existing SIDE→SIGNAL (D2), magnitude = rescale of existing 0–100 with §4 caps. No existing

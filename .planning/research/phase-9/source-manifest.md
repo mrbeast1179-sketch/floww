@@ -20,7 +20,7 @@ Web re-check 2026-09-03 confirmed index pages still resolve for starred items.
 | 6 | An, Ang, Bali & Cakici 2014, JF 69(1):227–275 | fetched+cached | https://ssrn.com/abstract=1533089 |
 | 7 | Ge, Lin & Pearson 2016, JFE 121(1):260–286 | fetched+cached | https://ssrn.com/abstract=2329714 |
 | 8 | Ni, Pearson, Poteshman & White 2021, RFS 34(4):1952–1986 (SSRN 2867461; NOTE: journal year is 2021, not 2020) | fetched+cached | https://papers.ssrn.com/sol3/papers.cfm?abstract_id=2867461 |
-| 9 | Barbon & Buraschi, "Gamma Fragility", SSRN 3725454 (2020/2021) | abstract-only+cached | https://papers.ssrn.com/sol3/papers.cfm?abstract_id=3725454 |
+| 9 | Barbon & Buraschi, "Gamma Fragility", SSRN 3725454 (2020/2021) | FETCHED FULL TEXT round 5 (UniSG Alexandria open-access PDF, 2020/05) | https://papers.ssrn.com/sol3/papers.cfm?abstract_id=3725454 |
 | 10 | Baltussen, Da, Lammers & Martens 2021, JFE 142(1):377–403 (SSRN 3760365) | fetched+cached | https://papers.ssrn.com/sol3/papers.cfm?abstract_id=3760365 |
 | 11 | Boehmer, Jones, Zhang & Zhang 2021, JF 76(5):2249–2305 | fetched+cached | https://papers.ssrn.com/sol3/papers.cfm?abstract_id=2822105 |
 | 12 | Zhu 2014, RFS 27(3):747–789 | fetched+cached | https://ideas.repec.org/a/oup/rfinst/v27y2014i3p747-789..html |

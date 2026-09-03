@@ -94,6 +94,7 @@ unverified = not confirmed, never cite. Every product rule carries its WITH § c
 - Fixture: gamma-zone scanner rows (± sign).
 
 ### Barbon & Buraschi Gamma Fragility — CONFIRMED paper, MIXED sub-claims
+  (ROUND-5: FULL TEXT FETCHED from UniSG Alexandria open-access — verdicts below are full-text, not abstract)
 - Core claim (abstract): dealer gamma imbalance × illiquidity → intraday momentum (negative) / reversal
   (positive); related to flash-crash frequency/magnitude (association, NOT calibrated probability).
 - Product rule: negative gamma + illiquid → "momentum-risk (fragile)" tag; positive → "reversal-lean";
@@ -101,6 +102,11 @@ unverified = not confirmed, never cite. Every product rule carries its WITH § c
 - UI allowed: "fragile — illiquid + short gamma".
 - UI prohibited: ΓIB formula as "Barbon–Buraschi"; zero-gamma flip as academic; intraday regime
   prediction; crash probability.
+- ROUND-5 full-text numbers (usable with caveats): ΓIB¹=(Γ$Call−Γ$Put)/ADV×100, ΓIB²=(Γ$Call+Γ$Put)/ADV×100
+  (Eq. 3/4, dealer-position assumption required); autocorrelation effect peaks at h=30min but is small
+  (~1% of a std); flash-crash relative risk doubles per −1σ (t=5.99) WITH no-causation caveat + post-2010
+  decay; sample = 300 largest-by-dollar-OI names, 1996–2017. Copy must carry "association, large-cap
+  sample, pre/post-2010 regime" qualifiers.
 - Fixture: fragility-tag boundary cases.
 
 ### Baltussen et al. 2021 — CONFIRMED
