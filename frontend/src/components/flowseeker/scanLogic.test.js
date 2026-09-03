@@ -146,7 +146,7 @@ describe("estPremium", () => {
 describe("evalAlerts", () => {
   const mk = (over) => ({
     under: "SPY", type: "call", strike: 745, exp: "2099-01-08",
-    score: 90, premium: 2e6, notional: 5e7, volOI: 3, dte: 5, _new: true, ...over,
+    score: 93, premium: 2e6, notional: 5e7, volOI: 3, dte: 5, _new: true, ...over,
   });
   it("only fires on _new rows", () => {
     expect(evalAlerts([mk({ _new: false })])).toEqual([]);
@@ -177,6 +177,21 @@ describe("evalAlerts", () => {
     const [hit] = evalAlerts([mk()]);
     expect(hit.key).toBe("score|SPY|call|745|2099-01-08");   // dedup ttls stay per-rule
     expect(hit.ckey).toBe("SPY|call|745|2099-01-08");
+  });
+  it("omitted-opts callers inherit post-tightening gates (92/$25M/6σ-era)", () => {
+    // SCORE: 91 silent, 93 fires.
+    expect(evalAlerts([mk({ score: 91, premium: 1e5 })])).toEqual([]);
+    expect(evalAlerts([mk({ score: 93, premium: 1e5 })])).toHaveLength(1);
+    // WHALE: $24M silent, $26M fires (score quiet).
+    expect(evalAlerts([mk({ score: 40, premium: 24e6 })])).toEqual([]);
+    expect(evalAlerts([mk({ score: 40, premium: 26e6 })])[0].rule).toBe("WHALE");
+  });
+  it("0DTE needs score>=85 AND volOI>=2 (lotto shut out)", () => {
+    expect(evalAlerts([mk({ score: 84, premium: 1e5, dte: 0, volOI: 5 })])).toEqual([]);
+    expect(evalAlerts([mk({ score: 86, premium: 1e5, dte: 0, volOI: 1 })])).toEqual([]);
+    const hits = evalAlerts([mk({ score: 86, premium: 1e5, dte: 0, volOI: 3 })]);
+    expect(hits).toHaveLength(1);
+    expect(hits[0].rule).toBe("0DTE");
   });
 });
 
@@ -441,9 +456,9 @@ describe("evalAlerts OICONF (overnight OI confirmation)", () => {
     expect(off[0].rule).toBe("SCORE");
   });
   it("intraday rules carry a plain-English why", () => {
-    const [hit] = evalAlerts([mk({ _new: true, score: 90, volOI: 5.2, premium: 1.2e6 })]);
+    const [hit] = evalAlerts([mk({ _new: true, score: 93, volOI: 5.2, premium: 1.2e6 })]);
     expect(hit.rule).toBe("SCORE");
-    expect(hit.why).toMatch(/score 90/);
+    expect(hit.why).toMatch(/score 93/);
     expect(hit.why).toMatch(/5.2× OI/);
   });
 });
@@ -518,14 +533,14 @@ describe("streakOf (multi-day persistence)", () => {
 });
 
 describe("evalTickerAlerts (SIGMA + FOLLOW)", () => {
-  const roll = [{ under: "NVDA", callVol: 90000, putVol: 30000, maxScore: 71 }];
+  const roll = [{ under: "NVDA", callVol: 105000, putVol: 35000, maxScore: 71 }];
   const baselines = { NVDA: { avg: 40000, std: 15000, days: 6 } };
-  it("SIGMA fires at ≥4σ above the ticker's baseline with a label + long ttl", () => {
+  it("SIGMA fires at ≥6σ above the ticker's baseline with a label + long ttl", () => {
     const hits = evalTickerAlerts(roll, baselines, {});
     expect(hits).toHaveLength(1);
     expect(hits[0].rule).toBe("SIGMA");
     expect(hits[0].key).toBe("sigma|NVDA");
-    expect(hits[0].label).toMatch(/5.3σ above its 6-day baseline/);
+    expect(hits[0].label).toMatch(/6.7σ above its 6-day baseline/);
     expect(hits[0].ttl).toBe(4 * 3600e3);
   });
   it("stays quiet below the sigma threshold or without a baseline", () => {

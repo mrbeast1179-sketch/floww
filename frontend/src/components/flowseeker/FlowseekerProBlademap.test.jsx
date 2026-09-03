@@ -226,8 +226,15 @@ describe("Phase 5.3 dual-path: Public API → cvserver fallback", () => {
 });
 
 describe("Pulse helpers — BladeMap tape contract", () => {
-  const { pulseScore10, pulseSignal, pulseBadges, aggregatePulse, pruneBuffer } = require("./FlowseekerProBlademap");
+  const { pulseScore10, pulseSignal, pulseBadges, aggregatePulse, pruneBuffer, pulseHedge } = require("./FlowseekerProBlademap");
 
+  it("pulseHedge flags put-ASK only (reference signal untouched)", () => {
+    expect(pulseHedge("put", "ASK")).toBe(true);
+    expect(pulseHedge("PUT", "ask")).toBe(true);
+    expect(pulseHedge("call", "ASK")).toBe(false);
+    expect(pulseHedge("put", "BID")).toBe(false);
+    expect(pulseHedge(null, "ASK")).toBe(false);
+  });
   it("pulseScore10 maps conviction 20-99 to 2.0-9.9", () => {
     expect(pulseScore10(20)).toBe(2.0);
     expect(pulseScore10(99)).toBe(9.9);

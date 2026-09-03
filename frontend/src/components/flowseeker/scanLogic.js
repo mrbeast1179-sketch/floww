@@ -145,9 +145,11 @@ export function estPremium(r) {
 // user's universe so market-wide scans don't ping for 700 random symbols.
 export function evalAlerts(rows, opts = {}) {
   const {
-    minScore = 85,
-    whalePremium = 10e6,
-    zeroDteScore = 70,
+    // Post-tightening gates (2026-09-02 noise pass, enforced Phase 7.1):
+    // omitted-opts callers inherit desk gates, never the old loose values.
+    minScore = 92,
+    whalePremium = 25e6,
+    zeroDteScore = 85,
     oiConfPct = 0.30,
     oiConfNotional = 1e6,
     // 2026-09-02 noise pass: per-ticker alert cap per scan. Contract rules
@@ -226,7 +228,7 @@ export function evalAlerts(rows, opts = {}) {
     } else if (enabled.whale && r.premium != null && r.premium >= (enabled.whaleMin ?? whalePremium)) {
       rule = "WHALE";
       why = `~${fmtUSD(r.premium)} estimated premium on a single line`;
-    } else if (enabled.zerodte && r.dte != null && r.dte <= 1 && r.score >= zeroDteScore) {
+    } else if (enabled.zerodte && r.dte != null && r.dte <= 1 && r.score >= zeroDteScore && (r.volOI ?? 0) >= 2) {
       rule = "0DTE";
       why = `${r.dte} DTE with score ${r.score} — urgent short-fuse positioning`;
     }
@@ -326,7 +328,7 @@ export function streakOf(days, { mult = 1.5, minDays = 4, today = sessionDay() }
 //           positioning; institutions building over days, not one print.
 // Hits use the label pathway (no strike) and long ttls so the tape stays signal.
 export function evalTickerAlerts(rollup, baselines = {}, streaks = {}, opts = {}) {
-  const { sigmaMin = 4, followDays = 2, enabled = { sigma: true, follow: true }, allow = null } = opts;
+  const { sigmaMin = 6, followDays = 2, enabled = { sigma: true, follow: true }, allow = null } = opts;
   const allowSet = allow && allow.length ? new Set(allow) : null;
   const out = [];
   for (const e of rollup || []) {

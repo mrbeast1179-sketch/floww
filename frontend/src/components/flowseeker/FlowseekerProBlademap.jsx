@@ -129,7 +129,13 @@ export function pulseSignal(side) {
   return String(side || "").toUpperCase() === "ASK" ? "BULLISH" : "BEARISH";
 }
 
-// SILVER always; GOLDEN at premium ≥ $900K; WHALE at premium ≥ $1M.
+// Put-ASK is often protective buying, not directional bullishness. The tape
+// keeps the reference BULLISH signal; this flag annotates the ambiguity.
+export function pulseHedge(type, side) {
+  return String(type || "").toLowerCase().startsWith("p")
+    && String(side || "").toUpperCase() === "ASK";
+}
+
 // Thresholds read off the reference tape ($899K SILVER vs $950K GOLDEN).
 export function pulseBadges(premium) {
   const prem = Number(premium) || 0;
@@ -294,7 +300,7 @@ export default function FlowseekerProBlademap({ active = true }) {
   const [baselines, setBaselines] = useState({});   // {ticker: {avg, std, days}} from /scan
   const [universe, setUniverse] = useState(prefs.universe || SCAN_UNIVERSE);
   const [universeOnly, setUniverseOnly] = useState(!!prefs.universeOnly);
-  const [alertScore, setAlertScore] = useState(prefs.alertScore ?? 85);
+  const [alertScore, setAlertScore] = useState(prefs.alertScore ?? 92);
   const [alertRules, setAlertRules] = useState({ ...DEFAULT_RULES, ...(prefs.alertRules || {}) });
   const [history, setHistory] = useState({});   // {ticker: [{date, total_vol, call_vol, put_vol}]} from /scan/history
   const [alertLog, setAlertLog] = useState(loadAlertLog);
@@ -1331,7 +1337,7 @@ export default function FlowseekerProBlademap({ active = true }) {
                           <td className="num">{dteOf(p.expiration)}</td>
                           <td className="num">{price > 0 ? price.toFixed(2) : "—"}</td>
                           <td><span className={`fsb-pill fsb-side-${side.toLowerCase()}`}>{side}</span></td>
-                          <td><span className={`fsb-pill fsb-sig-${sig.toLowerCase()}`}>{sig}</span></td>
+                          <td><span className={`fsb-pill fsb-sig-${sig.toLowerCase()}`}>{sig}</span>{pulseHedge(p.type, side) && <span className="fsb-pill fsb-hedge" title="Put bought aggressively — often a hedge, not directional bullishness">HEDGE?</span>}</td>
                           <td>{badges.map((b) => <span key={b} className={`fsb-pill fsb-badge-${b.toLowerCase()}`}>{b}</span>)}</td>
                           <td className="num">{score.toFixed(1)}</td>
                           <td className="num">{Number(p._aggSize ?? p.volume) || 0}</td>
