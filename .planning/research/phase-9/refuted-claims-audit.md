@@ -112,3 +112,31 @@ New violations missed in round 1, all with file:line. Severity upgraded where us
 
 Propagation note: V1/V5–V8 all flow into morning_briefing metrics (morning_briefing.py:885-925) served via
 API — audit scope must henceforth include briefing consumers, not just gex_paper_accurate.py.
+
+## 6. Round-3 addendum (hardening pass)
+
+- V15 (P0, HIGHEST — live refuted attribution in scoring): backend/services/flow_alerts.py:165-167 adds
+  +4 to the 0–100 composite when `7 <= dte <= 90 and vol_oi >= 3 and premium >= 25e3`, commented
+  "Informed-positioning band (Pan & Poteshman, RFS 2006)". The 7–90 band, 3×OI, and $25k rules are all
+  REFUTED as P&P attributions (P&P used buyer-open volume, no DTE band). User-facing label
+  (flow_alerts.py:322): "Informed-positioning band (7–90 DTE, Pan-Poteshman)". WIRED: 6 call sites in
+  backend/routes/flowseeker.py (lines 716, 1011, 1088, 1265, 1357, 1388) + alphapod_compat.py:78.
+  CORRECTION: round-1 verdict "no P&P occurrence in product code" was WRONG — the grep missed the
+  en-dash "7–90" form and under-searched backend/services. Fix: strip +4 band and citation, or relabel
+  "internal tenor heuristic (not P&P)" with outcomes read.
+- V16 (P0): V1 propagation CLOSED as served: GET /api/briefing/{ticker}
+  (backend/routes/morning_briefing_api.py:160,194) returns `"metrics": result.metrics` wholesale, and
+  metrics include `flash_crash_risk` with `crash_probability_estimate` (morning_briefing.py:898).
+  The numeric crash probability is client-visible today.
+- V14 (P2): "split" classification exists in scanLogic.js scanTypeOf, CSS (.fsb-type-split), and tests,
+  but has ZERO hits in CONTRACTS.md — contract gap. Fix: Agent 1 adds split to C1 or code drops it.
+- V17 (P1): flow_alerts.py:247 comment "paper-accurate ΓIB is our hardest" + :270-273 double-weights
+  `gex_confluent` in confluence scoring on the unverified ΓIB formula (V3). Fix: down-weight until V3
+  verified; label "ΓIB-proxy confluence".
+- V18 (P2, verify-not-violation): "cw_confirm — Cremers-Weinbaum IV spread confirms" (flow_alerts.py:326,
+  impl ~:475-510). CW requires MATCHED strike-expiry call-minus-put IV; flag for Agent 3 to confirm the
+  construction is matched-pairs before the label stands. Not a violation finding — an open check.
+- Score-spec reconciliation: product scores 0–100 backend composite (flow_alerts) / 0–10 pulse display
+  (pulseScore10) / SILVER-GOLDEN-WHALE premium tiers. The signed −100..+100 spec is a NEW display overlay:
+  sign = existing SIDE→SIGNAL (D2), magnitude = rescale of existing 0–100 with §4 caps. No existing
+  score is replaced; mapping table belongs in the Agent 2 implementation ticket.

@@ -64,6 +64,18 @@ unverified = not confirmed, never cite. Every product rule carries its WITH § c
 - UI prohibited: "confirmed opening buy".
 - Fixture: ΔOI column cases (rising vs falling OI).
 
+### Garleanu-Pedersen-Poteshman 2009 — VERIFIED FULL TEXT (round 3)
+- Full citation CONFIRMED from publisher PDF (fetched 2026-09-03, 117k chars cached):
+  "Demand-Based Option Pricing", RFS 22(10), 2009, doi 10.1093/rfs/hhp005 (© Author 2009, Advance Access
+  Feb 2009; 2008 = SSRN WP year only). Source: https://pages.stern.nyu.edu/~lpederse/papers/DBOP.pdf.
+- Core claim (verified, abstract+intro): end-user net demand → market-maker inventory → option price
+  effects proportional to unhedgeable variance/covariance; explains index-option expensiveness/skew
+  (time series) and single-stock expensiveness (cross-section).
+- Supports: dealer-inventory-pressure CONTEXT display only ("dealers positioned long/short gamma
+  inventory — demand-pressure context, GPP 2009").
+- Does NOT support: the code's GEX+PCR proxy construction, any directional trade signal, or IV-premium
+  calibration. Both backend docstrings must read "(2009)" + "our proxy" (closes V7 pending edit).
+
 ## Gamma papers
 
 ### Ni et al. 2021 RFS — CONFIRMED mechanism, REFUTED formula/sign-rule attributions
