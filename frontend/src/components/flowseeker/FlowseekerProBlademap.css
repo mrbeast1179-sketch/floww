@@ -1086,13 +1086,34 @@
   border: 1px solid transparent;
   white-space: nowrap;
 }
-.fsb-side-ask { color: #19d27c; border-color: rgba(25, 210, 124, 0.4); background: rgba(25, 210, 124, 0.08); }
-.fsb-side-bid { color: #ff6b7a; border-color: rgba(255, 77, 94, 0.4); background: rgba(255, 77, 94, 0.08); }
-.fsb-sig-bullish { color: #19d27c; border-color: rgba(25, 210, 124, 0.4); background: rgba(25, 210, 124, 0.08); }
-.fsb-sig-bearish { color: #ff6b7a; border-color: rgba(255, 77, 94, 0.4); background: rgba(255, 77, 94, 0.08); }
+.fsb-side-ask { color: #22c55e; border-color: rgba(34, 197, 94, 0.4); background: rgba(34, 197, 94, 0.08); }
+.fsb-side-bid { color: #f87171; border-color: rgba(239, 68, 68, 0.4); background: rgba(239, 68, 68, 0.08); }
+.fsb-sig-bullish { color: #22c55e; border-color: rgba(34, 197, 94, 0.4); background: rgba(34, 197, 94, 0.08); }
+.fsb-sig-bearish { color: #f87171; border-color: rgba(239, 68, 68, 0.4); background: rgba(239, 68, 68, 0.08); }
 .fsb-badge-silver { color: #b3b8c5; border-color: rgba(179, 184, 197, 0.35); background: rgba(179, 184, 197, 0.08); }
 .fsb-badge-golden { color: #f5b042; border-color: rgba(245, 176, 66, 0.45); background: rgba(245, 176, 66, 0.10); }
 .fsb-badge-whale { color: #29c5e0; border-color: rgba(41, 197, 224, 0.45); background: rgba(41, 197, 224, 0.10); }
 .fsb-table.fsb-pulse th { font-size: 10px; letter-spacing: 0.06em; }
 .fsb-table.fsb-pulse td { font-size: 11.5px; }
 .fsb-hedge { color: #f5b042; border-color: rgba(245, 176, 66, 0.45); background: rgba(245, 176, 66, 0.10); }
+.fsb-iconbtn {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 26px; height: 26px; margin-left: 6px;
+  border-radius: 999px; border: 1px solid var(--fsb-border2);
+  background: rgba(0, 0, 0, 0.25); color: var(--fsb-text2);
+  font-size: 13px; cursor: pointer;
+}
+.fsb-iconbtn:hover { color: var(--fsb-text); border-color: var(--fsb-text2); }
+.fsb-howto {
+  margin: 8px 12px 0; padding: 3px 10px;
+  border-radius: 999px; border: 1px solid var(--fsb-border2);
+  background: transparent; color: var(--fsb-muted);
+  font-size: 11px; letter-spacing: 0.04em; cursor: pointer;
+}
+.fsb-howto:hover { color: var(--fsb-text2); }
+.fsb-howto-pop {
+  margin: 8px 12px 0; padding: 10px 12px;
+  border: 1px solid var(--fsb-border2); border-radius: 8px;
+  background: rgba(0, 0, 0, 0.3); color: var(--fsb-text2);
+  font-size: 11.5px; line-height: 1.6;
+}

@@ -13,7 +13,7 @@
  */
 import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { BACKEND_URL } from "../../config/api";
-import { mkScanRow, evalAlerts, evalTickerAlerts, streakOf, cleanHistory, tickerRollup, volSigma, annotateFirstSeen, sessionDay, fmtClock, fmtAge, awaySummary, scanRowsToCSV, oiChange, fmtUSD, fmtK, fmtIV, scoreGradeOf, pulseState, elapsedClock, formatFOLLOWStrip, tierOf, selectFires, pickBanner } from "./scanLogic";
+import { mkScanRow, evalAlerts, evalTickerAlerts, streakOf, cleanHistory, tickerRollup, volSigma, annotateFirstSeen, sessionDay, fmtClock, fmtAge, awaySummary, scanRowsToCSV, oiChange, fmtUSD, fmtK, fmtIV, scoreGradeOf, pulseState, elapsedClock, formatFOLLOWStrip, tierOf, selectFires, pickBanner, bizDTE } from "./scanLogic";
 import Wtipanel from "../Wtipanel";
 import RussellPanel from "../RussellPanel";
 import "./FlowseekerProBlademap.css";
@@ -28,20 +28,12 @@ const NOISE_FLOOR = 5; // ignore day-volume deltas below this many contracts
 const ALERT_NOISE_CAP_H = 4;
 
 const PL = {
-  paper: "rgba(0,0,0,0)", plot: "rgba(0,0,0,0)", grid: "#1c2230", axis: "#3a4358",
-  text: "#b3b8c5", muted: "#6c7382", font: "11px ui-monospace, Menlo, monospace",
-  green: "#19d27c", red: "#ff4d5e", blue: "#29c5e0", purple: "#a267ff", amber: "#f5b042",
+  paper: "rgba(0,0,0,0)", plot: "rgba(0,0,0,0)", grid: "#ffffff0f", axis: "#ffffff1f",
+  text: "#fffffff2", muted: "#ffffff73", font: "11px 'JetBrains Mono', ui-monospace, Consolas, monospace",
+  green: "#22c55e", red: "#ef4444", blue: "#38bdf8", purple: "#a267ff", amber: "#e8c96a",
 };
 
-// ---------- helpers ----------
-const fmtMoney = (v) => {
-  const n = Math.abs(Number(v) || 0);
-  if (n >= 1e6) return `$${(n / 1e6).toFixed(1)}M`;
-  if (n >= 1e3) return `$${(n / 1e3).toFixed(0)}k`;
-  return `$${n.toFixed(0)}`;
-};
-const fmtTime = (ts) => { try { return new Date(ts).toLocaleTimeString(); } catch { return String(ts || ""); } };
-const dteOf = (exp) => { try { const d = Math.round((new Date(exp) - Date.now()) / 86400000); return d >= 0 ? d : 0; } catch { return 0; } };
+// ---------- helpers (formatting/DTE live in ./scanLogic — single source) ----------
 async function getJSON(url, signal) {
   const r = await fetch(url, { signal });
   if (!r.ok) throw new Error(`HTTP ${r.status}`);
@@ -49,7 +41,7 @@ async function getJSON(url, signal) {
 }
 // Rough ATM premium estimate when cvserver isn't quoting bid/ask (per-contract $).
 function estPrice(strike, iv, expiry) {
-  const dte = Math.max(1, dteOf(expiry));
+  const dte = Math.max(1, bizDTE(expiry));
   const ivv = iv > 1 ? iv / 100 : (iv || 0.2);
   return Math.max(0.05, strike * ivv * Math.sqrt(dte / 365) * 0.4);
 }
@@ -64,7 +56,7 @@ function rowConviction(p) {
   const size = Math.min(30, Math.log10(Math.max(1e4, prem) / 1e4) * 9);                      // 0-30 size (log)
   const voi = Number(p.vol_oi_ratio) || 0;
   const stat = Math.min(26, Math.log10(Math.max(1, voi) + 1) * 14);                          // 0-26 unusualness (log)
-  const dte = Number(dteOf(p.expiration)) || 0;
+  const dte = Number(bizDTE(p.expiration)) || 0;
   const urg = dte <= 1 ? 14 : dte <= 7 ? 9 : dte <= 30 ? 5 : 2;                              // 2-14 urgency
   const conv = Math.round(Math.max(20, Math.min(99, pat + size + stat + urg)));
   return { pat: +pat.toFixed(1), size: +size.toFixed(1), stat: +stat.toFixed(1), urg: +urg.toFixed(1), conv };
@@ -87,7 +79,7 @@ export function mapPublicChainToRows(contracts, spot, ticker) {
     const last = Number(c.last) || 0;
     const mid = last || ((bid + ask) / 2) || estPrice(Number(c.strike), iv, c.expiry);
     const premium = Math.round(vol * mid * 100);
-    const dte = dteOf(c.expiry);
+    const dte = bizDTE(c.expiry);
     const cls = premium >= 5e7 ? "block" : dte <= 2 ? "sweep" : "unusual";
     // Pulse SIDE inference (BladeMap contract): last trading at/above the
     // quote mid = aggressive lift (ASK), below = hit (BID). No quotes →
@@ -254,19 +246,14 @@ function markNew(rows, prevKeysRef, mode) {
   return rows;
 }
 
-// Days to expiry for an ISO date string; null when unparseable.
-function dteDays(exp) {
-  if (!exp) return null;
-  const t = Date.parse(String(exp).length === 10 ? `${exp}T00:00:00` : exp);
-  if (Number.isNaN(t)) return null;
-  return Math.max(0, Math.round((t - Date.now()) / 86400000));
-}
-
 // ---------- component ----------
 export default function FlowseekerProBlademap({ active = true }) {
   const [tab, setTab] = useState("scanner");   // land on the cross-symbol scanner (the hero view)
   const [ticker, setTicker] = useState("SPY");
   const [signals, setSignals] = useState([]);     // merged feed, newest first
+  const [flowPaused, setFlowPaused] = useState(false);  // Pulse pause (reference ⏸ button)
+  const [flowNonce, setFlowNonce] = useState(0);        // Pulse refresh (reference ⟳ button)
+  const [howTo, setHowTo] = useState(false);            // HOW TO READ popover
   const [selected, setSelected] = useState(null);
   const [filter, setFilter] = useState("all");
   // Flow feed time-frame preset: All / 0DTE / 1-7D / Weekly / Monthly / Qtrly / LEAPS
@@ -280,7 +267,6 @@ export default function FlowseekerProBlademap({ active = true }) {
   const [regime, setRegime] = useState({ label: "—", cls: "chop" });
   const [clock, setClock] = useState("");
   const [plotlyReady, setPlotlyReady] = useState(!!window.Plotly);
-  const [volTicker, setVolTicker] = useState("SPY");
   // cross-symbol scanner state (Scanner tab) — filters/sort/universe persist in localStorage
   const prefs = useMemo(loadScanPrefs, []);
   const [scan, setScan] = useState([]);
@@ -529,7 +515,7 @@ export default function FlowseekerProBlademap({ active = true }) {
 
   const microRef = useRef({});            // { vpin, regimeConf, lambdaR2 } for selected ticker
   const gaugeRef = useRef(null), radarRef = useRef(null), ofiRef = useRef(null);
-  const gexRef = useRef(null), volRef = useRef(null), gammaBarRef = useRef(null), gammaCurveRef = useRef(null);
+  const gexRef = useRef(null), gammaBarRef = useRef(null), gammaCurveRef = useRef(null);
   const ofiDataRef = useRef(null), gexDataRef = useRef(null);
 
   // Plotly CDN
@@ -601,7 +587,7 @@ export default function FlowseekerProBlademap({ active = true }) {
                 const askV = Number(vals[iAsk]) || 0;
                 const mid = last || ((bidV + askV) / 2) || estPrice(strike, iv, exp.expiration);
                 const premium = Math.round(vol * mid * 100);
-                const dte = dteOf(exp.expiration);
+                const dte = bizDTE(exp.expiration);
                 const cls = premium >= 5e7 ? "block" : dte <= 2 ? "sweep" : "unusual";
                 const side = (bidV > 0 && askV > 0 && last > 0) ? (last >= (bidV + askV) / 2 ? "ASK" : "BID") : (voi >= 1.5 ? "ASK" : "BID");
                 const p = {
@@ -627,10 +613,11 @@ export default function FlowseekerProBlademap({ active = true }) {
         setScanMeta((m) => ({ ...m, data_source: ds }));
       }
     };
+    if (flowPaused) return () => { cancelled = true; ctrl.abort(); };
     poll();
     const id = setInterval(poll, 15000);
     return () => { cancelled = true; ctrl.abort(); clearInterval(id); };
-  }, [active, ticker, tab]);
+  }, [active, ticker, tab, flowPaused, flowNonce]);
 
   // ---- cross-symbol market scan (Scanner tab, scenner34 grid) ----
   // Prefer the efficient backend /scan endpoint (ONE market-wide cvforge screen);
@@ -803,7 +790,7 @@ export default function FlowseekerProBlademap({ active = true }) {
   const leftPass = useCallback((s) => {
     const side = String(s.type || "").toLowerCase().startsWith("c") ? "CALL" : "PUT";
     const cls = String(s.classification || "").toUpperCase();
-    const dte = Number(dteOf(s.expiration)) || 0;
+    const dte = Number(bizDTE(s.expiration)) || 0;
     // DTE preset filter (applied first — narrows the time window)
     switch (dteFilter) {
       case "0dte": if (dte !== 0) return false; break;
@@ -855,7 +842,7 @@ export default function FlowseekerProBlademap({ active = true }) {
     const gated = pruneBuffer(printBufferRef.current, 90e3, now).filter((s) => {
       if (!leftPass(s)) return false;
       if (pulseTicker !== "ALL" && s.ticker !== pulseTicker) return false;
-      const dte = Number(dteOf(s.expiration)) || 0;
+      const dte = Number(bizDTE(s.expiration)) || 0;
       if (pulseDte === "0-7D" && (dte < 0 || dte > 7)) return false;
       else if (pulseDte === "0-21D" && (dte < 0 || dte > 21)) return false;
       else if (pulseDte === "0-45D" && (dte < 0 || dte > 45)) return false;
@@ -905,8 +892,8 @@ export default function FlowseekerProBlademap({ active = true }) {
       if (q && !(r.under || "").toUpperCase().includes(q)) return false;
       // Zenith control-cluster quick filters
       if (minScoreQF > 0 && (r.score ?? 0) < minScoreQF) return false;
-      if (dteRange[0] != null && dteDays(r.exp) != null && dteDays(r.exp) < dteRange[0]) return false;
-      if (dteRange[1] != null && dteDays(r.exp) != null && dteDays(r.exp) > dteRange[1]) return false;
+      if (dteRange[0] != null && bizDTE(r.exp) != null && bizDTE(r.exp) < dteRange[0]) return false;
+      if (dteRange[1] != null && bizDTE(r.exp) != null && bizDTE(r.exp) > dteRange[1]) return false;
       return true;
     });
     const k = scanSort.key, dir = scanSort.dir === "desc" ? -1 : 1;
@@ -1008,7 +995,7 @@ export default function FlowseekerProBlademap({ active = true }) {
   const ackFire = useCallback((k) => setAckedKeys((m) => { const n = new Set(m); n.add(k); return n; }), []);
   const fires = useMemo(() => selectFires(alertLog, {
     now: Date.now(), ttlMs: 60_000,
-    minScoreForFire: Math.max(alertScore, 90),
+    minScoreForFire: alertScore,
     enabled: alertRules,
     allow: alertUnivOnly ? universe : null,
     acked: ackedKeys,
@@ -1102,26 +1089,6 @@ export default function FlowseekerProBlademap({ active = true }) {
     { displayModeBar: false, responsive: true });
   }
 
-  // synthetic vol surface (no IV-surface backend) — labelled SIM
-  function drawVol() {
-    if (!P() || !volRef.current) return;
-    const mny = Array.from({ length: 21 }, (_, i) => 0.8 + i * 0.02);
-    const exp = [7, 14, 30, 60, 90, 180];
-    const z = exp.map((d) => mny.map((m) => {
-      const skew = (1 - m) * 28; const term = 12 + 30 / Math.sqrt(d); const smile = Math.pow(m - 1, 2) * 60;
-      return +(term + skew + smile).toFixed(2);
-    }));
-    P().react(volRef.current, [{ type: "surface", x: mny, y: exp, z,
-      colorscale: [[0, "#2c1339"], [0.5, "#29c5e0"], [1, "#19d27c"]], showscale: true,
-      colorbar: { thickness: 10, len: 0.6, tickfont: { color: PL.muted, size: 9 } },
-      hovertemplate: "Mny %{x}<br>%{y}d<br>IV %{z}%<extra></extra>" }],
-    { paper_bgcolor: PL.paper, scene: { camera: { eye: { x: 1.4, y: -1.6, z: 0.7 } },
-      xaxis: { title: "Moneyness", color: PL.muted, gridcolor: PL.grid },
-      yaxis: { title: "DTE", color: PL.muted, gridcolor: PL.grid },
-      zaxis: { title: "IV %", color: PL.muted, gridcolor: PL.grid } },
-      margin: { l: 8, r: 8, t: 8, b: 8 }, font: { family: PL.font, color: PL.text } },
-    { displayModeBar: false, responsive: true });
-  }
   // gamma profile from REAL heatmap net-GEX per strike
   function drawGamma() {
     if (!P() || !gammaBarRef.current) return;
@@ -1148,10 +1115,9 @@ export default function FlowseekerProBlademap({ active = true }) {
   useEffect(() => {
     if (!plotlyReady) return;
     if (tab === "flow") { if (subtab === "ofi") drawOFI(); else drawGEX(); if (selected) { drawGauge(selected); drawRadar(selected); } }
-    if (tab === "vol") drawVol();
     if (tab === "gamma") drawGamma();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tab, subtab, plotlyReady, volTicker]);
+  }, [tab, subtab, plotlyReady]);
 
   const sideOf = (p) => (String(p.type || "").toLowerCase().startsWith("c") ? "CALL" : "PUT");
   const typeOf = (p) => String(p.classification || "reg").toUpperCase();
@@ -1290,7 +1256,9 @@ export default function FlowseekerProBlademap({ active = true }) {
           {/* center */}
           <div className="fsb-col">
             <div className="fsb-panel fsb-flow-panel">
-              <div className="fsb-panel-h"><span>Live Options Flow</span><span><i className="fsb-live-dot" /><span className="fsb-muted fsb-small">LIVE · LAST UPDATED {clock || "—"} · SHOWING {pulseRows.length} PRINTS</span></span></div>
+              <div className="fsb-panel-h"><span>Live Options Flow</span><span><i className="fsb-live-dot" style={flowPaused ? { background: "#f5b042" } : undefined} /><span className="fsb-muted fsb-small">{flowPaused ? "PAUSED" : "LIVE"} · LAST UPDATED {clock || "—"} · SHOWING {pulseRows.length} PRINTS</span><button className="fsb-iconbtn" title="Refresh now" onClick={() => { setFlowPaused(false); setFlowNonce((n) => n + 1); }}>⟳</button><button className="fsb-iconbtn" title={flowPaused ? "Resume live polling" : "Pause live polling"} onClick={() => setFlowPaused((p) => !p)}>{flowPaused ? "▶" : "⏸"}</button></span></div>
+              <div><button className="fsb-howto" onClick={() => setHowTo((h) => !h)}>ⓘ HOW TO READ</button></div>
+              {howTo && <div className="fsb-howto-pop">SIDE = where the print crossed: ASK (lifted the offer → aggressive buy) vs BID (hit the bid). SIGNAL follows SIDE: ASK→BULLISH, BID→BEARISH, calls and puts alike. BADGES: SILVER every row; GOLDEN ≥$900K rolled premium; WHALE ≥$1M (tape size tier — not the $25M alert rule). HEDGE? = put bought aggressively, often protection rather than direction. SCORE = conviction/10. PREM subline = 90s rolled premium (print count).</div>}
               <div className="fsb-pulsebar">
                 <label className="fsb-muted fsb-small">Ticker&nbsp;
                   <select value={pulseTicker} onChange={(e) => { const v = e.target.value; setPulseTicker(v); if (v !== "ALL") setTicker(v); }}>
@@ -1312,7 +1280,7 @@ export default function FlowseekerProBlademap({ active = true }) {
               <div className="fsb-flow-wrap">
                 <table className="fsb-table fsb-pulse">
                   <thead><tr>
-                    <th>FLOW ET</th><th>SYM</th><th className="num">STRIKE</th><th>C/P</th><th className="num">OTM</th><th>EXP</th><th className="num">DTE</th><th className="num">PRICE</th><th>SIDE</th><th>SIGNAL</th><th>BADGES</th><th className="num">SCORE</th><th className="num">SIZE</th><th className="num">PREM</th>
+                    <th title="Local time of the latest print in the 90s window">FLOW ET</th><th>SYM</th><th className="num">STRIKE</th><th>C/P</th><th className="num" title="Absolute distance of strike from spot at print time">OTM</th><th>EXP</th><th className="num" title="Trading days to expiry">DTE</th><th className="num" title="Per-contract price (mid, else premium/volume)">PRICE</th><th title="ASK = lifted the offer (aggressive buy); BID = hit the bid">SIDE</th><th title="Follows SIDE: ASK→BULLISH, BID→BEARISH">SIGNAL</th><th title="SILVER always; GOLDEN ≥$900K; WHALE ≥$1M rolled premium">BADGES</th><th className="num" title="Conviction mapped 0-10">SCORE</th><th className="num" title="Contracts in the 90s window">SIZE</th><th className="num" title="Rolled premium in the 90s window">PREM</th>
                   </tr></thead>
                   <tbody>
                     {pulseRows.length === 0 && <tr><td colSpan={14} className="fsb-muted" style={{ padding: 14, lineHeight: 1.7 }}>No prints pass the Pulse gates (DTE {pulseDte} · score {pulseScore === 0 ? "ALL" : pulseScore + "+"} · {pulseTicker}).{pulseTicker !== "ALL" && pulseTicker !== ticker ? ` Pulse is scoped to ${pulseTicker} but the feed is ${ticker} — the dropdown already switched the feed, wait one poll.` : " Trailing-90s tape: Public API first, cvserver fallback, ranked by aggregated premium…"}</td></tr>}
@@ -1328,20 +1296,20 @@ export default function FlowseekerProBlademap({ active = true }) {
                         <tr key={`${p.ticker}-${p.strike}-${String(p.expiration || "").slice(0, 10)}-${i}`} className={selected === p ? "selected" : ""}
                             tabIndex={0} onClick={() => selectSignal(p)}
                             onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); selectSignal(p); } }}>
-                          <td className="fsb-muted">{fmtTime(p._aggTs ?? p.timestamp)}</td>
+                          <td className="fsb-muted">{fmtClock(p._aggTs ?? p.timestamp, true)}</td>
                           <td className="tk">{p.ticker}</td>
                           <td className="num">{Number(p.strike).toFixed(0)}</td>
                           <td className={`fsb-type-${cp.toLowerCase()}`}>{cp}</td>
                           <td className="num">{p.otm == null ? "—" : `+${Number(p.otm).toFixed(1)}%`}</td>
                           <td className="fsb-muted">{String(p.expiration || "").slice(0, 10)}</td>
-                          <td className="num">{dteOf(p.expiration)}</td>
+                          <td className="num">{bizDTE(p.expiration)}</td>
                           <td className="num">{price > 0 ? price.toFixed(2) : "—"}</td>
                           <td><span className={`fsb-pill fsb-side-${side.toLowerCase()}`}>{side}</span></td>
                           <td><span className={`fsb-pill fsb-sig-${sig.toLowerCase()}`}>{sig}</span>{pulseHedge(p.type, side) && <span className="fsb-pill fsb-hedge" title="Put bought aggressively — often a hedge, not directional bullishness">HEDGE?</span>}</td>
-                          <td>{badges.map((b) => <span key={b} className={`fsb-pill fsb-badge-${b.toLowerCase()}`}>{b}</span>)}</td>
+                          <td>{badges.map((b) => <span key={b} className={`fsb-pill fsb-badge-${b.toLowerCase()}`} title={b === "WHALE" ? "Tape size tier: ≥$1M rolled premium in 90s — not the $25M alert rule" : b === "GOLDEN" ? "Premium ≥ $900K rolled in 90s" : "Baseline badge: every print starts here"}>{b}</span>)}</td>
                           <td className="num">{score.toFixed(1)}</td>
                           <td className="num">{Number(p._aggSize ?? p.volume) || 0}</td>
-                          <td className="num">{fmtMoney(p._aggPrem ?? p.premium)}{(p._aggN || 0) > 1 && <div className="fsb-muted fsb-small">90s {fmtMoney(p._aggPrem)} ({p._aggN})</div>}</td>
+                          <td className="num">{fmtUSD(p._aggPrem ?? p.premium)}<div className="fsb-muted fsb-small">90s {fmtUSD(p._aggPrem)} ({p._aggN || 1})</div></td>
                         </tr>
                       );
                     })}
@@ -1368,7 +1336,7 @@ export default function FlowseekerProBlademap({ active = true }) {
                   <div className="fsb-sel-head">
                     <span className="tk">{selected.ticker}</span>
                     <span className="strike">${Number(selected.strike).toFixed(0)} {sideOf(selected)[0]}</span>
-                    <span className="fsb-muted fsb-small">{dteOf(selected.expiration)}d · {typeOf(selected)}</span>
+                    <span className="fsb-muted fsb-small">{bizDTE(selected.expiration)}d · {typeOf(selected)}</span>
                     <span className={`fsb-badge ${sideOf(selected) === "CALL" ? "call" : "put"}`}>{sideOf(selected)}</span>
                   </div>
                   <div className="fsb-con-grid">
@@ -1376,10 +1344,10 @@ export default function FlowseekerProBlademap({ active = true }) {
                     <div ref={radarRef} className="fsb-chart small" />
                   </div>
                   <div className="fsb-rationale">
-                    <div style={{ marginBottom: 6 }}><strong>{typeOf(selected)} {sideOf(selected)} · {fmtMoney(selected.premium)}</strong> on {selected.ticker}</div>
+                    <div style={{ marginBottom: 6 }}><strong>{typeOf(selected)} {sideOf(selected)} · {fmtUSD(selected.premium)}</strong> on {selected.ticker}</div>
                     <ul>
                       <li>Classification: {String(selected.classification || "unusual")} — volume/OI positioning proxy (cvserver has no trade-level tape)</li>
-                      <li>Vol/OI ratio: {Number(selected.vol_oi_ratio || 0).toFixed(1)}× · est. notional {fmtMoney(selected.premium)}</li>
+                      <li>Vol/OI ratio: {Number(selected.vol_oi_ratio || 0).toFixed(1)}× · est. notional {fmtUSD(selected.premium)}</li>
                       {selected._cd && (
                         <li>Conviction {selected._conv}/99 = pattern {selected._cd.pat} + size {selected._cd.size} + unusualness {selected._cd.stat} + urgency {selected._cd.urg}</li>
                       )}
@@ -1396,20 +1364,6 @@ export default function FlowseekerProBlademap({ active = true }) {
                 </>
               )}
             </div>
-          </div>
-        </div>
-
-        {/* VOL VIEW */}
-        <div className={`fsb-view${tab === "vol" ? " active" : ""}`} style={{ gridTemplateColumns: "1fr" }}>
-          <div className="fsb-panel">
-            <div className="fsb-panel-h"><span>3D Implied Volatility Surface</span><span className="fsb-status-chip" style={{ color: "var(--fsb-amber)", background: "rgba(245,176,66,0.06)" }}>SIM</span></div>
-            <div className="fsb-vol-controls">
-              <label className="fsb-muted fsb-small">Ticker&nbsp;
-                <select value={volTicker} onChange={(e) => setVolTicker(e.target.value)}>{["SPY", "QQQ", "NVDA", "TSLA", "AAPL"].map((t) => <option key={t}>{t}</option>)}</select>
-              </label>
-              <span className="fsb-muted fsb-small">Synthetic surface — no live IV-surface endpoint yet.</span>
-            </div>
-            <div ref={volRef} className="fsb-chart tall" />
           </div>
         </div>
 
@@ -1988,26 +1942,10 @@ export default function FlowseekerProBlademap({ active = true }) {
           </div>
         </div>
 
-        {/* ACADEMY VIEW */}
-        <div className={`fsb-view${tab === "academy" ? " active" : ""}`} style={{ gridTemplateColumns: "1fr" }}>
-          <div className="fsb-panel" style={{ overflow: "auto" }}>
-            <div className="fsb-panel-h"><span>Tidehunter Academy</span><span className="fsb-muted fsb-small">process · not signals</span></div>
-            <div className="fsb-academy-grid">
-              {[["01", "Market Microstructure", "Order flow, options mechanics, and dealer hedging — the mechanics behind every signal."],
-                ["02", "Reading the Flow", "Sweep vs. block vs. split. How urgency, size, and persistence reveal institutional intent."],
-                ["03", "Dealer Positioning", "Gamma, vanna, charm — translating dealer hedging pressure into actionable levels."],
-                ["04", "Volatility Anatomy", "Skew dynamics, term structure, vol risk premium — and where institutions hide."],
-                ["05", "Process & Execution", "Invalidation, position sizing, standing aside. The discipline that protects capital."],
-                ["06", "Regime Adaptation", "Bull, bear, chop, melt-up — the same signal means different things across regimes."]].map(([n, t, d]) => (
-                <div key={n} className="fsb-module"><div className="fsb-mod-num">{n}</div><div className="fsb-mod-title">{t}</div><p>{d}</p><div className="fsb-mod-meta">curriculum</div></div>
-              ))}
-            </div>
-          </div>
-        </div>
       </div>
 
       <div className="fsb-foot">
-        <span>Live cvforge data · GEX/OFI/regime from the decoder backend. VPIN/Kyle-λ need a trade-level feed (n/a on cvserver). Vol surface simulated.</span>
+        <span>Live Public API data · GEX/OFI/regime from the decoder backend. VPIN/Kyle-λ need a trade-level feed (n/a on snapshot chains).</span>
         <span>Tidehunter Pro · Blademap layout</span>
       </div>
     </div>
