@@ -39,9 +39,10 @@ threshold lineage agrees; dead code goes.
 | 7.9 | Visible states: split fetch-error vs filter-empty; conviction "unavailable + retry" (not perpetual loading); VPIN/λ inline "needs trade-level feed"; stale heartbeat single semantics | Blademap.jsx:313,317,722-727,745,763-767,1896 | block endpoints in dev proxy, screenshot each state; suite green |
 | 7.10 | DECISION (Nav): mount-or-delete InstitutionalAlertsPanel cluster (836 lines + useAlertStream/convictionAlert/autoTrade) | — | checkpoint:decision before acting |
 
-**Waves:** A = 7.1+7.2+7.3 (behavior, test-covered tracer) [DONE f55bd4a] → B = 7.4+7.5 (visual) →
-C = 7.6+7.7+7.8 (simplify) → D = 7.9 (states). Commit per wave, heredoc style
-with Jest evidence. Full frontend suite (45/300) must stay green each wave.
+**Waves:** A = 7.1+7.2+7.3 [DONE f55bd4a] → B = 7.4 [DONE 0f7fbb2] + 7.5/7.6/7.7/7.8
+[DONE bdd57c0] → D = 7.9 [DONE 6a0a366] → Wave2 universe opening [DONE c5cba5a].
+Phase 7 COMPLETE except 7.10 (Nav decision: mount-or-delete
+InstitutionalAlertsPanel cluster).
 
 ## Verification loop (every wave)
 1. `npx craco test --watchAll=false` full suite green (baseline 45/300).
