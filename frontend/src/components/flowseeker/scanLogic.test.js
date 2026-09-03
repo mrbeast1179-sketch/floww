@@ -5,7 +5,7 @@ import {
   awaySummary, scanRowsToCSV, oiChange, streakOf, isTradingDay, evalTickerAlerts,
   pulseState, elapsedClock, formatFOLLOWStrip,
   tierOf, selectFires, pickBanner, spreadPosition, overviewStats,
-  equityType, signedOtm, isOpexDay,
+  equityType, signedOtm, isOpexDay, highlightState,
 } from "./scanLogic";
 
 describe("estimateDelta", () => {
@@ -908,5 +908,15 @@ describe("W6 filter depth — equityType/signedOtm/isOpexDay", () => {
     expect(isOpexDay("2026-09-11")).toBe(false);  // second Friday
     expect(isOpexDay("2026-09-19")).toBe(false);  // Saturday
     expect(isOpexDay("junk")).toBe(false);
+  });
+});
+
+describe("W3-partial highlighting — highlightState", () => {
+  it("BURST beats VOL_OI; VOL_OI needs volOI>=1; else NONE", () => {
+    expect(highlightState({ volDelta: 1500, volOI: 3, oi: 1000 })).toBe("BURST");
+    expect(highlightState({ volDelta: 10, volOI: 2.5, oi: 1000 })).toBe("VOL_OI");
+    expect(highlightState({ volDelta: 0, volOI: 0.5, oi: 1000 })).toBe("NONE");
+    expect(highlightState({ volDelta: 5000, volOI: 9, oi: 0 })).toBe("VOL_OI");
+    expect(highlightState({})).toBe("NONE");
   });
 });

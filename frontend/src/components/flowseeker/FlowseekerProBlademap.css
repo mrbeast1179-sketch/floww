@@ -1119,3 +1119,7 @@
 .fsb-ovmetric { font-size: 11px; color: var(--fsb-text2); white-space: nowrap; }
 .fsb-spreadbar { position: relative; display: inline-block; width: 64px; height: 6px; border-radius: 3px; background: rgba(179, 184, 197, 0.15); vertical-align: middle; }
 .fsb-spreadmark { position: absolute; top: -2px; width: 2px; height: 10px; background: var(--fsb-text); border-radius: 1px; transform: translateX(-1px); }
+.fsb-table tr.hl-burst td { background: rgba(245, 176, 66, 0.10) !important; }
+.fsb-table tr.hl-vol td { background: rgba(168, 85, 247, 0.10) !important; }
+.fsb-dot.burst { background: #f5b042; }
+.fsb-dot.voloi { background: #a855f7; }

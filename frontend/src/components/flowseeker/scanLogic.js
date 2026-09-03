@@ -688,3 +688,17 @@ export function isOpexDay(dateLike) {
   const offset = (5 - first.getDay() + 7) % 7; // days to first Friday
   return d.getDate() === 1 + offset + 14;
 }
+
+// ---------- Highlighting (Phase 9 W3-partial; Academy article 4) ----------
+// Snapshot chains carry day-volume + prior-close OI, but NOT single-print size.
+// Honest mapping: VOL>OI (purple) is exact. SIZE>OI cannot fire without prints,
+// so the loud tier is a 15s volume BURST bigger than entire OI (yellow) —
+// labeled burst, never "Size>OI".
+export function highlightState({ volDelta, volOI, oi }) {
+  const o = Number(oi) || 0;
+  const dv = Number(volDelta) || 0;
+  const voi = Number(volOI) || 0;
+  if (o > 0 && dv > o) return "BURST";
+  if (voi >= 1) return "VOL_OI";
+  return "NONE";
+}

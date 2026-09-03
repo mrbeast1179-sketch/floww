@@ -13,7 +13,7 @@
  */
 import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { BACKEND_URL } from "../../config/api";
-import { mkScanRow, evalAlerts, evalTickerAlerts, streakOf, cleanHistory, tickerRollup, volSigma, annotateFirstSeen, sessionDay, fmtClock, fmtAge, awaySummary, scanRowsToCSV, oiChange, fmtUSD, fmtK, fmtIV, scoreGradeOf, pulseState, elapsedClock, formatFOLLOWStrip, tierOf, selectFires, pickBanner, bizDTE, spreadPosition, overviewStats, equityType, signedOtm, isOpexDay } from "./scanLogic";
+import { mkScanRow, evalAlerts, evalTickerAlerts, streakOf, cleanHistory, tickerRollup, volSigma, annotateFirstSeen, sessionDay, fmtClock, fmtAge, awaySummary, scanRowsToCSV, oiChange, fmtUSD, fmtK, fmtIV, scoreGradeOf, pulseState, elapsedClock, formatFOLLOWStrip, tierOf, selectFires, pickBanner, bizDTE, spreadPosition, overviewStats, equityType, signedOtm, isOpexDay, highlightState } from "./scanLogic";
 import Wtipanel from "../Wtipanel";
 import RussellPanel from "../RussellPanel";
 import "./FlowseekerProBlademap.css";
@@ -842,6 +842,7 @@ export default function FlowseekerProBlademap({ active = true }) {
   // WeakSet dedupes StrictMode double-effect replays of the same objects.
   const printBufferRef = useRef([]);
   const seenPrintsRef = useRef(new WeakSet());
+  const prevVolRef = useRef(new Map()); // contract key -> last-seen day volume (burst math)
   const [pulseTick, setPulseTick] = useState(0);
   useEffect(() => {
     if (!signals.length) return;
@@ -850,7 +851,17 @@ export default function FlowseekerProBlademap({ active = true }) {
     for (const s of signals) {
       if (seenPrintsRef.current.has(s)) continue;
       seenPrintsRef.current.add(s);
+      // 15s volume burst vs prior poll (day volume is cumulative; a drop means
+      // a data reset — treat as unknown, not negative).
+      const key = `${s.ticker}|${String(s.type || "").toLowerCase()}|${s.strike}|${String(s.expiration || "").slice(0, 10)}`;
+      const prev = prevVolRef.current.get(key);
+      s._volDelta = prev == null ? 0 : Math.max(0, (Number(s.volume) || 0) - prev);
+      prevVolRef.current.set(key, Number(s.volume) || 0);
       buf.push(s);
+    }
+    if (prevVolRef.current.size > 2000) {
+      const keep = new Set(buf.map((r) => `${r.ticker}|${String(r.type || "").toLowerCase()}|${r.strike}|${String(r.expiration || "").slice(0, 10)}`));
+      for (const k of [...prevVolRef.current.keys()]) if (!keep.has(k)) prevVolRef.current.delete(k);
     }
     printBufferRef.current = buf.slice(-500);
     setPulseTick((t) => t + 1);
@@ -1289,6 +1300,8 @@ export default function FlowseekerProBlademap({ active = true }) {
                 <span><i className="fsb-dot put" /> Put flow</span>
                 <span><i className="fsb-dot sweep" /> Sweep (urgent)</span>
                 <span><i className="fsb-dot block" /> Block (negotiated)</span>
+                <span><i className="fsb-dot burst" /> 15s burst &gt; OI</span>
+                <span><i className="fsb-dot voloi" /> Vol &gt; OI</span>
               </div>
             </div>
           </div>
@@ -1340,11 +1353,12 @@ export default function FlowseekerProBlademap({ active = true }) {
                       const cp = String(p.type || "").toLowerCase().startsWith("c") ? "CALL" : "PUT";
                       const pcls = String(p.classification || "").toUpperCase();
                       const flowIcon = pcls === "SWEEP" ? "⌁ " : pcls === "BLOCK" ? "◫ " : "";
+                      const hl = highlightState({ volDelta: p._volDelta, volOI: p.vol_oi_ratio, oi: p.oi });
                       const price = Number(p.mid) || (Number(p.volume) > 0 ? (Number(p.premium) || 0) / (Number(p.volume) * 100) : 0);
                       const fill = Number(p.last) || 0;
                       const sp = spreadPosition(p.bid, p.ask, p.last);
                       return (
-                        <tr key={`${p.ticker}-${p.strike}-${String(p.expiration || "").slice(0, 10)}-${i}`} className={selected === p ? "selected" : ""}
+                        <tr key={`${p.ticker}-${p.strike}-${String(p.expiration || "").slice(0, 10)}-${i}`} className={`${selected === p ? "selected" : ""}${hl === "BURST" ? " hl-burst" : hl === "VOL_OI" ? " hl-vol" : ""}`}
                             tabIndex={0} onClick={() => selectSignal(p)}
                             onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); selectSignal(p); } }}>
                           <td className="fsb-muted">{fmtClock(p._aggTs ?? p.timestamp, true)}</td>
