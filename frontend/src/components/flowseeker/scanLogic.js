@@ -744,3 +744,102 @@ export function flagSpreadLegs(rows) {
   }
   return n;
 }
+
+// ---------- Wave-2 SHIP engine (pure; synthesis tidehunter-wave2-synthesis.md) ----------
+// Conventions: IVs normalized by the same <3-decimal rule as fmtIV. Delta
+// interpolation never extrapolates (null outside observed range). Rows with
+// estimated deltas (deltaEst) degrade interpolation — callers preferring
+// precision should pre-filter; helpers stay honest and compute anyway.
+
+// Linear-interpolate IV at a target delta across same-type contracts.
+// Returns null with <2 usable points or target outside observed delta range.
+export function interpDeltaIV(rows, targetDelta, type) {
+  const t = String(type || "").toLowerCase().startsWith("c") ? "call" : "put";
+  const pts = [];
+  for (const r of rows || []) {
+    if (String(r.type || "").toLowerCase() !== t) continue;
+    const d = Number(r.delta), v = Number(r.iv);
+    if (!Number.isFinite(d) || r.iv == null) continue;
+    const iv = Number(v) >= 3 ? Number(v) / 100 : Number(v);
+    if (iv <= 0) continue;
+    pts.push([d < 0 ? d : (t === "put" ? -d : d), iv]); // signed delta
+  }
+  if (pts.length < 2) return null;
+  // Signed delta: calls +d, puts −|d|.
+  const signed = pts.map(([d, iv]) => [d, iv]).sort((a, b) => a[0] - b[0]);
+  const x = Number(targetDelta);
+  if (x < signed[0][0] || x > signed[signed.length - 1][0]) return null;
+  for (let i = 0; i < signed.length - 1; i++) {
+    const [x0, y0] = signed[i], [x1, y1] = signed[i + 1];
+    if (x >= x0 && x <= x1) {
+      if (x1 === x0) return y0;
+      return y0 + ((y1 - y0) * (x - x0)) / (x1 - x0);
+    }
+  }
+  return null;
+}
+
+// Single-expiry skew levels (XZZ smirk, C-W spread, Yan slope, convexity).
+// Pass rows for ONE expiry (front liquid monthly); nulls where uncomputable.
+export function skewLevels(rows) {
+  const put = (d) => interpDeltaIV(rows, d, "put");
+  const call = (d) => interpDeltaIV(rows, d, "call");
+  const p20 = put(-0.2), p50 = put(-0.5), p80 = put(-0.8), c50 = call(0.5);
+  const sub = (a, b) => (a == null || b == null ? null : a - b);
+  return {
+    smirk: sub(p20, c50),          // XZZ: IVput(-0.2) − IVcall(0.5)
+    cwSpread: sub(c50, p50),       // Cremers-Weinbaum: IVcall(0.5) − IVput(-0.5)
+    yanSlope: sub(p20, p50),       // Yan: IVput(-0.2) − IVput(-0.5)
+    convexity: p20 == null || p80 == null || c50 == null
+      ? null : p20 + p80 - 2 * c50,
+  };
+}
+
+// Expiry-day pin risk from one snapshot: max-OI strike, top-3 concentration,
+// 0DTE-OI share not computable here (needs multi-expiry view — caller joins).
+export function pinRisk(rows, spot) {
+  const byStrike = new Map();
+  let total = 0;
+  for (const r of rows || []) {
+    const oi = Number(r.oi) || 0;
+    if (oi <= 0) continue;
+    const k = Number(r.strike) || 0;
+    byStrike.set(k, (byStrike.get(k) || 0) + oi);
+    total += oi;
+  }
+  if (!byStrike.size || total <= 0) return null;
+  const ranked = [...byStrike.entries()].sort((a, b) => b[1] - a[1]);
+  const top3 = ranked.slice(0, 3).reduce((s, [, v]) => s + v, 0);
+  const s = Number(spot);
+  return {
+    maxOiStrike: ranked[0][0],
+    maxOi: ranked[0][1],
+    concentration: top3 / total,
+    totalOi: total,
+    distPct: Number.isFinite(s) && s > 0 ? ((ranked[0][0] - s) / s) * 100 : null,
+  };
+}
+
+// Ho-Stoll-lite quote read: relative spread always; direction needs a reference.
+// DOWN = mid shifted down vs prevMid (dealer-long pressure), UP = inverse.
+// Without prevMid there is no direction — tag LEVEL, never a fabricated side.
+export function quoteSkew(bid, ask, prevMid = null) {
+  const b = Number(bid), a = Number(ask);
+  if (!Number.isFinite(b) || !Number.isFinite(a) || a <= b || b <= 0) {
+    return { mid: null, relSpread: null, driftBp: null, tag: "NOQUOTE" };
+  }
+  const mid = (a + b) / 2;
+  const relSpread = (a - b) / mid;
+  const pm = Number(prevMid);
+  if (!Number.isFinite(pm) || pm <= 0) return { mid, relSpread, driftBp: null, tag: "LEVEL" };
+  const driftBp = ((mid - pm) / pm) * 1e4;
+  const tag = Math.abs(driftBp) < 1 ? "FLAT" : driftBp < 0 ? "DOWN" : "UP";
+  return { mid, relSpread, driftBp, tag };
+}
+
+// Midpoint drift over oldest→newest mids (reservation-price proxy).
+export function midDrift(mids) {
+  const xs = (mids || []).map(Number).filter(Number.isFinite);
+  if (xs.length < 2 || xs[0] <= 0) return null;
+  return { driftPct: ((xs[xs.length - 1] - xs[0]) / xs[0]) * 100, n: xs.length };
+}

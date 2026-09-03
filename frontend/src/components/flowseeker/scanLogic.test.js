@@ -6,6 +6,7 @@ import {
   pulseState, elapsedClock, formatFOLLOWStrip,
   tierOf, selectFires, pickBanner, spreadPosition, overviewStats,
   equityType, signedOtm, isOpexDay, highlightState, flagSpreadLegs,
+  interpDeltaIV, skewLevels, pinRisk, quoteSkew, midDrift,
 } from "./scanLogic";
 
 describe("estimateDelta", () => {
@@ -937,5 +938,50 @@ describe("W2 strategy-leg port — flagSpreadLegs", () => {
     expect(rows[0]._strat).toBe("STRADDLE?");
     const small = [leg("SPY", "call", 450, 500), leg("SPY", "put", 445, 480)];
     expect(flagSpreadLegs(small)).toBe(0);
+  });
+});
+
+describe("Wave-2 SHIP engine — skew/pin/inventory", () => {
+  const c = (type, delta, iv, strike = 450, oi = 1000) => ({ type, delta, iv, strike, oi });
+  it("interpDeltaIV hits exact, interpolates, refuses extrapolation", () => {
+    const rows = [c("put", -0.1, 0.30), c("put", -0.3, 0.40)];
+    expect(interpDeltaIV(rows, -0.1, "put")).toBeCloseTo(0.30, 6);
+    expect(interpDeltaIV(rows, -0.2, "put")).toBeCloseTo(0.35, 6);
+    expect(interpDeltaIV(rows, -0.5, "put")).toBeNull();
+    expect(interpDeltaIV([c("put", -0.2, 0.3)], -0.2, "put")).toBeNull();
+  });
+  it("skewLevels matches XZZ/C-W/Yan/convexity definitions", () => {
+    const rows = [
+      c("put", -0.2, 0.40), c("put", -0.5, 0.30), c("put", -0.8, 0.50),
+      c("call", 0.3, 0.22), c("call", 0.5, 0.20),
+    ];
+    const s = skewLevels(rows);
+    expect(s.smirk).toBeCloseTo(0.20, 6);
+    expect(s.cwSpread).toBeCloseTo(-0.10, 6);
+    expect(s.yanSlope).toBeCloseTo(0.10, 6);
+    expect(s.convexity).toBeCloseTo(0.50, 6);
+  });
+  it("pinRisk finds max-OI strike, concentration, distance", () => {
+    const rows = [c("call", 0.5, 0.2, 450, 5000), c("put", -0.5, 0.3, 450, 3000), c("call", 0.5, 0.2, 460, 1000), c("put", -0.5, 0.3, 440, 1000), c("call", 0.5, 0.2, 470, 1000)];
+    const p = pinRisk(rows, 452);
+    expect(p.maxOiStrike).toBe(450);
+    expect(p.concentration).toBeCloseTo(10000 / 11000, 6);
+    expect(p.distPct).toBeCloseTo(((450 - 452) / 452) * 100, 6);
+    expect(pinRisk([], 452)).toBeNull();
+  });
+  it("quoteSkew spreads always, direction only vs prevMid", () => {
+    const q = quoteSkew(1.0, 1.2);
+    expect(q.tag).toBe("LEVEL");
+    expect(q.relSpread).toBeCloseTo(0.2 / 1.1, 6);
+    expect(quoteSkew(1.0, 1.2, 1.0).tag).toBe("UP");
+    expect(quoteSkew(1.0, 1.2, 1.2).tag).toBe("DOWN");
+    expect(quoteSkew(1.0, 1.2, 1.1).tag).toBe("FLAT");
+    expect(quoteSkew(0, 0).tag).toBe("NOQUOTE");
+    expect(quoteSkew(1.2, 1.0).tag).toBe("NOQUOTE");
+  });
+  it("midDrift returns pct over window, null when unusable", () => {
+    expect(midDrift([100, 101, 102]).driftPct).toBeCloseTo(2, 6);
+    expect(midDrift([100, 101, 102]).n).toBe(3);
+    expect(midDrift([100])).toBeNull();
   });
 });
