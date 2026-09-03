@@ -23,7 +23,16 @@ global.IntersectionObserver = class IntersectionObserver {
 // Mock Zenith sub-components to null-mounts (no network calls; faster).
 jest.mock("./SkylitTickerBar",       () => () => <div data-testid="mock-ticker-bar" />);
 jest.mock("./SkylitControlBar",      () => () => <div data-testid="mock-control-bar" />);
-jest.mock("./SkylitHeatmapGrid",     () => () => <div data-testid="mock-heatmap" />);
+jest.mock("./SkylitHeatmapGrid",     () => ({ onCellClick }) => (
+  <div data-testid="mock-heatmap">
+    <button
+      data-testid="mock-heatmap-cell"
+      onClick={() => onCellClick && onCellClick(650, "2026-09-18", 123.4)}
+    >
+      cell
+    </button>
+  </div>
+));
 jest.mock("./SkylitMetricsSidebar",  () => () => <div data-testid="mock-metrics" />);
 
 // Mock the steal-list top-3 components (they fetch from :8000 which is not
@@ -105,8 +114,7 @@ describe("SkylitDashboard", () => {
     expect(screen.getByTestId("skylit-heatmap-area").style.zoom).toBe("0.75");
   });
 
-  test("expand button opens the full-page grid overlay and closes it", async () => {
-    await act(async () => {
+  test("expand button opens the full-page grid overlay and closes it", async () => {    await act(async () => {
       render(<SkylitDashboard ticker="SPY" />);
     });
 
@@ -123,5 +131,20 @@ describe("SkylitDashboard", () => {
       fireEvent.click(screen.getByTestId("skylit-expand-close"));
     });
     expect(screen.queryByTestId("skylit-grid-expanded")).not.toBeInTheDocument();
+  });
+
+  test("clicking a cell outside trade mode shows the selected-cell readout", async () => {
+    await act(async () => {
+      render(<SkylitDashboard ticker="SPY" />);
+    });
+
+    expect(screen.queryByTestId("skylit-selected-cell")).not.toBeInTheDocument();
+
+    await act(async () => {
+      fireEvent.click(screen.getAllByTestId("mock-heatmap-cell")[0]);
+    });
+    const readout = screen.getByTestId("skylit-selected-cell");
+    expect(readout.textContent).toContain("650");
+    expect(readout.textContent).toContain("2026-09-18");
   });
 });

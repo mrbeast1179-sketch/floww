@@ -248,6 +248,14 @@ No `App.js` edits (frozen) — all UI work in editable heatseeker components.
       readout, Expand button + full-page grid overlay (same grid +
       sidebar, Esc closes); toolbar Playback (interval refresh), Grid
       (expand), Share (copy URL), prev/next ticker arrows all live
+- [x] 8.7 Wheel no-market purge + Solstice audit (2026-09-03): contracts
+      with zero volume AND zero OI dropped in `_normalize_contract`
+      (phantom wide quotes can no longer print 1600%+ ARR; OI-holders
+      with no volume today kept); every Solstice element verified live —
+      tickers / spot / public chain / contract-OSI / heatmap-for-any-
+      stock all PASS; known-harmless leftovers: Drilldown modal
+      unreachable (state never set, invisible), info (ⓘ) button
+      decorative
 - [x] 8.6 App.js-owned leftovers — DONE 2026-09-03 (Nav-approved surgical
       edits): TickerSearch Enter-to-submit free text; Heatseeker submit →
       Public order (see 7.5); control-bar prev/next arrows cycle the tape
