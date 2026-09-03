@@ -8,10 +8,10 @@ backend/routes, backend/tests, docs, .planning. Excludes node_modules/.git.
 
 | Claim | Verdict | Found in repo? |
 |---|---|---|
-| P&P 7–90 DTE band | REFUTED as attribution | No occurrence in product code (only correctly in planning docs as refuted) |
+| P&P 7–90 DTE band | REFUTED as attribution | VIOLATION — live in flow_alerts.py:165-167 (+4 boost) + :322 UI label; see V15 (round-1 "clean" verdict corrected) |
 | Ni GX formula `gamma×DDOI×100×S²×0.01` as paper claim | REFUTED | See §2 — practitioner formula presented as paper methodology |
 | Ni calls(+)/puts(−) sign rule | REFUTED as paper claim | See §2 (OI-signed gamma wrapped as "paper-accurate") |
-| ΓIB-as-Barbon (`ΓIB = GEX/(S×ADSV)×100` as "Barbon-Buraschi Eq. 2") | UNVERIFIED/REFUTED as citation | backend/services/gex_paper_accurate.py:40 "1. Gamma Imbalance (% of ADV) — Barbon-Buraschi Eq. (2)" + formula derivation lines 40–50 |
+| ΓIB-as-Barbon (`ΓIB = GEX/(S×ADSV)×100` as "Barbon-Buraschi Eq. 2") | REFUTED as cited (full text: imbalance is Eq. 3/4, see V3 verdict) | backend/services/gex_paper_accurate.py:40 "1. Gamma Imbalance (% of ADV) — Barbon-Buraschi Eq. (2)" + formula derivation lines 40–50 |
 | flip-as-academic (zero-gamma flip detection as Barbon–Buraschi) | REFUTED as paper claim | gex_paper_accurate.py:19 "2. Zero-Gamma Flip Distance — Barbon-Buraschi Section II.B" |
 | Crash probabilities | REFUTED (association only, never calibrated) | gex_paper_accurate.py:24,428,447: `flash_crash_risk()` returns `crash_probability_estimate` with hardcoded 1%/3%/8%/18% bands; line ~1111 comment "flash crash probability ≈ 2-5x" |
 | Phantom papers ("Ni et al. Option Market Maker Hedging and Stock Market Liquidity"; "Charming!/retail follow-up") | REFUTED (not found in indexes) | Not found in repo — clean |

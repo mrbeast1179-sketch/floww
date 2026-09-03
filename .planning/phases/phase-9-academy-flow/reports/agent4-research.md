@@ -90,3 +90,7 @@ write backend docstring patches (Agent 3 B8 lane) — all queued.
   no-formula at source, ±37bp per 1σ). Score-spec EXECUTED against all 10 unit tests — caught and fixed
   2 spec bugs (IV now direction-aware; MID halving now in pseudocode). New V10 sub-finding: :1351 tooltip
   "urgent multi-exchange fill" asserts venue visibility; "(heuristic)" only partly mitigates.
+- Round 7: fix-queue F1–F18; Cboe 0DTE full text (net-vs-gross supports gate philosophy); venue-noun ban.
+- Round 8: §1 verdict-table corrected (P&P row now VIOLATION per V15; ΓIB row now REFUTED-as-cited per
+  full text). Baltussen abstract verified verbatim + DOI. Fixture inventory re-checked (all keys present,
+  checker PASS).

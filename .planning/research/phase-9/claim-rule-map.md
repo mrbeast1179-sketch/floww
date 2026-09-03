@@ -111,7 +111,7 @@ unverified = not confirmed, never cite. Every product rule carries its WITH § c
   sample, pre/post-2010 regime" qualifiers.
 - Fixture: fragility-tag boundary cases.
 
-### Baltussen et al. 2021 — CONFIRMED
+### Baltussen et al. 2021 — CONFIRMED (ROUND-8: abstract verified verbatim, DOI 10.1016/j.jfineco.2021.04.029)
 - Core claim: rest-of-day return positively predicts last-30-min return (hedging demand); reverts after.
 - Product rule: large day-move into close + negative dealer gamma → EOD momentum lean; never promise
   next-day continuation.
