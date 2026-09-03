@@ -134,6 +134,7 @@ unverified = not confirmed, never cite. Every product rule carries its WITH § c
 - Fixture: dark-pool level payloads.
 
 ### Boehmer et al. 2021 — CONFIRMED with hard scope limit
+  (ROUND-10: abstract verified verbatim — ~10bp/wk, <half persistence, "suggestive (but only suggestive)")
 - Core claim: SIGNED retail imbalance from subpenny TAQ markers predicts ~10bp/wk. Requires signed data.
 - Product rule: with only unsigned aggregates → display "NOT computable here", no retail arrow.
 - UI prohibited: any retail prediction without signed TAQ imbalance.

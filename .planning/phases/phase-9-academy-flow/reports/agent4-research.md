@@ -97,3 +97,18 @@ write backend docstring patches (Agent 3 B8 lane) — all queued.
 - Round 9: first verified 0DTE paper (Brogaard-Han-Won 2023/2026, abstract-only — PDF SSRN-walled):
   +1σ 0DTE → +9.1% vol, survives gamma controls, retail-driven — CONTRADICTS Cboe de-minimis; honest
   position is "mixed, SPX-only, regime-dependent". Checklist gains fragility-qualifier rule.
+- Round 10: BJZZ abstract verified verbatim (10bp/wk, <half persistence, suggestive-only) — claim-map
+  numbers now sourced, not remembered.
+
+## Agent 4 status block (per task prompt)
+
+AGENT: 4
+BRANCH: main (scoped lane-only commits; other lanes' work untouched)
+STATUS: DONE
+SOURCES_FETCHED: 13/13 handoff + EOS98/CCG05/VPIN12/BRW17/NPP05/Barber-Odean/Barbon-EOD-WP/GPP-full-text/Ni-WP/Cboe-0DTE/Baltussen-abstract/BJZZ-abstract/Brogaard-abstract
+SOURCES_UNAVAILABLE: peer-reviewed 0DTE full texts; intraday signed-flow; intraday VRP; Bollen-Whaley 2004; BJZZ-2024 reassessment (manifest in missing-literature.md)
+VIOLATIONS_FOUND: V1–V19 + V6-upgrade + V13/V3 full-text verdicts (audit §§1–6); fix queue F1–F18 (fix-queue.md)
+EVALUATORS_CREATED: 3 fixture JSONs (40+ cases) + check_fixtures.py (PASS)
+SCORE_SPEC: signed-score-spec.md incl. executed 10-test proof run
+DARK_POOL_SPEC: dark-pool-methodology.md (levels+size only, Top-N×lookback, banned/allowed copy)
+BLOCKERS: CONTRACT_REQUESTS.md absent (R1–R4 + F1–F18 parked for Agent 1); product edits are owner lanes
