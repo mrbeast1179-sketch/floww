@@ -138,3 +138,11 @@ premium/DTE/side. All computable from rows already in hand:
 - C9 ROADMAP.md has no Phase 9 section (file owned by another agent, currently
   in-flight). Phase 9 wiring into ROADMAP + kanban cards waits until their edit
   lands — this dir is the source of truth meanwhile.
+
+## Fifth-read corrections (verified 2026-09-03)
+- C10 Sector source verified free: Finnhub profile2 (/stock/profile2) is explicitly
+  the free Company Profile and returns exchange + finnhubIndustry. GICS sector
+  needs a static finnhubIndustry→sector map (or yfinance .info fallback) — W2
+  builds the map, not a new vendor. All remaining external claims in this plan
+  are now verified against primary docs except FMP-250/day and Tradier-delayed
+  (both snippet-grade: re-verify at build time if chosen).
