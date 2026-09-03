@@ -242,10 +242,12 @@ No `App.js` edits (frozen) — all UI work in editable heatseeker components.
 - [x] 8.4 Wheel (#3): 30s TTL cache on `_run_income_screener` (loader hit
       once per identical screen); `/api/dual_gex|iv_mid|screener|wheel_income|
       max_pain|contract|chain` added to the dashboard GET 429 exemption
-- [x] 8.5 Solstice declutter: Meridian & Velocity band behind a Signals
-      toggle (default hidden); Expand button + full-page grid overlay
-      (same grid + sidebar, Esc/✕ closes); toolbar Playback (interval
-      refresh), Grid (expand), Share (copy URL) all live
+- [x] 8.5 Solstice declutter — Meridian & Velocity band REMOVED from
+      Solstice entirely (Nav directive; tiles still live in Zenith +
+      direct API use): grid zoom (A− / % / A+, 50–200%), selected-cell
+      readout, Expand button + full-page grid overlay (same grid +
+      sidebar, Esc closes); toolbar Playback (interval refresh), Grid
+      (expand), Share (copy URL), prev/next ticker arrows all live
 - [x] 8.6 App.js-owned leftovers — DONE 2026-09-03 (Nav-approved surgical
       edits): TickerSearch Enter-to-submit free text; Heatseeker submit →
       Public order (see 7.5); control-bar prev/next arrows cycle the tape

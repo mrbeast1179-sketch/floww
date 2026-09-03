@@ -3,29 +3,6 @@ import SkylitTickerBar from "./SkylitTickerBar";
 import SkylitControlBar from "./SkylitControlBar";
 import SkylitHeatmapGrid from "./SkylitHeatmapGrid";
 import SkylitMetricsSidebar from "./SkylitMetricsSidebar";
-// Steal-list top-3 (served by backend/routes/steal_three.py at :8000).
-import DualGEXBadge from "./DualGEXBadge";
-import IVMidBadge from "./IVMidBadge";
-import WheelIncomeScreenerPanel from "./WheelIncomeScreenerPanel";
-import MaxPainBadge from "./MaxPainBadge";
-// Per-expiry max-pain-drift multi-line chart tile (steal-list #9 rich
-// visualization — surfaced via /api/max_pain_drift/{ticker}/per_expiry_history).
-import MaxPainPerExpiryDriftTile from "./MaxPainPerExpiryDriftTile";
-// NEW (2026-07-16): steal-list #10 (strike cone) + #8 (opportunity
-// engine) — surfaced into the skylit bottom band so the steal-three
-// is visible without scrolling to Solstice Row 4. Pairs with the
-// existing Dual-GEX / IV-Mid / Wheel-Income / Max-Pain mounts already
-// in the skylit-steal-list-band container below.
-import StrikeConeBadge from "./StrikeConeBadge";
-import OpportunityBadge from "./OpportunityBadge";
-// Steal-list news/pulse — Row 3.5 tile on Zenith's bottom band,
-// mirrors the Solstice Dashboard top-3 pattern so users see the
-// same signals on either layout.
-import NewsBadge from "./NewsBadge";
-// Steal-list #4 — Risk-Neutral Density full-width tile beneath the
-// strike-cone / opportunity band so the PDF + CDF SVG gets horizontal
-// real estate. (Mirrors Solstice Row 4b mount.)
-import RndDensityPanel from "./RndDensityPanel";
 
 /**
  * SkylitDashboard — Full Zenith-style trading dashboard
@@ -69,12 +46,15 @@ function SkylitDashboard({
 }) {
   const [tradeMode, setTradeMode] = useState(false);
   const [selectedCell, setSelectedCell] = useState(null);
-  // Bottom signal boxes are out of the way by default (2026-09-03) —
-  // toggle to reveal the Meridian & Velocity band.
-  const [showSignals, setShowSignals] = useState(false);
   // Full-page grid overlay: the in-frame heatmap only shows what fits;
   // expand renders the same grid + sidebar full-screen with all rows.
   const [expanded, setExpanded] = useState(false);
+  // Grid zoom (2026-09-03): bigger/smaller heatmap. Chrome-only `zoom`
+  // is fine — the terminal is the Chrome PWA.
+  const [gridZoom, setGridZoom] = useState(1);
+  const zoomIn = useCallback(() => setGridZoom((z) => Math.min(2, +(z + 0.25).toFixed(2))), []);
+  const zoomOut = useCallback(() => setGridZoom((z) => Math.max(0.5, +(z - 0.25).toFixed(2))), []);
+  const zoomReset = useCallback(() => setGridZoom(1), []);
 
   // Esc closes the expanded grid (local to this component).
   useEffect(() => {
@@ -132,6 +112,39 @@ function SkylitDashboard({
       {/* 2.5 Trade Mode bar */}
       <div className="skylit-col-bar">
         <div className="skylit-col-spacer" />
+        {selectedCell && !tradeMode && (
+          <span
+            className="skylit-selected-cell-readout"
+            data-testid="skylit-selected-cell"
+            title="Clicked cell (arm Trade to open Quick Trade)"
+          >
+            {selectedCell.strike} · {selectedCell.colKey} · {typeof selectedCell.value === "number" ? selectedCell.value.toFixed(1) : selectedCell.value}
+          </span>
+        )}
+        <button
+          className="skylit-trade-mode-btn"
+          onClick={zoomOut}
+          title="Smaller grid"
+          data-testid="skylit-zoom-out"
+        >
+          A−
+        </button>
+        <button
+          className="skylit-trade-mode-btn"
+          onClick={zoomReset}
+          title={`Reset zoom (now ${Math.round(gridZoom * 100)}%)`}
+          data-testid="skylit-zoom-reset"
+        >
+          {Math.round(gridZoom * 100)}%
+        </button>
+        <button
+          className="skylit-trade-mode-btn"
+          onClick={zoomIn}
+          title="Bigger grid"
+          data-testid="skylit-zoom-in"
+        >
+          A+
+        </button>
         <button
           className="skylit-trade-mode-btn"
           onClick={() => setExpanded(true)}
@@ -143,17 +156,6 @@ function SkylitDashboard({
             <path d="M21 3l-7 7" /><path d="M3 21l7-7" />
           </svg>
           Expand
-        </button>
-        <button
-          className={`skylit-trade-mode-btn${showSignals ? " active" : ""}`}
-          onClick={() => setShowSignals(!showSignals)}
-          title="Signals: show Meridian & Velocity panels"
-          data-testid="skylit-signals-toggle"
-        >
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <polyline points="22 12 18 12 15 21 9 3 6 12 2 12" />
-          </svg>
-          Signals
         </button>
         <button
           className={`skylit-trade-mode-btn${tradeMode ? " active" : ""}`}
@@ -171,8 +173,9 @@ function SkylitDashboard({
 
       {/* 3. Main Content Area */}
       <div className="skylit-main-area">
-        {/* Heatmap Grid */}
-        <div className="skylit-heatmap-area">
+        {/* Heatmap Grid — zoomable (A− / % / A+). Chrome-only `zoom`
+            is fine: the terminal is the Chrome PWA. */}
+        <div className="skylit-heatmap-area" style={{ zoom: gridZoom }} data-testid="skylit-heatmap-area">
           {loading && (
             <div className="skylit-loading-overlay">
               <div className="skylit-loading-spinner" />
@@ -216,64 +219,11 @@ function SkylitDashboard({
         </div>
       </div>
 
-      {/* 3.5 Meridian & Velocity — behind the Signals toggle (2026-09-03).
-          The boxes are out of the main scroll by default; toggle reveals
-          the full band. Testids preserved for visual-regression targeting. */}
-      {showSignals && (
-      <div className="px-3 py-3 space-y-3 border-t border-slate-800/40" data-testid="skylit-steal-list-band">
-        <div className="text-[9px] uppercase tracking-widest text-slate-500 font-bold">
-          ◆ Meridian & Velocity · #1 Dual-GEX · #5 IV-Mid · #3 Wheel income
-        </div>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-          <div data-testid="skylit-steal-dual-gex">
-            <DualGEXBadge ticker={ticker} />
-          </div>
-          <div data-testid="skylit-steal-iv-mid">
-            <IVMidBadge ticker={ticker} width={6} />
-          </div>
-          <div data-testid="skylit-steal-max-pain">
-            <MaxPainBadge ticker={ticker} />
-          </div>
-        </div>
-        <div data-testid="skylit-steal-wheel-income">
-          <WheelIncomeScreenerPanel ticker={ticker} />
-          {/* NEW (2026-07-16): steal-list #10 strike cone + #8 opportunity
-              engine — surface classic 16Δ/30Δ cone shape + regime pills
-              in the skylit bottom band. Marked with the skylit-steal-<feature>
-              wrappers per the test's standardized visual-regression
-              convention so downstream visual verifications can locate the
-              tile by semantic purpose (strike-cone / opportunity) instead
-              of relying on component-internal ids that may shift. */}
-          <div data-testid="skylit-steal-strike-cone">
-            <StrikeConeBadge ticker={ticker} expiries={1} />
-          </div>
-          <div data-testid="skylit-steal-opportunity">
-            <OpportunityBadge ticker={ticker} />
-          </div>
-        </div>
-        {/* NEW: Per-expiry max-pain-drift multi-line chart — full-width
-            beneath the Wheel panel so the multi-line visualization gets
-            the horizontal real estate it needs. Standalone fetch via
-            /api/max_pain_drift/{ticker}/per_expiry_history. */}
-        <div data-testid="skylit-steal-max-pain-per-expiry-drift">
-          <MaxPainPerExpiryDriftTile ticker={ticker} />
-        </div>
-
-        {/* NEW (2026-07-16): News pulse + Risk-Neutral Density — extend
-            the Zenith bottom band to mirror the Solstice Dashboard
-            Row 4 (news) + Row 4b (RND full-width). The Zenith layout
-            keeps the existing max-pain-drift multi-line chart at the
-            top and appends these two tiles below it so the
-            visualisation cadence matches the Solstice iteration:
-            analytics → flow → expected-moves → RND. */}
-        <div className="pt-1" data-testid="skylit-steal-news-band">
-          <NewsBadge ticker={ticker} days={14} />
-        </div>
-        <div data-testid="skylit-steal-rnd-density">
-          <RndDensityPanel ticker={ticker} expiries={1} />
-        </div>
-      </div>
-      )}
+      {/* 3.5 Meridian & Velocity band REMOVED from Solstice (2026-09-03,
+          Nav directive: "get rid of these boxes"). The panels still live
+          in HeatseekerDashboard (Zenith) rows + serve direct API consumers;
+          their backends were repaired in Phase 8 (numba gamma, IV reasons,
+          wheel cache). This component renders grid + sidebar only. */}
 
       {/* 3.6 Expanded full-page grid overlay (2026-09-03). Same grid +
           sidebar, full viewport, all rows visible. Esc or ✕ closes. */}
@@ -297,7 +247,7 @@ function SkylitDashboard({
             </button>
           </div>
           <div style={{ display: "flex", gap: 16 }}>
-            <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ flex: 1, minWidth: 0, zoom: gridZoom }}>
               <SkylitHeatmapGrid
                 data={data}
                 spot={spot}
