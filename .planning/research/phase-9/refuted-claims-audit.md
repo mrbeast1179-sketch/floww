@@ -62,3 +62,53 @@ All in backend lane (Agent 3 / backend owner). Agent 4 proposes relabeling only:
 - R3 (P1): fix Ni year (2020→2021 RFS) and strip unverified "Eq./Sec./Table" numbers from gex_paper_accurate.py
   docstrings; file exact replacement patch via Agent 3 workstream (B8).
 - R4 (P2): add copy-checklist CI grep (terms in §1) to block regressions.
+
+## 5. Round-2 addendum (re-verification pass, same day)
+
+New violations missed in round 1, all with file:line. Severity upgraded where user-servable.
+
+- V5 (P0): `put_call_ratio_signal` (gex_paper_accurate.py:616) computes PCR from **OI totals** but cites
+  Pan-Poteshman 2006, whose result used non-public CBOE **buyer-open VOLUME**. OI-based PCR is a
+  different input with different information content (Ge-Lin-Pearson 2016: closings uninformative —
+  OI mixes both). Served via morning_briefing (routes/briefing.py, morning_briefing_api.py, server.py).
+  Fix: label "OI-based PC proxy (not P&P buyer-open volume)" or drop citation.
+- V6 (P0): `charm_hedging_pressure` (gex_paper_accurate.py:1000) cites "Ni-Pearson-Poteshman-White (2021)"
+  for charm. The gamma verification pass explicitly REFUTED any Ni-team charm paper and ruled
+  "charm stays out of v1". Morning-briefing comment (morning_briefing.py:750) repeats "Ni-Pearson 2021 Charm".
+  Fix: remove attribution; hold charm behind unverified flag.
+- V7 (P1): GPP year shuffle — `option_demand_pressure` says "(2008)" (gex_paper_accurate.py:781),
+  `demand_pressure_premium` says "(2009) RFS" (:1676). Verified 2026-09-03: Garleanu-Pedersen-Poteshman,
+  "Demand-Based Option Pricing", RFS 22(10):4259 (RFS vol 22 = 2009; 2008 = SSRN WP year) —
+  https://academic.oup.com/rfs/article-abstract/22/10/4259/1590158, PDF at
+  https://pages.stern.nyu.edu/~lpederse/papers/DBOP.pdf (not yet opened — PULL before citing beyond existence).
+  The GEX+PCR proxy construction is ours either way. Fix: unify to "(2009)" + "proxy" label.
+- V8 (P1): `overnight_drift_risk` (:2013) claims "overnight/next-day returns documented in
+  Barbon-Buraschi (2021)" — but verified findings say EOD effects DISSIPATE/revert next day (Barbon EOD WP,
+  Baltussen 2021). A next-day drift claim contradicts the fade finding. Fix: verify or remove.
+  `dealer_balance_sheet_fragility` (:2165) cites vague "Post-SVB (March 2023) research" — no paper named.
+  Fix: name a source or drop the research framing.
+- V9 (P0, frontend): HOW-TO-READ popover (FlowseekerProBlademap.jsx:1266) + column tooltips (:1295)
+  assert inference as fact: "SIDE = where the print crossed: ASK (lifted the offer → aggressive buy)",
+  "Price paid per contract (last print…)", "latest print". No "inferred"/"proxy" anywhere on SIDE/SIGNAL;
+  "print" implies a tape we do not have. Fix: "SIDE (inferred — last vs mid, no tape)" + "quote stamp".
+- V10 (P0): THREE conflicting sweep definitions: CONTRACTS.md (dte≤2 AND premium≥$5M) vs
+  FlowseekerProBlademap.jsx:83,594 (premium≥$50M→block, dte≤2→sweep regardless of premium) vs
+  scanLogic.js:72-77 scanTypeOf (vol≥25000→sweep, vol≥80000→block, volOI bands — no DTE/premium at all).
+  Plus certainty language: "Sweep (urgent)" (:1252), preset "High-Conviction Sweeps"
+  (methodology/presets.js:10-13). Only FilterBar.jsx:9 carries "(proxy)". Fix: single definition owned by
+  scanLogic (formatter single-source rule), proxy label everywhere, reconcile CONTRACTS.
+- V11 (P1): SIDE vol/OI fallback (FlowseekerProBlademap.jsx:88,595: voi≥1.5→ASK when quote missing) means
+  the NO_QUOTE/unavailable path is UNREACHABLE for side — every row gets a confident ASK/BID. This
+  contradicts CONTRACTS C1 honest-empty states and the score-spec "SIDE missing → unavailable" rule.
+  Fix: NO_QUOTE rows render SIDE as "—" (unknown), never fallback-guess.
+- V12 (P2): WHALE naming collision — $1M tape badge vs $25M alert rule. Mitigated by in-popover disclaimer
+  (:1266). Keep disclaimer; consider rename to avoid desk confusion.
+- V13 (P1): drift-burst language (:1111-1162): "flash crash probability ≈ 2-5x", "Per Barbon-Buraschi
+  Table VIII" (unverified — full text abstract-only), "CONFIRMED drift burst" + "crash risk elevated"
+  per Christensen-Oomen-Renò. Verified 2026-09-03 the COR paper is real ("The Drift Burst Hypothesis",
+  SSRN 2842535) but (a) code spells "Reno" (actual: Renò), (b) COR detects bursts from high-frequency
+  PRICES, not gamma imbalance — the gamma_proxy fallback path attributes price-based detection theory to
+  a gamma proxy. Fix: statistical-flag language only; drop gamma→COR attribution.
+
+Propagation note: V1/V5–V8 all flow into morning_briefing metrics (morning_briefing.py:885-925) served via
+API — audit scope must henceforth include briefing consumers, not just gex_paper_accurate.py.

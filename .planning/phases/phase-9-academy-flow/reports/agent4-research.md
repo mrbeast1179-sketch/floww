@@ -54,3 +54,19 @@ for architect triage.
 - 0DTE/intraday full texts unopened → score DTE weight + 0DTE gate stay heuristic-grade.
 - No branch created (repo has concurrent uncommitted work + no git identity assurance for agent branch);
   files written in place, commit left to operator. See output block.
+
+## Round-2 re-verification addendum (same day)
+
+Re-ran all rg audits repo-wide (backend/services, routes, frontend/src, docs) + read Agent-2's new
+flowseeker UI + verified 3 citations at index level (Ni RFS 34(4):1952–1986 confirmed;
+GPP = RFS 22(10):4259 = 2009 confirmed with NYU PDF pull queued; COR Drift Burst Hypothesis SSRN
+2842535 real but price-data-based, misspelled "Reno" in code).
+New findings V5–V13 in refuted-claims-audit.md §5 (9 items): OI-PCR misattribution (V5), phantom Ni
+charm paper contradicting prior refutation (V6), GPP year shuffle (V7), overnight-drift contradicts fade
+finding + vague post-SVB cite (V8), HOW-TO-READ asserts crossing as fact (V9, frontend P0), THREE
+conflicting sweep definitions (V10, P0), SIDE fallback makes NO_QUOTE unreachable (V11), WHALE naming
+collision (V12, minor), drift-burst gamma→COR misattribution (V13).
+Propagation upgrade: V1/V5–V8 all served via morning_briefing API — briefing consumers now in audit scope.
+Fixtures added: sweep_definition_conflict, side_fallback, popover_copy evaluator cases.
+Claim-rule-map carries P&P OI caveat. What round 2 did NOT do: open GPP PDF, pull 0DTE full texts,
+write backend docstring patches (Agent 3 B8 lane) — all queued.

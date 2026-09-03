@@ -10,6 +10,8 @@ unverified = not confirmed, never cite. Every product rule carries its WITH § c
   >40bp next day, >1% next week; stronger for high-leverage OTM.
 - Product rule: unsigned put/call concentration rising + short-dated OTM puts bid up →
   bearish-informed-positioning candidate; requires second confirmation (smirk or parity gate) before score ≥92.
+- ROUND-2 CAVEAT: backend `put_call_ratio_signal` uses OI totals, NOT P&P buyer-open volume — OI-based PCR
+  must never cite P&P without the "different input" disclaimer (see refuted-claims-audit V5).
 - UI allowed: "put-heavy positioning vs calls (unsigned snapshot proxy)".
 - UI prohibited: any "7–90 DTE band", "3×OI rule", "$25k rule" attributed to P&P (REFUTED attributions).
 - Fixture: pulse-rows put/call concentration pair.

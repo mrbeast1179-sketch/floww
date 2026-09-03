@@ -4,6 +4,11 @@ Every new/changed surface must pass each applicable line. CI-grep terms in paren
 
 - Pulse row: SIDE labeled inferred ("ASK (inferred)") · sweep labeled proxy · NO_QUOTE state on
   missing bid/ask · RVOL "needs baseline" when baseline missing · ΔOI dash + "snapshot-based" tooltip.
+- ROUND-2: HOW-TO-READ/tooltips banned: "where the print crossed", "lifted the offer", "aggressive buy"
+  (without "inferred"), "(last print", "latest print". Required: "inferred", "no tape", "proxy".
+- ROUND-2: sweep definitions must be single-sourced (scanLogic owner); "Sweep (urgent)" and
+  "High-Conviction" language on proxy classifications flagged until reconciled.
+- ROUND-2: quote-missing rows must render SIDE unknown ("—"), never voi-fallback ASK/BID.
 - Scanner: classification column carries proxy footnote · "true sweep" never appears (`true sweep`,
   `confirmed sweep`, `sweep detected` banned).
 - Overview bar: FIR formula shown · session label formula-gated · RVOL honest-empty.
