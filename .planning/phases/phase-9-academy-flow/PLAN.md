@@ -28,6 +28,8 @@ true print tape ships as anything but an honest degraded state.
   (coiled-price requirement) evaluated as an additional gate, display-first.
 
 ## Waves (tracer-first; commit per wave; Jest evidence each)
+**Shipped 2026-09-03:** W1 [DONE be99db2] + W6 [DONE cfe073c] (full suite 54/54,
+380/380). F4-OI-growth + |score| deferred per tickets; OI-growth needs B1.
 - **W0 Spikes (cheap, de-risk):** OPTION instrument_type on public bars (fallback:
   snapshot-derived contract history); OpenTerminalUI [2] heat-score/sentiment read;
   yfinance earnings/sector field check. Output: go/no-go per item, no product code.
