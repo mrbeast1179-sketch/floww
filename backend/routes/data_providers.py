@@ -1,6 +1,7 @@
-"""API routes for free data providers."""
+"""API routes for data providers (public-API-only since 2026-09-03)."""
 
 import logging
+import os
 
 from fastapi import APIRouter, Query
 
@@ -13,14 +14,16 @@ router = APIRouter(prefix="/api/data", tags=["data"])
 async def get_data_status():
     """Get status of all data providers."""
     try:
-        from data_providers import ALPHA_VANTAGE_KEY, FINNHUB_API_KEY, POLYGON_API_KEY, DataAggregator
+        from data_providers import FINNHUB_API_KEY, POLYGON_API_KEY, DataAggregator
         agg = DataAggregator()
         status = agg.get_status()
         return {
             "providers": status,
+            "primary": "public_api",
+            "retired": ["schwab", "alphavantage"],
             "env_vars_set": {
+                "PUBLIC_API_KEY": bool(os.environ.get("PUBLIC_API_KEY", "")),
                 "FINNHUB_API_KEY": bool(FINNHUB_API_KEY),
-                "ALPHA_VANTAGE_KEY": bool(ALPHA_VANTAGE_KEY),
                 "POLYGON_API_KEY": bool(POLYGON_API_KEY),
             }
         }
@@ -64,13 +67,17 @@ async def get_ticker_data(
 
 @router.get("/quote/{ticker}")
 async def get_quote(ticker: str):
-    """Get aggregated spot price from all available sources."""
+    """Get spot price — Public API first, emergency fallbacks after."""
     try:
+        from services.public_api_adapter import fetch_spot_from_public_api
+        spot = await fetch_spot_from_public_api(ticker.upper())
+        if spot and spot > 0:
+            return {"ticker": ticker.upper(), "price": spot, "source": "public_api"}
         from data_providers import DataAggregator
         agg = DataAggregator()
-        spot = await agg.get_spot_price(ticker.upper())
-        if spot:
-            return {"ticker": ticker.upper(), **spot}
+        spot_data = await agg.get_spot_price(ticker.upper())
+        if spot_data:
+            return {"ticker": ticker.upper(), **spot_data}
         return {"ticker": ticker.upper(), "error": "No data available", "price": None}
     except Exception as e:
         return {"ticker": ticker.upper(), "error": str(e), "price": None}

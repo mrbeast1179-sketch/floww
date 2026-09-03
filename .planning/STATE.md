@@ -48,3 +48,8 @@ Phase 6 — Backlog Promotion [ACTIVE]. Phase 4 (Tidehunter Pro) is gating-only 
 - 2026-08-31 — Phase 3 closed, Phase 5 complete (all 4 tickets delivered). 7 files
   damaged by commit 79b047e (ROADMAP.md shred to 7 lines) — restored + all stale
   kanban/planning docs refreshed.
+- 2026-09-03 — Phase 7 complete (public-api-only + trade-direct): Schwab/Alpha
+  Vantage retired (410s, disabled stubs, fail-closed client); new
+  /api/public/{bars,history,technical,expirations}; Triad row-click enriched
+  with Public OSI+prices → real order path; fallback public→cvserver→yfinance
+  reaffirmed. 7.5 (Heatseeker submit in frozen App.js) flagged for Nav.

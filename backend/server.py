@@ -1635,18 +1635,15 @@ async def stop_live_tape() -> dict:
     return {"status": "stopped", "stopped": True}
 
 
-# ============ Schwab Stubs ============
+# ============ Schwab Stubs (RETIRED 2026-09-03 — public-api-only policy) ============
+# floww has no Schwab account. routes/schwab.py returns 410 Gone with
+# /api/public/brokerage/* replacements. These helpers are kept only so
+# legacy imports don't break; they always report retired.
 
 def get_schwab_auth_url() -> dict:
-    """Return Schwab auth URL (stub — needs credentials)."""
-    import os
-    client_id = os.environ.get("SCHWAB_CLIENT_ID")
-    if not client_id:
-        return {"error": "SCHWAB_CLIENT_ID not set", "auth_url": None}
-    redirect_uri = os.environ.get("SCHWAB_REDIRECT_URI", "https://localhost:8000/api/schwab/auth")
-    return {
-        "auth_url": f"https://api.schwabapi.com/v1/oauth/authorize?client_id={client_id}&redirect_uri={redirect_uri}&response_type=code",
-    }
+    """Retired — Schwab removed, use /api/public/brokerage/account."""
+    return {"error": "schwab_retired", "auth_url": None,
+            "replacement": "/api/public/brokerage/account"}
 
 
 async def schwab_auth_handler(request: dict):
@@ -1664,23 +1661,27 @@ async def schwab_auth_handler(request: dict):
 
 
 async def schwab_get_accounts() -> dict:
-    """Get Schwab accounts (stub)."""
-    return {"accounts": []}
+    """Retired — use /api/public/brokerage/account."""
+    return {"accounts": [], "error": "schwab_retired",
+            "replacement": "/api/public/brokerage/account"}
 
 
 async def schwab_get_positions(account_hash: str) -> dict:
-    """Get Schwab positions (stub)."""
-    return {"positions": []}
+    """Retired — use /api/public/brokerage/portfolio."""
+    return {"positions": [], "error": "schwab_retired",
+            "replacement": "/api/public/brokerage/portfolio"}
 
 
 async def schwab_get_sweeps(account_hash: str) -> dict:
-    """Get Schwab sweeps (stub)."""
-    return {"sweeps": []}
+    """Retired — use /api/public/chain/{ticker}."""
+    return {"sweeps": [], "error": "schwab_retired",
+            "replacement": "/api/public/chain/SPY"}
 
 
 async def schwab_import_to_portfolio(name: str, account_hash: str) -> dict:
-    """Import Schwab positions to portfolio (stub)."""
-    return {"status": "ok", "imported": 0}
+    """Retired — use /api/public/brokerage/portfolio."""
+    return {"status": "error", "error": "schwab_retired", "imported": 0,
+            "replacement": "/api/public/brokerage/portfolio"}
 
 
 # ---------- Scheduled pre-fetch (APScheduler) ----------
@@ -1956,9 +1957,6 @@ async def provider_health():
         try:
             from services.observability import (
                 provider_success_rate,
-                provider_last_success_seconds_ago,
-                provider_calls_total,
-                get_metrics_bytes,
             )
             for name, stats in health["providers"].items():
                 stats["prometheus_success_rate"] = round(
@@ -2564,6 +2562,15 @@ from routes.flowseeker import router as flowseeker_router
 
 app.include_router(flowseeker_router, tags=["flowseeker"])
 
+# ============ WTI Crude Oil + Russell Pairs (Tidehunter sub-tabs) ===========
+# WTI HAR-IV vol forecast under Tidehunter Pro; Russell 3000 stat-arb pairs.
+# Mounted alongside flowseeker — both are Tidehunter Pro sub-tab content.
+from routes.wti import router as wti_router
+app.include_router(wti_router, prefix="/api", tags=["wti"])
+
+from routes.pairs import router as pairs_router
+app.include_router(pairs_router, prefix="/api", tags=["pairs"])
+
 # ============ Route module wiring ============
 # Wired by Hermes/OWL on 2026-05-19 — all orphaned route modules.
 # All modules mounted with prefix="/api" for consistent URL structure.
@@ -2626,7 +2633,11 @@ from routes.heatseeker_snapshots_api import router as heatseeker_snapshots_route
 app.include_router(heatseeker_snapshots_router, prefix="/api/heatseeker", tags=["heatseeker-snapshots"])
 
 from routes.public_api import router as public_api_router
+
 app.include_router(public_api_router, tags=["public_api"])
+
+from routes.public_brokerage import router as public_brokerage_router
+app.include_router(public_brokerage_router, prefix="/api", tags=["public_brokerage"])
 
 from routes.ml_predict_api import router as ml_predict_router
 
@@ -2673,10 +2684,6 @@ app.include_router(social_flow_router, tags=["social"])
 from routes.alerts import router as alerts_router
 
 app.include_router(alerts_router, tags=["alerts"])
-
-from routes.alerts_api import router as alerts_api_router
-
-app.include_router(alerts_api_router, tags=["alerts-api"])
 
 # Preferences & theme sync
 from routes.preferences import router as preferences_router
@@ -2859,7 +2866,9 @@ async def startup_ingestion():
         )
         await _ingestion_pipeline.start()
 
-        # Use mock feed (swap to SchwabStreamer when credentials available)
+        # Synthetic dev tick generator. Live market data comes from the
+        # Public.com API (fetch_spot_and_chains_merged → public_api_adapter);
+        # Schwab is retired (2026-09-03) and this feed is never a live source.
         _mock_feed = MockSchwabFeed(rate=100.0, symbols=["SPY", "QQQ"], seed=42)
         _mock_feed.on_tick(_ingestion_pipeline.enqueue_tick)
         _mock_feed.on_chain(_ingestion_pipeline.enqueue_chain)

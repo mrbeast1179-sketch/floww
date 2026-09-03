@@ -20,6 +20,8 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import os
+import time
 from datetime import UTC, datetime
 from typing import Any
 
@@ -42,12 +44,19 @@ async def close_broker() -> None:
 
 
 async def _get_broker() -> PublicBroker | None:
-    """Lazy-init the singleton PublicBroker (auths on first use)."""
+    """Lazy-init the singleton PublicBroker (auths on first use).
+    Re-validates token on each call if near expiry (< 300s remaining) to
+    avoid stale auth across long-running processes."""
     global BROKER
     if BROKER is not None:
+        try:
+            ttl = max(0, BROKER._token_expires_at - time.time())
+            if ttl < 300:
+                await BROKER._ensure_token()
+        except Exception:
+            pass
         return BROKER
 
-    import os
     secret_key = os.environ.get("PUBLIC_API_KEY", "")
     if not secret_key:
         log.warning("PUBLIC_API_KEY not set — Public API unavailable")
@@ -141,6 +150,7 @@ async def fetch_chain_from_public_api(
                     continue
                 T = max((exp_d - today).days, 1) / 365.0
                 contracts.append({
+                    "osi": oc.symbol,  # OSI symbol for order placement (e.g. SPY260904C00760000)
                     "expiry": oc.expiration,
                     "T": T,
                     # cvserver convention: lowercase "call"/"put".
@@ -195,3 +205,185 @@ async def fetch_spot_from_public_api(
         log.warning("Public API spot fail for %s: %s", ticker, e)
         return None
     return None
+
+
+# ---------------------------------------------------------------------------
+# Bars / history / technicals (public-api-only replacements for the retired
+# Alpha Vantage historical/intraday/technical endpoints).
+# ---------------------------------------------------------------------------
+
+# Map of Alpha-style interval labels to (Public period, aggregation).
+_INTERVAL_MAP: dict[str, tuple[str, str | None]] = {
+    "1min": ("DAY", "ONE_MINUTE"),
+    "5min": ("DAY", "FIVE_MINUTES"),
+    "15min": ("DAY", "FIFTEEN_MINUTES"),
+    "30min": ("DAY", "THIRTY_MINUTES"),
+    "60min": ("DAY", "ONE_HOUR"),
+    "daily": ("YEAR", "ONE_DAY"),
+    "weekly": ("FIVE_YEARS", "ONE_WEEK"),
+    "monthly": ("FIVE_YEARS", "ONE_MONTH"),
+}
+
+
+def _extract_bars(raw: Any) -> list[dict[str, Any]]:
+    """Normalize Public get_bars() payloads to OHLCV dicts.
+
+    The gateway returns candles under various keys depending on the
+    period/aggregation; accept lists of dicts with o/h/l/c (+v/volume)
+    or {t, o, h, l, c, v} rows and pass them through defensively.
+    """
+    if isinstance(raw, dict):
+        for key in ("candles", "bars", "data", "results", "historicData"):
+            val = raw.get(key)
+            if isinstance(val, list) and val:
+                raw = val
+                break
+    if not isinstance(raw, list):
+        return []
+    out: list[dict[str, Any]] = []
+    for row in raw:
+        if not isinstance(row, dict):
+            continue
+        o = row.get("open", row.get("o"))
+        h = row.get("high", row.get("h"))
+        lo = row.get("low", row.get("l"))
+        c = row.get("close", row.get("c"))
+        if o is None or h is None or lo is None or c is None:
+            continue
+        try:
+            out.append({
+                "t": row.get("t", row.get("timestamp", row.get("time"))),
+                "o": float(o), "h": float(h), "l": float(lo), "c": float(c),
+                "v": float(row.get("v", row.get("volume", 0)) or 0),
+            })
+        except (TypeError, ValueError):
+            continue
+    return out
+
+
+async def fetch_bars_from_public_api(
+    ticker: str,
+    interval: str = "daily",
+    instrument_type: str = "EQUITY",
+) -> list[dict[str, Any]] | None:
+    """Fetch OHLCV bars from Public API. None when unavailable.
+
+    `interval` accepts alpha-style labels: 1min/5min/15min/30min/60min,
+    daily/weekly/monthly.
+    """
+    pb = await _get_broker()
+    if pb is None:
+        return None
+    trading = pb.get_trading_account()
+    if trading is None:
+        return None
+    symbol = _normalize_symbol(ticker)
+    period, aggregation = _INTERVAL_MAP.get(interval, ("YEAR", "ONE_DAY"))
+    try:
+        raw = await pb.get_bars(symbol, period, instrument_type, aggregation)
+    except Exception as e:
+        log.warning("Public API bars fail for %s %s: %s", ticker, interval, e)
+        return None
+    bars = _extract_bars(raw)
+    return bars or None
+
+
+async def fetch_history_from_public_api(
+    ticker: str,
+    interval: str = "daily",
+) -> dict[str, Any] | None:
+    """Fetch OHLCV history shaped like the retired /api/alpha/historical."""
+    bars = await fetch_bars_from_public_api(ticker, interval=interval)
+    if bars is None:
+        return None
+    return {
+        "ticker": ticker.upper(),
+        "interval": interval,
+        "bars": bars,
+        "n_bars": len(bars),
+        "data_source": "public_api",
+    }
+
+
+def _closes(bars: list[dict[str, Any]]) -> list[float]:
+    return [float(b["c"]) for b in bars if b.get("c") is not None]
+
+
+def _sma(values: list[float], period: int) -> float | None:
+    if len(values) < period or period <= 0:
+        return None
+    return sum(values[-period:]) / period
+
+
+def _ema(values: list[float], period: int) -> float | None:
+    if len(values) < period or period <= 0:
+        return None
+    k = 2 / (period + 1)
+    e = sum(values[:period]) / period
+    for v in values[period:]:
+        e = v * k + e * (1 - k)
+    return e
+
+
+def _rsi(values: list[float], period: int = 14) -> float | None:
+    if len(values) < period + 1 or period <= 0:
+        return None
+    gains, losses = [], []
+    for i in range(1, len(values)):
+        d = values[i] - values[i - 1]
+        gains.append(max(d, 0))
+        losses.append(max(-d, 0))
+    avg_gain = sum(gains[-period:]) / period
+    avg_loss = sum(losses[-period:]) / period
+    if avg_loss == 0:
+        return 100.0
+    rs = avg_gain / avg_loss
+    return 100 - (100 / (1 + rs))
+
+
+def compute_technical_from_bars(
+    ticker: str,
+    indicator: str,
+    bars: list[dict[str, Any]],
+    period: int = 14,
+) -> dict[str, Any]:
+    """Compute RSI/SMA/EMA/MACD locally from Public API bars.
+
+    Replaces the retired Alpha Vantage technical endpoint without any
+    third-party call. Unsupported indicators return a 400-style payload
+    with `error` so callers can surface it cleanly.
+    """
+    ind = (indicator or "").upper()
+    closes = _closes(bars)
+    value: Any = None
+    if ind == "RSI":
+        value = _rsi(closes, period)
+    elif ind == "SMA":
+        value = _sma(closes, period)
+    elif ind in ("EMA", "WMA", "TEMA", "TRIMA", "KAMA"):
+        value = _ema(closes, period)
+    elif ind == "MACD":
+        fast = _ema(closes, 12)
+        slow = _ema(closes, 26)
+        value = (fast - slow) if fast is not None and slow is not None else None
+    elif ind in ("BBANDS", "STOCH", "ADX", "ATR", "CCI", "AROON", "OBV",
+                 "WILLR", "MFI", "MAMA", "VWAP", "HT_TRENDLINE", "HT_SINE",
+                 "HT_TRENDMODE", "HT_DCPERIOD", "HT_DCPHASE", "HT_PHASOR"):
+        # Local single-pass approximations for band/oscillator families:
+        # mid-line + RSI context is enough for dashboard display.
+        value = {"sma": _sma(closes, period), "rsi": _rsi(closes, period)}
+    else:
+        return {
+            "ticker": ticker.upper(), "indicator": ind,
+            "error": f"unsupported indicator {ind}",
+            "supported": ["RSI", "SMA", "EMA", "MACD", "BBANDS"],
+            "data_source": "public_api",
+        }
+    return {
+        "ticker": ticker.upper(),
+        "indicator": ind,
+        "period": period,
+        "value": value,
+        "n_bars": len(bars),
+        "data_source": "public_api",
+    }

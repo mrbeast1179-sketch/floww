@@ -121,13 +121,15 @@ async def test_live_policy_update(aclient):
     assert "SPY" in d["paid_tickers"]
 
 
-# ============ Schwab Tests (scaffold - will fail without credentials) ============
+# ============ Schwab Tests (RETIRED 2026-09-03 — public-api-only) ============
 
 async def test_schwab_auth_url_no_credentials(aclient):
-    """Schwab auth URL should return error without credentials."""
+    """Schwab retired — /api/schwab/* returns 410 with a public replacement."""
     r = await aclient.get("/api/schwab/auth-url")
-    # Without credentials, returns 500 or 200 with error
-    assert r.status_code in (200, 500)
+    assert r.status_code == 410
+    d = r.json()
+    assert d.get("error") == "schwab_retired"
+    assert "/api/public/brokerage/" in d.get("replacement", "")
 
 
 # ============ History Tests ============

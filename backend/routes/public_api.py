@@ -1,7 +1,8 @@
 """
 backend/routes/public_api.py
 
-Public API (public.com) data endpoints.
+Public API (public.com) data endpoints — the SOLE live market-data source
+(public-api-only policy, 2026-09-03).
 
 Routes:
     GET /api/public/chain/{ticker}?expiration=YYYY-MM-DD&expirations=N
@@ -9,6 +10,18 @@ Routes:
 
     GET /api/public/quotes/{ticker}
         Live quote from Public API (spot price + bid/ask)
+
+    GET /api/public/bars/{ticker}?interval=daily
+        OHLCV bars (daily/weekly/monthly/1min/5min/15min/30min/60min)
+
+    GET /api/public/history/{ticker}?interval=daily
+        OHLCV history shaped like the retired alpha historical endpoint
+
+    GET /api/public/technical/{ticker}/{indicator}?time_period=14
+        RSI/SMA/EMA/MACD computed locally from Public API bars
+
+    GET /api/public/expirations/{ticker}
+        Listed option expirations for a ticker
 
     GET /api/public/portfolio
         Account portfolio from Public API (paper trading only)
@@ -25,7 +38,10 @@ from fastapi import APIRouter, HTTPException, Query
 
 from services.public_api_adapter import (
     _get_broker,
+    compute_technical_from_bars,
+    fetch_bars_from_public_api,
     fetch_chain_from_public_api,
+    fetch_history_from_public_api,
     fetch_spot_from_public_api,
 )
 
@@ -123,5 +139,75 @@ async def get_public_portfolio():
         "ok": True,
         "account_id": account.account_id,
         "portfolio": _jsonable(portfolio),
+        "data_source": "public_api",
+    }
+
+
+@router.get("/bars/{ticker}")
+async def get_public_bars(
+    ticker: str,
+    interval: str = Query(default="daily", description="1min/5min/15min/30min/60min/daily/weekly/monthly"),
+):
+    """OHLCV bars from Public API (replaces alpha intraday)."""
+    bars = await fetch_bars_from_public_api(ticker.upper(), interval=interval)
+    if bars is None:
+        raise HTTPException(status_code=502, detail=f"Public API bars unavailable for {ticker}")
+    return {
+        "ok": True,
+        "ticker": ticker.upper(),
+        "interval": interval,
+        "bars": bars,
+        "n_bars": len(bars),
+        "data_source": "public_api",
+    }
+
+
+@router.get("/history/{ticker}")
+async def get_public_history(
+    ticker: str,
+    interval: str = Query(default="daily", description="daily/weekly/monthly"),
+):
+    """OHLCV history from Public API (replaces alpha historical)."""
+    result = await fetch_history_from_public_api(ticker.upper(), interval=interval)
+    if result is None:
+        raise HTTPException(status_code=502, detail=f"Public API history unavailable for {ticker}")
+    return {"ok": True, **result}
+
+
+@router.get("/technical/{ticker}/{indicator}")
+async def get_public_technical(
+    ticker: str,
+    indicator: str,
+    time_period: int = Query(default=14, ge=1, le=200),
+    interval: str = Query(default="daily"),
+):
+    """RSI/SMA/EMA/MACD computed locally from Public API bars (replaces alpha technical)."""
+    bars = await fetch_bars_from_public_api(ticker.upper(), interval=interval)
+    if bars is None:
+        raise HTTPException(status_code=502, detail=f"Public API bars unavailable for {ticker}")
+    result = compute_technical_from_bars(ticker.upper(), indicator.upper(), bars, time_period)
+    if result.get("error"):
+        raise HTTPException(status_code=400, detail=result)
+    return {"ok": True, **result}
+
+
+@router.get("/expirations/{ticker}")
+async def get_public_expirations(ticker: str):
+    """Listed option expirations from Public API."""
+    broker = await _get_broker()
+    if broker is None:
+        raise HTTPException(status_code=502, detail=f"Public API unavailable for {ticker}")
+    account = broker.get_trading_account()
+    if account is None:
+        raise HTTPException(status_code=502, detail="No trading account available")
+    try:
+        expiries = await broker.get_option_expirations(ticker.upper(), account.account_id)
+    except Exception as exc:
+        log.warning("Public API expirations failed for %s: %s", ticker, exc)
+        raise HTTPException(status_code=502, detail=f"Public API expirations unavailable for {ticker}") from exc
+    return {
+        "ok": True,
+        "ticker": ticker.upper(),
+        "expirations": expiries,
         "data_source": "public_api",
     }

@@ -1,14 +1,13 @@
 """
-Schwab API Integration Scaffold
-Ready for when user gets schwab account access.
+Schwab API Integration — RETIRED 2026-09-03 (public-api-only policy).
 
-Features:
-- OAuth2 authentication flow
-- Position import (options + equity)
-- Transaction history (sweep detection)
-- Real-time quote streaming
+floww has no Schwab account and uses only the Public.com API.
+This module is kept importable so existing imports (SchwabTokenManager
+readers, streamer/token unit tests) don't break, but no production path
+may construct a client or place orders through it: SchwabClient methods
+raise SchwabRetiredError. Live trading surfaces are /api/public/brokerage/*.
 
-Docs: https://developer.schwab.com/
+Docs: https://developer.schwab.com/ (reference only)
 """
 from __future__ import annotations
 
@@ -20,6 +19,11 @@ from pathlib import Path
 from typing import Any
 
 import httpx
+
+
+class SchwabRetiredError(RuntimeError):
+    """Raised when retired Schwab client code is invoked."""
+
 
 log = logging.getLogger("schwab")
 
@@ -152,10 +156,13 @@ class SchwabTokenManager:
 # ============ API Client ============
 
 class SchwabClient:
-    """Schwab API client for account data."""
+    """Schwab API client — RETIRED 2026-09-03. Any use raises."""
 
     def __init__(self, token_manager: SchwabTokenManager | None = None):
-        self.tokens = token_manager or SchwabTokenManager()
+        raise SchwabRetiredError(
+            "Schwab retired 2026-09-03 — floww is public-API-only. "
+            "Use /api/public/brokerage/* (services/public_api_adapter)."
+        )
 
     async def _get_headers(self) -> dict[str, str]:
         """Get auth headers."""

@@ -2,16 +2,20 @@
 backend/routes/health.py
 
 Health check endpoint that verifies all backend dependencies are operational.
+
+PUBLIC-API-ONLY POLICY (2026-09-03): the live market-data check is Public.com
+(PUBLIC_API_KEY). Alpha Vantage is retired — its check entry is kept as a
+deprecated disabled stub so old monitors/dashboards don't KeyError.
 """
 from __future__ import annotations
 
 import logging
+import os
 from datetime import UTC, datetime
 
-import httpx
+import httpx  # noqa: F401 — re-exported for tests that patch routes.health.httpx
 from fastapi import APIRouter
 
-from config.secrets import get_alpha_vantage_key
 from services.alpha_vantage_client import circuit as av_circuit
 from services.duckdb_engine import db as duckdb_engine
 from services.websocket_streamer import manager as ws_manager
@@ -19,8 +23,6 @@ from services.websocket_streamer import manager as ws_manager
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
-
-ALPHA_VANTAGE_BASE = "https://www.alphavantage.co/query"
 
 
 @router.get("/api/health")
@@ -33,7 +35,8 @@ async def health_check():
             "timestamp": "<ISO8601 UTC>",
             "checks": {
                 "duckdb": {"status": "healthy"},
-                "alpha_vantage": {"status": "healthy"} | {"status": "unhealthy", "error": "..."},
+                "public_api": {"status": "healthy"} | {"status": "unhealthy", "error": "..."},
+                "alpha_vantage": {"status": "disabled", "deprecated": True, ...},
                 "websocket": {"status": "healthy", "active_connections": 0}
             }
         }
@@ -52,51 +55,52 @@ async def health_check():
         logger.warning(f"Health check: DuckDB unhealthy: {e}")
         checks["duckdb"] = {"status": "unhealthy", "error": str(e)}
 
-    # Alpha Vantage check
+    # Public API check (primary market-data source). Key-presence probe only —
+    # the broker auths lazily on first real fetch, so a live auth here would
+    # add latency/flakiness to every health poll.
     try:
-        api_key = get_alpha_vantage_key()
+        api_key = os.environ.get("PUBLIC_API_KEY", "")
         if not api_key:
-            checks["alpha_vantage"] = {
+            checks["public_api"] = {
                 "status": "unhealthy",
-                "error": "ALPHA_VANTAGE_KEY not configured",
+                "error": "PUBLIC_API_KEY not configured",
             }
         else:
-            async with httpx.AsyncClient() as client:
-                resp = await client.get(
-                    ALPHA_VANTAGE_BASE,
-                    params={
-                        "function": "GLOBAL_QUOTE",
-                        "symbol": "SPY",
-                        "apikey": api_key,
-                    },
-                    timeout=5.0,
-                )
-                if resp.status_code == 200:
-                    checks["alpha_vantage"] = {"status": "healthy"}
-                else:
-                    checks["alpha_vantage"] = {
-                        "status": "unhealthy",
-                        "error": f"HTTP {resp.status_code}",
-                    }
+            checks["public_api"] = {"status": "healthy", "key_configured": True}
     except Exception as e:
-        logger.warning(f"Health check: Alpha Vantage unhealthy: {e}")
-        checks["alpha_vantage"] = {"status": "unhealthy", "error": str(e)}
+        logger.warning(f"Health check: Public API unhealthy: {e}")
+        checks["public_api"] = {"status": "unhealthy", "error": str(e)}
+
+    # Alpha Vantage — RETIRED 2026-09-03. Deprecated stub: always disabled,
+    # excluded from the overall verdict (see below).
+    checks["alpha_vantage"] = {
+        "status": "disabled",
+        "deprecated": True,
+        "error": "Alpha Vantage retired 2026-09-03 — use /api/public/* (Public.com API)",
+    }
 
     # WebSocket check
     ws_count = len(ws_manager._all)
     checks["websocket"] = {"status": "healthy", "active_connections": ws_count}
 
-    # Alpha Vantage Circuit Breaker check
+    # Alpha Vantage Circuit Breaker check (retired with the provider;
+    # kept for dashboard compat, always closed/disabled).
     checks["circuit_breaker"] = {
-        "status": "unhealthy" if av_circuit.state.value == "open" else "healthy",
+        "status": "healthy",
         "state": av_circuit.state.value,
         "failure_count": av_circuit.failure_count,
         "success_count": av_circuit.success_count,
+        "note": "alpha_vantage retired 2026-09-03 — breaker retained for compat",
     }
 
+    # Overall verdict counts only live checks — deprecated/disabled entries
+    # (alpha_vantage) never flip the service to degraded.
+    live_checks = {
+        name: c for name, c in checks.items() if not c.get("deprecated")
+    }
     overall = (
         "healthy"
-        if all(c.get("status") == "healthy" for c in checks.values())
+        if all(c.get("status") == "healthy" for c in live_checks.values())
         else "degraded"
     )
 

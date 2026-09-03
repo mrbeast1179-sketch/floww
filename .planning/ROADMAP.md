@@ -91,17 +91,21 @@ consolidation, exposure, and closing known gaps.
 **Source:** `BACKLOG.md` (synced 2026-08-31). State: most phases partially built;
 Phase A complete, Phase C mostly built, Phase F (paper trading) operational.
 
-### 6.1 — Observability & Prometheus (`/metrics` endpoint) [PROMOTED]
+### 6.1 — Observability & Prometheus (`/metrics` endpoint) [COMPLETE 2026-09-03]
 
 **Goal:** Expose Prometheus metrics for production monitoring. `prometheus_client`
-is already installed; no `/metrics` endpoint exists yet.
+is already installed; `/metrics` route is live in server.py.
 
-- [ ] Add `/metrics` route exposing: request latency histogram, error rate counter,
+- [x] Add `/metrics` route exposing: request latency histogram, error rate counter,
       data source fallback counter, yfinance-429 counter, MongoDB connection pool metrics
-- [ ] Add per-endpoint latency histogram (especially /api/heatmap, /api/chain, /api/spot)
-- [ ] Add data provider health counters (Public API success/fail, cvserver success/fail,
-      yfinance success/fail, databento success/fail)
-- [ ] Scrape test: `curl localhost:8000/metrics` returns prometheus-formatted text
+      (services/observability.py: REGISTRY + http_requests_total +
+      api_request_duration_seconds + provider_calls_total; route server.py; verified
+      2026-09-03: `curl localhost:8000/metrics` returns prometheus text)
+- [x] Add per-endpoint latency histogram (api_request_duration_seconds histogram)
+- [x] Add data provider health counters (provider_calls_total + provider_success_rate
+      + provider_last_success_seconds_ago)
+- [x] Scrape test: `curl localhost:8000/metrics` returns prometheus-formatted text
+      (verified 2026-09-03, HTTP 200)
 
 > Rationale: deploy runbook calls for post-live monitoring; Prometheus metrics are the
 > cheapest path to operational visibility before the VM provisioning happens.
@@ -115,7 +119,9 @@ is already installed; no `/metrics` endpoint exists yet.
       now includes entry+exit slippage; verified: expected 0.6930, actual 0.6930 MATCH)
 - [x] Add `/api/backtest/run` endpoint (BUILD completed — commit ebc6715, live-tested:
       SPY backtest returns trades=1, net_pnl=0.6930)
-- [ ] Add `/api/backtest/report/{ticker}` endpoint (retrieve last backtest report)
+- [x] Add `/api/backtest/report/{ticker}` endpoint (retrieve last backtest report)
+      (DONE 2026-09-03 — in-memory per-ticker store populated by POST /run;
+      tests/test_backtest_report.py 3/3, TDD-verified fail-before/pass-after)
 - [x] Write a test that fails before fix and passes after (test discipline — done in
       test_heatseeker_v2.py + test_v3_costsave.py)
 
@@ -179,3 +185,33 @@ blocking alert reliability. 6.4–6.6 are incremental improvements.
 portfolio/P&L (6.5 is the foundation only), Phase H App.js decomposition (architect
 sign-off needed), ML pipeline OOS harness (Phase C — verify `scripts/backtest_oos.py`
 exists first).
+
+## Phase 7 — Public-API-Only Enforcement + Trade-Direct [COMPLETE 2026-09-03]
+
+**Goal:** Schwab + Alpha Vantage fully retired; every live market-data path is
+Public.com (cvserver → yfinance kept as emergency fallback only, per ADR-0002);
+node-click on Solstice/Triad shows live Public contract data and can submit a
+real Public order. No `App.js` edits (architect-frozen) — Triad enrichment lands
+in `TrinityView.jsx`, which the frozen Triad submit handler already accepts.
+
+- [x] 7.1 Retire Schwab + Alpha Vantage: `/api/schwab/*` → 410 + public
+      replacements; `SchwabClient()` raises `SchwabRetiredError` (fail-closed);
+      `/api/alpha/*` vendor helpers deleted — quote/options/technical/
+      historical/intraday served live from Public API, remainder 410;
+      `AlphaVantageProvider` disabled stub; `/api/health` checks `public_api`
+- [x] 7.2 Public coverage expansion: `GET /api/public/bars|history|`
+      `technical/{ticker}/{indicator}|expirations` (RSI/SMA/EMA/MACD computed
+      locally from Public bars — no third party)
+- [x] 7.3 Triad row-click enrichment (`TrinityView.jsx`): click → instant base
+      selection, then fire-and-forget `/api/contract/{t}/{strike}/{exp}` merge
+      (`oi_symbol` + bid/ask/last) so the existing Triad submit places a real
+      Public option order; failure keeps the base selection
+- [x] 7.4 Fallback policy reaffirmed (architect-approved 2026-09-03):
+      Public API → cvserver → yfinance. Schwab/Alpha Vantage never consulted.
+- [ ] 7.5 Heatseeker QuickTrade submit → Public order (App.js:1189 posts to
+      `/memory/trade` only). Needs architect sign-off to touch frozen `App.js` —
+      flagged, not started.
+
+**Tests:** `backend/tests/test_public_api_only.py` (35 policy tests, mocked/offline);
+`frontend/src/components/TrinityView.test.jsx` (base + enriched + failure-path).
+Live-verified 2026-09-03: SPY spot $773.05 via Public adapter (read-only).
