@@ -61,6 +61,9 @@ true print tape ships as anything but an honest degraded state.
 - FIR = |callPrem − putPrem| / (callPrem + putPrem), 0..1, per session window.
 - RVOL = session premium-to-time vs 20d same-time baseline (DuckDB rollups; until
   cadence exists the bar shows "baseline building n/20").
+  CORRECTED (H2): daily-resolution first from Mongo-50 day-premium means;
+  intraday time-of-day baselines wait on file-backed DuckDB. Session Lean =
+  sign(NetPrem) gated by FIR (H1): |FIR|≥0.3 → Bullish/Bearish else Neutral.
 - Quiet-accumulation gate [1]: contract vol z-score >2 AND (contract range z <1 AND
   underlying range z <1) over the bar window.
 
@@ -83,6 +86,8 @@ P1 Databento OPRA backfill → P2 live OPRA (true SIDE/sweep) → P3 TRF websock
 1. New signal ⇒ new evaluator (steal [3]); fixtures prove fire rates.
 2. Full frontend suite green; backend suites untouched-and-green.
 3. Metrics in the table above, not adjectives. 4. Heredoc commit, own files only.
+5. Every new surface ships loading/empty/stale/error/frozen states (7.9 pattern).
+6. Perf profile recorded once per wave (H3); lane discipline per H4.
 
 ## NOT in scope
 Mobile card layouts, Discord share/image export (after P1), Atlas overlay (Heatseeker
@@ -152,3 +157,33 @@ premium/DTE/side. All computable from rows already in hand:
   builds the map, not a new vendor. All remaining external claims in this plan
   are now verified against primary docs except FMP-250/day and Tradier-delayed
   (both snippet-grade: re-verify at build time if chosen).
+
+## Institutional hardening (seventh read — optimization pass)
+- H1 Session Lean is now defined (was hand-waved): Lean = sign(NetPrem) gated by
+  FIR — |FIR|≥0.3 → Bullish/Bearish, else Neutral. RVOL modulates urgency copy,
+  never direction. R9.2 metric covers it.
+- H2 RVOL corrected: daily-resolution first from Mongo-50 snapshots (day premium
+  vs trailing-20d mean); time-of-day intraday baselines wait on file-backed
+  DuckDB (C2). No intraday-RVOL claims before then.
+- H3 Performance budgets (institutional discipline): overview-bar aggregation
+  <100ms on a 5k-contract chain (measured, memoized per poll); Pulse render stays
+  capped; trend charts downsample to ≤500 points. Each wave profiles once and
+  records the number — jank is a defect, not a vibe.
+- H4 Execution lanes (Phase 7 taught this): Lane F = Blademap.jsx serial
+  (W1→W6→W2-cols→W3-modal/tracker→W7); Lane S = scanLogic serial (gates, score
+  spec); Lane D = CSS parallel anytime; backend B1-B7 async. Never two agents on
+  one file — the fan-out failure mode is documented, not repeated.
+- H5 Session-state awareness: every live surface carries LIVE/CLOSED/PREMARKET
+  state; frozen data is labeled frozen (tracker P/L, overview bar) — never silently
+  stale. Extends the 7.9 states pattern, which is now REQUIRED per new surface
+  (added to the verification loop below).
+- H6 Sweep resolution limit, stated: intermarket sweep needs multi-exchange prints;
+  ours is heuristic (short-dated/size/voi proxy) until P2 OPRA. UI copy must never
+  claim exchange-sweep certainty. Same honesty rule as dark pool (D5).
+- H7 W5 backtest depends on P1 funding (Databento credits): harness + fixtures are
+  free; live backfill is gated on the funding decision, explicitly.
+- H8 B1 rate safety: scheduler cadence inherits the existing scan 429-backoff
+  pattern (verified in flowseeker.py) — undisclosed Public limits are assumed,
+  backoff is mandatory, not optimistic.
+- H9 M2 verdicts persist localStorage-first (same gate as Tracker); promotion with
+  Tracker schema, never before.
