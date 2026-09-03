@@ -8,6 +8,8 @@ Every new/changed surface must pass each applicable line. CI-grep terms in paren
   (without "inferred"), "(last print", "latest print". Required: "inferred", "no tape", "proxy".
 - ROUND-2: sweep definitions must be single-sourced (scanLogic owner); "Sweep (urgent)" and
   "High-Conviction" language on proxy classifications flagged until reconciled.
+- ROUND-7: venue nouns banned without venue data — "multi-exchange", "cross-venue", "multi-venue fill".
+  "(heuristic)"/"(proxy)" does NOT license a venue noun. Approved: "multi-print burst proxy".
 - ROUND-2: quote-missing rows must render SIDE unknown ("—"), never voi-fallback ASK/BID.
 - Scanner: classification column carries proxy footnote · "true sweep" never appears (`true sweep`,
   `confirmed sweep`, `sweep detected` banned).

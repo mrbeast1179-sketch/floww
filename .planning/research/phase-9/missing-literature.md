@@ -6,11 +6,17 @@ Confidence abstract-only unless noted. Nothing below is a product rule until the
 
 ## 1. 0DTE options and market quality
 
-### Cboe — "Evaluating the Market Impact of SPX 0-DTE Options" (Volatility Insights)
+### Cboe — "Much Ado About 0DTEs" (Mandy Xu, Sep 8 2023) — FETCHED, context-grade
 - Link: https://www.cboe.com/insights/posts/volatility-insights-evaluating-the-market-impact-of-spx-0-dte-options/
-- Summary: exchange research on whether 0DTE flow destabilizes SPX; practitioner/exchange source, not peer-reviewed.
-- Relevance: directly addresses 0DTE volOI≥2 gate calibration context.
-- Confidence: abstract-only. Context only (never cite as academic support).
+- Verified findings: 0DTE ~40–50% of SPX volume; flow remarkably balanced (net ~3% of gross on Aug-15
+  example); median 3:30pm net gamma +$173mm, IQR −$1.1bn/+$2.4bn, whiskers −$5bn/+$7.7bn (1.3–1.9% of
+  futures notional); no uptick in 1-min 2σ gap moves; Aug-15 selloff happened while MMs were LONG $2bn
+  gamma (dampening, not causing).
+- Product relevance: volume≠exposure (net-vs-gross) DIRECTLY supports score-spec philosophy — gross
+  volOI alone is weak; OI-change/premium-balance gates carry the signal. Supports keeping the $25K floor
+  and Ge-Lin-Pearson openings-weighting.
+- Confidence: fetched full text, but EXCHANGE research (not peer-reviewed), SPX-only, 2023 regime.
+  Context only — never cite as academic support; never generalize to single-names.
 
 ### Broader 0DTE literature (to pull, not yet verified)
 - Targets: 0DTE share-of-volume growth papers (2023–2025), 0DTE pinning/expiry-effects studies.
