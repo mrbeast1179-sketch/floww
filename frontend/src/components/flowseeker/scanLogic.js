@@ -113,9 +113,11 @@ export function scanScoreOf(r, regime = null) {
   else if (regime === "positive" && r.volOI >= 2) nudge = 3;
   s += nudge;
   // Informed-positioning band: 7-90 DTE + vol≥3×OI + ≥$25k premium is where
-  // directional bets live (shorter = gamma noise, longer = hedges) — the
-  // standard UOA filter conjunction; cf. Pan & Poteshman (RFS 2006) on option
-  // volume carrying multi-day directional information.
+  // directional bets live (shorter = gamma noise, longer = hedges) — a desk
+  // heuristic, NOT from Pan & Poteshman (RFS 2006): that paper finds buyer-open
+  // put-call ratios predict returns (low PC → +40bp next day, stronger for
+  // high-leverage/OTM), with no DTE band and no volume/OI/premium thresholds.
+  // Keep the band as [internal heuristic]; cite P&P only for PC direction.
   let band = 0;
   if (r.dte != null && r.dte >= 7 && r.dte <= 90 && (r.volOI || 0) >= 3 && (r.premium || 0) >= 25e3) band = 4;
   s += band;

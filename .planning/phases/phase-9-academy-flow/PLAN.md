@@ -77,6 +77,12 @@ true print tape ships as anything but an honest degraded state.
 - B6 Quiet-accumulation gate D8 (vol z>2 AND price-range compression, display-first)
   in the alert eval path — needs baseline plumbing the frontend doesn't own.
 - B7 Per-tag 30-min outcome tracking in the outcomes module (steal [1]).
+- B8 Citation hygiene in backend/services/gex_paper_accurate.py: docstring lines
+  ~10-24 present Eq.(2)/Sec II.B/Sec I/Sec III.C/“Ni-Pearson Sec. 3” attributions
+  now REFUTED or unverified (see /tmp/wf_smart/paper_gamma.md §§1-2) — relabel as
+  practitioner method “in the spirit of,” never as paper equations.
+- B9 O/S-borrow inputs for V6: stock-volume share + short-fee/short-interest feed
+  (or honest “unavailable” state if unwired).
 
 ## Paid gates (later, priced before built)
 P1 Databento OPRA backfill → P2 live OPRA (true SIDE/sweep) → P3 TRF websocket
@@ -187,3 +193,25 @@ premium/DTE/side. All computable from rows already in hand:
   backoff is mandatory, not optimistic.
 - H9 M2 verdicts persist localStorage-first (same gate as Tracker); promotion with
   Tracker schema, never before.
+
+## P1 Paper-verified smart-money map (2026-09-03 — every claim opened+checked)
+Reports: /tmp/wf_smart/paper_{informed,gamma,dark}.md. Killed on sight: GX-as-Ni,
+ΓIB-as-Barbon, flip-as-academic, −$200mm line, crash probabilities, charm rules,
+"Charming!" paper, phantom hedging-liquidity title, 7-90-as-P&P, VPIN-from-snapshots.
+- V1 Parity-dev tilt (Cremers-Weinbaum 2010, JFQA: call-IV minus put-IV predicts
+  ~51bp/wk) → W2: matched-pair IV screens from chains. Metric: fixture pairs flag.
+- V2 Expiry-pin emphasis (Ni-Pearson-Poteshman 2005 JFE clustering) → W1/W2:
+  expiry-day high-OI strike emphasis, NEVER extended off-expiry.
+- V3 EOD momentum lean + next-day fade (Baltussen et al. 2021 JFE; Barbon et al.
+  ΓHP) → W5: last-30-min tag on big-day/negative-gamma names, fade next morning.
+- V4 Open-vs-close weighting (Ge-Lin-Pearson 2016 JFE: opening purchases predict;
+  closings don't) → suppress sub-92 on falling-OI-only signals (needs B1 OI deltas).
+- V5 Smirk/IV-change (Xing-Zhang-Zhao 2010; An-Ang-Bali-Cakici 2014) → cadence-gated
+  (6m/1m histories); until B1, fixture-only.
+- V6 PC-leverage + O/S-borrow (P&P 2006; Johnson-So 2012 JFE; Roll et al. 2010 JFE):
+  unsigned PC proxy + smirk confirm now; borrow/short-fee inputs = B9 (backend lane).
+- V7 Toxicity-proxy honesty (Easley et al. 2012): never label VPIN from snapshots —
+  already compliant in UI; keep the rule as RMA gate on any future gauge.
+- V8 Dark honesty (Zhu 2014 conditional; Comerton-Forde-Putnins 2015; BJZZ 2021
+  scope-limited): blocks = execution footprint, never signed; ATS = venue mix with
+  delay stamps; retail arrows NOT computable from ATS-weekly — show "not computable".
