@@ -212,9 +212,9 @@ in `TrinityView.jsx`, which the frozen Triad submit handler already accepts.
       Public option order; failure keeps the base selection
 - [x] 7.4 Fallback policy reaffirmed (architect-approved 2026-09-03):
       Public API → cvserver → yfinance. Schwab/Alpha Vantage never consulted.
-- [ ] 7.5 Heatseeker QuickTrade submit → Public order (App.js:1189 posts to
-      `/memory/trade` only). Needs architect sign-off to touch frozen `App.js` —
-      flagged, not started.
+- [x] 7.5 Heatseeker QuickTrade submit → Public order — DONE 2026-09-03
+      (Nav-approved surgical edit: order attempt when `oi_symbol` present,
+      paper-memory log preserved as fallback)
 
 **Tests:** `backend/tests/test_public_api_only.py` (35 policy tests, mocked/offline);
 `frontend/src/components/TrinityView.test.jsx` (base + enriched + failure-path).
@@ -246,8 +246,11 @@ No `App.js` edits (frozen) — all UI work in editable heatseeker components.
       toggle (default hidden); Expand button + full-page grid overlay
       (same grid + sidebar, Esc/✕ closes); toolbar Playback (interval
       refresh), Grid (expand), Share (copy URL) all live
-- [ ] 8.6 App.js-owned leftovers (frozen — flagged): TickerSearch free-text
-      Enter, Heatseeker submit → Public order (7.5), prev/next ticker arrows
+- [x] 8.6 App.js-owned leftovers — DONE 2026-09-03 (Nav-approved surgical
+      edits): TickerSearch Enter-to-submit free text; Heatseeker submit →
+      Public order (see 7.5); control-bar prev/next arrows cycle the tape
+      list (unknown tickers stay put); keyboard ArrowUp/Down already
+      open-universe safe (verified, no change)
 
 **Tests:** `backend/tests/routes/test_steal_three_open_universe.py` (7 new);
 `SkylitDashboard.test.jsx` updated (band-behind-toggle + expand);

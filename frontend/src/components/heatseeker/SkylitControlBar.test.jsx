@@ -51,8 +51,7 @@ test("grid button calls onExpand and degrades silently without it", () => {
   expect(() => fireEvent.click(screen.getByTestId("skylit-expand-toolbar-btn"))).not.toThrow();
 });
 
-test("share button copies the URL and shows confirmation", async () => {
-  const writeText = jest.fn(async () => {});
+test("share button copies the URL and shows confirmation", async () => {  const writeText = jest.fn(async () => {});
   Object.defineProperty(navigator, "clipboard", {
     value: { writeText },
     configurable: true,
@@ -63,4 +62,23 @@ test("share button copies the URL and shows confirmation", async () => {
   });
   expect(writeText).toHaveBeenCalledTimes(1);
   expect(screen.getByTestId("skylit-share-btn")).toHaveAttribute("title", "Copied!");
+});
+
+test("prev/next arrows cycle the tape list and ignore unknown tickers", () => {
+  const onTickerChange = jest.fn();
+  const { unmount } = render(
+    <SkylitControlBar ticker="SPY" onTickerChange={onTickerChange} tickers={["SPY", "QQQ", "HOOD"]} />
+  );
+  fireEvent.click(screen.getByTestId("skylit-next-ticker"));
+  expect(onTickerChange).toHaveBeenCalledWith("QQQ");
+  fireEvent.click(screen.getByTestId("skylit-prev-ticker"));
+  expect(onTickerChange).toHaveBeenLastCalledWith("HOOD");
+  unmount();
+
+  // Open-universe symbol not in the list: arrows stay put.
+  const onTickerChange2 = jest.fn();
+  render(<SkylitControlBar ticker="RIVN" onTickerChange={onTickerChange2} tickers={["SPY", "QQQ"]} />);
+  fireEvent.click(screen.getByTestId("skylit-next-ticker"));
+  fireEvent.click(screen.getByTestId("skylit-prev-ticker"));
+  expect(onTickerChange2).not.toHaveBeenCalled();
 });

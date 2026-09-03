@@ -47,6 +47,9 @@ import { SocialFlowPanel } from "./components/SocialFlowPanel";
 import SkylitDashboard from "./components/heatseeker/SkylitDashboard";
 import StealThreePreview from "./components/heatseeker/StealThreePreview";
 import FlowseekerProBlademap from "./components/flowseeker/FlowseekerProBlademap";
+import Wtipanel from "./components/Wtipanel";
+import RussellPanel from "./components/RussellPanel";
+import PublicPanel from "./components/PublicPanel";
 import AlertOverlay from "./components/AlertOverlay";
 import PWAInstallBanner from "./components/PWAInstallBanner";
 import AppShell from "./shell/AppShell";
@@ -151,11 +154,17 @@ function NodesTable({ data }) {
 }
 
 // ============ Ticker Search ============
+// Open universe (2026-09-03, Nav-approved): Enter submits free text — any
+// symbol, not just the suggestion list. Backend accepts arbitrary tickers.
 function TickerSearch({ tickers, value, onChange }) {
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState("");
   const ref = useRef();
   const filtered = (tickers || []).filter(t => !q || t.toLowerCase().includes(q.toLowerCase())).slice(0, 12);
+  const submitFreeText = () => {
+    const t = q.trim().toUpperCase().replace(/^\$/, "");
+    if (t) { onChange(t); setOpen(false); setQ(""); }
+  };
   useEffect(() => {
     const handler = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
     document.addEventListener("mousedown", handler);
@@ -168,6 +177,7 @@ function TickerSearch({ tickers, value, onChange }) {
         style={{ background: "var(--surface-1)", border: "1px solid var(--border-c)", color: "var(--text-primary)", width: 100 }}
         value={q}
         onChange={e => { setQ(e.target.value); setOpen(true); }}
+        onKeyDown={e => { if (e.key === "Enter") submitFreeText(); }}
         onFocus={() => setOpen(true)}
         placeholder={value || "SPY"}
       />
@@ -782,10 +792,43 @@ export default function App() {
             <QuickTradePanel
               selection={tradeSelection}
               onClose={() => setTradeSelection(null)}
-              onSubmit={(trade) => {
+              onSubmit={async (trade) => {
                 console.log("[Triad] Trade submitted:", trade);
+                // Submit real order to backend if it has an OSI symbol
+                if (trade.order_id) {
+                  // Already submitted server-side in handleSubmit
+                  return;
+                }
+                if (trade.oi_symbol) {
+                  try {
+                    const isCall = trade.strategy.includes("call") || trade.strategy === "straddle" || trade.strategy === "iron_condor";
+                    const side = trade.strategy.startsWith("buy") ? "BUY" : "SELL";
+                    const price = isCall
+                      ? (trade.limitPrice ?? trade.call_ask ?? trade.call_last ?? NaN)
+                      : (trade.limitPrice ?? trade.put_bid ?? trade.put_last ?? NaN);
+                    const limitPriceVal = Number.isFinite(price) ? price : null;
+                    const resp = await fetch(`${API}/public/brokerage/order`, {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({
+                        symbol: trade.oi_symbol,
+                        side,
+                        order_type: limitPriceVal != null ? "LIMIT" : "MARKET",
+                        quantity: trade.quantity,
+                        limit_price: limitPriceVal,
+                        time_in_force: "DAY",
+                        instrument_type: "OPTION",
+                      }),
+                    });
+                    const result = await resp.json();
+                    if (!resp.ok) throw new Error(result.detail?.message || result.message || resp.statusText);
+                    console.log("[Triad] Order placed:", result);
+                  } catch (err) {
+                    console.error("[Triad] Order failed:", err);
+                    alert("Order failed: " + err.message);
+                  }
+                }
                 setTradeSelection(null);
-                // TODO: send to backend / journal
               }}
             />
           </div>
@@ -941,15 +984,40 @@ export default function App() {
                   onExpiriesChange={setExpiries}
                   onTickerChange={setTicker}
                   onRefresh={() => { setErr(null); fetchData(); }}
-                  onCellClick={(strike, colKey, value) => {
+                  onCellClick={async (strike, colKey, value) => {
                     const row = displayData?.strikes?.find(s => s.strike === strike);
+                    let contractData = null;
+                    try {
+                      const cd = await fetch(
+                        `${API}/contract/${ticker}/${strike}/${colKey}`
+                      );
+                      if (cd.ok) contractData = await cd.json();
+                    } catch (_) { /* contract detail optional */ }
+
+                    const callC = contractData?.contracts?.find(c => c.type === 'call')
+                      || contractData?.contracts?.[0];
+                    const putC = contractData?.contracts?.find(c => c.type === 'put')
+                      || contractData?.contracts?.[1];
+
                     setTradeSelection({
                       ticker, strike, expiry: colKey,
-                      spot: livespot?.spot ?? data?.spot, gex: value,
-                      iv: row?.iv ?? data?.iv, delta: row?.delta ?? data?.delta,
-                      oi: row?.total_oi ?? row?.oi ?? data?.oi,
-                      call_gex: row?.call_gex, put_gex: row?.put_gex,
-                      vex: row?.vex, charm: row?.charm,
+                      spot: livespot?.spot ?? data?.spot,
+                      gex: value,
+                      iv: row?.iv ?? callC?.iv ?? data?.iv,
+                      delta: row?.delta ?? callC?.delta ?? data?.delta,
+                      oi: row?.total_oi ?? row?.oi ?? data?.oi
+                        ?? (callC?.open_interest ?? 0) + (putC?.open_interest ?? 0),
+                      call_gex: row?.call_gex,
+                      put_gex: row?.put_gex,
+                      vex: row?.vex,
+                      charm: row?.charm,
+                      oi_symbol: callC?.osi || putC?.osi || null,
+                      call_bid: callC?.bid,
+                      call_ask: callC?.ask,
+                      call_last: callC?.last,
+                      put_bid: putC?.bid,
+                      put_ask: putC?.ask,
+                      put_last: putC?.last,
                     });
                   }}
                   onStrikeClick={(strike) => setTradeSelection({ ticker, strike, spot: livespot?.spot ?? data?.spot })}
@@ -977,15 +1045,40 @@ export default function App() {
                   onExpiriesChange={setExpiries}
                   onTickerChange={setTicker}
                   onRefresh={() => { setErr(null); fetchData(); }}
-                  onCellClick={(strike, colKey, value) => {
+                  onCellClick={async (strike, colKey, value) => {
                     const row = displayData?.strikes?.find(s => s.strike === strike);
+                    let contractData = null;
+                    try {
+                      const cd = await fetch(
+                        `${API}/contract/${ticker}/${strike}/${colKey}`
+                      );
+                      if (cd.ok) contractData = await cd.json();
+                    } catch (_) { /* contract detail optional */ }
+
+                    const callC = contractData?.contracts?.find(c => c.type === 'call')
+                      || contractData?.contracts?.[0];
+                    const putC = contractData?.contracts?.find(c => c.type === 'put')
+                      || contractData?.contracts?.[1];
+
                     setTradeSelection({
                       ticker, strike, expiry: colKey,
-                      spot: livespot?.spot ?? data?.spot, gex: value,
-                      iv: row?.iv ?? data?.iv, delta: row?.delta ?? data?.delta,
-                      oi: row?.total_oi ?? row?.oi ?? data?.oi,
-                      call_gex: row?.call_gex, put_gex: row?.put_gex,
-                      vex: row?.vex, charm: row?.charm,
+                      spot: livespot?.spot ?? data?.spot,
+                      gex: value,
+                      iv: row?.iv ?? callC?.iv ?? data?.iv,
+                      delta: row?.delta ?? callC?.delta ?? data?.delta,
+                      oi: row?.total_oi ?? row?.oi ?? data?.oi
+                        ?? (callC?.open_interest ?? 0) + (putC?.open_interest ?? 0),
+                      call_gex: row?.call_gex,
+                      put_gex: row?.put_gex,
+                      vex: row?.vex,
+                      charm: row?.charm,
+                      oi_symbol: callC?.osi || putC?.osi || null,
+                      call_bid: callC?.bid,
+                      call_ask: callC?.ask,
+                      call_last: callC?.last,
+                      put_bid: putC?.bid,
+                      put_ask: putC?.ask,
+                      put_last: putC?.last,
                     });
                   }}
                   onStrikeClick={(strike) => setTradeSelection({ ticker, strike, spot: livespot?.spot ?? data?.spot })}
@@ -1073,6 +1166,11 @@ export default function App() {
           <TradeJournal ticker={ticker} />
         )}
 
+        {/* Public Brokerage */}
+        {page === "public" && (
+          <PublicPanel />
+        )}
+
         {/* Tidehunter Pro Tab */}
         {page === "flowseeker-pro" && (
           <div className="flex-1 overflow-auto">
@@ -1096,6 +1194,41 @@ export default function App() {
             selection={tradeSelection}
             onClose={() => setTradeSelection(null)}
             onSubmit={(trade) => {
+              // Direct Public order when the selection carries live contract
+              // data (cell clicks via /api/contract). Mirrors the Triad
+              // submit path; falls through to paper logging regardless.
+              // (2026-09-03, Nav-approved App.js surgical edit.)
+              if (trade.oi_symbol && !trade.order_id) {
+                (async () => {
+                  try {
+                    const isCall = trade.strategy.includes("call") || trade.strategy === "straddle" || trade.strategy === "iron_condor";
+                    const side = trade.strategy.startsWith("buy") ? "BUY" : "SELL";
+                    const price = isCall
+                      ? (trade.limitPrice ?? trade.call_ask ?? trade.call_last ?? NaN)
+                      : (trade.limitPrice ?? trade.put_bid ?? trade.put_last ?? NaN);
+                    const limitPriceVal = Number.isFinite(price) ? price : null;
+                    const resp = await fetch(`${API}/public/brokerage/order`, {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({
+                        symbol: trade.oi_symbol,
+                        side,
+                        order_type: limitPriceVal != null ? "LIMIT" : "MARKET",
+                        quantity: trade.quantity,
+                        limit_price: limitPriceVal,
+                        time_in_force: "DAY",
+                        instrument_type: "OPTION",
+                      }),
+                    });
+                    const result = await resp.json();
+                    if (!resp.ok) throw new Error(result.detail?.message || result.message || resp.statusText);
+                    console.log("[Solstice] Order placed:", result);
+                  } catch (err) {
+                    console.error("[Solstice] Order failed:", err);
+                    alert("Order failed: " + err.message);
+                  }
+                })();
+              }
               // Submit to trade memory endpoint
               axios.post(`${API}/memory/trade`, {
                 ...trade,

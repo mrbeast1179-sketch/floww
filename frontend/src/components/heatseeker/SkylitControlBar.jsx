@@ -1,4 +1,5 @@
 import React, { memo, useCallback, useEffect, useState } from "react";
+import { TICKER_SETS } from "./SkylitTickerBar";
 
 /**
  * SkylitControlBar — Second header bar with GEX/VEX tabs, LIVE badge,
@@ -26,6 +27,11 @@ function SkylitControlBar({
   // Optional: open the full-page grid overlay (wired by SkylitDashboard;
   // frozen App.js call sites omit it and the button degrades to a no-op).
   onExpand,
+  // Optional ticker cycling for the prev/next arrows (2026-09-03).
+  // Defaults to the tape list; unknown current ticker → no-op so open
+  // universe symbols never get yanked back into the list.
+  onTickerChange,
+  tickers = null,
   // Auto-refresh cadence while Playback is armed.
   playbackIntervalMs = 15000,
 }) {
@@ -46,8 +52,16 @@ function SkylitControlBar({
     return () => clearInterval(id);
   }, [playing, onRefresh, playbackIntervalMs]);
 
-  const handleShare = useCallback(async () => {
-    const url = typeof window !== "undefined" ? window.location.href : "";
+  const stepTicker = useCallback((dir) => {
+    if (!onTickerChange) return;
+    const list = tickers || TICKER_SETS.popular;
+    const idx = list.indexOf(ticker);
+    if (idx === -1) return; // open-universe symbol: stay put
+    const next = list[(idx + dir + list.length) % list.length];
+    if (next) onTickerChange(next);
+  }, [onTickerChange, tickers, ticker]);
+
+  const handleShare = useCallback(async () => {    const url = typeof window !== "undefined" ? window.location.href : "";
     try {
       if (navigator.clipboard && navigator.clipboard.writeText) {
         await navigator.clipboard.writeText(url);
@@ -104,7 +118,12 @@ function SkylitControlBar({
 
       {/* Center: Ticker + Price + Timeframe */}
       <div className="skylit-control-center">
-        <button className="skylit-nav-arrow" title="Previous ticker">
+        <button
+          className="skylit-nav-arrow"
+          title="Previous ticker"
+          onClick={() => stepTicker(-1)}
+          data-testid="skylit-prev-ticker"
+        >
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
             <polyline points="15 18 9 12 15 6" />
           </svg>
@@ -124,7 +143,12 @@ function SkylitControlBar({
           )}
         </div>
 
-        <button className="skylit-nav-arrow" title="Next ticker">
+        <button
+          className="skylit-nav-arrow"
+          title="Next ticker"
+          onClick={() => stepTicker(1)}
+          data-testid="skylit-next-ticker"
+        >
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
             <polyline points="9 18 15 12 9 6" />
           </svg>

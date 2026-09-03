@@ -126,6 +126,7 @@ function SkylitDashboard({
         isLive={isLive}
         onRefresh={onRefresh}
         onExpand={() => setExpanded(true)}
+        onTickerChange={onTickerChange}
       />
 
       {/* 2.5 Trade Mode bar */}
