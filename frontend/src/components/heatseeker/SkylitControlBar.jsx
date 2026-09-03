@@ -40,6 +40,9 @@ function SkylitControlBar({
   const [playing, setPlaying] = useState(false);
   // Share feedback (2026-09-03): transient "Copied" label.
   const [copied, setCopied] = useState(false);
+  // Info popover (2026-09-03): the ⓘ button now explains the grid
+  // instead of sitting decorative.
+  const [showInfo, setShowInfo] = useState(false);
 
   useEffect(() => {
     const id = setInterval(() => setNow(new Date()), 1000);
@@ -108,12 +111,29 @@ function SkylitControlBar({
           </svg>
           VEX
         </button>
-        <button className="skylit-info-btn" title="Info">
+        <button
+          className="skylit-info-btn"
+          title="How to read this grid"
+          onClick={() => setShowInfo(!showInfo)}
+          data-testid="skylit-info-btn"
+        >
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
             <circle cx="12" cy="12" r="10" />
             <path d="M12 16v-4" /><path d="M12 8h.01" />
           </svg>
         </button>
+        {showInfo && (
+          <div
+            className="skylit-info-popover"
+            data-testid="skylit-info-popover"
+            onClick={() => setShowInfo(false)}
+          >
+            <div><b>GEX</b> — gold/teal cells: dealer gamma walls (King ★ = max).</div>
+            <div><b>VEX</b> — blue/purple cells: vanna exposure regime.</div>
+            <div>Click a cell to inspect it · arm <b>Trade</b> to open Quick Trade.</div>
+            <div>Data: Public.com live chain → cvserver → yfinance.</div>
+          </div>
+        )}
       </div>
 
       {/* Center: Ticker + Price + Timeframe */}

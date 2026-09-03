@@ -253,9 +253,11 @@ No `App.js` edits (frozen) — all UI work in editable heatseeker components.
       (phantom wide quotes can no longer print 1600%+ ARR; OI-holders
       with no volume today kept); every Solstice element verified live —
       tickers / spot / public chain / contract-OSI / heatmap-for-any-
-      stock all PASS; known-harmless leftovers: Drilldown modal
-      unreachable (state never set, invisible), info (ⓘ) button
-      decorative
+      stock all PASS
+- [x] 8.8 Dead-code purge (2026-09-03, Nav-approved): orphaned Drilldown
+      modal removed (unimported — would have crashed if rendered — plus
+      its never-set state); info (ⓘ) button now toggles a grid-explainer
+      popover. Full frontend suite 40/40 + build compiles.
 - [x] 8.6 App.js-owned leftovers — DONE 2026-09-03 (Nav-approved surgical
       edits): TickerSearch Enter-to-submit free text; Heatseeker submit →
       Public order (see 7.5); control-bar prev/next arrows cycle the tape

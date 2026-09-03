@@ -535,7 +535,6 @@ export default function App() {
   const [expiries, setExpiries] = useState(4);
   const [trinityTab, setTrinityTab] = useState("gex");
   const [dte, setDte] = useState(null);
-  const [drilldown, setDrilldown] = useState(null);
   const [tickers, setTickers] = useState(null);
   const [advanced, setAdvanced] = useState(null);
   const [advancedLoading, setAdvancedLoading] = useState(true);
@@ -1184,9 +1183,6 @@ export default function App() {
         {page === "steal-three" && (
           <StealThreePreview defaultTicker="SPY" />
         )}
-
-        {/* Drilldown Modal */}
-        {drilldown && <Drilldown {...drilldown} onClose={() => setDrilldown(null)} />}
 
         {/* Quick Trade Panel */}
         {tradeSelection && page === "heatseeker" && (

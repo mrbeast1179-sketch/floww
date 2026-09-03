@@ -64,8 +64,7 @@ test("share button copies the URL and shows confirmation", async () => {  const 
   expect(screen.getByTestId("skylit-share-btn")).toHaveAttribute("title", "Copied!");
 });
 
-test("prev/next arrows cycle the tape list and ignore unknown tickers", () => {
-  const onTickerChange = jest.fn();
+test("prev/next arrows cycle the tape list and ignore unknown tickers", () => {  const onTickerChange = jest.fn();
   const { unmount } = render(
     <SkylitControlBar ticker="SPY" onTickerChange={onTickerChange} tickers={["SPY", "QQQ", "HOOD"]} />
   );
@@ -81,4 +80,17 @@ test("prev/next arrows cycle the tape list and ignore unknown tickers", () => {
   fireEvent.click(screen.getByTestId("skylit-next-ticker"));
   fireEvent.click(screen.getByTestId("skylit-prev-ticker"));
   expect(onTickerChange2).not.toHaveBeenCalled();
+});
+
+test("info button toggles the grid explainer popover", () => {
+  render(<SkylitControlBar ticker="SPY" />);
+  expect(screen.queryByTestId("skylit-info-popover")).not.toBeInTheDocument();
+
+  fireEvent.click(screen.getByTestId("skylit-info-btn"));
+  const pop = screen.getByTestId("skylit-info-popover");
+  expect(pop.textContent).toContain("GEX");
+  expect(pop.textContent).toContain("Trade");
+
+  fireEvent.click(screen.getByTestId("skylit-info-btn"));
+  expect(screen.queryByTestId("skylit-info-popover")).not.toBeInTheDocument();
 });
