@@ -86,8 +86,10 @@ unverified = not confirmed, never cite. Every product rule carries its WITH § c
 ## Gamma papers
 
 ### Ni et al. 2021 RFS — CONFIRMED mechanism, REFUTED formula/sign-rule attributions
+  (ROUND-6: 2006 working-paper full text verified — mechanism + no-formula confirmed at source)
 - Core claim: hedger net-long gamma dampens, net-short gamma amplifies (trade WITH the move when short).
   Daily horizon, modest economics, no intraday timing, no dollar threshold.
+  WP magnitudes (verified): −1σ net-gamma shock → 37bp absolute-return move on 310bp base (~12%).
 - Product rule: sign-of-gamma → amplify/dampen zone labels only.
 - UI allowed: "negative dealer-gamma zone — hedge flow leans with the move (Ni et al. 2021 mechanism)".
 - UI prohibited: GX formula as "Ni et al."; calls(+)/puts(−) sign rule as paper claim; "short-gamma moves chase" quote.

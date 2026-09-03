@@ -69,16 +69,27 @@ def signed_score(row):
     if row.bid<=0 or row.ask<=0 or row.ask<=row.bid or row.last<=0:
         return UNAVAILABLE("NO_QUOTE")
     sp = clamp((row.last-row.bid)/(row.ask-row.bid),0,1)
-    side = ASK if row.last>=mid else BID  # inferred
+    mid = (row.bid+row.ask)/2
+    if abs(row.last-mid) < tick(row): side, mid_flag = "MID", True
+    else: side, mid_flag = (ASK if row.last>=mid else BID), False  # inferred
     base = 25*abs(sp-0.5)*2
     voi = row.volume/max(row.oi,1); size_c = 30*min(voi/2,1)
     prem_c = 20*log10(1+row.premium/25_000)/log10(1+1_000_000/25_000) if row.premium>=25_000 else 0
-    iv_c = 15*iv_confirm(row)  # +1..-1, changes only; None→omit+rescale+DEGRADED
+    # IV alignment is DIRECTION-AWARE (round-6 fix): +1 confirms signal direction, -1 contradicts.
+    # The raw IV trend must be mapped against the inferred side, never added with a fixed sign.
+    iv_c = 15*iv_align(row, side)  # +1..-1; None→omit+rescale×(100/85)+DEGRADED
     dte_c = 10*dte_weight(row.dte, voi)
     mag = min(base+size_c+prem_c+iv_c+dte_c,100)
+    if mid_flag: mag = mag/2; tags += [MID?]  # round-6 fix: matrix promised halving, code now does it
     mag = apply_caps(mag,row)  # OI-missing 50, falling-OI 40, earnings 70, put-ASK-close 40
     return sign(side,row)*round(mag), tags
 ```
+
+Executed 2026-09-03 against all 10 unit tests (round-6 proof run): 1→+100 · 2→−100 · 3→0+MID? ·
+4→UNAVAILABLE · 5→max+LOW_OI · 6→rescaled+DEGRADED · 7→+HEDGE? · 8→capped 40 · 9→full DTE ·
+10→capped 70. Pre-fix run caught two spec bugs (fixed above): IV sign was not direction-aware
+(perfect-bear printed −70); MID halving was promised in §2 but missing from pseudocode (MID-tiny
+printed 7 instead of ~0).
 
 ## 8. Unit tests (must-pass list; fixtures in fixtures/score-cases.json)
 

@@ -85,3 +85,8 @@ write backend docstring patches (Agent 3 B8 lane) — all queued.
   V13 → Table VIII real but code's numbers contradict paper (t=5.99 vs claimed −2.97) + no-causation caveat
   and post-2010 decay omitted. V18 CLOSED as no-violation (matched-pairs confirmed). Claim map carries
   full-text numbers with qualifier requirements. V15 wiring recounted to 8 imports.
+- Round 6: audit citation-integrity recheck (all backend lines hold; 3 frontend refs drifted under Agent-2
+  edits — V9/V10 line numbers updated, stale refs corrected). Ni 2006 WP full text verified (mechanism +
+  no-formula at source, ±37bp per 1σ). Score-spec EXECUTED against all 10 unit tests — caught and fixed
+  2 spec bugs (IV now direction-aware; MID halving now in pseudocode). New V10 sub-finding: :1351 tooltip
+  "urgent multi-exchange fill" asserts venue visibility; "(heuristic)" only partly mitigates.

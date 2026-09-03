@@ -108,15 +108,19 @@ New violations missed in round 1, all with file:line. Severity upgraded where us
   Baltussen 2021). A next-day drift claim contradicts the fade finding. Fix: verify or remove.
   `dealer_balance_sheet_fragility` (:2165) cites vague "Post-SVB (March 2023) research" — no paper named.
   Fix: name a source or drop the research framing.
-- V9 (P0, frontend): HOW-TO-READ popover (FlowseekerProBlademap.jsx:1266) + column tooltips (:1295)
+- V9 (P0, frontend): HOW-TO-READ popover (FlowseekerProBlademap.jsx:1301 — was :1266 before Agent-2
+  edits; re-verified round 6) + column tooltips (:1330, was :1295)
   assert inference as fact: "SIDE = where the print crossed: ASK (lifted the offer → aggressive buy)",
   "Price paid per contract (last print…)", "latest print". No "inferred"/"proxy" anywhere on SIDE/SIGNAL;
   "print" implies a tape we do not have. Fix: "SIDE (inferred — last vs mid, no tape)" + "quote stamp".
 - V10 (P0): THREE conflicting sweep definitions: CONTRACTS.md (dte≤2 AND premium≥$5M) vs
   FlowseekerProBlademap.jsx:83,594 (premium≥$50M→block, dte≤2→sweep regardless of premium) vs
   scanLogic.js:72-77 scanTypeOf (vol≥25000→sweep, vol≥80000→block, volOI bands — no DTE/premium at all).
-  Plus certainty language: "Sweep (urgent)" (:1252), preset "High-Conviction Sweeps"
-  (methodology/presets.js:10-13). Only FilterBar.jsx:9 carries "(proxy)". Fix: single definition owned by
+  Plus certainty language: "Sweep (urgent)" (:1290), preset "High-Conviction Sweeps"
+  (methodology/presets.js:10-13). NEW round 6: row tooltip (FlowseekerProBlademap.jsx:1351) reads
+  "Sweep: urgent multi-exchange fill (heuristic)" — "(heuristic)" mitigates but "multi-exchange fill"
+  asserts cross-venue visibility we do not have (no OPRA). Fix: "multi-print burst proxy" or equivalent
+  with no venue noun. Only FilterBar.jsx:9 carries "(proxy)". Fix: single definition owned by
   scanLogic (formatter single-source rule), proxy label everywhere, reconcile CONTRACTS.
 - V11 (P1): SIDE vol/OI fallback (FlowseekerProBlademap.jsx:88,595: voi≥1.5→ASK when quote missing) means
   the NO_QUOTE/unavailable path is UNREACHABLE for side — every row gets a confident ASK/BID. This
