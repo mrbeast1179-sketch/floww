@@ -329,6 +329,7 @@ export default function FlowseekerProBlademap({ active = true }) {
   const scanQRef = useRef(null);
   // ── Blademap v3: conviction-ranked feed + calibration + journal stats ──
   const [convFeed, setConvFeed] = useState([]);
+  const [convFeedState, setConvFeedState] = useState("loading"); // loading | ready | unavailable
   const [calibBands, setCalibBands] = useState([]);
   const [setupStats, setSetupStats] = useState(null);
   // ── Zenith-style control cluster state (settings + quick filters) ──
@@ -712,7 +713,8 @@ export default function FlowseekerProBlademap({ active = true }) {
     if (!active) return;
     let alive = true;
     fetch(`${API}/alerts/feed?days=2&sort_by=conviction`).then((r) => (r.ok ? r.json() : null))
-      .then((d) => { if (alive && d) setConvFeed(d.alerts || []); }).catch(() => {});
+      .then((d) => { if (!alive) return; setConvFeed(d?.alerts || []); setConvFeedState(d ? "ready" : "unavailable"); })
+      .catch(() => { if (alive) setConvFeedState("unavailable"); });
     fetch(`${API}/alerts/quality`).then((r) => (r.ok ? r.json() : null))
       .then((d) => { if (alive && d) setCalibBands(d.conviction_calibration || []); }).catch(() => {});
     fetch(`${API}/journal/stats?days=90`)
@@ -1352,7 +1354,7 @@ export default function FlowseekerProBlademap({ active = true }) {
                         <li>Conviction {selected._conv}/99 = pattern {selected._cd.pat} + size {selected._cd.size} + unusualness {selected._cd.stat} + urgency {selected._cd.urg}</li>
                       )}
                     </ul>
-                    <div className="fsb-muted fsb-small" style={{ marginTop: 6 }}>Regime: {regime.label}. VPIN toxicity &amp; Kyle-λ price-impact need a trade-level order-flow feed (not available on cvserver) — they populate when a print feed is connected.</div>
+                    <div className="fsb-muted fsb-small" style={{ marginTop: 6 }}>Regime: {regime.label}. VPIN toxicity &amp; Kyle-λ price-impact need a trade-level order-flow feed (n/a on snapshot chains) — they populate when a print feed is connected.</div>
                   </div>
                   <div className="fsb-actions">
                     <div className="fsb-panel-h" style={{ marginBottom: 6 }}>Context</div>
@@ -1776,7 +1778,7 @@ export default function FlowseekerProBlademap({ active = true }) {
               </div>
             )}
             {/* Blademap v3 — top conviction signal cards (backend-ranked) */}
-            {active && convFeed.length === 0 && (
+            {active && convFeed.length === 0 && convFeedState === "loading" && (
               <div className="fsb-sigwrap">
                 <div className="fsb-sigh">
                   <span className="fsb-sigh-t">◈ Top Conviction</span>
@@ -1793,6 +1795,15 @@ export default function FlowseekerProBlademap({ active = true }) {
                       </div>
                     </div>
                   ))}
+                </div>
+              </div>
+            )}
+            {active && convFeed.length === 0 && convFeedState === "unavailable" && (
+              <div className="fsb-sigwrap">
+                <div className="fsb-sigh">
+                  <span className="fsb-sigh-t">◈ Top Conviction</span>
+                  <span className="fsb-sigh-s">feed unavailable (backend /alerts/feed) — tape below is live</span>
+                  <button className="fsb-chip fsb-chip-sm" onClick={() => { setConvFeedState("loading"); setRefreshTick((t) => t + 1); }}>Retry</button>
                 </div>
               </div>
             )}
@@ -1853,7 +1864,9 @@ export default function FlowseekerProBlademap({ active = true }) {
               </div>
             )}
             <div className="fsb-scantable">
-              {scan.length === 0 ? (
+              {scanMeta.err ? (
+                <div className="fsb-muted" style={{ padding: 16 }}>Flow scan fetch failed — not a filter issue. <button className="fsb-chip fsb-chip-sm" onClick={() => { setScanMeta((m) => ({ ...m, err: false })); setRefreshTick((t) => t + 1); }}>Retry</button></div>
+              ) : scan.length === 0 ? (
                 <div className="fsb-muted" style={{ padding: 16 }}>Scanning market flow across {SCAN_UNIVERSE.length} symbols…</div>
               ) : scanRows.length === 0 ? (
                 <div className="fsb-muted" style={{ padding: 16 }}>No contracts pass these filters.</div>
