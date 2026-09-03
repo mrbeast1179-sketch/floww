@@ -70,29 +70,29 @@
 }
 
 .fsb-root {
-  --fsb-bg: #0b0d12;
-  --fsb-bg2: #0f121a;
-  --fsb-panel: #141821;
-  --fsb-panel2: #181d28;
-  --fsb-panel3: #1d2330;
-  --fsb-border: #1f2532;
-  --fsb-border2: #2a3142;
-  --fsb-text: #e6e8ee;
-  --fsb-text2: #b3b8c5;
-  --fsb-muted: #6c7382;
-  --fsb-muted2: #4b5160;
+  --fsb-bg: #080b10;
+  --fsb-bg2: #0d1117;
+  --fsb-panel: #0d1117;
+  --fsb-panel2: #111820;
+  --fsb-panel3: #161e28;
+  --fsb-border: #ffffff0f;
+  --fsb-border2: #ffffff1f;
+  --fsb-text: #fffffff2;
+  --fsb-text2: #ffffffa6;
+  --fsb-muted: #ffffff73;
+  --fsb-muted2: #ffffff4d;
   /* Solstice dark/gold alignment (index.css tokens) */
-  --fsb-green: #19d27c;
-  --fsb-red: #ff4d5e;
-  --fsb-blue: #c9a84c;
+  --fsb-green: #22c55e;
+  --fsb-red: #ef4444;
+  --fsb-blue: #38bdf8;
   --fsb-amber: #e8c96a;
   --fsb-purple: #a267ff;
   --fsb-gold: #c9a84c;
   --fsb-gold-bright: #e8c96a;
-  --fsb-radius: 10px;
+  --fsb-radius: 8px;
   --fsb-radius-sm: 6px;
   --fsb-gap: 12px;
-  --fsb-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, "Roboto Mono", monospace;
+  --fsb-mono: "JetBrains Mono", ui-monospace, Consolas, monospace;
 
   display: flex;
   flex-direction: column;
