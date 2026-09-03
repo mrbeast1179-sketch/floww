@@ -43,6 +43,10 @@ threshold lineage agrees; dead code goes.
 [DONE bdd57c0] → D = 7.9 [DONE 6a0a366] → Wave2 universe opening [DONE c5cba5a].
 Phase 7 COMPLETE except 7.10 (Nav decision: mount-or-delete
 InstitutionalAlertsPanel cluster).
+**7.10 EXECUTED 2026-09-03 as DELETE** (Nav: "delete whatever we dont need"):
+23 dead files (~5000 lines) removed — unmounted panel + panel-only cluster
++ legacy FlowseekerTab chain + synthetic FlowEngine + orphan hook/CSS/HTML.
+Full suite 40/40, 291/291 green. **Phase 7 CLOSED.**
 
 ## Verification loop (every wave)
 1. `npx craco test --watchAll=false` full suite green (baseline 45/300).
