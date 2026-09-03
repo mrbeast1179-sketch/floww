@@ -139,12 +139,19 @@ export function pulseBadges(premium) {
   return b;
 }
 
+// Drop prints older than the Pulse window (trailing-90s tape).
+export function pruneBuffer(buf, windowMs = 90e3, now = Date.now()) {
+  return (buf || []).filter((r) => now - (Number(r.timestamp) || now) < windowMs);
+}
+
 // Aggregate prints into 90-second windows per contract so one hot contract
 // renders ONE row (premium summed, print count kept) instead of flooding
-// the tape. Returns agg rows newest-first, capped at 50.
+// the tape. Prints outside [now-windowMs, now] are excluded. Returns agg
+// rows premium-ranked, capped at 50.
 export function aggregatePulse(rows, windowMs = 90e3, now = Date.now()) {
+  const fresh = (rows || []).filter((r) => now - (Number(r.timestamp) || now) < windowMs);
   const map = new Map();
-  for (const r of rows || []) {
+  for (const r of fresh) {
     const key = `${r.ticker}|${String(r.type || "").toLowerCase()}|${r.strike}|${String(r.expiration || "").slice(0, 10)}`;
     const g = map.get(key);
     const ts = Number(r.timestamp) || now;
@@ -785,7 +792,9 @@ export default function FlowseekerProBlademap({ active = true }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [signals]);
 
-  const filtered = useMemo(() => signals.filter((s) => {
+  // Left-panel predicate shared by the snapshot list AND the Pulse buffer —
+  // one definition so the two views can never disagree on what "filtered" means.
+  const leftPass = useCallback((s) => {
     const side = String(s.type || "").toLowerCase().startsWith("c") ? "CALL" : "PUT";
     const cls = String(s.classification || "").toUpperCase();
     const dte = Number(dteOf(s.expiration)) || 0;
@@ -808,12 +817,37 @@ export default function FlowseekerProBlademap({ active = true }) {
       case "high": return s._conv >= 80;
       default: return true;
     }
-  }), [signals, filter, dteFilter]);
+  }, [filter, dteFilter]);
 
-  // Pulse tape: 90s-aggregated, BladeMap-gated. One row per contract —
-  // ticker scope + DTE band + min score gate, ranked by aggregated premium.
+  const filtered = useMemo(() => signals.filter(leftPass), [signals, leftPass]);
+
+  // Trailing-90s print buffer: each poll REPLACES signals, so aggregating the
+  // snapshot alone can never show N>1. The buffer keeps every fresh print and
+  // expires anything older than the Pulse window (cap 500 for memory).
+  // WeakSet dedupes StrictMode double-effect replays of the same objects.
+  const printBufferRef = useRef([]);
+  const seenPrintsRef = useRef(new WeakSet());
+  const [pulseTick, setPulseTick] = useState(0);
+  useEffect(() => {
+    if (!signals.length) return;
+    const now = Date.now();
+    let buf = pruneBuffer(printBufferRef.current, 90e3, now);
+    for (const s of signals) {
+      if (seenPrintsRef.current.has(s)) continue;
+      seenPrintsRef.current.add(s);
+      buf.push(s);
+    }
+    printBufferRef.current = buf.slice(-500);
+    setPulseTick((t) => t + 1);
+  }, [signals]);
+
+  // Pulse tape: trailing-90s buffer, left filters + BladeMap gates. One row
+  // per contract — ticker scope + DTE band + min score gate, ranked by
+  // aggregated premium.
   const pulseRows = useMemo(() => {
-    const gated = filtered.filter((s) => {
+    const now = Date.now();
+    const gated = pruneBuffer(printBufferRef.current, 90e3, now).filter((s) => {
+      if (!leftPass(s)) return false;
       if (pulseTicker !== "ALL" && s.ticker !== pulseTicker) return false;
       const dte = Number(dteOf(s.expiration)) || 0;
       if (pulseDte === "0-7D" && (dte < 0 || dte > 7)) return false;
@@ -822,8 +856,9 @@ export default function FlowseekerProBlademap({ active = true }) {
       if (pulseScore > 0 && pulseScore10(s._conv) < pulseScore) return false;
       return true;
     });
-    return aggregatePulse(gated);
-  }, [filtered, pulseTicker, pulseDte, pulseScore]);
+    return aggregatePulse(gated, 90e3, now);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pulseTick, leftPass, pulseTicker, pulseDte, pulseScore]);
 
   // scanner: filter + sort + KPI rollup. Simple mode ignores the hidden
   // advanced knobs (a Min-Vol set weeks ago must not silently filter an
@@ -1214,7 +1249,7 @@ export default function FlowseekerProBlademap({ active = true }) {
               <div className="fsb-panel-h"><span>Watchlist</span><span className="fsb-muted fsb-small">{WATCH.length} symbols</span></div>
               <ul className="fsb-watchlist">
                 {WATCH.map((t) => (
-                  <li key={t} className={`fsb-wl-li${ticker === t ? " selected" : ""}`} onClick={() => setTicker(t)}>
+                  <li key={t} className={`fsb-wl-li${ticker === t ? " selected" : ""}`} onClick={() => { setTicker(t); setPulseTicker("ALL"); }}>
                     <span className="fsb-wl-ticker">{t}</span>
                     <span className="fsb-wl-spot">{t === ticker ? "●" : ""}</span>
                   </li>
@@ -1252,7 +1287,7 @@ export default function FlowseekerProBlademap({ active = true }) {
               <div className="fsb-panel-h"><span>Live Options Flow</span><span><i className="fsb-live-dot" /><span className="fsb-muted fsb-small">LIVE · LAST UPDATED {clock || "—"} · SHOWING {pulseRows.length} PRINTS</span></span></div>
               <div className="fsb-pulsebar">
                 <label className="fsb-muted fsb-small">Ticker&nbsp;
-                  <select value={pulseTicker} onChange={(e) => setPulseTicker(e.target.value)}>
+                  <select value={pulseTicker} onChange={(e) => { const v = e.target.value; setPulseTicker(v); if (v !== "ALL") setTicker(v); }}>
                     <option value="ALL">All tickers</option>
                     {WATCH.map((t) => <option key={t} value={t}>{t}</option>)}
                   </select>
@@ -1274,7 +1309,7 @@ export default function FlowseekerProBlademap({ active = true }) {
                     <th>FLOW ET</th><th>SYM</th><th className="num">STRIKE</th><th>C/P</th><th className="num">OTM</th><th>EXP</th><th className="num">DTE</th><th className="num">PRICE</th><th>SIDE</th><th>SIGNAL</th><th>BADGES</th><th className="num">SCORE</th><th className="num">SIZE</th><th className="num">PREM</th>
                   </tr></thead>
                   <tbody>
-                    {pulseRows.length === 0 && <tr><td colSpan={14} className="fsb-muted" style={{ padding: 14, lineHeight: 1.7 }}>No prints pass the Pulse gates (DTE {pulseDte} · score {pulseScore === 0 ? "ALL" : pulseScore + "+"} · {pulseTicker}). Flow polls Public API first, cvserver fallback — ranked by 90s aggregated premium…</td></tr>}
+                    {pulseRows.length === 0 && <tr><td colSpan={14} className="fsb-muted" style={{ padding: 14, lineHeight: 1.7 }}>No prints pass the Pulse gates (DTE {pulseDte} · score {pulseScore === 0 ? "ALL" : pulseScore + "+"} · {pulseTicker}).{pulseTicker !== "ALL" && pulseTicker !== ticker ? ` Pulse is scoped to ${pulseTicker} but the feed is ${ticker} — the dropdown already switched the feed, wait one poll.` : " Trailing-90s tape: Public API first, cvserver fallback, ranked by aggregated premium…"}</td></tr>}
                     {pulseRows.map((p, i) => {
                       const conv = p._conv;
                       const score = pulseScore10(conv);

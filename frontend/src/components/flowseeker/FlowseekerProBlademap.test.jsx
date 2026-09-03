@@ -226,7 +226,7 @@ describe("Phase 5.3 dual-path: Public API → cvserver fallback", () => {
 });
 
 describe("Pulse helpers — BladeMap tape contract", () => {
-  const { pulseScore10, pulseSignal, pulseBadges, aggregatePulse } = require("./FlowseekerProBlademap");
+  const { pulseScore10, pulseSignal, pulseBadges, aggregatePulse, pruneBuffer } = require("./FlowseekerProBlademap");
 
   it("pulseScore10 maps conviction 20-99 to 2.0-9.9", () => {
     expect(pulseScore10(20)).toBe(2.0);
@@ -248,11 +248,31 @@ describe("Pulse helpers — BladeMap tape contract", () => {
   });
 
   it("aggregatePulse rolls one contract into one row with 90s totals", () => {
+    const now = 100000;
     const r = (premium, volume, ts) => ({ ticker: "SPY", type: "call", strike: 450, expiration: "2026-09-18", premium, volume, timestamp: ts, _conv: 80 });
-    const rows = aggregatePulse([r(100000, 100, 1000), r(200000, 200, 2000), { ticker: "QQQ", type: "put", strike: 500, expiration: "2026-09-18", premium: 50000, volume: 50, timestamp: 1500, _conv: 70 }]);
+    const rows = aggregatePulse([r(100000, 100, now - 10000), r(200000, 200, now - 5000), { ticker: "QQQ", type: "put", strike: 500, expiration: "2026-09-18", premium: 50000, volume: 50, timestamp: now - 8000, _conv: 70 }], 90e3, now);
     expect(rows.length).toBe(2);
     expect(rows[0]._aggPrem).toBe(300000);
     expect(rows[0]._aggN).toBe(2);
+  });
+
+  it("aggregatePulse excludes prints older than the window", () => {
+    const now = 100000;
+    const rows = aggregatePulse([
+      { ticker: "SPY", type: "call", strike: 450, expiration: "2026-09-18", premium: 999999, volume: 999, timestamp: now - 90001, _conv: 99 },
+      { ticker: "SPY", type: "call", strike: 450, expiration: "2026-09-18", premium: 1000, volume: 10, timestamp: now - 1000, _conv: 50 },
+    ], 90e3, now);
+    expect(rows.length).toBe(1);
+    expect(rows[0]._aggPrem).toBe(1000);
+    expect(rows[0]._aggN).toBe(1);
+  });
+
+  it("pruneBuffer keeps only prints inside the trailing window", () => {
+    const now = 50000;
+    const buf = [{ timestamp: now - 89999 }, { timestamp: now - 90000 }, { timestamp: now - 120000 }, {}];
+    // {} (missing ts) falls back to now → kept.
+    expect(pruneBuffer(buf, 90e3, now).length).toBe(2);
+    expect(pruneBuffer(null)).toEqual([]);
   });
 
   it("mapPublicChainToRows stamps side + mid + otm on every row", () => {
