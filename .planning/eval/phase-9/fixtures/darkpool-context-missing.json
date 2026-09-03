@@ -83,5 +83,18 @@
   "route": "GET /api/briefing/{ticker} returns metrics wholesale (morning_briefing_api.py:160,194)",
   "payload_field": "metrics.flash_crash_risk.crash_probability_estimate",
   "expected_after_fix": "field absent; fragility tag only"
+ },
+ "phantom_charm_V6": {
+  "_note": "fabricated citation must not appear in docs/copy",
+  "banned_strings": [
+   "Charming! Retail Option Volume",
+   "SSRN 5054370",
+   "Ni-Pearson 2021 Charm"
+  ],
+  "locations": [
+   "backend/services/gex_paper_accurate.py:1005-1007",
+   "backend/services/morning_briefing.py:750"
+  ],
+  "expected_after_fix": "all banned strings absent repo-wide"
  }
 }

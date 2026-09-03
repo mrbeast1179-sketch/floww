@@ -76,6 +76,19 @@ New violations missed in round 1, all with file:line. Severity upgraded where us
   for charm. The gamma verification pass explicitly REFUTED any Ni-team charm paper and ruled
   "charm stays out of v1". Morning-briefing comment (morning_briefing.py:750) repeats "Ni-Pearson 2021 Charm".
   Fix: remove attribution; hold charm behind unverified flag.
+- V6-UPGRADED (round 4): the docstring (gex_paper_accurate.py:1005-1007) names the phantom paper outright:
+  "'Charming! Retail Option Volume, Delta Hedging, and the...' SSRN 5054370" attributed to
+  "Ni-Pearson-Poteshman-White (2021)". This is the exact phantom title the gamma pass refuted
+  ("no Ni-team paper matching 'Charming!' found in author publication lists"). A named SSRN number
+  attached to a nonexistent paper is a fabricated citation — highest fix priority in backend lane.
+  Same docstring's Args list documents `gamma` and `net_gamma` params absent from the signature
+  (delta, theta, dte_days) — stale docs. Fix: delete citation + phantom SSRN, correct Args.
+- V5-ADDENDUM (round 4): `put_call_ratio_signal` docstring (:624) mistitles P&P as 'The Information OF
+  Option Volume...' — actual title uses 'IN'. Trivial; fix with the V5 relabel.
+- V19 (P2, acceptable-with-label): flow_outcomes.py:55 justifies N=2 forward sessions as "Pan-Poteshman
+  next-day power". P&P did find next-day (+weekly) predictability, so the horizon heuristic is defensible —
+  but it must read "heuristic" not derivation. oi_hygiene.py:18-20 + fetch_earnings.py:7-9 cite P&P as a
+  caveat ("semantics don't transfer") — CORRECT usage, no action.
 - V7 (P1): GPP year shuffle — `option_demand_pressure` says "(2008)" (gex_paper_accurate.py:781),
   `demand_pressure_premium` says "(2009) RFS" (:1676). Verified 2026-09-03: Garleanu-Pedersen-Poteshman,
   "Demand-Based Option Pricing", RFS 22(10):4259 (RFS vol 22 = 2009; 2008 = SSRN WP year) —

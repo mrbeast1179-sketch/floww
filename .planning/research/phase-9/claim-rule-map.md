@@ -75,6 +75,13 @@ unverified = not confirmed, never cite. Every product rule carries its WITH § c
   inventory — demand-pressure context, GPP 2009").
 - Does NOT support: the code's GEX+PCR proxy construction, any directional trade signal, or IV-premium
   calibration. Both backend docstrings must read "(2009)" + "our proxy" (closes V7 pending edit).
+- ROUND-4 middle-section findings (verified from full text): end-users net LONG SPX (large OTM-put piles,
+  "crashophobia") with dealers SHORT index options (daily delta-hedged P/L swings $100M↔$-$100M, ~$800M
+  cumulative over 6y); end-users net SHORT single-stock options; ~1/3 of index expensiveness from demand;
+  smirk steepness tracks demand skew. Usable context: index-vs-single-stock positioning asymmetry +
+  demand↔smirk link (supports XZZ rule context). Still supports NO directional signal.
+- NEW CANDIDATE (unverified, source-request): Bollen & Whaley 2004 — signed option volume ↔ IV changes
+  (cited inside GPP). Pull before any use.
 
 ## Gamma papers
 
