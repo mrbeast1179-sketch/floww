@@ -26,6 +26,8 @@ Every new/changed surface must pass each applicable line. CI-grep terms in paren
   exp→expiration mapping exact.
 - Gamma/GEX surfaces: OI-signed GEX labeled proxy not DDOI · no GX-as-Ni · no ΓIB-as-Barbon ·
   no flip-as-academic · no crash probability numbers · no -$200mm line.
+- ROUND-9: fragility tags must carry qualifiers — "association (not causation), large-cap sample,
+  pre/post-2010 regime" (Barbon full text). Bare "fragile" with no qualifier fails the checklist.
 - Toxicity/VPIN: user-facing "VPIN" banned unless signed trade-level feed connected; otherwise
   "toxicity proxy (not VPIN)".
 

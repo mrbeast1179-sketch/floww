@@ -94,3 +94,6 @@ write backend docstring patches (Agent 3 B8 lane) — all queued.
 - Round 8: §1 verdict-table corrected (P&P row now VIOLATION per V15; ΓIB row now REFUTED-as-cited per
   full text). Baltussen abstract verified verbatim + DOI. Fixture inventory re-checked (all keys present,
   checker PASS).
+- Round 9: first verified 0DTE paper (Brogaard-Han-Won 2023/2026, abstract-only — PDF SSRN-walled):
+  +1σ 0DTE → +9.1% vol, survives gamma controls, retail-driven — CONTRADICTS Cboe de-minimis; honest
+  position is "mixed, SPX-only, regime-dependent". Checklist gains fragility-qualifier rule.

@@ -22,6 +22,13 @@ Confidence abstract-only unless noted. Nothing below is a product rule until the
 - Targets: 0DTE share-of-volume growth papers (2023–2025), 0DTE pinning/expiry-effects studies.
 - Status: unavailable this pass — source-request: pull via SSRN query "0DTE" + JFE/RFS forthcoming lists.
 - Supports product rule? No — context only until verified.
+- ROUND-9: first verified 0DTE paper at abstract level — Brogaard, Han & Won, "Does 0DTE Options Trading
+  Increase Volatility?" (91pp, Apr 2023, rev Jan 2026), https://papers.ssrn.com/sol3/papers.cfm?abstract_id=4426358.
+  Abstract: staggered weeklies introduction as IV; +1σ 0DTE → +9.10% vs mean vol (15.91% of its SD);
+  survives gamma-hedging controls; driven by speculative retail. NOTE the tension: this CONTRADICTS the
+  Cboe "de minimis" narrative — honest position is "literature mixed, SPX-only, regime-dependent";
+  NEVER cite one side. Supports keeping 0DTE volOI≥2 gate + retail-speculation framing; supports NO
+  vol-prediction copy. Full PDF SSRN-walled (abstract-only).
 
 ## 2. Dealer gamma hedging intraday (CONFIRMED entries)
 
