@@ -126,3 +126,15 @@ premium/DTE/side. All computable from rows already in hand:
 - M5 Right-click row actions: filter matching trades, exclude ticker (!TICKER),
   track trade (needs W3 Tracker). M6 Pulse sort by Premium/Size with the documented
   $25K-premium floor quirk on non-Time sorts.
+
+## Fourth-read corrections (verified 2026-09-03)
+- C7 Finnhub /calendar/earnings is FREE tier but limited to 1 month historical +
+  new updates (verified in their docs; symbol filter + bmo/amc/dmh hour + quarter
+  included). Earnings PROXIMITY gating (R9.3) fully feasible; multi-quarter
+  surprise trends are NOT — drop surprise-history from W2, keep proximity + hour.
+- C8 R9.6 modal Net Premium + R9.7 Tracker close-detection both need OI/premium
+  HISTORY → B1 cadence dependency (like W4). Frontend fixture-first regardless;
+  close-detection ships as live-P/L first, OI-drift stages gated on B1.
+- C9 ROADMAP.md has no Phase 9 section (file owned by another agent, currently
+  in-flight). Phase 9 wiring into ROADMAP + kanban cards waits until their edit
+  lands — this dir is the source of truth meanwhile.
