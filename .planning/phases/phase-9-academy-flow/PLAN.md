@@ -22,6 +22,8 @@ true print tape ships as anything but an honest degraded state.
   ETL). Never a live tape on free data. Real-time TRF prints = paid gate.
 - D6 Greeks computed in-house (steal 1a/1b formulas); never depend on vendor greeks.
 - D7 One chain interface yfinance→Tradier→Databento (steal 1c/1d adapter pattern).
+  Tradier verified: sandbox = delayed chains WITHOUT greeks; realtime + hourly
+  Greeks need a funded brokerage account. In-house Greeks matter on every tier.
 - D8 Alert rule upgrade (steal [1]): volume >2σ AND price-range compression <1σ
   (coiled-price requirement) evaluated as an additional gate, display-first.
 
@@ -34,8 +36,9 @@ true print tape ships as anything but an honest degraded state.
   below, session label; RVOL ships as honest "needs baseline" state). Metric: bar
   values ±1% vs manual calc on same payload; spread bar matches (last-bid)/(ask-bid).
 - **W2 Context cols:** finnhub /calendar/earnings method + cache → earnings-proximity
-  col+filter; sector/industry filter (finnhub profile cache); ΔOI col (DuckDB OI
-  history); strategy badge ported to Pulse mapper (backend detect_spreads logic).
+  col+filter; sector/industry filter (finnhub profile2, free, + static
+  industry→sector map); ΔOI col (Mongo snapshot OI history until file-backed
+  DuckDB lands); strategy badge ported to Pulse mapper (backend detect_spreads logic).
   Metric: ΔOI matches next-day exchange truth on 5 sampled contracts.
 - **W3 Workflow:** chart modal v1 (Contract history + Net Premium ONLY — 5 views is
   scope creep; remaining 3 are W5); Tracker v1 (bookmark + live P/L via quotes +
@@ -45,7 +48,7 @@ true print tape ships as anything but an honest degraded state.
   highlighting + filters — single object, not three features). Metric: tracker P/L
   within a tick of mark; highlighting 100% on fixtures.
 - **W4 History-backed:** Net Premium trend + Strike Distribution + Vol/OI 14d footer
-  (needs W4-backend cadence; frontend ships against fixtures first, wires live when
+  (needs B1 cadence; frontend ships against fixtures first, wires live when
   cadence lands). Feed tabs (10) + ticker-scope search (!exclude) + results cap/sort
   + CSV export. Metric: trend values reproduce from snapshots on demand.
 - **W5 Score + depth:** signed Flow Score spec (-100..+100: sign matrix SIDE×C/P×hedge;
@@ -66,8 +69,11 @@ true print tape ships as anything but an honest degraded state.
   raise/segment Mongo 50-cap or roll to DuckDB for intraday baselines.
 - B2 finnhub earnings-calendar cache endpoint (free tier, aggressive cache).
 - B3 FINRA ATS weekly + Reg SHO daily ETL → venue-share + short-pressure panel.
-- B4 flow_alerts: quiet-accumulation gate (display-first), per-tag outcome tracking.
+- B4 (folded into B6/B7 below — kept numbering stable, no reuse).
 - B5 Align force_refresh min_volume 1000 vs market_scan 2500 (found Phase 7).
+- B6 Quiet-accumulation gate D8 (vol z>2 AND price-range compression, display-first)
+  in the alert eval path — needs baseline plumbing the frontend doesn't own.
+- B7 Per-tag 30-min outcome tracking in the outcomes module (steal [1]).
 
 ## Paid gates (later, priced before built)
 P1 Databento OPRA backfill → P2 live OPRA (true SIDE/sweep) → P3 TRF websocket

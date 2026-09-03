@@ -29,3 +29,5 @@ strategy-leg modal, CBOE scraping, repo clones.
 | R9.19 | Funnel empty-states with one-click widen actions | W7 | each action measurably widens (row count increases) on fixtures |
 | R9.20 | Dark-pool Top-N levels overlay on heatseeker (post-B3) | W7 | lines match FINRA ETL top-N notionals ±1%; labeled with date |
 | R9.21 | Right-click actions + Pulse premium/size sort with floor quirk | W7 | actions mutate filters correctly; non-Time sorts enforce $25K floor |
+| R9.22 | Quiet-accumulation gate evaluated display-first (B6) | W5 | gate fires on coiled-price fixtures; never blocks alerts in v1 |
+| R9.23 | Per-tag 30-min outcome hit-rates visible (B7) | W5 | tag table renders measured rates; empty-state honest below sample floor |
