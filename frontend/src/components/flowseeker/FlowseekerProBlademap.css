@@ -1057,3 +1057,41 @@
   color: var(--fsb-amber, #f59e0b);
   border: 1px solid rgba(245, 158, 11, 0.3);
 }
+
+/* Pulse tape (BladeMap header contract) — Solstice dark desk palette. */
+.fsb-pulsebar {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+  padding: 6px 12px;
+  border-bottom: 1px solid var(--fsb-border);
+}
+.fsb-pulsebar-group { display: inline-flex; align-items: center; gap: 4px; }
+.fsb-pulsebar select {
+  background: rgba(0, 0, 0, 0.25);
+  color: var(--fsb-text2);
+  border: 1px solid var(--fsb-border2);
+  border-radius: 4px;
+  padding: 3px 6px;
+}
+.fsb-pill {
+  display: inline-block;
+  padding: 1px 8px;
+  margin: 1px 2px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  border: 1px solid transparent;
+  white-space: nowrap;
+}
+.fsb-side-ask { color: #19d27c; border-color: rgba(25, 210, 124, 0.4); background: rgba(25, 210, 124, 0.08); }
+.fsb-side-bid { color: #ff6b7a; border-color: rgba(255, 77, 94, 0.4); background: rgba(255, 77, 94, 0.08); }
+.fsb-sig-bullish { color: #19d27c; border-color: rgba(25, 210, 124, 0.4); background: rgba(25, 210, 124, 0.08); }
+.fsb-sig-bearish { color: #ff6b7a; border-color: rgba(255, 77, 94, 0.4); background: rgba(255, 77, 94, 0.08); }
+.fsb-badge-silver { color: #b3b8c5; border-color: rgba(179, 184, 197, 0.35); background: rgba(179, 184, 197, 0.08); }
+.fsb-badge-golden { color: #f5b042; border-color: rgba(245, 176, 66, 0.45); background: rgba(245, 176, 66, 0.10); }
+.fsb-badge-whale { color: #29c5e0; border-color: rgba(41, 197, 224, 0.45); background: rgba(41, 197, 224, 0.10); }
+.fsb-table.fsb-pulse th { font-size: 10px; letter-spacing: 0.06em; }
+.fsb-table.fsb-pulse td { font-size: 11.5px; }

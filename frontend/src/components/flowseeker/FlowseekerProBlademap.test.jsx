@@ -224,3 +224,44 @@ describe("Phase 5.3 dual-path: Public API → cvserver fallback", () => {
     expect(mapPublicChainToRows([], 450, "SPY")).toEqual([]);
   });
 });
+
+describe("Pulse helpers — BladeMap tape contract", () => {
+  const { pulseScore10, pulseSignal, pulseBadges, aggregatePulse } = require("./FlowseekerProBlademap");
+
+  it("pulseScore10 maps conviction 20-99 to 2.0-9.9", () => {
+    expect(pulseScore10(20)).toBe(2.0);
+    expect(pulseScore10(99)).toBe(9.9);
+    expect(pulseScore10(80)).toBe(8.0);
+  });
+
+  it("pulseSignal: ASK→BULLISH, BID→BEARISH regardless of C/P", () => {
+    expect(pulseSignal("ASK")).toBe("BULLISH");
+    expect(pulseSignal("BID")).toBe("BEARISH");
+    expect(pulseSignal("ask")).toBe("BULLISH");
+  });
+
+  it("pulseBadges: SILVER always, GOLDEN ≥$900K, WHALE ≥$1M", () => {
+    expect(pulseBadges(417500)).toEqual(["SILVER"]);
+    expect(pulseBadges(899800)).toEqual(["SILVER"]);
+    expect(pulseBadges(950400)).toEqual(["SILVER", "GOLDEN"]);
+    expect(pulseBadges(1000000)).toEqual(["SILVER", "GOLDEN", "WHALE"]);
+  });
+
+  it("aggregatePulse rolls one contract into one row with 90s totals", () => {
+    const r = (premium, volume, ts) => ({ ticker: "SPY", type: "call", strike: 450, expiration: "2026-09-18", premium, volume, timestamp: ts, _conv: 80 });
+    const rows = aggregatePulse([r(100000, 100, 1000), r(200000, 200, 2000), { ticker: "QQQ", type: "put", strike: 500, expiration: "2026-09-18", premium: 50000, volume: 50, timestamp: 1500, _conv: 70 }]);
+    expect(rows.length).toBe(2);
+    expect(rows[0]._aggPrem).toBe(300000);
+    expect(rows[0]._aggN).toBe(2);
+  });
+
+  it("mapPublicChainToRows stamps side + mid + otm on every row", () => {
+    const rows = mapPublicChainToRows(
+      [{ strike: 460, type: "call", expiry: "2026-09-18", volume: 500, oi: 500, iv: 0.2, bid: 4, ask: 4.2, last: 4.1 }],
+      450, "SPY",
+    );
+    expect(rows[0].side).toBe("ASK");
+    expect(rows[0].mid).toBeCloseTo(4.1);
+    expect(rows[0].otm).toBeCloseTo((10 / 450) * 100);
+  });
+});

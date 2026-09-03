@@ -89,10 +89,19 @@ export function mapPublicChainToRows(contracts, spot, ticker) {
     const premium = Math.round(vol * mid * 100);
     const dte = dteOf(c.expiry);
     const cls = premium >= 5e7 ? "block" : dte <= 2 ? "sweep" : "unusual";
+    // Pulse SIDE inference (BladeMap contract): last trading at/above the
+    // quote mid = aggressive lift (ASK), below = hit (BID). No quotes →
+    // fall back to positioning proxy (high vol/OI = aggressive).
+    const midQ = (bid > 0 && ask > 0) ? (bid + ask) / 2 : 0;
+    const side = (bid > 0 && ask > 0 && last > 0) ? (last >= midQ ? "ASK" : "BID") : (voi >= 1.5 ? "ASK" : "BID");
+    const sp = Number(spot) || 0;
+    const strikeN = Number(c.strike);
+    const otm = sp > 0 && strikeN > 0 ? Math.abs((strikeN - sp) / sp) * 100 : null;
     const p = {
       ticker, type: String(c.type || "").toLowerCase(), classification: cls,
-      strike: Number(c.strike), expiration: c.expiry, timestamp: Date.now(),
+      strike: strikeN, expiration: c.expiry, timestamp: Date.now(),
       volume: vol, oi, vol_oi_ratio: voi, iv: iv < 1 ? iv * 100 : iv, premium,
+      mid, side, spot: sp || null, otm,
     };
     const cd = rowConviction(p);
     p._conv = cd.conv;
@@ -101,6 +110,57 @@ export function mapPublicChainToRows(contracts, spot, ticker) {
   }
   rows.sort((a, b) => b.vol_oi_ratio - a.vol_oi_ratio);
   return rows.slice(0, 100);
+}
+
+// ---------- BladeMap Pulse helpers (Tidehunter Pro tape) ----------
+// Mirrors the BladeMap.ai Pulse table contract from the desk reference:
+// deterministic SIDE→SIGNAL, 0-10 score, SILVER/GOLDEN/WHALE badges,
+// 90-second print aggregation. Exported for Jest tests.
+
+// Conviction 20-99 → BladeMap 0-10 score (1 decimal).
+export function pulseScore10(conv) {
+  const c = Math.max(20, Math.min(99, Number(conv) || 20));
+  return +(c / 10).toFixed(1);
+}
+
+// ASK (aggressive lift) → BULLISH, BID (hit) → BEARISH. Matches the
+// reference tape on every visible row (CALL or PUT alike).
+export function pulseSignal(side) {
+  return String(side || "").toUpperCase() === "ASK" ? "BULLISH" : "BEARISH";
+}
+
+// SILVER always; GOLDEN at premium ≥ $900K; WHALE at premium ≥ $1M.
+// Thresholds read off the reference tape ($899K SILVER vs $950K GOLDEN).
+export function pulseBadges(premium) {
+  const prem = Number(premium) || 0;
+  const b = ["SILVER"];
+  if (prem >= 900e3) b.push("GOLDEN");
+  if (prem >= 1e6) b.push("WHALE");
+  return b;
+}
+
+// Aggregate prints into 90-second windows per contract so one hot contract
+// renders ONE row (premium summed, print count kept) instead of flooding
+// the tape. Returns agg rows newest-first, capped at 50.
+export function aggregatePulse(rows, windowMs = 90e3, now = Date.now()) {
+  const map = new Map();
+  for (const r of rows || []) {
+    const key = `${r.ticker}|${String(r.type || "").toLowerCase()}|${r.strike}|${String(r.expiration || "").slice(0, 10)}`;
+    const g = map.get(key);
+    const ts = Number(r.timestamp) || now;
+    if (!g) {
+      map.set(key, { row: r, prem: Number(r.premium) || 0, size: Number(r.volume) || 0, n: 1, ts });
+    } else {
+      // Same contract seen again inside the window → roll up.
+      g.prem += Number(r.premium) || 0;
+      g.size += Number(r.volume) || 0;
+      g.n += 1;
+      if (ts > g.ts) { g.ts = ts; g.row = r; }
+    }
+  }
+  const out = [...map.values()].map((g) => ({ ...g.row, _aggPrem: g.prem, _aggSize: g.size, _aggN: g.n, _aggTs: g.ts }));
+  out.sort((a, b) => (b._aggPrem || 0) - (a._aggPrem || 0));
+  return out.slice(0, 50);
 }
 
 // ---------- cross-symbol scanner (scenner34 BladeMap grid) ----------
@@ -198,6 +258,11 @@ export default function FlowseekerProBlademap({ active = true }) {
   const [filter, setFilter] = useState("all");
   // Flow feed time-frame preset: All / 0DTE / 1-7D / Weekly / Monthly / Qtrly / LEAPS
   const [dteFilter, setDteFilter] = useState("all");
+  // Pulse tape controls (BladeMap header contract): ticker scope, DTE band,
+  // minimum 0-10 score. Defaults mirror the reference view (0-21D, ALL scores).
+  const [pulseTicker, setPulseTicker] = useState("ALL");
+  const [pulseDte, setPulseDte] = useState("0-21D");
+  const [pulseScore, setPulseScore] = useState(0);
   const [subtab, setSubtab] = useState("ofi");
   const [regime, setRegime] = useState({ label: "—", cls: "chop" });
   const [clock, setClock] = useState("");
@@ -519,15 +584,18 @@ export default function FlowseekerProBlademap({ active = true }) {
                 if (voi < 0.4) continue;
                 const iv = Number(vals[iIV]) || 0;
                 const last = Number(vals[iLast]) || 0;
-                const mid = last || (((Number(vals[iBid]) || 0) + (Number(vals[iAsk]) || 0)) / 2) || estPrice(strike, iv, exp.expiration);
+                const bidV = Number(vals[iBid]) || 0;
+                const askV = Number(vals[iAsk]) || 0;
+                const mid = last || ((bidV + askV) / 2) || estPrice(strike, iv, exp.expiration);
                 const premium = Math.round(vol * mid * 100);
                 const dte = dteOf(exp.expiration);
                 const cls = premium >= 5e7 ? "block" : dte <= 2 ? "sweep" : "unusual";
+                const side = (bidV > 0 && askV > 0 && last > 0) ? (last >= (bidV + askV) / 2 ? "ASK" : "BID") : (voi >= 1.5 ? "ASK" : "BID");
                 const p = {
                   ticker, type: sideU.toLowerCase(), classification: cls,
                   strike, expiration: exp.expiration, timestamp: Date.now(),
                   volume: vol, oi, vol_oi_ratio: voi, iv: iv < 1 ? iv * 100 : iv,
-                  premium,
+                  premium, mid, side, spot: null, otm: null,
                 };
                 const cd = rowConviction(p);
                 p._conv = cd.conv;
@@ -741,6 +809,21 @@ export default function FlowseekerProBlademap({ active = true }) {
       default: return true;
     }
   }), [signals, filter, dteFilter]);
+
+  // Pulse tape: 90s-aggregated, BladeMap-gated. One row per contract —
+  // ticker scope + DTE band + min score gate, ranked by aggregated premium.
+  const pulseRows = useMemo(() => {
+    const gated = filtered.filter((s) => {
+      if (pulseTicker !== "ALL" && s.ticker !== pulseTicker) return false;
+      const dte = Number(dteOf(s.expiration)) || 0;
+      if (pulseDte === "0-7D" && (dte < 0 || dte > 7)) return false;
+      else if (pulseDte === "0-21D" && (dte < 0 || dte > 21)) return false;
+      else if (pulseDte === "0-45D" && (dte < 0 || dte > 45)) return false;
+      if (pulseScore > 0 && pulseScore10(s._conv) < pulseScore) return false;
+      return true;
+    });
+    return aggregatePulse(gated);
+  }, [filtered, pulseTicker, pulseDte, pulseScore]);
 
   // scanner: filter + sort + KPI rollup. Simple mode ignores the hidden
   // advanced knobs (a Min-Vol set weeks ago must not silently filter an
@@ -1166,29 +1249,58 @@ export default function FlowseekerProBlademap({ active = true }) {
           {/* center */}
           <div className="fsb-col">
             <div className="fsb-panel fsb-flow-panel">
-              <div className="fsb-panel-h"><span>Live Flow Feed</span><span><i className="fsb-live-dot" /><span className="fsb-muted fsb-small">live · {filtered.length}</span></span></div>
+              <div className="fsb-panel-h"><span>Live Options Flow</span><span><i className="fsb-live-dot" /><span className="fsb-muted fsb-small">LIVE · LAST UPDATED {clock || "—"} · SHOWING {pulseRows.length} PRINTS</span></span></div>
+              <div className="fsb-pulsebar">
+                <label className="fsb-muted fsb-small">Ticker&nbsp;
+                  <select value={pulseTicker} onChange={(e) => setPulseTicker(e.target.value)}>
+                    <option value="ALL">All tickers</option>
+                    {WATCH.map((t) => <option key={t} value={t}>{t}</option>)}
+                  </select>
+                </label>
+                <span className="fsb-pulsebar-group"><span className="fsb-muted fsb-small">DTE</span>
+                  {[["0-7D", "0-7D"], ["0-21D", "0-21D"], ["0-45D", "0-45D"], ["ALL", "ALL"]].map(([v, l]) => (
+                    <button key={v} className={`fsb-chip fsb-chip-sm${pulseDte === v ? " active" : ""}`} onClick={() => setPulseDte(v)}>{l}</button>
+                  ))}
+                </span>
+                <span className="fsb-pulsebar-group"><span className="fsb-muted fsb-small">SCORE</span>
+                  {[[0, "ALL"], [3, "3+"], [5, "5+"], [7, "7+"]].map(([v, l]) => (
+                    <button key={l} className={`fsb-chip fsb-chip-sm${pulseScore === v ? " active" : ""}`} onClick={() => setPulseScore(v)}>{l}</button>
+                  ))}
+                </span>
+              </div>
               <div className="fsb-flow-wrap">
-                <table className="fsb-table">
+                <table className="fsb-table fsb-pulse">
                   <thead><tr>
-                    <th>Ticker</th><th>Type</th><th>Side</th><th className="num">Strike</th>
-                    <th>DTE</th><th className="num">Day $</th><th className="num">V/OI</th><th className="num">Conv</th>
+                    <th>FLOW ET</th><th>SYM</th><th className="num">STRIKE</th><th>C/P</th><th className="num">OTM</th><th>EXP</th><th className="num">DTE</th><th className="num">PRICE</th><th>SIDE</th><th>SIGNAL</th><th>BADGES</th><th className="num">SCORE</th><th className="num">SIZE</th><th className="num">PREM</th>
                   </tr></thead>
                   <tbody>
-                    {filtered.length === 0 && <tr><td colSpan={8} className="fsb-muted" style={{ padding: 14, lineHeight: 1.7 }}>Loading unusual options activity from <b style={{ color: "var(--fsb-blue)" }}>cvforge</b> (ranked by volume-vs-open-interest)…</td></tr>}
-                    {filtered.slice(0, 80).map((p, i) => {
+                    {pulseRows.length === 0 && <tr><td colSpan={14} className="fsb-muted" style={{ padding: 14, lineHeight: 1.7 }}>No prints pass the Pulse gates (DTE {pulseDte} · score {pulseScore === 0 ? "ALL" : pulseScore + "+"} · {pulseTicker}). Flow polls Public API first, cvserver fallback — ranked by 90s aggregated premium…</td></tr>}
+                    {pulseRows.map((p, i) => {
                       const conv = p._conv;
+                      const score = pulseScore10(conv);
+                      const side = String(p.side || (String(p.type || "").toLowerCase().startsWith("c") ? "ASK" : "BID"));
+                      const sig = pulseSignal(side);
+                      const badges = pulseBadges(p._aggPrem ?? p.premium);
+                      const cp = String(p.type || "").toLowerCase().startsWith("c") ? "CALL" : "PUT";
+                      const price = Number(p.mid) || (Number(p.volume) > 0 ? (Number(p.premium) || 0) / (Number(p.volume) * 100) : 0);
                       return (
-                        <tr key={`${p.ticker}-${p.timestamp}-${i}`} className={selected === p ? "selected" : ""}
+                        <tr key={`${p.ticker}-${p.strike}-${String(p.expiration || "").slice(0, 10)}-${i}`} className={selected === p ? "selected" : ""}
                             tabIndex={0} onClick={() => selectSignal(p)}
                             onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); selectSignal(p); } }}>
+                          <td className="fsb-muted">{fmtTime(p._aggTs ?? p.timestamp)}</td>
                           <td className="tk">{p.ticker}</td>
-                          <td className={`fsb-type-${typeOf(p).toLowerCase()}`}>{typeOf(p)}</td>
-                          <td className={sideOf(p) === "CALL" ? "fsb-side-call" : "fsb-side-put"}>{sideOf(p)}</td>
                           <td className="num">{Number(p.strike).toFixed(0)}</td>
-                          <td>{dteOf(p.expiration)}d</td>
-                          <td className="num">{fmtMoney(p.premium)}</td>
-                          <td className="num">{Number(p.vol_oi_ratio || 0).toFixed(1)}</td>
-                          <td className="num"><span className={`fsb-conv-bar${conv >= 80 ? "" : conv >= 65 ? " mid" : " low"}`} style={{ width: Math.max(8, conv) * 0.6 }} />{conv}</td>
+                          <td className={`fsb-type-${cp.toLowerCase()}`}>{cp}</td>
+                          <td className="num">{p.otm == null ? "—" : `+${Number(p.otm).toFixed(1)}%`}</td>
+                          <td className="fsb-muted">{String(p.expiration || "").slice(0, 10)}</td>
+                          <td className="num">{dteOf(p.expiration)}</td>
+                          <td className="num">{price > 0 ? price.toFixed(2) : "—"}</td>
+                          <td><span className={`fsb-pill fsb-side-${side.toLowerCase()}`}>{side}</span></td>
+                          <td><span className={`fsb-pill fsb-sig-${sig.toLowerCase()}`}>{sig}</span></td>
+                          <td>{badges.map((b) => <span key={b} className={`fsb-pill fsb-badge-${b.toLowerCase()}`}>{b}</span>)}</td>
+                          <td className="num">{score.toFixed(1)}</td>
+                          <td className="num">{Number(p._aggSize ?? p.volume) || 0}</td>
+                          <td className="num">{fmtMoney(p._aggPrem ?? p.premium)}{(p._aggN || 0) > 1 && <div className="fsb-muted fsb-small">90s {fmtMoney(p._aggPrem)} ({p._aggN})</div>}</td>
                         </tr>
                       );
                     })}
