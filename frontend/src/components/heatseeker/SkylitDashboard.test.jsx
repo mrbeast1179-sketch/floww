@@ -8,7 +8,7 @@
  * with HeatseekerDashboard.test.jsx so coverage spans both layouts.
  */
 import React from "react";
-import { render, screen, act } from "@testing-library/react";
+import { render, screen, act, fireEvent } from "@testing-library/react";
 import "@testing-library/jest-dom";
 
 // Mock IntersectionObserver — harmless for a smoke test, but defensive in
@@ -51,7 +51,7 @@ jest.mock("./RndDensityPanel",              () => () => <div data-testid="hs-rnd
 import SkylitDashboard from "./SkylitDashboard";
 
 describe("SkylitDashboard", () => {
-  test("mounts the skylit chrome and the steal-list bottom band", async () => {
+  test("mounts the skylit chrome with signal boxes tucked behind the toggle", async () => {
     await act(async () => {
       render(<SkylitDashboard ticker="SPY" />);
     });
@@ -61,6 +61,20 @@ describe("SkylitDashboard", () => {
     expect(screen.getByTestId("mock-control-bar")).toBeInTheDocument();
     expect(screen.getByTestId("mock-heatmap")).toBeInTheDocument();
     expect(screen.getByTestId("mock-metrics")).toBeInTheDocument();
+
+    // Bottom boxes are OUT of the main scroll by default (2026-09-03).
+    expect(screen.queryByTestId("skylit-steal-list-band")).not.toBeInTheDocument();
+    expect(screen.getByTestId("skylit-signals-toggle")).toBeInTheDocument();
+  });
+
+  test("signals toggle reveals the steal-list bottom band", async () => {
+    await act(async () => {
+      render(<SkylitDashboard ticker="SPY" />);
+    });
+
+    await act(async () => {
+      fireEvent.click(screen.getByTestId("skylit-signals-toggle"));
+    });
 
     // Steal-list bottom band — the whole point of this test
     expect(screen.getByTestId("skylit-steal-list-band")).toBeInTheDocument();
@@ -102,5 +116,25 @@ describe("SkylitDashboard", () => {
     expect(screen.getByTestId("skylit-steal-max-pain")).toBeInTheDocument();
     expect(screen.getByTestId("skylit-steal-wheel-income")).toBeInTheDocument();
     expect(screen.getByTestId("skylit-steal-max-pain-per-expiry-drift")).toBeInTheDocument();
+  });
+
+  test("expand button opens the full-page grid overlay and closes it", async () => {
+    await act(async () => {
+      render(<SkylitDashboard ticker="SPY" />);
+    });
+
+    expect(screen.queryByTestId("skylit-grid-expanded")).not.toBeInTheDocument();
+
+    await act(async () => {
+      fireEvent.click(screen.getByTestId("skylit-expand-btn"));
+    });
+    expect(screen.getByTestId("skylit-grid-expanded")).toBeInTheDocument();
+    // Overlay reuses the heatmap grid (mocked here) — inline + overlay.
+    expect(screen.getAllByTestId("mock-heatmap").length).toBeGreaterThanOrEqual(2);
+
+    await act(async () => {
+      fireEvent.click(screen.getByTestId("skylit-expand-close"));
+    });
+    expect(screen.queryByTestId("skylit-grid-expanded")).not.toBeInTheDocument();
   });
 });

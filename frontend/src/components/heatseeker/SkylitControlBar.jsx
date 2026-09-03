@@ -1,4 +1,4 @@
-import React, { memo, useState, useEffect } from "react";
+import React, { memo, useCallback, useEffect, useState } from "react";
 
 /**
  * SkylitControlBar — Second header bar with GEX/VEX tabs, LIVE badge,
@@ -23,12 +23,40 @@ function SkylitControlBar({
   onRefresh,
   expiries = 4,
   onExpiriesChange,
+  // Optional: open the full-page grid overlay (wired by SkylitDashboard;
+  // frozen App.js call sites omit it and the button degrades to a no-op).
+  onExpand,
+  // Auto-refresh cadence while Playback is armed.
+  playbackIntervalMs = 15000,
 }) {
   const [now, setNow] = useState(new Date());
+  // Playback (2026-09-03): arms interval refresh via onRefresh.
+  const [playing, setPlaying] = useState(false);
+  // Share feedback (2026-09-03): transient "Copied" label.
+  const [copied, setCopied] = useState(false);
 
   useEffect(() => {
     const id = setInterval(() => setNow(new Date()), 1000);
     return () => clearInterval(id);
+  }, []);
+
+  useEffect(() => {
+    if (!playing) return undefined;
+    const id = setInterval(() => { if (onRefresh) onRefresh(); }, playbackIntervalMs);
+    return () => clearInterval(id);
+  }, [playing, onRefresh, playbackIntervalMs]);
+
+  const handleShare = useCallback(async () => {
+    const url = typeof window !== "undefined" ? window.location.href : "";
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        await navigator.clipboard.writeText(url);
+      }
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    } catch (_) {
+      setCopied(false);
+    }
   }, []);
 
   const timeStr = now.toLocaleTimeString("en-US", {
@@ -146,12 +174,26 @@ function SkylitControlBar({
             <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10" />
           </svg>
         </button>
-        <button className="skylit-action-btn" title="Playback">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <polygon points="5 3 19 12 5 21 5 3" />
+        <button
+          className={`skylit-action-btn${playing ? " active" : ""}`}
+          title={playing ? "Playback on — auto-refreshing" : "Playback"}
+          onClick={() => setPlaying(!playing)}
+          data-testid="skylit-playback-btn"
+        >
+          <svg width="14" height="14" viewBox="0 0 24 24" fill={playing ? "currentColor" : "none"} stroke="currentColor" strokeWidth="2">
+            {playing ? (
+              <><rect x="5" y="4" width="4" height="16" /><rect x="15" y="4" width="4" height="16" /></>
+            ) : (
+              <polygon points="5 3 19 12 5 21 5 3" />
+            )}
           </svg>
         </button>
-        <button className="skylit-action-btn" title="View options">
+        <button
+          className="skylit-action-btn"
+          title="Expand grid full-screen"
+          onClick={() => { if (onExpand) onExpand(); }}
+          data-testid="skylit-expand-toolbar-btn"
+        >
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
             <rect x="3" y="3" width="7" height="7" />
             <rect x="14" y="3" width="7" height="7" />
@@ -159,11 +201,20 @@ function SkylitControlBar({
             <rect x="14" y="14" width="7" height="7" />
           </svg>
         </button>
-        <button className="skylit-action-btn" title="Share">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <circle cx="18" cy="5" r="3" /><circle cx="6" cy="12" r="3" /><circle cx="18" cy="19" r="3" />
-            <line x1="8.59" y1="13.51" x2="15.42" y2="17.49" /><line x1="15.41" y1="6.51" x2="8.59" y2="10.49" />
-          </svg>
+        <button
+          className="skylit-action-btn"
+          title={copied ? "Copied!" : "Share"}
+          onClick={handleShare}
+          data-testid="skylit-share-btn"
+        >
+          {copied ? (
+            <span style={{ fontSize: 10, fontWeight: 700 }}>✓</span>
+          ) : (
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <circle cx="18" cy="5" r="3" /><circle cx="6" cy="12" r="3" /><circle cx="18" cy="19" r="3" />
+              <line x1="8.59" y1="13.51" x2="15.42" y2="17.49" /><line x1="15.41" y1="6.51" x2="8.59" y2="10.49" />
+            </svg>
+          )}
         </button>
       </div>
     </div>

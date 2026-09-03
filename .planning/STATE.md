@@ -53,3 +53,8 @@ Phase 6 — Backlog Promotion [ACTIVE]. Phase 4 (Tidehunter Pro) is gating-only 
   /api/public/{bars,history,technical,expirations}; Triad row-click enriched
   with Public OSI+prices → real order path; fallback public→cvserver→yfinance
   reaffirmed. 7.5 (Heatseeker submit in frozen App.js) flagged for Nav.
+- 2026-09-03 — Phase 8 complete (open universe + Meridian fixes): PAID gate
+  removed, greeks/flow opened, ticker-bar free-text search; Dual-GEX numba
+  gamma, IV-Mid reason codes + T floor, Wheel 30s cache + 429 exemption;
+  Solstice band behind Signals toggle, grid expand overlay, toolbar buttons
+  live. 8.6 (App.js-owned leftovers) flagged for Nav.

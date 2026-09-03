@@ -1,4 +1,4 @@
-import React, { memo, useCallback, useState } from "react";
+import React, { memo, useCallback, useEffect, useState } from "react";
 import SkylitTickerBar from "./SkylitTickerBar";
 import SkylitControlBar from "./SkylitControlBar";
 import SkylitHeatmapGrid from "./SkylitHeatmapGrid";
@@ -69,6 +69,20 @@ function SkylitDashboard({
 }) {
   const [tradeMode, setTradeMode] = useState(false);
   const [selectedCell, setSelectedCell] = useState(null);
+  // Bottom signal boxes are out of the way by default (2026-09-03) —
+  // toggle to reveal the Meridian & Velocity band.
+  const [showSignals, setShowSignals] = useState(false);
+  // Full-page grid overlay: the in-frame heatmap only shows what fits;
+  // expand renders the same grid + sidebar full-screen with all rows.
+  const [expanded, setExpanded] = useState(false);
+
+  // Esc closes the expanded grid (local to this component).
+  useEffect(() => {
+    if (!expanded) return undefined;
+    const onKey = (e) => { if (e.key === "Escape") setExpanded(false); };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [expanded]);
 
   const handleCellClick = useCallback(
     (strike, colKey, value) => {
@@ -111,11 +125,35 @@ function SkylitDashboard({
         onExpiriesChange={onExpiriesChange}
         isLive={isLive}
         onRefresh={onRefresh}
+        onExpand={() => setExpanded(true)}
       />
 
       {/* 2.5 Trade Mode bar */}
       <div className="skylit-col-bar">
         <div className="skylit-col-spacer" />
+        <button
+          className="skylit-trade-mode-btn"
+          onClick={() => setExpanded(true)}
+          title="Expand grid full-screen (Esc to close)"
+          data-testid="skylit-expand-btn"
+        >
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <path d="M15 3h6v6" /><path d="M9 21H3v-6" />
+            <path d="M21 3l-7 7" /><path d="M3 21l7-7" />
+          </svg>
+          Expand
+        </button>
+        <button
+          className={`skylit-trade-mode-btn${showSignals ? " active" : ""}`}
+          onClick={() => setShowSignals(!showSignals)}
+          title="Signals: show Meridian & Velocity panels"
+          data-testid="skylit-signals-toggle"
+        >
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <polyline points="22 12 18 12 15 21 9 3 6 12 2 12" />
+          </svg>
+          Signals
+        </button>
         <button
           className={`skylit-trade-mode-btn${tradeMode ? " active" : ""}`}
           onClick={() => setTradeMode(!tradeMode)}
@@ -177,10 +215,10 @@ function SkylitDashboard({
         </div>
       </div>
 
-      {/* 3.5 Meridian & Velocity — bottom band of steal-list signals */}
-      {/* Mirrors HeatseekerDashboard Row 3 so the steal-list top-3 appear on
-          BOTH the default Solstice page (this component) AND the
-          Sidebar→Zenith page (HeatseekerDashboard legacy layout). */}
+      {/* 3.5 Meridian & Velocity — behind the Signals toggle (2026-09-03).
+          The boxes are out of the main scroll by default; toggle reveals
+          the full band. Testids preserved for visual-regression targeting. */}
+      {showSignals && (
       <div className="px-3 py-3 space-y-3 border-t border-slate-800/40" data-testid="skylit-steal-list-band">
         <div className="text-[9px] uppercase tracking-widest text-slate-500 font-bold">
           ◆ Meridian & Velocity · #1 Dual-GEX · #5 IV-Mid · #3 Wheel income
@@ -234,6 +272,51 @@ function SkylitDashboard({
           <RndDensityPanel ticker={ticker} expiries={1} />
         </div>
       </div>
+      )}
+
+      {/* 3.6 Expanded full-page grid overlay (2026-09-03). Same grid +
+          sidebar, full viewport, all rows visible. Esc or ✕ closes. */}
+      {expanded && (
+        <div
+          style={{ position: "fixed", inset: 0, zIndex: 50, background: "#0a0e1a", overflow: "auto", padding: 16 }}
+          data-testid="skylit-grid-expanded"
+          role="dialog"
+          aria-label="Expanded heatmap grid"
+        >
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+            <div style={{ fontWeight: 700 }}>
+              {ticker} · full grid <span style={{ color: "#94a3b8", fontWeight: 400 }}>(Esc to close)</span>
+            </div>
+            <button
+              className="skylit-trade-mode-btn"
+              onClick={() => setExpanded(false)}
+              data-testid="skylit-expand-close"
+            >
+              ✕ Close
+            </button>
+          </div>
+          <div style={{ display: "flex", gap: 16 }}>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <SkylitHeatmapGrid
+                data={data}
+                spot={spot}
+                ticker={ticker}
+                viewMode={viewMode}
+                onCellClick={handleCellClick}
+                onStrikeClick={handleStrikeClick}
+              />
+            </div>
+            <div style={{ width: 280, flexShrink: 0 }}>
+              <SkylitMetricsSidebar
+                data={data}
+                spot={spot}
+                viewMode={viewMode}
+                regime={regime}
+              />
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* 4. Bottom Ticker Info Bar */}
       <div className="skylit-bottom-bar">

@@ -145,6 +145,8 @@ async def rate_limit_middleware(request: Request, call_next):
     if request.method == "GET" and request.url.path.startswith((
         "/api/heatseeker", "/api/analytics", "/api/flowseeker", "/api/heatmap",
         "/api/spot", "/api/data", "/api/tickers", "/api/portfolio", "/api/alerts",
+        "/api/dual_gex", "/api/iv_mid", "/api/screener", "/api/wheel_income",
+        "/api/max_pain", "/api/contract", "/api/chain",
     )):
         return await call_next(request)
     client_ip = request.client.host if request.client else "unknown"
@@ -645,13 +647,9 @@ async def fetch_spot_and_chains_merged(ticker: str, max_expiries: int = 4) -> di
             pass
     yf_data["spot"]
 
-    # Free-tier short-circuit: use yfinance OI only
-    short = ticker.upper().replace("^", "")
-    if short not in PAID_TICKERS:
-        for c in yf_data["contracts"]:
-            c["oi_source"] = "yfinance"
-        return {**yf_data, "data_source": "yfinance"}
-
+    # Open universe (2026-09-03): every ticker attempts the Databento OI
+    # overlay via the generic OPRA parent fallback — no PAID_TICKERS gate.
+    # Misses fall through to yfinance-only below (unchanged).
     dbn_oi = {}
     dbn_success = False
     try:
@@ -2137,8 +2135,9 @@ async def flow_sse(
     """SSE flow endpoint for real-time options flow with paid-ticker and window enforcement."""
     t = ticker.strip().upper()
 
-    # Check paid ticker restriction
-    if t not in PAID_TICKERS:
+    # Check paid ticker restriction ("*" in PAID_TICKERS opens all tickers;
+    # set via /api/live/policy — open universe 2026-09-03).
+    if t not in PAID_TICKERS and "*" not in PAID_TICKERS:
         async def _error_stream():
             import json as _json
             msg = _json.dumps({"error": f"{t} not in paid_tickers. Add it via /api/live/policy.", "ticker": t})

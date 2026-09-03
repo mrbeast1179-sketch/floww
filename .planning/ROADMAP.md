@@ -188,6 +188,10 @@ exists first).
 
 ## Phase 7 — Public-API-Only Enforcement + Trade-Direct [COMPLETE 2026-09-03]
 
+(Phase 7 title shared with the Tidehunter Pulse Hardening track in
+`.planning/phases/phase-7-pulse-hardening/` — separate workstream, same
+number by coincidence. This section covers the public-api-only cutover.)
+
 **Goal:** Schwab + Alpha Vantage fully retired; every live market-data path is
 Public.com (cvserver → yfinance kept as emergency fallback only, per ADR-0002);
 node-click on Solstice/Triad shows live Public contract data and can submit a
@@ -215,3 +219,36 @@ in `TrinityView.jsx`, which the frozen Triad submit handler already accepts.
 **Tests:** `backend/tests/test_public_api_only.py` (35 policy tests, mocked/offline);
 `frontend/src/components/TrinityView.test.jsx` (base + enriched + failure-path).
 Live-verified 2026-09-03: SPY spot $773.05 via Public adapter (read-only).
+
+## Phase 8 — Open Universe + Meridian Fixes [COMPLETE 2026-09-03]
+
+**Goal:** Solstice search works for ANY stock (no SPY-only/rate-limit gating);
+Dual-GEX (#1) uses real numba gamma; IV-Mid (#5) explains INVALIDs with reason
+codes; Wheel (#3) survives dashboard polling via cache + 429 exemption;
+bottom boxes decluttered, grid expandable full-page, toolbar buttons alive.
+No `App.js` edits (frozen) — all UI work in editable heatseeker components.
+
+- [x] 8.1 Open universe: removed `PAID_TICKERS` yfinance-only short-circuit
+      (`server.py`) — every ticker attempts the Databento OI overlay;
+      `/api/greeks/profile` allowlist 400 dropped (404 when unseeded);
+      `/api/flow` honors `"*"` wildcard in `live_policy.paid_tickers`;
+      `SkylitTickerBar` free-text search (any symbol + Enter/Go)
+- [x] 8.2 Dual-GEX (#1): per-row gamma from `numba_greeks.bs_gamma_vec`
+      (S, K, T, IV) with flat-1.0 fallback only if the kernel fails;
+      `gamma_model` + honest note in the response
+- [x] 8.3 IV-Mid (#5): `_iv_row` reason codes (zero_mid / below_intrinsic /
+      degenerate_expiry / solve_failed), real `dte_days`, 2-day T floor so
+      1-DTE ATM rows can solve; below-intrinsic quotes correctly stay INVALID
+- [x] 8.4 Wheel (#3): 30s TTL cache on `_run_income_screener` (loader hit
+      once per identical screen); `/api/dual_gex|iv_mid|screener|wheel_income|
+      max_pain|contract|chain` added to the dashboard GET 429 exemption
+- [x] 8.5 Solstice declutter: Meridian & Velocity band behind a Signals
+      toggle (default hidden); Expand button + full-page grid overlay
+      (same grid + sidebar, Esc/✕ closes); toolbar Playback (interval
+      refresh), Grid (expand), Share (copy URL) all live
+- [ ] 8.6 App.js-owned leftovers (frozen — flagged): TickerSearch free-text
+      Enter, Heatseeker submit → Public order (7.5), prev/next ticker arrows
+
+**Tests:** `backend/tests/routes/test_steal_three_open_universe.py` (7 new);
+`SkylitDashboard.test.jsx` updated (band-behind-toggle + expand);
+new `SkylitControlBar.test.jsx` (4) + `SkylitTickerBar.test.jsx` (3).
