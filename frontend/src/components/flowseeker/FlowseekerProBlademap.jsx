@@ -13,7 +13,7 @@
  */
 import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { BACKEND_URL } from "../../config/api";
-import { mkScanRow, evalAlerts, evalTickerAlerts, streakOf, cleanHistory, tickerRollup, volSigma, annotateFirstSeen, sessionDay, fmtClock, fmtAge, awaySummary, scanRowsToCSV, oiChange, fmtUSD, fmtK, fmtIV, scoreGradeOf, pulseState, elapsedClock, formatFOLLOWStrip, tierOf, selectFires, pickBanner, bizDTE, spreadPosition, overviewStats, equityType, signedOtm, isOpexDay, highlightState } from "./scanLogic";
+import { mkScanRow, evalAlerts, evalTickerAlerts, streakOf, cleanHistory, tickerRollup, volSigma, annotateFirstSeen, sessionDay, fmtClock, fmtAge, awaySummary, scanRowsToCSV, oiChange, fmtUSD, fmtK, fmtIV, scoreGradeOf, pulseState, elapsedClock, formatFOLLOWStrip, tierOf, selectFires, pickBanner, bizDTE, spreadPosition, overviewStats, equityType, signedOtm, isOpexDay, highlightState, flagSpreadLegs } from "./scanLogic";
 import Wtipanel from "../Wtipanel";
 import RussellPanel from "../RussellPanel";
 import "./FlowseekerProBlademap.css";
@@ -859,6 +859,8 @@ export default function FlowseekerProBlademap({ active = true }) {
       prevVolRef.current.set(key, Number(s.volume) || 0);
       buf.push(s);
     }
+    // Strategy-leg fingerprints over the full snapshot leg set (heuristic).
+    try { flagSpreadLegs(signals); } catch { /* never break the tape */ }
     if (prevVolRef.current.size > 2000) {
       const keep = new Set(buf.map((r) => `${r.ticker}|${String(r.type || "").toLowerCase()}|${r.strike}|${String(r.expiration || "").slice(0, 10)}`));
       for (const k of [...prevVolRef.current.keys()]) if (!keep.has(k)) prevVolRef.current.delete(k);
@@ -1364,7 +1366,7 @@ export default function FlowseekerProBlademap({ active = true }) {
                           <td className="fsb-muted">{fmtClock(p._aggTs ?? p.timestamp, true)}</td>
                           <td className="tk" title={pcls === "SWEEP" ? "Sweep: urgent multi-exchange fill (heuristic)" : pcls === "BLOCK" ? "Block: negotiated single fill (heuristic)" : typeOf(p)}>{flowIcon}{p.ticker}</td>
                           <td className="num">{Number(p.strike).toFixed(0)}</td>
-                          <td className={`fsb-type-${cp.toLowerCase()}`}>{cp}</td>
+                          <td className={`fsb-type-${cp.toLowerCase()}`} title={p._strat ? `${p._strat} multi-leg fingerprint (heuristic: matched volumes, no exchange linkage)` : cp}>{p._strat ? "◈" : ""}{cp}</td>
                           <td className="num">{p.otm == null ? "—" : `+${Number(p.otm).toFixed(1)}%`}</td>
                           <td className="fsb-muted">{String(p.expiration || "").slice(0, 10)}</td>
                           <td className="num">{bizDTE(p.expiration)}</td>

@@ -5,7 +5,7 @@ import {
   awaySummary, scanRowsToCSV, oiChange, streakOf, isTradingDay, evalTickerAlerts,
   pulseState, elapsedClock, formatFOLLOWStrip,
   tierOf, selectFires, pickBanner, spreadPosition, overviewStats,
-  equityType, signedOtm, isOpexDay, highlightState,
+  equityType, signedOtm, isOpexDay, highlightState, flagSpreadLegs,
 } from "./scanLogic";
 
 describe("estimateDelta", () => {
@@ -918,5 +918,24 @@ describe("W3-partial highlighting — highlightState", () => {
     expect(highlightState({ volDelta: 0, volOI: 0.5, oi: 1000 })).toBe("NONE");
     expect(highlightState({ volDelta: 5000, volOI: 9, oi: 0 })).toBe("VOL_OI");
     expect(highlightState({})).toBe("NONE");
+  });
+});
+
+describe("W2 strategy-leg port — flagSpreadLegs", () => {
+  const leg = (ticker, type, strike, volume, exp = "2026-09-18") =>
+    ({ ticker, type, strike, expiration: exp, volume });
+  it("flags verticals on matched volumes, ignores the rest", () => {
+    const rows = [leg("SPY", "call", 450, 2000), leg("SPY", "call", 455, 2100), leg("SPY", "call", 460, 50)];
+    expect(flagSpreadLegs(rows)).toBe(2);
+    expect(rows[0]._strat).toBe("VERT?");
+    expect(rows[1]._strat).toBe("VERT?");
+    expect(rows[2]._strat).toBeUndefined();
+  });
+  it("flags straddles within 5% strikes, respects the 1000 floor", () => {
+    const rows = [leg("SPY", "call", 450, 3000), leg("SPY", "put", 445, 2900)];
+    expect(flagSpreadLegs(rows)).toBe(2);
+    expect(rows[0]._strat).toBe("STRADDLE?");
+    const small = [leg("SPY", "call", 450, 500), leg("SPY", "put", 445, 480)];
+    expect(flagSpreadLegs(small)).toBe(0);
   });
 });

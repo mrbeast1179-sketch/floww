@@ -702,3 +702,45 @@ export function highlightState({ volDelta, volOI, oi }) {
   if (voi >= 1) return "VOL_OI";
   return "NONE";
 }
+
+// ---------- Strategy-leg port (Phase 9 W2; mirrors backend flow_quality) ----------
+// Same fingerprints: vertical = same ticker+exp+type, different strikes, volume
+// ratio within 0.7–1.43x with 1000-contract floor each leg; straddle/strangle =
+// opposite types, strikes within 5%, matched volumes. Tags r._strat with
+// "VERT?" or "STRADDLE?" (heuristic — no multi-exchange leg linkage). Returns count.
+const SPREAD_LO = 0.7, SPREAD_HI = 1 / 0.7, SPREAD_VOL_FLOOR = 1000, STRADDLE_TOL = 0.05;
+export function flagSpreadLegs(rows) {
+  let n = 0;
+  const byTE = new Map();
+  for (const r of rows || []) {
+    const k = `${r.ticker}|${String(r.expiration || "").slice(0, 10)}`;
+    if (!byTE.has(k)) byTE.set(k, []);
+    byTE.get(k).push(r);
+  }
+  const ratioOk = (a, b) => {
+    const va = Number(a.volume) || 0, vb = Number(b.volume) || 0;
+    if (va < SPREAD_VOL_FLOOR || vb < SPREAD_VOL_FLOOR) return false;
+    const q = va / vb;
+    return q >= SPREAD_LO && q <= SPREAD_HI;
+  };
+  for (const legs of byTE.values()) {
+    if (legs.length < 2) continue;
+    for (let i = 0; i < legs.length; i++) {
+      for (let j = i + 1; j < legs.length; j++) {
+        const a = legs[i], b = legs[j];
+        if (!ratioOk(a, b)) continue;
+        const ta = String(a.type || "").toLowerCase(), tb = String(b.type || "").toLowerCase();
+        const ka = Number(a.strike) || 0, kb = Number(b.strike) || 0;
+        let tag = null;
+        if (ta === tb && ka !== kb) tag = "VERT?";
+        else if (ta !== tb && ka > 0 && kb > 0
+          && Math.abs(ka - kb) / Math.max(ka, kb) <= STRADDLE_TOL) tag = "STRADDLE?";
+        if (!tag) continue;
+        for (const leg of [a, b]) {
+          if (!leg._strat) { leg._strat = tag; n += 1; }
+        }
+      }
+    }
+  }
+  return n;
+}
