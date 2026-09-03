@@ -89,33 +89,11 @@ describe("SkylitDashboard", () => {
     }
 
     // Zoom + expand controls present.
-    expect(screen.getByTestId("skylit-zoom-in")).toBeInTheDocument();
-    expect(screen.getByTestId("skylit-zoom-out")).toBeInTheDocument();
     expect(screen.getByTestId("skylit-expand-btn")).toBeInTheDocument();
 
     // In-frame grid is the compact windowed mode (fits on screen).
     const inlineGrid = screen.getAllByTestId("mock-heatmap")[0];
     expect(inlineGrid).toHaveAttribute("data-window", "21");
-  });
-
-  test("zoom controls scale the heatmap area", async () => {
-    await act(async () => {
-      render(<SkylitDashboard ticker="SPY" />);
-    });
-
-    const area = screen.getByTestId("skylit-heatmap-area");
-    expect(area.style.zoom).toBe("1");
-
-    await act(async () => {
-      fireEvent.click(screen.getByTestId("skylit-zoom-in"));
-    });
-    expect(screen.getByTestId("skylit-heatmap-area").style.zoom).toBe("1.25");
-
-    await act(async () => {
-      fireEvent.click(screen.getByTestId("skylit-zoom-out"));
-      fireEvent.click(screen.getByTestId("skylit-zoom-out"));
-    });
-    expect(screen.getByTestId("skylit-heatmap-area").style.zoom).toBe("0.75");
   });
 
   test("expand button opens the full-page grid overlay and closes it", async () => {    await act(async () => {

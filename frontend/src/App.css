@@ -3761,6 +3761,252 @@ button, select, input {
   white-space: nowrap;
 }
 
+/* ── Expanded grid overlay — dark institutional ───────────────────── */
+.skylit-expanded-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  flex-direction: column;
+  background: #080b10;
+  overflow: hidden;
+}
+.skylit-expanded-header {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 16px;
+  background: #0d1117;
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+}
+.skylit-expanded-title {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+}
+.skylit-expanded-ticker {
+  font-family: "JetBrains Mono", monospace;
+  font-size: 14px;
+  font-weight: 700;
+  color: #f1f5f9;
+  letter-spacing: 0.02em;
+}
+.skylit-expanded-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: #cbd5e1;
+}
+.skylit-expanded-hint {
+  font-size: 10px;
+  color: #475569;
+  font-family: "JetBrains Mono", monospace;
+}
+.skylit-expanded-close {
+  font-family: "JetBrains Mono", monospace;
+  font-size: 11px;
+  font-weight: 600;
+  color: #94a3b8;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 6px;
+  padding: 6px 12px;
+  cursor: pointer;
+  transition: all 120ms;
+}
+.skylit-expanded-close:hover {
+  color: #f1f5f9;
+  background: rgba(255,255,255,0.08);
+  border-color: rgba(255,255,255,0.12);
+}
+.skylit-expanded-body {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  gap: 0;
+  overflow: hidden;
+}
+.skylit-expanded-grid {
+  flex: 1;
+  min-width: 0;
+  overflow: auto;
+  background: #0a0e1a;
+}
+.skylit-expanded-sidebar {
+  width: 260px;
+  flex-shrink: 0;
+  overflow-y: auto;
+  background: #0d1117;
+  border-left: 1px solid rgba(255,255,255,0.06);
+}
+
+/* ── Volume Profile page ──────────────────────────────────────────── */
+.volume-profile-page {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: #080b10;
+}
+.volume-profile-wrap {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+.volume-profile-header {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 16px;
+  background: #0d1117;
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+}
+.volume-profile-title {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+}
+.volume-profile-label {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #e2e8f0;
+}
+.volume-profile-meta {
+  font-family: "JetBrains Mono", monospace;
+  font-size: 11px;
+  color: #64748b;
+}
+.volume-profile-air-hint {
+  font-family: "JetBrains Mono", monospace;
+  font-size: 10px;
+  color: #94a3b8;
+  background: rgba(148,163,184,0.08);
+  border: 1px dashed rgba(148,163,184,0.2);
+  border-radius: 4px;
+  padding: 3px 8px;
+}
+.volume-profile-scroll {
+  flex: 1;
+  overflow: auto;
+  min-height: 0;
+  background: #0a0e1a;
+}
+.volume-profile-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-family: "JetBrains Mono", monospace;
+  font-size: 11px;
+}
+.volume-profile-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  background: #0d1117;
+  color: #94a3b8;
+  font-weight: 600;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 6px 10px;
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+  white-space: nowrap;
+}
+.volume-profile-th-strike {
+  left: 0;
+  z-index: 4 !important;
+  text-align: right !important;
+}
+.volume-profile-th-exp { text-align: right; min-width: 72px; }
+.volume-profile-th-tag { width: 60px; }
+.volume-profile-strike {
+  position: sticky;
+  left: 0;
+  z-index: 2;
+  background: #0d1117;
+  text-align: right;
+  padding: 3px 10px 3px 14px;
+  font-weight: 500;
+  color: #cbd5e1;
+  border-bottom: 1px solid rgba(255,255,255,0.04);
+  white-space: nowrap;
+}
+.volume-profile-strike.is-spot {
+  background: #ffffff !important;
+  color: #000 !important;
+  font-weight: 800;
+}
+.volume-profile-strike.is-air {
+  color: #64748b;
+  font-style: italic;
+}
+.volume-profile-spot-notch {
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 0; height: 0;
+  border-top: 4px solid transparent;
+  border-bottom: 4px solid transparent;
+  border-left: 5px solid #ffffff;
+}
+.volume-profile-row-spot td { background: rgba(255,255,255,0.03); }
+.volume-profile-cell {
+  text-align: right;
+  padding: 3px 10px;
+  border-bottom: 1px solid rgba(255,255,255,0.03);
+  border-left: 1px solid rgba(255,255,255,0.03);
+  white-space: nowrap;
+  min-width: 72px;
+}
+.volume-profile-tag-cell {
+  padding: 3px 6px;
+  border-bottom: 1px solid rgba(255,255,255,0.03);
+}
+.volume-profile-legend {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 16px;
+  background: #0a0e1a;
+  border-top: 1px solid rgba(255,255,255,0.06);
+}
+.volume-profile-legend-bar {
+  flex: 1;
+  height: 6px;
+  border-radius: 3px;
+  background: linear-gradient(90deg, #581c87, #7c3aed, #0e7490, #059669, #eab308);
+}
+.volume-profile-legend-label {
+  font-family: "JetBrains Mono", monospace;
+  font-size: 10px;
+  color: #64748b;
+  white-space: nowrap;
+}
+.volume-profile-legend-air {
+  font-family: "JetBrains Mono", monospace;
+  font-size: 10px;
+  color: #475569;
+}
+
+/* ── Selected cell readout (above grid) ───────────────────────────── */
+.skylit-selected-cell-readout {
+  font-family: "JetBrains Mono", monospace;
+  font-size: 10px;
+  color: #94a3b8;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.06);
+  border-radius: 4px;
+  padding: 3px 8px;
+  white-space: nowrap;
+}
+
 /* ============================================================
    GLOBAL THEME UNIFICATION — match everything to the
    Solstice dark/gold design system (index.css :root tokens)

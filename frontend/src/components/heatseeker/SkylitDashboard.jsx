@@ -49,12 +49,6 @@ function SkylitDashboard({
   // Full-page grid overlay: the in-frame heatmap only shows what fits;
   // expand renders the same grid + sidebar full-screen with all rows.
   const [expanded, setExpanded] = useState(false);
-  // Grid zoom (2026-09-03): bigger/smaller heatmap. Chrome-only `zoom`
-  // is fine — the terminal is the Chrome PWA.
-  const [gridZoom, setGridZoom] = useState(1);
-  const zoomIn = useCallback(() => setGridZoom((z) => Math.min(2, +(z + 0.25).toFixed(2))), []);
-  const zoomOut = useCallback(() => setGridZoom((z) => Math.max(0.5, +(z - 0.25).toFixed(2))), []);
-  const zoomReset = useCallback(() => setGridZoom(1), []);
 
   // Esc closes the expanded grid (local to this component).
   useEffect(() => {
@@ -123,30 +117,6 @@ function SkylitDashboard({
         )}
         <button
           className="skylit-trade-mode-btn"
-          onClick={zoomOut}
-          title="Smaller grid"
-          data-testid="skylit-zoom-out"
-        >
-          A−
-        </button>
-        <button
-          className="skylit-trade-mode-btn"
-          onClick={zoomReset}
-          title={`Reset zoom (now ${Math.round(gridZoom * 100)}%)`}
-          data-testid="skylit-zoom-reset"
-        >
-          {Math.round(gridZoom * 100)}%
-        </button>
-        <button
-          className="skylit-trade-mode-btn"
-          onClick={zoomIn}
-          title="Bigger grid"
-          data-testid="skylit-zoom-in"
-        >
-          A+
-        </button>
-        <button
-          className="skylit-trade-mode-btn"
           onClick={() => setExpanded(true)}
           title="Expand grid full-screen (Esc to close)"
           data-testid="skylit-expand-btn"
@@ -173,9 +143,8 @@ function SkylitDashboard({
 
       {/* 3. Main Content Area */}
       <div className="skylit-main-area">
-        {/* Heatmap Grid — zoomable (A− / % / A+). Chrome-only `zoom`
-            is fine: the terminal is the Chrome PWA. */}
-        <div className="skylit-heatmap-area" style={{ zoom: gridZoom }} data-testid="skylit-heatmap-area">
+        {/* Heatmap Grid */}
+        <div className="skylit-heatmap-area" data-testid="skylit-heatmap-area">
           {loading && (
             <div className="skylit-loading-overlay">
               <div className="skylit-loading-spinner" />
@@ -230,25 +199,27 @@ function SkylitDashboard({
           sidebar, full viewport, all rows visible. Esc or ✕ closes. */}
       {expanded && (
         <div
-          style={{ position: "fixed", inset: 0, zIndex: 50, background: "#0a0e1a", overflow: "auto", padding: 16 }}
+          className="skylit-expanded-overlay"
           data-testid="skylit-grid-expanded"
           role="dialog"
           aria-label="Expanded heatmap grid"
         >
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
-            <div style={{ fontWeight: 700 }}>
-              {ticker} · full grid <span style={{ color: "#94a3b8", fontWeight: 400 }}>(Esc to close)</span>
+          <div className="skylit-expanded-header">
+            <div className="skylit-expanded-title">
+              <span className="skylit-expanded-ticker">{ticker}</span>
+              <span className="skylit-expanded-label">Full grid</span>
+              <span className="skylit-expanded-hint">Esc to close</span>
             </div>
             <button
-              className="skylit-trade-mode-btn"
+              className="skylit-expanded-close"
               onClick={() => setExpanded(false)}
               data-testid="skylit-expand-close"
             >
               ✕ Close
             </button>
           </div>
-          <div style={{ display: "flex", gap: 16 }}>
-            <div style={{ flex: 1, minWidth: 0, zoom: gridZoom }}>
+          <div className="skylit-expanded-body">
+            <div className="skylit-expanded-grid">
               <SkylitHeatmapGrid
                 data={data}
                 spot={spot}
@@ -259,7 +230,7 @@ function SkylitDashboard({
                 density="full"
               />
             </div>
-            <div style={{ width: 280, flexShrink: 0 }}>
+            <div className="skylit-expanded-sidebar">
               <SkylitMetricsSidebar
                 data={data}
                 spot={spot}

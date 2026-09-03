@@ -174,7 +174,7 @@ function TickerSearch({ tickers, value, onChange }) {
     <div ref={ref} className="relative">
       <input
         className="mono text-[12px] px-2 py-1 rounded"
-        style={{ background: "var(--surface-1)", border: "1px solid var(--border-c)", color: "var(--text-primary)", width: 100 }}
+        style={{ background: "var(--panel)", border: "1px solid var(--border)", color: "var(--text-primary)", width: 100 }}
         value={q}
         onChange={e => { setQ(e.target.value); setOpen(true); }}
         onKeyDown={e => { if (e.key === "Enter") submitFreeText(); }}
@@ -962,7 +962,9 @@ export default function App() {
               ) : view === "multi" ? (
                 <MultiTickerHeatmap tickers={tickers} />
               ) : view === "profile" ? (
-                <VolumeProfileGrid data={displayData} spot={livespot?.spot ?? displayData?.spot} />
+                <div className="volume-profile-page">
+                  <VolumeProfileGrid data={displayData} spot={livespot?.spot ?? displayData?.spot} />
+                </div>
               ) : view === "skylit" || view === "grid" ? (
                 <SkylitDashboard
                   ticker={ticker}
