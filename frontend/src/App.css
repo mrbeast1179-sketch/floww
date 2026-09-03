@@ -3727,6 +3727,16 @@ button, select, input {
   line-height: 13px;
 }
 .trin-pct.up { background: rgba(6, 46, 24, 0.9); color: #4ade80; }
+/* Full density (2026-09-03): expanded overlay — roomier rows, larger
+   type, wider cells. Compact (default) keeps the tight in-frame sizing. */
+.trin-grid-table.density-full { font-size: 14px; }
+.trin-grid-table.density-full thead th { font-size: 12.5px; padding: 8px 12px; }
+.trin-grid-table.density-full .trin-row { height: 34px; }
+.trin-grid-table.density-full .trin-cell { min-width: 132px; padding: 4px 12px; }
+.trin-grid-table.density-full .trin-strike-cell { font-size: 14px; padding: 4px 12px 4px 6px; }
+.trin-grid-table.density-full .trin-spot-chip { font-size: 14px; padding: 2px 8px; }
+.trin-grid-table.density-full .trin-pct { font-size: 10px; line-height: 15px; }
+.trin-legend-window { color: #94a3b8; font-size: 11px; margin-left: 12px; }
 .trin-pct.down { background: rgba(69, 10, 10, 0.9); color: #f87171; }
 .trin-val-bold { font-weight: 800; }
 .trin-star { margin-left: 2px; }

@@ -23,8 +23,8 @@ global.IntersectionObserver = class IntersectionObserver {
 // Mock Zenith sub-components to null-mounts (no network calls; faster).
 jest.mock("./SkylitTickerBar",       () => () => <div data-testid="mock-ticker-bar" />);
 jest.mock("./SkylitControlBar",      () => () => <div data-testid="mock-control-bar" />);
-jest.mock("./SkylitHeatmapGrid",     () => ({ onCellClick }) => (
-  <div data-testid="mock-heatmap">
+jest.mock("./SkylitHeatmapGrid",     () => ({ onCellClick, windowRows, density }) => (
+  <div data-testid="mock-heatmap" data-window={windowRows} data-density={density}>
     <button
       data-testid="mock-heatmap-cell"
       onClick={() => onCellClick && onCellClick(650, "2026-09-18", 123.4)}
@@ -92,6 +92,10 @@ describe("SkylitDashboard", () => {
     expect(screen.getByTestId("skylit-zoom-in")).toBeInTheDocument();
     expect(screen.getByTestId("skylit-zoom-out")).toBeInTheDocument();
     expect(screen.getByTestId("skylit-expand-btn")).toBeInTheDocument();
+
+    // In-frame grid is the compact windowed mode (fits on screen).
+    const inlineGrid = screen.getAllByTestId("mock-heatmap")[0];
+    expect(inlineGrid).toHaveAttribute("data-window", "21");
   });
 
   test("zoom controls scale the heatmap area", async () => {
@@ -125,7 +129,11 @@ describe("SkylitDashboard", () => {
     });
     expect(screen.getByTestId("skylit-grid-expanded")).toBeInTheDocument();
     // Overlay reuses the heatmap grid (mocked here) — inline + overlay.
-    expect(screen.getAllByTestId("mock-heatmap").length).toBeGreaterThanOrEqual(2);
+    const grids = screen.getAllByTestId("mock-heatmap");
+    expect(grids.length).toBeGreaterThanOrEqual(2);
+    // Overlay grid is full-density with no row window (genuinely bigger).
+    expect(grids[grids.length - 1]).toHaveAttribute("data-density", "full");
+    expect(grids[grids.length - 1]).not.toHaveAttribute("data-window");
 
     await act(async () => {
       fireEvent.click(screen.getByTestId("skylit-expand-close"));

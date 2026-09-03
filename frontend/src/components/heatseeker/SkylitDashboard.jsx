@@ -205,6 +205,7 @@ function SkylitDashboard({
             viewMode={viewMode}
             onCellClick={handleCellClick}
             onStrikeClick={handleStrikeClick}
+            windowRows={21}
           />
         </div>
 
@@ -255,6 +256,7 @@ function SkylitDashboard({
                 viewMode={viewMode}
                 onCellClick={handleCellClick}
                 onStrikeClick={handleStrikeClick}
+                density="full"
               />
             </div>
             <div style={{ width: 280, flexShrink: 0 }}>
