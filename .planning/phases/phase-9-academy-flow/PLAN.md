@@ -82,3 +82,21 @@ P1 Databento OPRA backfill → P2 live OPRA (true SIDE/sweep) → P3 TRF websock
 Mobile card layouts, Discord share/image export (after P1), Atlas overlay (Heatseeker
 cross-check already same-terminal), options-strategy modal legs beyond badge,
 any CBOE scraping (prohibited), any repo clones (patterns only, Nav's rule).
+
+## Re-verification corrections (2026-09-03 — broke the first draft, fixed here)
+- C1 Snapshots are REQUEST-DRIVEN (server.py:1143 saves on heatmap build), not
+  scheduled: history exists only for viewed tickers at view cadence. B1 cadence job
+  is a HARD dependency for W4-history items, not nice-to-have. Frontend ships
+  fixture-first regardless.
+- C2 Shared DuckDB is :memory: (duckdb_engine.py:540). All durable history reads go
+  to Mongo (50/ticker cap) until the backend lane ships file-backed DuckDB. RVOL
+  20d intraday baselines cannot live in Mongo-50 — DuckDB file or raised cap first.
+- C3 /bars route is EQUITY-only (public_api.py:146). No contract bar history exists:
+  W3 modal contract history = Mongo snapshots first; OPTION-bars route = backend
+  proposal, not an assumption.
+- C4 Spread bar gets an explicit no-quote state (bid/ask/last often 0 on fallback
+  paths — the bar must say so, never guess position).
+- C5 detect_spreads port needs field mapping (under→ticker, exp→expiration); mapper
+  rows carry the full leg set, so the port is feasible in the W2 ticket.
+- C6 ΔOI metric is only meaningful if the previous snapshot is prior-day close —
+  cadence (B1) defines truth, not the frontend.
