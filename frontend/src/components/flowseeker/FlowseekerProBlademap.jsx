@@ -13,7 +13,7 @@
  */
 import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { BACKEND_URL } from "../../config/api";
-import { mkScanRow, evalAlerts, evalTickerAlerts, streakOf, cleanHistory, tickerRollup, volSigma, annotateFirstSeen, sessionDay, fmtClock, fmtAge, awaySummary, scanRowsToCSV, oiChange, fmtUSD, fmtK, fmtIV, scoreGradeOf, pulseState, elapsedClock, formatFOLLOWStrip, tierOf, selectFires, pickBanner, bizDTE, spreadPosition, overviewStats } from "./scanLogic";
+import { mkScanRow, evalAlerts, evalTickerAlerts, streakOf, cleanHistory, tickerRollup, volSigma, annotateFirstSeen, sessionDay, fmtClock, fmtAge, awaySummary, scanRowsToCSV, oiChange, fmtUSD, fmtK, fmtIV, scoreGradeOf, pulseState, elapsedClock, formatFOLLOWStrip, tierOf, selectFires, pickBanner, bizDTE, spreadPosition, overviewStats, equityType, signedOtm, isOpexDay } from "./scanLogic";
 import Wtipanel from "../Wtipanel";
 import RussellPanel from "../RussellPanel";
 import "./FlowseekerProBlademap.css";
@@ -258,6 +258,12 @@ export default function FlowseekerProBlademap({ active = true }) {
   const [howTo, setHowTo] = useState(false);            // HOW TO READ popover
   const [selected, setSelected] = useState(null);
   const [filter, setFilter] = useState("all");
+  // W6 filter depth: equity scope, moneyness, OPEX, strike range.
+  const [equity, setEquity] = useState("all");
+  const [money, setMoney] = useState("all");
+  const [opexOnly, setOpexOnly] = useState(false);
+  const [strikeMin, setStrikeMin] = useState("");
+  const [strikeMax, setStrikeMax] = useState("");
   // Flow feed time-frame preset: All / 0DTE / 1-7D / Weekly / Monthly / Qtrly / LEAPS
   const [dteFilter, setDteFilter] = useState("all");
   // Pulse tape controls (BladeMap header contract): ticker scope, DTE band,
@@ -806,16 +812,27 @@ export default function FlowseekerProBlademap({ active = true }) {
       case "leaps": if (dte < 91) return false; break;
       default: break;   // "all" — no DTE filter
     }
-    // Classification filter (type/conviction)
+    // Classification filter (type/conviction/side)
     switch (filter) {
       case "CALL": return side === "CALL";
       case "PUT": return side === "PUT";
       case "SWEEP": return cls === "SWEEP";
       case "BLOCK": return cls === "BLOCK";
+      case "ASK": return String(s.side || "").toUpperCase() === "ASK";
+      case "BID": return String(s.side || "").toUpperCase() === "BID";
       case "high": return s._conv >= 80;
-      default: return true;
+      default: break;
     }
-  }, [filter, dteFilter]);
+    // W6 depth gates: equity scope, signed moneyness, OPEX week, strike range.
+    if (equity !== "all" && equityType(s.ticker) !== equity) return false;
+    const sotm = signedOtm(s.type, s.strike, s.spot);
+    if (money === "OTM" && !(sotm != null && sotm > 0)) return false;
+    if (money === "ITM" && !(sotm != null && sotm < 0)) return false;
+    if (opexOnly && !isOpexDay(s.expiration)) return false;
+    if (strikeMin !== "" && Number(s.strike) < Number(strikeMin)) return false;
+    if (strikeMax !== "" && Number(s.strike) > Number(strikeMax)) return false;
+    return true;
+  }, [filter, dteFilter, equity, money, opexOnly, strikeMin, strikeMax]);
 
   const filtered = useMemo(() => signals.filter(leftPass), [signals, leftPass]);
 
@@ -1236,9 +1253,27 @@ export default function FlowseekerProBlademap({ active = true }) {
             <div className="fsb-panel">
               <div className="fsb-panel-h">Filters</div>
               <div className="fsb-chips">
-                {[["all", "All"], ["CALL", "Calls"], ["PUT", "Puts"], ["SWEEP", "Sweep"], ["BLOCK", "Block"], ["high", "≥80"]].map(([v, l]) => (
+                {[["all", "All"], ["CALL", "Calls"], ["PUT", "Puts"], ["SWEEP", "Sweep"], ["BLOCK", "Block"], ["ASK", "Ask"], ["BID", "Bid"], ["high", "≥80"]].map(([v, l]) => (
                   <button key={v} className={`fsb-chip${filter === v ? " active" : ""}`} onClick={() => setFilter(v)}>{l}</button>
                 ))}
+              </div>
+              <div className="fsb-panel-h fsb-panel-h-sm" style={{ marginTop: 8 }}>Equity</div>
+              <div className="fsb-chips">
+                {[["all", "All"], ["STOCK", "Stocks"], ["ETF", "ETFs"], ["INDEX", "Index"]].map(([v, l]) => (
+                  <button key={v} className={`fsb-chip fsb-chip-sm${equity === v ? " active" : ""}`} onClick={() => setEquity(v)} title={v === "all" ? "Whole market" : v === "STOCK" ? "Single names only (macro ETF flow excluded)" : v === "ETF" ? "ETF/index-product flow only" : "Index options only"}>{l}</button>
+                ))}
+              </div>
+              <div className="fsb-panel-h fsb-panel-h-sm" style={{ marginTop: 8 }}>Moneyness</div>
+              <div className="fsb-chips">
+                {[["all", "All"], ["OTM", "OTM"], ["ITM", "ITM"]].map(([v, l]) => (
+                  <button key={v} className={`fsb-chip fsb-chip-sm${money === v ? " active" : ""}`} onClick={() => setMoney(v)} title="From spot at print time; rows without spot are excluded when gated">{l}</button>
+                ))}
+                <button className={`fsb-chip fsb-chip-sm${opexOnly ? " active" : ""}`} onClick={() => setOpexOnly((o) => !o)} title="Only contracts expiring in the monthly OPEX week (third Friday)">OPEX</button>
+              </div>
+              <div className="fsb-panel-h fsb-panel-h-sm" style={{ marginTop: 8 }}>Strikes</div>
+              <div className="fsb-chips">
+                <input className="fsb-chip fsb-chip-sm" style={{ width: 64 }} type="number" placeholder="Min" value={strikeMin} onChange={(e) => setStrikeMin(e.target.value)} />
+                <input className="fsb-chip fsb-chip-sm" style={{ width: 64 }} type="number" placeholder="Max" value={strikeMax} onChange={(e) => setStrikeMax(e.target.value)} />
               </div>
               <div className="fsb-panel-h fsb-panel-h-sm" style={{ marginTop: 8 }}>DTE</div>
               <div className="fsb-chips">
@@ -1303,6 +1338,8 @@ export default function FlowseekerProBlademap({ active = true }) {
                       const sig = pulseSignal(side);
                       const badges = pulseBadges(p._aggPrem ?? p.premium);
                       const cp = String(p.type || "").toLowerCase().startsWith("c") ? "CALL" : "PUT";
+                      const pcls = String(p.classification || "").toUpperCase();
+                      const flowIcon = pcls === "SWEEP" ? "⌁ " : pcls === "BLOCK" ? "◫ " : "";
                       const price = Number(p.mid) || (Number(p.volume) > 0 ? (Number(p.premium) || 0) / (Number(p.volume) * 100) : 0);
                       const fill = Number(p.last) || 0;
                       const sp = spreadPosition(p.bid, p.ask, p.last);
@@ -1311,7 +1348,7 @@ export default function FlowseekerProBlademap({ active = true }) {
                             tabIndex={0} onClick={() => selectSignal(p)}
                             onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); selectSignal(p); } }}>
                           <td className="fsb-muted">{fmtClock(p._aggTs ?? p.timestamp, true)}</td>
-                          <td className="tk">{p.ticker}</td>
+                          <td className="tk" title={pcls === "SWEEP" ? "Sweep: urgent multi-exchange fill (heuristic)" : pcls === "BLOCK" ? "Block: negotiated single fill (heuristic)" : typeOf(p)}>{flowIcon}{p.ticker}</td>
                           <td className="num">{Number(p.strike).toFixed(0)}</td>
                           <td className={`fsb-type-${cp.toLowerCase()}`}>{cp}</td>
                           <td className="num">{p.otm == null ? "—" : `+${Number(p.otm).toFixed(1)}%`}</td>

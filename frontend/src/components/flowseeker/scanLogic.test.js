@@ -5,6 +5,7 @@ import {
   awaySummary, scanRowsToCSV, oiChange, streakOf, isTradingDay, evalTickerAlerts,
   pulseState, elapsedClock, formatFOLLOWStrip,
   tierOf, selectFires, pickBanner, spreadPosition, overviewStats,
+  equityType, signedOtm, isOpexDay,
 } from "./scanLogic";
 
 describe("estimateDelta", () => {
@@ -882,5 +883,30 @@ describe("W1 tracer — overviewStats", () => {
     expect(s.lean).toBe("Neutral");
     const e = overviewStats([]);
     expect(e).toMatchObject({ bullPrem: 0, bearPrem: 0, netPrem: 0, fir: 0, lean: "Neutral", n: 0 });
+  });
+});
+
+describe("W6 filter depth — equityType/signedOtm/isOpexDay", () => {
+  it("classifies tickers without a vendor", () => {
+    expect(equityType("SPY")).toBe("ETF");
+    expect(equityType("QQQ")).toBe("ETF");
+    expect(equityType("SPX")).toBe("INDEX");
+    expect(equityType("VIX")).toBe("INDEX");
+    expect(equityType("NVDA")).toBe("STOCK");
+    expect(equityType("tsla")).toBe("STOCK");
+    expect(equityType(null)).toBe("STOCK");
+  });
+  it("signed moneyness orients by type", () => {
+    expect(signedOtm("call", 460, 450)).toBeCloseTo(10 / 450, 5);
+    expect(signedOtm("call", 440, 450)).toBeCloseTo(-10 / 450, 5);
+    expect(signedOtm("put", 440, 450)).toBeCloseTo(10 / 450, 5);
+    expect(signedOtm("put", 460, 450)).toBeCloseTo(-10 / 450, 5);
+    expect(signedOtm("call", 460, null)).toBeNull();
+  });
+  it("OPEX is the third Friday", () => {
+    expect(isOpexDay("2026-09-18")).toBe(true);   // third Friday Sep 2026
+    expect(isOpexDay("2026-09-11")).toBe(false);  // second Friday
+    expect(isOpexDay("2026-09-19")).toBe(false);  // Saturday
+    expect(isOpexDay("junk")).toBe(false);
   });
 });

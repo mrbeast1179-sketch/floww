@@ -656,3 +656,35 @@ export function overviewStats(rows) {
   const lean = fir >= 0.3 ? (netPrem > 0 ? "Bullish" : netPrem < 0 ? "Bearish" : "Neutral") : "Neutral";
   return { bullPrem: bull, bearPrem: bear, netPrem, callPrem, putPrem, fir, pc, lean, n, rvol: null };
 }
+
+// ---------- W6 filter depth (Phase 9) ----------
+// Equity-type triple toggle: static map, no vendor needed. ETF macro flow
+// separated from single-name conviction per the Academy.
+const ETF_SET = new Set(["SPY", "QQQ", "IWM", "DIA", "TLT", "XLF", "XLE", "XLK", "XLV", "XLI", "XLU", "XLB", "XLY", "XLP", "XLC", "XLRE", "XBI", "XHB", "XME", "XOP", "XRT", "SMH", "SOXX", "ARKK", "ARKG", "TQQQ", "SQQQ", "UPRO", "SPXU", "SPXS", "SPXL", "QLD", "QID", "DDM", "DXD", "DIA", "UDOW", "SDOW", "TMF", "TMV", "TNA", "TZA", "FAS", "FAZ", "NUGT", "DUST", "USO", "UNG", "GLD", "SLV", "GDX", "HYG", "LQD", "IEF", "SHY", "TIP", "EEM", "EFA", "FXI", "EWJ", "EWZ", "INDA", "VTI", "VOO", "VEA", "VWO", "VNQ", "SCHD", "JEPI", "JEPQ", "QQQM", "SPYV", "SPYG", "IVV", "VO", "VB", "VUG", "VTV"]);
+const IDX_SET = new Set(["SPX", "NDX", "RUT", "VIX", "DJX", "OEX", "XEO", "NQX"]);
+export function equityType(ticker) {
+  const t = String(ticker || "").toUpperCase();
+  if (IDX_SET.has(t)) return "INDEX";
+  if (ETF_SET.has(t)) return "ETF";
+  return "STOCK";
+}
+
+// Signed moneyness from spot (our stored otm is absolute): + means OTM.
+export function signedOtm(type, strike, spot) {
+  const k = Number(strike), s = Number(spot);
+  if (!k || !s) return null;
+  const isCall = String(type || "").toLowerCase().startsWith("c");
+  return isCall ? (k - s) / s : (s - k) / s;
+}
+
+// OPEX = third Friday of the month (standard US equity expiry week).
+// Date-only inputs parse at local noon to dodge UTC-midnight timezone shift.
+export function isOpexDay(dateLike) {
+  const s = String(dateLike || "");
+  const d = new Date(s.length === 10 ? `${s}T12:00:00` : s);
+  if (Number.isNaN(d.getTime())) return false;
+  const y = d.getFullYear(), m = d.getMonth();
+  const first = new Date(y, m, 1);
+  const offset = (5 - first.getDay() + 7) % 7; // days to first Friday
+  return d.getDate() === 1 + offset + 14;
+}
