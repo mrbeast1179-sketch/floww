@@ -100,3 +100,29 @@ any CBOE scraping (prohibited), any repo clones (patterns only, Nav's rule).
   rows carry the full leg set, so the port is feasible in the W2 ticket.
 - C6 ΔOI metric is only meaningful if the previous snapshot is prior-day close —
   cadence (B1) defines truth, not the frontend.
+
+## W6 Filter depth (frontend-only, needs only W1 — the plan's biggest miss)
+The Academy's filter system IS the product for most users; Phase 9 scoped only
+premium/DTE/side. All computable from rows already in hand:
+- F1 Equity-type triple toggle (Stocks/ETF/Index): static map (SPY/QQQ/IWM/DIA/TLT
+  etc = ETF; SPX/VIX = index; else stock). ETF macro flow separated from single-name
+  conviction per the article. Metric: toggling ETFs off removes all ETF rows on fixture.
+- F2 Sweeps-only + Side (Bid/Mid/Ask) chips on Pulse (classification exists).
+- F3 OTM/ITM/0DTE toggles + OPEX-week-only + strike-range (min/max) inputs.
+- F4 Scanner: OI-growth filter (needs B1 cadence; fixture-first), contract/chain
+  sentiment sliders from bid/ask mix, absolute-value score mode (|score| > X).
+- F5 Row icons: sweep waves + multi-leg Layers badge from existing classification.
+
+## W7 Methodology surfaces (needs W3 Tracker + modal; turns docs into UI)
+- M1 Starter tab presets ship by default: "Broad $100K Stocks" + "High-Conviction
+  Sweeps $250K |score|>60" (the Academy's recommended first setup, not an empty page).
+- M2 Investigation checklist IN the chart modal (NetPrem 5-7D → Underlying$ →
+  Contract+IV+RVOL → Strike-1W → Vol/OI-14d → Heatseeker cross-check), each step a
+  checkbox with its read; hypothesis verdict recorded (confirmed/skipped + reason).
+- M3 Funnel guidance in empty states: "0 rows — widen shortage" with one-click
+  widen actions (drop score gate / widen DTE / include ETFs), per the ELI5 funnel.
+- M4 Dark-pool levels overlay on heatseeker (Top-N horizontal dashed lines + notional
+  labels from B3 FINRA data; needs B3 first — specced here, built after).
+- M5 Right-click row actions: filter matching trades, exclude ticker (!TICKER),
+  track trade (needs W3 Tracker). M6 Pulse sort by Premium/Size with the documented
+  $25K-premium floor quirk on non-Time sorts.

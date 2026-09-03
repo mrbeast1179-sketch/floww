@@ -21,3 +21,11 @@ Parent: PLAN.md (same dir). R = requirement, M = measurable acceptance.
 
 Non-requirements: paid keys, live OPRA/TRF, mobile layouts, Discord/image export,
 strategy-leg modal, CBOE scraping, repo clones.
+| R9.14 | Equity-type toggle + sweeps-only + side chips on Pulse | W6 | fixture: ETF-off removes all ETF rows; sweep-only keeps classified sweeps |
+| R9.15 | OTM/ITM/0DTE + OPEX + strike-range + OI-growth + sentiment sliders + |score| mode | W6 | each control moves row counts monotonically on fixtures; OI-growth fixture-first |
+| R9.16 | Sweep + multi-leg row icons from existing classification | W6 | synthetic sweep + vertical fixtures badge correctly |
+| R9.17 | Starter tab presets ship by default (2 Academy configs) | W7 | fresh profile opens with both tabs, gates verified by mount test |
+| R9.18 | In-modal investigation checklist with recorded verdicts | W7 | 6 steps checkable; verdict + reason persisted per print |
+| R9.19 | Funnel empty-states with one-click widen actions | W7 | each action measurably widens (row count increases) on fixtures |
+| R9.20 | Dark-pool Top-N levels overlay on heatseeker (post-B3) | W7 | lines match FINRA ETL top-N notionals ±1%; labeled with date |
+| R9.21 | Right-click actions + Pulse premium/size sort with floor quirk | W7 | actions mutate filters correctly; non-Time sorts enforce $25K floor |
