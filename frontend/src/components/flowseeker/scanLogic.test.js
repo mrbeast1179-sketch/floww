@@ -7,6 +7,7 @@ import {
   tierOf, selectFires, pickBanner, spreadPosition, overviewStats,
   equityType, signedOtm, isOpexDay, highlightState, flagSpreadLegs,
   interpDeltaIV, skewLevels, pinRisk, quoteSkew, midDrift, stampPollDeltas, nearestExpiryPin,
+  rollSpread, pushCapped,
 } from "./scanLogic";
 
 describe("estimateDelta", () => {
@@ -1030,5 +1031,25 @@ describe("nearestExpiryPin — Friday gate + nearest expiry", () => {
   it("null on empty or ticker mismatch", () => {
     expect(nearestExpiryPin([], "SPY", MON)).toBeNull();
     expect(nearestExpiryPin([r("SPY", 450, 100, "2026-09-18")], "QQQ", MON)).toBeNull();
+  });
+});
+
+describe("rollSpread — Roll 1984 bounce estimator", () => {
+  it("recovers known spread from synthetic bounce", () => {
+    const px = [100, 101, 100, 101, 100, 101, 100, 101, 100]; // 8 even deltas
+    const r = rollSpread(px);
+    expect(r.truncated).toBe(false);
+    expect(r.spread).toBeCloseTo(2, 6);
+    expect(r.n).toBe(9);
+  });
+  it("truncates flat and trending series to 0", () => {
+    expect(rollSpread([5, 5, 5, 5, 5]).truncated).toBe(true);
+    expect(rollSpread([5, 5, 5, 5, 5]).spread).toBe(0);
+    expect(rollSpread([1, 2, 3, 4, 5, 6]).truncated).toBe(true);
+  });
+  it("needs 3+ mids; pushCapped bounds the ring", () => {
+    expect(rollSpread([1, 2]).spread).toBeNull();
+    const r = pushCapped(pushCapped([1, 2], 3, 3), 4, 3);
+    expect(r).toEqual([2, 3, 4]);
   });
 });
