@@ -276,3 +276,50 @@ No `App.js` edits (frozen) — all UI work in editable heatseeker components.
 **Tests:** `backend/tests/routes/test_steal_three_open_universe.py` (7 new);
 `SkylitDashboard.test.jsx` updated (band-behind-toggle + expand);
 new `SkylitControlBar.test.jsx` (4) + `SkylitTickerBar.test.jsx` (3).
+
+## Phase 9 — Architect Control (ACTIVE 2026-09-04, Nav directive: own floww)
+
+**Agent audit verdicts (evidence-backed 2026-09-04):**
+- Agent 1 (architect): PASS — 10/10 DoD docs in
+  `.planning/phases/phase-9-academy-flow/` + real fixes in `c9bfa78`
+  (mock-feed opt-in, pairs threadpool). Unpushed (phase9 branch).
+- Agent 2 (frontend): PASS — `d222dee` merged to origin/main, 39 files
+  strictly in-lane, 13 suites, spot-checks real (spread clamp/NO_QUOTE,
+  FIR gates, subtractive filters, dark-pool no-side). RISK: modules are
+  ORPHANED — `FlowseekerProBlademap.jsx` mounts none of them (their
+  CR-001 tracks the compose pass).
+- Agent 3 (tidehunter): PASS with caveats — SHIP work is real client-side
+  logic (rollPooled, pin-risk, mid-drift), 4 commits on tidehunter local
+  main, backend untouched. "398/398" was frontend-Jest, not backend.
+  `tests/test_backtest_report.py` was 3/3 RED (pre-existing, unrelated).
+- Agent 4 (research): PASS — claim map, score spec, dark-pool
+  methodology, fixtures, copy checklist all present; rounds committed.
+
+**Public.com plan vs reality (2026-09-04):**
+- REAL: PublicBroker + adapter + 7 public routes + brokerage/trading +
+  public-first merged path (Phases 3/7).
+- MISSING: multiplexer/TokenBucket, Mongo chain cache, `/api/public/context`,
+  Key Moments + Earnings Hub fetching (zero hits in adapter — app-only
+  features, not in the Individual API surface).
+- RATE HOLE (was live): Triad 7-ticker 30s fan-out ≈ 80+ upstream/min.
+  FIXED 2026-09-04: 60s TTL + coalescing + stale-serve in
+  `fetch_chain_from_public_api` (broker-identity keys = test-safe);
+  Triad cadence 30s → 60s.
+
+**Architect rulings (binding unless Nav overrides):**
+- R1 Key Moments/Earnings-Hub API pillar KILLED — endpoint does not exist
+  in our API surface. Agent 4's 1.2x booster + Agent 2's AI pane redirect
+  to honest-empty states. Reopen only with API-docs proof (SPIKE).
+- R2 `/api/backtest/report/{ticker}` IMPLEMENTED 2026-09-04 (was 404;
+  prior "done" claim was premature — corrected by building it). Untracked
+  `tests/test_backtest_report.py` adopted, 3/3 green.
+- R3 Tidehunter local main: 4 commits, `merge-tree` shows ZERO conflicts
+  vs origin/main, zero file overlap. Land via rebase + push, NEVER force.
+  Owner: tidehunter lane, at their pace — no action taken from here.
+- R4 Agent 2 wiring (CR-001 compose pass) is the Phase 9 frontend gate.
+  No new surfaces until Blademap mounts existing modules.
+- R5 No agent touches another lane's files; conflicts resolved by rebase,
+  never force-push. Verified this session via isolated worktrees.
+
+**Next:** Agent 2 compose pass → Agent 3 rebase/push → Agent 4 evaluator
+run against live payloads → Phase 9 integration checklist sign-off.

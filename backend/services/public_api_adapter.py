@@ -82,6 +82,44 @@ def _normalize_symbol(symbol: str) -> str:
     return symbol.upper().replace("^", "")
 
 
+# ---------------------------------------------------------------------------
+# Chain response cache (rate-limit shield, 2026-09-04).
+#
+# One fetch_chain_from_public_api(t, N) fans out to ~2+N live Public calls
+# (expirations + quotes + one chain per expiry). Uncached, the Triad 7-ticker
+# 30s poll plus the 15s flow poll sustain ~80+ upstream calls/min on a single
+# retail key. This cache (60s TTL + per-key coalescing locks + stale-serve)
+# cuts that ~4x. Cache identity includes the broker object so unit tests
+# with per-test mock brokers never see each other's entries.
+# ---------------------------------------------------------------------------
+
+_CHAIN_CACHE: dict[tuple[str, int], tuple[float, Any, dict[str, Any]]] = {}
+_CHAIN_CACHE_TTL = 60.0
+_CHAIN_LOCKS: dict[tuple[str, int], asyncio.Lock] = {}
+_CHAIN_CACHE_MAX = 128
+
+
+def _chain_lock(key: tuple[str, int]) -> asyncio.Lock:
+    lock = _CHAIN_LOCKS.get(key)
+    if lock is None:
+        lock = asyncio.Lock()
+        _CHAIN_LOCKS[key] = lock
+    return lock
+
+
+def _clear_chain_cache() -> None:
+    """Drop all cached chains (tests + admin use)."""
+    _CHAIN_CACHE.clear()
+
+
+def _cached_copy(entry: dict[str, Any], stale: bool) -> dict[str, Any]:
+    out = dict(entry)
+    out["contracts"] = list(entry.get("contracts", []))
+    out["expiries"] = list(entry.get("expiries", []))
+    out["stale"] = stale
+    return out
+
+
 async def fetch_chain_from_public_api(
     ticker: str,
     max_expiries: int = 4,
@@ -90,14 +128,47 @@ async def fetch_chain_from_public_api(
     Fetch options chain from Public API, return floww-shaped dict.
 
     Returns the same shape as fetch_spot_and_chains_merged:
-        {"ticker": str, "spot": float, "expiries": [...], "contracts": [...], "data_source": "public_api"}
+        {"ticker": str, "spot": float, "expiries": [...], "contracts": [...], "data_source": "public_api", "stale": bool}
 
-    Returns None if Public API key missing or call fails.
+    Results are cached 60s per (ticker, max_expiries) with per-key request
+    coalescing; on upstream failure a stale entry is served when present.
+    Returns None if Public API key missing or call fails with no cache.
     """
     pb = await _get_broker()
     if pb is None:
         return None
 
+    key = (ticker.upper(), max_expiries)
+    now = time.monotonic()
+    hit = _CHAIN_CACHE.get(key)
+    if hit is not None and hit[1] is pb and now - hit[0] < _CHAIN_CACHE_TTL:
+        return _cached_copy(hit[2], stale=False)
+
+    async with _chain_lock(key):
+        # Re-check under the lock (coalesced waiters share one fetch).
+        now = time.monotonic()
+        hit = _CHAIN_CACHE.get(key)
+        if hit is not None and hit[1] is pb and now - hit[0] < _CHAIN_CACHE_TTL:
+            return _cached_copy(hit[2], stale=False)
+        result = await _fetch_chain_live(pb, ticker, max_expiries)
+        if result is not None:
+            result["stale"] = False
+            if len(_CHAIN_CACHE) >= _CHAIN_CACHE_MAX:
+                _CHAIN_CACHE.pop(next(iter(_CHAIN_CACHE)))
+            _CHAIN_CACHE[key] = (time.monotonic(), pb, result)
+            return _cached_copy(result, stale=False)
+        if hit is not None and hit[1] is pb:
+            log.warning("Public API chain failed for %s — serving stale cache", ticker)
+            return _cached_copy(hit[2], stale=True)
+        return None
+
+
+async def _fetch_chain_live(
+    pb: PublicBroker,
+    ticker: str,
+    max_expiries: int = 4,
+) -> dict[str, Any] | None:
+    """Uncached chain fetch (one call = ~2+N upstream Public calls)."""
     trading = pb.get_trading_account()
     if trading is None:
         log.warning("No trading account for Public API")

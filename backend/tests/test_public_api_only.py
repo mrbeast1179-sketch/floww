@@ -307,8 +307,82 @@ class TestTechnicalMath:
 
 
 # ---------------------------------------------------------------------------
-# 7. Health reports public_api, retired stub stays disabled
+# 8. Chain cache: TTL + coalescing + stale-serve (rate-limit shield)
 # ---------------------------------------------------------------------------
+
+class TestChainCache:
+    @pytest.fixture(autouse=True)
+    def _clean(self):
+        import services.public_api_adapter as adapter
+        adapter._clear_chain_cache()
+        yield
+        adapter._clear_chain_cache()
+
+    def _broker(self, spot=450.0, expiries=None):
+        broker = MagicMock()
+        broker.get_trading_account.return_value = MagicMock(account_id="TEST-ACCT")
+        broker.get_option_expirations = AsyncMock(
+            return_value=expiries or ["2026-09-18", "2026-09-25"])
+        q = MagicMock()
+        q.mid_price = spot
+        q.last = spot
+        broker.get_quotes = AsyncMock(return_value=[q])
+        broker.get_option_chain_parsed = AsyncMock(return_value={"calls": [], "puts": []})
+        return broker
+
+    @pytest.mark.asyncio
+    async def test_second_call_served_from_cache(self):
+        import services.public_api_adapter as adapter
+        broker = self._broker()
+        with patch.object(adapter, "_get_broker", new=AsyncMock(return_value=broker)):
+            # Empty chain -> None is NOT cached (falsy contracts); use expiries
+            # with no parsed data is also None... so give it contracts via
+            # parsed side effect below instead.
+            broker.get_option_chain_parsed = AsyncMock(return_value={
+                "calls": [MagicMock(symbol="X", expiration="2026-09-18", strike=450,
+                                    open_interest=10, iv=0.2, delta=0.5, gamma=0.01,
+                                    theta=0, vega=0.1, bid=1.0, ask=1.2, volume=5)],
+                "puts": [],
+            })
+            r1 = await adapter.fetch_chain_from_public_api("CACHE1", max_expiries=1)
+            r2 = await adapter.fetch_chain_from_public_api("CACHE1", max_expiries=1)
+        assert r1 is not None and r2 is not None
+        assert r1["stale"] is False and r2["stale"] is False
+        assert broker.get_option_expirations.await_count == 1
+
+    @pytest.mark.asyncio
+    async def test_different_broker_refetches(self):
+        import services.public_api_adapter as adapter
+        with patch.object(adapter, "_get_broker",
+                          new=AsyncMock(return_value=self._broker(spot=450.0))):
+            await adapter.fetch_chain_from_public_api("CACHE2", max_expiries=1)
+        # Different broker object, same key -> must NOT serve the other
+        # broker's entry (unit-test isolation + key-rotation safety).
+        b2 = self._broker(spot=451.0)
+        with patch.object(adapter, "_get_broker", new=AsyncMock(return_value=b2)):
+            r = await adapter.fetch_chain_from_public_api("CACHE2", max_expiries=1)
+        assert b2.get_option_expirations.await_count == 1
+        assert r is None or r.get("spot") in (450.0, 451.0)
+
+    @pytest.mark.asyncio
+    async def test_stale_served_on_failure(self):
+        import services.public_api_adapter as adapter
+        broker = self._broker()
+        broker.get_option_chain_parsed = AsyncMock(return_value={
+            "calls": [MagicMock(symbol="X", expiration="2026-09-18", strike=450,
+                                open_interest=10, iv=0.2, delta=0.5, gamma=0.01,
+                                theta=0, vega=0.1, bid=1.0, ask=1.2, volume=5)],
+            "puts": [],
+        })
+        with patch.object(adapter, "_get_broker", new=AsyncMock(return_value=broker)):
+            r1 = await adapter.fetch_chain_from_public_api("CACHE3", max_expiries=1)
+            assert r1 is not None
+            # Now break the upstream for the SAME broker object.
+            broker.get_option_expirations = AsyncMock(side_effect=RuntimeError("down"))
+            with patch.object(adapter, "_CHAIN_CACHE_TTL", 0):
+                r2 = await adapter.fetch_chain_from_public_api("CACHE3", max_expiries=1)
+        assert r2 is not None and r2["stale"] is True
+        assert r2["contracts"] == r1["contracts"]
 
 class TestHealthPublicApi:
     def test_public_api_healthy_with_key(self):

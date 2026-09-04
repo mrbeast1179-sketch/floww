@@ -237,7 +237,11 @@ export default function TrinityView({ onFocusTicker, onTradeSelect }) {
     mountedRef.current = true;
     if (Object.keys(cacheRef.current).length > 0) { setAllData(cacheRef.current); setLoading(false); }
     fetchAll(false);
-    const id = setInterval(() => fetchAll(true), 30000);
+    // 60s cadence (2026-09-04): each poll fans out to ~7 uncached Public
+    // chain fetches (~6 upstream calls each). 30s sustained ~80+/min on a
+    // single retail key — 60s halves that alongside the backend 60s chain
+    // TTL without visibly aging the Triad view.
+    const id = setInterval(() => fetchAll(true), 60000);
     return () => { mountedRef.current = false; clearInterval(id); };
   }, [fetchAll]);
 
