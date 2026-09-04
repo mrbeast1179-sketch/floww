@@ -79,6 +79,7 @@ async def get_options_chain(
         "expiries": result.get("expiries", []),
         "contracts": contracts,
         "data_source": "public_api",
+        "stale": result.get("stale", False),
         "note": "served by Public API (alpha retired 2026-09-03)",
     }
 
