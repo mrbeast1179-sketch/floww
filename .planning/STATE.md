@@ -1,7 +1,7 @@
 # STATE.md — Confluence Decoder
 
 **Last updated:** 2026-09-04
-**Branch:** `main` @ 9722f46 (docs(phase9): fix stale test counts in 3 .planning files)
+**Branch:** `main` @ 5311ccc (docs(phase9): fix commit count framing)
 **Tests:** backend 3 passed, 20 warnings · frontend 56 suites / 409 tests · lane trio 4 suites / 178 tests · craco build clean
 **Lint:** ruff (E, E722, F, W, I; ignore E501)
 
@@ -13,7 +13,7 @@ Deploy package hardened and ready: Oracle Always Free runbook
 provisioning** — Phase 1 of ROADMAP.md starts the moment the VM exists.
 
 **Last updated:** 2026-09-04
-**Branch:** `main` @ 9722f46 (docs(phase9): fix stale test counts in 3 .planning files)
+**Branch:** `main` @ 5311ccc (docs(phase9): fix commit count framing)
 **Tests:** backend 3 passed, 20 warnings · frontend 56 suites / 409 tests · lane trio 4 suites / 178 tests
 **Lint:** ruff (E, E722, F, W, I; ignore E501)
 
