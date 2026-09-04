@@ -46,6 +46,14 @@ See github-patterns.md. Patterns only, no code copied. All statuses: listed (not
 
 ## 4. Data-source docs
 
+(Evaluations requested by CONTRACT_REQUESTS B1/B2 — round 14)
+- B1 cadence source verdict: APPROVE design. Same-upstream parity holds (snapshots ARE the `/` route's
+  source); rate backoff declared; 30d retention sane (exact path/policy at implementation); no-mock rule
+  enforceable via CR-01. Blocker is authorization (BACKEND_LANE_OWNER), not design.
+- B2 Finnhub verdict: APPROVE design. TTLs (24h sector / 1h upcoming / 24h historical) sane;
+  cache_ts/next_refresh honest; GO/NO-GO declared. Verify free-tier rate at implementation (do not hardcode
+  assumed limits); TTL auto-extend on limit-hit is correct behavior.
+
 | Source | Doc | Status |
 |---|---|---|
 | Finnhub calendar (free, 1-mo history) | https://finnhub.io/docs/api/calendar-earnings | listed — not re-fetched this pass; constraint per HANDOFF §5 |

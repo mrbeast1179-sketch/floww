@@ -32,7 +32,7 @@ unverified = not confirmed, never cite. Every product rule carries its WITH § c
 - UI prohibited: "earnings will pop/drop".
 - Fixture: earnings-proximity scanner rows.
 
-### Cremers & Weinbaum 2010 — CONFIRMED
+### Cremers & Weinbaum 2010 — CONFIRMED (ROUND-11: abstract verified verbatim — 51bp/wk, both legs, not borrow-driven, decay over sample)
 - Core claim: call-IV-minus-put-IV (matched pairs) predicts; expensive calls outperform by ~51bp/wk;
   not explained by short-sale constraints.
 - Product rule: persistent positive call-minus-put IV across ≥2 strikes (borrow/div/rate sanity-checked)
@@ -41,7 +41,7 @@ unverified = not confirmed, never cite. Every product rule carries its WITH § c
 - UI prohibited: "parity guarantees convergence".
 - Fixture: overview/scanner IV-deviation rows.
 
-### Xing, Zhang & Zhao 2010 — CONFIRMED
+### Xing, Zhang & Zhao 2010 — CONFIRMED (ROUND-11: abstract verified verbatim — 10.9%/yr, 6mo+ persistence, worst next-Q earnings)
 - Core claim: OTM-put-minus-ATM-call smirk; steepest smirk underperforms ~10.9%/yr; worst next-quarter
   earnings shocks; persists ≥6 months.
 - Product rule: smirk in top decile of name's own 6-mo history → bearish informed flag; gates bullish alerts.
@@ -49,14 +49,15 @@ unverified = not confirmed, never cite. Every product rule carries its WITH § c
 - UI prohibited: "crash coming".
 - Fixture: smirk-boundary scanner rows.
 
-### An, Ang, Bali & Cakici 2014 — CONFIRMED
-- Core claim: 1-month CHANGES in call IV (+) / put IV (−) predict returns (~1%/mo decile spread, ~6-mo persistence).
+### An, Ang, Bali & Cakici 2014 — CONFIRMED (ROUND-11: abstract verified verbatim — IV CHANGES both directions, slow diffusion)
+- Core claim: 1-month CHANGES in call IV (+) / put IV (−) predict returns (~1%/mo QUINTILE spread — round-11 correction, abstract says first-vs-fifth quintile — slow-diffusion implication).
 - Product rule: use IV changes on monthly lookback, not levels.
 - UI allowed: "call IV rising on the month".
 - UI prohibited: "high IV is bullish" (levels claim — refuted as attribution).
 - Fixture: IV-change tracker items.
 
 ### Ge, Lin & Pearson 2016 — CONFIRMED
+  (ROUND-14: abstract verified verbatim — opening call purchases strongest; call-sales-closing-purchased-calls second; leverage channel primary. SNAPSHOT CAVEAT: the second-strongest shape — closing a previously purchased call — is unidentifiable from unsigned snapshots without position history. Keep the falling-OI cap; do not claim the exception.)
 - Core claim: opening call purchases strongest predictor; closings mostly uninformative; OTM/high-leverage stronger.
 - Product rule: weight OI-increase + volume proxies far above OI-decrease signals; falling-OI-only
   signals suppressed below 92.
@@ -121,13 +122,13 @@ unverified = not confirmed, never cite. Every product rule carries its WITH § c
 
 ## Dark / retail papers
 
-### Zhu 2014 — CONFIRMED, QUALIFIED (model, conditional)
+### Zhu 2014 — CONFIRMED, QUALIFIED (model, conditional) (ROUND-11: abstract verified verbatim)
 - Core claim: informed cluster lit; adding dark pool CAN improve discovery under conditions. Says nothing
   about any single print's direction.
 - Product rule: ATS share shown as venue mix with delay stamp; never bull/bear language.
 - Fixture: FINRA context payload.
 
-### Comerton-Forde & Putnins 2015 — CONFIRMED (key honest-product paper)
+### Comerton-Forde & Putnins 2015 — CONFIRMED (key honest-product paper) (ROUND-11: abstract verified verbatim, DOI 10.1016/j.jfineco.2015.06.013)
 - Core claim: dark trades less informed than lit; block dark trades show NO evidence of impeding discovery.
 - Product rule: blocks labeled "execution footprint, no direction"; high non-block dark share = market-structure
   context, not a trade signal.

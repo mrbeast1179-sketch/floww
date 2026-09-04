@@ -99,6 +99,12 @@ write backend docstring patches (Agent 3 B8 lane) — all queued.
   position is "mixed, SPX-only, regime-dependent". Checklist gains fragility-qualifier rule.
 - Round 10: BJZZ abstract verified verbatim (10bp/wk, <half persistence, suggestive-only) — claim-map
   numbers now sourced, not remembered.
+- Round 11–13 (on main as b6688d8; summarized here): 5 abstracts verbatim + quintile fix; phantom row
+  corrected; W2 fingerprint audit + F19; backend :8000 unreachable note; V20 FIR divergence; branch-risk note.
+- Round 14 (this branch): CONTRACT_REQUESTS evaluations delivered — B6 CONDITIONAL-APPROVE display-only
+  ("academically grounded" overstated; baseline+persistence+exclusions+copy constraints in
+  alert-gate-economics §7); B1/B2 design APPROVEs in source-manifest §4. GLP abstract verified verbatim
+  with snapshot caveat (second-strongest shape unidentifiable unsigned — keep falling-OI cap).
 
 ## Agent 4 status block (per task prompt)
 

@@ -56,3 +56,24 @@ Dedup is the highest-leverage saver (bursts re-trigger the same contract dozens 
 - Keep all defaults. Add escalation override (2× premium refire) + suppression counters.
 - Add spread-width guard and OI-freshness check before any threshold loosening.
 - Every threshold change ships with its evaluator (Gate 1) + 30-min outcome read.
+
+## 7. B6 quiet-accumulation evaluation (Agent-4 gate eval, round 14)
+
+Proposal: vol z-score >2 AND price-range compression z-score <1σ → display-only "coiled" label.
+
+- Academic grounding: proposer's "academically grounded" is OVERSTATED. No paper in the manifest
+  supports volume+compression as accumulation (nearest neighbors: Baltussen EOD momentum needs directional
+  day-move, not compression; Barbon needs gamma sign). This is a practitioner pattern (compression-breakout
+  family). Verdict: evaluate as heuristic, never cite a paper for it.
+- CONDITIONAL-APPROVE as display-only, with constraints:
+  1. Baseline mandatory (needs B1): z-scores computed against a DECLARED trailing window (recommend ≥20
+     sessions, min-bars guard); no baseline → "unavailable", never 0.
+  2. Persistence: single-bar 300% prints are blocks, not accumulation — require ≥3 qualifying bars.
+  3. Exclusions: OPEX week + expiry day (mechanical pinning), earnings ±2 sessions (event volume),
+     premium floor $25K (penny-contract z-noise), illiquid names with <N baseline bars.
+  4. Label copy: "coiled (compression + elevated volume vs N-session baseline — pattern, not prediction;
+     no direction implied)". Never an alert gate in v1 (proposer agrees).
+- False-positive classes: OPEX pinning, earnings ingestion, one-print blocks, thin-baseline z-inflation,
+  regime shifts (baseline stale after gaps — require baseline freshness ≤5 sessions).
+- Noise cost: zero while display-only. Promotion to alert-gating requires Gate-1 evaluator + TTL dedup
+  + 30-min outcome read. Re-evaluate after B1 lands with real baselines.
