@@ -6,7 +6,7 @@ import {
   pulseState, elapsedClock, formatFOLLOWStrip,
   tierOf, selectFires, pickBanner, spreadPosition, overviewStats,
   equityType, signedOtm, isOpexDay, highlightState, flagSpreadLegs,
-  interpDeltaIV, skewLevels, pinRisk, quoteSkew, midDrift,
+  interpDeltaIV, skewLevels, pinRisk, quoteSkew, midDrift, stampPollDeltas,
 } from "./scanLogic";
 
 describe("estimateDelta", () => {
@@ -983,5 +983,28 @@ describe("Wave-2 SHIP engine — skew/pin/inventory", () => {
     expect(midDrift([100, 101, 102]).driftPct).toBeCloseTo(2, 6);
     expect(midDrift([100, 101, 102]).n).toBe(3);
     expect(midDrift([100])).toBeNull();
+  });
+});
+
+describe("stampPollDeltas — per-poll stamping", () => {
+  const s = (vol, mid) => ({ ticker: "SPY", type: "call", strike: 450, expiration: "2026-09-18", volume: vol, mid });
+  it("first sighting: delta 0, prevMid null; second poll: delta + prior mid", () => {
+    const v = new Map(), m = new Map();
+    const p1 = [s(100, 4.1)];
+    stampPollDeltas(p1, v, m);
+    expect(p1[0]._volDelta).toBe(0);
+    expect(p1[0]._prevMid).toBeNull();
+    const p2 = [s(150, 4.2)];
+    stampPollDeltas(p2, v, m);
+    expect(p2[0]._volDelta).toBe(50);
+    expect(p2[0]._prevMid).toBeCloseTo(4.1, 6);
+  });
+  it("volume reset reads as unknown (0), mid map keeps last good", () => {
+    const v = new Map(), m = new Map();
+    stampPollDeltas([s(500, 4.2)], v, m);
+    const p2 = [s(10, null)];
+    stampPollDeltas(p2, v, m);
+    expect(p2[0]._volDelta).toBe(0);
+    expect(p2[0]._prevMid).toBeCloseTo(4.2, 6);
   });
 });

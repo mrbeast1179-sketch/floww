@@ -13,7 +13,7 @@
  */
 import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { BACKEND_URL } from "../../config/api";
-import { mkScanRow, evalAlerts, evalTickerAlerts, streakOf, cleanHistory, tickerRollup, volSigma, annotateFirstSeen, sessionDay, fmtClock, fmtAge, awaySummary, scanRowsToCSV, oiChange, fmtUSD, fmtK, fmtIV, scoreGradeOf, pulseState, elapsedClock, formatFOLLOWStrip, tierOf, selectFires, pickBanner, bizDTE, spreadPosition, overviewStats, equityType, signedOtm, isOpexDay, highlightState, flagSpreadLegs } from "./scanLogic";
+import { mkScanRow, evalAlerts, evalTickerAlerts, streakOf, cleanHistory, tickerRollup, volSigma, annotateFirstSeen, sessionDay, fmtClock, fmtAge, awaySummary, scanRowsToCSV, oiChange, fmtUSD, fmtK, fmtIV, scoreGradeOf, pulseState, elapsedClock, formatFOLLOWStrip, tierOf, selectFires, pickBanner, bizDTE, spreadPosition, overviewStats, equityType, signedOtm, isOpexDay, highlightState, flagSpreadLegs, quoteSkew, stampPollDeltas, contractKey } from "./scanLogic";
 import Wtipanel from "../Wtipanel";
 import RussellPanel from "../RussellPanel";
 import "./FlowseekerProBlademap.css";
@@ -843,27 +843,27 @@ export default function FlowseekerProBlademap({ active = true }) {
   const printBufferRef = useRef([]);
   const seenPrintsRef = useRef(new WeakSet());
   const prevVolRef = useRef(new Map()); // contract key -> last-seen day volume (burst math)
+  const prevMidRef = useRef(new Map()); // contract key -> last-seen mid (drift read)
   const [pulseTick, setPulseTick] = useState(0);
   useEffect(() => {
     if (!signals.length) return;
     const now = Date.now();
     let buf = pruneBuffer(printBufferRef.current, 90e3, now);
+    const fresh = [];
     for (const s of signals) {
       if (seenPrintsRef.current.has(s)) continue;
       seenPrintsRef.current.add(s);
-      // 15s volume burst vs prior poll (day volume is cumulative; a drop means
-      // a data reset — treat as unknown, not negative).
-      const key = `${s.ticker}|${String(s.type || "").toLowerCase()}|${s.strike}|${String(s.expiration || "").slice(0, 10)}`;
-      const prev = prevVolRef.current.get(key);
-      s._volDelta = prev == null ? 0 : Math.max(0, (Number(s.volume) || 0) - prev);
-      prevVolRef.current.set(key, Number(s.volume) || 0);
+      fresh.push(s);
       buf.push(s);
     }
+    // Per-poll snapshot stamping on fresh objects only (StrictMode-safe).
+    stampPollDeltas(fresh, prevVolRef.current, prevMidRef.current);
     // Strategy-leg fingerprints over the full snapshot leg set (heuristic).
     try { flagSpreadLegs(signals); } catch { /* never break the tape */ }
     if (prevVolRef.current.size > 2000) {
-      const keep = new Set(buf.map((r) => `${r.ticker}|${String(r.type || "").toLowerCase()}|${r.strike}|${String(r.expiration || "").slice(0, 10)}`));
+      const keep = new Set(buf.map((r) => contractKey(r)));
       for (const k of [...prevVolRef.current.keys()]) if (!keep.has(k)) prevVolRef.current.delete(k);
+      for (const k of [...prevMidRef.current.keys()]) if (!keep.has(k)) prevMidRef.current.delete(k);
     }
     printBufferRef.current = buf.slice(-500);
     setPulseTick((t) => t + 1);
@@ -1359,6 +1359,8 @@ export default function FlowseekerProBlademap({ active = true }) {
                       const price = Number(p.mid) || (Number(p.volume) > 0 ? (Number(p.premium) || 0) / (Number(p.volume) * 100) : 0);
                       const fill = Number(p.last) || 0;
                       const sp = spreadPosition(p.bid, p.ask, p.last);
+                      const qs = quoteSkew(p.bid, p.ask, p._prevMid);
+                      const driftArrow = qs.tag === "UP" ? "▲" : qs.tag === "DOWN" ? "▼" : "";
                       return (
                         <tr key={`${p.ticker}-${p.strike}-${String(p.expiration || "").slice(0, 10)}-${i}`} className={`${selected === p ? "selected" : ""}${hl === "BURST" ? " hl-burst" : hl === "VOL_OI" ? " hl-vol" : ""}`}
                             tabIndex={0} onClick={() => selectSignal(p)}
@@ -1370,9 +1372,9 @@ export default function FlowseekerProBlademap({ active = true }) {
                           <td className="num">{p.otm == null ? "—" : `+${Number(p.otm).toFixed(1)}%`}</td>
                           <td className="fsb-muted">{String(p.expiration || "").slice(0, 10)}</td>
                           <td className="num">{bizDTE(p.expiration)}</td>
-                          <td className="num">{fill > 0 ? fill.toFixed(2) : price > 0 ? price.toFixed(2) : "—"}</td>
+                          <td className="num" title={driftArrow ? `Mid ${qs.tag === "UP" ? "up" : "down"} ${Math.abs(qs.driftBp).toFixed(0)}bp vs prior poll (dealer-pressure read, Ho-Stoll-lite)` : undefined}>{driftArrow}{fill > 0 ? fill.toFixed(2) : price > 0 ? price.toFixed(2) : "—"}</td>
                           <td><span className={`fsb-pill fsb-side-${side.toLowerCase()}`}>{side}</span></td>
-                          <td>{sp.state === "NO_QUOTE" ? <span className="fsb-muted fsb-small">no quote</span> : <span className="fsb-spreadbar" title={`last at ${(sp.pos * 100).toFixed(0)}% of bid-ask spread`}><span className="fsb-spreadmark" style={{ left: `${(sp.pos * 100).toFixed(1)}%` }} /></span>}</td>
+                          <td>{sp.state === "NO_QUOTE" ? <span className="fsb-muted fsb-small">no quote</span> : <span className="fsb-spreadbar" title={`last at ${(sp.pos * 100).toFixed(0)}% of bid-ask spread${qs.relSpread != null ? ` · rel spread ${(qs.relSpread * 100).toFixed(2)}%` : ""}`}><span className="fsb-spreadmark" style={{ left: `${(sp.pos * 100).toFixed(1)}%` }} /></span>}</td>
                           <td><span className={`fsb-pill fsb-sig-${sig.toLowerCase()}`}>{sig}</span>{pulseHedge(p.type, side) && <span className="fsb-pill fsb-hedge" title="Put bought aggressively — often a hedge, not directional bullishness">HEDGE?</span>}</td>
                           <td>{badges.map((b) => <span key={b} className={`fsb-pill fsb-badge-${b.toLowerCase()}`} title={b === "WHALE" ? "Tape size tier: ≥$1M rolled premium in 90s — not the $25M alert rule" : b === "GOLDEN" ? "Premium ≥ $900K rolled in 90s" : "Baseline badge: every print starts here"}>{b}</span>)}</td>
                           <td className="num">{score.toFixed(1)}</td>
