@@ -57,7 +57,7 @@ No edits to forbidden files: `frontend/src/App.js`, `backend/`, global styles ou
 
 ## TESTS ADDED
 
-13 new suites, 77 new tests (flowseeker lane only); total flowseeker 16 suites / 223 tests.
+13 new suites, 77 new tests (flowseeker lane only); total flowseeker 20 suites / 429 tests.
 
 | Suite | Tests | Covers |
 |-------|-------|--------|
@@ -79,7 +79,7 @@ Added suites run via `CI=true npx craco test --testPathPattern="flowseeker/(puls
 
 ## TESTS PASSING
 
-- Flowseeker lane: **16 suites / 223 tests passed**
+- Flowseeker lane: **20 suites / 429 tests passed**
 - Full frontend: **56 suites / 409 tests passed** (no regressions)
 - Existing trio (scanLogic + Blademap) still green
 
