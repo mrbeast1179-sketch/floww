@@ -18,11 +18,12 @@ describe('spreadPosition', () => {
     expect(spreadPosition(1.099, 1.0, 1.3).side).toBe('BID'); // 0.33
     expect(spreadPosition(1.201, 1.0, 1.3).side).toBe('ASK'); // 0.67
   });
-  it('NO_QUOTE when missing bid/ask or ask<=bid', () => {
+  it('NO_QUOTE when missing bid/ask; LOCKED when crossed/locked (ask<=bid)', () => {
     expect(spreadPosition(1.2, null, 1.4).side).toBe('NO_QUOTE');
     expect(spreadPosition(1.2, 1.0, null).side).toBe('NO_QUOTE');
-    expect(spreadPosition(1.2, 1.5, 1.4).side).toBe('NO_QUOTE');
-    expect(spreadPosition(1.2, 1.4, 1.4).side).toBe('NO_QUOTE');
+    expect(spreadPosition(1.2, 1.5, 1.4).side).toBe('LOCKED');
+    expect(spreadPosition(1.2, 1.4, 1.4).side).toBe('LOCKED');
+    expect(spreadPosition(1.2, 1.5, 1.4).state).toBe('LOCKED');
   });
   it('clamps to [0,1]', () => {
     expect(spreadPosition(0.5, 1.0, 1.4).position).toBe(0);
@@ -31,8 +32,11 @@ describe('spreadPosition', () => {
   it('fixtures: pulseRows honest states (8 rows)', async () => {
     const rows = (await import('../fixtures/pulseRows.json')).default;
     expect(rows).toHaveLength(8);
-    // at least 3 NO_QUOTE
-    const noqs = rows.filter((r) => spreadPosition(r.last, r.bid, r.ask).side === 'NO_QUOTE');
-    expect(noqs.length).toBeGreaterThanOrEqual(3);
+    // at least 2 NO_QUOTE + 1 LOCKED (or 3 non-OK) — honest states never guessed
+    const nonOk = rows.filter((r) => {
+      const s = spreadPosition(r.last, r.bid, r.ask);
+      return s.side === 'NO_QUOTE' || s.side === 'LOCKED';
+    });
+    expect(nonOk.length).toBeGreaterThanOrEqual(3);
   });
 });

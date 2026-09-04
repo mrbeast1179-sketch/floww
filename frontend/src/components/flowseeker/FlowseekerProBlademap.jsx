@@ -13,10 +13,32 @@
  */
 import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { BACKEND_URL } from "../../config/api";
-import { mkScanRow, evalAlerts, evalTickerAlerts, streakOf, cleanHistory, tickerRollup, volSigma, annotateFirstSeen, sessionDay, fmtClock, fmtAge, awaySummary, scanRowsToCSV, oiChange, fmtUSD, fmtK, fmtIV, scoreGradeOf, pulseState, elapsedClock, formatFOLLOWStrip, tierOf, selectFires, pickBanner, bizDTE, spreadPosition, overviewStats, equityType, signedOtm, isOpexDay, highlightState } from "./scanLogic";
-import Wtipanel from "../Wtipanel";
-import RussellPanel from "../RussellPanel";
+import { mkScanRow, evalAlerts, evalTickerAlerts, streakOf, cleanHistory, tickerRollup, volSigma, annotateFirstSeen, sessionDay, fmtClock, fmtAge, awaySummary, scanRowsToCSV, oiChange, fmtUSD, fmtK, fmtIV, scoreGradeOf, pulseState, elapsedClock, formatFOLLOWStrip, tierOf, selectFires, pickBanner, bizDTE, spreadPosition, overviewStats, equityType, signedOtm, isOpexDay, highlightState, flagSpreadLegs, quoteSkew, stampPollDeltas, contractKey, nearestExpiryPin, rollPooled, pushCapped } from "./scanLogic";
+import DarkPoolPanel from "./darkpool/DarkPoolPanel";
+import { NetPremiumTrend, StrikeDistribution, VolOiFooter } from "./history/HistoryViews";
+import { Checklist, FunnelEmpty } from "./methodology/Methodology";
+import Tracker from "./tracker/Tracker";
+import { widenActions } from "./filters/filterState";
 import "./FlowseekerProBlademap.css";
+
+// Ownership boundary: Wtipanel + RussellPanel live in App.js's product
+// feature lane (another agent, backend-owned routes /api/wti/vol and
+// /api/pairs/scan). My lane does not own them. Static imports of untracked
+// files break clean checkouts (Phantom-import bug, flagged in
+// tidehunter-ship-waves-report.md line 32). Defer to runtime import so the
+// crash is impossible: a missing panel renders an honest empty card, not a
+// white-screen import error. If the owning agent later commits the real
+// panels, this guard auto-resolves to them.
+const MaybeWtipanel = React.lazy(() =>
+  import("../Wtipanel").then(m => ({ default: m.default })).catch(() =>
+    Promise.resolve({ default: () => <div className="fsb-panel fsb-empty">WTI view — not wired yet</div> })
+  )
+);
+const MaybeRussellPanel = React.lazy(() =>
+  import("../RussellPanel").then(m => ({ default: m.default })).catch(() =>
+    Promise.resolve({ default: () => <div className="fsb-panel fsb-empty">Russell pairs view — not wired yet</div> })
+  )
+);
 
 const API = `${BACKEND_URL}/api/flowseeker`;
 const WATCH = ["SPY", "QQQ", "IWM", "NVDA", "TSLA", "AAPL", "MSFT", "AMZN", "META", "GOOGL"];
@@ -137,6 +159,18 @@ export function pulseBadges(premium) {
   if (prem >= 900e3) b.push("GOLDEN");
   if (prem >= 1e6) b.push("WHALE");
   return b;
+}
+
+// COST copy in ONE place (Step 1.4 honesty contract): building state shows a
+// count, never a number; every state carries the mid-quote-not-executable
+// caption. Jest pins the wording so the readout can't silently harden.
+export const COST_TITLE = "Mid-quote Roll spread over the pin expiry bucket — quote bounce + quote staleness included. NOT an executable taker cost: always compare live quotes before trading. Needs 30 deltas across the bucket.";
+export const COST_CAPTION = "mid-quote, not executable";
+export const COST_CAPTION_TITLE = "Mid-quote Roll spread: quote bounce + quote staleness included. NOT an executable taker cost.";
+export function costLabel(costRead) {
+  if (!costRead) return null;
+  if (costRead.building) return { text: `COST building ${costRead.nd}/30`, title: COST_TITLE, caption: COST_CAPTION };
+  return { text: `COST ~$${Number(costRead.spread).toFixed(2)}`, title: COST_TITLE, caption: COST_CAPTION };
 }
 
 // Drop prints older than the Pulse window (trailing-90s tape).
@@ -843,25 +877,37 @@ export default function FlowseekerProBlademap({ active = true }) {
   const printBufferRef = useRef([]);
   const seenPrintsRef = useRef(new WeakSet());
   const prevVolRef = useRef(new Map()); // contract key -> last-seen day volume (burst math)
+  const prevMidRef = useRef(new Map()); // contract key -> last-seen mid (drift read)
+  const midRingRef = useRef(new Map()); // contract key -> capped mid ring (Roll cost)
   const [pulseTick, setPulseTick] = useState(0);
   useEffect(() => {
     if (!signals.length) return;
     const now = Date.now();
     let buf = pruneBuffer(printBufferRef.current, 90e3, now);
+    const fresh = [];
     for (const s of signals) {
       if (seenPrintsRef.current.has(s)) continue;
       seenPrintsRef.current.add(s);
-      // 15s volume burst vs prior poll (day volume is cumulative; a drop means
-      // a data reset — treat as unknown, not negative).
-      const key = `${s.ticker}|${String(s.type || "").toLowerCase()}|${s.strike}|${String(s.expiration || "").slice(0, 10)}`;
-      const prev = prevVolRef.current.get(key);
-      s._volDelta = prev == null ? 0 : Math.max(0, (Number(s.volume) || 0) - prev);
-      prevVolRef.current.set(key, Number(s.volume) || 0);
+      fresh.push(s);
       buf.push(s);
     }
+    // Per-poll snapshot stamping on fresh objects only (StrictMode-safe).
+    stampPollDeltas(fresh, prevVolRef.current, prevMidRef.current);
+    // Session mid rings for the pooled Roll bucket (cap 60 ≈ 15 min).
+    for (const s of fresh) {
+      const m = Number(s.mid);
+      if (Number.isFinite(m) && m > 0) {
+        const key = contractKey(s);
+        midRingRef.current.set(key, pushCapped(midRingRef.current.get(key), m, 60));
+      }
+    }
+    // Strategy-leg fingerprints over the full snapshot leg set (heuristic).
+    try { flagSpreadLegs(signals); } catch { /* never break the tape */ }
     if (prevVolRef.current.size > 2000) {
-      const keep = new Set(buf.map((r) => `${r.ticker}|${String(r.type || "").toLowerCase()}|${r.strike}|${String(r.expiration || "").slice(0, 10)}`));
+      const keep = new Set(buf.map((r) => contractKey(r)));
       for (const k of [...prevVolRef.current.keys()]) if (!keep.has(k)) prevVolRef.current.delete(k);
+      for (const k of [...prevMidRef.current.keys()]) if (!keep.has(k)) prevMidRef.current.delete(k);
+      for (const k of [...midRingRef.current.keys()]) if (!keep.has(k)) midRingRef.current.delete(k);
     }
     printBufferRef.current = buf.slice(-500);
     setPulseTick((t) => t + 1);
@@ -888,6 +934,26 @@ export default function FlowseekerProBlademap({ active = true }) {
 
   // Overview bar rollup over the visible 90s tape (Phase 9 W1 tracer).
   const pulseOv = useMemo(() => overviewStats(pulseRows), [pulseRows]);
+  // Pin-risk readout for the single-ticker tape (SHIP-1; multi-ticker ALL
+  // has no single expiry to pin to — metric hidden, not averaged).
+  const pinRead = useMemo(
+    () => (pulseTicker === "ALL" ? null : nearestExpiryPin(pulseRows, pulseTicker)),
+    [pulseRows, pulseTicker]
+  );
+  // Pooled Roll cost over the pin expiry bucket (needs 30 deltas; the poll
+  // tick in deps re-runs the memo as rings fill — refs mutate in place).
+  const costRead = useMemo(() => {
+    if (!pinRead || !pinRead.eligible || !pinRead.exp) return null;
+    const rings = [];
+    for (const [k, ring] of midRingRef.current) {
+      const parts = String(k).split("|");
+      if (parts.length === 4 && parts[0].toUpperCase() === String(pulseTicker).toUpperCase() && parts[3] === pinRead.exp) {
+        rings.push(ring);
+      }
+    }
+    return rings.length ? rollPooled(rings) : null;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pulseRows, pulseTick, pulseTicker, pinRead]);
 
   // scanner: filter + sort + KPI rollup. Simple mode ignores the hidden
   // advanced knobs (a Min-Vol set weeks ago must not silently filter an
@@ -1319,6 +1385,21 @@ export default function FlowseekerProBlademap({ active = true }) {
                   <span className="fsb-ovmetric" title="Put premium / call premium">P/C {Number.isFinite(pulseOv.pc) ? pulseOv.pc.toFixed(2) : "—"}</span>
                   <span className="fsb-ovmetric" title="Flow imbalance ratio |bull-bear|/(bull+bear)">FIR {pulseOv.fir.toFixed(2)}</span>
                   <span className="fsb-ovmetric" title="Relative volume needs time-of-day baselines">RVOL needs baseline</span>
+                  {pinRead ? (
+                    <span className="fsb-ovmetric" title={pinRead.eligible ? `Expiry-day pin risk (${pinRead.exp}): distance to max-OI strike, top-3 OI concentration. Unsigned exposure — never direction.` : "Single names pin only on Fridays (weekly expirations); daily read available for SPX/SPY/QQQ/IWM."}>
+                      {pinRead.eligible && pinRead.maxOiStrike != null
+                        ? `PIN ${pinRead.maxOiStrike} · ${(pinRead.concentration * 100).toFixed(0)}%${pinRead.distPct != null ? ` · ${pinRead.distPct >= 0 ? "+" : ""}${pinRead.distPct.toFixed(1)}%` : ""}`
+                        : "PIN Fri-only"}
+                    </span>
+                  ) : null}
+                  {(() => { const cl = costLabel(costRead); return cl ? (
+                    <>
+                      <span className="fsb-ovmetric" title={cl.title}>
+                        {cl.text}
+                      </span>
+                      <span className="fsb-muted fsb-small" title={COST_CAPTION_TITLE}>{cl.caption}</span>
+                    </>
+                  ) : null; })()}
                 </span>
                 <label className="fsb-muted fsb-small">Ticker&nbsp;
                   <select value={pulseTicker} onChange={(e) => { const v = e.target.value; setPulseTicker(v); if (v !== "ALL") setTicker(v); }}>
@@ -1357,6 +1438,8 @@ export default function FlowseekerProBlademap({ active = true }) {
                       const price = Number(p.mid) || (Number(p.volume) > 0 ? (Number(p.premium) || 0) / (Number(p.volume) * 100) : 0);
                       const fill = Number(p.last) || 0;
                       const sp = spreadPosition(p.bid, p.ask, p.last);
+                      const qs = quoteSkew(p.bid, p.ask, p._prevMid);
+                      const driftArrow = qs.tag === "UP" ? "▲" : qs.tag === "DOWN" ? "▼" : "";
                       return (
                         <tr key={`${p.ticker}-${p.strike}-${String(p.expiration || "").slice(0, 10)}-${i}`} className={`${selected === p ? "selected" : ""}${hl === "BURST" ? " hl-burst" : hl === "VOL_OI" ? " hl-vol" : ""}`}
                             tabIndex={0} onClick={() => selectSignal(p)}
@@ -1364,13 +1447,13 @@ export default function FlowseekerProBlademap({ active = true }) {
                           <td className="fsb-muted">{fmtClock(p._aggTs ?? p.timestamp, true)}</td>
                           <td className="tk" title={pcls === "SWEEP" ? "Sweep: urgent multi-exchange fill (heuristic)" : pcls === "BLOCK" ? "Block: negotiated single fill (heuristic)" : typeOf(p)}>{flowIcon}{p.ticker}</td>
                           <td className="num">{Number(p.strike).toFixed(0)}</td>
-                          <td className={`fsb-type-${cp.toLowerCase()}`}>{cp}</td>
+                          <td className={`fsb-type-${cp.toLowerCase()}`} title={p._strat ? `${p._strat} multi-leg fingerprint (heuristic: matched volumes, no exchange linkage)` : cp}>{p._strat ? "◈" : ""}{cp}</td>
                           <td className="num">{p.otm == null ? "—" : `+${Number(p.otm).toFixed(1)}%`}</td>
                           <td className="fsb-muted">{String(p.expiration || "").slice(0, 10)}</td>
                           <td className="num">{bizDTE(p.expiration)}</td>
-                          <td className="num">{fill > 0 ? fill.toFixed(2) : price > 0 ? price.toFixed(2) : "—"}</td>
+                          <td className="num" title={driftArrow ? `Mid ${qs.tag === "UP" ? "up" : "down"} ${Math.abs(qs.driftBp).toFixed(0)}bp vs prior poll (dealer-pressure read, Ho-Stoll-lite)` : undefined}>{driftArrow}{fill > 0 ? fill.toFixed(2) : price > 0 ? price.toFixed(2) : "—"}</td>
                           <td><span className={`fsb-pill fsb-side-${side.toLowerCase()}`}>{side}</span></td>
-                          <td>{sp.state === "NO_QUOTE" ? <span className="fsb-muted fsb-small">no quote</span> : <span className="fsb-spreadbar" title={`last at ${(sp.pos * 100).toFixed(0)}% of bid-ask spread`}><span className="fsb-spreadmark" style={{ left: `${(sp.pos * 100).toFixed(1)}%` }} /></span>}</td>
+                          <td>{sp.state === "NO_QUOTE" ? <span className="fsb-muted fsb-small" title="No quote — bid/ask unavailable">no quote</span> : sp.state === "LOCKED" ? <span className="fsb-muted fsb-small" title="Locked/crossed spread — no fill">LOCKED</span> : <span className="fsb-spreadbar" title={`last at ${(sp.pos * 100).toFixed(0)}% of bid-ask spread${qs.relSpread != null ? ` · rel spread ${(qs.relSpread * 100).toFixed(2)}%` : ""}`}><span className="fsb-spreadmark" style={{ left: `${(sp.pos * 100).toFixed(1)}%` }} /></span>}</td>
                           <td><span className={`fsb-pill fsb-sig-${sig.toLowerCase()}`}>{sig}</span>{pulseHedge(p.type, side) && <span className="fsb-pill fsb-hedge" title="Put bought aggressively — often a hedge, not directional bullishness">HEDGE?</span>}</td>
                           <td>{badges.map((b) => <span key={b} className={`fsb-pill fsb-badge-${b.toLowerCase()}`} title={b === "WHALE" ? "Tape size tier: ≥$1M rolled premium in 90s — not the $25M alert rule" : b === "GOLDEN" ? "Premium ≥ $900K rolled in 90s" : "Baseline badge: every print starts here"}>{b}</span>)}</td>
                           <td className="num">{score.toFixed(1)}</td>
@@ -1432,6 +1515,34 @@ export default function FlowseekerProBlademap({ active = true }) {
             </div>
           </div>
         </div>
+        {/* W8: extras drawer — honest states (fixture-first); only on flow tab, sibling to flow grid */}
+        {tab === "flow" && (
+          <div className="fsb-panel fsb-drawer" data-testid="flowseeker-drawer">
+            <div className="fsb-panel-h"><span>Flow extras</span><span className="fsb-muted fsb-small">honest states · display-only</span></div>
+            <div className="fsb-drawer-grid">
+              <div className="fsb-drawer-col" data-testid="drawer-tracker">
+                <h4 className="fsb-drawer-h">Tracker <span className="fsb-muted fsb-small" title="P/L assumes 1 contract (qty proxy) — real qty not in snapshot feed">qty=1 proxy</span></h4>
+                <Tracker />
+              </div>
+              <div className="fsb-drawer-col" data-testid="drawer-history">
+                <h4 className="fsb-drawer-h">History</h4>
+                <NetPremiumTrend series={[]} state="ready" />
+                <StrikeDistribution buckets={[]} state="ready" />
+                <VolOiFooter rows14d={[]} state="ready" />
+              </div>
+              <div className="fsb-drawer-col" data-testid="drawer-darkpool">
+                <h4 className="fsb-drawer-h" title="Off-exchange prints — no side or direction is known">Dark pool</h4>
+                <DarkPoolPanel prints={[]} state="ready" />
+              </div>
+              <div className="fsb-drawer-col" data-testid="drawer-methodology">
+                <h4 className="fsb-drawer-h">Methodology</h4>
+                <Checklist steps={["NetPrem 5-7D","Underlying $","Contract + IV + RVOL","Strike 1W","Vol/OI 14d","Heatseeker cross-check"]} checks={{}} onToggle={() => {}} verdict={null} onVerdict={() => {}} />
+                <div className="fsb-drawer-foot" title="Per-row sort ranking floors: premium $25K, size 150 contracts — rows below floor still sort, only tick to show they ranked lower">Floors: prem $25K · size 150 (ranking only)</div>
+              </div>
+            </div>
+            <div className="fsb-drawer-note fsb-muted fsb-small">Sweep = multi-exchange urgency proxy (cvserver has no venue tape). Ov-bar NetPrem = 90s rolled tape sum — reconcile if diverged (P0).</div>
+          </div>
+        )}
 
         {/* GAMMA VIEW */}
         <div className={`fsb-view${tab === "gamma" ? " active" : ""}`} style={{ gridTemplateColumns: "1fr" }}>
@@ -1448,14 +1559,18 @@ export default function FlowseekerProBlademap({ active = true }) {
         {/* WTI VIEW — HAR-IV crude oil vol forecast */}
         <div className={`fsb-view${tab === "wti" ? " active" : ""}`} style={{ gridTemplateColumns: "1fr" }}>
           <div className="fsb-panel fsb-wti-wrap">
-            <Wtipanel />
+            <React.Suspense fallback={<div className="fsb-wti-spinner" />}>
+              <MaybeWtipanel />
+            </React.Suspense>
           </div>
         </div>
 
         {/* PAIRS VIEW — Russell 3000 stat-arb scanner */}
         <div className={`fsb-view${tab === "pairs" ? " active" : ""}`} style={{ gridTemplateColumns: "1fr" }}>
           <div className="fsb-panel fsb-pairs-wrap">
-            <RussellPanel />
+            <React.Suspense fallback={<div className="fsb-pairs-spinner" />}>
+              <MaybeRussellPanel />
+            </React.Suspense>
           </div>
         </div>
 
@@ -1723,7 +1838,7 @@ export default function FlowseekerProBlademap({ active = true }) {
             {alertsOpen && (
               <div className="fsb-alertlog">
                 {/* Blademap v3 — conviction calibration + per-setup win rate */}
-                {(calibBands.length > 0 || (setupStats && setupStats.overall.n > 0)) && (
+                {(calibBands.length > 0 || (setupStats?.overall?.n > 0)) && (
                   <div className="fsb-v3strip">
                     {calibBands.map((b) => (
                       <div key={b.band}
@@ -1735,7 +1850,7 @@ export default function FlowseekerProBlademap({ active = true }) {
                         <span className="fsb-v3n">{b.n_measured}/{b.n}</span>
                       </div>
                     ))}
-                    {setupStats && setupStats.overall.n > 0 && Object.entries(setupStats.by_setup).map(([name, s]) => (
+                    {setupStats?.overall?.n > 0 && Object.entries(setupStats.by_setup || {}).map(([name, s]) => (
                       <div key={name} className={`fsb-v3cell${s.win_rate >= 0.5 ? " hot" : ""}`}
                            title={`journal ${setupStats.days}d · ${name}: ${s.wins}W/${s.losses}L, avg ${(s.avg_return * 100).toFixed(1)}%`}>
                         <span className="fsb-v3lbl">📓 {name}</span>

@@ -33,10 +33,11 @@ describe('PulseTape', () => {
     expect(screen.getAllByTestId('pulse-fill').length).toBe(8);
     expect(screen.getAllByTestId('pulse-side').length).toBe(8);
   });
-  it('no-quote rows show NO_QUOTE', () => {
+  it('no-quote rows show NO_QUOTE or LOCKED (never guessed)', () => {
     render(<PulseTape rows={pulseRows} />);
     const sides = screen.getAllByTestId('pulse-side').map((el) => el.textContent);
-    expect(sides.filter((s) => s === 'NO_QUOTE').length).toBeGreaterThanOrEqual(3);
+    const nonOk = sides.filter((s) => s === 'NO_QUOTE' || s === 'LOCKED');
+    expect(nonOk.length).toBeGreaterThanOrEqual(3);
   });
   it('honest states: loading/empty/error/frozen', () => {
     const { rerender } = render(<PulseTape rows={[]} state="loading" />);

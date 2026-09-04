@@ -5,7 +5,9 @@ import {
   awaySummary, scanRowsToCSV, oiChange, streakOf, isTradingDay, evalTickerAlerts,
   pulseState, elapsedClock, formatFOLLOWStrip,
   tierOf, selectFires, pickBanner, spreadPosition, overviewStats,
-  equityType, signedOtm, isOpexDay, highlightState,
+  equityType, signedOtm, isOpexDay, highlightState, flagSpreadLegs,
+  interpDeltaIV, skewLevels, pinRisk, quoteSkew, midDrift, stampPollDeltas, nearestExpiryPin,
+  rollSpread, pushCapped, rollPooled, contractKey,
 } from "./scanLogic";
 
 describe("estimateDelta", () => {
@@ -845,18 +847,30 @@ describe("evalTickerAlerts noise pass (2026-09-02)", () => {
 
 describe("W1 tracer — spreadPosition", () => {
   it("maps bid->0, mid->0.5, ask->1, clamps outside", () => {
-    expect(spreadPosition(4, 4.2, 4)).toEqual({ pos: 0, state: "OK" });
+    expect(spreadPosition(4, 4.2, 4)).toMatchObject({ pos: 0, state: "OK", side: "BID" });
     expect(spreadPosition(4, 4.2, 4.1).pos).toBeCloseTo(0.5, 5);
-    expect(spreadPosition(4, 4.2, 4.2)).toEqual({ pos: 1, state: "OK" });
+    expect(spreadPosition(4, 4.2, 4.2)).toMatchObject({ pos: 1, state: "OK", side: "ASK" });
     expect(spreadPosition(4, 4.2, 9).pos).toBe(1);
     expect(spreadPosition(4, 4.2, 1).pos).toBe(0);
   });
-  it("NO_QUOTE on missing, zero, or crossed quotes", () => {
+  it("NO_QUOTE on missing/zero, LOCKED on crossed (ask<=bid)", () => {
     expect(spreadPosition(null, 4.2, 4.1).state).toBe("NO_QUOTE");
     expect(spreadPosition(4, null, 4.1).state).toBe("NO_QUOTE");
     expect(spreadPosition(4, 4.2, null).state).toBe("NO_QUOTE");
     expect(spreadPosition(0, 0, 5).state).toBe("NO_QUOTE");
-    expect(spreadPosition(4.2, 4, 4.1).state).toBe("NO_QUOTE");
+    expect(spreadPosition(4.2, 4, 4.1).state).toBe("LOCKED");
+    expect(spreadPosition(4.2, 4, 4.1).side).toBe("LOCKED");
+  });
+  it("BID/MID/ASK exact, clamp edges, side label", () => {
+    expect(spreadPosition(4, 4.2, 4).side).toBe("BID");
+    expect(spreadPosition(4, 4.2, 4.1).side).toBe("MID");
+    expect(spreadPosition(4, 4.2, 4.2).side).toBe("ASK");
+    // boundary: pos<=0.33 → BID, pos>=0.67 → ASK — use clearly interior values
+    expect(spreadPosition(4, 4.6, 4.15).side).toBe("BID"); // (4.15-4)/0.6 = 0.25
+    expect(spreadPosition(4, 4.6, 4.45).side).toBe("ASK"); // (4.45-4)/0.6 = 0.75
+    // near-boundary: 0.33 BID, 0.67 ASK (with tolerance)
+    expect(spreadPosition(4, 4.6, 4.19).side).toBe("BID"); // (4.19-4)/0.6 ≈ 0.316
+    expect(spreadPosition(4, 4.6, 4.42).side).toBe("ASK"); // (4.42-4)/0.6 = 0.70
   });
 });
 
@@ -918,5 +932,179 @@ describe("W3-partial highlighting — highlightState", () => {
     expect(highlightState({ volDelta: 0, volOI: 0.5, oi: 1000 })).toBe("NONE");
     expect(highlightState({ volDelta: 5000, volOI: 9, oi: 0 })).toBe("VOL_OI");
     expect(highlightState({})).toBe("NONE");
+  });
+});
+
+describe("W2 strategy-leg port — flagSpreadLegs", () => {
+  const leg = (ticker, type, strike, volume, exp = "2026-09-18") =>
+    ({ ticker, type, strike, expiration: exp, volume });
+  it("flags verticals on matched volumes, ignores the rest", () => {
+    const rows = [leg("SPY", "call", 450, 2000), leg("SPY", "call", 455, 2100), leg("SPY", "call", 460, 50)];
+    expect(flagSpreadLegs(rows)).toBe(2);
+    expect(rows[0]._strat).toBe("VERT?");
+    expect(rows[1]._strat).toBe("VERT?");
+    expect(rows[2]._strat).toBeUndefined();
+  });
+  it("flags straddles within 5% strikes, respects the 1000 floor", () => {
+    const rows = [leg("SPY", "call", 450, 3000), leg("SPY", "put", 445, 2900)];
+    expect(flagSpreadLegs(rows)).toBe(2);
+    expect(rows[0]._strat).toBe("STRADDLE?");
+    const small = [leg("SPY", "call", 450, 500), leg("SPY", "put", 445, 480)];
+    expect(flagSpreadLegs(small)).toBe(0);
+  });
+});
+
+describe("Wave-2 SHIP engine — skew/pin/inventory", () => {
+  const c = (type, delta, iv, strike = 450, oi = 1000) => ({ type, delta, iv, strike, oi });
+  it("interpDeltaIV hits exact, interpolates, refuses extrapolation", () => {
+    const rows = [c("put", -0.1, 0.30), c("put", -0.3, 0.40)];
+    expect(interpDeltaIV(rows, -0.1, "put")).toBeCloseTo(0.30, 6);
+    expect(interpDeltaIV(rows, -0.2, "put")).toBeCloseTo(0.35, 6);
+    expect(interpDeltaIV(rows, -0.5, "put")).toBeNull();
+    expect(interpDeltaIV([c("put", -0.2, 0.3)], -0.2, "put")).toBeNull();
+  });
+  it("skewLevels matches XZZ/C-W/Yan/convexity definitions", () => {
+    const rows = [
+      c("put", -0.2, 0.40), c("put", -0.5, 0.30), c("put", -0.8, 0.50),
+      c("call", 0.3, 0.22), c("call", 0.5, 0.20),
+    ];
+    const s = skewLevels(rows);
+    expect(s.smirk).toBeCloseTo(0.20, 6);
+    expect(s.cwSpread).toBeCloseTo(-0.10, 6);
+    expect(s.yanSlope).toBeCloseTo(0.10, 6);
+    expect(s.convexity).toBeCloseTo(0.50, 6);
+  });
+  it("pinRisk finds max-OI strike, concentration, distance", () => {
+    const rows = [c("call", 0.5, 0.2, 450, 5000), c("put", -0.5, 0.3, 450, 3000), c("call", 0.5, 0.2, 460, 1000), c("put", -0.5, 0.3, 440, 1000), c("call", 0.5, 0.2, 470, 1000)];
+    const p = pinRisk(rows, 452);
+    expect(p.maxOiStrike).toBe(450);
+    expect(p.concentration).toBeCloseTo(10000 / 11000, 6);
+    expect(p.distPct).toBeCloseTo(((450 - 452) / 452) * 100, 6);
+    expect(pinRisk([], 452)).toBeNull();
+  });
+  it("quoteSkew spreads always, direction only vs prevMid", () => {
+    const q = quoteSkew(1.0, 1.2);
+    expect(q.tag).toBe("LEVEL");
+    expect(q.relSpread).toBeCloseTo(0.2 / 1.1, 6);
+    expect(quoteSkew(1.0, 1.2, 1.0).tag).toBe("UP");
+    expect(quoteSkew(1.0, 1.2, 1.2).tag).toBe("DOWN");
+    expect(quoteSkew(1.0, 1.2, 1.1).tag).toBe("FLAT");
+    expect(quoteSkew(0, 0).tag).toBe("NOQUOTE");
+    expect(quoteSkew(1.2, 1.0).tag).toBe("NOQUOTE");
+  });
+  it("midDrift returns pct over window, null when unusable", () => {
+    expect(midDrift([100, 101, 102]).driftPct).toBeCloseTo(2, 6);
+    expect(midDrift([100, 101, 102]).n).toBe(3);
+    expect(midDrift([100])).toBeNull();
+  });
+});
+
+describe("stampPollDeltas — per-poll stamping", () => {
+  const s = (vol, mid) => ({ ticker: "SPY", type: "call", strike: 450, expiration: "2026-09-18", volume: vol, mid });
+  it("first sighting: delta 0, prevMid null; second poll: delta + prior mid", () => {
+    const v = new Map(), m = new Map();
+    const p1 = [s(100, 4.1)];
+    stampPollDeltas(p1, v, m);
+    expect(p1[0]._volDelta).toBe(0);
+    expect(p1[0]._prevMid).toBeNull();
+    const p2 = [s(150, 4.2)];
+    stampPollDeltas(p2, v, m);
+    expect(p2[0]._volDelta).toBe(50);
+    expect(p2[0]._prevMid).toBeCloseTo(4.1, 6);
+  });
+  it("volume reset reads as unknown (0), mid map keeps last good", () => {
+    const v = new Map(), m = new Map();
+    stampPollDeltas([s(500, 4.2)], v, m);
+    const p2 = [s(10, null)];
+    stampPollDeltas(p2, v, m);
+    expect(p2[0]._volDelta).toBe(0);
+    expect(p2[0]._prevMid).toBeCloseTo(4.2, 6);
+  });
+});
+
+describe("nearestExpiryPin — Friday gate + nearest expiry", () => {
+  const r = (ticker, strike, oi, exp, spot = 452) => ({ ticker, strike, oi, expiration: exp, spot });
+  const MON = new Date("2026-08-31T12:00:00").getTime(); // Monday
+  const FRI = new Date("2026-09-04T12:00:00").getTime(); // Friday
+  it("index names eligible any day; picks nearest expiry", () => {
+    const rows = [r("SPY", 450, 8000, "2026-09-18"), r("SPY", 450, 1000, "2026-09-18"), r("SPY", 455, 9000, "2026-09-25")];
+    const p = nearestExpiryPin(rows, "SPY", MON);
+    expect(p.eligible).toBe(true);
+    expect(p.exp).toBe("2026-09-18");
+    expect(p.maxOiStrike).toBe(450);
+  });
+  it("single names gated to Friday", () => {
+    const rows = [r("NVDA", 180, 5000, "2026-09-18", 182)];
+    expect(nearestExpiryPin(rows, "NVDA", MON)).toEqual({ eligible: false, reason: "Fri-only" });
+    const fri = nearestExpiryPin(rows, "NVDA", FRI);
+    expect(fri.eligible).toBe(true);
+    expect(fri.maxOiStrike).toBe(180);
+  });
+  it("null on empty or ticker mismatch", () => {
+    expect(nearestExpiryPin([], "SPY", MON)).toBeNull();
+    expect(nearestExpiryPin([r("SPY", 450, 100, "2026-09-18")], "QQQ", MON)).toBeNull();
+  });
+});
+
+describe("rollSpread — Roll 1984 bounce estimator", () => {
+  it("recovers known spread from synthetic bounce", () => {
+    const px = [100, 101, 100, 101, 100, 101, 100, 101, 100]; // 8 even deltas
+    const r = rollSpread(px);
+    expect(r.truncated).toBe(false);
+    expect(r.spread).toBeCloseTo(2, 6);
+    expect(r.n).toBe(9);
+  });
+  it("truncates flat and trending series to 0", () => {
+    expect(rollSpread([5, 5, 5, 5, 5]).truncated).toBe(true);
+    expect(rollSpread([5, 5, 5, 5, 5]).spread).toBe(0);
+    expect(rollSpread([1, 2, 3, 4, 5, 6]).truncated).toBe(true);
+  });
+  it("needs 3+ mids; pushCapped bounds the ring", () => {
+    expect(rollSpread([1, 2]).spread).toBeNull();
+    const r = pushCapped(pushCapped([1, 2], 3, 3), 4, 3);
+    expect(r).toEqual([2, 3, 4]);
+  });
+});
+
+describe("rollPooled — expiry-bucket cost", () => {
+  const bounce = (n, lo = 4, hi = 4.2) => Array.from({ length: n }, (_, i) => (i % 2 === 0 ? lo : hi));
+  it("pools two bounce rings into one spread", () => {
+    const r = rollPooled([bounce(20), bounce(20)]);
+    expect(r.building).toBe(false);
+    expect(r.spread).toBeCloseTo(0.4, 1); // full bounce amplitude ± joint noise
+  });
+  it("building state under 30 deltas, never a number", () => {
+    const r = rollPooled([bounce(10)]);
+    expect(r.building).toBe(true);
+    expect(r.spread).toBeNull();
+  });
+});
+
+describe("poll-chain integration — the effect's exact sequence", () => {
+  it("poll2 arrows + deltas; pool exits building at 30 deltas", () => {
+    const prevVol = new Map(), prevMid = new Map(), rings = new Map();
+    const mk = (vol, a, b) => ([
+      { ticker: "SPY", type: "call", strike: 450, expiration: "2026-09-18", volume: vol, mid: a },
+      { ticker: "SPY", type: "put", strike: 445, expiration: "2026-09-18", volume: vol, mid: b },
+    ]);
+    let arrows, deltas;
+    for (let p = 0; p < 16; p++) {
+      const batch = mk(100 + p * 10, 4.1 + p * 0.01, 4.0 - p * 0.005);
+      stampPollDeltas(batch, prevVol, prevMid);
+      for (const s of batch) {
+        rings.set(contractKey(s), pushCapped(rings.get(contractKey(s)), Number(s.mid), 60));
+      }
+      if (p === 1) {
+        arrows = batch.map((s) => quoteSkew(4.0, 4.3, s._prevMid).tag);
+        deltas = batch.map((s) => s._volDelta);
+      }
+    }
+    expect(arrows).toEqual(["UP", "UP"]);
+    expect(deltas).toEqual([10, 10]);
+    const pool = rollPooled([...rings.values()]);
+    expect(pool.building).toBe(false);
+    // steady drift = positive autocov = textbook truncation, not a bug.
+    expect(pool.truncated).toBe(true);
+    expect(pool.spread).toBe(0);
   });
 });

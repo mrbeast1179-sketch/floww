@@ -621,15 +621,26 @@ export function formatFOLLOWStrip(streaks, { top = 6 } = {}) {
 
 // ---------- W1 tracer: spread position + overview bar (Phase 9) ----------
 // Spread position: where last traded inside [bid, ask]. 0 = at bid, 1 = at ask.
-// Returns {pos, state}: state NO_QUOTE when bid/ask missing or crossed —
-// the bar must say so, never guess (C4).
+// Returns {pos, state, side, label}: state NO_QUOTE when bid/ask/last missing or zero,
+// LOCKED when bid/ask present but crossed/locked (ask<=bid) — never a guessed number (C4).
+// side/label: BID (pos<=0.33) / MID (0.33<pos<0.67) / ASK (pos>=0.67) / NO_QUOTE|LOCKED.
 export function spreadPosition(bid, ask, last) {
   const b = Number(bid), a = Number(ask), l = Number(last);
+  // Missing or zero quotes → NO_QUOTE (never guess)
   if (!Number.isFinite(b) || !Number.isFinite(a) || !Number.isFinite(l)
-    || b <= 0 || a <= 0 || l <= 0 || a <= b) {
-    return { pos: null, state: "NO_QUOTE" };
+    || b <= 0 || a <= 0 || l <= 0) {
+    return { pos: null, state: "NO_QUOTE", side: "NO_QUOTE", label: "NO_QUOTE" };
   }
-  return { pos: Math.max(0, Math.min(1, (l - b) / (a - b))), state: "OK" };
+  // Crossed/locked spread (ask<=bid) → LOCKED distinct from NO_QUOTE
+  if (a <= b) {
+    return { pos: null, state: "LOCKED", side: "LOCKED", label: "LOCKED" };
+  }
+  const pos = Math.max(0, Math.min(1, (l - b) / (a - b)));
+  let side;
+  if (pos <= 0.33) side = "BID";
+  else if (pos < 0.67) side = "MID";
+  else side = "ASK";
+  return { pos, state: "OK", side, label: side };
 }
 
 // Overview bar rollup over Pulse rows. Direction proxy (snapshot chains carry
@@ -701,4 +712,245 @@ export function highlightState({ volDelta, volOI, oi }) {
   if (o > 0 && dv > o) return "BURST";
   if (voi >= 1) return "VOL_OI";
   return "NONE";
+}
+
+// ---------- Strategy-leg port (Phase 9 W2; mirrors backend flow_quality) ----------
+// Same fingerprints: vertical = same ticker+exp+type, different strikes, volume
+// ratio within 0.7–1.43x with 1000-contract floor each leg; straddle/strangle =
+// opposite types, strikes within 5%, matched volumes. Tags r._strat with
+// "VERT?" or "STRADDLE?" (heuristic — no multi-exchange leg linkage). Returns count.
+const SPREAD_LO = 0.7, SPREAD_HI = 1 / 0.7, SPREAD_VOL_FLOOR = 1000, STRADDLE_TOL = 0.05;
+export function flagSpreadLegs(rows) {
+  let n = 0;
+  const byTE = new Map();
+  for (const r of rows || []) {
+    const k = `${r.ticker}|${String(r.expiration || "").slice(0, 10)}`;
+    if (!byTE.has(k)) byTE.set(k, []);
+    byTE.get(k).push(r);
+  }
+  const ratioOk = (a, b) => {
+    const va = Number(a.volume) || 0, vb = Number(b.volume) || 0;
+    if (va < SPREAD_VOL_FLOOR || vb < SPREAD_VOL_FLOOR) return false;
+    const q = va / vb;
+    return q >= SPREAD_LO && q <= SPREAD_HI;
+  };
+  for (const legs of byTE.values()) {
+    if (legs.length < 2) continue;
+    for (let i = 0; i < legs.length; i++) {
+      for (let j = i + 1; j < legs.length; j++) {
+        const a = legs[i], b = legs[j];
+        if (!ratioOk(a, b)) continue;
+        const ta = String(a.type || "").toLowerCase(), tb = String(b.type || "").toLowerCase();
+        const ka = Number(a.strike) || 0, kb = Number(b.strike) || 0;
+        let tag = null;
+        if (ta === tb && ka !== kb) tag = "VERT?";
+        else if (ta !== tb && ka > 0 && kb > 0
+          && Math.abs(ka - kb) / Math.max(ka, kb) <= STRADDLE_TOL) tag = "STRADDLE?";
+        if (!tag) continue;
+        for (const leg of [a, b]) {
+          if (!leg._strat) { leg._strat = tag; n += 1; }
+        }
+      }
+    }
+  }
+  return n;
+}
+
+// ---------- Wave-2 SHIP engine (pure; synthesis tidehunter-wave2-synthesis.md) ----------
+// Conventions: IVs normalized by the same <3-decimal rule as fmtIV. Delta
+// interpolation never extrapolates (null outside observed range). Rows with
+// estimated deltas (deltaEst) degrade interpolation — callers preferring
+// precision should pre-filter; helpers stay honest and compute anyway.
+
+// Linear-interpolate IV at a target delta across same-type contracts.
+// Returns null with <2 usable points or target outside observed delta range.
+export function interpDeltaIV(rows, targetDelta, type) {
+  const t = String(type || "").toLowerCase().startsWith("c") ? "call" : "put";
+  const pts = [];
+  for (const r of rows || []) {
+    if (String(r.type || "").toLowerCase() !== t) continue;
+    const d = Number(r.delta), v = Number(r.iv);
+    if (!Number.isFinite(d) || r.iv == null) continue;
+    const iv = Number(v) >= 3 ? Number(v) / 100 : Number(v);
+    if (iv <= 0) continue;
+    pts.push([d < 0 ? d : (t === "put" ? -d : d), iv]); // signed delta
+  }
+  if (pts.length < 2) return null;
+  // Signed delta: calls +d, puts −|d|.
+  const signed = pts.map(([d, iv]) => [d, iv]).sort((a, b) => a[0] - b[0]);
+  const x = Number(targetDelta);
+  if (x < signed[0][0] || x > signed[signed.length - 1][0]) return null;
+  for (let i = 0; i < signed.length - 1; i++) {
+    const [x0, y0] = signed[i], [x1, y1] = signed[i + 1];
+    if (x >= x0 && x <= x1) {
+      if (x1 === x0) return y0;
+      return y0 + ((y1 - y0) * (x - x0)) / (x1 - x0);
+    }
+  }
+  return null;
+}
+
+// Single-expiry skew levels (XZZ smirk, C-W spread, Yan slope, convexity).
+// Pass rows for ONE expiry (front liquid monthly); nulls where uncomputable.
+export function skewLevels(rows) {
+  const put = (d) => interpDeltaIV(rows, d, "put");
+  const call = (d) => interpDeltaIV(rows, d, "call");
+  const p20 = put(-0.2), p50 = put(-0.5), p80 = put(-0.8), c50 = call(0.5);
+  const sub = (a, b) => (a == null || b == null ? null : a - b);
+  return {
+    smirk: sub(p20, c50),          // XZZ: IVput(-0.2) − IVcall(0.5)
+    cwSpread: sub(c50, p50),       // Cremers-Weinbaum: IVcall(0.5) − IVput(-0.5)
+    yanSlope: sub(p20, p50),       // Yan: IVput(-0.2) − IVput(-0.5)
+    convexity: p20 == null || p80 == null || c50 == null
+      ? null : p20 + p80 - 2 * c50,
+  };
+}
+
+// Expiry-day pin risk from one snapshot: max-OI strike, top-3 concentration,
+// 0DTE-OI share not computable here (needs multi-expiry view — caller joins).
+export function pinRisk(rows, spot) {
+  const byStrike = new Map();
+  let total = 0;
+  for (const r of rows || []) {
+    const oi = Number(r.oi) || 0;
+    if (oi <= 0) continue;
+    const k = Number(r.strike) || 0;
+    byStrike.set(k, (byStrike.get(k) || 0) + oi);
+    total += oi;
+  }
+  if (!byStrike.size || total <= 0) return null;
+  const ranked = [...byStrike.entries()].sort((a, b) => b[1] - a[1]);
+  const top3 = ranked.slice(0, 3).reduce((s, [, v]) => s + v, 0);
+  const s = Number(spot);
+  return {
+    maxOiStrike: ranked[0][0],
+    maxOi: ranked[0][1],
+    concentration: top3 / total,
+    totalOi: total,
+    distPct: Number.isFinite(s) && s > 0 ? ((ranked[0][0] - s) / s) * 100 : null,
+  };
+}
+
+// Ho-Stoll-lite quote read: relative spread always; direction needs a reference.
+// DOWN = mid shifted down vs prevMid (dealer-long pressure), UP = inverse.
+// Without prevMid there is no direction — tag LEVEL, never a fabricated side.
+export function quoteSkew(bid, ask, prevMid = null) {
+  const b = Number(bid), a = Number(ask);
+  if (!Number.isFinite(b) || !Number.isFinite(a) || a <= b || b <= 0) {
+    return { mid: null, relSpread: null, driftBp: null, tag: "NOQUOTE" };
+  }
+  const mid = (a + b) / 2;
+  const relSpread = (a - b) / mid;
+  const pm = Number(prevMid);
+  if (!Number.isFinite(pm) || pm <= 0) return { mid, relSpread, driftBp: null, tag: "LEVEL" };
+  const driftBp = ((mid - pm) / pm) * 1e4;
+  const tag = Math.abs(driftBp) < 1 ? "FLAT" : driftBp < 0 ? "DOWN" : "UP";
+  return { mid, relSpread, driftBp, tag };
+}
+
+// Midpoint drift over oldest→newest mids (reservation-price proxy).
+export function midDrift(mids) {
+  const xs = (mids || []).map(Number).filter(Number.isFinite);
+  if (xs.length < 2 || xs[0] <= 0) return null;
+  return { driftPct: ((xs[xs.length - 1] - xs[0]) / xs[0]) * 100, n: xs.length };
+}
+
+// ---------- Per-poll snapshot stamping (skip lists: SHIP-4/6) ----------
+// Shared contract key so buffer, volume-delta, and mid tracking agree.
+export function contractKey(r) {
+  return `${r.ticker}|${String(r.type || "").toLowerCase()}|${r.strike}|${String(r.expiration || "").slice(0, 10)}`;
+}
+// Stamps FRESH signals only (never re-stamp: StrictMode double-effects and
+// repeat polls would zero the deltas). Day volume is cumulative; a drop =
+// data reset → delta unknown (0), mid map untouched.
+export function stampPollDeltas(signals, prevVol, prevMid) {
+  for (const s of signals || []) {
+    const key = contractKey(s);
+    const pv = prevVol.get(key);
+    s._volDelta = pv == null ? 0 : Math.max(0, (Number(s.volume) || 0) - pv);
+    prevVol.set(key, Number(s.volume) || 0);
+    s._prevMid = prevMid.has(key) ? prevMid.get(key) : null;
+    const m = Number(s.mid);
+    if (Number.isFinite(m) && m > 0) prevMid.set(key, m);
+  }
+  return signals;
+}
+
+// ---------- Pin-risk readout (SHIP-1; CL-06 gate) ----------
+// Daily expirations verified only for SPX/SPXW/SPY/QQQ/IWM/XSP — every other
+// name is Friday-only (single-name equity options expire weekly). Nearest
+// expiry group scoped to the ticker; spot from first row carrying one.
+const PIN_DAILY = new Set(["SPX", "SPXW", "SPY", "QQQ", "IWM", "XSP"]);
+export function nearestExpiryPin(rows, ticker, nowMs = Date.now()) {
+  const t = String(ticker || "").toUpperCase();
+  const scoped = (rows || []).filter(
+    (r) => String(r.ticker || "").toUpperCase() === t && Number(r.oi) > 0
+  );
+  if (!scoped.length) return null;
+  if (!PIN_DAILY.has(t) && new Date(nowMs).getDay() !== 5) {
+    return { eligible: false, reason: "Fri-only" };
+  }
+  const exps = [...new Set(
+    scoped.map((r) => String(r.expiration || "").slice(0, 10)).filter(Boolean)
+  )].sort();
+  if (!exps.length) return null;
+  const group = scoped.filter((r) => String(r.expiration || "").slice(0, 10) === exps[0]);
+  const withSpot = group.find((r) => Number(r.spot) > 0);
+  const pin = pinRisk(group, withSpot ? withSpot.spot : null);
+  if (!pin) return null;
+  return { eligible: true, exp: exps[0], ...pin };
+}
+
+// ---------- Roll 1984 effective spread (SHIP-7 engine; ROLL-01..08) ----------
+// s = 2*sqrt(-cov(dP_t, dP_{t+1})). Defined ONLY for negative autocovariance;
+// cov >= 0 → truncated (spread 0, truncated:true) per ROLL-02. Measures
+// quoted-bounce + staleness on snapshots, NOT taker cost (ROLL-07). Needs
+// ~30+ mids for a non-degenerate read (ROLL-05) — callers show n.
+export function rollSpread(mids) {
+  const xs = (mids || []).map(Number).filter((v) => Number.isFinite(v) && v > 0);
+  if (xs.length < 3) return { spread: null, n: xs.length, truncated: false };
+  const d = [];
+  for (let i = 1; i < xs.length; i++) d.push(xs[i] - xs[i - 1]);
+  const mu = d.reduce((a, b) => a + b, 0) / d.length;
+  let cov = 0;
+  for (let i = 0; i < d.length - 1; i++) cov += (d[i] - mu) * (d[i + 1] - mu);
+  cov /= d.length - 1;
+  if (cov >= 0) return { spread: 0, n: xs.length, truncated: true };
+  return { spread: 2 * Math.sqrt(-cov), n: xs.length, truncated: false };
+}
+
+// Capped push for per-contract mid rings (Roll history; caller persists).
+export function pushCapped(ring, v, cap = 60) {
+  const r = Array.isArray(ring) ? ring : [];
+  const x = Number(v);
+  if (Number.isFinite(x) && x > 0) r.push(x);
+  while (r.length > cap) r.shift();
+  return r;
+}
+
+// ---------- Pooled Roll bucket (SHIP-7 wiring; ROLL-08) ----------
+// Aggregates dP covariance across contracts in one expiry bucket. Deltas are
+// concatenated per-ring (one spurious joint adjacency per ring — negligible
+// past ~30 deltas, documented not hidden). Under 30 deltas → building state,
+// never a number.
+export function rollPooled(rings) {
+  const deltas = [];
+  let nMid = 0;
+  for (const ring of rings || []) {
+    const xs = (Array.isArray(ring) ? ring : [])
+      .map(Number).filter((v) => Number.isFinite(v) && v > 0);
+    nMid += xs.length;
+    for (let i = 1; i < xs.length; i++) deltas.push(xs[i] - xs[i - 1]);
+  }
+  if (deltas.length < 30) {
+    return { spread: null, n: nMid, nd: deltas.length, building: true, truncated: false };
+  }
+  const mu = deltas.reduce((a, b) => a + b, 0) / deltas.length;
+  let cov = 0;
+  for (let i = 0; i < deltas.length - 1; i++) cov += (deltas[i] - mu) * (deltas[i + 1] - mu);
+  cov /= deltas.length - 1;
+  if (cov >= 0) {
+    return { spread: 0, n: nMid, nd: deltas.length, building: false, truncated: true };
+  }
+  return { spread: 2 * Math.sqrt(-cov), n: nMid, nd: deltas.length, building: false, truncated: false };
 }

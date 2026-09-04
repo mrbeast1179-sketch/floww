@@ -42,6 +42,13 @@ async def get_data_health():
         # Update Prometheus gauges
         provider_monitor.update_prometheus()
 
+        # Public-path budget gate status (rate-limit shield observability)
+        try:
+            from services.public_budget import budget as _pub_budget
+            health["public_budget"] = _pub_budget.status()
+        except Exception:
+            pass
+
         return health
     except Exception as e:
         return {"error": str(e)}

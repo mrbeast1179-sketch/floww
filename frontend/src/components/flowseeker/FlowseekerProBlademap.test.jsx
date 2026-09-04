@@ -226,7 +226,7 @@ describe("Phase 5.3 dual-path: Public API → cvserver fallback", () => {
 });
 
 describe("Pulse helpers — BladeMap tape contract", () => {
-  const { pulseScore10, pulseSignal, pulseBadges, aggregatePulse, pruneBuffer, pulseHedge } = require("./FlowseekerProBlademap");
+  const { pulseScore10, pulseSignal, pulseBadges, aggregatePulse, pruneBuffer, pulseHedge, costLabel, COST_TITLE, COST_CAPTION, COST_CAPTION_TITLE } = require("./FlowseekerProBlademap");
 
   it("pulseHedge flags put-ASK only (reference signal untouched)", () => {
     expect(pulseHedge("put", "ASK")).toBe(true);
@@ -290,5 +290,29 @@ describe("Pulse helpers — BladeMap tape contract", () => {
     expect(rows[0].side).toBe("ASK");
     expect(rows[0].mid).toBeCloseTo(4.1);
     expect(rows[0].otm).toBeCloseTo((10 / 450) * 100);
+  });
+});
+
+describe("costLabel — COST honesty contract (Step 1.4)", () => {
+  const { costLabel: cl, COST_TITLE: T, COST_CAPTION: C, COST_CAPTION_TITLE: CT } = require("./FlowseekerProBlademap");
+  it("null in, null out; building shows a count, never a number", () => {
+    expect(cl(null)).toBeNull();
+    const b = cl({ building: true, nd: 7 });
+    expect(b.text).toBe("COST building 7/30");
+    expect(b.text).not.toMatch(/\$\d/);
+  });
+  it("numbered and truncated states keep the caption + title", () => {
+    for (const r of [{ building: false, spread: 0.04 }, { building: false, spread: 0, truncated: true }]) {
+      const o = cl(r);
+      expect(o.caption).toBe("mid-quote, not executable");
+      expect(o.title).toMatch(/NOT an executable taker cost/);
+    }
+    expect(cl({ building: false, spread: 0.04 }).text).toBe("COST ~$0.04");
+    expect(cl({ building: false, spread: 0, truncated: true }).text).toBe("COST ~$0.00");
+  });
+  it("exported copy pins the wording", () => {
+    expect(T).toMatch(/NOT an executable taker cost/);
+    expect(C).toBe("mid-quote, not executable");
+    expect(CT).toMatch(/NOT an executable taker cost/);
   });
 });
