@@ -1,7 +1,7 @@
 # STATE.md — Confluence Decoder
 
-**Last updated:** 2026-08-31
-**Branch:** `main` @ 79b047e (docs(gsd): Phase 5 complete — all 4 tickets delivered, planning + kanban closed)
+**Last updated:** 2026-09-04
+**Branch:** `main` @ 9979eb0 (fix(ci): unmask git failures in frontend-fs-integrity gate)
 **Tests:** backend 4606 passed, 64 skipped, 1 xfailed, 0 failed · frontend OptionsChainTable 10/10 + FlowseekerProBlademap 17/17 passing
 **Lint:** ruff (E, E722, F, W, I; ignore E501)
 
@@ -12,9 +12,9 @@ Deploy package hardened and ready: Oracle Always Free runbook
 `oracle-vm-deploy`, docker-compose stack behind Caddy. **Awaiting Nav's VM
 provisioning** — Phase 1 of ROADMAP.md starts the moment the VM exists.
 
-**Last updated:** 2026-08-31
-**Branch:** `main` @ 7e6ac70 (chore(kanban): refresh bottleneck alerts timestamp)
-**Tests:** backend 4543 passed, 53 skipped, 1 xfailed, 6 pre-existing failures · frontend OptionsChainTable 10/10 + FlowseekerProBlademap 17/17 passing
+**Last updated:** 2026-09-04
+**Branch:** `main` @ 9979eb0 (fix(ci): unmask git failures in frontend-fs-integrity gate)
+**Tests:** backend 3 passed, 20 warnings · frontend 56 suites / 409 tests · lane trio 4 suites / 178 tests
 **Lint:** ruff (E, E722, F, W, I; ignore E501)
 
 ## Project position
@@ -45,9 +45,14 @@ Phase 6 — Backlog Promotion [ACTIVE]. Phase 4 (Tidehunter Pro) is gating-only 
 - 2026-08-24 — Ingest-docs bootstrap: PROJECT.md / REQUIREMENTS.md / ROADMAP.md /
   STATE.md / config.json created from curated manifest (8 docs); round transcripts
   excluded as historical noise.
-- 2026-08-31 — Phase 3 closed, Phase 5 complete (all 4 tickets delivered). 7 files
-  damaged by commit 79b047e (ROADMAP.md shred to 7 lines) — restored + all stale
-  kanban/planning docs refreshed.
+- 2026-09-04 — Phase 9 lane advancing: SHIP polish (COST caption, poll-chain
+  integration, costLabel honesty contract, live modal-hook fixtures, HOOKS
+  contract), apply-blind backend packets (public-path-budget + B1/B2/B3),
+  RFC-3 overview-bar consolidation, phantom-import fix (React.lazy guard),
+  CR-002 + CI frontier gate, full stale-number documentation sweep, and CI
+  gate hardening (unmask git failures in frontend-fs-integrity). Lane trio
+  4 suites / 178 tests green; full frontend 56 suites / 409 tests green;
+  backend 3/3 green. Origin/main at 9979eb0.
 - 2026-09-03 — Phase 7 complete (public-api-only + trade-direct): Schwab/Alpha
   Vantage retired (410s, disabled stubs, fail-closed client); new
   /api/public/{bars,history,technical,expirations}; Triad row-click enriched

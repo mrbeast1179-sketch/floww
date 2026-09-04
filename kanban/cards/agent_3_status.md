@@ -4,11 +4,11 @@ State: ACTIVE on main beyond Phase 3. Agent 3 owns ongoing Tidehunter SHIP +
 Phase 9 lane work; the Phase-3 cvserver alignment section below is preserved as
 historical context only.
 
-Current HEAD on main: af1d06b (docs(phase9): correct CR-002 acceptance
-reference (was mislabeling the CI gate as CC-001)).
+Current HEAD on main: 9979eb0 (fix(ci): unmask git failures in frontend-fs-integrity gate)
 
 Agent 3 SHIP + Phase 9 lane commits on main (most recent first, snapshot at
-HEAD af1d06b, 2026-09-04):
+HEAD 9979eb0, 2026-09-04):
+  9979eb0 fix(ci): unmask git failures in frontend-fs-integrity gate
   af1d06b docs(phase9): correct CR-002 acceptance reference (was mislabeling the CI gate as CC-001)
   8622f75 fix(ci): correct frontend-fs-integrity path under working-directory ./frontend
   ca210f7 chore(phase9): file CR-002 + CI frontend-fs-integrity gate
@@ -73,7 +73,8 @@ Lane discipline (AGENT_CONTRACT.md §2 + §4, verified each commit):
   herdoc style). Anti-fabrication: every claim carries real tool output.
 
 Agent 3 commit count on main (post-17a555d live-validation anchor,
-2026-09-03): 51. Total commits by this author on main:
+2026-09-03): 18 (live-validation anchor through HEAD 9979eb0).
+Total commits by this author on main:
 `git log origin/main --oneline --author=JattMoosewala5911 | wc -l`.
 
 Blocked / open (correctly owned elsewhere, not stalled):
