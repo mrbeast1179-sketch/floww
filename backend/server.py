@@ -2905,17 +2905,18 @@ async def startup_ingestion():
         # Synthetic dev tick generator. Live market data comes from the
         # Public.com API (fetch_spot_and_chains_merged → public_api_adapter);
         # Schwab is retired (2026-09-03) and this feed is never a live source.
-        _mock_feed = MockSchwabFeed(rate=100.0, symbols=["SPY", "QQQ"], seed=42)
-        _mock_feed.on_tick(_ingestion_pipeline.enqueue_tick)
-        _mock_feed.on_chain(_ingestion_pipeline.enqueue_chain)
-        _mock_feed.on_lob(_ingestion_pipeline.enqueue_lob)
-        _mock_feed.on_lob_depth(_ingestion_pipeline.enqueue_lob_depth)
-
-        # Run mock feed in background with tracked task
-        _mock_feed_task = asyncio.create_task(_mock_feed.start())
-        _background_tasks.add(_mock_feed_task)
-        _mock_feed_task.add_done_callback(_background_tasks.discard)
-        log.info("Ingestion pipeline + mock feed started")
+        # Opt-in only — set FLOWW_ENABLE_MOCK_FEED=1 to enable (default: OFF).
+        # When disabled, only the Public.com API serves live market data.
+        if os.environ.get("FLOWW_ENABLE_MOCK_FEED", "0") == "1":
+            _mock_feed = MockSchwabFeed(rate=100.0, symbols=["SPY", "QQQ"], seed=42)
+            _mock_feed.on_tick(_ingestion_pipeline.enqueue_tick)
+            _mock_feed.on_chain(_ingestion_pipeline.enqueue_chain)
+            _mock_feed.on_lob(_ingestion_pipeline.enqueue_lob)
+            _mock_feed.on_lob_depth(_ingestion_pipeline.enqueue_lob_depth)
+            _mock_feed_task = asyncio.create_task(_mock_feed.start())
+            _background_tasks.add(_mock_feed_task)
+            _mock_feed_task.add_done_callback(_background_tasks.discard)
+            log.info("Mock feed started (FLOWW_ENABLE_MOCK_FEED=1)")
     except Exception as e:
         log.warning(f"Ingestion startup failed (non-fatal): {e}")
 
