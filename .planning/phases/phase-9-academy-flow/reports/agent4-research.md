@@ -157,8 +157,10 @@ write backend docstring patches (Agent 3 B8 lane) — all queued.
 
 ### Marathon task status
 
-- Task 1 (R1 booster surgery): NO-OP with evidence — no AI booster/Key Moments/LLM signal exists in
-  scoring (commit phase9(eval) R1 audit). Actual additive boosts (+5/+3/+4) already tracked (V15).
+- Task 1 (R1 booster surgery): CORRECTED — initial NO-OP was wrong. No AI/Key-Moments endpoint exists
+  (correct), but the spec's own missing-IV rescale ×(100/85)≈1.18x WAS a booster in effect. Removed:
+  ceiling now 85 on missing IV, test 6 re-run 100→85, booster ban in §5, provenance §5b. Bonus finding:
+  live chains carry NO `last` field → overlay is fixture-grade until `last` exists (V11 upgraded).
 - Task 2.1: measured-vs-estimated published (live-fire-2026-09-04.md); economics doc revised (WHALE and
   SCORE rates corrected).
 - Task 2.2: scan_score executed live via imported code path (harness committed); rowConviction cited via

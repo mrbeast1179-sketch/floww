@@ -126,6 +126,9 @@ New violations missed in round 1, all with file:line. Severity upgraded where us
   the NO_QUOTE/unavailable path is UNREACHABLE for side — every row gets a confident ASK/BID. This
   contradicts CONTRACTS C1 honest-empty states and the score-spec "SIDE missing → unavailable" rule.
   Fix: NO_QUOTE rows render SIDE as "—" (unknown), never fallback-guess.
+  R1-MARATHON UPGRADE: live chain payloads carry NO `last` at all → the fallback is not a fallback live,
+  it is the ONLY path; Agent-2's own missingFieldStates.json fixture demands NO_QUOTE on missing quote,
+  directly contradicting shipped code. Signed overlay is fixture-grade until `last` exists.
 - V12 (P2): WHALE naming collision — $1M tape badge vs $25M alert rule. Mitigated by in-popover disclaimer
   (:1266). Keep disclaimer; consider rename to avoid desk confusion.
 - V13-FULL-TEXT VERDICT (round 5): Table VIII is REAL (flash-crash dummy regression) but the code
