@@ -18,7 +18,7 @@ import DarkPoolPanel from "./darkpool/DarkPoolPanel";
 import { NetPremiumTrend, StrikeDistribution, VolOiFooter } from "./history/HistoryViews";
 import { Checklist, FunnelEmpty } from "./methodology/Methodology";
 import Tracker from "./tracker/Tracker";
-import { widenActions } from "./filters/filterState";
+import { widenActions, applyFilters, defaultFilterState } from "./filters/filterState";
 import "./FlowseekerProBlademap.css";
 
 // Ownership boundary: Wtipanel + RussellPanel live in App.js's product
@@ -329,6 +329,29 @@ export default function FlowseekerProBlademap({ active = true }) {
   const [scanMeta, setScanMeta] = useState({ mode: null, stale: false, symbols: 0 });
   const [baselines, setBaselines] = useState({});   // {ticker: {avg, std, days}} from /scan
   const [alertScore, setAlertScore] = useState(prefs.alertScore ?? 92);
+  // Methodology checklist state — W7 verdict wiring (real state, not no-ops).
+  const [checks, setChecks] = useState({});
+  const [verdict, setVerdict] = useState(null);
+  // Filter pipeline bridge — W6 funnel-empty wiring.
+  // Bridges the Blademap inline scan knobs to the unified subtractive filter
+  // pipeline so FunnelEmpty can show honest widening actions when the result
+  // hits zero — without duplicating filter logic in the scan.
+  const fsFilter = useMemo(() => ({
+    equityType: { stocks: true, etfs: true, indices: true },
+    sweepsOnly: false,
+    side: { BID: true, MID: true, ASK: true },
+    otm: false,
+    itm: false,
+    dte0: scanDteF === "0dte",
+    opexOnly: false,
+    strikeRange: { min: null, max: null },
+    oiGrowth: { min: 0 },
+    sentiment: { contract: [-100, 100], chain: [-100, 100] },
+    absScore: false,
+    minPremium: scanMinPrem || 0,
+    minScore: scanMinScore || 0,
+    dteBand: scanDteF === "all" ? null : scanDteF,
+  }), [scanDteF, scanMinPrem, scanMinScore]);
   const [alertRules, setAlertRules] = useState({ ...DEFAULT_RULES, ...(prefs.alertRules || {}) });
   const [history, setHistory] = useState({});   // {ticker: [{date, total_vol, call_vol, put_vol}]} from /scan/history
   const [alertLog, setAlertLog] = useState(loadAlertLog);
@@ -1536,9 +1559,23 @@ export default function FlowseekerProBlademap({ active = true }) {
               </div>
               <div className="fsb-drawer-col" data-testid="drawer-methodology">
                 <h4 className="fsb-drawer-h">Methodology</h4>
-                <Checklist steps={["NetPrem 5-7D","Underlying $","Contract + IV + RVOL","Strike 1W","Vol/OI 14d","Heatseeker cross-check"]} checks={{}} onToggle={() => {}} verdict={null} onVerdict={() => {}} />
+                <Checklist steps={["NetPrem 5-7D","Underlying $","Contract + IV + RVOL","Strike 1W","Vol/OI 14d","Heatseeker cross-check"]} checks={checks} onToggle={(i) => setChecks((c) => ({ ...c, [i]: !c[i] }))} verdict={verdict} onVerdict={(v) => setVerdict(v)} />
                 <div className="fsb-drawer-foot" title="Per-row sort ranking floors: premium $25K, size 150 contracts — rows below floor still sort, only tick to show they ranked lower">Floors: prem $25K · size 150 (ranking only)</div>
               </div>
+              {/* W6 funnel-empty — honest widening path when filtered result hits zero */}
+              {scanRows.length === 0 && (
+                <div className="fsb-drawer-col" data-testid="drawer-funnel-empty">
+                  <h4 className="fsb-drawer-h">Filter funnel</h4>
+                  <FunnelEmpty beforeCount={scan.length} afterCount={0} actions={widenActions(fsFilter)} onWiden={(a) => {
+                    if (a.action === "reset") { setScanDteF("all"); setScanMinPrem(0); setScanMinScore(0); }
+                    else if (a.action === "clear_sweep") { /* sweepsOnly not wired yet */ }
+                    else if (a.action === "enable_etfs") { /* equityType toggle not wired yet */ }
+                    else if (a.action === "lower_premium") { setScanMinPrem(Math.max(0, (fsFilter.minPremium || 0) - 25000)); }
+                    else if (a.action === "lower_score") { setScanMinScore(Math.max(0, (fsFilter.minScore || 0) - 5)); }
+                    else if (a.action === "clear_dte") { setScanDteF("all"); }
+                  }} />
+                </div>
+              )}
             </div>
             <div className="fsb-drawer-note fsb-muted fsb-small">Sweep = multi-exchange urgency proxy (cvserver has no venue tape). Ov-bar NetPrem = 90s rolled tape sum — reconcile if diverged (P0).</div>
           </div>
