@@ -277,3 +277,21 @@ All Agent 1 deliverables are in `.planning/phases/phase-9-academy-flow/`:
 
 **EVIDENCE:** `grep -R "Key Moment|Earnings Hub|1.2x|booster" .planning/phases/phase-9-academy-flow/` → 0 unresolved; `grep -R no_api_surface` → 3 hits (CONTRACTS/CONTRACT_REQUESTS/DECISIONS); `grep -R KEY PROTECTION` → 2 hits (RISK_REGISTER/DECISIONS); `git log --oneline -2` → 57e770a, 1a2f74f.
 
+---
+
+## Status 2026-09-04T01:10Z — Relaunch 2: Gate A PASSED, liveness operator
+
+**STATUS:** DONE (this relaunch)
+
+**FILES:** GATE_PLAN.md Gate A→PASSED + Gate B W8 metrics, WAVE_STATE.md Gate Board + W8 exact metrics (commit pending)
+
+**DECISIONS_MADE:**
+- Gate A PASSED 2026-09-04T01:00Z (be97bd2, tidehunter 0 ahead, zero conflicts/overlap) — any lane "awaiting Gate A" is stale per ROADMAP Gate Board; R3 retired. Evidence: `git merge-tree` zero conflicts on origin/main be97bd2.
+- No new backend/frontend code — lane discipline intact (planning only).
+- Unblocked backlog triaged: RISK_REGISTER R25 word-for-word KEY PROTECTION LAW already correct (verified 537); W8 metrics now exact (find/wc, App.js grep, craco thresholds, 6-states, honest-copy greps, TTL); merge checklist for Gate B is GATE_PLAN Gate B pending acceptance.
+
+**OPEN_RFCS:** CR-01 still APPROVED IN PRINCIPLE (W8 pending). No new RFCs this hour. Triage SLA: within the hour per liveness protocol.
+
+**NEXT:** Gate B (Agent 2 W8 compose) is critical path — relaunch with W8 prompt per ROADMAP Ops Control. Hourly re-verify: proof-of-life via commit/test/BLOCKERS.md; stale gate >2h must be re-checked.
+
+**EVIDENCE:** grep PASSED in GATE_PLAN 5 hits; grep Gate Board in WAVE_STATE 1 hit; git branch phase9/agent1-architect @ c6b77ed+65aa4bc+hooks.
