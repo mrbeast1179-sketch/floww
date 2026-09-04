@@ -321,6 +321,17 @@ new `SkylitControlBar.test.jsx` (4) + `SkylitTickerBar.test.jsx` (3).
 - R5 No agent touches another lane's files; conflicts resolved by rebase,
   never force-push. Verified this session via isolated worktrees.
 
+## Phase 9 control log (architect, append-only)
+
+- 2026-09-04: Public-path budget ENFORCED (`services/public_budget.py`:
+  TokenBucket 60/min + 4 in-flight + 429 backoff, fake-clock tested).
+  Wired at FetchCoordinator (refuse-before-task → degraded dict) +
+  CacheRouter (budget-refused + stale entry → stale with reason) + live
+  429 sightings from the adapter. Status at `/api/data/health`
+  → `public_budget`. Implements Agent 3's apply-blind packet verbatim.
+- 2026-09-04: Agent 2 active after relaunch (spread unify + drawer mount
+  + ledger). scanLogic.js shared-hotspot warning issued (Agent 2 + 3).
+
 **Next:** Agent 2 compose pass → Agent 3 rebase/push → Agent 4 evaluator
 run against live payloads → Phase 9 integration checklist sign-off.
 
@@ -362,10 +373,13 @@ DONE — see Gate Board.)
 ahead of origin/main; SHIP waves + validation + proposals all landed
 (`be97bd2` tip verified). Any lane still "awaiting Gate A" is reading a
 stale board — proceed. R3 above is retired.
-**Gate B (Agent 2 W8 compose): NOT STARTED — owner cold.** No
-`phase9/agent2-flowseeker` branch, zero commits in 6h+ despite a
-"Running" status message. Messages without git evidence count as idle.
-This is the critical path — relaunch order below.
+**Gate B (Agent 2 W8 compose): IN PROGRESS — owner active.** Branch
+`phase9/agent2-flowseeker` created; spread unification + extras-drawer
+mount + compose ledger landed. ⚠️ SHARED HOTSPOT: Agent 2 and Agent 3 both
+edit `frontend/src/components/flowseeker/scanLogic.js` — Agent 2 rebases
+onto origin/main before every push; conflicts resolved by hand, never
+force. Gate exits on: Blademap mounts all modules + full frontend green
++ build compiles.
 **Gate C (Agent 4 evaluator sign-off): IN PROGRESS** (rounds landing).
 
 **Liveness protocol (binding on all lanes, architect-enforced):**

@@ -153,6 +153,11 @@ async def fetch_chain_from_public_api(
         result = await _fetch_chain_live(pb, ticker, max_expiries)
         if result is not None:
             result["stale"] = False
+            try:
+                from services.public_budget import budget as _pub_budget
+                _pub_budget.record_ok("api.public.com")
+            except Exception:
+                pass
             if len(_CHAIN_CACHE) >= _CHAIN_CACHE_MAX:
                 _CHAIN_CACHE.pop(next(iter(_CHAIN_CACHE)))
             _CHAIN_CACHE[key] = (time.monotonic(), pb, result)
@@ -161,6 +166,21 @@ async def fetch_chain_from_public_api(
             log.warning("Public API chain failed for %s — serving stale cache", ticker)
             return _cached_copy(hit[2], stale=True)
         return None
+
+
+def _note_public_429(exc: BaseException) -> None:
+    """Feed real HTTP 429 sightings into the Public-path budget cooler.
+
+    httpx surfaces throttles as HTTPStatusError with .response.status_code;
+    anything else is ignored (never let observability break fetching).
+    """
+    try:
+        status = getattr(getattr(exc, "response", None), "status_code", None)
+        if status == 429:
+            from services.public_budget import budget
+            budget.record_429("api.public.com")
+    except Exception:
+        pass
 
 
 async def _fetch_chain_live(
@@ -181,6 +201,7 @@ async def _fetch_chain_live(
     try:
         expiries = await pb.get_option_expirations(symbol, account_id)
     except Exception as e:
+        _note_public_429(e)
         log.warning("Public API expirations fail for %s: %s", ticker, e)
         return None
 
@@ -197,6 +218,7 @@ async def _fetch_chain_live(
         if spot is None:
             spot = 0.0
     except Exception as e:
+        _note_public_429(e)
         log.warning("Public API quote fail for %s: %s", ticker, e)
         return None
 
@@ -210,6 +232,7 @@ async def _fetch_chain_live(
         try:
             parsed = await pb.get_option_chain_parsed(symbol, exp, account_id)
         except Exception as e:
+            _note_public_429(e)
             log.warning("Public API chain fail for %s %s: %s", ticker, exp, e)
             continue
 
