@@ -52,7 +52,7 @@ Phase 6 — Backlog Promotion [ACTIVE]. Phase 4 (Tidehunter Pro) is gating-only 
   CR-002 + CI frontier gate, full stale-number documentation sweep, and CI
   gate hardening (unmask git failures in frontend-fs-integrity). Lane trio
   4 suites / 178 tests green; full frontend 56 suites / 409 tests green;
-  backend 3/3 green. Origin/main at 9722f46.
+  backend 3/3 green. Origin/main at 067c403.
 - 2026-09-03 — Phase 7 complete (public-api-only + trade-direct): Schwab/Alpha
   Vantage retired (410s, disabled stubs, fail-closed client); new
   /api/public/{bars,history,technical,expirations}; Triad row-click enriched
