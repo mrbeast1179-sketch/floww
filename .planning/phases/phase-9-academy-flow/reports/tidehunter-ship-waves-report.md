@@ -29,21 +29,39 @@ fast-forward, verified `origin/main` (f241a88 at push time).
 - RFC-2 (backend lane): proposal packet
   `.planning/proposals/backend/shipped-signals-persistence.md`
   (Amihud daily store, Roll persistence, Hawkes calibration gate).
-- Phantom imports (FIXED this session — see below): main's committed
-  Blademap imported `../Wtipanel` + `../RussellPanel`, which existed only as
-  untracked files in the main checkout — clean checkouts broke at Jest
-  collection (module graph resolved before any runtime guard could fire, 0
-  tests collected). Root cause: static imports of another agent's product
+- Phantom imports (FIXED this session — see below for scope + remaining boundary gap):
+  main's committed Blademap imported `../Wtipanel` + `../RussellPanel`, which
+  existed only as untracked files in the main checkout — clean checkouts broke
+  at Jest collection (module graph resolved before any runtime guard could fire,
+  0 tests collected). Root cause: static imports of another agent's product
   panels that my lane does not own (App.js-anchored, backend-owned routes
   /api/wti/vol + /api/pairs/scan). Fix (this commit): remove the static
   imports; replace with React.lazy dynamic imports wrapped in Suspense, each
-  with a .catch fallback to an honest empty card ("WTI view — not wired yet"
-  / "Russell pairs view — not wired yet"). Verified in both states: files
+  with a .catch fallback to an honest empty card ("WTI view — not wired yet" /
+  "Russell pairs view — not wired yet"). Verified in both states: files
   present → real modules render (32/32 tests pass); files absent → empty
   cards, no crash, no white screen (32/32 tests pass). Full suite 409/409
   green; craco build clean; production bundle ships the guarded imports.
   The owning agent can later commit the real panels — the lazy import
   auto-resolves to them with zero lane changes.
+
+  Remaining boundary gap (flagged, not mine to fix): App.js (forbidden file,
+  another agent's product shell) statically imports THREE untracked panels at
+  lines 50-52 — `Wtipanel`, `RussellPanel`, `PublicPanel` — and renders
+  `<PublicPanel />` on `page === "public"` (line 1172). My lazy-import guard
+  only shields my component (FlowseekerProBlademap.jsx); it does NOT reach
+  App.js. A clean checkout by any agent still breaks the production shell at
+  App.js:1172 for the Public Brokerage tab, and the whole suite's
+  `visual.test.jsx` (which renders `<App />`) fails with 0 tests collected.
+  The full dangling cluster on disk: `MarketPanels.css` (354 lines, shared by
+  all 3 panels at their line 3) + `PublicPanel.jsx` (223 lines, /api/
+  public/brokerage/*) + `RussellPanel.jsx` (110 lines, /api/pairs/scan) +
+  `Wtipanel.jsx` (82 lines, /api/wti/vol). None of the 4 files appear on any
+  branch (git log --all returns nothing); `MarketPanels.css` is not referenced
+  by any committed file in my lane. Owner lane: product shell (App.js) + those
+  3 panels; my lane has no authority to commit or delete them. My lane's
+  responsibility: my own cross-boundary imports are guarded; the App.js gap is
+  flagged here so it cannot be missed.
 
 ## Still blocked (not stalled — proposal/fixture-first instead)
 - Live-chain engine validation + Finnhub spike: backend :8000 down all
