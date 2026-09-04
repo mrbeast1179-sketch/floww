@@ -112,15 +112,15 @@ write backend docstring patches (Agent 3 B8 lane) — all queued.
   phase9/agent1-architect; Agent-4 lane split across main + dangling commit; CONTRACT_REQUESTS has NO
   Agent-4 triage — F1–F19+R1–R4 still parked in agent4 report. Agent 1 must reconcile at merge.
 
-## Agent 4 status block (per task prompt)
+## Agent 4 status block (current branch: phase9/agent4-eval)
 
 AGENT: 4
-BRANCH: main (scoped lane-only commits; other lanes' work untouched)
+BRANCH: phase9/agent4-eval
 STATUS: DONE
 SOURCES_FETCHED: 13/13 handoff + EOS98/CCG05/VPIN12/BRW17/NPP05/Barber-Odean/Barbon-EOD-WP/GPP-full-text/Ni-WP/Cboe-0DTE/Baltussen-abstract/BJZZ-abstract/Brogaard-abstract
 SOURCES_UNAVAILABLE: peer-reviewed 0DTE full texts; intraday signed-flow; intraday VRP; Bollen-Whaley 2004; BJZZ-2024 reassessment (manifest in missing-literature.md)
-VIOLATIONS_FOUND: V1–V19 + V6-upgrade + V13/V3 full-text verdicts (audit §§1–6); fix queue F1–F18 (fix-queue.md)
-EVALUATORS_CREATED: 3 fixture JSONs (40+ cases) + check_fixtures.py (PASS)
-SCORE_SPEC: signed-score-spec.md incl. executed 10-test proof run
+VIOLATIONS_FOUND: V1–V19 + V6-upgrade + V13/V3 full-text verdicts (audit §§1–6); fix queue F1–F24 (fix-queue.md)
+EVALUATORS_CREATED: 3 fixture JSONs (40+ cases) + check_fixtures.py (PASS); falsifiability.md; skeptic.md; live-fire-2026-09-04.md; harness/live_fire.py; integrity-sweep-2.md
+SCORE_SPEC: signed-score-spec.md incl. R1 ruling (no booster, missing IV → omit/ceiling 85/DEGRADED), self-consistent §7 pseudocode (signed_score(row, last=None) → NO_LAST gate), executed 10-test proof run + unit test 7 (None last → UNAVAILABLE)
 DARK_POOL_SPEC: dark-pool-methodology.md (levels+size only, Top-N×lookback, banned/allowed copy)
-BLOCKERS: CONTRACT_REQUESTS.md absent (R1–R4 + F1–F18 parked for Agent 1); product edits are owner lanes
+BLOCKERS: CONTRACT_REQUESTS.md absent (F1–F24 parked for Agent 1); live chain still has no last/premium/dte → signed overlay + live score high-bin measurement both fixture-grade until payload enriched or chain starts updating mid-session; backtest_harness.py still does not exist — real blocker is outcome persistence (F20/F20-REFINED/F21), not harness code
