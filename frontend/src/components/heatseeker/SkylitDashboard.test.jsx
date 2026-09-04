@@ -88,7 +88,7 @@ describe("SkylitDashboard", () => {
       expect(screen.queryByTestId(tid)).not.toBeInTheDocument();
     }
 
-    // Zoom + expand controls present.
+    // Expand control present (zoom removed 2026-09-03).
     expect(screen.getByTestId("skylit-expand-btn")).toBeInTheDocument();
 
     // In-frame grid is the compact windowed mode (fits on screen).

@@ -2947,6 +2947,7 @@ button, select, input {
   align-items: center;
   gap: 4px;
   flex-shrink: 0;
+  position: relative;
 }
 
 .skylit-mode-btn {
@@ -3994,6 +3995,84 @@ button, select, input {
   font-size: 10px;
   color: #475569;
 }
+/* Node strip (2026-09-03): King / floors / ceilings / gates / max-pain /
+   air pockets above the profile grid. Dark pills, colored values. */
+.volume-profile-nodes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 8px 16px 0;
+}
+.volume-profile-node {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+  font-family: "JetBrains Mono", monospace;
+  font-size: 10px;
+  color: #94a3b8;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.06);
+  border-radius: 4px;
+  padding: 3px 8px;
+  white-space: nowrap;
+}
+.volume-profile-node-label { color: #64748b; text-transform: uppercase; letter-spacing: 0.08em; font-size: 9px; }
+.volume-profile-node-value { color: #e2e8f0; font-weight: 600; }
+.volume-profile-node.is-king .volume-profile-node-value { color: #fbbf24; }
+.volume-profile-node.is-regime .volume-profile-node-value { color: #34d399; }
+.volume-profile-node.is-floor .volume-profile-node-value { color: #34d399; }
+.volume-profile-node.is-ceil .volume-profile-node-value { color: #f87171; }
+.volume-profile-node.is-air .volume-profile-node-value { color: #38bdf8; }
+/* Volume column (2026-09-03): bar + value, dark like the GEX cells. */
+.volume-profile-vol-cell { min-width: 96px; }
+.volume-profile-vol-bar {
+  display: inline-block;
+  height: 8px;
+  border-radius: 2px;
+  background: rgba(45,212,191,0.55);
+  vertical-align: middle;
+  margin-right: 6px;
+}
+.volume-profile-vol-val {
+  font-family: "JetBrains Mono", monospace;
+  font-size: 11px;
+  color: #99f6e4;
+}
+/* Info popover (2026-09-03): dark panel, not a raw div. */
+.skylit-info-popover {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  z-index: 40;
+  width: 260px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 11px;
+  line-height: 1.45;
+  color: #cbd5e1;
+  background: #0d1117;
+  border: 1px solid rgba(148,163,184,0.25);
+  border-radius: 8px;
+  padding: 10px 12px;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.55);
+  cursor: pointer;
+}
+.skylit-info-popover b { color: #f1f5f9; }
+/* Ticker search (2026-09-03): dark input + Go, matches the tape. */
+.skylit-ticker-search {
+  width: 130px;
+  font-family: "JetBrains Mono", monospace;
+  font-size: 11px;
+  color: #e2e8f0;
+  background: rgba(255,255,255,0.05);
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 4px;
+  padding: 3px 8px;
+  outline: none;
+}
+.skylit-ticker-search::placeholder { color: #475569; }
+.skylit-ticker-search:focus { border-color: rgba(56,189,248,0.5); }
 
 /* ── Selected cell readout (above grid) ───────────────────────────── */
 .skylit-selected-cell-readout {

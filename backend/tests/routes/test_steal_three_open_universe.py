@@ -149,3 +149,25 @@ def test_wheel_screener_caches_identical_calls(monkeypatch):
     assert calls["n"] == 1
     assert r1.json()["puts"] == r2.json()["puts"]
     st._income_cache.clear()
+
+
+# ---------------------------------------------------------------------------
+# build_heatmap strike volumes (Profile view volume column)
+# ---------------------------------------------------------------------------
+
+def test_attach_strike_volumes_rolls_calls_and_puts():
+    from server import _attach_strike_volumes
+    strikes = [{"strike": 100.0}, {"strike": 90.0}, {"strike": 80.0}]
+    contracts = [
+        {"strike": 100.0, "type": "call", "volume": 10},
+        {"strike": 100.0, "type": "put", "volume": 5},
+        {"strike": 90.0, "type": "call", "vol": 7},
+        {"strike": 90.0, "type": "call", "volume": 0},   # skipped
+        {"strike": None, "type": "call", "volume": 99},  # skipped
+    ]
+    _attach_strike_volumes(strikes, contracts)
+    assert strikes[0]["total_volume"] == 15.0
+    assert strikes[0]["call_volume"] == 10.0
+    assert strikes[0]["put_volume"] == 5.0
+    assert strikes[1]["total_volume"] == 7.0
+    assert strikes[2]["total_volume"] == 0.0
