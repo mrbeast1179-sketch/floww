@@ -256,3 +256,24 @@ All Agent 1 deliverables are in `.planning/phases/phase-9-academy-flow/`:
 ---
 
 *End of Agent 1 Architect Report.*
+
+---
+
+## Status 2026-09-04T00:47Z — Prompt 1 R1 fallout sweep (Agent 1)
+
+**STATUS:** DONE
+
+**FILES:** DECISIONS.md D19+D20, CONTRACTS.md R1 honest-empty, WAVE_STATE.md W8+R1+built-unwired, RISK_REGISTER.md R25+KEY PROTECTION LAW, GATE_PLAN.md merge gates A/B/C, CONTRACT_REQUESTS.md CR-01→APPROVED (57e770a, 1a2f74f)
+
+**DECISIONS_MADE (this sweep):**
+- D19 R1: Public.com Individual API has no Key Moments/Earnings Hub/1.2x booster — verified zero hits in public_api.py (trading/marketdata/historicdata only). Every AI-catalyst field → {available:false, reason:"no_api_surface"} honest-empty, scoreBooster fixed 1.0, UI renders "AI context unavailable — no API surface". (Zero literal booster hits in docs before sweep — preventive hardening, not clean-up.)
+- D20 KEY PROTECTION LAW: "Chain data flows ONLY through fetch_chain_from_public_api (60s TTL) or CacheRouter (300s). No new per-ticker Public pollers. No cadence shortening. Frontend never calls Public directly. Violations fail the gate." Standing law, owner architect.
+- W8 COMPOSE: Agent 2 owns mount+wire+states audit; exit gate is Agent 1 sign-off (39 modules mounted, suite green, no App.js diff, honest-copy + 6-states checklists).
+- R25 rate incident: Triad 7×~6/30s ~80+/min → 60s TTL+coalescing+stale-serve fix is now law.
+
+**OPEN_RFCS:** None new. CR-01 approved in principle; any new RFC triaged within the hour per autonomy protocol. Next expected: Agent 2 W8 compose PR, Agent 3 rebase of 4 SHIP commits (tidehunter worktree local main, zero file overlap with d222dee — verified clean rebase path).
+
+**NEXT:** Gate A (Agent 3 rebase-not-merge, backend tests, honest-copy grep), Gate B (Agent 2 W8 compose), Gate C (final integration) per GATE_PLAN exact commands. Verify, don't trust: re-ran greps — 0 unresolved Key Moment/booster hits, 3 merge gates present, R25+law present.
+
+**EVIDENCE:** `grep -R "Key Moment|Earnings Hub|1.2x|booster" .planning/phases/phase-9-academy-flow/` → 0 unresolved; `grep -R no_api_surface` → 3 hits (CONTRACTS/CONTRACT_REQUESTS/DECISIONS); `grep -R KEY PROTECTION` → 2 hits (RISK_REGISTER/DECISIONS); `git log --oneline -2` → 57e770a, 1a2f74f.
+
