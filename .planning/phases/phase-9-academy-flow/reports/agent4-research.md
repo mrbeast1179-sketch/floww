@@ -105,6 +105,8 @@ write backend docstring patches (Agent 3 B8 lane) — all queued.
   ("academically grounded" overstated; baseline+persistence+exclusions+copy constraints in
   alert-gate-economics §7); B1/B2 design APPROVEs in source-manifest §4. GLP abstract verified verbatim
   with snapshot caveat (second-strongest shape unidentifiable unsigned — keep falling-OI cap).
+- Round 15: Roll + Johnson-So abstracts verified verbatim (JS: 1.47%/mo low-minus-high decile, low-leverage
+  qualifier, earnings-news prediction — number newly recorded).
 
 ## Agent 4 status block (per task prompt)
 

@@ -17,6 +17,8 @@ unverified = not confirmed, never cite. Every product rule carries its WITH § c
 - Fixture: pulse-rows put/call concentration pair.
 
 ### Johnson & So 2012 (JFE, NOT a Reg-SHO paper) — CONFIRMED
+  (ROUND-15: abstract verified verbatim — low-minus-high O/S decile 1.47%/mo risk-adjusted; stronger when
+  short-sale costs high or option leverage LOW; predicts firm-specific earnings news)
 - Core claim: high O/S predicts lower future returns; stronger when short-sale costs high.
 - Product rule: hard-to-borrow/high-short-interest + abnormally high options share → upweight bearish
   options signals; borrow-constraint tag.
@@ -25,6 +27,8 @@ unverified = not confirmed, never cite. Every product rule carries its WITH § c
 - Fixture: Reg SHO context + scanner row with borrow flag.
 
 ### Roll, Schwartz & Subrahmanyam 2010 — CONFIRMED
+  (ROUND-15: abstract verified verbatim — O/S determinants incl. delta/costs/holdings/analyst; higher
+  around earnings; higher O/S → lower post-announcement abnormal returns; efficiency interpretation)
 - Core claim: O/S rises around earnings; higher O/S predicts lower post-earnings abnormal returns.
 - Product rule: earnings ≤7d + elevated options share → bearish-leaning bias; tighten stops; demand
   smirk confirmation for bullish alerts.
