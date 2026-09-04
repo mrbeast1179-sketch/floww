@@ -125,10 +125,8 @@ jobs:
         run: |
           set -euo pipefail
           echo "Checking for untracked frontend source files..."
-          UNTRACKED=$(git ls-files --others --exclude-standard \
-            src/ \
-            | grep -E '\.(jsx|js|css|ts|tsx)$' \
-            || true)
+          RAW=$(git ls-files --others --exclude-standard src/)
+          UNTRACKED=$(echo "$RAW" | grep -E '\.(jsx|js|css|ts|tsx)$' || true)
           if [ -z "$UNTRACKED" ]; then
             echo "OK: no untracked frontend source files."
             exit 0
