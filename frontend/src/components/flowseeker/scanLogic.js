@@ -843,3 +843,24 @@ export function midDrift(mids) {
   if (xs.length < 2 || xs[0] <= 0) return null;
   return { driftPct: ((xs[xs.length - 1] - xs[0]) / xs[0]) * 100, n: xs.length };
 }
+
+// ---------- Per-poll snapshot stamping (skip lists: SHIP-4/6) ----------
+// Shared contract key so buffer, volume-delta, and mid tracking agree.
+export function contractKey(r) {
+  return `${r.ticker}|${String(r.type || "").toLowerCase()}|${r.strike}|${String(r.expiration || "").slice(0, 10)}`;
+}
+// Stamps FRESH signals only (never re-stamp: StrictMode double-effects and
+// repeat polls would zero the deltas). Day volume is cumulative; a drop =
+// data reset → delta unknown (0), mid map untouched.
+export function stampPollDeltas(signals, prevVol, prevMid) {
+  for (const s of signals || []) {
+    const key = contractKey(s);
+    const pv = prevVol.get(key);
+    s._volDelta = pv == null ? 0 : Math.max(0, (Number(s.volume) || 0) - pv);
+    prevVol.set(key, Number(s.volume) || 0);
+    s._prevMid = prevMid.has(key) ? prevMid.get(key) : null;
+    const m = Number(s.mid);
+    if (Number.isFinite(m) && m > 0) prevMid.set(key, m);
+  }
+  return signals;
+}
