@@ -35,8 +35,13 @@ fix · evidence. Status column for owners (OPEN default).
 | F16 | WHALE $1M badge vs $25M alert collision | Blademap.jsx:1301 (disclaimed) | Keep disclaimer; consider rename | OPEN |
 | F17 | N=2 "P&P next-day power" needs "heuristic" | flow_outcomes.py:55 | One-word label | OPEN |
 | F18 | CW label could note volume-weighting ours | flow_quality.py:82 | "volume-weighted CW proxy" (optional) | OPEN |
+| F19 | "Block: negotiated single fill" asserts execution character | FlowseekerProBlademap.jsx:1351 BLOCK branch | Drop "negotiated"; "large single-contract size (proxy)" | OPEN |
+| F20 | Outcome ledger non-persistent; quality serves all-0.0s | flow_alerts.py:950 (stamps) + :memory: DuckDB + crash-prone backend; live proof: quality?days=30 → 25 measured, all 0.0 (live-fire-2026-09-04.md) | File-backed DuckDB ≥30d (B1); until then calibration is decoration | OPEN |
 
 ## Verified clean (do NOT "fix")
+
+- ROUND-12: W2 strategy fingerprints (973bbb3) — VERT?/STRADDLE? with "?" suffix + tooltip
+  "(heuristic: matched volumes, no exchange linkage)". Exemplary; use as template.
 
 - oi_hygiene.py:18-20, fetch_earnings.py:7-9 (P&P cited as caveat — correct)
 - ToxicityGauge.jsx honest empty state; FilterBar.jsx:9 "(proxy)"; Blademap.jsx VPIN n/a disclaimers

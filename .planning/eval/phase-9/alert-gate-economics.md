@@ -57,6 +57,13 @@ Dedup is the highest-leverage saver (bursts re-trigger the same contract dozens 
 - Add spread-width guard and OI-freshness check before any threshold loosening.
 - Every threshold change ships with its evaluator (Gate 1) + 30-min outcome read.
 
+## 8. Measured revision (live fire 2026-09-04 — supersedes §1 estimates where stated)
+
+- SCORE≥92: measured 2.24% SPY / 3.58% QQQ → REVISED suppression 96–98% (was 90–95%).
+- WHALE: measured ~4–5% fire on index ETFs → REVISED suppression ~95% (was 99%+). Recommend
+  liquidity-class tiering or dual notional gate. Full data: live-fire-2026-09-04.md.
+- Outcomes: quality endpoint serves all-0.0s (F20) — gate economics mean nothing until F20 fixed.
+
 ## 7. B6 quiet-accumulation evaluation (Agent-4 gate eval, round 14)
 
 Proposal: vol z-score >2 AND price-range compression z-score <1σ → display-only "coiled" label.
