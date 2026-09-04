@@ -20,16 +20,22 @@ Buti-Rindi-Werner (effects conditional); FINRA ATS = volume + counts, no side, d
 - Price-level clustering tolerance: default max(0.25% of price, 10 ticks), configurable; cluster fields:
   cluster_price, total_notional, print_count, latest_date (per-symbol only unless cross-symbol spec exists).
 - Cluster strength = total_notional + print_count + recency (all three shown, none hidden in a blend).
-- Level freshness: days-since-last-print shown on every level; stale (>lookback/2 with no refresh) dimmed.
+  Display name: "size footprint" — the word "conviction" is BANNED from all dark surfaces (a top cluster
+  may be retail-router plumbing, not institutional intent; direction is unknowable).
+- Level freshness: days-since-last-print shown on every level; stale (>lookback/2 with no refresh) dimmed;
+  no qualifying print within lookback → overlay HIDDEN (not lines + empty note).
 - Confluence checklist (display alongside, never merged into a score): GEX/VEX zone, dealer-gamma sign,
-  earnings proximity, Reg SHO short pressure, lit volume confirmation. Each check = present/absent line.
+  earnings proximity, Reg SHO short pressure, lit volume confirmation. Each check = independent
+  present/absent line with NO composite and NO count header ("3/5 confluence" banned); header reads
+  "separate facts, not a combined signal".
 - Empty state: "No qualifying off-exchange prints in window — widen lookback or lower min notional."
 - Paid-gate note: "Real-time TRF prints require a paid feed. Weekly ATS context shown with delay stamp."
 
 ## 3. Prohibited copy (exact strings — CI-grep these)
 
 - "dark pool buying" · "dark pool selling" · "institutions are long here" · "bullish dark print" ·
-  "bearish dark print" · any "confirmed buyer/seller" · "retail imbalance predicts" (without signed TAQ).
+  "bearish dark print" · any "confirmed buyer/seller" · "retail imbalance predicts" (without signed TAQ) ·
+  "conviction" on any dark surface · composite confluence counts ("3/5 confluence").
 
 ## 4. Allowed copy (exact strings)
 

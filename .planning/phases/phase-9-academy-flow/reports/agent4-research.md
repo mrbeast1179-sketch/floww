@@ -117,13 +117,66 @@ write backend docstring patches (Agent 3 B8 lane) — all queued.
 
 ## Agent 4 status block (per task prompt)
 
+## Task 4 — falsifiability + skeptic (eval marathon, 2026-09-04, branch phase9/agent4-eval)
+
+### Falsifiability: the two papers most load-bearing for the signed score
+
+1. Ge-Lin-Pearson 2016 (load-bears the falling-OI cap + openings overweight). What invalidates us: the
+   paper's identification rests on SIGNED open/close records from a non-public dataset. If a replication
+   showed the open-vs-close gap does not survive controls for trade size (openings are larger prints),
+   then our OI-change proxy is laundering a size effect as an information effect — the 30% size/OI weight
+   and the ≤40 falling-OI cap would both be miscalibrated, and the honest fix is collapsing them into a
+   single size term. Source: SSRN abstract 2329714 (abstract-only). Confidence in our use: MEDIUM — the
+   direction (openings > closings) is robust across their splits, but our snapshot proxy (OI delta) is a
+   coarser cut than their signed records, so effect-size transfer is assumed, not shown.
+2. An-Ang-Bali-Cakici 2014 (load-bears the 15% IV component). What invalidates us: the paper sorts on
+   1-MONTH CHANGES in IV; our snapshot terminal observes IV LEVELS and at best day-over-day wiggles with
+   no monthly baseline (needs B1). If the monthly-change effect is driven by slow diffusion over weeks, a
+   daily IV-tilt proxy captures none of it and the 15% weight is pure decoration — worse, IV level is
+   mechanically tied to spread width and event proximity, so the component could load on illiquidity while
+   labeled "confirmation". Kill condition: if B1-backed monthly IV-change sorts show no tilt separation on
+   our universe, delete the component (rescale others) rather than retuning its weight. Source: SSRN
+   abstract 1533089 (abstract-only). Confidence in our use: LOW until B1 — flagged DEGRADED in the spec.
+
+### Skeptic stress-test: three strongest arguments the Top-N dark spec misleads
+
+1. "Levels from stale prints are horoscope lines." Weekly ATS data with 2–4wk delays, clustered with a
+   tolerance, presented as chart overlays, WILL be read as support/resistance no matter the disclaimer —
+   the footer cannot beat the visual. Concession + patch: levels auto-expire (no refresh within lookback/2
+   → dimmed; none within lookback → overlay hidden, not empty-state-with-lines). Spec patched accordingly
+   (dark-pool-methodology §2 freshness; checklist requires it).
+2. "Top-N by notional selects for ATS venue concentration, not conviction." The biggest clusters may just
+   mark where internalizers route flow (payment-for-order-flow geography), i.e., retail-flow plumbing, not
+   institutional intent. Since direction is unknowable, the spec cannot distinguish "whale level" from
+   "retail router hotspot". Concession in writing: cluster strength renamed "size footprint", and the word
+   "conviction" is banned from all dark surfaces (added to prohibited list).
+3. "Confluence checklist manufactures rigor." Placing GEX zones next to dark levels invites the reader to
+   multiply two weak signals into one strong one — the exact laundering the score spec warns against.
+   Patch: checklist renders each check as independent present/absent lines with NO composite, NO count
+   ("3/5 confluence"), and a header: "separate facts, not a combined signal".
+
+### Marathon task status
+
+- Task 1 (R1 booster surgery): NO-OP with evidence — no AI booster/Key Moments/LLM signal exists in
+  scoring (commit phase9(eval) R1 audit). Actual additive boosts (+5/+3/+4) already tracked (V15).
+- Task 2.1: measured-vs-estimated published (live-fire-2026-09-04.md); economics doc revised (WHALE and
+  SCORE rates corrected).
+- Task 2.2: scan_score executed live via imported code path (harness committed); rowConviction cited via
+  shipped Jest (156/156) — JSX not node-importable, stated explicitly.
+- Task 2.3: backtest_harness.py does not exist; trade-engine is not a precision harness; precision path
+  (alert_quality) live-measured at all-0.0s → F20 (outcome persistence) is the true blocker, with the
+  failing command recorded.
+- Task 3: integrity-sweep-2.md filed (4 blockers re-verified + 4 polish + clean list).
+- Task 4: above.
+
 AGENT: 4
-BRANCH: main (scoped lane-only commits; other lanes' work untouched)
+BRANCH: phase9/agent4-eval (from origin/main; lane files ported from phase9/agent1-architect + main)
 STATUS: DONE
-SOURCES_FETCHED: 13/13 handoff + EOS98/CCG05/VPIN12/BRW17/NPP05/Barber-Odean/Barbon-EOD-WP/GPP-full-text/Ni-WP/Cboe-0DTE/Baltussen-abstract/BJZZ-abstract/Brogaard-abstract
-SOURCES_UNAVAILABLE: peer-reviewed 0DTE full texts; intraday signed-flow; intraday VRP; Bollen-Whaley 2004; BJZZ-2024 reassessment (manifest in missing-literature.md)
-VIOLATIONS_FOUND: V1–V19 + V6-upgrade + V13/V3 full-text verdicts (audit §§1–6); fix queue F1–F18 (fix-queue.md)
-EVALUATORS_CREATED: 3 fixture JSONs (40+ cases) + check_fixtures.py (PASS)
-SCORE_SPEC: signed-score-spec.md incl. executed 10-test proof run
-DARK_POOL_SPEC: dark-pool-methodology.md (levels+size only, Top-N×lookback, banned/allowed copy)
-BLOCKERS: CONTRACT_REQUESTS.md absent (R1–R4 + F1–F18 parked for Agent 1); product edits are owner lanes
+SOURCES_FETCHED: (unchanged corpus, round 16) + live chain payloads SPY/QQQ + live quality endpoint
+SOURCES_UNAVAILABLE: (unchanged) + SSRN-walled PDFs (Brogaard full text); backtest_harness.py (nonexistent)
+VIOLATIONS_FOUND: V1–V20 + F1–F20 (F20 new: outcome ledger); integrity-sweep-2 (I2-B1..B4, I2-P1..P4)
+EVALUATORS_CREATED: + harness/live_fire.py + live-fire-2026-09-04.md + integrity-sweep-2.md + borrow-inputs-eval.md
+SCORE_SPEC: self-consistent (round-6 proof run); R1 booster confirmed absent, no surgery
+DARK_POOL_SPEC: skeptic-patched (expiry, footprint rename, no-composite rule)
+BLOCKERS: F20 outcome persistence (needs B1); B9 proposal absent (framework pre-delivered); backend flaky
+(QQQ fetch failed once, retried ok); product edits are owner lanes
