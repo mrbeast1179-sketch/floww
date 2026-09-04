@@ -110,6 +110,10 @@ write backend docstring patches (Agent 3 B8 lane) — all queued.
 - Round 16: EOS98 + CCG05 abstracts verified verbatim (signed-volumes informative; normal-period option
   imbalance uninformative — matches map; takeover-regime only). Full coverage: every cited paper now
   sourced at abstract text or better.
+- Round 17: checked other-lane work — mock feed properly gated (c9bfa78; remaining mock refs log-only),
+  B-proposals clean, B9 proposal absent so pre-delivered B9 eval framework (borrow-inputs-eval.md:
+  JS-2012 grounding, tiered inputs, squeeze guard, fee-weighting forbidden). CR-10 Agent-4 boxes all DONE,
+  flagged for Agent-1 checkoff.
 
 ## Agent 4 status block (per task prompt)
 
