@@ -7,10 +7,18 @@
 ### Current monolithic component
 - `frontend/src/components/flowseeker/FlowseekerProBlademap.jsx` — 1954 lines. Single component containing Pulse tape + Scanner fallback + all helpers. This is the file Agent 2 must decompose.
 
-### Existing flowseeker files
-- `frontend/src/components/flowseeker/FlowseekerProBlademap.css` — scoped .fsb-* classes
-- `frontend/src/components/flowseeker/FlowseekerProBlademap.test.jsx` — existing Jest test
-- `frontend/src/components/flowseeker/BlademapActiveMount.test.jsx` — existing Jest test
+### Existing flowseeker files (39 verified on disk 2026-09-03)
+- `frontend/src/components/flowseeker/FlowseekerProBlademap.jsx` — 1954-line monolith (shell, decompose target)
+- `frontend/src/components/flowseeker/scanLogic.js` + `scanLogic.test.js` — formatter single source (Agent 2: keep unified)
+- `frontend/src/components/flowseeker/pulse/` — PulseTape.jsx/.test.jsx, spreadPosition.js/.test.js, overviewBar.js/.test.js, OverviewBar.jsx
+- `frontend/src/components/flowseeker/tabs/tabConfig.js/.test.js` — per-tab substrate
+- `frontend/src/components/flowseeker/filters/` — filterState.js/.test.js, equityType.js, FilterBar.jsx
+- `frontend/src/components/flowseeker/context/` — sectorMap.js, earningsProximity.js, strategyBadge.js, context.test.js
+- `frontend/src/components/flowseeker/highlighting/` — highlighting.js/.test.js (Size>OI yellow / Vol>OI purple)
+- `frontend/src/components/flowseeker/chart/ChartModal.jsx/.test.jsx` + history/HistoryViews.jsx
+- `frontend/src/components/flowseeker/tracker/Tracker.jsx + trackerStore.js/.test.js`
+- `frontend/src/components/flowseeker/darkpool/DarkPoolPanel.jsx/.test.jsx` + feed/feedTabs.js/.test.js, csvExport.js/.test.js + methodology/ + fixtures/pulseRows.json
+- Frontend tests: 40 suites / 291 tests (Phase 7 baseline), Agent 2 flowseeker 39 files verified
 
 ### Config
 - `frontend/src/config/api.js` — exports BACKEND_URL + API (read-only for Agent 2 unless contract requires edit)
@@ -59,12 +67,13 @@ frontend/src/components/flowseeker/
 
 ## Backend (Agent 3 lane — PROPOSAL_ONLY unless BACKEND_LANE_OWNER=1)
 
-### Existing backend structure
-- `backend/alert_engine.py` — Alert dataclass, GEXSnapshot, combine_signals, eval_magnitude, confidence, eval_alert_rules, alert_evaluator, AlertManager
-- `backend/routes/` — 30+ route files (admin.py, alerts.py, flowseeker.py, heatseeker.py, chain.py, greeks.py, gex_analysis.py, data_providers.py, etc.)
-- `backend/services/` — not yet enumerated (TBD)
-- `backend/scheduler.py` — not found by name (TBD)
-- `backend/models/` — not yet enumerated (TBD)
+### Existing backend structure (read-only — Agent 3 owns proposals)
+- `backend/routes/` — 53 route files verified: admin.py, alerts.py, flowseeker.py, health.py, pairs.py (fixed c9bfa78), wti.py, public_api.py, public_brokerage.py, chain.py, greeks.py, etc. (full list in PATHMAP discovery notes)
+- `backend/services/` — 90+ service modules verified: russell_pairs.py, wti_vol.py, public_api_adapter.py, finnhub_api.py, duckdb_engine.py, ingestion_pipeline.py, flow_calibration.py, flow_outcomes.py, gex_paper_accurate.py, composite_flow_score.py, etc.
+- `backend/server.py` — FastAPI app, uvicorn entry `server:app` :8000, includes 50+ routers
+- `backend/services/scheduler.py` — exists (19KB), B1 cadence home
+- `backend/tests/` — pytest, asyncio auto mode, `npx craco test` for frontend
+- Existing health: `/api/health` (deep) + `/health` (liveness alias) via `routes/health.py`
 
 ### Backend files to discover (Agent 1 will enumerate, Agent 3 owns proposals)
 - `backend/services/` contents
