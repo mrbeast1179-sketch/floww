@@ -14,8 +14,9 @@ import { fmt, fmtAbs, expFmt, cellColor } from "../lib/helpers";
  *   - data.strikes = [{strike, gex, ...}]       (direct)
  */
 export default function VolumeProfileGrid({ data, spot }) {
-  const { expiries, strikes, grid, totalByStrike } = useMemo(() => {
-    if (!data) return { expiries: [], strikes: [], grid: {}, totalByStrike: {} };
+  const { expiries, strikes, grid, totalByStrike, volByStrike, nodes } = useMemo(() => {
+    const empty = { expiries: [], strikes: [], grid: {}, totalByStrike: {}, volByStrike: {}, nodes: null };
+    if (!data) return empty;
 
     // Shape 1: heatseeker grid object
     if (data.grid && (data.grid.expiries || data.grid.grid)) {
@@ -41,7 +42,17 @@ export default function VolumeProfileGrid({ data, spot }) {
         for (const e of exps) t += (g.grid?.[e]?.[String(s)] || 0);
         totals[s] = t;
       }
-      return { expiries: exps, strikes: sts, grid: g.grid || {}, totalByStrike: totals };
+      // Volume per strike comes from the flat strikes array the backend
+      // attaches alongside the grid (total_volume rollup, 2026-09-03).
+      const vols = {};
+      if (Array.isArray(data.strikes)) {
+        for (const r of data.strikes) {
+          if (typeof r === "object" && r.strike != null) {
+            vols[r.strike] = r.total_volume ?? r.volume ?? 0;
+          }
+        }
+      }
+      return { expiries: exps, strikes: sts, grid: g.grid || {}, totalByStrike: totals, volByStrike: vols, nodes: data.nodes || null };
     }
 
     // Shape 2: flat strikes array with gex per strike
@@ -51,13 +62,17 @@ export default function VolumeProfileGrid({ data, spot }) {
         .filter((s) => s != null)
         .sort((a, b) => b - a);
       const byStrike = {};
+      const vols = {};
       for (const r of data.strikes) {
-        if (typeof r === "object" && r.strike != null) byStrike[r.strike] = r.gex ?? r.total_gex ?? 0;
+        if (typeof r === "object" && r.strike != null) {
+          byStrike[r.strike] = r.gex ?? r.total_gex ?? 0;
+          vols[r.strike] = r.total_volume ?? r.volume ?? 0;
+        }
       }
-      return { expiries: [], strikes: sts, grid: {}, totalByStrike: byStrike };
+      return { expiries: [], strikes: sts, grid: {}, totalByStrike: byStrike, volByStrike: vols, nodes: data.nodes || null };
     }
 
-    return { expiries: [], strikes: [], grid: {}, totalByStrike: {} };
+    return { expiries: [], strikes: [], grid: {}, totalByStrike: {}, volByStrike: {}, nodes: data.nodes || null };
   }, [data]);
 
   const maxAbs = useMemo(() => {
@@ -92,6 +107,43 @@ export default function VolumeProfileGrid({ data, spot }) {
 
   const hasData = strikes.length > 0;
   const isSingleCol = expiries.length === 0;
+  const maxVol = useMemo(() => {
+    let m = 1;
+    for (const s of strikes) {
+      const v = volByStrike[s] || 0;
+      if (v > m) m = v;
+    }
+    return m;
+  }, [strikes, volByStrike]);
+  const hasVolume = maxVol > 1;
+
+  // Node strip (2026-09-03): the levels the heatmap computes — regime,
+  // King, flip, floors/ceilings, gatekeepers, max-pain, air pockets —
+  // rendered defensively since shapes vary by backend path.
+  const nodePills = useMemo(() => {
+    if (!nodes) return [];
+    const pills = [];
+    if (nodes.regime) pills.push({ label: "Regime", value: String(nodes.regime), cls: "regime" });
+    const kingStrike = nodes.king?.strike ?? nodes.king?.level ?? null;
+    if (kingStrike != null) pills.push({ label: "King", value: fmt(kingStrike, 0), cls: "king" });
+    const flip = nodes.gamma_flip ?? nodes.flip ?? null;
+    if (flip != null && typeof flip !== "object") pills.push({ label: "Flip", value: fmt(flip, 1), cls: "" });
+    if (nodes.floors?.[0] != null) {
+      const f = nodes.floors[0];
+      pills.push({ label: "Floor", value: fmt(f.strike ?? f.level ?? f, 0), cls: "floor" });
+    }
+    if (nodes.ceilings?.[0] != null) {
+      const c = nodes.ceilings[0];
+      pills.push({ label: "Ceil", value: fmt(c.strike ?? c.level ?? c, 0), cls: "ceil" });
+    }
+    if (nodes.gatekeepers?.length) pills.push({ label: "Gates", value: String(nodes.gatekeepers.length), cls: "" });
+    if (nodes.max_pain != null) pills.push({ label: "MaxPain", value: fmt(nodes.max_pain, 0), cls: "" });
+    for (const a of (nodes.air_pockets || []).slice(0, 3)) {
+      const lo = a.low ?? a.from, hi = a.high ?? a.to;
+      if (lo != null && hi != null) pills.push({ label: "Air", value: `${fmt(lo, 0)}–${fmt(hi, 0)}`, cls: "air" });
+    }
+    return pills;
+  }, [nodes]);
 
   // Enrichment: air pockets (low-GEX strikes) for context below grid
   const airStrikes = useMemo(() => {
@@ -130,6 +182,17 @@ export default function VolumeProfileGrid({ data, spot }) {
         )}
       </div>
 
+      {nodePills.length > 0 && (
+        <div className="volume-profile-nodes" data-testid="volume-profile-nodes">
+          {nodePills.map((p, i) => (
+            <span key={`${p.label}-${i}`} className={`volume-profile-node${p.cls ? ` is-${p.cls}` : ""}`}>
+              <span className="volume-profile-node-label">{p.label}</span>
+              <span className="volume-profile-node-value">{p.value}</span>
+            </span>
+          ))}
+        </div>
+      )}
+
       <div className="volume-profile-scroll">
         <table className="volume-profile-table">
           <thead>
@@ -142,6 +205,7 @@ export default function VolumeProfileGrid({ data, spot }) {
                   <th key={e} className="volume-profile-th-exp" title={e}>{expFmt(e)}</th>
                 ))
               )}
+              {hasVolume && <th className="volume-profile-th-exp" title="Total traded contracts across shown expiries">Vol</th>}
               <th className="volume-profile-th-tag" />
             </tr>
           </thead>
@@ -177,6 +241,16 @@ export default function VolumeProfileGrid({ data, spot }) {
                       );
                     })
                   )}
+                  {hasVolume && (() => {
+                    const vv = volByStrike[s] || 0;
+                    const pct = Math.min(100, (vv / maxVol) * 100);
+                    return (
+                      <td className="volume-profile-vol-cell" title={`strike ${s} · volume ${fmtAbs(vv)}`}>
+                        <span className="volume-profile-vol-bar" style={{ width: `${Math.max(pct, vv > 0 ? 2 : 0)}%` }} />
+                        <span className="volume-profile-vol-val">{vv > 0 ? fmtAbs(vv) : "—"}</span>
+                      </td>
+                    );
+                  })()}
                   <td className="volume-profile-tag-cell">
                     {isSpot && <span className="tag king">SPOT</span>}
                     {isAir && !isSpot && <span className="tag air">AIR</span>}

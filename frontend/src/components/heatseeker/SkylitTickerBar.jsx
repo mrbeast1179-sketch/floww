@@ -48,7 +48,7 @@ function SkylitTickerBar({
             placeholder="Search any ticker…"
             aria-label="Search any ticker"
             data-testid="skylit-ticker-search"
-            style={{ width: 130 }}
+            className="skylit-ticker-search"
           />
           <button
             className="skylit-ticker-btn"

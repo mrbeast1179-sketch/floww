@@ -840,12 +840,43 @@ def _fetch_movers_sync() -> list[dict[str, Any]]:
     return out
 
 
+def _attach_strike_volumes(
+    strikes: list[dict[str, Any]], contracts: list[dict[str, Any]]
+) -> None:
+    """Roll per-strike traded volume onto heatmap strike rows (in place).
+
+    Engine-agnostic: sums raw contract ``volume``/``vol`` per strike into
+    ``total_volume`` (+ ``call_volume``/``put_volume``) so the Profile view
+    can render a real volume profile regardless of the Rust-vs-python GEX
+    path. Contracts without usable strike/volume are skipped.
+    """
+    vol_by_strike: dict[float, float] = {}
+    call_vol: dict[float, float] = {}
+    put_vol: dict[float, float] = {}
+    for c in contracts or []:
+        try:
+            k = float(c.get("strike") or 0)
+            v = float(c.get("volume") or c.get("vol") or 0)
+        except (TypeError, ValueError):
+            continue
+        if k <= 0 or v <= 0:
+            continue
+        vol_by_strike[k] = vol_by_strike.get(k, 0.0) + v
+        if str(c.get("type", "")).lower() == "call":
+            call_vol[k] = call_vol.get(k, 0.0) + v
+        else:
+            put_vol[k] = put_vol.get(k, 0.0) + v
+    for s in strikes or []:
+        sk = s.get("strike")
+        s["total_volume"] = vol_by_strike.get(sk, 0.0)
+        s["call_volume"] = call_vol.get(sk, 0.0)
+        s["put_volume"] = put_vol.get(sk, 0.0)
+
 
 # ----------------------------- Heatmap Core -----------------------------------
 
 _BUILD_HEATMAP_CACHE: dict[str, Any] = {}
-_BUILD_HEATMAP_CACHE_TTL = 60
-# Stale-while-revalidate: serve stale data immediately (up to STALE_TTL) while a
+_BUILD_HEATMAP_CACHE_TTL = 60# Stale-while-revalidate: serve stale data immediately (up to STALE_TTL) while a
 # single background task refreshes it. Cuts cold /api/data from ~4s to <50ms
 # for repeat views. In-flight set provides single-flight per cache key.
 _BUILD_HEATMAP_STALE_TTL = 900  # 15 min — max age of stale-serveable data
@@ -1071,6 +1102,12 @@ async def _build_heatmap_impl(ticker: str, max_expiries: int = 4, with_taps: boo
             else:
                 s["lifecycle"] = "decaying"
             s["tap_prob"] = [0.80, 0.66, 0.33, 0.10][min(tc, 3)]
+
+    # Per-strike traded volume (2026-09-03): engine-agnostic rollup from the
+    # raw contracts so the Profile view can render a real volume profile.
+    # Works for every provider (Public/cvserver/yfinance all carry volume)
+    # regardless of the Rust-vs-python GEX engine path taken above.
+    _attach_strike_volumes(strikes, raw.get("contracts", []))
 
     nodes = classify_nodes(strikes, spot)
     patterns = detect_patterns(strikes, nodes, spot)
