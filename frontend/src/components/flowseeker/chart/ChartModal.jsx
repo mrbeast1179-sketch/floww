@@ -31,7 +31,7 @@ export default function ChartModal({ row, open, onClose, history = [], netPremiu
           <section data-testid="chart-history">
             <h4>Contract history</h4>
             {history.length === 0 ? (
-              <div data-testid="chart-history-empty">No history — fixture mode</div>
+              <div data-testid="chart-history-empty" title="No scans yet — run a scan to populate history">No history yet — run a scan</div>
             ) : (
               <ul>{history.map((h, i) => <li key={i} data-testid="chart-history-row">{h.date}: {fmtUSD(h.premium ?? 0)}</li>)}</ul>
             )}
@@ -39,7 +39,7 @@ export default function ChartModal({ row, open, onClose, history = [], netPremiu
           <section data-testid="chart-netprem">
             <h4>Net Premium</h4>
             {netPremiumSeries.length === 0 ? (
-              <div data-testid="chart-netprem-empty">No Net Premium series — fixture mode</div>
+              <div data-testid="chart-netprem-empty" title="No premium series until at least one scan completes">No premium series yet — run a scan</div>
             ) : (
               <ul>{netPremiumSeries.map((p, i) => <li key={i}>{p.label}: {fmtUSD(p.value)}</li>)}</ul>
             )}
