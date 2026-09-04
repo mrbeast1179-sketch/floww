@@ -889,3 +889,30 @@ export function nearestExpiryPin(rows, ticker, nowMs = Date.now()) {
   if (!pin) return null;
   return { eligible: true, exp: exps[0], ...pin };
 }
+
+// ---------- Roll 1984 effective spread (SHIP-7 engine; ROLL-01..08) ----------
+// s = 2*sqrt(-cov(dP_t, dP_{t+1})). Defined ONLY for negative autocovariance;
+// cov >= 0 → truncated (spread 0, truncated:true) per ROLL-02. Measures
+// quoted-bounce + staleness on snapshots, NOT taker cost (ROLL-07). Needs
+// ~30+ mids for a non-degenerate read (ROLL-05) — callers show n.
+export function rollSpread(mids) {
+  const xs = (mids || []).map(Number).filter((v) => Number.isFinite(v) && v > 0);
+  if (xs.length < 3) return { spread: null, n: xs.length, truncated: false };
+  const d = [];
+  for (let i = 1; i < xs.length; i++) d.push(xs[i] - xs[i - 1]);
+  const mu = d.reduce((a, b) => a + b, 0) / d.length;
+  let cov = 0;
+  for (let i = 0; i < d.length - 1; i++) cov += (d[i] - mu) * (d[i + 1] - mu);
+  cov /= d.length - 1;
+  if (cov >= 0) return { spread: 0, n: xs.length, truncated: true };
+  return { spread: 2 * Math.sqrt(-cov), n: xs.length, truncated: false };
+}
+
+// Capped push for per-contract mid rings (Roll history; caller persists).
+export function pushCapped(ring, v, cap = 60) {
+  const r = Array.isArray(ring) ? ring : [];
+  const x = Number(v);
+  if (Number.isFinite(x) && x > 0) r.push(x);
+  while (r.length > cap) r.shift();
+  return r;
+}
