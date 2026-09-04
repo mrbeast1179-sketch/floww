@@ -343,7 +343,14 @@ W0 → W1 → W6 → W2 → W3 → W4 → W5 → W7
 
 **Dependencies:** W1,W6,W2,W3,W4,W5,W7 built. W8 is the integration wave — nothing after it.
 
-**Exit gate (Agent 1 sign-off):** all 39 modules mounted, full `npx craco test --watchAll=false` green, no `frontend/src/App.js` diff, honest-copy audit passed, 6 states per surface checklist attached. Gate is `GATE_PLAN.md: W8 Compose Gate`.
+**Exit gate (Agent 1 sign-off, metrics — exact commands + thresholds):**
+- `find frontend/src/components/flowseeker -type f | wc -l` → ≥39 modules mounted in `FlowseekerProBlademap.jsx` shell
+- `git diff --name-only origin/main..HEAD | grep frontend/src/App.js` → 0 (no App.js diff)
+- `cd frontend && npx craco test --watchAll=false` → 0 failures (40 suites / 291 baseline + new wave tests)
+- 6-states checklist per surface (loading/empty/stale/error/frozen/no-quote) — fixtures prove each state, checklist attached to W8 report
+- Honest-copy greps: `grep -R -i "dark pool.*buy|VPIN|OPRA.*print" frontend/ → 0`, `grep -R "Key Moment|Earnings Hub" frontend/ → 0` (honest-empty only)
+- KEY PROTECTION LAW respected: no new Public pollers, TTL ≥60s
+Gate is `GATE_PLAN.md: Gate B (W8 Compose Gate)` + Agent 1 sign-off.
 
 **Owner:** Agent 2 implements; Agent 1 gatekeeps.
 
@@ -361,9 +368,18 @@ W0 → W1 → W6 → W2 → W3 → W4 → W5 → W7
 8. W7 methodology → presets + checklist + funnel + dark pool overlay (post-B3) + right-click
 9. W8 COMPOSE → mount + wire + states audit (honest-copy + 6-states gate, Agent 1 sign-off)
 
-## Status snapshot 2026-09-04
+## Gate Board 2026-09-04T01:00Z (architect-maintained, liveness protocol)
 
-W1–W4/W6/W7 frontend modules: **built, unwired** (d222dee, 39 modules, real logic, tested). R1 honest-empty hardening applied. W8 is the only remaining frontend wave.
+- **Gate A (tidehunter rebase/push): PASSED** — be97bd2 on origin/main, 0 ahead, zero conflicts/overlap. R3 retired.
+- **Gate B (Agent 2 W8 compose): PENDING — owner cold** — no phase9/agent2-flowseeker branch, zero commits in 6h+. Critical path — relaunch pending.
+- **Gate C (Agent 4 evaluator sign-off): IN PROGRESS** (rounds landing).
+
+Liveness: proof-of-life hourly (commit/test/BLOCKERS.md); stale gate >2h must be re-checked; blocked claims need (1) missing artifact, (2) owner lane, (3) unblocked work.
+
+## Status snapshot 2026-09-04T01:00Z
+
+W1–W4/W6/W7 frontend modules: **built, unwired** (d222dee, 39 modules, real logic, tested). R1 honest-empty hardening applied. W8 is the only remaining frontend wave. Gate A PASSED — any "awaiting Gate A" note is stale.
+
 
 ## What can start immediately (remaining)
 

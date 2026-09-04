@@ -281,7 +281,7 @@ Agent 3 updates this gate plan when:
 
 **Deferred gates:** G6.3 (backtest, P1 funding), G7.4 (dark pool overlay, B3+FINRA), G0.1-G0.3 (spike, Agent 3 to check), B6 (alert proposal, eval-first), B9 (proposal, eval-first)
 
-**Gate plan status:** OPEN (Phase 9 just started, all gates are OPEN)
+**Gate plan status:** Gate A PASSED 2026-09-04T01:00Z (be97bd2); Gate B PENDING (Agent 2 cold, critical path); Gate C PENDING (awaits Gate B). Liveness protocol: re-verify hourly, timestamp state changes, triage RFCs same-day. Proof: commits on phase9/agent1-architect within the hour.
 
 ---
 
@@ -291,16 +291,18 @@ Agent 3 updates this gate plan when:
 
 > "Chain data flows ONLY through fetch_chain_from_public_api (60s TTL) or CacheRouter (300s). No new per-ticker Public pollers. No cadence shortening. Frontend never calls Public directly. Violations fail the gate."
 
-### Gate A — Agent 3 rebase/push (tidehunter worktree local main, 4 SHIP commits, zero file overlap)
+### Gate A — Agent 3 rebase/push — PASSED 2026-09-04T01:00Z (be97bd2, 0 ahead, R3 retired)
 
-**Precondition:** Working tree clean, upstream fetched, rebase-not-merge, never force-push.
+**Status: PASSED 2026-09-04T01:00Z — tidehunter 0 ahead of origin/main, be97bd2 verified (zero conflicts, zero overlap with d222dee). Any lane still 'awaiting Gate A' is stale — proceed.**
+
+**Original precondition (for record):** Working tree clean, upstream fetched, rebase-not-merge, never force-push.
 
 ```
 # from tidehunter worktree (verify worktree path first)
 git fetch origin
 git rebase origin/main   # not merge; resolve, do not force-push
-git log --oneline origin/main..HEAD   # expect 4 SHIP commits, no docs-only noise
-git diff --name-only origin/main..HEAD   # expect backend-only, check zero overlap with d222dee file list
+git log --oneline origin/main..HEAD   # expect 4 SHIP commits — now 0 (landed to be97bd2)
+git diff --name-only origin/main..HEAD   # expect backend-only — now 0 (landed)
 # tests per lane:
 cd backend && .venv/bin/python3 -m pytest -q   # backend green (or targeted suite per proposal)
 cd frontend && npx craco test --watchAll=false  # frontend still green (untouched, but verify no regression)
@@ -311,9 +313,16 @@ grep -R "Key Moment\|Earnings Hub\|1.2x.*booster" .planning/ --include="*.md" | 
 
 Owner: Agent 3 proposes, Agent 1 signs off. Never `git push --force`.
 
-### Gate B — Agent 2 compose (W8 mount + wire, d222dee + W8)
+### Gate B — Agent 2 compose (W8 mount + wire, d222dee + W8) — PENDING (owner cold, see ROADMAP Gate Board)
 
-**Acceptance:** all 39 modules mounted in `FlowseekerProBlademap.jsx` shell, no `frontend/src/App.js` diff.
+**Acceptance (W8 exit-gate metrics, exact commands + thresholds):**
+
+- All 39 modules mounted in `FlowseekerProBlademap.jsx` shell, no `frontend/src/App.js` diff.
+- Full frontend suite: `cd frontend && npx craco test --watchAll=false` → 0 failures, 40 suites / 291 baseline preserved + new wave tests.
+- 6-states checklist per surface (loading/empty/stale/error/frozen/no-quote) — fixtures prove each state, checklist attached to W8 report.
+- Honest-copy audit: zero dark-pool side / OPRA print / VPIN claims (greps below must be 0).
+- R1 honest-empty: `aiCatalyst/scoreBooster` = {available:false, reason:"no_api_surface"} where applicable, scoreBooster fixed 1.0.
+
 
 ```
 git diff --name-only origin/main..HEAD | grep -q "frontend/src/App.js" && echo "FAIL: App.js diff" || echo "OK"
@@ -327,7 +336,7 @@ grep -R "Key Moment\|Earnings Hub" frontend/ --include="*.jsx" | grep -v "honest
 
 Gate is `WAVE_STATE.md: W8 Exit Gate` + Agent 1 sign-off. No App.js diff.
 
-### Gate C — Final integration sign-off (both lanes + Agent 4 eval)
+### Gate C — Final integration sign-off (both lanes + Agent 4 eval) — PENDING (awaits Gate B)
 
 **Commands:**
 
