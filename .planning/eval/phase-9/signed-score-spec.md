@@ -36,8 +36,8 @@ Weights (starting point — desk calibrates READ-ONLY via outcomes; overfit warn
   LOW_OI tag); both zero → component 0. Missing OI → cap total magnitude at 50 + DEGRADED tag.
 - premium (log-scaled, $25K floor reference): 20%. premium < $25K → component 0 (below tape relevance).
 - IV confirmation (changes, not levels — An et al. 2014): 15%. Call-IV-rising (put flat/down) confirms
-  bullish; mirror for bearish; contradicts → subtract. Missing IV → omit component, rescale others
-  proportionally + DEGRADED tag.
+  bullish; mirror for bearish; contradicts → subtract. Missing IV → omit component, NO rescale,
+  ceiling 85, DEGRADED tag.
 - DTE weighting: 10%. 0DTE with volOI≥2 → full weight (alert-gate parity); 1–7DTE full; 8–45 decay
   linearly to half; >45DTE half. Justification: P&P leverage concentration is moneyness-based, NOT a
   DTE band — weights are internal heuristics, never cited to P&P.
@@ -46,7 +46,7 @@ Weights (starting point — desk calibrates READ-ONLY via outcomes; overfit warn
 
 - SIDE missing → score UNAVAILABLE (dash + "no quote" state).
 - OI missing → cap |score| ≤ 50, DEGRADED tag.
-- IV missing → omit IV component, rescale, DEGRADED tag.
+- IV missing → omit IV component, NO rescale, ceiling 85, DEGRADED tag.
 - Earnings ≤7d without smirk confirmation → cap bullish |score| ≤ 70 (Roll et al. 2010 lean).
 - Falling-OI-only signal → cap |score| ≤ 40 (Ge-Lin-Pearson 2016).
 
@@ -77,7 +77,7 @@ def signed_score(row):
     prem_c = 20*log10(1+row.premium/25_000)/log10(1+1_000_000/25_000) if row.premium>=25_000 else 0
     # IV alignment is DIRECTION-AWARE (round-6 fix): +1 confirms signal direction, -1 contradicts.
     # The raw IV trend must be mapped against the inferred side, never added with a fixed sign.
-    iv_c = 15*iv_align(row, side)  # +1..-1; None→omit+rescale×(100/85)+DEGRADED
+    iv_c = 15 * iv_align(row, side)  # +1..-1; None→omit, NO rescale (R1: ceiling 85), DEGRADED
     dte_c = 10*dte_weight(row.dte, voi)
     mag = min(base+size_c+prem_c+iv_c+dte_c,100)
     if mid_flag: mag = mag/2; tags += [MID?]  # round-6 fix: matrix promised halving, code now does it
@@ -98,8 +98,7 @@ printed 7 instead of ~0).
 3. Balanced MID small print → 0 (MID? tag, halved).
 4. NO_QUOTE (bid=0) → UNAVAILABLE.
 5. Zero OI + volume>0 → max size component + LOW_OI tag.
-6. Missing IV → rescaled, DEGRADED, still signed.
-7. Put-ASK rising OI → positive + HEDGE?.
+7. Missing IV → omitted (ceiling 85), DEGRADED, still signed.
 8. Put-ASK falling OI → positive capped ≤40 + HEDGE?, CLOSE?.
 9. 0DTE volOI≥2 → full DTE weight.
 10. Earnings ≤7d bullish without smirk → capped ≤70.
