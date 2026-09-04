@@ -7,7 +7,7 @@ import {
   tierOf, selectFires, pickBanner, spreadPosition, overviewStats,
   equityType, signedOtm, isOpexDay, highlightState, flagSpreadLegs,
   interpDeltaIV, skewLevels, pinRisk, quoteSkew, midDrift, stampPollDeltas, nearestExpiryPin,
-  rollSpread, pushCapped,
+  rollSpread, pushCapped, rollPooled,
 } from "./scanLogic";
 
 describe("estimateDelta", () => {
@@ -1051,5 +1051,19 @@ describe("rollSpread — Roll 1984 bounce estimator", () => {
     expect(rollSpread([1, 2]).spread).toBeNull();
     const r = pushCapped(pushCapped([1, 2], 3, 3), 4, 3);
     expect(r).toEqual([2, 3, 4]);
+  });
+});
+
+describe("rollPooled — expiry-bucket cost", () => {
+  const bounce = (n, lo = 4, hi = 4.2) => Array.from({ length: n }, (_, i) => (i % 2 === 0 ? lo : hi));
+  it("pools two bounce rings into one spread", () => {
+    const r = rollPooled([bounce(20), bounce(20)]);
+    expect(r.building).toBe(false);
+    expect(r.spread).toBeCloseTo(0.4, 1); // full bounce amplitude ± joint noise
+  });
+  it("building state under 30 deltas, never a number", () => {
+    const r = rollPooled([bounce(10)]);
+    expect(r.building).toBe(true);
+    expect(r.spread).toBeNull();
   });
 });
