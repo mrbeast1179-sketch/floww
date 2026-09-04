@@ -14,7 +14,7 @@
 |---|---|
 | **ID** | CR-01 |
 | **Type** | Backend lane (Agent 3) |
-| **Status** | OPEN |
+| **Status** | APPROVED IN PRINCIPLE (2026-09-04, Architect) — compose pass green-lit; gate: all 39 modules mounted, full frontend suite green, no App.js diff; Agent 2 owns W8 |
 | **Priority** | HIGH — blocks W2.3, W2.4, W3.2-close, W4.1-W4.3, W7.2-close |
 | **Depends on** | HANDOFF_B1 section (Mongo snapshots available) |
 | **Summary** | Persist Level 2 tick snapshots to file-backed DuckDB on a recurring cadence thread so Phase 9 can answer "what happened over the last N days" instead of "what just happened." |
@@ -81,6 +81,18 @@ Agent 3 marks this contract request as SATISFIED when the cadence thread is live
 - Verify that DuckDB queries reproduce expected history on demand
 
 ---
+
+### Triage 2026-09-04 (Agent 1)
+
+**Approved in principle.** Agent 2's d222dee (39 in-lane frontend modules, real logic, tested) satisfies the composition pre-condition. Gate for final compose (W8):
+
+- All 39 modules mounted in `FlowseekerProBlademap.jsx` shell
+- Full frontend suite `npx craco test --watchAll=false` green
+- No `frontend/src/App.js` diff (`git diff --name-only origin/main..HEAD` must not list App.js)
+- Honest-copy + 6-states checklists attached to W8 report
+
+Blocked on W8 wire + states audit (owned by Agent 2, Agent 1 sign-off is exit gate). Any new RFCs triaged within the hour per autonomy protocol; file as new CR-## below. [Also covers prompt CR-001 alias — same contract.]
+
 
 ## CR-02 — B2: Finnhub earnings cache + sector/industry map
 

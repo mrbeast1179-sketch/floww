@@ -8,6 +8,24 @@
 
 ---
 
+
+## R1 Honest-Empty — AI Context Pillar (2026-09-04, ruling R1)
+
+**Law:** The Public.com "AI context" pillar is DEAD. Key Moments and Earnings Hub do not exist in the Individual API surface (`backend/services/public_api.py` zero hits for trading/marketdata/historicdata only). Any contract touching AI catalysts, Key Moments, Earnings Hub, or the 1.2x score booster resolves to **honest-empty**, never placeholder, never fabricated text.
+
+**Schema (apply to every pulse/scanner/alert/aiCatalyst/scoreBooster field):**
+```ts
+type AIContextAvailability = { available: false; reason: "no_api_surface" };
+type AICatalyst = null; // value is null when available===false
+// Pulse/Scanner row extension:
+aiCatalyst: AICatalyst | { available: false; reason: "no_api_surface" };
+scoreBooster: 1.0; // fixed — 1.2x booster is void under R1; never multiply
+```
+
+**Honest-empty states:** `{ available:false, reason:"no_api_surface" }` → UI renders "AI context unavailable — no API surface" (not spinner, not blank). No booster math. Backtest/outcomes must exclude booster until API surface changes. Grep 2026-09-04: zero literal `Key Moment`/`1.2x`/`booster` hits in docs — this is preventive hardening.
+
+---
+
 ## C1 — Pulse Row
 
 The per-ticker live tape row. Source: Public API `/api/public/chain/{ticker}` + aggregation.

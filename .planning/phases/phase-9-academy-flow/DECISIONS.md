@@ -239,3 +239,31 @@ The monolith `FlowseekerProBlademap.jsx` becomes a shell that composes these sub
 **Rationale:** A score spec without boundary cases gets implemented with invisible bugs at the edges. The spec must be complete enough that Agent 2 can implement it without asking questions.
 
 **Agent 4 implication:** Score spec must be complete, not hand-wavy. Boundary cases are required, not optional.
+
+## D19 — R1 FALLOUT (2026-09-04, Architect ruling, highest priority)
+
+**Status:** LOCKED — supersedes any prior AI-catalyst booster language.
+
+**Context:** Public.com Individual API surface was verified 2026-09-04 to expose only `trading/marketdata/historicdata` (see `backend/services/public_api.py` — zero hits for `Key Moments`, `Earnings Hub`, `AI context`). The "AI context" pillar (Key Moments feed, Earnings Hub stream, 1.2x score booster) does not exist in the authenticated surface and therefore cannot be wired. This is ruling **R1**.
+
+**Decision:** Every schema, promise, or UI copy touching AI catalysts, Key Moments, Earnings Hub, or the 1.2x booster now resolves to an **honest-empty** typed null with a reason code, never a placeholder, never fabricated text:
+
+```ts
+type AIContextAvailability = { available: false; reason: "no_api_surface" };
+type AICatalyst = null; // when available===false, value is null + reason
+```
+
+Affected contracts (grep 2026-09-04: zero literal `Key Moment`/`1.2x`/`booster` hits in phase-9 docs — hardening is preventive, not clean-up): `CONTRACTS.md` pulse/scanner/alert `aiCatalyst`/`scoreBooster` fields now `T | null` with `available/reason`; `WAVE_STATE.md` notes that any W3/W5 booster step is honest-empty until the API surface changes. Frontend renders "AI context unavailable — no API surface" copy, not an empty spinner.
+
+**Rationale:** Fabricated catalyst text would be a worse bug than a missing feature. Honest-empty is load-bearing — it keeps the gate honest and prevents hallucinated catalysts from entering outcomes or backtests.
+
+**Owner:** Architect (Agent 1). Frontend (Agent 2) renders the empty state; Backend (Agent 3) must not invent a synthetic catalyst endpoint; Research (Agent 4) audits copy for booster claims.
+
+## D20 — KEY PROTECTION LAW (2026-09-04, Architect law, standing)
+
+**Status:** LAW — cited in `RISK_REGISTER.md` and `GATE_PLAN.md`; violations fail the gate.
+
+> "Chain data flows ONLY through fetch_chain_from_public_api (60s TTL) or CacheRouter (300s). No new per-ticker Public pollers. No cadence shortening. Frontend never calls Public directly. Violations fail the gate."
+
+See `backend/services/public_api_adapter.py` (60s chain TTL + coalescing + stale-serve) and `backend/services/public_api.py` (Triad at 60s). Rate incident 2026-09-04 (Triad 7×~6 calls/30s → 80+/min) is the evidence that this law is not optional.
+
