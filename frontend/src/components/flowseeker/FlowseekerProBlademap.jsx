@@ -14,14 +14,31 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { BACKEND_URL } from "../../config/api";
 import { mkScanRow, evalAlerts, evalTickerAlerts, streakOf, cleanHistory, tickerRollup, volSigma, annotateFirstSeen, sessionDay, fmtClock, fmtAge, awaySummary, scanRowsToCSV, oiChange, fmtUSD, fmtK, fmtIV, scoreGradeOf, pulseState, elapsedClock, formatFOLLOWStrip, tierOf, selectFires, pickBanner, bizDTE, spreadPosition, overviewStats, equityType, signedOtm, isOpexDay, highlightState, flagSpreadLegs, quoteSkew, stampPollDeltas, contractKey, nearestExpiryPin, rollPooled, pushCapped } from "./scanLogic";
-import Wtipanel from "../Wtipanel";
-import RussellPanel from "../RussellPanel";
 import DarkPoolPanel from "./darkpool/DarkPoolPanel";
 import { NetPremiumTrend, StrikeDistribution, VolOiFooter } from "./history/HistoryViews";
 import { Checklist, FunnelEmpty } from "./methodology/Methodology";
 import Tracker from "./tracker/Tracker";
 import { widenActions } from "./filters/filterState";
 import "./FlowseekerProBlademap.css";
+
+// Ownership boundary: Wtipanel + RussellPanel live in App.js's product
+// feature lane (another agent, backend-owned routes /api/wti/vol and
+// /api/pairs/scan). My lane does not own them. Static imports of untracked
+// files break clean checkouts (Phantom-import bug, flagged in
+// tidehunter-ship-waves-report.md line 32). Defer to runtime import so the
+// crash is impossible: a missing panel renders an honest empty card, not a
+// white-screen import error. If the owning agent later commits the real
+// panels, this guard auto-resolves to them.
+const MaybeWtipanel = React.lazy(() =>
+  import("../Wtipanel").then(m => ({ default: m.default })).catch(() =>
+    Promise.resolve({ default: () => <div className="fsb-panel fsb-empty">WTI view — not wired yet</div> })
+  )
+);
+const MaybeRussellPanel = React.lazy(() =>
+  import("../RussellPanel").then(m => ({ default: m.default })).catch(() =>
+    Promise.resolve({ default: () => <div className="fsb-panel fsb-empty">Russell pairs view — not wired yet</div> })
+  )
+);
 
 const API = `${BACKEND_URL}/api/flowseeker`;
 const WATCH = ["SPY", "QQQ", "IWM", "NVDA", "TSLA", "AAPL", "MSFT", "AMZN", "META", "GOOGL"];
@@ -1542,14 +1559,18 @@ export default function FlowseekerProBlademap({ active = true }) {
         {/* WTI VIEW — HAR-IV crude oil vol forecast */}
         <div className={`fsb-view${tab === "wti" ? " active" : ""}`} style={{ gridTemplateColumns: "1fr" }}>
           <div className="fsb-panel fsb-wti-wrap">
-            <Wtipanel />
+            <React.Suspense fallback={<div className="fsb-wti-spinner" />}>
+              <MaybeWtipanel />
+            </React.Suspense>
           </div>
         </div>
 
         {/* PAIRS VIEW — Russell 3000 stat-arb scanner */}
         <div className={`fsb-view${tab === "pairs" ? " active" : ""}`} style={{ gridTemplateColumns: "1fr" }}>
           <div className="fsb-panel fsb-pairs-wrap">
-            <RussellPanel />
+            <React.Suspense fallback={<div className="fsb-pairs-spinner" />}>
+              <MaybeRussellPanel />
+            </React.Suspense>
           </div>
         </div>
 

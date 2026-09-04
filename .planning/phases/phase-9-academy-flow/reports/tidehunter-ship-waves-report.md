@@ -29,10 +29,21 @@ fast-forward, verified `origin/main` (f241a88 at push time).
 - RFC-2 (backend lane): proposal packet
   `.planning/proposals/backend/shipped-signals-persistence.md`
   (Amihud daily store, Roll persistence, Hawkes calibration gate).
-- Phantom imports (pre-existing, flagged not fixed): main's committed
-  Blademap imports `../Wtipanel` + `../RussellPanel`, which exist only as
-  untracked files in the main checkout — clean checkouts break. Owner
-  should commit or guard. My worktree shims them untracked for tests only.
+- Phantom imports (FIXED this session — see below): main's committed
+  Blademap imported `../Wtipanel` + `../RussellPanel`, which existed only as
+  untracked files in the main checkout — clean checkouts broke at Jest
+  collection (module graph resolved before any runtime guard could fire, 0
+  tests collected). Root cause: static imports of another agent's product
+  panels that my lane does not own (App.js-anchored, backend-owned routes
+  /api/wti/vol + /api/pairs/scan). Fix (this commit): remove the static
+  imports; replace with React.lazy dynamic imports wrapped in Suspense, each
+  with a .catch fallback to an honest empty card ("WTI view — not wired yet"
+  / "Russell pairs view — not wired yet"). Verified in both states: files
+  present → real modules render (32/32 tests pass); files absent → empty
+  cards, no crash, no white screen (32/32 tests pass). Full suite 409/409
+  green; craco build clean; production bundle ships the guarded imports.
+  The owning agent can later commit the real panels — the lazy import
+  auto-resolves to them with zero lane changes.
 
 ## Still blocked (not stalled — proposal/fixture-first instead)
 - Live-chain engine validation + Finnhub spike: backend :8000 down all
