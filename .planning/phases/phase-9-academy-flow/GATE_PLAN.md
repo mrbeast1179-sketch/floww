@@ -282,3 +282,64 @@ Agent 3 updates this gate plan when:
 **Deferred gates:** G6.3 (backtest, P1 funding), G7.4 (dark pool overlay, B3+FINRA), G0.1-G0.3 (spike, Agent 3 to check), B6 (alert proposal, eval-first), B9 (proposal, eval-first)
 
 **Gate plan status:** OPEN (Phase 9 just started, all gates are OPEN)
+
+---
+
+## MERGE GATES (2026-09-04, Agent 1 gatekeeping — three merges, exact commands)
+
+**Law to enforce at every gate (RISK_REGISTER R25 / DECISIONS D20):**
+
+> "Chain data flows ONLY through fetch_chain_from_public_api (60s TTL) or CacheRouter (300s). No new per-ticker Public pollers. No cadence shortening. Frontend never calls Public directly. Violations fail the gate."
+
+### Gate A — Agent 3 rebase/push (tidehunter worktree local main, 4 SHIP commits, zero file overlap)
+
+**Precondition:** Working tree clean, upstream fetched, rebase-not-merge, never force-push.
+
+```
+# from tidehunter worktree (verify worktree path first)
+git fetch origin
+git rebase origin/main   # not merge; resolve, do not force-push
+git log --oneline origin/main..HEAD   # expect 4 SHIP commits, no docs-only noise
+git diff --name-only origin/main..HEAD   # expect backend-only, check zero overlap with d222dee file list
+# tests per lane:
+cd backend && .venv/bin/python3 -m pytest -q   # backend green (or targeted suite per proposal)
+cd frontend && npx craco test --watchAll=false  # frontend still green (untouched, but verify no regression)
+# honest-copy audit (blocks merge):
+grep -R -i "dark pool.*buy\|dark pool.*sell\|VPIN\|OPRA.*print" frontend/ backend/ --include="*.jsx" --include="*.js" --include="*.py" | grep -v "honest-empty\|proxy\|prohibited" # expect 0
+grep -R "Key Moment\|Earnings Hub\|1.2x.*booster" .planning/ --include="*.md" | grep -v "honest-empty\|no_api_surface" # expect 0
+```
+
+Owner: Agent 3 proposes, Agent 1 signs off. Never `git push --force`.
+
+### Gate B — Agent 2 compose (W8 mount + wire, d222dee + W8)
+
+**Acceptance:** all 39 modules mounted in `FlowseekerProBlademap.jsx` shell, no `frontend/src/App.js` diff.
+
+```
+git diff --name-only origin/main..HEAD | grep -q "frontend/src/App.js" && echo "FAIL: App.js diff" || echo "OK"
+# verify 39 modules still present:
+find frontend/src/components/flowseeker -type f | wc -l   # expect >=39
+cd frontend && npx craco test --watchAll=false   # full suite green
+# 6-states + honest-copy audits:
+grep -R "Key Moment\|Earnings Hub" frontend/ --include="*.jsx" | grep -v "honest-empty\|no_api_surface" # expect 0
+# per GATE_PLAN 6-gate loop: states-per-surface checklist attached to report
+```
+
+Gate is `WAVE_STATE.md: W8 Exit Gate` + Agent 1 sign-off. No App.js diff.
+
+### Gate C — Final integration sign-off (both lanes + Agent 4 eval)
+
+**Commands:**
+
+```
+# rebase both onto main in dependency order (Agent 3 first, then Agent 2 W8 on top), or merge via PR with Agent 1 approval
+cd backend && .venv/bin/python3 -m pytest -q
+cd frontend && npx craco test --watchAll=false
+# backend untouched check if Agent 3 already merged:
+git diff --name-only origin/main..HEAD -- backend/ | wc -l   # inform, not block
+# final grep sweeps (1-pager evidence in report):
+grep -R -i "possibly delisted" backend/services/*.py | head # expect only yfinance noise, not product claims
+```
+
+Honest-copy audit blocks Gate C: any dark-pool side, OPRA print-tape, or VPIN-from-snapshots claim fails.
+

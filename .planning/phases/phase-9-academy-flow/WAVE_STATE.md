@@ -327,6 +327,28 @@ W0 → W1 → W6 → W2 → W3 → W4 → W5 → W7
 
 ---
 
+
+### W8 — COMPOSE: Mount + Wire + States Audit (new, owned by Agent 2, Agent 1 sign-off)
+
+**Goal:** Wire every built-but-unwired module into the live app, mount, and audit 6 states.
+
+**Status 2026-09-04:** W1–W4/W6/W7 frontend modules are **built, unwired** (Agent 2 d222dee: 39 modules real logic, tested). W8 is the only wave that touches `FlowseekerProBlademap.jsx` shell composition and live wiring.
+
+**Tasks:**
+- W8.1 Mount pass: compose 39 modules into `FlowseekerProBlademap.jsx` shell (Agent 2). No App.js diff.
+- W8.2 Wire pass: connect `fetch_chain_from_public_api` (60s TTL) / `CacheRouter` (300s) — no new Public pollers (KEY PROTECTION LAW).
+- W8.3 States audit: every new surface ships loading/empty/stale/error/frozen/no-quote — checklist per surface, fixtures prove 6 states.
+- W8.4 R1 sweep: AI catalyst / Key Moments / Earnings Hub / 1.2x booster → honest-empty `{available:false, reason:"no_api_surface"}` (see D19).
+- W8.5 Full frontend suite green + no dark-pool side / OPRA / VPIN claims (honest-copy audit blocks merge).
+
+**Dependencies:** W1,W6,W2,W3,W4,W5,W7 built. W8 is the integration wave — nothing after it.
+
+**Exit gate (Agent 1 sign-off):** all 39 modules mounted, full `npx craco test --watchAll=false` green, no `frontend/src/App.js` diff, honest-copy audit passed, 6 states per surface checklist attached. Gate is `GATE_PLAN.md: W8 Compose Gate`.
+
+**Owner:** Agent 2 implements; Agent 1 gatekeeps.
+
+---
+
 ## Merge order
 
 1. W0 spikes → go/no-go records
@@ -337,8 +359,13 @@ W0 → W1 → W6 → W2 → W3 → W4 → W5 → W7
 6. W4 history → trend + distribution + Vol/OI + tabs + CSV (needs B1)
 7. W5 score → signed score spec + backtest (display-only)
 8. W7 methodology → presets + checklist + funnel + dark pool overlay (post-B3) + right-click
+9. W8 COMPOSE → mount + wire + states audit (honest-copy + 6-states gate, Agent 1 sign-off)
 
-## What can start immediately
+## Status snapshot 2026-09-04
+
+W1–W4/W6/W7 frontend modules: **built, unwired** (d222dee, 39 modules, real logic, tested). R1 honest-empty hardening applied. W8 is the only remaining frontend wave.
+
+## What can start immediately (remaining)
 
 - W0 spikes (go/no-go only)
 - W1 tracer (frontend-only, operates on existing Pulse data)

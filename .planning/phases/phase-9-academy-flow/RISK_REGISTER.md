@@ -523,3 +523,23 @@ Agent 2 updates this risk register when:
 Agent 3 updates this risk register when:
 - A backend proposal introduces a new risk
 - A backend change ships that changes the risk profile
+
+## R25 — 2026-09-04 Rate-Limit Incident (Triad) + KEY PROTECTION LAW (standing, owner: architect)
+
+**Trigger:** Triad (Public.com) at 7×~6 calls/30s ≈ 80+/min with zero TTL/coalescing protection hit live rate limits (verified 2026-09-04).
+
+**Fix (now LAW):** 60s chain TTL + coalescing + stale-serve in `backend/services/public_api_adapter.py` (Triad at 60s via `backend/services/public_api.py`). This is not a tunable — it is a gate.
+
+**User-visible symptom if regressed:** 429s from Public, empty chains, stale heatmaps, degraded pulse with silent failures.
+
+**Standing law (append verbatim, cited in GATE_PLAN + DECISIONS D20):**
+
+> "Chain data flows ONLY through fetch_chain_from_public_api (60s TTL) or CacheRouter (300s). No new per-ticker Public pollers. No cadence shortening. Frontend never calls Public directly. Violations fail the gate."
+
+**Owner:** Architect (Agent 1) — standing risk, cited in triage and every merge gate. Backend lane (Agent 3) enforces via `public_api_adapter.py`; Frontend (Agent 2) enforces by routing only through backend chain endpoint.
+
+**Mitigation / honest degraded:** stale-serve on 429/5xx, backoff, never shorten TTL. Honest-empty when chain unavailable.
+
+**Gate enforcement:** `GATE_PLAN.md` merge gates grep for violations (new `PublicBroker` pollers, direct `fetch.*public` in frontend, TTL <60s). Fail = block.
+
+---
