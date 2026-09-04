@@ -360,7 +360,7 @@ on origin — a disk loss would have wiped all lane work.
 **Push policy (binding):** every lane pushes its own branch regularly
 (fast-forward only). Never push another lane's branch. Never force-push
 anything. Agent 3's Tidehunter lane is fully pushed to origin/main
-(51 commits since the live-validation anchor `17a555d`, 2026-09-04);
+(18 commits since the live-validation anchor `17a555d`, 2026-09-04);
 verify HEAD before touching.
 
 **Gaps as of 2026-09-04:**
