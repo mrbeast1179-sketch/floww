@@ -352,3 +352,31 @@ anything. Tidehunter 4 commits still unpushed — rebase + push is theirs.
 - Key Moments pillar dead (R1) — no further spend without API-docs proof.
 - `tests/test_backtest_report.py` was red — fixed by implementing the
   endpoint (not by editing the test).
+**Next:** Agent 2 compose pass → Agent 4 evaluator run against live
+payloads → Phase 9 integration checklist sign-off. (Agent 3 rebase/push
+DONE — see Gate Board.)
+
+## Gate Board — live lane status (architect-maintained, 2026-09-04)
+
+**Gate A (tidehunter rebase/push): PASSED.** Tidehunter local main is 0
+ahead of origin/main; SHIP waves + validation + proposals all landed
+(`be97bd2` tip verified). Any lane still "awaiting Gate A" is reading a
+stale board — proceed. R3 above is retired.
+**Gate B (Agent 2 W8 compose): NOT STARTED — owner cold.** No
+`phase9/agent2-flowseeker` branch, zero commits in 6h+ despite a
+"Running" status message. Messages without git evidence count as idle.
+This is the critical path — relaunch order below.
+**Gate C (Agent 4 evaluator sign-off): IN PROGRESS** (rounds landing).
+
+**Liveness protocol (binding on all lanes, architect-enforced):**
+- Proof-of-life hourly: a commit, a test run with counts, or a BLOCKERS.md
+  entry. Status prose without git evidence = idle.
+- A gate awaited >2h after its condition is met = stale gate. Lanes must
+  re-check this board before claiming blocked.
+- Blocked claims must name: (1) the exact missing artifact, (2) its owner
+  lane, (3) the unblocked work being done meanwhile. "Other lanes' moves"
+  without all three is idle, not status.
+- No lane stalls on another's inactivity. Unblocked backlogs: Agent 3 →
+  multiplexer/TokenBucket proposal + B1/B2/B3 packets + fixtures; Agent 4
+  → live-fire evaluators + integrity sweeps; Agent 1 → this board + RFC
+  triage + RISK updates within the hour of any gate-state change.
