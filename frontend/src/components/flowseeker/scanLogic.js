@@ -864,3 +864,28 @@ export function stampPollDeltas(signals, prevVol, prevMid) {
   }
   return signals;
 }
+
+// ---------- Pin-risk readout (SHIP-1; CL-06 gate) ----------
+// Daily expirations verified only for SPX/SPXW/SPY/QQQ/IWM/XSP — every other
+// name is Friday-only (single-name equity options expire weekly). Nearest
+// expiry group scoped to the ticker; spot from first row carrying one.
+const PIN_DAILY = new Set(["SPX", "SPXW", "SPY", "QQQ", "IWM", "XSP"]);
+export function nearestExpiryPin(rows, ticker, nowMs = Date.now()) {
+  const t = String(ticker || "").toUpperCase();
+  const scoped = (rows || []).filter(
+    (r) => String(r.ticker || "").toUpperCase() === t && Number(r.oi) > 0
+  );
+  if (!scoped.length) return null;
+  if (!PIN_DAILY.has(t) && new Date(nowMs).getDay() !== 5) {
+    return { eligible: false, reason: "Fri-only" };
+  }
+  const exps = [...new Set(
+    scoped.map((r) => String(r.expiration || "").slice(0, 10)).filter(Boolean)
+  )].sort();
+  if (!exps.length) return null;
+  const group = scoped.filter((r) => String(r.expiration || "").slice(0, 10) === exps[0]);
+  const withSpot = group.find((r) => Number(r.spot) > 0);
+  const pin = pinRisk(group, withSpot ? withSpot.spot : null);
+  if (!pin) return null;
+  return { eligible: true, exp: exps[0], ...pin };
+}

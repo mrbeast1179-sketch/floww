@@ -6,7 +6,7 @@ import {
   pulseState, elapsedClock, formatFOLLOWStrip,
   tierOf, selectFires, pickBanner, spreadPosition, overviewStats,
   equityType, signedOtm, isOpexDay, highlightState, flagSpreadLegs,
-  interpDeltaIV, skewLevels, pinRisk, quoteSkew, midDrift, stampPollDeltas,
+  interpDeltaIV, skewLevels, pinRisk, quoteSkew, midDrift, stampPollDeltas, nearestExpiryPin,
 } from "./scanLogic";
 
 describe("estimateDelta", () => {
@@ -1006,5 +1006,29 @@ describe("stampPollDeltas — per-poll stamping", () => {
     stampPollDeltas(p2, v, m);
     expect(p2[0]._volDelta).toBe(0);
     expect(p2[0]._prevMid).toBeCloseTo(4.2, 6);
+  });
+});
+
+describe("nearestExpiryPin — Friday gate + nearest expiry", () => {
+  const r = (ticker, strike, oi, exp, spot = 452) => ({ ticker, strike, oi, expiration: exp, spot });
+  const MON = new Date("2026-08-31T12:00:00").getTime(); // Monday
+  const FRI = new Date("2026-09-04T12:00:00").getTime(); // Friday
+  it("index names eligible any day; picks nearest expiry", () => {
+    const rows = [r("SPY", 450, 8000, "2026-09-18"), r("SPY", 450, 1000, "2026-09-18"), r("SPY", 455, 9000, "2026-09-25")];
+    const p = nearestExpiryPin(rows, "SPY", MON);
+    expect(p.eligible).toBe(true);
+    expect(p.exp).toBe("2026-09-18");
+    expect(p.maxOiStrike).toBe(450);
+  });
+  it("single names gated to Friday", () => {
+    const rows = [r("NVDA", 180, 5000, "2026-09-18", 182)];
+    expect(nearestExpiryPin(rows, "NVDA", MON)).toEqual({ eligible: false, reason: "Fri-only" });
+    const fri = nearestExpiryPin(rows, "NVDA", FRI);
+    expect(fri.eligible).toBe(true);
+    expect(fri.maxOiStrike).toBe(180);
+  });
+  it("null on empty or ticker mismatch", () => {
+    expect(nearestExpiryPin([], "SPY", MON)).toBeNull();
+    expect(nearestExpiryPin([r("SPY", 450, 100, "2026-09-18")], "QQQ", MON)).toBeNull();
   });
 });
