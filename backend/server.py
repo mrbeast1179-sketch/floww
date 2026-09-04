@@ -627,9 +627,16 @@ async def fetch_spot_and_chains_merged(ticker: str, max_expiries: int = 4) -> di
     # ── 2. Fallback: yfinance + Databento ──
     yf_success = True
     try:
-        yf_data = await asyncio.to_thread(fetch_spot_and_chains, ticker, max_expiries)
+        yf_data = await asyncio.wait_for(
+            asyncio.to_thread(fetch_spot_and_chains, ticker, max_expiries),
+            timeout=30.0,
+        )
         if not yf_data or not yf_data.get("spot"):
             yf_success = False
+    except TimeoutError:
+        log.warning(f"yfinance timeout for {ticker}, giving up on chain data")
+        yf_success = False
+        yf_data = {"spot": 0, "contracts": []}
     except Exception:
         yf_success = False
         yf_data = {"spot": 0, "contracts": []}
