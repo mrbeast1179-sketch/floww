@@ -13,7 +13,7 @@
  */
 import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { BACKEND_URL } from "../../config/api";
-import { mkScanRow, evalAlerts, evalTickerAlerts, streakOf, cleanHistory, tickerRollup, volSigma, annotateFirstSeen, sessionDay, fmtClock, fmtAge, awaySummary, scanRowsToCSV, oiChange, fmtUSD, fmtK, fmtIV, scoreGradeOf, pulseState, elapsedClock, formatFOLLOWStrip, tierOf, selectFires, pickBanner, bizDTE, spreadPosition, overviewStats, equityType, signedOtm, isOpexDay, highlightState, flagSpreadLegs, quoteSkew, stampPollDeltas, contractKey, nearestExpiryPin } from "./scanLogic";
+import { mkScanRow, evalAlerts, evalTickerAlerts, streakOf, cleanHistory, tickerRollup, volSigma, annotateFirstSeen, sessionDay, fmtClock, fmtAge, awaySummary, scanRowsToCSV, oiChange, fmtUSD, fmtK, fmtIV, scoreGradeOf, pulseState, elapsedClock, formatFOLLOWStrip, tierOf, selectFires, pickBanner, bizDTE, spreadPosition, overviewStats, equityType, signedOtm, isOpexDay, highlightState, flagSpreadLegs, quoteSkew, stampPollDeltas, contractKey, nearestExpiryPin, rollPooled, pushCapped } from "./scanLogic";
 import Wtipanel from "../Wtipanel";
 import RussellPanel from "../RussellPanel";
 import "./FlowseekerProBlademap.css";
@@ -844,6 +844,7 @@ export default function FlowseekerProBlademap({ active = true }) {
   const seenPrintsRef = useRef(new WeakSet());
   const prevVolRef = useRef(new Map()); // contract key -> last-seen day volume (burst math)
   const prevMidRef = useRef(new Map()); // contract key -> last-seen mid (drift read)
+  const midRingRef = useRef(new Map()); // contract key -> capped mid ring (Roll cost)
   const [pulseTick, setPulseTick] = useState(0);
   useEffect(() => {
     if (!signals.length) return;
@@ -858,12 +859,21 @@ export default function FlowseekerProBlademap({ active = true }) {
     }
     // Per-poll snapshot stamping on fresh objects only (StrictMode-safe).
     stampPollDeltas(fresh, prevVolRef.current, prevMidRef.current);
+    // Session mid rings for the pooled Roll bucket (cap 60 ≈ 15 min).
+    for (const s of fresh) {
+      const m = Number(s.mid);
+      if (Number.isFinite(m) && m > 0) {
+        const key = contractKey(s);
+        midRingRef.current.set(key, pushCapped(midRingRef.current.get(key), m, 60));
+      }
+    }
     // Strategy-leg fingerprints over the full snapshot leg set (heuristic).
     try { flagSpreadLegs(signals); } catch { /* never break the tape */ }
     if (prevVolRef.current.size > 2000) {
       const keep = new Set(buf.map((r) => contractKey(r)));
       for (const k of [...prevVolRef.current.keys()]) if (!keep.has(k)) prevVolRef.current.delete(k);
       for (const k of [...prevMidRef.current.keys()]) if (!keep.has(k)) prevMidRef.current.delete(k);
+      for (const k of [...midRingRef.current.keys()]) if (!keep.has(k)) midRingRef.current.delete(k);
     }
     printBufferRef.current = buf.slice(-500);
     setPulseTick((t) => t + 1);
@@ -896,6 +906,20 @@ export default function FlowseekerProBlademap({ active = true }) {
     () => (pulseTicker === "ALL" ? null : nearestExpiryPin(pulseRows, pulseTicker)),
     [pulseRows, pulseTicker]
   );
+  // Pooled Roll cost over the pin expiry bucket (needs 30 deltas; the poll
+  // tick in deps re-runs the memo as rings fill — refs mutate in place).
+  const costRead = useMemo(() => {
+    if (!pinRead || !pinRead.eligible || !pinRead.exp) return null;
+    const rings = [];
+    for (const [k, ring] of midRingRef.current) {
+      const parts = String(k).split("|");
+      if (parts.length === 4 && parts[0].toUpperCase() === String(pulseTicker).toUpperCase() && parts[3] === pinRead.exp) {
+        rings.push(ring);
+      }
+    }
+    return rings.length ? rollPooled(rings) : null;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pulseRows, pulseTick, pulseTicker, pinRead]);
 
   // scanner: filter + sort + KPI rollup. Simple mode ignores the hidden
   // advanced knobs (a Min-Vol set weeks ago must not silently filter an
@@ -1332,6 +1356,11 @@ export default function FlowseekerProBlademap({ active = true }) {
                       {pinRead.eligible && pinRead.maxOiStrike != null
                         ? `PIN ${pinRead.maxOiStrike} · ${(pinRead.concentration * 100).toFixed(0)}%${pinRead.distPct != null ? ` · ${pinRead.distPct >= 0 ? "+" : ""}${pinRead.distPct.toFixed(1)}%` : ""}`
                         : "PIN Fri-only"}
+                    </span>
+                  ) : null}
+                  {costRead ? (
+                    <span className="fsb-ovmetric" title="Pooled Roll effective spread over the pin expiry bucket (quote-bounce + staleness, not taker cost; needs 30 deltas across the bucket)">
+                      {costRead.building ? `COST building ${costRead.nd}/30` : `COST ~$${Number(costRead.spread).toFixed(2)}`}
                     </span>
                   ) : null}
                 </span>

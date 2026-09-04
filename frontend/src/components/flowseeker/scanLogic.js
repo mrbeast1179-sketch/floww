@@ -916,3 +916,30 @@ export function pushCapped(ring, v, cap = 60) {
   while (r.length > cap) r.shift();
   return r;
 }
+
+// ---------- Pooled Roll bucket (SHIP-7 wiring; ROLL-08) ----------
+// Aggregates dP covariance across contracts in one expiry bucket. Deltas are
+// concatenated per-ring (one spurious joint adjacency per ring — negligible
+// past ~30 deltas, documented not hidden). Under 30 deltas → building state,
+// never a number.
+export function rollPooled(rings) {
+  const deltas = [];
+  let nMid = 0;
+  for (const ring of rings || []) {
+    const xs = (Array.isArray(ring) ? ring : [])
+      .map(Number).filter((v) => Number.isFinite(v) && v > 0);
+    nMid += xs.length;
+    for (let i = 1; i < xs.length; i++) deltas.push(xs[i] - xs[i - 1]);
+  }
+  if (deltas.length < 30) {
+    return { spread: null, n: nMid, nd: deltas.length, building: true, truncated: false };
+  }
+  const mu = deltas.reduce((a, b) => a + b, 0) / deltas.length;
+  let cov = 0;
+  for (let i = 0; i < deltas.length - 1; i++) cov += (deltas[i] - mu) * (deltas[i + 1] - mu);
+  cov /= deltas.length - 1;
+  if (cov >= 0) {
+    return { spread: 0, n: nMid, nd: deltas.length, building: false, truncated: true };
+  }
+  return { spread: 2 * Math.sqrt(-cov), n: nMid, nd: deltas.length, building: false, truncated: false };
+}
