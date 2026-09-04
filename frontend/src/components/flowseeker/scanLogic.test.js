@@ -7,7 +7,7 @@ import {
   tierOf, selectFires, pickBanner, spreadPosition, overviewStats,
   equityType, signedOtm, isOpexDay, highlightState, flagSpreadLegs,
   interpDeltaIV, skewLevels, pinRisk, quoteSkew, midDrift, stampPollDeltas, nearestExpiryPin,
-  rollSpread, pushCapped, rollPooled,
+  rollSpread, pushCapped, rollPooled, contractKey,
 } from "./scanLogic";
 
 describe("estimateDelta", () => {
@@ -1065,5 +1065,34 @@ describe("rollPooled — expiry-bucket cost", () => {
     const r = rollPooled([bounce(10)]);
     expect(r.building).toBe(true);
     expect(r.spread).toBeNull();
+  });
+});
+
+describe("poll-chain integration — the effect's exact sequence", () => {
+  it("poll2 arrows + deltas; pool exits building at 30 deltas", () => {
+    const prevVol = new Map(), prevMid = new Map(), rings = new Map();
+    const mk = (vol, a, b) => ([
+      { ticker: "SPY", type: "call", strike: 450, expiration: "2026-09-18", volume: vol, mid: a },
+      { ticker: "SPY", type: "put", strike: 445, expiration: "2026-09-18", volume: vol, mid: b },
+    ]);
+    let arrows, deltas;
+    for (let p = 0; p < 16; p++) {
+      const batch = mk(100 + p * 10, 4.1 + p * 0.01, 4.0 - p * 0.005);
+      stampPollDeltas(batch, prevVol, prevMid);
+      for (const s of batch) {
+        rings.set(contractKey(s), pushCapped(rings.get(contractKey(s)), Number(s.mid), 60));
+      }
+      if (p === 1) {
+        arrows = batch.map((s) => quoteSkew(4.0, 4.3, s._prevMid).tag);
+        deltas = batch.map((s) => s._volDelta);
+      }
+    }
+    expect(arrows).toEqual(["UP", "UP"]);
+    expect(deltas).toEqual([10, 10]);
+    const pool = rollPooled([...rings.values()]);
+    expect(pool.building).toBe(false);
+    // steady drift = positive autocov = textbook truncation, not a bug.
+    expect(pool.truncated).toBe(true);
+    expect(pool.spread).toBe(0);
   });
 });
