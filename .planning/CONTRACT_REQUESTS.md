@@ -9,7 +9,7 @@
 
 ## CR-001 (Agent 2 → App.js shell)
 
-`FlowseekerProBlademap.jsx` monolith (1954 lines) needs a compose pass to mount
+`FlowseekerProBlademap.jsx` monolith (2137 lines) needs a compose pass to mount
 `PulseTape`, `OverviewBar`, `FilterBar`, `ChartModal`, `Tracker`, `DarkPoolPanel`,
 `HistoryViews` and to migrate `PREFS_KEY` → `tabConfig` per-tab substrate.
 **Request:** allow a single `App.js`-adjacent shell edit OR a new `FlowseekerShell.jsx`
@@ -60,7 +60,7 @@ nothing); Agent 3 has no authority to commit or delete them.
 - **Option A (commit the panels):** the owning agent commits the four dangling files
   (`MarketPanels.css`, `PublicPanel.jsx`, `RussellPanel.jsx`, `Wtipanel.jsx`) to
   a branch, gets them onto `main` via PR. Resolves the static-import collision for
-  everyone. CI `frontend-fs-integrity` step (CC-001) passes once the files are
+  everyone. CI `frontend-fs-integrity` step passes once the files are
   tracked.
 - **Option B (remove the stale imports):** if the Public Brokerage / WTI / Russell
   panels are no longer wanted, the owning agent removes the three static imports

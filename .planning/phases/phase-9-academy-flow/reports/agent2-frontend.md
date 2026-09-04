@@ -80,7 +80,7 @@ Added suites run via `CI=true npx craco test --testPathPattern="flowseeker/(puls
 ## TESTS PASSING
 
 - Flowseeker lane: **16 suites / 223 tests passed**
-- Full frontend: **54 suites / 373 tests passed** (no regressions)
+- Full frontend: **56 suites / 409 tests passed** (no regressions)
 - Existing trio (scanLogic + Blademap) still green
 
 ## METRICS
@@ -100,7 +100,7 @@ Added suites run via `CI=true npx craco test --testPathPattern="flowseeker/(puls
 n=500  filter:0.26ms (500->160) sort:0.18ms
 n=2000 filter:0.37ms (2000->660) sort:0.43ms
 memo: PulseTape/OverviewBar use useMemo + stable row keys; no full-list re-render on 15s poll
-build: craco build Compiled (frontend 54 suites green)
+build: craco build Compiled (frontend 56 suites green)
 ```
 
 All well under 5ms — no virtualization needed at 500 rows; 2000 rows still <1ms. Pause/resume is a frozen state flag, not a buffer replay.
@@ -132,7 +132,7 @@ Every new surface has its honest-empty state: RVOL is always `needs baseline`, d
 
 None blocking. One advisory filed:
 
-- **CR-001 (App.js shell):** `FlowseekerProBlademap.jsx` monolith (1954 lines) needs a compose pass to mount `PulseTape`, `OverviewBar`, `FilterBar`, `ChartModal`, `Tracker`, `DarkPoolPanel`, `HistoryViews` and to migrate `PREFS_KEY` → `tabConfig` per-tab substrate. Request: allow a single `App.js`-adjacent shell edit or a new `FlowseekerShell.jsx` that the router mounts. Until then, lane ships as standalone tested modules (fixture-first, no regression).
+- **CR-001 (App.js shell):** `FlowseekerProBlademap.jsx` monolith (2137 lines) needs a compose pass to mount `PulseTape`, `OverviewBar`, `FilterBar`, `ChartModal`, `Tracker`, `DarkPoolPanel`, `HistoryViews` and to migrate `PREFS_KEY` → `tabConfig` per-tab substrate. Request: allow a single `App.js`-adjacent shell edit or a new `FlowseekerShell.jsx` that the router mounts. Until then, lane ships as standalone tested modules (fixture-first, no regression).
 
 ## BLOCKERS
 

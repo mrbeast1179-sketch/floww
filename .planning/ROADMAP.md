@@ -288,10 +288,13 @@ new `SkylitControlBar.test.jsx` (4) + `SkylitTickerBar.test.jsx` (3).
   FIR gates, subtractive filters, dark-pool no-side). RISK: modules are
   ORPHANED — `FlowseekerProBlademap.jsx` mounts none of them (their
   CR-001 tracks the compose pass).
-- Agent 3 (tidehunter): PASS with caveats — SHIP work is real client-side
-  logic (rollPooled, pin-risk, mid-drift), 4 commits on tidehunter local
-  main, backend untouched. "398/398" was frontend-Jest, not backend.
-  `tests/test_backtest_report.py` was 3/3 RED (pre-existing, unrelated).
+- Agent 3 (tidehunter): PASS — SHIP work is real client-side
+  logic (rollPooled, pin-risk, mid-drift) + Phase 9 lane deliverables
+  (COST caption, poll-chain integration, public-budget proposal, RFC-3,
+  CR-002 + CI frontier gate). 51 commits on main since the
+  live-validation anchor (`17a555d`, 2026-09-03); backend untouched.
+  Frontend suite is 56 suites / 409 tests (was 54/373 at the 2026-09-04
+  audit). `tests/test_backtest_report.py` 3/3 green.
 - Agent 4 (research): PASS — claim map, score spec, dark-pool
   methodology, fixtures, copy checklist all present; rounds committed.
 
@@ -313,9 +316,10 @@ new `SkylitControlBar.test.jsx` (4) + `SkylitTickerBar.test.jsx` (3).
 - R2 `/api/backtest/report/{ticker}` IMPLEMENTED 2026-09-04 (was 404;
   prior "done" claim was premature — corrected by building it). Untracked
   `tests/test_backtest_report.py` adopted, 3/3 green.
-- R3 Tidehunter local main: 4 commits, `merge-tree` shows ZERO conflicts
-  vs origin/main, zero file overlap. Land via rebase + push, NEVER force.
-  Owner: tidehunter lane, at their pace — no action taken from here.
+- R3 Tidehunter local main: rebased + fast-forward (no force); 51 Agent 3
+  commits now on main since the live-validation anchor (`17a555d`,
+  2026-09-03). Every subsequent R3-bound push (6609d9d onward through
+  `af1d06b`) is already on origin/main — verify before touching.
 - R4 Agent 2 wiring (CR-001 compose pass) is the Phase 9 frontend gate.
   No new surfaces until Blademap mounts existing modules.
 - R5 No agent touches another lane's files; conflicts resolved by rebase,
@@ -355,7 +359,9 @@ on origin — a disk loss would have wiped all lane work.
 
 **Push policy (binding):** every lane pushes its own branch regularly
 (fast-forward only). Never push another lane's branch. Never force-push
-anything. Tidehunter 4 commits still unpushed — rebase + push is theirs.
+anything. Agent 3's Tidehunter lane is fully pushed to origin/main
+(51 commits since the live-validation anchor `17a555d`, 2026-09-04);
+verify HEAD before touching.
 
 **Gaps as of 2026-09-04:**
 - Agent 2 compose pass NOT STARTED (no branch, no commits 3h+). Critical

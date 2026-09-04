@@ -8,7 +8,7 @@
 ### Flowseeker components (existing)
 | File | Lines | Role |
 |------|-------|------|
-| `frontend/src/components/flowseeker/FlowseekerProBlademap.jsx` | 1954 | Monolith: Pulse tape + Scanner + alerts + conviction — **decompose target** |
+| `frontend/src/components/flowseeker/FlowseekerProBlademap.jsx` | 2137 | Monolith: Pulse tape + Scanner + alerts + conviction — **decompose target** |
 | `frontend/src/components/flowseeker/FlowseekerProBlademap.css` | — | Scoped `.fsb-*` styles |
 | `frontend/src/components/flowseeker/scanLogic.js` | 620 | **Single-source formatters** — fmtUSD/fmtK/fmtIV/fmtClock/fmtAge + business logic (mkScanRow, scanScoreOf, evalAlerts, tickerRollup, bizDTE, volSigma, oiChange, etc.) |
 | `frontend/src/components/flowseeker/FlowseekerProBlademap.test.jsx` | 294 | Pulse helpers: mapPublicChainToRows, pulseScore10/Signal/Badges, aggregatePulse, pruneBuffer, pulseHedge |
