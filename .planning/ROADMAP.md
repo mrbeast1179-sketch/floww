@@ -319,7 +319,7 @@ new `SkylitControlBar.test.jsx` (4) + `SkylitTickerBar.test.jsx` (3).
 - R3 Tidehunter local main: rebased + fast-forward (no force); 18 Agent 3
   commits now on main since the live-validation anchor (`17a555d`,
   2026-09-03). Every subsequent R3-bound push (6609d9d onward through
-  `9979eb0`) is already on origin/main — verify before touching.
+  `9722f46`) is already on origin/main — verify before touching.
 - R4 Agent 2 wiring (CR-001 compose pass) is the Phase 9 frontend gate.
   No new surfaces until Blademap mounts existing modules.
 - R5 No agent touches another lane's files; conflicts resolved by rebase,
