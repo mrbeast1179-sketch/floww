@@ -37,3 +37,19 @@ fast-forward, verified `origin/main` (f241a88 at push time).
 ## Still blocked (not stalled — proposal/fixture-first instead)
 - Live-chain engine validation + Finnhub spike: backend :8000 down all
   session. Nothing assumed; everything ships behind fixtures or honest-empty.
+
+## Live validation 2026-09-03 ~21:00 EDT (backend back, all 200s)
+- `/api/public/chain/SPY`: 1480 contracts → 474 product rows through the
+  real mapper filters; vendor delta 100%, IV>0 76%; no `last` field
+  (quote-mid fallback worked as designed).
+- Engine on live snapshot: PIN eligible, 2026-09-04 (0DTE Friday),
+  max-OI 765 vs spot 773.21 (−1.06%), concentration 24% — sane.
+  Skew all four levels computed (smirk +0.67pp, C-W −0.14pp,
+  slope +0.53pp, convexity +0.66pp). Roll single-snapshot → building
+  (gate holds, no number fabricated).
+- Quant routes return NEUTRAL DEFAULTS, not measurements: liquidity
+  kyle/amihud 0.0 (n_obs 0), fragility 50/ELEVATED; hawkes
+  fitted:false, branching 0.5; VPIN all zeros, finalized_count 0
+  (engine unfed — Phase 7 rule holds trivially). Frontend MUST NOT
+  display any of these as live readings. Proposal packet assumptions
+  confirmed; calibration gates stand.
