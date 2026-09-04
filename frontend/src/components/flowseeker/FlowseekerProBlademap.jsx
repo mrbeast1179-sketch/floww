@@ -13,7 +13,7 @@
  */
 import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { BACKEND_URL } from "../../config/api";
-import { mkScanRow, evalAlerts, evalTickerAlerts, streakOf, cleanHistory, tickerRollup, volSigma, annotateFirstSeen, sessionDay, fmtClock, fmtAge, awaySummary, scanRowsToCSV, oiChange, fmtUSD, fmtK, fmtIV, scoreGradeOf, pulseState, elapsedClock, formatFOLLOWStrip, tierOf, selectFires, pickBanner, bizDTE, spreadPosition, overviewStats, equityType, signedOtm, isOpexDay, highlightState, flagSpreadLegs, quoteSkew, stampPollDeltas, contractKey } from "./scanLogic";
+import { mkScanRow, evalAlerts, evalTickerAlerts, streakOf, cleanHistory, tickerRollup, volSigma, annotateFirstSeen, sessionDay, fmtClock, fmtAge, awaySummary, scanRowsToCSV, oiChange, fmtUSD, fmtK, fmtIV, scoreGradeOf, pulseState, elapsedClock, formatFOLLOWStrip, tierOf, selectFires, pickBanner, bizDTE, spreadPosition, overviewStats, equityType, signedOtm, isOpexDay, highlightState, flagSpreadLegs, quoteSkew, stampPollDeltas, contractKey, nearestExpiryPin } from "./scanLogic";
 import Wtipanel from "../Wtipanel";
 import RussellPanel from "../RussellPanel";
 import "./FlowseekerProBlademap.css";
@@ -890,6 +890,12 @@ export default function FlowseekerProBlademap({ active = true }) {
 
   // Overview bar rollup over the visible 90s tape (Phase 9 W1 tracer).
   const pulseOv = useMemo(() => overviewStats(pulseRows), [pulseRows]);
+  // Pin-risk readout for the single-ticker tape (SHIP-1; multi-ticker ALL
+  // has no single expiry to pin to — metric hidden, not averaged).
+  const pinRead = useMemo(
+    () => (pulseTicker === "ALL" ? null : nearestExpiryPin(pulseRows, pulseTicker)),
+    [pulseRows, pulseTicker]
+  );
 
   // scanner: filter + sort + KPI rollup. Simple mode ignores the hidden
   // advanced knobs (a Min-Vol set weeks ago must not silently filter an
@@ -1321,6 +1327,13 @@ export default function FlowseekerProBlademap({ active = true }) {
                   <span className="fsb-ovmetric" title="Put premium / call premium">P/C {Number.isFinite(pulseOv.pc) ? pulseOv.pc.toFixed(2) : "—"}</span>
                   <span className="fsb-ovmetric" title="Flow imbalance ratio |bull-bear|/(bull+bear)">FIR {pulseOv.fir.toFixed(2)}</span>
                   <span className="fsb-ovmetric" title="Relative volume needs time-of-day baselines">RVOL needs baseline</span>
+                  {pinRead ? (
+                    <span className="fsb-ovmetric" title={pinRead.eligible ? `Expiry-day pin risk (${pinRead.exp}): distance to max-OI strike, top-3 OI concentration. Unsigned exposure — never direction.` : "Single names pin only on Fridays (weekly expirations); daily read available for SPX/SPY/QQQ/IWM."}>
+                      {pinRead.eligible && pinRead.maxOiStrike != null
+                        ? `PIN ${pinRead.maxOiStrike} · ${(pinRead.concentration * 100).toFixed(0)}%${pinRead.distPct != null ? ` · ${pinRead.distPct >= 0 ? "+" : ""}${pinRead.distPct.toFixed(1)}%` : ""}`
+                        : "PIN Fri-only"}
+                    </span>
+                  ) : null}
                 </span>
                 <label className="fsb-muted fsb-small">Ticker&nbsp;
                   <select value={pulseTicker} onChange={(e) => { const v = e.target.value; setPulseTicker(v); if (v !== "ALL") setTicker(v); }}>
