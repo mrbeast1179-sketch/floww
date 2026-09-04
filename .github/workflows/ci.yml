@@ -114,6 +114,30 @@ jobs:
         # local install flow so CI matches dev.
         run: npm ci --legacy-peer-deps
 
+      # Deterministic, cheap gate: catch untracked frontend source files (e.g. a
+      # dangling panel JSX + shared CSS dropped into the worktree by another
+      # agent's checkout). A clean checkout with no `git add` must not ship
+      # unversioned source files that break `npm run build` and the test
+      # module-graph at collect time. Non-flaky: pure git + grep, no network,
+      # no install. Fails closed so the run stops before the flaky Tests step.
+      - name: Frontend filesystem integrity
+        working-directory: ./frontend
+        run: |
+          set -euo pipefail
+          echo "Checking for untracked frontend source files..."
+          UNTRACKED=$(git ls-files --others --exclude-standard \
+            frontend/src/ \
+            | grep -E '\.(jsx|js|css|ts|tsx)$' \
+            || true)
+          if [ -z "$UNTRACKED" ]; then
+            echo "OK: no untracked frontend source files."
+            exit 0
+          fi
+          echo "::error::Untracked frontend source files detected:"
+          echo "$UNTRACKED"
+          echo "Commit or remove them before merge. Run: git add <files> or rm <files>"
+          exit 1
+
       - name: Lint
         working-directory: ./frontend
         run: npm run lint 2>&1 || true
