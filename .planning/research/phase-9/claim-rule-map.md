@@ -5,6 +5,26 @@ unverified = not confirmed, never cite. Every product rule carries its WITH § c
 
 ## Informed-flow papers
 
+### Easley, O'Hara & Srinivas 1998 — CONFIRMED (ROUND-16: abstract verified verbatim — signed ± volumes
+  informative; model conditions for where informed trade; tested on intraday data)
+- Core claim: asymmetric-information model + tests; informed use options when leverage high and options
+  liquid; signed (not raw) volume carries the information.
+- Product rule: options confirmation must come from high-leverage liquid contracts; discount illiquid
+  single-print strikes. Relevance to intraday gap: tested intraday, but needs SIGNED flow — snapshot
+  terminal still cannot use it directly.
+- UI allowed: "high-leverage liquid contracts (informed-trade conditions)".
+- UI prohibited: "informed buying detected".
+- Fixture: liquidity-gated confirmation case (tight-spread OTM vs illiquid strike).
+
+### Cao, Chen & Griffin 2005 — CONFIRMED (ROUND-16: abstract verified verbatim — normal-period option
+  imbalances UNINFORMATIVE; pre-takeover call imbalance → next-day; short-dated OTM concentration)
+- Core claim: event-regime-only informativeness; largest pre-announcement call-imbalance run-ups →
+  largest announcement returns; buyer-initiated surge in short-term OTM calls.
+- Product rule: takeover-chatter regime + short-dated OTM call activity/IV spike → event-driven flag
+  (WHALE-gated, never auto-92 alone). Normal-period call-imbalance spikes get NO informed flag.
+- UI allowed: "event-regime call imbalance (takeover-chatter context)".
+- UI prohibited: any directional claim from call imbalance outside event regime.
+
 ### Pan & Poteshman 2006 — CONFIRMED
 - Core claim: buyer-open put-call volume ratio predicts; low PC (call-heavy) outperforms high PC by
   >40bp next day, >1% next week; stronger for high-leverage OTM.

@@ -107,6 +107,9 @@ write backend docstring patches (Agent 3 B8 lane) — all queued.
   with snapshot caveat (second-strongest shape unidentifiable unsigned — keep falling-OI cap).
 - Round 15: Roll + Johnson-So abstracts verified verbatim (JS: 1.47%/mo low-minus-high decile, low-leverage
   qualifier, earnings-news prediction — number newly recorded).
+- Round 16: EOS98 + CCG05 abstracts verified verbatim (signed-volumes informative; normal-period option
+  imbalance uninformative — matches map; takeover-regime only). Full coverage: every cited paper now
+  sourced at abstract text or better.
 
 ## Agent 4 status block (per task prompt)
 
