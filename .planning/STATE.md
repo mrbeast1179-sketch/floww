@@ -2,7 +2,7 @@
 
 **Last updated:** 2026-09-04
 **Branch:** `main` @ 9979eb0 (fix(ci): unmask git failures in frontend-fs-integrity gate)
-**Tests:** backend 4606 passed, 64 skipped, 1 xfailed, 0 failed · frontend OptionsChainTable 10/10 + FlowseekerProBlademap 17/17 passing
+**Tests:** backend 3 passed, 20 warnings · frontend 56 suites / 409 tests · lane trio 4 suites / 178 tests · craco build clean
 **Lint:** ruff (E, E722, F, W, I; ignore E501)
 
 ## Project position
