@@ -92,6 +92,7 @@ async def get_public_chain(
         "expiries": result.get("expiries", []),
         "n_contracts": len(result.get("contracts", [])),
         "data_source": result.get("data_source", "public_api"),
+        "stale": result.get("stale", False),
         "contracts": result.get("contracts", []),
     }
 
