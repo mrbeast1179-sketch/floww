@@ -258,6 +258,15 @@ No `App.js` edits (frozen) — all UI work in editable heatseeker components.
       modal removed (unimported — would have crashed if rendered — plus
       its never-set state); info (ⓘ) button now toggles a grid-explainer
       popover. Full frontend suite 40/40 + build compiles.
+- [x] 8.9 Grid density modes (2026-09-03): in-frame grid windowed to 21
+      strikes around spot with count note; expanded overlay renders all
+      strikes in full density (roomier rows, larger type). A−/%/A+ zoom
+      removed per Nav directive.
+- [x] 8.10 Profile view completion (2026-09-03): per-strike traded volume
+      rolled onto heatmap rows (`_attach_strike_volumes`, engine-agnostic);
+      Profile renders Vol bars + node strip (regime/King/flip/floor/ceil/
+      gates/max-pain/air). Parallel-session overlap reconciled additively
+      (no stash/reset of foreign work; fast-forward-only landing).
 - [x] 8.6 App.js-owned leftovers — DONE 2026-09-03 (Nav-approved surgical
       edits): TickerSearch Enter-to-submit free text; Heatseeker submit →
       Public order (see 7.5); control-bar prev/next arrows cycle the tape

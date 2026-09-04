@@ -58,3 +58,7 @@ Phase 6 — Backlog Promotion [ACTIVE]. Phase 4 (Tidehunter Pro) is gating-only 
   gamma, IV-Mid reason codes + T floor, Wheel 30s cache + 429 exemption;
   Solstice band behind Signals toggle, grid expand overlay, toolbar buttons
   live. 8.6 (App.js-owned leftovers) flagged for Nav.
+- 2026-09-04 — Phase 8 closed out: grid density modes (21-row window /
+  full-density overlay, zoom removed), Drilldown purge + info popover,
+  Profile volume + node strip, parallel-session reconcile. All suites
+  green, origin/main verified, :8000 + :3000 live-verified.
