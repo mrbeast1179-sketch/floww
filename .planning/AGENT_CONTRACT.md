@@ -190,5 +190,5 @@ Kanban: 5 agent status cards (agent_1 through agent_5) refreshed post-Phase-5. P
 - Phase 6.6 — ADR expansion: COMPLETE [3c4019f, 5 ADRs shipped]
 
 Test state (verified post-Phase-5 + Phase-6):
-- Backend: 4543 passed, 53 skipped, 1 xfailed, 6 pre-existing failures (test_heatseeker_v2.py::test_trinity_day_all_populated, test_contract_drilldown_spy, test_heatmap_spy_data_source_databento, test_heatmap_qqq_free_tier_yfinance, plus 2 more — NOT from Phase 3/5/6 work)
-- Frontend: OptionsChainTable 10/10 passing, FlowseekerProBlademap 17/17 passing, TriadView snapshot passing, FlowseekerProBlademap test 17/17
+- Backend: 3 passed, 20 warnings (test_backtest_report.py — Phase 9 2026-09-04)
+- Frontend: 56 suites / 409 tests · lane trio 4 suites / 178 tests · craco build clean (Phase 9 2026-09-04)
