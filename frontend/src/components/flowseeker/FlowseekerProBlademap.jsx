@@ -139,6 +139,18 @@ export function pulseBadges(premium) {
   return b;
 }
 
+// COST copy in ONE place (Step 1.4 honesty contract): building state shows a
+// count, never a number; every state carries the mid-quote-not-executable
+// caption. Jest pins the wording so the readout can't silently harden.
+export const COST_TITLE = "Mid-quote Roll spread over the pin expiry bucket — quote bounce + quote staleness included. NOT an executable taker cost: always compare live quotes before trading. Needs 30 deltas across the bucket.";
+export const COST_CAPTION = "mid-quote, not executable";
+export const COST_CAPTION_TITLE = "Mid-quote Roll spread: quote bounce + quote staleness included. NOT an executable taker cost.";
+export function costLabel(costRead) {
+  if (!costRead) return null;
+  if (costRead.building) return { text: `COST building ${costRead.nd}/30`, title: COST_TITLE, caption: COST_CAPTION };
+  return { text: `COST ~$${Number(costRead.spread).toFixed(2)}`, title: COST_TITLE, caption: COST_CAPTION };
+}
+
 // Drop prints older than the Pulse window (trailing-90s tape).
 export function pruneBuffer(buf, windowMs = 90e3, now = Date.now()) {
   return (buf || []).filter((r) => now - (Number(r.timestamp) || now) < windowMs);
@@ -1358,14 +1370,14 @@ export default function FlowseekerProBlademap({ active = true }) {
                         : "PIN Fri-only"}
                     </span>
                   ) : null}
-                  {costRead ? (
+                  {(() => { const cl = costLabel(costRead); return cl ? (
                     <>
-                      <span className="fsb-ovmetric" title="Mid-quote Roll spread over the pin expiry bucket — quote bounce + quote staleness included. NOT an executable taker cost: always compare live quotes before trading. Needs 30 deltas across the bucket.">
-                        {costRead.building ? `COST building ${costRead.nd}/30` : `COST ~$${Number(costRead.spread).toFixed(2)}`}
+                      <span className="fsb-ovmetric" title={cl.title}>
+                        {cl.text}
                       </span>
-                      <span className="fsb-muted fsb-small" title="Mid-quote Roll spread: quote bounce + quote staleness included. NOT an executable taker cost.">mid-quote, not executable</span>
+                      <span className="fsb-muted fsb-small" title={COST_CAPTION_TITLE}>{cl.caption}</span>
                     </>
-                  ) : null}
+                  ) : null; })()}
                 </span>
                 <label className="fsb-muted fsb-small">Ticker&nbsp;
                   <select value={pulseTicker} onChange={(e) => { const v = e.target.value; setPulseTicker(v); if (v !== "ALL") setTicker(v); }}>
