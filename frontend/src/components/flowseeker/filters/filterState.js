@@ -77,7 +77,7 @@ export function applyFilters(rows, filters = defaultFilterState()) {
     if (anyOff) {
       out = out.filter((r) => {
         const side = spreadSide(r);
-        if (!side || side === 'NO_QUOTE') return true; // no-quote rows never filtered by side
+        if (!side || side === 'NO_QUOTE' || side === 'LOCKED') return true; // no-quote/locked rows never filtered by side
         return !!s[side];
       });
     }

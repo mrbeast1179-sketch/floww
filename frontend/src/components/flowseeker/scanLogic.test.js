@@ -847,18 +847,30 @@ describe("evalTickerAlerts noise pass (2026-09-02)", () => {
 
 describe("W1 tracer — spreadPosition", () => {
   it("maps bid->0, mid->0.5, ask->1, clamps outside", () => {
-    expect(spreadPosition(4, 4.2, 4)).toEqual({ pos: 0, state: "OK" });
+    expect(spreadPosition(4, 4.2, 4)).toMatchObject({ pos: 0, state: "OK", side: "BID" });
     expect(spreadPosition(4, 4.2, 4.1).pos).toBeCloseTo(0.5, 5);
-    expect(spreadPosition(4, 4.2, 4.2)).toEqual({ pos: 1, state: "OK" });
+    expect(spreadPosition(4, 4.2, 4.2)).toMatchObject({ pos: 1, state: "OK", side: "ASK" });
     expect(spreadPosition(4, 4.2, 9).pos).toBe(1);
     expect(spreadPosition(4, 4.2, 1).pos).toBe(0);
   });
-  it("NO_QUOTE on missing, zero, or crossed quotes", () => {
+  it("NO_QUOTE on missing/zero, LOCKED on crossed (ask<=bid)", () => {
     expect(spreadPosition(null, 4.2, 4.1).state).toBe("NO_QUOTE");
     expect(spreadPosition(4, null, 4.1).state).toBe("NO_QUOTE");
     expect(spreadPosition(4, 4.2, null).state).toBe("NO_QUOTE");
     expect(spreadPosition(0, 0, 5).state).toBe("NO_QUOTE");
-    expect(spreadPosition(4.2, 4, 4.1).state).toBe("NO_QUOTE");
+    expect(spreadPosition(4.2, 4, 4.1).state).toBe("LOCKED");
+    expect(spreadPosition(4.2, 4, 4.1).side).toBe("LOCKED");
+  });
+  it("BID/MID/ASK exact, clamp edges, side label", () => {
+    expect(spreadPosition(4, 4.2, 4).side).toBe("BID");
+    expect(spreadPosition(4, 4.2, 4.1).side).toBe("MID");
+    expect(spreadPosition(4, 4.2, 4.2).side).toBe("ASK");
+    // boundary: pos<=0.33 → BID, pos>=0.67 → ASK — use clearly interior values
+    expect(spreadPosition(4, 4.6, 4.15).side).toBe("BID"); // (4.15-4)/0.6 = 0.25
+    expect(spreadPosition(4, 4.6, 4.45).side).toBe("ASK"); // (4.45-4)/0.6 = 0.75
+    // near-boundary: 0.33 BID, 0.67 ASK (with tolerance)
+    expect(spreadPosition(4, 4.6, 4.19).side).toBe("BID"); // (4.19-4)/0.6 ≈ 0.316
+    expect(spreadPosition(4, 4.6, 4.42).side).toBe("ASK"); // (4.42-4)/0.6 = 0.70
   });
 });
 
