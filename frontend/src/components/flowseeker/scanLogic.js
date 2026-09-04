@@ -621,15 +621,26 @@ export function formatFOLLOWStrip(streaks, { top = 6 } = {}) {
 
 // ---------- W1 tracer: spread position + overview bar (Phase 9) ----------
 // Spread position: where last traded inside [bid, ask]. 0 = at bid, 1 = at ask.
-// Returns {pos, state}: state NO_QUOTE when bid/ask missing or crossed —
-// the bar must say so, never guess (C4).
+// Returns {pos, state, side, label}: state NO_QUOTE when bid/ask/last missing or zero,
+// LOCKED when bid/ask present but crossed/locked (ask<=bid) — never a guessed number (C4).
+// side/label: BID (pos<=0.33) / MID (0.33<pos<0.67) / ASK (pos>=0.67) / NO_QUOTE|LOCKED.
 export function spreadPosition(bid, ask, last) {
   const b = Number(bid), a = Number(ask), l = Number(last);
+  // Missing or zero quotes → NO_QUOTE (never guess)
   if (!Number.isFinite(b) || !Number.isFinite(a) || !Number.isFinite(l)
-    || b <= 0 || a <= 0 || l <= 0 || a <= b) {
-    return { pos: null, state: "NO_QUOTE" };
+    || b <= 0 || a <= 0 || l <= 0) {
+    return { pos: null, state: "NO_QUOTE", side: "NO_QUOTE", label: "NO_QUOTE" };
   }
-  return { pos: Math.max(0, Math.min(1, (l - b) / (a - b))), state: "OK" };
+  // Crossed/locked spread (ask<=bid) → LOCKED distinct from NO_QUOTE
+  if (a <= b) {
+    return { pos: null, state: "LOCKED", side: "LOCKED", label: "LOCKED" };
+  }
+  const pos = Math.max(0, Math.min(1, (l - b) / (a - b)));
+  let side;
+  if (pos <= 0.33) side = "BID";
+  else if (pos < 0.67) side = "MID";
+  else side = "ASK";
+  return { pos, state: "OK", side, label: side };
 }
 
 // Overview bar rollup over Pulse rows. Direction proxy (snapshot chains carry

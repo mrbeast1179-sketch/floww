@@ -16,6 +16,11 @@ import { BACKEND_URL } from "../../config/api";
 import { mkScanRow, evalAlerts, evalTickerAlerts, streakOf, cleanHistory, tickerRollup, volSigma, annotateFirstSeen, sessionDay, fmtClock, fmtAge, awaySummary, scanRowsToCSV, oiChange, fmtUSD, fmtK, fmtIV, scoreGradeOf, pulseState, elapsedClock, formatFOLLOWStrip, tierOf, selectFires, pickBanner, bizDTE, spreadPosition, overviewStats, equityType, signedOtm, isOpexDay, highlightState, flagSpreadLegs, quoteSkew, stampPollDeltas, contractKey, nearestExpiryPin, rollPooled, pushCapped } from "./scanLogic";
 import Wtipanel from "../Wtipanel";
 import RussellPanel from "../RussellPanel";
+import DarkPoolPanel from "./darkpool/DarkPoolPanel";
+import { NetPremiumTrend, StrikeDistribution, VolOiFooter } from "./history/HistoryViews";
+import { Checklist, FunnelEmpty } from "./methodology/Methodology";
+import Tracker from "./tracker/Tracker";
+import { widenActions } from "./filters/filterState";
 import "./FlowseekerProBlademap.css";
 
 const API = `${BACKEND_URL}/api/flowseeker`;
@@ -1431,7 +1436,7 @@ export default function FlowseekerProBlademap({ active = true }) {
                           <td className="num">{bizDTE(p.expiration)}</td>
                           <td className="num" title={driftArrow ? `Mid ${qs.tag === "UP" ? "up" : "down"} ${Math.abs(qs.driftBp).toFixed(0)}bp vs prior poll (dealer-pressure read, Ho-Stoll-lite)` : undefined}>{driftArrow}{fill > 0 ? fill.toFixed(2) : price > 0 ? price.toFixed(2) : "—"}</td>
                           <td><span className={`fsb-pill fsb-side-${side.toLowerCase()}`}>{side}</span></td>
-                          <td>{sp.state === "NO_QUOTE" ? <span className="fsb-muted fsb-small">no quote</span> : <span className="fsb-spreadbar" title={`last at ${(sp.pos * 100).toFixed(0)}% of bid-ask spread${qs.relSpread != null ? ` · rel spread ${(qs.relSpread * 100).toFixed(2)}%` : ""}`}><span className="fsb-spreadmark" style={{ left: `${(sp.pos * 100).toFixed(1)}%` }} /></span>}</td>
+                          <td>{sp.state === "NO_QUOTE" ? <span className="fsb-muted fsb-small" title="No quote — bid/ask unavailable">no quote</span> : sp.state === "LOCKED" ? <span className="fsb-muted fsb-small" title="Locked/crossed spread — no fill">LOCKED</span> : <span className="fsb-spreadbar" title={`last at ${(sp.pos * 100).toFixed(0)}% of bid-ask spread${qs.relSpread != null ? ` · rel spread ${(qs.relSpread * 100).toFixed(2)}%` : ""}`}><span className="fsb-spreadmark" style={{ left: `${(sp.pos * 100).toFixed(1)}%` }} /></span>}</td>
                           <td><span className={`fsb-pill fsb-sig-${sig.toLowerCase()}`}>{sig}</span>{pulseHedge(p.type, side) && <span className="fsb-pill fsb-hedge" title="Put bought aggressively — often a hedge, not directional bullishness">HEDGE?</span>}</td>
                           <td>{badges.map((b) => <span key={b} className={`fsb-pill fsb-badge-${b.toLowerCase()}`} title={b === "WHALE" ? "Tape size tier: ≥$1M rolled premium in 90s — not the $25M alert rule" : b === "GOLDEN" ? "Premium ≥ $900K rolled in 90s" : "Baseline badge: every print starts here"}>{b}</span>)}</td>
                           <td className="num">{score.toFixed(1)}</td>
@@ -1493,6 +1498,34 @@ export default function FlowseekerProBlademap({ active = true }) {
             </div>
           </div>
         </div>
+        {/* W8: extras drawer — honest states (fixture-first); only on flow tab, sibling to flow grid */}
+        {tab === "flow" && (
+          <div className="fsb-panel fsb-drawer" data-testid="flowseeker-drawer">
+            <div className="fsb-panel-h"><span>Flow extras</span><span className="fsb-muted fsb-small">honest states · display-only</span></div>
+            <div className="fsb-drawer-grid">
+              <div className="fsb-drawer-col" data-testid="drawer-tracker">
+                <h4 className="fsb-drawer-h">Tracker <span className="fsb-muted fsb-small" title="P/L assumes 1 contract (qty proxy) — real qty not in snapshot feed">qty=1 proxy</span></h4>
+                <Tracker />
+              </div>
+              <div className="fsb-drawer-col" data-testid="drawer-history">
+                <h4 className="fsb-drawer-h">History</h4>
+                <NetPremiumTrend series={[]} state="ready" />
+                <StrikeDistribution buckets={[]} state="ready" />
+                <VolOiFooter rows14d={[]} state="ready" />
+              </div>
+              <div className="fsb-drawer-col" data-testid="drawer-darkpool">
+                <h4 className="fsb-drawer-h" title="Off-exchange prints — no side or direction is known">Dark pool</h4>
+                <DarkPoolPanel prints={[]} state="ready" />
+              </div>
+              <div className="fsb-drawer-col" data-testid="drawer-methodology">
+                <h4 className="fsb-drawer-h">Methodology</h4>
+                <Checklist steps={["NetPrem 5-7D","Underlying $","Contract + IV + RVOL","Strike 1W","Vol/OI 14d","Heatseeker cross-check"]} checks={{}} onToggle={() => {}} verdict={null} onVerdict={() => {}} />
+                <div className="fsb-drawer-foot" title="Per-row sort ranking floors: premium $25K, size 150 contracts — rows below floor still sort, only tick to show they ranked lower">Floors: prem $25K · size 150 (ranking only)</div>
+              </div>
+            </div>
+            <div className="fsb-drawer-note fsb-muted fsb-small">Sweep = multi-exchange urgency proxy (cvserver has no venue tape). Ov-bar NetPrem = 90s rolled tape sum — reconcile if diverged (P0).</div>
+          </div>
+        )}
 
         {/* GAMMA VIEW */}
         <div className={`fsb-view${tab === "gamma" ? " active" : ""}`} style={{ gridTemplateColumns: "1fr" }}>

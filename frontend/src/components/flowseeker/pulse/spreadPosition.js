@@ -1,18 +1,13 @@
-// Pure — no React, no backend. Single source for spread math truth.
+// Shim — single source of truth is scanLogic.spreadPosition.
+// Re-exports with (last,bid,ask) arg order for pulse consumers; also exposes
+// (bid,ask,last) order via spreadPositionRaw for direct scanLogic callers.
+import { spreadPosition as _sp } from '../scanLogic.js';
+
+// Pulse callers historically use (last, bid, ask) — adapt to scanLogic's (bid, ask, last).
 export function spreadPosition(last, bid, ask) {
-  const b = Number(bid);
-  const a = Number(ask);
-  const l = Number(last);
-  if (!Number.isFinite(b) || !Number.isFinite(a) || !Number.isFinite(l) || b <= 0 || a <= 0 || a <= b) {
-    return { position: null, side: 'NO_QUOTE', label: 'NO_QUOTE' };
-  }
-  const raw = (l - b) / (a - b);
-  const pos = Math.max(0, Math.min(1, raw));
-  let side;
-  if (pos <= 0.33) side = 'BID';
-  else if (pos < 0.67) side = 'MID';
-  else side = 'ASK';
-  return { position: pos, side, label: side };
+  const r = _sp(bid, ask, last);
+  // Map scanLogic shape {pos, state, side, label} → pulse shape {position, side, label, pos, state}
+  return { position: r.pos, pos: r.pos, side: r.side, label: r.label, state: r.state };
 }
 
 export function spreadPositionLabel(pos) {
@@ -21,3 +16,6 @@ export function spreadPositionLabel(pos) {
   if (pos < 0.67) return 'MID';
   return 'ASK';
 }
+
+// Direct re-export for callers that already use (bid,ask,last) order
+export { _sp as spreadPositionRaw };

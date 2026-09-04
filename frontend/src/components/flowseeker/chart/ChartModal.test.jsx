@@ -10,10 +10,10 @@ describe('ChartModal', () => {
     expect(screen.getByTestId('chart-history')).toBeInTheDocument();
     expect(screen.getByTestId('chart-netprem')).toBeInTheDocument();
   });
-  it('honest fixture mode when no history', () => {
+  it('honest empty when no history (not fixture mode)', () => {
     render(<ChartModal row={row} open history={[]} netPremiumSeries={[]} onClose={() => {}} />);
-    expect(screen.getByTestId('chart-history-empty')).toBeInTheDocument();
-    expect(screen.getByTestId('chart-netprem-empty')).toBeInTheDocument();
+    expect(screen.getByTestId('chart-history-empty').textContent).toMatch(/No history yet/);
+    expect(screen.getByTestId('chart-netprem-empty').textContent).toMatch(/No premium series yet/);
   });
   it('checklist 6 steps checkable + verdict', () => {
     render(<ChartModal row={row} open history={[]} netPremiumSeries={[]} onClose={() => {}} />);

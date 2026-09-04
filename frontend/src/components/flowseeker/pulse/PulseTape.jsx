@@ -6,8 +6,10 @@ import { fmtUSD, fmtK } from '../scanLogic.js';
 // PulseTape columns: Fill, Side (BID/MID/ASK/NO_QUOTE), spread-position bar, highlighting, + honest states.
 function SpreadBar({ last, bid, ask }) {
   const sp = spreadPosition(last, bid, ask);
-  if (sp.side === 'NO_QUOTE') {
-    return <span className="fsb-spread fsb-spread--noquote" data-testid="spread-noquote" title="No quote — spread unavailable">—</span>;
+  if (sp.side === 'NO_QUOTE' || sp.side === 'LOCKED') {
+    const title = sp.side === 'LOCKED' ? 'Locked/crossed spread — no fill' : 'No quote — spread unavailable';
+    const label = sp.side === 'LOCKED' ? 'LOCKED' : '—';
+    return <span className="fsb-spread fsb-spread--noquote" data-testid="spread-noquote" title={title}>{label}</span>;
   }
   const pct = Math.round((sp.position ?? 0) * 100);
   return (
