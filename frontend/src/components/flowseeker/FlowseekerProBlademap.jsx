@@ -1359,9 +1359,12 @@ export default function FlowseekerProBlademap({ active = true }) {
                     </span>
                   ) : null}
                   {costRead ? (
-                    <span className="fsb-ovmetric" title="Pooled Roll effective spread over the pin expiry bucket (quote-bounce + staleness, not taker cost; needs 30 deltas across the bucket)">
-                      {costRead.building ? `COST building ${costRead.nd}/30` : `COST ~$${Number(costRead.spread).toFixed(2)}`}
-                    </span>
+                    <>
+                      <span className="fsb-ovmetric" title="Mid-quote Roll spread over the pin expiry bucket — quote bounce + quote staleness included. NOT an executable taker cost: always compare live quotes before trading. Needs 30 deltas across the bucket.">
+                        {costRead.building ? `COST building ${costRead.nd}/30` : `COST ~$${Number(costRead.spread).toFixed(2)}`}
+                      </span>
+                      <span className="fsb-muted fsb-small" title="Mid-quote Roll spread: quote bounce + quote staleness included. NOT an executable taker cost.">mid-quote, not executable</span>
+                    </>
                   ) : null}
                 </span>
                 <label className="fsb-muted fsb-small">Ticker&nbsp;
@@ -1769,7 +1772,7 @@ export default function FlowseekerProBlademap({ active = true }) {
             {alertsOpen && (
               <div className="fsb-alertlog">
                 {/* Blademap v3 — conviction calibration + per-setup win rate */}
-                {(calibBands.length > 0 || (setupStats && setupStats.overall.n > 0)) && (
+                {(calibBands.length > 0 || (setupStats?.overall?.n > 0)) && (
                   <div className="fsb-v3strip">
                     {calibBands.map((b) => (
                       <div key={b.band}
@@ -1781,7 +1784,7 @@ export default function FlowseekerProBlademap({ active = true }) {
                         <span className="fsb-v3n">{b.n_measured}/{b.n}</span>
                       </div>
                     ))}
-                    {setupStats && setupStats.overall.n > 0 && Object.entries(setupStats.by_setup).map(([name, s]) => (
+                    {setupStats?.overall?.n > 0 && Object.entries(setupStats.by_setup || {}).map(([name, s]) => (
                       <div key={name} className={`fsb-v3cell${s.win_rate >= 0.5 ? " hot" : ""}`}
                            title={`journal ${setupStats.days}d · ${name}: ${s.wins}W/${s.losses}L, avg ${(s.avg_return * 100).toFixed(1)}%`}>
                         <span className="fsb-v3lbl">📓 {name}</span>
