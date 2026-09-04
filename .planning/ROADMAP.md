@@ -323,3 +323,32 @@ new `SkylitControlBar.test.jsx` (4) + `SkylitTickerBar.test.jsx` (3).
 
 **Next:** Agent 2 compose pass → Agent 3 rebase/push → Agent 4 evaluator
 run against live payloads → Phase 9 integration checklist sign-off.
+
+## Ops Control — concurrent Hermes lanes (ACTIVE 2026-09-04, architect-owned)
+
+**Branch/worktree map (verified live):**
+- `origin/main` — integration branch. Only fast-forward pushes, never force.
+- Main clone (`floww/`) — SHARED: agents hop branches here (seen: main,
+  phase9/agent1-architect, phase9/agent4-eval). Check `git branch
+  --show-current` before trusting any file read.
+- `floww-worktrees/tidehunter` (local main) — Agent 3 SHIP lane.
+- `floww-worktrees/gsd-{009,010,011}` — parked GSD lanes.
+- `:8000` serves the main clone's CURRENT checkout — branch hops change
+  live code. Coordinate restarts; verify with
+  `/api/backtest/report/ZZNOTRUN` (200 not_found = current code).
+
+**Backups taken 2026-09-04 (new remote refs, no force):**
+`phase9/agent1-architect`, `phase9/agent4-eval`,
+`backup/tidehunter-main-20260904`. Previously ZERO agent branches existed
+on origin — a disk loss would have wiped all lane work.
+
+**Push policy (binding):** every lane pushes its own branch regularly
+(fast-forward only). Never push another lane's branch. Never force-push
+anything. Tidehunter 4 commits still unpushed — rebase + push is theirs.
+
+**Gaps as of 2026-09-04:**
+- Agent 2 compose pass NOT STARTED (no branch, no commits 3h+). Critical
+  path for Phase 9 frontend gate — needs launch with the W8 prompt.
+- Key Moments pillar dead (R1) — no further spend without API-docs proof.
+- `tests/test_backtest_report.py` was red — fixed by implementing the
+  endpoint (not by editing the test).
