@@ -72,13 +72,11 @@ nothing); Agent 3 has no authority to commit or delete them.
   importable but makes a missing file a runtime empty card, not a build/collect
   failure.
 
-**Acceptance (same as CI CC-001 gate):** a fresh `actions/checkout@v4` + `npm ci`
+**Acceptance (same as the CI `frontend-fs-integrity` gate):** a fresh `actions/checkout@v4` + `npm ci`
 must NOT fail at the module-resolution stage. Concretely: `git ls-files --others
 --exclude-standard` must return EMPTY for the four files OR the four files must be
-present and tracked. CI step `frontend-fs-integrity` (added in CC-001) gates this.
-
-**Status:** open — awaiting owning-agent decision. Agent 3 will not touch `App.js`
-or the four files.
+present and tracked. CI step `frontend-fs-integrity` (added in this session)
+gates this.
 
 ---
 
