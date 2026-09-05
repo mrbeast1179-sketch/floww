@@ -434,7 +434,7 @@ function TrinityPanel({ ticker, data, viewMode, gexVexMode, loading: panelLoadin
     const base = { ticker, strike: row.strike, spot, gex: row.gex, call_gex: row.call_gex, put_gex: row.put_gex, iv: row.iv, oi: row.total_oi, delta: row.delta };
     if (onTradeSelect) onTradeSelect(base);
     // Enrich with live Public.com contract data (OSI + bid/ask/last) so the
-    // QuickTradePanel can submit a real order via /api/public/brokerage/order.
+    // QuickTradePanel can submit a real order via /api/public/order.
     // Fire-and-forget upgrade: the base selection opens the panel instantly,
     // then we re-emit once Public data arrives (same strike → panel keeps
     // state and just fills in prices). Failure keeps the base selection.

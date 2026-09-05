@@ -804,7 +804,7 @@ export default function App() {
                       ? (trade.limitPrice ?? trade.call_ask ?? trade.call_last ?? NaN)
                       : (trade.limitPrice ?? trade.put_bid ?? trade.put_last ?? NaN);
                     const limitPriceVal = Number.isFinite(price) ? price : null;
-                    const resp = await fetch(`${API}/public/brokerage/order`, {
+                    const resp = await fetch(`${API}/public/order`, {
                       method: "POST",
                       headers: { "Content-Type": "application/json" },
                       body: JSON.stringify({
@@ -1203,7 +1203,7 @@ export default function App() {
                       ? (trade.limitPrice ?? trade.call_ask ?? trade.call_last ?? NaN)
                       : (trade.limitPrice ?? trade.put_bid ?? trade.put_last ?? NaN);
                     const limitPriceVal = Number.isFinite(price) ? price : null;
-                    const resp = await fetch(`${API}/public/brokerage/order`, {
+                    const resp = await fetch(`${API}/public/order`, {
                       method: "POST",
                       headers: { "Content-Type": "application/json" },
                       body: JSON.stringify({

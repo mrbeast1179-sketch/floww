@@ -105,6 +105,26 @@ describe("SkylitDashboard", () => {
     expect(inlineGrid).toHaveAttribute("data-window", "21");
   });
 
+  test("zoom controls scale the in-frame grid only", async () => {
+    await act(async () => {
+      render(<SkylitDashboard ticker="SPY" />);
+    });
+
+    const area = screen.getByTestId("skylit-heatmap-area");
+    expect(area.style.zoom).toBe("1");
+
+    await act(async () => {
+      fireEvent.click(screen.getByTestId("skylit-zoom-in"));
+    });
+    expect(screen.getByTestId("skylit-heatmap-area").style.zoom).toBe("1.25");
+
+    await act(async () => {
+      fireEvent.click(screen.getByTestId("skylit-zoom-out"));
+      fireEvent.click(screen.getByTestId("skylit-zoom-out"));
+    });
+    expect(screen.getByTestId("skylit-heatmap-area").style.zoom).toBe("0.75");
+  });
+
   test("expand button opens the full-page grid overlay and closes it", async () => {    await act(async () => {
       render(<SkylitDashboard ticker="SPY" />);
     });

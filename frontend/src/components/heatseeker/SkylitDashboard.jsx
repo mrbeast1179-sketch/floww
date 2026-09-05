@@ -1,4 +1,4 @@
-import React, { memo, useCallback, useEffect, useState } from "react";
+import React, { memo, useCallback, useEffect, useRef, useState } from "react";
 import axios from "axios";
 import { API as BACKEND_API } from "../../config/api";
 import SkylitTickerBar from "./SkylitTickerBar";
@@ -48,6 +48,32 @@ function SkylitDashboard({
 }) {
   const [tradeMode, setTradeMode] = useState(false);
   const [selectedCell, setSelectedCell] = useState(null);
+  // Grid zoom, in-frame only (2026-09-04): the expanded overlay keeps its
+  // designed full density instead of compounding scale on scale.
+  const [gridZoom, setGridZoom] = useState(1);
+  const zoomIn = useCallback(() => setGridZoom((z) => Math.min(1.5, +(z + 0.25).toFixed(2))), []);
+  const zoomOut = useCallback(() => setGridZoom((z) => Math.max(0.75, +(z - 0.25).toFixed(2))), []);
+  const zoomReset = useCallback(() => setGridZoom(1), []);
+  // Fill-height rows (2026-09-04): the in-frame window sizes itself to the
+  // measured heatmap area so strikes run as long as possible instead of a
+  // fixed short list with dead space below. Falls back to 21 pre-measure.
+  const heatAreaRef = useRef(null);
+  const [fitRows, setFitRows] = useState(21);
+  useEffect(() => {
+    const el = heatAreaRef.current;
+    if (!el || typeof ResizeObserver === "undefined") return undefined;
+    const measure = () => {
+      const h = el.clientHeight || 0;
+      if (h > 0) {
+        const rows = Math.floor((h - 40) / 24);
+        setFitRows(Math.max(10, Math.min(120, rows)));
+      }
+    };
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
   // Full-page grid overlay: the in-frame heatmap only shows what fits;
   // expand renders the same grid + sidebar full-screen with all rows.
   const [expanded, setExpanded] = useState(false);
@@ -149,6 +175,30 @@ function SkylitDashboard({
         )}
         <button
           className="skylit-trade-mode-btn"
+          onClick={zoomOut}
+          title="Smaller grid"
+          data-testid="skylit-zoom-out"
+        >
+          A−
+        </button>
+        <button
+          className="skylit-trade-mode-btn"
+          onClick={zoomReset}
+          title={`Reset zoom (now ${Math.round(gridZoom * 100)}%)`}
+          data-testid="skylit-zoom-reset"
+        >
+          {Math.round(gridZoom * 100)}%
+        </button>
+        <button
+          className="skylit-trade-mode-btn"
+          onClick={zoomIn}
+          title="Bigger grid"
+          data-testid="skylit-zoom-in"
+        >
+          A+
+        </button>
+        <button
+          className="skylit-trade-mode-btn"
           onClick={() => setExpanded(true)}
           title="Expand grid full-screen (Esc to close)"
           data-testid="skylit-expand-btn"
@@ -175,8 +225,13 @@ function SkylitDashboard({
 
       {/* 3. Main Content Area */}
       <div className="skylit-main-area">
-        {/* Heatmap Grid */}
-        <div className="skylit-heatmap-area" data-testid="skylit-heatmap-area">
+        {/* Heatmap Grid — fills available height (fitRows) with zoom */}
+        <div
+          className="skylit-heatmap-area"
+          ref={heatAreaRef}
+          style={{ zoom: gridZoom }}
+          data-testid="skylit-heatmap-area"
+        >
           {loading && (
             <div className="skylit-loading-overlay">
               <div className="skylit-loading-spinner" />
@@ -206,7 +261,7 @@ function SkylitDashboard({
             viewMode={viewMode}
             onCellClick={handleCellClick}
             onStrikeClick={handleStrikeClick}
-            windowRows={21}
+            windowRows={fitRows}
           />
         </div>
 

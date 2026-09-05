@@ -129,7 +129,7 @@ async def test_schwab_auth_url_no_credentials(aclient):
     assert r.status_code == 410
     d = r.json()
     assert d.get("error") == "schwab_retired"
-    assert "/api/public/brokerage/" in d.get("replacement", "")
+    assert "/api/public/" in d.get("replacement", "")
 
 
 # ============ History Tests ============

@@ -31,9 +31,9 @@ test('renders account, positions, and orders from the brokerage endpoints', asyn
   expect(screen.getAllByText('SPY').length).toBeGreaterThanOrEqual(2);
   expect(screen.getByText('FILLED')).toBeInTheDocument();
   const urls = global.fetch.mock.calls.map((c) => c[0]);
-  expect(urls).toContain('/api/public/brokerage/account');
-  expect(urls).toContain('/api/public/brokerage/portfolio');
-  expect(urls).toContain('/api/public/brokerage/orders');
+  expect(urls).toContain('/api/public/account');
+  expect(urls).toContain('/api/public/portfolio');
+  expect(urls).toContain('/api/public/orders');
 });
 
 test('shows the error tile when the backend is unreachable', async () => {
