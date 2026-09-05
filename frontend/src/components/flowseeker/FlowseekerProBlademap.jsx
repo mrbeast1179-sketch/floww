@@ -349,7 +349,7 @@ export default function FlowseekerProBlademap({ active = true }) {
   // "uncalibrated · n=k", never a fabricated hit rate.
   const [outcomes, setOutcomes] = useState(null);
   const [calibration, setCalibration] = useState(null);
-  const [outcomesOpen, setOutcomesOpen] = useState(true);
+  const [outcomesOpen, setOutcomesOpen] = useState(false);
   const loadOutcomes = useCallback(async () => {
     try {
       const d = await getJSON(`${API}/outcomes?days=60`);
@@ -1353,13 +1353,26 @@ export default function FlowseekerProBlademap({ active = true }) {
                   ))}
                 </span>
               </div>
+              <div className="fsb-scanbar" data-testid="flow-kpi-strip">
+                {[
+                  ["Feed", pulseTicker === "ALL" ? `ALL · ${ticker}` : pulseTicker, ""],
+                  ["Prints", String(pulseRows.length), "b"],
+                  ["Net", `${pulseOv.netPrem < 0 ? "−" : "+"}${fmtUSD(pulseOv.netPrem)}`, pulseOv.lean === "Bullish" ? "g" : pulseOv.lean === "Bearish" ? "r" : ""],
+                  ["P/C", Number.isFinite(pulseOv.pc) ? pulseOv.pc.toFixed(2) : "—", ""],
+                  ["FIR", pulseOv.fir.toFixed(2), ""],
+                  ["Source", scanMeta.data_source === "public_api" ? "LIVE · public" : scanMeta.data_source === "cvserver" ? "LIVE · cvserver" : flowPaused ? "PAUSED" : "—", scanMeta.data_source ? "g" : "y"],
+                  ["Updated", clock || "—", ""],
+                ].map(([l, v, c]) => (
+                  <div key={l} className="fsb-skpi"><div className="fsb-skl">{l}</div><div className={`fsb-skv ${c}`}>{v}</div></div>
+                ))}
+              </div>
               <div className="fsb-flow-wrap">
                 <table className="fsb-table fsb-pulse">
                   <thead><tr>
                     <th title="Local time of the latest print in the 90s window">FLOW ET</th><th>SYM</th><th className="num">STRIKE</th><th>C/P</th><th className="num" title="Absolute distance of strike from spot at print time">OTM</th><th>EXP</th><th className="num" title="Trading days to expiry">DTE</th><th className="num" title="Price paid per contract (last print; mid when last is missing)">FILL</th><th title="ASK = lifted the offer (aggressive buy); BID = hit the bid">SIDE</th><th title="Where last traded inside bid-ask: left = bid, right = ask">SPREAD</th><th title="Follows SIDE: ASK→BULLISH, BID→BEARISH">SIGNAL</th><th title="SILVER always; GOLDEN ≥$900K; WHALE ≥$1M rolled premium">BADGES</th><th className="num" title="Conviction mapped 0-10">SCORE</th><th className="num" title="Contracts in the 90s window">SIZE</th><th className="num" title="Rolled premium in the 90s window">PREM</th>
                   </tr></thead>
                   <tbody>
-                    {pulseRows.length === 0 && <tr><td colSpan={15} className="fsb-muted" style={{ padding: 14, lineHeight: 1.7 }}>No prints pass the Pulse gates (DTE {pulseDte} · score {pulseScore === 0 ? "ALL" : pulseScore + "+"} · {pulseTicker}).{pulseTicker !== "ALL" && pulseTicker !== ticker ? ` Pulse is scoped to ${pulseTicker} but the feed is ${ticker} — the dropdown already switched the feed, wait one poll.` : " Trailing-90s tape: Public API first, cvserver fallback, ranked by aggregated premium…"}</td></tr>}
+                    {pulseRows.length === 0 && <tr><td colSpan={15} className="fsb-muted" style={{ padding: 14, lineHeight: 1.7 }}>No prints for {pulseTicker === "ALL" ? ticker : pulseTicker} pass the Pulse gates (DTE {pulseDte} · score {pulseScore === 0 ? "ALL" : pulseScore + "+"}).{pulseTicker !== "ALL" && pulseTicker !== ticker ? ` Feed is on ${ticker} — type ${pulseTicker} above and hit Go, then wait one poll.` : " Thin name or market closed? Try SPY/QQQ, widen DTE, or check back at the open. Trailing-90s tape: Public API first, cvserver fallback, ranked by aggregated premium…"}</td></tr>}
                     {pulseRows.map((p, i) => {
                       const conv = p._conv;
                       const score = pulseScore10(conv);
@@ -1717,6 +1730,11 @@ export default function FlowseekerProBlademap({ active = true }) {
               <div className="fsb-outcomes fsb-muted" style={{ padding: 10 }}>
                 📏 Outcome ledger: measuring alert precision vs matched controls… (fills as the alert ledger accumulates)
               </div>
+            )}
+            {!outcomesOpen && (
+              <button className="fsb-outcomes-collapsed" onClick={() => setOutcomesOpen(true)} title="Show measured alert precision vs matched controls">
+                📏 Outcome Ledger — show calibration
+              </button>
             )}
             {away && (
               <div className="fsb-away">

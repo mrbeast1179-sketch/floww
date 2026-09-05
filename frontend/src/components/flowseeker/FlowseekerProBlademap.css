@@ -333,6 +333,12 @@
 .fsb-rulechip.on { color: #e6e8ee; border-color: #f5b042; }
 .fsb-alertclear { background: none; border: 1px solid #2a2e39; color: #9aa0ae; font-size: 9px; padding: 2px 8px; border-radius: 4px; cursor: pointer; }
 .fsb-alertclear:hover { color: #ff4d5e; border-color: #ff4d5e; }
+.fsb-outcomes-collapsed {
+  background: none; border: 1px solid #2a2e39; color: #9aa0ae;
+  font-size: 11px; padding: 6px 12px; border-radius: 6px; cursor: pointer;
+  margin-top: 8px; font-family: var(--fsb-mono);
+}
+.fsb-outcomes-collapsed:hover { color: #e6e8ee; border-color: #3a3f4d; }
 .fsb-alerttab { width: 100%; border-collapse: collapse; font-size: 10.5px; }
 .fsb-alerttab td { padding: 4px 10px; border-bottom: 1px solid #141a26; white-space: nowrap; }
 .fsb-alerttab tr { cursor: pointer; }
