@@ -33,6 +33,7 @@ def record_sweep(
     opts: dict | None = None,
     asof: str = "",
     mins_since_open: float | None = None,
+    moves_legs: list[dict] | None = None,
 ) -> dict:
     """Freeze one sweep's engine inputs (deep-copied) into a snapshot."""
     return {
@@ -47,6 +48,7 @@ def record_sweep(
         "opts": copy.deepcopy(opts or {}),
         "asof": asof,
         "mins_since_open": mins_since_open,
+        "moves_legs": copy.deepcopy(moves_legs or []),
     }
 
 

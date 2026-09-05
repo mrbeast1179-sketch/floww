@@ -124,3 +124,13 @@ def test_golden_fixture_replays_deterministic():
     assert alert_digest(first) == alert_digest(second)
     assert all(a["asof"] == snap["asof"] for a in first)
     assert all(a["mins_since_open"] == snap["mins_since_open"] for a in first)
+
+
+def test_record_captures_moves_legs():
+    from services.sweep_replay import record_sweep
+
+    legs = [{"stamp_date": "2026-09-06", "last_price": 761.0, "move_pct": 0.4}]
+    snap = record_sweep(rows=[], moves_legs=legs)
+    assert snap["moves_legs"] == legs
+    snap["moves_legs"].append({"stamp_date": "2026-09-07"})
+    assert legs == [{"stamp_date": "2026-09-06", "last_price": 761.0, "move_pct": 0.4}]
