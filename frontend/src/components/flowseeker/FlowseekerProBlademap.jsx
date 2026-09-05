@@ -1223,7 +1223,6 @@ export default function FlowseekerProBlademap({ active = true }) {
         <div className="fsb-brand">
           <span className="fsb-logo">◢</span>
           <span className="fsb-brand-name">Tidehunter <span className="fsb-pro">Pro</span></span>
-          <span className="fsb-status-chip" title="Live cvforge data. Vol surface is simulated (no IV-surface backend).">LIVE · CVFORGE</span>
         </div>
         <div className="fsb-tabs">
           {TABS.map(([id, label]) => (

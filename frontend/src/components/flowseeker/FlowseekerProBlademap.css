@@ -129,11 +129,6 @@
   background: linear-gradient(90deg, var(--fsb-blue), var(--fsb-green));
   -webkit-background-clip: text; background-clip: text; color: transparent; font-weight: 800;
 }
-.fsb-status-chip {
-  font-family: var(--fsb-mono); font-size: 10.5px; padding: 3px 7px;
-  border: 1px solid var(--fsb-border2); border-radius: 999px;
-  color: var(--fsb-green); background: rgba(25,210,124,0.06); letter-spacing: 0.4px;
-}
 .fsb-tabs { display: flex; gap: 2px; }
 .fsb-tab {
   color: var(--fsb-muted); padding: 7px 13px; font-size: 13px;
@@ -603,11 +598,6 @@
 }
 .fsb-tab:hover { color: var(--fsb-gold-bright); }
 .fsb-brand-name .fsb-pro { color: var(--fsb-gold-bright); }
-.fsb-status-chip {
-  color: var(--fsb-gold-bright);
-  border-color: var(--fsb-gold-border);
-  background: rgba(201, 168, 76, 0.08);
-}
 .fsb-regime-pill { border-color: var(--fsb-gold-border); }
 .fsb-ctrl:hover { border-color: var(--fsb-gold); color: var(--fsb-gold-bright); }
 .fsb-ctrl-active {
