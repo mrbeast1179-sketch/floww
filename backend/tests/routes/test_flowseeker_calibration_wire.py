@@ -87,3 +87,22 @@ async def test_load_calibration_fail_open_without_mongo():
     """Mongo down → None (alerts fire uncalibrated, never crash)."""
     with patch("server.db", side_effect=Exception("mongo down")):
         assert await fs._load_calibration() is None
+
+
+@pytest.mark.asyncio
+async def test_model_endpoint_carries_rule_value():
+    """/model live report must include the per-rule value table (Sync-3 kill/keep)."""
+    labeled = [
+        {"rule": "SCORE", "score": 94.0, "hit": True, "ret": r, "censored": False,
+         "asof_date": "2026-08-01", "vol_oi": 6.0, "premium": 5e5, "dte": 10,
+         "delta": 0.4, "sigma": 6.0, "mins_since_open": 60.0}
+        for r in (0.020, 0.015, -0.005, 0.010, 0.012, 0.008, -0.003, 0.020, 0.011, 0.005)
+    ]
+    with patch("services.flow_outcomes.read_alert_history",
+               return_value=[{"under": "SPY", "asof_date": "2026-08-01"}]), \
+         patch("services.flow_outcomes.fetch_bars_yfinance", return_value={}), \
+         patch("services.flow_outcomes.label_alerts", return_value=labeled):
+        out = await fs.calibration_model()
+    assert out["ok"] is True
+    assert out["rule_value"]["SCORE"]["verdict"] == "KEEP"
+    assert out["rule_value"]["SCORE"]["n_measured"] == 10

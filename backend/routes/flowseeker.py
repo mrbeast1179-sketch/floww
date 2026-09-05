@@ -2458,6 +2458,10 @@ async def calibration_model():
     labeled = fo.label_alerts(alerts, bars, vix.get("^VIX"))
     cal = fc.fit_calibration(labeled)
     out = {"ok": True, **fc.calibration_status_blob(cal)}
+    try:  # C7: per-rule value rides the live report too (Sync-3 kill/keep)
+        out["rule_value"] = fo.rule_value_table(labeled)
+    except Exception as ve:
+        logger.warning("model: rule value skipped: %s", ve)
     # Sample the p semantics on one row so consumers see the shape honestly.
     if labeled:
         out["p_move_sample"] = fc.predict_p_move(cal, labeled[0])
