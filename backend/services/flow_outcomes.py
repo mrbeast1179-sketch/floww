@@ -521,3 +521,62 @@ def fetch_bars_yfinance(tickers: list[str], period_days: int = 90) -> dict[str, 
     except Exception as e:
         logger.warning("flow_outcomes: yfinance bars unavailable: %s", e)
     return out
+
+
+# ── C7 rule value (Agent C, 2026-09-05) ─────────────────────────────────
+# Ex-post value per rule on LABELED rows (label_alerts shape): realized
+# side-signed edge net of estimated one-way cost. Feeds the Sync-3
+# kill/keep read. Verdicts are display/status only — thresholds are the
+# desk's dials, never auto-tuned (same governance as _decay_status).
+VALUE_THIN_N = 10          # below this: THIN (unjudged), never CUT
+VALUE_DEFAULT_COST_BPS = 25.0  # one-way cost when no per-row estimate
+
+
+def rule_value_table(labeled_rows: list[dict[str, Any]],
+                     default_cost_bps: float = VALUE_DEFAULT_COST_BPS) -> dict[str, dict[str, Any]]:
+    """Per-rule realized edge: {n, n_measured, hit_rate, avg_edge_net, verdict}.
+
+    Net edge per measured row = ret − cost/1e4, where cost is the row's
+    slippage_bps_est (C4, when present) else default_cost_bps.
+    """
+    by_rule: dict[str, list[dict[str, Any]]] = {}
+    for r in labeled_rows or []:
+        by_rule.setdefault(str(r.get("rule") or "UNKNOWN"), []).append(r)
+    out: dict[str, dict[str, Any]] = {}
+    for rule, rows in by_rule.items():
+        measured = [r for r in rows if not r.get("censored") and r.get("ret") is not None]
+        n_measured = len(measured)
+        if n_measured == 0:
+            out[rule] = {"n": len(rows), "n_measured": 0, "hit_rate": None,
+                         "avg_edge_net": None, "verdict": "THIN"}
+            continue
+        nets = []
+        for r in measured:
+            try:
+                ret = float(r["ret"])
+            except (TypeError, ValueError):
+                continue
+            cost = r.get("slippage_bps_est")
+            try:
+                cost = float(cost) if cost is not None else default_cost_bps
+            except (TypeError, ValueError):
+                cost = default_cost_bps
+            nets.append(ret - cost / 1e4)
+        if not nets:
+            out[rule] = {"n": len(rows), "n_measured": n_measured, "hit_rate": None,
+                         "avg_edge_net": None, "verdict": "THIN"}
+            continue
+        hits = sum(1 for r in measured if r.get("hit"))
+        avg_net = sum(nets) / len(nets)
+        if n_measured < VALUE_THIN_N:
+            verdict = "THIN"
+        elif avg_net > 0:
+            verdict = "KEEP"
+        elif avg_net > -default_cost_bps / 1e4:
+            verdict = "WATCH"
+        else:
+            verdict = "CUT"
+        out[rule] = {"n": len(rows), "n_measured": n_measured,
+                     "hit_rate": round(hits / n_measured, 4),
+                     "avg_edge_net": round(avg_net, 4), "verdict": verdict}
+    return out
