@@ -30,7 +30,7 @@ export default function Movers({ onPick }) {
             className="flex justify-between items-center px-2 py-1 hover:bg-slate-800/40 rounded">
             <span className="font-bold w-14 text-left">{r.ticker}</span>
             <span className="mono text-slate-400 w-20 text-right">${fmt(r.close, 2)}</span>
-            <span className={`mono w-16 text-right ${pctClass(r.pct)}`}>{r.pct >= 0 ? "+" : ""}{r.pct}%</span>
+            <span className={`mono w-16 text-right ${pctClass(r.pct)}`}>{r.pct == null || isNaN(r.pct) ? "—" : `${r.pct >= 0 ? "+" : ""}${r.pct}%`}</span>
           </button>
         ))}
       </div>
