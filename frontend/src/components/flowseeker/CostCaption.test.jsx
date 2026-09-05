@@ -34,7 +34,9 @@ test("COST caption renders with honesty copy on single-ticker tape", async () =>
   try {
     render(<FlowseekerProBlademap active={true} />);
     fireEvent.click(screen.getByText("Smart Order Flow"));
-    fireEvent.change(screen.getByLabelText(/Ticker/), { target: { value: "SPY" } });
+    const tickerInput = screen.getByTestId("fsb-ticker-search");
+    fireEvent.change(tickerInput, { target: { value: "SPY" } });
+    fireEvent.keyDown(tickerInput, { key: "Enter", code: "Enter" });
     await act(async () => { jest.advanceTimersByTime(0); });
     for (let i = 0; i < 10 && !screen.queryByText(/PIN 450/); i++) {
       await act(async () => { jest.advanceTimersByTime(1000); });
@@ -58,7 +60,9 @@ test("COST number state renders after the bucket fills (static quotes truncate)"
   try {
     render(<FlowseekerProBlademap active={true} />);
     fireEvent.click(screen.getByText("Smart Order Flow"));
-    fireEvent.change(screen.getByLabelText(/Ticker/), { target: { value: "SPY" } });
+    const tickerInput = screen.getByTestId("fsb-ticker-search");
+    fireEvent.change(tickerInput, { target: { value: "SPY" } });
+    fireEvent.keyDown(tickerInput, { key: "Enter", code: "Enter" });
     await act(async () => { jest.advanceTimersByTime(0); });
     // First poll settles across several microtask rounds; bound the wait.
     for (let i = 0; i < 10 && !screen.queryByText(/PIN 450/); i++) {
