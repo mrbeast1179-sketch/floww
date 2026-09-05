@@ -149,6 +149,10 @@
     overflow-x: hidden;
     padding: 0.5rem;
     min-height: 0;
+    /* Explicit placement + width cap (2026-09-04): the aside can never
+       reserve a dead track nor push main off-screen, at any width. */
+    grid-column: 1;
+    max-width: 340px;
   }
 
   .heatseeker-main {
@@ -159,6 +163,7 @@
     min-width: 0;
     width: 100%;
     padding: 0.75rem;
+    grid-column: 2;
   }
 
   .heatseeker-sidebar-right {
