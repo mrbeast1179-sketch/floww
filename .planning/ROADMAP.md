@@ -316,9 +316,9 @@ new `SkylitControlBar.test.jsx` (4) + `SkylitTickerBar.test.jsx` (3).
 - R2 `/api/backtest/report/{ticker}` IMPLEMENTED 2026-09-04 (was 404;
   prior "done" claim was premature — corrected by building it). Untracked
   `tests/test_backtest_report.py` adopted, 3/3 green.
-- R3 Tidehunter local main: rebased + fast-forward (no force); 62 Agent 3
+- R3 Tidehunter local main: rebased + fast-forward (no force); 63 Agent 3
   commits now on main since the live-validation anchor (`17a555d`,
-  2026-09-03, inclusive through HEAD `79be44d`). Every subsequent R3-bound
+  2026-09-03, inclusive through HEAD `26da6d8`). Every subsequent R3-bound
   push (6609d9d onward) is already on origin/main — verify before touching.
 - R4 Agent 2 wiring (CR-001 compose pass) is the Phase 9 frontend gate.
   No new surfaces until Blademap mounts existing modules.
