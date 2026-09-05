@@ -374,21 +374,21 @@ async def contract(
             if not gamma:
                 _k, _T, _iv = float(c.get("strike") or 0), float(c.get("T") or 0), float(c.get("iv") or 0)
                 gamma = bs_gamma(spot, _k, _T, _iv) if (spot > 0 and _k > 0 and _T > 0 and _iv > 0) else 0
-            oi = c.get("oi", c.get("open_interest", 0))
+            oi = c.get("oi", c.get("open_interest", 0)) or 0
             gex = gamma * oi * 100 * spot * (1 if c["type"] == "call" else -1)
             rows.append({
                 "type": c["type"],
                 "strike": c["strike"],
                 "expiry": c["expiry"],
-                "iv": c.get("iv", 0),
-                "delta": c.get("delta", 0),
+                "iv": c.get("iv", 0) or 0,
+                "delta": c.get("delta", 0) or 0,
                 "gamma": gamma,
-                "vega": c.get("vega", 0),
-                "theta": c.get("theta", 0),
-                "oi": c.get("oi", c.get("open_interest", 0)),
-                "volume": c.get("volume", 0),
-                "bid": c.get("bid", 0),
-                "ask": c.get("ask", 0),
+                "vega": c.get("vega", 0) or 0,
+                "theta": c.get("theta", 0) or 0,
+                "oi": oi,
+                "volume": c.get("volume", 0) or 0,
+                "bid": c.get("bid", 0) or 0,
+                "ask": c.get("ask", 0) or 0,
                 "gex": gex,
             })
         return _sanitize({"ticker": ticker.strip().upper(), "spot": spot, "rows": rows, "count": len(rows)})
