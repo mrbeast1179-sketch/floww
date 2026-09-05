@@ -30,6 +30,8 @@ Agent D owns this file. APPEND-ONLY protocol: agents append timestamped rows/sec
 ## Task log
 | Time | Agent | Entry |
 |---|---|---|
+| 2026-09-05 ~09:45 ET | D | D2 core landed: `4a2605c` sweep recorder + replayer + `alert_digest` + golden fixture `tests/fixtures/sweep_golden_v1.json`. 6 replay tests green; 64 passed incl. chain_replay + flow_alerts suites; ruff clean. Noted: C landed C1 `flow_alert_moves` (f5bf200) — replay snapshot must capture horizon legs; coordinating table shape with C before D2 closeout. Next: D3 provider-boundary validators. |
+| 2026-09-05 ~10:15 ET | D | C1 replay sign-off: APPROVED as-is (`6b662b1`). Readers take any engine + fail open + None-for-unknown, so outcome replay runs captured `moves_legs` through a scratch engine — no C change needed. Recorder now captures `moves_legs` (deep-copied, tested). D2 remaining: wire recorder into a live sweep capture path at Sync-1; then D3 validators. |
 | | | |
 
 ## Contract proposals / decisions

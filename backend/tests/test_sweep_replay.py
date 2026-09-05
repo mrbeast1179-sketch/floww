@@ -134,3 +134,19 @@ def test_record_captures_moves_legs():
     assert snap["moves_legs"] == legs
     snap["moves_legs"].append({"stamp_date": "2026-09-07"})
     assert legs == [{"stamp_date": "2026-09-06", "last_price": 761.0, "move_pct": 0.4}]
+
+
+def test_diff_alerts_reports_added_removed_changed():
+    from services.sweep_replay import diff_alerts, replay
+
+    snap = _snapshot()
+    base = replay(snap)
+    assert diff_alerts(base, base)["identical"] is True
+    changed = [dict(a, why=(a.get("why") or "") + " [drift]") for a in base]
+    d = diff_alerts(base, changed)
+    assert d["identical"] is False
+    assert len(d["changed"]) == len(base)
+    assert d["added"] == [] and d["removed"] == []
+    dropped = base[1:]
+    d2 = diff_alerts(base, dropped)
+    assert len(d2["removed"]) == 1 and d2["added"] == []

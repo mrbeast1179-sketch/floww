@@ -91,3 +91,26 @@ def alert_digest(alerts: list[dict]) -> str:
     """Stable sha256 over canonical JSON — drift detector fails loudly."""
     canon = json.dumps(alerts, sort_keys=True, default=str)
     return hashlib.sha256(canon.encode()).hexdigest()
+
+
+def _canon(alert: dict) -> str:
+    return json.dumps(alert, sort_keys=True, default=str)
+
+
+def diff_alerts(before: list[dict], after: list[dict]) -> dict:
+    """Keyed diff of two alert lists: added/removed/changed + identical flag.
+
+    The drift detector's loud failure: digest mismatch says *that* the
+    engine drifted; this says *what* (which keys, which side).
+    """
+    b = {str(a.get("key")): a for a in before}
+    c = {str(a.get("key")): a for a in after}
+    added = sorted(k for k in c if k not in b)
+    removed = sorted(k for k in b if k not in c)
+    changed = sorted(k for k in b if k in c and _canon(b[k]) != _canon(c[k]))
+    return {
+        "added": added,
+        "removed": removed,
+        "changed": changed,
+        "identical": not (added or removed or changed),
+    }
