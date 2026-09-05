@@ -5,7 +5,7 @@ floww has no Schwab account and uses only the Public.com API.
 This module is kept importable so existing imports (SchwabTokenManager
 readers, streamer/token unit tests) don't break, but no production path
 may construct a client or place orders through it: SchwabClient methods
-raise SchwabRetiredError. Live trading surfaces are /api/public/brokerage/*.
+raise SchwabRetiredError. Live trading surfaces are /api/public/*.
 
 Docs: https://developer.schwab.com/ (reference only)
 """
@@ -161,7 +161,7 @@ class SchwabClient:
     def __init__(self, token_manager: SchwabTokenManager | None = None):
         raise SchwabRetiredError(
             "Schwab retired 2026-09-03 — floww is public-API-only. "
-            "Use /api/public/brokerage/* (services/public_api_adapter)."
+            "Use /api/public/* (services/public_api_adapter)."
         )
 
     async def _get_headers(self) -> dict[str, str]:

@@ -12,9 +12,9 @@ const fmtMoney = (v) => {
  * Rebuilt 2026-09-04: the prior WIP file was deleted uncommitted, which
  * broke the production build (App.js statically imports this module).
  * This version talks only to the verified live endpoints:
- *   GET /api/public/brokerage/account
- *   GET /api/public/brokerage/portfolio
- *   GET /api/public/brokerage/orders
+ *   GET /api/public/account
+ *   GET /api/public/portfolio
+ *   GET /api/public/orders
  * States: loading / error (key missing, API down) / empty / ready.
  * Polls every 30s while mounted.
  */
@@ -28,7 +28,7 @@ export default function PublicPanel() {
     try {
       const [a, p, o] = await Promise.all(
         ["account", "portfolio", "orders"].map((k) =>
-          fetch(`${API}/public/brokerage/${k}`, { signal }).then((r) => {
+          fetch(`${API}/public/${k}`, { signal }).then((r) => {
             if (!r.ok) throw new Error(`HTTP ${r.status}`);
             return r.json();
           })

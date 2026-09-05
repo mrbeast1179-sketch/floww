@@ -1672,13 +1672,13 @@ async def stop_live_tape() -> dict:
 
 # ============ Schwab Stubs (RETIRED 2026-09-03 — public-api-only policy) ============
 # floww has no Schwab account. routes/schwab.py returns 410 Gone with
-# /api/public/brokerage/* replacements. These helpers are kept only so
+# /api/public/* replacements. These helpers are kept only so
 # legacy imports don't break; they always report retired.
 
 def get_schwab_auth_url() -> dict:
-    """Retired — Schwab removed, use /api/public/brokerage/account."""
+    """Retired — Schwab removed, use /api/public/account."""
     return {"error": "schwab_retired", "auth_url": None,
-            "replacement": "/api/public/brokerage/account"}
+            "replacement": "/api/public/account"}
 
 
 async def schwab_auth_handler(request: dict):
@@ -1696,15 +1696,15 @@ async def schwab_auth_handler(request: dict):
 
 
 async def schwab_get_accounts() -> dict:
-    """Retired — use /api/public/brokerage/account."""
+    """Retired — use /api/public/account."""
     return {"accounts": [], "error": "schwab_retired",
-            "replacement": "/api/public/brokerage/account"}
+            "replacement": "/api/public/account"}
 
 
 async def schwab_get_positions(account_hash: str) -> dict:
-    """Retired — use /api/public/brokerage/portfolio."""
+    """Retired — use /api/public/portfolio."""
     return {"positions": [], "error": "schwab_retired",
-            "replacement": "/api/public/brokerage/portfolio"}
+            "replacement": "/api/public/portfolio"}
 
 
 async def schwab_get_sweeps(account_hash: str) -> dict:
@@ -1714,9 +1714,9 @@ async def schwab_get_sweeps(account_hash: str) -> dict:
 
 
 async def schwab_import_to_portfolio(name: str, account_hash: str) -> dict:
-    """Retired — use /api/public/brokerage/portfolio."""
+    """Retired — use /api/public/portfolio."""
     return {"status": "error", "error": "schwab_retired", "imported": 0,
-            "replacement": "/api/public/brokerage/portfolio"}
+            "replacement": "/api/public/portfolio"}
 
 
 # ---------- Scheduled pre-fetch (APScheduler) ----------

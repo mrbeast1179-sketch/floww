@@ -1,26 +1,28 @@
 """
 Public.com Brokerage Tab — Trading Group
 =========================================
-GET /api/public/brokerage/portfolio — fetch the authenticated Public.com account
+Router prefix is `/public` mounted at `/api`, so the live paths are:
+
+GET /api/public/portfolio — fetch the authenticated Public.com account
   portfolio positions, buying power, equity, cash, and account metadata.
 
-GET /api/public/brokerage/orders — list open + recent filled orders.
+GET /api/public/orders — list open + recent filled orders.
 
-GET /api/public/brokerage/account — account-level metadata.
+GET /api/public/account — account-level metadata.
 
-POST /api/public/brokerage/order — place a single-leg order.
+POST /api/public/order — place a single-leg order.
   Body: {"symbol": "SPY260904C00760000", "side": "BUY", "order_type": "MARKET",
          "quantity": 1, "limit_price": 3.15, "stop_price": null,
          "time_in_force": "DAY", "instrument_type": "OPTION"}
 
-POST /api/public/brokerage/order/{order_id}/cancel — cancel an open order.
+POST /api/public/order/{order_id}/cancel — cancel an open order.
 
 Paper trading mode by default — no live orders until the user explicitly
 connects a live account and generates a secret key at
 public.com/settings/security/api.
 
-Mounted at /api/public/brokerage alongside the existing /api/public/chain
-+ /api/public/quotes from routes/public_api.py.
+Mounted at /api/public alongside /api/public/chain + /api/public/quotes
+from routes/public_api.py.
 """
 from __future__ import annotations
 

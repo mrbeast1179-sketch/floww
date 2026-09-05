@@ -22,7 +22,6 @@ import { widenActions, applyFilters, defaultFilterState } from "./filters/filter
 import "./FlowseekerProBlademap.css";
 
 const API = `${BACKEND_URL}/api/flowseeker`;
-const WATCH = ["SPY", "QQQ", "IWM", "NVDA", "TSLA", "AAPL", "MSFT", "AMZN", "META", "GOOGL"];
 const NOISE_FLOOR = 5; // ignore day-volume deltas below this many contracts
 // Desk noise budget: max tape-visible alerts per rule per hour. The eval
 // engines still count EVERY hit (deltas + ⚡badge stay truthful); this only
@@ -284,6 +283,14 @@ export default function FlowseekerProBlademap({ active = true }) {
   // Pulse tape controls (BladeMap header contract): ticker scope, DTE band,
   // minimum 0-10 score. Defaults mirror the reference view (0-21D, ALL scores).
   const [pulseTicker, setPulseTicker] = useState("ALL");
+  const [pulseQ, setPulseQ] = useState("");
+  // Open universe (2026-09-04): focus the tape on ANY ticker, not a list.
+  const focusPulseTicker = useCallback(() => {
+    const t = pulseQ.trim().toUpperCase().replace(/^\$/, "");
+    if (!t) return;
+    setPulseTicker(t);
+    setTicker(t);
+  }, [pulseQ]);
   const [pulseDte, setPulseDte] = useState("0-21D");
   const [pulseScore, setPulseScore] = useState(0);
   const [subtab, setSubtab] = useState("ofi");
@@ -1296,17 +1303,6 @@ export default function FlowseekerProBlademap({ active = true }) {
         <div className={`fsb-view fsb-view-flow${tab === "flow" ? " active" : ""}`}>
           {/* left */}
           <div className="fsb-col">
-            <div className="fsb-panel" style={{ flex: "1 1 60%" }}>
-              <div className="fsb-panel-h"><span>Watchlist</span><span className="fsb-muted fsb-small">{WATCH.length} symbols</span></div>
-              <ul className="fsb-watchlist">
-                {WATCH.map((t) => (
-                  <li key={t} className={`fsb-wl-li${ticker === t ? " selected" : ""}`} onClick={() => { setTicker(t); setPulseTicker("ALL"); }}>
-                    <span className="fsb-wl-ticker">{t}</span>
-                    <span className="fsb-wl-spot">{t === ticker ? "●" : ""}</span>
-                  </li>
-                ))}
-              </ul>
-            </div>
             <div className="fsb-panel">
               <div className="fsb-panel-h">Filters</div>
               <div className="fsb-chips">
@@ -1382,10 +1378,19 @@ export default function FlowseekerProBlademap({ active = true }) {
                   ) : null; })()}
                 </span>
                 <label className="fsb-muted fsb-small">Ticker&nbsp;
-                  <select value={pulseTicker} onChange={(e) => { const v = e.target.value; setPulseTicker(v); if (v !== "ALL") setTicker(v); }}>
-                    <option value="ALL">All tickers</option>
-                    {WATCH.map((t) => <option key={t} value={t}>{t}</option>)}
-                  </select>
+                  <input
+                    className="fsb-ticker-input"
+                    value={pulseQ}
+                    onChange={(e) => setPulseQ(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === "Enter") focusPulseTicker(); }}
+                    placeholder="ANY"
+                    aria-label="Focus any ticker"
+                    data-testid="fsb-ticker-search"
+                  />
+                  <button className="fsb-chip fsb-chip-sm" onClick={focusPulseTicker} title="Focus tape on any ticker (open universe)">Go</button>
+                  {pulseTicker !== "ALL" && (
+                    <button className="fsb-chip fsb-chip-sm" onClick={() => { setPulseTicker("ALL"); setPulseQ(""); }} title="Back to all tickers">ALL</button>
+                  )}
                 </label>
                 <span className="fsb-pulsebar-group"><span className="fsb-muted fsb-small">DTE</span>
                   {[["0-7D", "0-7D"], ["0-21D", "0-21D"], ["0-45D", "0-45D"], ["ALL", "ALL"]].map(([v, l]) => (

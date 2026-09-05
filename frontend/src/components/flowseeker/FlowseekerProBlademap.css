@@ -166,17 +166,20 @@
 }
 .fsb-col { display: flex; flex-direction: column; gap: var(--fsb-gap); min-height: 0; }
 
-/* Watchlist */
-.fsb-watchlist { list-style: none; margin: 0; padding: 0; overflow-y: auto; }
-.fsb-wl-li {
-  display: grid; grid-template-columns: 1fr auto; gap: 8px; align-items: center;
-  padding: 7px 6px; border-radius: var(--fsb-radius-sm); cursor: pointer; transition: background .12s;
+/* Ticker free-text focus (open universe — replaces the old watchlist) */
+.fsb-ticker-input {
+  width: 84px;
+  font-family: var(--fsb-mono);
+  font-size: 11px;
+  color: var(--fsb-text);
+  background: rgba(255,255,255,0.05);
+  border: 1px solid var(--fsb-border2);
+  border-radius: 4px;
+  padding: 3px 7px;
+  outline: none;
 }
-.fsb-wl-li:hover { background: var(--fsb-panel3); }
-.fsb-wl-li.selected { background: rgba(41,197,224,0.08); border-left: 2px solid var(--fsb-blue); padding-left: 4px; }
-.fsb-wl-ticker { font-weight: 700; font-family: var(--fsb-mono); }
-.fsb-wl-spot { font-family: var(--fsb-mono); font-size: 12px; text-align: right; }
-.fsb-wl-spot.up { color: var(--fsb-green); } .fsb-wl-spot.down { color: var(--fsb-red); }
+.fsb-ticker-input::placeholder { color: var(--fsb-muted); }
+.fsb-ticker-input:focus { border-color: var(--fsb-blue); }
 
 /* Chips */
 .fsb-chips { display: flex; gap: 6px; flex-wrap: wrap; }

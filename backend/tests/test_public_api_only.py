@@ -116,7 +116,7 @@ class TestSchwabRetired:
         r = client.get("/api/schwab/auth-url")
         assert r.status_code == 410
         assert r.json()["error"] == "schwab_retired"
-        assert "/api/public/brokerage/" in r.json()["replacement"]
+        assert "/api/public/" in r.json()["replacement"]
 
     def test_accounts_gone(self):
         r = client.get("/api/schwab/accounts")
@@ -125,7 +125,7 @@ class TestSchwabRetired:
     def test_positions_gone(self):
         r = client.get("/api/schwab/positions/abc123")
         assert r.status_code == 410
-        assert r.json()["replacement"] == "/api/public/brokerage/portfolio"
+        assert r.json()["replacement"] == "/api/public/portfolio"
 
     def test_sweeps_gone(self):
         r = client.get("/api/schwab/sweeps/abc123")
