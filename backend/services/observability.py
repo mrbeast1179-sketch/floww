@@ -249,6 +249,12 @@ quarantine_total = Counter(
     registry=REGISTRY,
 )
 
+sweep_last_unixtime = Gauge(
+    "floww_sweep_last_unixtime",
+    "Wall-clock unixtime of the last completed universe sweep (dead-man gauge; 0 = never)",
+    registry=REGISTRY,
+)
+
 yfinance_calls_total = Counter(
     "floww_yfinance_calls_total",
     "Total yfinance calls (spot, chains, history)",

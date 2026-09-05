@@ -25,6 +25,58 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
+def _institutional_section(feed_status: str) -> dict:
+    """C11 payload: feed x budget x sweep-age x alerts x calibration.
+
+    Every source is fail-open: unwired or erroring sources report None +
+    note (unknown), never fabricated values.
+    """
+    try:
+        from services.public_budget import budget
+
+        budget_snapshot: dict = {"status": "ok", **budget.status()}
+    except Exception as e:
+        budget_snapshot = {"status": "unknown", "note": f"budget unreadable: {e}"}
+
+    try:
+        from services.sweep_watch import sweep_age_s
+
+        age = sweep_age_s()
+        sweep: dict = {"age_s": age}
+        if age is None:
+            sweep["note"] = "pending B hook: note_sweep() in sweep loop"
+    except Exception as e:
+        sweep = {"age_s": None, "note": f"sweep watch unreadable: {e}"}
+
+    try:
+        with duckdb_engine._conn_lock:
+            row = duckdb_engine._conn.execute(
+                "SELECT COUNT(*) FROM flow_alerts_daily"
+            ).fetchone()
+        alerts: dict = {"stored": int(row[0]) if row else 0}
+    except Exception as e:
+        alerts = {"stored": None, "note": f"alert store unreadable: {e}"}
+
+    try:
+        from routes.flowseeker import _calibration_blob
+
+        blob = _calibration_blob[1] if _calibration_blob else None
+        stage = (blob or {}).get("stage") if isinstance(blob, dict) else None
+        calibration: dict = {"stage": stage}
+        if stage is None:
+            calibration["note"] = "pending C accessor: staged calibration blob"
+    except Exception as e:
+        calibration = {"stage": None, "note": f"calibration unreadable: {e}"}
+
+    return {
+        "feed": {"public_api": feed_status},
+        "budget": budget_snapshot,
+        "sweep": sweep,
+        "alerts": alerts,
+        "calibration": calibration,
+    }
+
+
 @router.get("/api/health")
 async def health_check():
     """Check status of all dependencies.
@@ -108,6 +160,9 @@ async def health_check():
         "status": overall,
         "timestamp": datetime.now(UTC).isoformat(),
         "checks": checks,
+        "institutional": _institutional_section(
+            str(checks.get("public_api", {}).get("status"))
+        ),
     }
 
 
