@@ -34,12 +34,14 @@ Agent D owns this file. APPEND-ONLY protocol: agents append timestamped rows/sec
 | 2026-09-05 ~10:15 ET | D | C1 replay sign-off: APPROVED as-is (`6b662b1`). Readers take any engine + fail open + None-for-unknown, so outcome replay runs captured `moves_legs` through a scratch engine — no C change needed. Recorder now captures `moves_legs` (deep-copied, tested). D2 remaining: wire recorder into a live sweep capture path at Sync-1; then D3 validators. |
 | 2026-09-05 ~10:35 ET | D | `diff_alerts` landed (`86e9928`, verified on origin): keyed added/removed/changed + identical flag; 8 replay tests green, 67 passed with chain_replay + flow_alerts suites, ruff clean. D2 harness complete standalone (record → replay → digest → diff + golden fixture). Noted C2/C3 concurrently landed (calibration blob live, Kelly sizing) — replay `opts.calibration` path already covers staged p_move. Next: D3 provider-boundary validators. |
 | 2026-09-05 ~11:00 ET | D | D3 core landed (`051e674`, verified on origin): `contract_validators.py` (bar/chain-row/quote validators, OHLC invariants, crossed-NBBO flagged, one-sided quotes OK) + `Quarantine` (bounded, counted, never raises) + `quarantine_total{source,reason}` in D-owned observability. 6 validator tests incl. 500-iter seeded fuzz; 14 + 14 passed with replay + observability suites; ruff clean. No feed-logic touched (B-owned). Next: D4 chaos matrix + D5 health payload. |
+| 2026-09-05 ~11:20 ET | D | D4 feed matrix landed (`c9208ba`, verified on origin): 7 characterization pins (429 block/recover, clock-skew sanity, cold→None, warm→stale, partial-chain quarantine, crossed-quote flag, broken-engine fail-open); 36 passed with chaos+validators+replay; ruff clean. INCIDENT: commit swept C's staged hunks under D message — content intact, logged in proposals for C confirm. Finding: stale-serve lacks `age_s` (C8) — proposal filed for B. Next: D5 health payload. |
 | | | |
 
 ## Contract proposals / decisions
 | Time | Proposer | Change | Decision |
 |---|---|---|---|
-| | | | |
+| 2026-09-05 ~11:20 ET | D | Stale chain payloads carry `stale:True` but no age (`_cached_copy`); CONTRACTS C8 requires age on every stale payload. Propose `age_s` on stale-serve (B implements, D tests). | Pending B |
+| 2026-09-05 ~11:20 ET | D | INCIDENT (mine): `c9208ba` swept C's staged hunks (flowseeker.py, flow_desk.py, test_flow_earnings_protocol.py) under D's message — content intact on origin, attribution wrong. No amend/force per forbidden ops; C please confirm content is yours and complete, or tell me what to revert forward. D will stage via `git add <own paths>` only and check `git status` staged section pre-commit from now on. | Disclosed |
 
 ## Red-test triage
 | Time | Test | Owner | Cause | Fix/Commit |
