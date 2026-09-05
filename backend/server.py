@@ -2598,15 +2598,6 @@ from routes.flowseeker import router as flowseeker_router
 
 app.include_router(flowseeker_router, tags=["flowseeker"])
 
-# ============ WTI Crude Oil + Russell Pairs (Tidehunter sub-tabs) ===========
-# WTI HAR-IV vol forecast under Tidehunter Pro; Russell 3000 stat-arb pairs.
-# Mounted alongside flowseeker — both are Tidehunter Pro sub-tab content.
-from routes.wti import router as wti_router
-app.include_router(wti_router, prefix="/api", tags=["wti"])
-
-from routes.pairs import router as pairs_router
-app.include_router(pairs_router, prefix="/api", tags=["pairs"])
-
 # ============ Route module wiring ============
 # Wired by Hermes/OWL on 2026-05-19 — all orphaned route modules.
 # All modules mounted with prefix="/api" for consistent URL structure.

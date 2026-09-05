@@ -1,4 +1,6 @@
 import React, { memo, useCallback, useEffect, useState } from "react";
+import axios from "axios";
+import { API as BACKEND_API } from "../../config/api";
 import SkylitTickerBar from "./SkylitTickerBar";
 import SkylitControlBar from "./SkylitControlBar";
 import SkylitHeatmapGrid from "./SkylitHeatmapGrid";
@@ -57,6 +59,36 @@ function SkylitDashboard({
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [expanded]);
+
+  // Expanded view fetches its OWN wider band (2026-09-04): the in-frame
+  // grid is deliberately windowed to 21 rows around spot, so expanding the
+  // same payload could never show more strikes. swing mode widens the
+  // server band (±25%) with more expiries; failure falls back to the
+  // in-frame data so the overlay never blanks.
+  const [expData, setExpData] = useState(null);
+  const [expLoading, setExpLoading] = useState(false);
+  useEffect(() => {
+    if (!expanded) return undefined;
+    let cancelled = false;
+    const ctrl = new AbortController();
+    setExpLoading(true);
+    axios
+      .get(`${BACKEND_API}/heatmap/${encodeURIComponent(ticker)}?mode=swing&expiries=8`, {
+        timeout: 45000,
+        signal: ctrl.signal,
+      })
+      .then((r) => { if (!cancelled && r?.data?.strikes?.length) setExpData(r.data); })
+      .catch(() => { /* fallback to in-frame data below */ })
+      .finally(() => { if (!cancelled) setExpLoading(false); });
+    return () => { cancelled = true; ctrl.abort(); };
+  }, [expanded, ticker]);
+  const overlayData = expData || data;
+  const overlayNote = (() => {
+    const n = overlayData?.strikes?.length || 0;
+    if (!n) return "";
+    if (expData) return `±25% band · ${n} strikes · 8 expiries`;
+    return expLoading ? "widening band…" : `${n} strikes`;
+  })();
 
   const handleCellClick = useCallback(
     (strike, colKey, value) => {
@@ -208,6 +240,7 @@ function SkylitDashboard({
             <div className="skylit-expanded-title">
               <span className="skylit-expanded-ticker">{ticker}</span>
               <span className="skylit-expanded-label">Full grid</span>
+              {overlayNote && <span className="skylit-expanded-coverage">{overlayNote}</span>}
               <span className="skylit-expanded-hint">Esc to close</span>
             </div>
             <button
@@ -221,7 +254,7 @@ function SkylitDashboard({
           <div className="skylit-expanded-body">
             <div className="skylit-expanded-grid">
               <SkylitHeatmapGrid
-                data={data}
+                data={overlayData}
                 spot={spot}
                 ticker={ticker}
                 viewMode={viewMode}
@@ -232,7 +265,7 @@ function SkylitDashboard({
             </div>
             <div className="skylit-expanded-sidebar">
               <SkylitMetricsSidebar
-                data={data}
+                data={overlayData}
                 spot={spot}
                 viewMode={viewMode}
                 regime={regime}

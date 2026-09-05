@@ -3803,6 +3803,16 @@ button, select, input {
   color: #475569;
   font-family: "JetBrains Mono", monospace;
 }
+.skylit-expanded-coverage {
+  font-size: 10px;
+  color: #38bdf8;
+  font-family: "JetBrains Mono", monospace;
+  background: rgba(56,189,248,0.08);
+  border: 1px solid rgba(56,189,248,0.2);
+  border-radius: 4px;
+  padding: 2px 8px;
+  white-space: nowrap;
+}
 .skylit-expanded-close {
   font-family: "JetBrains Mono", monospace;
   font-size: 11px;

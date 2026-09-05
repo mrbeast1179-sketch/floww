@@ -369,9 +369,32 @@ verify HEAD before touching.
 - Key Moments pillar dead (R1) — no further spend without API-docs proof.
 - `tests/test_backtest_report.py` was red — fixed by implementing the
   endpoint (not by editing the test).
-**Next:** Agent 2 compose pass → Agent 4 evaluator run against live
-payloads → Phase 9 integration checklist sign-off. (Agent 3 rebase/push
-DONE — see Gate Board.)
+**Next:** Agent 2 compose follow-through (PR #16 merged) → Agent 4 evaluator
+run against live payloads → Phase 9 integration checklist sign-off.
+
+## Sweep 2026-09-04 — tabs removed, broker live, dead code purged (architect)
+
+- Tidehunter Pro tabs cut to Smart Order Flow + Scanner: "WTI Crude",
+  "Stat-Arb Pairs", "Dealer Positioning" removed from Blademap (views,
+  drawGamma, lazy guards); backend `routes/wti.py`, `routes/pairs.py`,
+  `services/wti_vol.py`, `services/russell_pairs.py` deleted with mounts
+  (zero importers/tests/callers). Orphaned untracked panels
+  (Wtipanel/RussellPanel/PublicPanel-WIP) were already deleted by lane —
+  the App.js static imports they left behind are removed.
+- Public Broker tab LIVE under Journal: `PublicPanel` rewritten clean
+  (account/portfolio/orders, 30s poll, honest error/empty states, 2 Jest
+  tests), `Broker` nav entry + sidebar icons (briefcase/zap added; both
+  previously fell back to the generic circle).
+- Overlay now fetches its OWN wider band (`/api/heatmap swing/8`) so
+  Expand shows more strikes than the 21-row in-frame window; coverage
+  note in header; failure falls back to in-frame data.
+- Whole-code sweep: ruff F401 clean (4 fixed incl. 2 dead imports of
+  nonexistent modules in quant.py); `alerts_api.py` (unmounted duplicate
+  router) deleted; frontend orphan scan — only Agent-2 WIP modules
+  (mid-compose, left alone) + 2 dead hooks (`use-toast`, `usePortfolio`)
+  deleted; backend services orphan scan clean.
+- Heatmap verified multi-stock live (NVDA/AAPL/RIVN/HOOD spots;
+  RIVN 24 strikes $10–22 all with volume).
 
 ## Gate Board — live lane status (architect-maintained, 2026-09-04)
 
@@ -391,6 +414,12 @@ force. Gate exits on: Blademap mounts all modules + full frontend green
 **Liveness protocol (binding on all lanes, architect-enforced):**
 - Proof-of-life hourly: a commit, a test run with counts, or a BLOCKERS.md
   entry. Status prose without git evidence = idle.
+- HASH-CHASE BAN (2026-09-04, Nav directive): no commits whose sole purpose
+  is rewriting HEAD hashes/counts into docs. It spams main (70+ junk commits),
+  never converges (each sync commit advances HEAD), and races every lane's
+  push. Pin branch tips at most once per day; counts via `git rev-list` at
+  read time, never baked in. Agent 3's sync loop must STOP — kill the session
+  if it is still running.
 - A gate awaited >2h after its condition is met = stale gate. Lanes must
   re-check this board before claiming blocked.
 - Blocked claims must name: (1) the exact missing artifact, (2) its owner

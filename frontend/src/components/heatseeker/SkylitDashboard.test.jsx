@@ -8,8 +8,9 @@
  * with HeatseekerDashboard.test.jsx so coverage spans both layouts.
  */
 import React from "react";
-import { render, screen, act, fireEvent } from "@testing-library/react";
+import { render, screen, act, fireEvent, waitFor } from "@testing-library/react";
 import "@testing-library/jest-dom";
+import axios from "axios";
 
 // Mock IntersectionObserver — harmless for a smoke test, but defensive in
 // case any lazy subcomponent gets pulled in via transitive imports.
@@ -19,6 +20,10 @@ global.IntersectionObserver = class IntersectionObserver {
   disconnect() {}
   unobserve() {};
 };
+
+// Mock axios: the overlay wide-band fetch must never hit the network in
+// tests (CRA resetMocks wipes factory impls, so (re)arm in beforeEach).
+jest.mock("axios", () => ({ get: jest.fn() }));
 
 // Mock Zenith sub-components to null-mounts (no network calls; faster).
 jest.mock("./SkylitTickerBar",       () => () => <div data-testid="mock-ticker-bar" />);
@@ -58,6 +63,10 @@ jest.mock("./RndDensityPanel",              () => () => <div data-testid="hs-rnd
 
 // Import AFTER mocks are set up.
 import SkylitDashboard from "./SkylitDashboard";
+
+beforeEach(() => {
+  axios.get.mockImplementation(async () => ({ data: { strikes: [] } }));
+});
 
 describe("SkylitDashboard", () => {
   test("mounts the skylit chrome with NO bottom boxes (removed 2026-09-03)", async () => {
@@ -132,5 +141,29 @@ describe("SkylitDashboard", () => {
     const readout = screen.getByTestId("skylit-selected-cell");
     expect(readout.textContent).toContain("650");
     expect(readout.textContent).toContain("2026-09-18");
+  });
+
+  test("expand fetches a wider swing band for the overlay", async () => {
+    axios.get.mockImplementation(async (url) => ({
+      data: {
+        strikes: [{ strike: 100 }, { strike: 101 }],
+        grid: {},
+        spot: 100,
+      },
+    }));
+    await act(async () => {
+      render(<SkylitDashboard ticker="SPY" />);
+    });
+
+    await act(async () => {
+      fireEvent.click(screen.getByTestId("skylit-expand-btn"));
+    });
+
+    await waitFor(() => {
+      const calls = axios.get.mock.calls.filter((c) => String(c[0]).includes("/heatmap/"));
+      expect(calls.length).toBeGreaterThan(0);
+      expect(calls[0][0]).toContain("mode=swing");
+      expect(calls[0][0]).toContain("expiries=8");
+    });
   });
 });
