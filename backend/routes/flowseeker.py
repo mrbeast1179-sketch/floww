@@ -732,8 +732,10 @@ async def _run_institutional_alerts(rows: list) -> None:
         }
         alerts = fa.eval_institutional(
             normed, baselines=baselines, prev_oi=prev, regimes=_cached_regimes(),
-            gex_context=_cached_gex_context(sorted({r["under"] for r in normed})),
+            gex_context=_merged_gex_context(
+                sorted({r["under"] for r in normed}), dealer),
             oi_tags=_compute_oi_tags(normed, prev),
+            **({"opts": {"calibration": cal}} if (cal := await _load_calibration()) else {}),
         )
         # DuckDB calls are synchronous — run them off the event loop so a
         # slow query never stalls concurrent requests (this runs in a
@@ -1989,6 +1991,35 @@ async def risk_killswitch_trip(equity: float = Query(100000.0, gt=0)):
 
 _outcome_cache: dict[str, tuple[float, dict]] = {}   # key -> (ts, payload)
 _OUTCOME_TTL = 6 * 3600   # nightly cron refreshes Mongo; in-process cache is a courtesy
+
+_calibration_blob: tuple[float, dict] | None = None  # (ts, blob) — cron's fit
+_CALIBRATION_TTL = 1 * 3600  # refresh writes rarely; 1h courtesy window
+
+
+async def _load_calibration() -> dict | None:
+    """Cached stage blob from the cron's /outcomes/refresh fit (Mongo
+    calibration_latest). Fail-open: Mongo down / no fit yet → None, and the
+    live path fires exactly as before (p_move=None, "uncalibrated").
+
+    (C-REGION — Agent C. Closes the C2 loop: fit→cache existed, consume
+    did not — _run_institutional_alerts never loaded this.)
+    """
+    import time as _time
+
+    global _calibration_blob
+    hit = _calibration_blob
+    if hit and _time.time() - hit[0] < _CALIBRATION_TTL:
+        return hit[1]
+    try:
+        from server import db as mongo_db  # deferred: circular import
+        doc = await mongo_db.flow_outcome_cache.find_one({"_id": "calibration_latest"})
+        if doc and isinstance(doc.get("stage"), int) and doc.get("stage") >= 1 and doc.get("model"):
+            blob = {k: v for k, v in doc.items() if k != "_id"}
+            _calibration_blob = (_time.time(), blob)
+            return blob
+    except Exception:
+        pass  # Mongo down — fire uncalibrated, never crash the scan
+    return None
 
 
 async def _load_outcomes(days: int, horizon: int) -> dict | None:
