@@ -730,11 +730,12 @@ async def _run_institutional_alerts(rows: list) -> None:
             for r in normed
             if r.get("occ") and prev_occ.get(r["occ"]) is not None
         }
+        oi_tags = _compute_oi_tags(normed, prev)
         alerts = fa.eval_institutional(
             normed, baselines=baselines, prev_oi=prev, regimes=_cached_regimes(),
             gex_context=_merged_gex_context(
                 sorted({r["under"] for r in normed}), dealer),
-            oi_tags=_compute_oi_tags(normed, prev),
+            oi_tags=oi_tags,
             **({"opts": {"calibration": cal}} if (cal := await _load_calibration()) else {}),
         )
         # DuckDB calls are synchronous — run them off the event loop so a
@@ -749,7 +750,7 @@ async def _run_institutional_alerts(rows: list) -> None:
             # Desk pass (Conviction v2.2): fresh-interest gate, campaign
             # promotion, IV context. Fails open. See
             # docs/handoff/FABLE-desk-pass.md for the contract.
-            passed = fd.desk_pass(duckdb_engine, normed, alerts)
+            passed = fd.desk_pass(duckdb_engine, normed, alerts, oi_tags=oi_tags)
             fresh = fa.dedup_filter(duckdb_engine, passed)
             if fresh:
                 fa.persist_alerts(duckdb_engine, fresh)
