@@ -2367,6 +2367,10 @@ async def alert_outcomes_refresh(
             cal_doc = {"ok": True, "computed_at": stats["computed_at"], **cal}
             await mdb.flow_outcome_cache.update_one(
                 {"_id": "calibration_latest"}, {"$set": cal_doc}, upsert=True)
+            try:  # C7 value table rides the same pass (Sync-3 kill/keep read)
+                stats["rule_value"] = fo.rule_value_table(labeled)
+            except Exception as ve:
+                logger.warning("outcomes/refresh: rule value skipped: %s", ve)
         except Exception as e:  # calibration fit is additive, never fatal
             logger.warning("outcomes/refresh: calibration fit skipped: %s", e)
     finally:
