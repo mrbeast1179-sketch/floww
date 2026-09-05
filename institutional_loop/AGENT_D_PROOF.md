@@ -16,6 +16,11 @@ WRITE-NOWHERE-ELSE except merge-conflict resolution WITH owner sign-off in LEDGE
 - **D5. Observability.** Health endpoint: feed×budget×sweep-age×alerts×calibration-stage; per-ticker/per-rule/per-source counters; dead-man sweep gauge; secret-scan job. DONE: health payload reviewed at Sync 2.
 - **D6. Perf & budgets.** p95 latency tests (B's SLOs), token-accounting audit (prove fan-out honesty), load test of scan-public under 3 concurrent pollers (single-flight check). DONE: perf report at Sync 3.
 - **D7. Sync gates (6/12/18h).** Run gates, publish notes, triage red, resolve conflicts (owner sign-off), escalate frozen-file/secret issues to Nav immediately. DONE: 3 notes.
+- **D7b. Staging gate (every sync + final).** Staging-hygiene is enforced, not asked-for:
+  1. `scripts/loop_guard.sh stage <AGENT>` is the ONLY staging method (never `git add -A` / `commit -a` — banned).
+  2. At each sync, D runs `scripts/loop_guard.sh check-staged <AGENT>` per agent's pending commit (or reviews `git status` against `institutional_loop/OWNERSHIP.md` if already committed): any foreign-owned file without a LEDGER sign-off line = gate RED, revert-or-sign-off before merge.
+  3. `LOOP_SIGNOFF="<date> <owner>: <scope> ok"` env is required for SHARED files; D spot-checks the cited LEDGER line exists.
+  4. Pre-commit hook (optional hardening): add `LOOP_AGENT=<X> scripts/loop_guard.sh hook` to your local `.git/hooks/pre-commit`; unset LOOP_AGENT (humans/Nav) passes silently. DONE: gate log in each sync note.
 - **D8. Final gate + HANDOFF (23–24h).** Full suites, replay check, latency, secret scan, calibration report review, `docs/handoff/INSTITUTIONAL_LOOP_HANDOFF.md`: what changed, what was measured, what is still proxy, what Nav must decide. DONE: handoff posted, suites green.
 
 ## Powers & limits

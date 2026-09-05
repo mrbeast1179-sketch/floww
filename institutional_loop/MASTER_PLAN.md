@@ -17,7 +17,7 @@ Turn the scanner from a day-volume-vs-OI screen into an institutional flow desk:
 3. **Parity locks hold.** `scan_score` ↔ `scanScoreOf` identical math; GEX S¹/S² scale convention untouched; frozen files (`ml/inference.py`, `dash_ui.py`, `App.js`, model artifacts) need Nav approval.
 4. **TDD everything.** Failing test → patch → passing test. No test edits that weaken assertions without a written reason in the commit body.
 5. **Contracts frozen.** `CONTRACTS.md` shapes (rows, ckey, extras, dealer, alerts, budgets, env) change only by 4-agent agreement, logged in `LEDGER.md`.
-6. **File ownership (Section 7).** Touch another agent's files only to read; writes need owner sign-off in the ledger. Agent D alone resolves merge conflicts.
+6. **File ownership (Section 7).** Touch another agent's files only to read; writes need owner sign-off in the ledger. Agent D alone resolves merge conflicts. Staging: `scripts/loop_guard.sh stage <AGENT>` only — `git add -A` / `commit -a` are banned and enforced by the Sync-1 staging gate (D7b) against `institutional_loop/OWNERSHIP.md`.
 7. **Green before push.** Module suite + ruff + related route tests, every commit. Full-suite gate at each sync point, owned by D.
 8. **Secrets never in code/logs.** Keys via env only. Any pasted secret = stop, rotate, disclose in ledger.
 

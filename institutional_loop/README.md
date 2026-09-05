@@ -17,5 +17,8 @@ Prop-firm-grade rebuild of Tidehunter Pro on paid Public data. Read in this orde
 - C: calibration/outcomes/bridge/desk/journal/sizing/hygiene, trade routes, alert levels only
 - D: chaos/perf/replay/observability/health/docs/ledger/merges — and nothing else
 
+## Loop discipline (amended: staging hygiene is enforced)
+plan → failing test → patch → module suite + ruff → `scripts/loop_guard.sh stage <YOU>` (never `add -A`/`commit -a`) → commit (`type(scope): subject`, HEREDOC evidence) → push → ledger line. Owners: `institutional_loop/OWNERSHIP.md`. SHARED files need `LOOP_SIGNOFF="<date> <owner>: ok"` + a LEDGER line. D runs `check-staged` at every sync.
+
 ## Kill switches
 `FLOWW_PUBLIC_SWEEP=0` stops the background sweep. Any agent may stop the loop by posting `HALT: <reason>` to LEDGER (all agents check it each task).
