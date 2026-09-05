@@ -170,6 +170,7 @@ def alert_to_order(alert: dict, *, account_equity: float = 100_000.0) -> dict[st
             "p_move": alert.get("p_move"),
             "p_method": alert.get("p_method"),
             "size_basis": sized["size_basis"],
+            "execution": advise_execution(alert),
         },
     }
 
@@ -202,6 +203,72 @@ def alert_to_journal_entry(alert: dict) -> dict[str, Any]:
         "setup": setup,
         "tags": "flowseeker,auto",
     }
+
+
+# C4 execution advisor (Agent C, 2026-09-05): Almgren-Chriss direction —
+# patient limit vs urgent take from Kyle-lambda + spread + velocity.
+# Thresholds are provisional desk parameters (named, tested, ledger-noted),
+# not measured fits: λ bands reuse kyle_lambda's published labels;
+# spread/velocity cuts are starting points for the Sync-3 kill/keep read.
+ADVISE_SPREAD_TIGHT_BPS = 50.0    # pay the spread below this
+ADVISE_SPREAD_XWIDE_BPS = 200.0   # untradable above this when illiquid
+ADVISE_LIQ_LAMBDA = 0.001         # kyle LABEL_LIQUID boundary
+ADVISE_ILLIQ_LAMBDA = 0.005       # kyle LABEL_ILLIQUID boundary
+ADVISE_HOT_VELOCITY = 10.0        # prints/min: urgency trigger (provisional)
+ADVISE_IMPACT_SLICE = 0.25        # our slice of a fully-imbalanced λ move
+
+
+def advise_execution(alert: dict | None, *, kyle_lambda: float | None = None,
+                     spread_bps: float | None = None,
+                     velocity: float | None = None,
+                     toxic: bool | None = None) -> dict[str, Any]:
+    """TAKE (pay spread) vs WORK (patient limit) vs SKIP + slippage estimate.
+
+    Reads explicit kwargs first, alert-embedded fields second
+    (kyle_lambda / spread_bps / velocity_per_min / toxic). Fail-open:
+    no inputs → WORK with slippage None (patient default, never a
+    fabricated estimate).
+    """
+    a = alert if isinstance(alert, dict) else {}
+    lam = kyle_lambda if kyle_lambda is not None else a.get("kyle_lambda")
+    spr = spread_bps if spread_bps is not None else a.get("spread_bps")
+    vel = velocity if velocity is not None else a.get("velocity_per_min")
+    tox = toxic if toxic is not None else a.get("toxic")
+    try:
+        lam = float(lam) if lam is not None else None
+    except (TypeError, ValueError):
+        lam = None
+    try:
+        spr = float(spr) if spr is not None else None
+    except (TypeError, ValueError):
+        spr = None
+    try:
+        vel = float(vel) if vel is not None else None
+    except (TypeError, ValueError):
+        vel = None
+
+    slip = None
+    if spr is not None or lam is not None:
+        slip = round((spr or 0.0) / 2.0 + ADVISE_IMPACT_SLICE * (lam or 0.0) * 10000.0, 1)
+
+    if tox:
+        return {"action": "SKIP", "slippage_bps_est": slip,
+                "reason": "toxic tape — stand down"}
+    if (lam is not None and lam >= ADVISE_ILLIQ_LAMBDA
+            and spr is not None and spr >= ADVISE_SPREAD_XWIDE_BPS):
+        return {"action": "SKIP", "slippage_bps_est": slip,
+                "reason": "illiquid + untradable spread — no exit"}
+    hot = (vel is not None and vel >= ADVISE_HOT_VELOCITY)
+    tight = (spr is not None and spr <= ADVISE_SPREAD_TIGHT_BPS)
+    deep = (lam is not None and lam < ADVISE_LIQ_LAMBDA)
+    if hot and tight and deep:
+        return {"action": "TAKE", "slippage_bps_est": slip,
+                "reason": "hot + tight + deep — pay the spread"}
+    if spr is None and lam is None and vel is None:
+        return {"action": "WORK", "slippage_bps_est": None,
+                "reason": "no urgency inputs — patient default"}
+    return {"action": "WORK", "slippage_bps_est": slip,
+            "reason": "no urgency edge — work a limit"}
 
 
 def dedupe_alerts(alerts: list[dict]) -> list[dict]:
