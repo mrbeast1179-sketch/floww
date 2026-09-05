@@ -58,13 +58,18 @@ def _institutional_section(feed_status: str) -> dict:
         alerts = {"stored": None, "note": f"alert store unreadable: {e}"}
 
     try:
-        from routes.flowseeker import _calibration_blob
+        from routes.flowseeker import get_calibration_status
 
-        blob = _calibration_blob[1] if _calibration_blob else None
-        stage = (blob or {}).get("stage") if isinstance(blob, dict) else None
-        calibration: dict = {"stage": stage}
-        if stage is None:
-            calibration["note"] = "pending C accessor: staged calibration blob"
+        status = get_calibration_status() or {}
+        stage = status.get("stage")
+        calibration = {
+            "stage": stage,
+            "n": status.get("n"),
+            "method": status.get("method_note") or status.get("model_kind"),
+            "age_s": status.get("age_s"),
+        }
+        if stage in (None, 0):
+            calibration["note"] = "uncalibrated until stage >= 1 (min-n gates)"
     except Exception as e:
         calibration = {"stage": None, "note": f"calibration unreadable: {e}"}
 
