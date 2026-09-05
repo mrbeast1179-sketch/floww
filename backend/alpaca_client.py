@@ -137,3 +137,8 @@ class AlpacaClient:
             return {"message": f"Position {symbol} closed", "source": "alpaca"}
         return None
 
+    async def get_positions(self) -> list[dict] | None:
+        """List open paper positions (each with symbol + qty strings)."""
+        data = await self._get(f"{ALPACA_BASE_URL}/v2/positions")
+        return data if isinstance(data, list) else None
+

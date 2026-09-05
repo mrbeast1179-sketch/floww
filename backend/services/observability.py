@@ -131,16 +131,6 @@ websocket_connections = Gauge(
 )
 
 # ---------------------------------------------------------------------------
-# Schwab Auth Health
-# ---------------------------------------------------------------------------
-schwab_token_expires_in_seconds = Gauge(
-    "floww_schwab_token_expires_in_seconds",
-    "Seconds until Schwab OAuth token expires (0 if no token)",
-    registry=REGISTRY,
-)
-
-
-# ---------------------------------------------------------------------------
 # Helper: generate Prometheus exposition format
 # ---------------------------------------------------------------------------
 def get_metrics_bytes() -> bytes:

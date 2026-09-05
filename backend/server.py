@@ -1670,55 +1670,6 @@ async def stop_live_tape() -> dict:
     return {"status": "stopped", "stopped": True}
 
 
-# ============ Schwab Stubs (RETIRED 2026-09-03 — public-api-only policy) ============
-# floww has no Schwab account. routes/schwab.py returns 410 Gone with
-# /api/public/* replacements. These helpers are kept only so
-# legacy imports don't break; they always report retired.
-
-def get_schwab_auth_url() -> dict:
-    """Retired — Schwab removed, use /api/public/account."""
-    return {"error": "schwab_retired", "auth_url": None,
-            "replacement": "/api/public/account"}
-
-
-async def schwab_auth_handler(request: dict):
-    """Handle Schwab OAuth callback (stub).
-
-    Returns JSONResponse(503) so monitoring agents that filter on
-    status_code != 200 can detect the unconfigured state (gemini.py
-    JSONResponse precedent — commit 23baf34). The body shape is unchanged
-    (status=error, message=...) so the frontend error path is not affected.
-    """
-    return JSONResponse(
-        status_code=503,
-        content={"status": "error", "message": "Schwab auth not configured"},
-    )
-
-
-async def schwab_get_accounts() -> dict:
-    """Retired — use /api/public/account."""
-    return {"accounts": [], "error": "schwab_retired",
-            "replacement": "/api/public/account"}
-
-
-async def schwab_get_positions(account_hash: str) -> dict:
-    """Retired — use /api/public/portfolio."""
-    return {"positions": [], "error": "schwab_retired",
-            "replacement": "/api/public/portfolio"}
-
-
-async def schwab_get_sweeps(account_hash: str) -> dict:
-    """Retired — use /api/public/chain/{ticker}."""
-    return {"sweeps": [], "error": "schwab_retired",
-            "replacement": "/api/public/chain/SPY"}
-
-
-async def schwab_import_to_portfolio(name: str, account_hash: str) -> dict:
-    """Retired — use /api/public/portfolio."""
-    return {"status": "error", "error": "schwab_retired", "imported": 0,
-            "replacement": "/api/public/portfolio"}
-
-
 # ---------- Scheduled pre-fetch (APScheduler) ----------
 _scheduler_started = False
 _scheduler_task: asyncio.Task | None = None
@@ -1784,8 +1735,7 @@ async def _prefetch_paid_oi():
 
 async def _scheduler_loop():
     """Lightweight scheduler — fires once per day at PREFETCH_HHMM ET. No extra deps.
-    Also refreshes live policy from Mongo every 5 min for multi-worker sync.
-    Updates Schwab token TTL gauge every tick."""
+    Also refreshes live policy from Mongo every 5 min for multi-worker sync."""
     fired_for_date = None
     policy_refresh_counter = 0
     while True:
@@ -1795,21 +1745,6 @@ async def _scheduler_loop():
             if policy_refresh_counter >= 5:
                 policy_refresh_counter = 0
                 await _load_policy_from_mongo()
-
-            # Update Schwab token TTL metric
-            try:
-                from schwab import SchwabTokenManager
-                _tm = SchwabTokenManager()
-                _token = _tm.load()
-                if _token:
-                    _expires_at = _token.get("expires_at", 0)
-                    _now = datetime.now(UTC).timestamp()
-                    _ttl = max(0, _expires_at - _now)
-                    obs_metrics.schwab_token_expires_in_seconds.set(_ttl)
-                else:
-                    obs_metrics.schwab_token_expires_in_seconds.set(0)
-            except Exception:
-                obs_metrics.schwab_token_expires_in_seconds.set(0)
 
             # Update provider health Prometheus gauges from DataProviderMonitor
             try:
@@ -2667,6 +2602,10 @@ from routes.alpaca import router as alpaca_router
 
 app.include_router(alpaca_router, tags=["alpaca"])
 
+from routes.discord import router as discord_router
+
+app.include_router(discord_router, tags=["discord"])
+
 from routes.analytics import router as analytics_router
 
 app.include_router(analytics_router, prefix="/api", tags=["analytics"])
@@ -2756,10 +2695,6 @@ app.include_router(memory_router, prefix="/api", tags=["memory"])
 from routes.portfolio import router as portfolio_router
 
 app.include_router(portfolio_router, prefix="/api", tags=["portfolio"])
-
-from routes.schwab import router as schwab_router
-
-app.include_router(schwab_router, prefix="/api", tags=["schwab"])
 
 from routes.social_flow import router as social_flow_router
 

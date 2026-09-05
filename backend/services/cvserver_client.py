@@ -85,7 +85,7 @@ FIELD_MAP = {
 # GEX, marks, and the Trinity header chips can use cvforge data directly instead
 # of Black-Scholes re-computation / yfinance / blank fields. Trade-level flow
 # (bid/ask/trade_*) is structurally null in this snapshot feed — those stay 0 and
-# will be sourced from the Schwab tape later. Each field adds payload/parse cost;
+# will be sourced from a future trade-level tape. Each field adds payload/parse cost;
 # keep this list to what an actual consumer reads.
 DEFAULT_FIELDS = [
     "expiration_date", "strike_price", "contract_type",

@@ -123,13 +123,10 @@ async def test_live_policy_update(aclient):
 
 # ============ Schwab Tests (RETIRED 2026-09-03 — public-api-only) ============
 
-async def test_schwab_auth_url_no_credentials(aclient):
-    """Schwab retired — /api/schwab/* returns 410 with a public replacement."""
+async def test_schwab_auth_url_deleted(aclient):
+    """Schwab deleted 2026-09-06 — /api/schwab/* is 404, not 410."""
     r = await aclient.get("/api/schwab/auth-url")
-    assert r.status_code == 410
-    d = r.json()
-    assert d.get("error") == "schwab_retired"
-    assert "/api/public/" in d.get("replacement", "")
+    assert r.status_code == 404
 
 
 # ============ History Tests ============
