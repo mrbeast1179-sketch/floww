@@ -242,6 +242,13 @@ provider_alerts_fired_total = Counter(
     registry=REGISTRY,
 )
 
+quarantine_total = Counter(
+    "floww_quarantine_total",
+    "Total malformed provider payloads quarantined at the boundary (never raised)",
+    labelnames=["source", "reason"],  # reason: short snake_case code from contract_validators
+    registry=REGISTRY,
+)
+
 yfinance_calls_total = Counter(
     "floww_yfinance_calls_total",
     "Total yfinance calls (spot, chains, history)",
