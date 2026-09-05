@@ -2664,6 +2664,7 @@ from routes.public_api import router as public_api_router
 app.include_router(public_api_router, tags=["public_api"])
 
 from routes.public_brokerage import router as public_brokerage_router
+
 app.include_router(public_brokerage_router, prefix="/api", tags=["public_brokerage"])
 
 from routes.ml_predict_api import router as ml_predict_router

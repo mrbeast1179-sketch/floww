@@ -203,7 +203,7 @@ export default function Sidebar({ page, onNavigate, userEmail, userTier }) {
                     <span className="nav-icon" style={{ flexShrink: 0, color: active ? "var(--gold)" : "inherit" }}>
                       {getIcon(item.icon)}
                     </span>
-                    {!collapsed && <span className="truncate">{item.label}</span>}
+                    {!collapsed && <span className="truncate" title={item.label}>{item.label}</span>}
                     {!collapsed && item.badge === "NEW" && (
                       <span
                         className="mono ml-auto rounded px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider"

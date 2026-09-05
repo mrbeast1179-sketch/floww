@@ -266,9 +266,9 @@ async def get_orders() -> dict[str, Any]:
                     or raw.get("limitPrice")
                 ),
                 "time_in_force": getattr(o, "time_in_force", "") or raw.get("timeInForce", ""),
-                "created_at": getattr(o, "created_at", None) or raw.get("createdAt", None),
-                "updated_at": getattr(o, "updated_at", None) or raw.get("updatedAt", None),
-                "filled_at": getattr(o, "filled_at", None) or raw.get("filledAt", None),
+                "created_at": getattr(o, "created_at", None) or raw.get("createdAt"),
+                "updated_at": getattr(o, "updated_at", None) or raw.get("updatedAt"),
+                "filled_at": getattr(o, "filled_at", None) or raw.get("filledAt"),
             })
         except Exception:
             continue
@@ -306,7 +306,7 @@ async def get_account() -> dict[str, Any]:
     return {
         "ok": True,
         "account_id": getattr(account, "account_id", ""),
-        "account_number": getattr(account, "account_number", None) or acct_raw.get("accountId", None),
+        "account_number": getattr(account, "account_number", None) or acct_raw.get("accountId"),
         "status": getattr(account, "status", "unknown") or acct_raw.get("accountType", "unknown"),
         "total_account_value": _parse_money(
             getattr(account, "total_account_value", None)
@@ -375,7 +375,7 @@ async def place_order(request: dict[str, Any]) -> dict[str, Any]:
             raise HTTPException(status_code=422, detail={
                 "error": "bad_quantity",
                 "message": f"quantity must be a number, got {request.get('quantity')!r}",
-            })
+            }) from None
         if quantity <= 0:
             raise HTTPException(status_code=422, detail={
                 "error": "bad_quantity",
@@ -390,7 +390,7 @@ async def place_order(request: dict[str, Any]) -> dict[str, Any]:
             raise HTTPException(status_code=422, detail={
                 "error": "bad_price",
                 "message": "limit_price/stop_price must be numbers",
-            })
+            }) from None
         time_in_force = request.get("time_in_force", "DAY")
         instrument_type = request.get("instrument_type", "EQUITY")
         equity_market_session = request.get("equity_market_session")

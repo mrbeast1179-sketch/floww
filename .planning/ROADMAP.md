@@ -327,6 +327,13 @@ new `SkylitControlBar.test.jsx` (4) + `SkylitTickerBar.test.jsx` (3).
 
 ## Phase 9 control log (architect, append-only)
 
+- 2026-09-05: full-sweep closeout — Agent 2 compose verified on main
+  (PR #15/#16 merged; orphan modules mounting); tidehunter SHIP landed;
+  ruff FULL clean (45 auto-fixes + 2 B904); deploy.yml legacy-peer-deps
+  fix; truncate titles; Agent-2 branch fully merged (nothing unique left);
+  stale tidehunter panels deleted. Suites: backend 238 + frontend 413
+  green. Agents stood down — single-architect control from here.
+
 - 2026-09-04: route-shadowing kill — `GET /api/public/portfolio` was served
   by the RAW handler (registered first), shadowing the flattened UI contract
   (Broker tab showed "No positions" forever). Raw moved to

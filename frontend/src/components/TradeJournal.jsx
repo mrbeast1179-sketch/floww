@@ -370,7 +370,7 @@ export default function TradeJournal({ ticker }) {
                       {isPos ? "+" : ""}${pnl.toFixed(0)}
                     </div>
                     <div className={`w-full rounded-sm min-h-[2px] ${isPos ? "bg-emerald-500/60" : "bg-rose-500/60"}`} style={{ height: `${Math.max(height, 4)}%` }} />
-                    <div className="text-[6px] text-slate-600 truncate w-full text-center">{date.slice(5)}</div>
+                    <div className="text-[6px] text-slate-600 truncate w-full text-center" title={date}>{date.slice(5)}</div>
                   </div>
                 );
               })}

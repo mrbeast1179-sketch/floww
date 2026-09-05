@@ -207,7 +207,7 @@ function ApHeader({ page, ticker, onTickerChange, tickers, data, onSignOut, user
           <svg className="hidden lg:block" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ color: "var(--text-quaternary)" }}>
             <path d="M9 18l6-6-6-6"/>
           </svg>
-          <span className="truncate font-semibold" style={{ color: "var(--text-primary)" }}>{pageName}</span>
+          <span className="truncate font-semibold" title={pageName} style={{ color: "var(--text-primary)" }}>{pageName}</span>
         </div>
 
         {/* Right side actions */}
