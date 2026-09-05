@@ -938,6 +938,16 @@ async def _run_institutional_alerts(
                 "institutional alerts: %d fired (%s)",
                 len(fresh), ",".join(sorted({a["under"] for a in fresh})),
             )
+            # Discord webhook fan-out (fail-open, never breaks the scan path;
+            # no-op when DISCORD_WEBHOOK_URL is unset; tier/rule-gated).
+            try:
+                from services import discord_ops as _discord
+
+                posted = await _discord.post_alerts(fresh)
+                if posted:
+                    logger.info("discord webhook: %d alert(s) posted", posted)
+            except Exception as e:
+                logger.warning(f"discord notify failed (non-fatal): {e}")
     except Exception as e:
         logger.warning(f"institutional alert eval failed: {e}")
 
