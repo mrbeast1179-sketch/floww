@@ -122,37 +122,6 @@ function Movers({ onPick }) {
 }
 
 // ============ Nodes Table ============
-function NodesTable({ data }) {
-  if (!data?.nodes) return null;
-  return (
-    <div className="panel p-3" data-testid="nodes-table">
-      <div className="label mb-2">Key Nodes</div>
-      <div style={{ overflowX: "auto" }}>
-      <table className="w-full text-[11px] mono">
-        <thead className="text-slate-500 text-[10px] uppercase tracking-widest">
-          <tr>
-            <th className="text-left text-[10px] uppercase tracking-widest text-slate-500 font-normal px-2 py-1">Strike</th>
-            <th className="text-left text-[10px] uppercase tracking-widest text-slate-500 font-normal px-2 py-1">GEX</th>
-            <th className="text-left text-[10px] uppercase tracking-widest text-slate-500 font-normal px-2 py-1">Role</th>
-            <th className="text-left text-[10px] uppercase tracking-widest text-slate-500 font-normal px-2 py-1">Life</th>
-          </tr>
-        </thead>
-        <tbody>
-          {(data.nodes.key_nodes || []).map((n, i) => (
-            <tr key={i} className="bar-row">
-              <td className="px-2 py-1">{fmt(n.strike, 0)}</td>
-              <td className={`px-2 py-1 ${n.gex > 0 ? "text-emerald-400" : "text-rose-400"}`}>{n.gex > 0 ? "+" : ""}{fmtAbs(n.gex)}</td>
-              <td className="px-2 py-1"><span className={`tag ${n.role}`}>{n.role}</span></td>
-              <td className="px-2 py-1 text-slate-500">{n.life || "—"}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-      </div>
-    </div>
-  );
-}
-
 // ============ Ticker Search ============
 // Open universe (2026-09-03, Nav-approved): Enter submits free text — any
 // symbol, not just the suggestion list. Backend accepts arbitrary tickers.

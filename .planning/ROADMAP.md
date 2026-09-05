@@ -331,8 +331,9 @@ new `SkylitControlBar.test.jsx` (4) + `SkylitTickerBar.test.jsx` (3).
   Fixed: flow-alert gate drift (DEFAULT_EVAL_OPTS extracted, gate pinned
   once, logic tests decoupled); cvserver None-greeks (contract + chain
   rows coerce to 0.0); QQQ costsave expectation aligned to documented
-  priority; greeks 400→404 (open universe); NodesTable scroll wrapper.
-  Deferred honestly: 16 AUTO cards (model training/cosmetic backlog),
+  priority; greeks 400→404 (open universe); NodesTable deleted outright
+  (defined-never-rendered; tree-shaken before, zero bundle delta proving
+  it). Deferred honestly: 16 AUTO cards (model training/cosmetic backlog),
   6.3/6.5 promoted phases, silent-except detector (would redden CI),
   dteBand dead key + 1-7d/weekly alias (Agent-2 filter semantics).
 
