@@ -66,7 +66,7 @@ rule that no weight changes ship without an evaluator + 30-min outcome read (W5/
 
 ```
 def signed_score(row):
-    if row.bid<=0 or row.ask<=0 or row.ask<=row.bid or row.last<=0:
+    if row.bid <= 0 or row.ask <= 0 or row.ask <= row.bid:
         return UNAVAILABLE("NO_QUOTE")
     sp = clamp((row.last-row.bid)/(row.ask-row.bid),0,1)
     mid = (row.bid+row.ask)/2
