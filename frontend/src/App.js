@@ -47,8 +47,6 @@ import { SocialFlowPanel } from "./components/SocialFlowPanel";
 import SkylitDashboard from "./components/heatseeker/SkylitDashboard";
 import StealThreePreview from "./components/heatseeker/StealThreePreview";
 import FlowseekerProBlademap from "./components/flowseeker/FlowseekerProBlademap";
-import Wtipanel from "./components/Wtipanel";
-import RussellPanel from "./components/RussellPanel";
 import PublicPanel from "./components/PublicPanel";
 import AlertOverlay from "./components/AlertOverlay";
 import PWAInstallBanner from "./components/PWAInstallBanner";

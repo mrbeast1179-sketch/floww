@@ -21,25 +21,6 @@ import Tracker from "./tracker/Tracker";
 import { widenActions, applyFilters, defaultFilterState } from "./filters/filterState";
 import "./FlowseekerProBlademap.css";
 
-// Ownership boundary: Wtipanel + RussellPanel live in App.js's product
-// feature lane (another agent, backend-owned routes /api/wti/vol and
-// /api/pairs/scan). My lane does not own them. Static imports of untracked
-// files break clean checkouts (Phantom-import bug, flagged in
-// tidehunter-ship-waves-report.md line 32). Defer to runtime import so the
-// crash is impossible: a missing panel renders an honest empty card, not a
-// white-screen import error. If the owning agent later commits the real
-// panels, this guard auto-resolves to them.
-const MaybeWtipanel = React.lazy(() =>
-  import("../Wtipanel").then(m => ({ default: m.default })).catch(() =>
-    Promise.resolve({ default: () => <div className="fsb-panel fsb-empty">WTI view — not wired yet</div> })
-  )
-);
-const MaybeRussellPanel = React.lazy(() =>
-  import("../RussellPanel").then(m => ({ default: m.default })).catch(() =>
-    Promise.resolve({ default: () => <div className="fsb-panel fsb-empty">Russell pairs view — not wired yet</div> })
-  )
-);
-
 const API = `${BACKEND_URL}/api/flowseeker`;
 const WATCH = ["SPY", "QQQ", "IWM", "NVDA", "TSLA", "AAPL", "MSFT", "AMZN", "META", "GOOGL"];
 const NOISE_FLOOR = 5; // ignore day-volume deltas below this many contracts
@@ -581,7 +562,7 @@ export default function FlowseekerProBlademap({ active = true }) {
 
   const microRef = useRef({});            // { vpin, regimeConf, lambdaR2 } for selected ticker
   const gaugeRef = useRef(null), radarRef = useRef(null), ofiRef = useRef(null);
-  const gexRef = useRef(null), gammaBarRef = useRef(null), gammaCurveRef = useRef(null);
+  const gexRef = useRef(null);
   const ofiDataRef = useRef(null), gexDataRef = useRef(null);
 
   // Plotly CDN
@@ -1211,33 +1192,10 @@ export default function FlowseekerProBlademap({ active = true }) {
     { displayModeBar: false, responsive: true });
   }
 
-  // gamma profile from REAL heatmap net-GEX per strike
-  function drawGamma() {
-    if (!P() || !gammaBarRef.current) return;
-    const h = gexDataRef.current, grid = h?.grid?.grid, expiries = h?.grid?.expiries || [];
-    const strikes = (h?.grid?.strikes || []).slice().sort((a, b) => a - b);
-    if (!grid || !strikes.length) return;
-    const net = strikes.map((s) => expiries.reduce((a, e) => a + Number(grid?.[e]?.[String(s)] ?? 0), 0));
-    P().react(gammaBarRef.current, [{ type: "bar", x: strikes.map((s) => `$${s}`), y: net,
-      marker: { color: net.map((v) => (v >= 0 ? PL.green : PL.red)) },
-      hovertemplate: "%{x}<br>Net GEX %{y:.2f}<extra></extra>" }],
-    { paper_bgcolor: PL.paper, margin: { l: 44, r: 12, t: 24, b: 40 }, title: { text: "Net GEX by Strike", font: { color: PL.text, size: 11 } },
-      xaxis: { color: PL.muted, gridcolor: PL.grid }, yaxis: { color: PL.muted, gridcolor: PL.grid, zeroline: true, zerolinecolor: PL.axis }, font: { family: PL.font } },
-    { displayModeBar: false, responsive: true });
-    let cum = 0; const cumA = net.map((v) => (cum += v));
-    if (gammaCurveRef.current) P().react(gammaCurveRef.current, [{ type: "scatter", mode: "lines", x: strikes.map((s) => `$${s}`), y: cumA,
-      line: { color: PL.blue, width: 2 }, fill: "tozeroy", fillcolor: "rgba(41,197,224,0.10)",
-      hovertemplate: "%{x}<br>Cum %{y:.2f}<extra></extra>" }],
-    { paper_bgcolor: PL.paper, margin: { l: 44, r: 12, t: 24, b: 40 }, title: { text: "Cumulative Dealer Gamma", font: { color: PL.text, size: 11 } },
-      xaxis: { color: PL.muted, gridcolor: PL.grid }, yaxis: { color: PL.muted, gridcolor: PL.grid }, font: { family: PL.font } },
-    { displayModeBar: false, responsive: true });
-  }
-
   // redraw when tab/subtab/plotly changes
   useEffect(() => {
     if (!plotlyReady) return;
     if (tab === "flow") { if (subtab === "ofi") drawOFI(); else drawGEX(); if (selected) { drawGauge(selected); drawRadar(selected); } }
-    if (tab === "gamma") drawGamma();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tab, subtab, plotlyReady]);
 
@@ -1245,12 +1203,11 @@ export default function FlowseekerProBlademap({ active = true }) {
   const typeOf = (p) => String(p.classification || "reg").toUpperCase();
 
   // ---------- render ----------
-  // Focused on institutional smart order flow — dropped Vol Surface (synthetic) + Academy (education).
+  // Focused on institutional smart order flow + cross-symbol scanner.
+  // WTI Crude, Stat-Arb Pairs, and Dealer Positioning tabs removed
+  // 2026-09-04 (Nav directive: failed experiments). Scanner is the hero.
   const TABS = [
     ["flow", "Smart Order Flow"],
-    ["gamma", "Dealer Positioning"],
-    ["wti", "WTI Crude"],
-    ["pairs", "Stat-Arb Pairs"],
     ["scanner", "Scanner"],
   ];
   return (
@@ -1580,36 +1537,6 @@ export default function FlowseekerProBlademap({ active = true }) {
             <div className="fsb-drawer-note fsb-muted fsb-small">Sweep = multi-exchange urgency proxy (cvserver has no venue tape). Ov-bar NetPrem = 90s rolled tape sum — reconcile if diverged (P0).</div>
           </div>
         )}
-
-        {/* GAMMA VIEW */}
-        <div className={`fsb-view${tab === "gamma" ? " active" : ""}`} style={{ gridTemplateColumns: "1fr" }}>
-          <div className="fsb-panel">
-            <div className="fsb-panel-h"><span>Dealer Gamma Exposure · {ticker}</span><span className="fsb-muted fsb-small">real cvforge GEX</span></div>
-            <div className="fsb-gamma-grid">
-              <div ref={gammaBarRef} className="fsb-chart" />
-              <div ref={gammaCurveRef} className="fsb-chart" />
-            </div>
-            <div className="fsb-notes"><strong>Read:</strong> red bars = dealer short-gamma (hedging amplifies moves), green = long-gamma (dampens). The cumulative line crosses zero at gamma-flip levels.</div>
-          </div>
-        </div>
-
-        {/* WTI VIEW — HAR-IV crude oil vol forecast */}
-        <div className={`fsb-view${tab === "wti" ? " active" : ""}`} style={{ gridTemplateColumns: "1fr" }}>
-          <div className="fsb-panel fsb-wti-wrap">
-            <React.Suspense fallback={<div className="fsb-wti-spinner" />}>
-              <MaybeWtipanel />
-            </React.Suspense>
-          </div>
-        </div>
-
-        {/* PAIRS VIEW — Russell 3000 stat-arb scanner */}
-        <div className={`fsb-view${tab === "pairs" ? " active" : ""}`} style={{ gridTemplateColumns: "1fr" }}>
-          <div className="fsb-panel fsb-pairs-wrap">
-            <React.Suspense fallback={<div className="fsb-pairs-spinner" />}>
-              <MaybeRussellPanel />
-            </React.Suspense>
-          </div>
-        </div>
 
         {/* SCANNER VIEW — cross-symbol BladeMap scanner (scenner34 grid) */}
         <div className={`fsb-view${tab === "scanner" ? " active" : ""}`} style={{ gridTemplateColumns: "1fr" }}>

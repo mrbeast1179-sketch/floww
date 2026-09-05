@@ -40,7 +40,7 @@ async def quant_signal_catalog(
 
     signals: list[dict[str, Any]] = []    # --- GEX regime signals (from signal_translator / GEX core) ---
     try:
-        from signal_translator import translate_signal, SignalInput
+        from signal_translator import SignalInput, translate_signal
 
         regime_result = translate_signal(SignalInput(
             ticker=t,
@@ -191,7 +191,7 @@ async def quant_signal_catalog(
 
     # --- IV surface metrics ---
     try:
-        from vol_analytics import calc_skew_metrics
+        pass
 
         # calc_skew_metrics requires spot + contracts; we don't have those here
         # so skip for now — iv_skew is best fetched from /api/quant/full
@@ -200,7 +200,7 @@ async def quant_signal_catalog(
 
     # --- Charm estimate (delta decay proxy) ---
     try:
-        from advanced_analytics import calc_charm_integral
+        pass
 
         # calc_charm_integral requires ticker + contracts; needs option chain data
         # so skip for now — charm is best fetched from /api/quant/full
