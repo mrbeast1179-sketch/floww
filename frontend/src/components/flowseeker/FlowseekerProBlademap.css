@@ -116,6 +116,11 @@
   background: linear-gradient(180deg, #14120b, #0b0d12);
   flex-shrink: 0;
 }
+/* Narrow screens: let brand/tabs/meta wrap instead of clipping off-screen. */
+@media (max-width: 1100px) {
+  .fsb-topbar { display: flex; flex-wrap: wrap; row-gap: 8px; }
+  .fsb-meta { margin-left: auto; }
+}
 .fsb-brand { display: flex; align-items: center; gap: 10px; }
 .fsb-logo {
   display: inline-flex; align-items: center; justify-content: center;
@@ -159,7 +164,7 @@
   font-size: 12px; font-weight: 700; letter-spacing: 0.6px; text-transform: uppercase;
   color: var(--fsb-text2); padding-bottom: 8px; margin-bottom: 8px; border-bottom: 1px solid var(--fsb-border);
 }
-.fsb-col { display: flex; flex-direction: column; gap: var(--fsb-gap); min-height: 0; }
+.fsb-col { display: flex; flex-direction: column; gap: var(--fsb-gap); min-height: 0; min-width: 0; }
 
 /* Ticker free-text focus (open universe — replaces the old watchlist) */
 .fsb-ticker-input {
@@ -198,10 +203,10 @@
 .fsb-dot.block { background: var(--fsb-purple); border-radius: 2px; width: 10px; height: 10px; }
 
 /* Flow feed */
-.fsb-flow-panel { flex: 1 1 56%; min-height: 0; }
+.fsb-flow-panel { flex: 1 1 56%; min-height: 0; min-width: 0; }
 .fsb-sub-panel { flex: 1 1 44%; min-height: 260px; }
 .fsb-flow-wrap { overflow: auto; flex: 1; min-height: 0; }
-.fsb-table { width: 100%; font-family: var(--fsb-mono); font-size: 12px; border-collapse: separate; border-spacing: 0; }
+.fsb-table { width: 100%; min-width: 1080px; font-family: var(--fsb-mono); font-size: 12px; border-collapse: separate; border-spacing: 0; }
 .fsb-table thead th {
   position: sticky; top: 0; background: var(--fsb-panel2); color: var(--fsb-muted);
   text-align: left; font-weight: 600; font-size: 10.5px; letter-spacing: 0.6px;

@@ -166,7 +166,7 @@ async def get_portfolio() -> dict[str, Any]:
                 "current_price": _parse_money(
                     getattr(pos, "last_price", None)
                     or (raw.get("lastPrice") if isinstance(raw, dict) else None)
-                    or (instrument.get("lastPrice", {}).get("lastPrice") if isinstance(instrument, dict) else None)
+                    or ((instrument.get("lastPrice") or {}).get("lastPrice") if isinstance(instrument, dict) else None)
                 ),
                 "market_value": current_value,
                 "cost_basis": cost_basis,
@@ -369,9 +369,28 @@ async def place_order(request: dict[str, Any]) -> dict[str, Any]:
         symbol = request.get("symbol", "")
         side = request.get("side", "BUY")
         order_type = request.get("order_type", "MARKET")
-        quantity = float(request.get("quantity", 1))
+        try:
+            quantity = float(request.get("quantity", 1))
+        except (TypeError, ValueError):
+            raise HTTPException(status_code=422, detail={
+                "error": "bad_quantity",
+                "message": f"quantity must be a number, got {request.get('quantity')!r}",
+            })
+        if quantity <= 0:
+            raise HTTPException(status_code=422, detail={
+                "error": "bad_quantity",
+                "message": "quantity must be positive",
+            })
         limit_price = request.get("limit_price")
         stop_price = request.get("stop_price")
+        try:
+            limit_price = float(limit_price) if limit_price else None
+            stop_price = float(stop_price) if stop_price else None
+        except (TypeError, ValueError):
+            raise HTTPException(status_code=422, detail={
+                "error": "bad_price",
+                "message": "limit_price/stop_price must be numbers",
+            })
         time_in_force = request.get("time_in_force", "DAY")
         instrument_type = request.get("instrument_type", "EQUITY")
         equity_market_session = request.get("equity_market_session")
@@ -410,6 +429,8 @@ async def place_order(request: dict[str, Any]) -> dict[str, Any]:
             "created_at": order.created_at,
             "data_source": "public_api",
         }
+    except HTTPException:
+        raise
     except Exception as exc:
         logging.getLogger(__name__).warning("Public.com place_order failed: %s", exc)
         raise HTTPException(status_code=502, detail={
