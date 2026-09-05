@@ -151,6 +151,8 @@ export function evalAlerts(rows, opts = {}) {
     // omitted-opts callers inherit desk gates, never the old loose values.
     minScore = 92,
     whalePremium = 25e6,
+    primePremium = 250e3,
+    primeVolOI = 5,
     zeroDteScore = 85,
     oiConfPct = 0.30,
     oiConfNotional = 1e6,
@@ -161,7 +163,7 @@ export function evalAlerts(rows, opts = {}) {
     // evaluated everything). This is a NOTIFICATION throttle, not a universe
     // limit — every ticker is still evaluated.
     perTickerCap = 2,
-    enabled = { score: true, whale: true, zerodte: true, oiconf: true },
+    enabled = { score: true, whale: true, zerodte: true, oiconf: true, prime: true },
   } = opts;
   // key is rule-namespaced so dedup ttls stay independent across rules — a
   // SCORE fire yesterday afternoon must not suppress this morning's OICONF
@@ -227,6 +229,13 @@ export function evalAlerts(rows, opts = {}) {
     } else if (enabled.whale && r.premium != null && r.premium >= (enabled.whaleMin ?? whalePremium)) {
       rule = "WHALE";
       why = `~${fmtUSD(r.premium)} estimated premium on a single line`;
+    } else if (enabled.prime && (r.premium ?? 0) >= primePremium && (r.volOI ?? 0) >= primeVolOI) {
+      // PRIME — the 55-62% UOA bracket sits BELOW whale size: a $25M+ line
+      // is whale flow first. PRIME catches sub-whale mid-cap institutional
+      // building that never clears SCORE≥92 (the SNDK gap).
+      // Server parity: flow_alerts.eval_institutional Pass 2.
+      rule = "PRIME";
+      why = `prime print — ~${fmtUSD(r.premium)} premium at ${(r.volOI ?? 0).toFixed(1)}× OI, score ${r.score} (55-62% directional bracket)`;
     } else if (enabled.zerodte && r.dte != null && r.dte <= 1 && r.score >= zeroDteScore && (r.volOI ?? 0) >= 2) {
       rule = "0DTE";
       why = `${r.dte} DTE with score ${r.score} — urgent short-fuse positioning`;
@@ -234,11 +243,11 @@ export function evalAlerts(rows, opts = {}) {
     if (!rule) continue;
     out.push(mkHit(r, rule, { why }));
   }
-  // Per-ticker cap — contract rules only, priority order OICONF > WHALE >
-  // SCORE > 0DTE (mirrors the fire-banner precedence). OICONF pass-1 hits are
+  // Per-ticker cap — contract rules only, priority order OICONF > SCORE >
+  // WHALE > PRIME > 0DTE (mirrors the rule precedence). OICONF pass-1 hits are
   // exempt (already capped at top-5 globally by % build).
   if (perTickerCap > 0) {
-    const prio = { SCORE: 0, WHALE: 1, "0DTE": 2 };
+    const prio = { SCORE: 0, WHALE: 1, PRIME: 2, "0DTE": 3 };
     const perTicker = new Map();
     const kept = [];
     for (const h of out) {

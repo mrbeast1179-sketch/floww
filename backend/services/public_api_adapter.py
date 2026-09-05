@@ -243,6 +243,10 @@ async def _fetch_chain_live(
                 except (ValueError, TypeError):
                     continue
                 T = max((exp_d - today).days, 1) / 365.0
+                # NBBO mid from the paid feed — the executable-reference price.
+                # Downstream side inference (last vs mid) and premium math must
+                # use this instead of BS estimates whenever it exists.
+                mid = oc.mid
                 contracts.append({
                     "osi": oc.symbol,  # OSI symbol for order placement (e.g. SPY260904C00760000)
                     "expiry": oc.expiration,
@@ -260,6 +264,10 @@ async def _fetch_chain_live(
                     "vega": oc.vega,
                     "bid": oc.bid,
                     "ask": oc.ask,
+                    "mid": mid,
+                    "last": oc.last,
+                    "bid_size": oc.bid_size,
+                    "ask_size": oc.ask_size,
                     "volume": oc.volume or 0,
                     "oi_source": "public_api",
                 })
@@ -299,6 +307,71 @@ async def fetch_spot_from_public_api(
         log.warning("Public API spot fail for %s: %s", ticker, e)
         return None
     return None
+
+
+# ---------------------------------------------------------------------------
+# Nested-shape transform (flowseeker /chain/{symbol} contract).
+#
+# That route's frontend (FlowseekerProTab) expects the cvserver nested shape:
+#   params: ["strike","bid","ask","lastPrice","volume","openInterest","impliedVolatility"]
+#   chain: [{expiration, strikes: [[strike, call_vals(6), put_vals(6)], ...]}]
+# This reshapes a paid Public chain into it so /chain can serve Public-first
+# with zero frontend changes. Pure — unit-tested without network.
+# ---------------------------------------------------------------------------
+
+_NESTED_PARAMS = ["strike", "bid", "ask", "lastPrice", "volume", "openInterest", "impliedVolatility"]
+
+
+def public_to_nested(result: dict[str, Any] | None) -> dict[str, Any] | None:
+    """Public flat chain → cvserver nested chain shape. None when empty."""
+    if not isinstance(result, dict):
+        return None
+    contracts = result.get("contracts") or []
+    if not contracts:
+        return None
+    ticker = str(result.get("ticker") or "").upper()
+
+    def _num(v: Any) -> float | None:
+        try:
+            return float(v) if v is not None else None
+        except (TypeError, ValueError):
+            return None
+
+    by_exp: dict[str, dict[float, dict[str, list]]] = {}
+    for c in contracts:
+        if not isinstance(c, dict):
+            continue
+        exp = str(c.get("expiry") or "")
+        try:
+            strike = float(c.get("strike") or 0)
+        except (TypeError, ValueError):
+            continue
+        if not exp or strike <= 0:
+            continue
+        last = _num(c.get("last"))
+        mid = _num(c.get("mid"))
+        vals = [
+            _num(c.get("bid")), _num(c.get("ask")),
+            last if last is not None else mid,
+            _num(c.get("volume")), _num(c.get("oi")), _num(c.get("iv")),
+        ]
+        bucket = by_exp.setdefault(exp, {})
+        legs = bucket.setdefault(strike, {"call": [None] * 6, "put": [None] * 6})
+        if str(c.get("type") or "").lower().startswith("c"):
+            legs["call"] = vals
+        else:
+            legs["put"] = vals
+
+    chain = [
+        {
+            "expiration": exp,
+            "strikes": [[k, v["call"], v["put"]] for k, v in sorted(bucket.items())],
+        }
+        for exp, bucket in sorted(by_exp.items())
+    ]
+    if not chain:
+        return None
+    return {"symbol": ticker, "params": list(_NESTED_PARAMS), "chain": chain}
 
 
 # ---------------------------------------------------------------------------
@@ -359,11 +432,14 @@ async def fetch_bars_from_public_api(
     ticker: str,
     interval: str = "daily",
     instrument_type: str = "EQUITY",
+    period: str | None = None,
+    aggregation: str | None = None,
 ) -> list[dict[str, Any]] | None:
     """Fetch OHLCV bars from Public API. None when unavailable.
 
     `interval` accepts alpha-style labels: 1min/5min/15min/30min/60min,
-    daily/weekly/monthly.
+    daily/weekly/monthly. Explicit `period`/`aggregation` (e.g. from the
+    C13 bars provider) override the label mapping when both are given.
     """
     pb = await _get_broker()
     if pb is None:
@@ -372,9 +448,11 @@ async def fetch_bars_from_public_api(
     if trading is None:
         return None
     symbol = _normalize_symbol(ticker)
-    period, aggregation = _INTERVAL_MAP.get(interval, ("YEAR", "ONE_DAY"))
+    default_period, default_agg = _INTERVAL_MAP.get(interval, ("YEAR", "ONE_DAY"))
+    eff_period = period or default_period
+    eff_agg = aggregation if aggregation is not None else default_agg
     try:
-        raw = await pb.get_bars(symbol, period, instrument_type, aggregation)
+        raw = await pb.get_bars(symbol, eff_period, instrument_type, eff_agg)
     except Exception as e:
         log.warning("Public API bars fail for %s %s: %s", ticker, interval, e)
         return None

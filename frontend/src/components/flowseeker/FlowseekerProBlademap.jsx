@@ -204,10 +204,10 @@ const ALERTSEEN_KEY = "fsb-scan-alertseen-v1";
 // saved thresholds (merge only fills keys that don't exist yet), so nobody's
 // setup changes under them without a click.
 const DEFAULT_RULES = {
-  oiconf: true, follow: true, sigma: true, score: true, whale: true, zerodte: true,
+  oiconf: true, follow: true, sigma: true, score: true, prime: true, whale: true, zerodte: true,
   scoreMin: 92, whaleMin: 25e6, sigmaMin: 6, followMin: 3,
 };
-const RULES_ORDER = ["OICONF", "FOLLOW", "SIGMA", "SCORE", "WHALE", "0DTE", "SOURCE"];
+const RULES_ORDER = ["OICONF", "FOLLOW", "SIGMA", "SCORE", "WHALE", "PRIME", "0DTE", "SOURCE"];
 const FIRSTSEEN_KEY = "fsb-scan-firstseen-v1";
 const LASTSEEN_KEY = "fsb-scan-lastseen-v1";
 function loadScanPrefs() {
@@ -485,7 +485,7 @@ export default function FlowseekerProBlademap({ active = true }) {
   // Force refresh via the backend's debounced /scan/refresh, then re-poll.
   const forceRefresh = useCallback(async () => {
     setForcing(true);
-    try { await fetch(`${API}/scan/refresh?limit=300`, { method: "POST" }); } catch { /* GET below will serve cache */ }
+    try { await fetch(`${API}/scan/refresh?limit=500`, { method: "POST" }); } catch { /* GET below will serve cache */ }
     setForcing(false);
     setRefreshTick((t) => t + 1);
   }, []);
@@ -520,7 +520,7 @@ export default function FlowseekerProBlademap({ active = true }) {
       // SIGMA compares today's coverage against baselines recorded from the
       // market-wide path, so it only runs on market-mode scans.
       ...evalTickerAlerts(tickerRollup(rows, 1e9), baselinesRef.current, streaksRef.current,
-        { enabled: { ...cfg.enabled, sigma: !!cfg.enabled.sigma && mode === "market" }, allow: cfg.allow }),
+        { enabled: { ...cfg.enabled, sigma: !!cfg.enabled.sigma && (mode === "market" || mode === "public") }, allow: cfg.allow }),
     ];
     if (!hits.length) return;
     const now = Date.now();
@@ -687,64 +687,98 @@ export default function FlowseekerProBlademap({ active = true }) {
       try { await runOnce(); } finally { inFlight = false; }
     };
     const runOnce = async () => {
-      // Path A: market-wide backend endpoint (columns: underlying,ticker,type,
-      // strike,exp,day_volume,oi,iv,delta,spot) + per-ticker regimes map.
+      // Shared ingest for BOTH scan sources (identical 10 columns).
+      const ingestPayload = (d) => {
+        const regimes = { ...(d.regimes || {}) };
+        // Dealer-regime fill (paid path only): the heatmap regime wins when
+        // present; paid gamma walls cover tickers the heatmap cache hasn't
+        // seen — same merge the server alert pipeline applies.
+        for (const [t, dd] of Object.entries(d.dealer || {})) {
+          if (!regimes[t] && dd && (dd.regime === "negative" || dd.regime === "positive")) regimes[t] = dd.regime;
+        }
+        // Quote-truth extras (paid path only), keyed by contract identity.
+        const truth = d.quote_truth || {};
+        const prevOI = d.prev_oi || {};
+        // ΔOI hygiene tags (server: services/oi_hygiene.py) — keyed by OCC
+        // ticker here; expired-today contracts are nulled locally as a
+        // fallback when the server predates the tag payload.
+        const oiTags = d.oi_tags || {};
+        const occTag = (occ) => {
+          const t = oiTags[occ];
+          if (t) return t;
+          const m = typeof occ === "string" && occ.match(/(\d{6})[CP]\d+$/);
+          if (m) {
+            const ey = 2000 + parseInt(m[1].slice(0, 2), 10);
+            const exp = `${ey}-${m[1].slice(2, 4)}-${m[1].slice(4, 6)}`;
+            const today = new Date().toISOString().slice(0, 10);
+            if (exp <= today) return { expiring: true, rollover: false, earnings: null };
+          }
+          return null;
+        };
+        const rows = d.rows.map((r) => {
+          const row = mkScanRow(r[0], r[2], r[3], r[4], Number(r[5]) || 0, Number(r[6]) || 0,
+            r[7], r[8], Number(r[9]) || null, regimes[r[0]] || null);
+          // Paid quote truth: true premium replaces the BS estimate for
+          // the PRIME/WHALE money gates; NBBO side + velocity ride along
+          // for display and future sorting (never fabricated when absent).
+          const xt = truth[`${row.under}|${row.type}|${row.strike}|${row.exp}`];
+          if (xt) {
+            if (xt.premium_true != null && xt.premium_true > 0) row.premium = xt.premium_true;
+            if (xt.nbbo_side === "ASK" || xt.nbbo_side === "BID") row.nbbo = xt.nbbo_side;
+            if (xt.velocity_per_min != null) row.velocity = xt.velocity_per_min;
+          }
+          // Join yesterday's OI for this exact contract (OCC ticker r[1]).
+          const tag = occTag(r[1]);
+          row.oiTag = tag || null;   // surface hygiene state even when ΔOI is nulled
+          row.oiChg = (tag && (tag.expiring || tag.rollover))
+            ? null
+            : oiChange(row.oi, prevOI[r[1]]);
+          if (row.oiChg && tag) row.oiChg.tag = tag;   // engine + UI consume
+          row.oiChgPct = row.oiChg ? row.oiChg.pct : null;   // sortable scalar
+          return row;
+        });
+        const marked = markNew(rows, prevKeysRef, d.source === "public-scan" ? "public" : "market");
+        firstSeenRef.current = annotateFirstSeen(marked, firstSeenRef.current).seen;
+        try { localStorage.setItem(FIRSTSEEN_KEY, JSON.stringify(firstSeenRef.current)); } catch { /* private mode */ }
+        ingestAlerts(marked, d.source === "public-scan" ? "public" : "market");
+        setScan(marked);
+        const nSyms = new Set(rows.map((x) => x.under)).size;
+        if (d.baselines) setBaselines(d.baselines);
+        setScanMeta({ mode: "market", stale: !!d.stale, symbols: nSyms,
+          age: d.cache_age_seconds ?? 0, retry: d.retry_after_seconds ?? null,
+          ttl: d.scan_ttl ?? 60, budget: d.budget ?? null, data_source: d.source === "public-scan" ? "public" : "cvserver", coverage: d.coverage || null });
+        noteSourceFlip("market", nSyms);
+        setScanAt(new Date().toLocaleTimeString());
+        return;   // a 200 with rows[] is authoritative — even when empty
+      };
+      // Path P (primary, paid): Public universe scan — same 10 columns as
+      // /scan plus quote_truth extras (true premium, NBBO side, velocity)
+      // and dealer walls, joined below. Falls through to cvserver on ANY
+      // failure: the paid feed is primary, cvserver is strict failover.
       try {
-        const d = await getJSON(`${API}/scan?limit=300`, ctrl.signal);
+        const d = await getJSON(`${API}/scan-public?slice_size=8`, ctrl.signal);
+        if (cancelled) return;
+        if (d && Array.isArray(d.rows)) { ingestPayload(d); return; }
+      } catch (e) {
+        if (cancelled || e?.name === "AbortError") return;
+        // fall through to the cvserver failover path
+      }
+      // Path C (failover): cvserver market-wide screen (columns:
+      // underlying,ticker,type, strike,exp,day_volume,oi,iv,delta,spot)
+      // + per-ticker regimes map.
+      try {
+        const d = await getJSON(`${API}/scan?limit=500`, ctrl.signal);
         if (cancelled) return;
         if (d && Array.isArray(d.rows)) {
-          const regimes = d.regimes || {};
-          const prevOI = d.prev_oi || {};
-          // ΔOI hygiene tags (server: services/oi_hygiene.py) — keyed by OCC
-          // ticker here; expired-today contracts are nulled locally as a
-          // fallback when the server predates the tag payload.
-          const oiTags = d.oi_tags || {};
-          const occTag = (occ) => {
-            const t = oiTags[occ];
-            if (t) return t;
-            const m = typeof occ === "string" && occ.match(/(\d{6})[CP]\d+$/);
-            if (m) {
-              const ey = 2000 + parseInt(m[1].slice(0, 2), 10);
-              const exp = `${ey}-${m[1].slice(2, 4)}-${m[1].slice(4, 6)}`;
-              const today = new Date().toISOString().slice(0, 10);
-              if (exp <= today) return { expiring: true, rollover: false, earnings: null };
-            }
-            return null;
-          };
-          const rows = d.rows.map((r) => {
-            const row = mkScanRow(r[0], r[2], r[3], r[4], Number(r[5]) || 0, Number(r[6]) || 0,
-              r[7], r[8], Number(r[9]) || null, regimes[r[0]] || null);
-            // Join yesterday's OI for this exact contract (OCC ticker r[1]).
-            const tag = occTag(r[1]);
-            row.oiTag = tag || null;   // surface hygiene state even when ΔOI is nulled
-            row.oiChg = (tag && (tag.expiring || tag.rollover))
-              ? null
-              : oiChange(row.oi, prevOI[r[1]]);
-            if (row.oiChg && tag) row.oiChg.tag = tag;   // engine + UI consume
-            row.oiChgPct = row.oiChg ? row.oiChg.pct : null;   // sortable scalar
-            return row;
-          });
-          const marked = markNew(rows, prevKeysRef, "market");
-          firstSeenRef.current = annotateFirstSeen(marked, firstSeenRef.current).seen;
-          try { localStorage.setItem(FIRSTSEEN_KEY, JSON.stringify(firstSeenRef.current)); } catch { /* private mode */ }
-          ingestAlerts(marked, "market");
-          setScan(marked);
-          const nSyms = new Set(rows.map((x) => x.under)).size;
-          if (d.baselines) setBaselines(d.baselines);
-          setScanMeta({ mode: "market", stale: !!d.stale, symbols: nSyms,
-            age: d.cache_age_seconds ?? 0, retry: d.retry_after_seconds ?? null,
-            ttl: d.scan_ttl ?? 60, budget: d.budget ?? null });
-          noteSourceFlip("market", nSyms);
-          setScanAt(new Date().toLocaleTimeString());
+          ingestPayload(d);
           return;   // a 200 with rows[] is authoritative — even when empty
         }
       } catch (e) {
         if (cancelled || e?.name === "AbortError") return;
-        // Backend answered 502/503 (upstream rate-limited or hourly budget
-        // spent): keep the last good data stale-marked. There is NO client
-        // fallback anymore — the old 18-symbol chain sweep cost 18 of the
-        // plan's 20 hourly cvforge calls in a single poll, which is exactly
-        // what kept exhausting the quota. The backend is the only spender.
+        // BOTH scan sources failed (paid budget spent AND cvserver
+        // rate-limited): keep the last good data stale-marked. The paid
+        // path is primary, cvserver is strict failover — there is no
+        // client-side chain sweep (it used to burn the hourly budget).
         if (hadDataRef.current) {
           setScanMeta((m) => ({ ...m, stale: true }));
         } else {
@@ -1362,7 +1396,7 @@ export default function FlowseekerProBlademap({ active = true }) {
                   ["Net", `${pulseOv.netPrem < 0 ? "−" : "+"}${fmtUSD(pulseOv.netPrem)}`, pulseOv.lean === "Bullish" ? "g" : pulseOv.lean === "Bearish" ? "r" : ""],
                   ["P/C", Number.isFinite(pulseOv.pc) ? pulseOv.pc.toFixed(2) : "—", ""],
                   ["FIR", pulseOv.fir.toFixed(2), ""],
-                  ["Source", scanMeta.data_source === "public_api" ? "LIVE · public" : scanMeta.data_source === "cvserver" ? "LIVE · cvserver" : flowPaused ? "PAUSED" : "—", scanMeta.data_source ? "g" : "y"],
+                  ["Source", scanMeta.data_source === "public" ? "LIVE · public" : scanMeta.data_source === "public_api" ? "LIVE · public" : scanMeta.data_source === "cvserver" ? "LIVE · cvserver" : flowPaused ? "PAUSED" : "—", scanMeta.data_source ? "g" : "y"],
                   ["Updated", clock || "—", ""],
                 ].map(([l, v, c]) => (
                   <div key={l} className="fsb-skpi"><div className="fsb-skl">{l}</div><div className={`fsb-skv ${c}`}>{v}</div></div>
@@ -1820,7 +1854,7 @@ export default function FlowseekerProBlademap({ active = true }) {
                       onClick={toggleNotify}>🔔 Notify</button>
                     {advanced && <>
                       {[["oiconf", "ΔOI CONF"], ["follow", `FOLLOW ${alertRules.followMin ?? 3}d+`], ["sigma", `SIGMA ≥${alertRules.sigmaMin ?? 6}σ`],
-                        ["score", `SCORE≥${alertRules.scoreMin ?? 92}`], ["whale", `WHALE ≥$${Math.round((alertRules.whaleMin ?? 25e6) / 1e6)}M~`], ["zerodte", "0DTE HOT"]].map(([k, lbl]) => (
+                        ["score", `SCORE≥${alertRules.scoreMin ?? 92}`], ["whale", `WHALE ≥$${Math.round((alertRules.whaleMin ?? 25e6) / 1e6)}M~`], ["prime", "PRIME $250k·5×"], ["zerodte", "0DTE HOT"]].map(([k, lbl]) => (
                         <button key={k} className={`fsb-rulechip${alertRules[k] ? " on" : ""}`}
                           title="Toggle this alert rule"
                           onClick={() => setAlertRules((r) => ({ ...r, [k]: !r[k] }))}>{lbl}</button>

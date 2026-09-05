@@ -2519,6 +2519,58 @@ async def _vpin_autofeed_loop():
     log.info("VPIN auto-feed: shutdown complete")
 
 
+async def _public_sweep_loop():
+    """Background institutional sweep over the paid Public universe.
+    (B-REGION — Agent B domain: sweep cadence, slice width, budget behavior.)
+
+    Rotates one public_scanner slice per tick — RTH cadence 45s, off-hours
+    600s (FLOWW_PUBLIC_SWEEP_RTH_S / _OFFH_S), slice width
+    FLOWW_PUBLIC_SWEEP_SLICE, chain depth FLOWW_PUBLIC_SWEEP_MAX_EXPIRES —
+    feeding the SAME baseline + institutional alert pipeline as the HTTP scan
+    routes, so alerts fire and persist with no tabs open. Budget-gated inside
+    sweep_once (skips cleanly when the paid budget is spent); kill switch
+    FLOWW_PUBLIC_SWEEP=0. RTH is 09:30–16:05 ET (options session + close
+    auction; pre/post-market burns no paid budget on first boot). Follows the
+    _vpin_autofeed_loop conventions (shutdown event + wait_for timeout).
+    """
+    if os.environ.get("FLOWW_PUBLIC_SWEEP", "1") != "1":
+        log.info("public sweep disabled (FLOWW_PUBLIC_SWEEP=0)")
+        return
+    try:
+        rth_s = float(os.environ.get("FLOWW_PUBLIC_SWEEP_RTH_S", "45"))
+        off_s = float(os.environ.get("FLOWW_PUBLIC_SWEEP_OFFH_S", "600"))
+        sl = int(os.environ.get("FLOWW_PUBLIC_SWEEP_SLICE", "8"))
+        mx = int(os.environ.get("FLOWW_PUBLIC_SWEEP_MAX_EXPIRES", "2"))
+    except (TypeError, ValueError):
+        rth_s, off_s, sl, mx = 45.0, 600.0, 8, 2
+    log.info("public sweep loop started (rth=%ss offh=%ss slice=%d expiries=%d)",
+             rth_s, off_s, sl, mx)
+    cadence = rth_s
+    first_tick = True
+    while not _shutdown_event.is_set():
+        try:
+            try:
+                from zoneinfo import ZoneInfo
+                et_now = datetime.now(ZoneInfo("America/New_York"))
+                mins = et_now.hour * 60 + et_now.minute
+                in_rth = et_now.weekday() < 5 and 9 * 60 + 30 <= mins <= 16 * 60 + 5
+            except Exception:
+                in_rth = True  # unknown TZ: stay fresh rather than stall
+            cadence = rth_s if in_rth else off_s
+            # Off-hours boot must not burn a paid sweep before anyone is
+            # watching: sleep through the first off-hours tick, sweep after.
+            if in_rth or not first_tick:
+                from services.public_scanner import sweep_once
+                await sweep_once(slice_size=sl, max_expiries=mx)
+            first_tick = False
+        except Exception as e:
+            log.warning(f"public sweep loop error: {e}")
+            cadence = 60.0
+        with contextlib.suppress(TimeoutError):
+            await asyncio.wait_for(_shutdown_event.wait(), timeout=cadence)
+    log.info("public sweep: shutdown complete")
+
+
 @app.on_event("startup")
 async def on_start():
     try:
@@ -2547,6 +2599,11 @@ async def on_start():
     _background_tasks.add(_t)
     _t.add_done_callback(_background_tasks.discard)
     log.info("VPIN auto-feed started for toxicity ensemble")
+    # Start paid-Public institutional sweep (alerts with no tabs open)
+    _ps = asyncio.create_task(_logged_task(_public_sweep_loop(), "public_sweep"))
+    _background_tasks.add(_ps)
+    _ps.add_done_callback(_background_tasks.discard)
+    log.info("public sweep loop started")
     log.info("databento cache initialized")
 
 

@@ -351,26 +351,28 @@ def test_gex_confluent_fires_on_lowercase_bias_vs_negative_gamma():
     from services.flow_alerts import _common_factors
     r = dict(norm_rows([_bearish_raw()])[0])
     r["bias"] = "BEARISH"
-    gex_ctx = {"gamma_imbalance": {"gamma_imbalance_pct": -1.2,
-                                   "regime": "negative_gamma"}}
+    gex_ctx = {"PLTR": {"gamma_imbalance": {"gamma_imbalance_pct": -1.2,
+                                            "regime": "negative_gamma"}}}
     f = _common_factors(r, {}, set(), {}, {}, gex_context=gex_ctx)
     assert f["gex_confluent"] is True
+    assert f["gex_regime"] == "negative"
 
 
 def test_gex_confluent_fires_bullish_positive_gamma():
     from services.flow_alerts import _common_factors
     r = dict(norm_rows([_raw(vol=60000, oi=1500)])[0])
-    gex_ctx = {"gamma_imbalance": {"gamma_imbalance_pct": 0.9,
-                                   "regime": "positive_gamma"}}
+    gex_ctx = {"PLTR": {"gamma_imbalance": {"gamma_imbalance_pct": 0.9,
+                                            "regime": "positive_gamma"}}}
     f = _common_factors(r, {}, set(), {}, {}, gex_context=gex_ctx)
     assert f["gex_confluent"] is True
+    assert f["gex_regime"] == "positive"
 
 
 def test_gex_confluent_false_when_opposed():
     from services.flow_alerts import _common_factors
     r = dict(norm_rows([_raw(vol=60000, oi=1500)])[0])
-    gex_ctx = {"gamma_imbalance": {"gamma_imbalance_pct": -1.2,
-                                   "regime": "negative_gamma"}}
+    gex_ctx = {"PLTR": {"gamma_imbalance": {"gamma_imbalance_pct": -1.2,
+                                            "regime": "negative_gamma"}}}
     f = _common_factors(r, {}, set(), {}, {}, gex_context=gex_ctx)
     assert f["gex_confluent"] is False
 

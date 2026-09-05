@@ -50,6 +50,8 @@ _TTL_S = {
     "OICONF": 20 * 3600,
     "SIGMA": 4 * 3600,
     "SCORE": 2 * 3600,
+    "PRIME": 2 * 3600,
+    "CLUSTER": 4 * 3600,
     "WHALE": 6 * 3600,
     "0DTE": 1 * 3600,
 }
@@ -61,7 +63,10 @@ _TIER_RANK = {"GOLD": 0, "SILVER": 1, "BRONZE": 2}
 DEFAULT_EVAL_OPTS: dict = {
     "min_score": 92,
     "whale_premium": 25e6,
-    "zero_dte_score": 70,
+    # 0DTE parity with the frontend tape (scanLogic zeroDteScore=85 + volOI>=2
+    # lotto shutout): the server must not fire where the tape stays silent.
+    "zero_dte_score": 85,
+    "zero_dte_vol_oi": 2.0,
     "oiconf_pct": 0.30,
     "oiconf_notional": 1e6,
     "sigma_min": 6.0,
@@ -174,8 +179,11 @@ def scan_score(r: dict, regime: str | None = None) -> int:
         s += 5
     elif regime == "positive" and vol_oi >= 2:
         s += 3
-    # Informed-positioning band (Pan & Poteshman, RFS 2006): 7–90 DTE +
-    # vol≥3×OI + ≥$25k premium is where directional bets live.
+    # Informed-positioning band (internal desk heuristic: 7–90 DTE +
+    # vol≥3×OI + ≥$25k premium is where directional bets live; shorter is
+    # gamma noise, longer is hedges). Pan & Poteshman (RFS 2006) is cited
+    # ONLY for the directional put-call-ratio finding — that paper has no
+    # DTE band and no volume/OI/premium thresholds. Keep it that way.
     if dte is not None and 7 <= dte <= 90 and vol_oi >= 3 and (r.get("premium") or 0) >= 25e3:
         s += 4
     return max(0, min(100, round(s)))
@@ -214,13 +222,67 @@ def est_entry(r: dict) -> float | None:
 def infer_side_bias(r: dict) -> tuple[str, str | None]:
     """Opening-dominant flow (vol well above resting OI) reads as initiated
     BUYing on a print-less feed; anything else is unlabeled FLOW — a desk
-    never claims a side it can't defend."""
+    never claims a side it can't defend.
+
+    Paid-feed upgrade: when the row carries NBBO truth (r["nbbo_side"] from
+    the Public chain's last-vs-mid), initiation is KNOWN, not proxied —
+    ASK = buyer lifted, BID = seller hit, with the desk's direction matrix.
+    """
+    nbbo = (r.get("nbbo_side") or "").upper()
+    if nbbo in ("ASK", "BID"):
+        from services.public_scanner import side_bias as _side_bias
+
+        return _side_bias(str(r.get("type") or ""), nbbo)
     if (r.get("vol_oi") or 0) >= 1.5:
         return "BUY", ("BULLISH" if r.get("type") == "call" else "BEARISH")
     return "FLOW", None
 
 
+def apply_quote_truth(
+    rows: list[dict],
+    extras: dict[str, dict] | None,
+) -> list[dict]:
+    """Overlay paid-feed quote truth onto normalized rows (in place).
+
+    extras is {ckey: {premium_true, nbbo_side, velocity_per_min, ...}} from
+    the Public scanner. True premium replaces the BS estimate for the
+    PRIME/WHALE money gates; NBBO side upgrades bias inference; velocity
+    feeds conviction. Missing keys leave the row untouched — cvserver rows
+    without extras score exactly as before.
+    """
+    if not extras:
+        return rows
+    for r in rows or []:
+        x = (extras or {}).get(r.get("ckey", "")) or {}
+        pt = x.get("premium_true")
+        if pt is not None and pt > 0:
+            r["premium"] = pt
+            r["premium_truth"] = True
+        if x.get("nbbo_side") in ("ASK", "BID"):
+            r["nbbo_side"] = x["nbbo_side"]
+        v = x.get("velocity_per_min")
+        if v is not None and v >= 0:
+            r["velocity_per_min"] = v
+    return rows
+
+
 # ── tiering ─────────────────────────────────────────────────────────
+
+def _norm_gex_regime(raw: object) -> str | None:
+    """Normalize dealer-regime vocabulary to negative/positive/None.
+
+    Producers disagree: gex_paper_accurate emits strong_positive_gamma /
+    positive_gamma / neutral_gamma / negative_gamma / ..., the Public
+    scanner emits negative / positive. Downstream (key levels, WHY block)
+    only understands the short form — normalize once, at the boundary.
+    """
+    s = str(raw or "").lower()
+    if "negative" in s:
+        return "negative"
+    if "positive" in s:
+        return "positive"
+    return None
+
 
 def tier_of(factors: dict) -> str | None:
     n = sum(1 for v in (factors or {}).values() if v)
@@ -257,7 +319,9 @@ def score_conviction(r: dict, factors: dict | None = None,
     calibrated tape read); structure re-weights urgency toward the
     informed band; confluence counts Blademap-style confirmations with
     GEX confluency weighted heaviest (paper-accurate ΓIB is our hardest
-    context signal); tail catches the 1-in-a-hundred prints.
+    context signal); tail catches the 1-in-a-hundred prints; evidence
+    rewards paid-feed truth (arrival velocity + NBBO-known initiation),
+    absent on print-less rows by design.
     """
     f = factors or {}
     vol_oi = r.get("vol_oi") or 0.0
@@ -293,7 +357,14 @@ def score_conviction(r: dict, factors: dict | None = None,
     # same +5 the parity score grants), capped inside the clamp.
     bump = 3 if (regime == "negative" and dte is not None and dte <= 7) else 0
 
-    return max(0, min(100, round(flow + structure + confluence + tail + bump)))
+    # Evidence dimension (paid-feed truth only): arrival intensity +
+    # known initiation. cvserver rows carry neither key and score exactly
+    # as before — this rewards MEASURED urgency, never a proxy.
+    vel = r.get("velocity_per_min") or 0
+    vel_bonus = 4 if vel >= 1000 else (2 if vel >= 300 else 0)
+    know_bonus = 2 if r.get("nbbo_side") in ("ASK", "BID") else 0
+
+    return max(0, min(100, round(flow + structure + confluence + tail + bump + vel_bonus + know_bonus)))
 
 
 # ── Blademap alert contract: key levels + context ───────────────────
@@ -413,6 +484,12 @@ def _mk_alert(r: dict, rule: str, extra: dict, factors: dict, asof: str) -> dict
         # gets cluster=True; the frontend can now render an honest CLUSTER
         # chip without inferring a proxy from tier+SIGMA.
         "cluster": bool(factors.get("cluster", False)),
+        # Always-emit provenance (CONTRACTS C6): consumers may rely on these
+        # keys existing. premium_truth mirrors the row overlay; p_move stays
+        # None until a calibration stage is explicitly passed in opts.
+        "premium_truth": bool(r.get("premium_truth", False)),
+        "p_move": None,
+        "p_method": "uncalibrated",
         "why": extra.get("why", ""),
         "ttl_s": _TTL_S.get(rule, 2 * 3600),
         "asof": asof,
@@ -443,12 +520,23 @@ def _common_factors(r: dict, regimes: dict, sigma_tickers: set,
     _, bias = infer_side_bias(r)
 
     # Paper-accurate GEX confluency (Ni-Pearson 2020 + Barbon-Buraschi 2021)
+    # Contract: gex_context is {underlying: {"gamma_imbalance": {...}}}
+    # (both _cached_gex_context and the Public scanner's dealer feed speak
+    # it). A flat {"gamma_imbalance": ...} payload is ALSO accepted — the
+    # unit tests pin the factor math through it.
     gex_confluent = False
     gex_regime = None
     if gex_context:
-        gi = gex_context.get("gamma_imbalance", {})
-        gex_regime = gi.get("regime")
+        gi = gex_context.get("gamma_imbalance")
+        if gi is None:
+            per = gex_context.get(r["under"], {}) or {}
+            gi = per.get("gamma_imbalance", {}) or {}
+        gi = gi or {}
+        gex_regime = _norm_gex_regime(gi.get("regime"))
+        # pct None = regime-only feed (dealer walls without ADV magnitude):
+        # propagate the regime, never confluence — None must not compare.
         gib_pct = gi.get("gamma_imbalance_pct", 0)
+        gib_pct = 0 if gib_pct is None else gib_pct
         # Confluent: negative gamma + bearish flow, or positive gamma + bullish
         # flow. infer_side_bias returns "BULLISH"/"BEARISH" uppercase — compare
         # case-insensitively (was a case-sensitive dead comparison).
@@ -478,14 +566,19 @@ def eval_institutional(rows, baselines=None, prev_oi=None, regimes=None, opts=No
     """Evaluate normalized rows into enriched institutional alerts.
 
     One alert per contract, strongest claim first (OICONF > SCORE > WHALE >
-    0DTE), plus per-ticker SIGMA alerts. Pure logic — dedup/persistence are
-    the I/O layer's job so this stays unit-testable.
+    PRIME > 0DTE), plus per-ticker SIGMA and CLUSTER alerts. Pure logic —
+    dedup/persistence are the I/O layer's job so this stays unit-testable.
+
+    PRIME (premium >= $250k AND vol/OI >= 5, the 55-62% UOA bracket) sits
+    BELOW whale size: a $25M+ line is whale flow first. PRIME exists for the
+    sub-whale mid-cap bracket that never clears SCORE 92 — the SNDK gap.
     """
     from services.flow_quality import (
         bh_fdr,
         cluster_biases,
         cw_iv_spread,
         detect_spreads,
+        is_prime,
         sigma_pvalue,
     )
 
@@ -604,7 +697,13 @@ def eval_institutional(rows, baselines=None, prev_oi=None, regimes=None, opts=No
         elif (r.get("premium") or 0) >= o["whale_premium"]:
             rule = "WHALE"
             why = f"~${(r.get('premium') or 0) / 1e6:.1f}M estimated premium on a single line"
-        elif r.get("dte") is not None and r["dte"] <= 1 and score >= o["zero_dte_score"]:
+        elif is_prime(r):
+            rule = "PRIME"
+            why = (f"prime print — ~${(r.get('premium') or 0) / 1e3:.0f}k premium at "
+                   f"{r['vol_oi']:.1f}× OI, score {score} (55-62% directional bracket)")
+        elif (r.get("dte") is not None and r["dte"] <= 1
+                and score >= o["zero_dte_score"]
+                and (r.get("vol_oi") or 0) >= o.get("zero_dte_vol_oi", 2.0)):
             rule = "0DTE"
             why = f"{r['dte']} DTE with score {score} — urgent short-fuse positioning"
         if not rule:
@@ -626,6 +725,28 @@ def eval_institutional(rows, baselines=None, prev_oi=None, regimes=None, opts=No
         cw = cw_map.get(under)
         a["cw_spread"] = round(cw, 4) if cw is not None else None
         out.append(a)
+
+    # Pass 4 — per-ticker CLUSTER alerts (laddered accumulation in ONE
+    # snapshot: >=3 same-bias qualifying contracts). The SNDK read — steady
+    # multi-strike building where no single line clears SCORE 92 and no
+    # multi-day baseline exists yet for SIGMA. Anchored on the ticker's best
+    # row so the desk can click through to the lead contract.
+    for under, bias in (clusters or {}).items():
+        legs = [r for r in rows
+                if r["under"] == under and infer_side_bias(r) == ("BUY", bias)]
+        if len(legs) < 3:
+            continue
+        best = max(legs, key=lambda r: r.get("_score") or 0)
+        f = _common_factors(best, regimes, sigma_tickers, cw_map, clusters,
+                            gex_context=gex_context)
+        a = _mk_alert(best, "CLUSTER", {
+            "why": (f"{under} laddered {bias} accumulation — {len(legs)} opening-shaped "
+                    f"contracts in one snapshot, lead score {best.get('_score')}"),
+        }, f, asof)
+        a["key"] = f"cluster|{under}"
+        cw = cw_map.get(under)
+        a["cw_spread"] = round(cw, 4) if cw is not None else None
+        out.append(_finalize(a, best, cw_map))
 
     # Calibration provenance — attach the server-computed p_move to every
     # fired alert. Stage-0 model → p_move=None + "uncalibrated" on each row:

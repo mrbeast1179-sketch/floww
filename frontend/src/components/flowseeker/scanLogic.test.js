@@ -166,6 +166,21 @@ describe("evalAlerts", () => {
     expect(hits).toHaveLength(1);
     expect(hits[0].rule).toBe("WHALE");
   });
+  it("PRIME fires in the 55-62% bracket below the SCORE bar (SNDK gap)", () => {
+    const hits = evalAlerts([mk({ score: 82, premium: 600e3, volOI: 6 })]);
+    expect(hits).toHaveLength(1);
+    expect(hits[0].rule).toBe("PRIME");
+    expect(hits[0].key).toBe("prime|SPY|call|745|2099-01-08");
+  });
+  it("PRIME stays off below the $250k / 5x floors", () => {
+    expect(evalAlerts([mk({ score: 82, premium: 100e3, volOI: 6 })])).toEqual([]);
+    expect(evalAlerts([mk({ score: 82, premium: 600e3, volOI: 2 })])).toEqual([]);
+  });
+  it("PRIME yields to SCORE and WHALE (size first)", () => {
+    expect(evalAlerts([mk({ score: 95, premium: 600e3, volOI: 6 })])[0].rule).toBe("SCORE");
+    expect(evalAlerts([mk({ score: 40, premium: 30e6, volOI: 8 })])[0].rule).toBe("WHALE");
+    expect(evalAlerts([mk({ score: 40, premium: 5e6, volOI: 8 })])[0].rule).toBe("PRIME");
+  });
   it("0DTE fires on short-dated near-threshold flow", () => {
     const hits = evalAlerts([mk({ score: 72, premium: 1e5, dte: 0 })], { minScore: 85, zeroDteScore: 70 });
     expect(hits).toHaveLength(1);

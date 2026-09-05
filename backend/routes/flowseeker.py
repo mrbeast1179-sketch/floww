@@ -262,8 +262,14 @@ async def drilldown(symbol: str):
 @router.get("/chain/{symbol}")
 async def options_chain(symbol: str):
     """
-    Options chain — tries CVForge first (32 exp, 171 strikes), falls back to yfinance.
-    Cached for 120s.
+    Options chain — Public Advanced API first (paid, real quotes/greeks),
+    CVForge second, yfinance last resort. Cached for 600s.
+
+    OWNERSHIP (institutional loop firewall): this file is split —
+    B-REGION = chain/scan/budget/baseline sections (Agent B);
+    C-REGION = alerts pipeline below (_run_institutional_alerts,
+    _cached/_merged_gex_context, /alerts/*, journal/outcomes) (Agent C).
+    No cross-region edits without owner sign-off in LEDGER.md.
     """
     sym = (symbol or "").strip().upper()
     if not sym:
@@ -275,7 +281,34 @@ async def options_chain(symbol: str):
         if time.time() - ts < CACHE_TTL:
             return data
 
-    # Try CVForge first (fast, rich data)
+    # Try Public Advanced API first (paid primary — real NBBO + greeks).
+    # Budget exhaustion degrades to cvserver, never to an error: chains have
+    # free fallbacks, and the paid budget is reserved for flow-critical paths.
+    try:
+        from services.public_api_adapter import (
+            fetch_chain_from_public_api,
+            public_to_nested,
+        )
+        from services.public_budget import BudgetExhausted
+        from services.public_budget import budget as _pub_budget
+
+        try:
+            await _pub_budget.acquire("api.public.com")
+        except BudgetExhausted:
+            pub_nested = None
+        else:
+            try:
+                pub = await fetch_chain_from_public_api(sym, max_expiries=6)
+                pub_nested = public_to_nested(pub)
+            finally:
+                _pub_budget.release()
+        if pub_nested and pub_nested.get("chain"):
+            _remember_chain(sym, pub_nested)
+            return pub_nested
+    except Exception as e:
+        logger.debug(f"flowseeker chain: public path failed for {sym}: {e}")
+
+    # Try CVForge (fast, rich data)
     data = await _cvforge_chain(sym)
     if data and data.get("chain"):
         _remember_chain(sym, data)
@@ -303,6 +336,94 @@ async def options_chain(symbol: str):
     except Exception as e:
         logger.warning(f"flowseeker chain: {sym}: {e}")
         return {"symbol": sym, "params": [], "chain": [], "error": str(e)}
+
+
+@router.get("/public/chain/{ticker}")
+async def public_chain_flat(
+    ticker: str,
+    expirations: int = Query(default=4, ge=1, le=12),
+    expiration: str | None = Query(default=None),
+    fields: str | None = Query(default=None),
+):
+    """Smart-Order-Flow chain from the paid Public Advanced API (flat shape).
+
+    This is the route the Tidehunter Pro flow tab polls first
+    (`/api/flowseeker/public/chain/{t}?expirations=4&fields=...`); without it
+    every poll 404s and the tab silently degrades to the 20/hour cvserver
+    budget. Flat contract list with TRUE bid/ask/last/volume/OI/IV/greeks —
+    no BS premium estimates, no vol/OI side proxy.
+
+    Budget-gated via services.public_budget (60/min token bucket); on
+    exhaustion returns 503 with retry_after so the tab falls through to
+    cvserver instead of hammering upstream. The adapter's 60s cache +
+    coalescing means steady-state polling costs ~1 token/ticker/min.
+    """
+    from services.public_api_adapter import fetch_chain_from_public_api
+    from services.public_budget import BudgetExhausted
+    from services.public_budget import budget as _pub_budget
+
+    sym = (ticker or "").strip().upper()
+    if not sym:
+        raise HTTPException(400, "ticker required")
+
+    try:
+        await _pub_budget.acquire("api.public.com")
+    except BudgetExhausted as e:
+        raise HTTPException(
+            status_code=503,
+            detail={"error": "public budget exhausted", "retry_after": e.retry_after},
+        ) from e
+    try:
+        result = await fetch_chain_from_public_api(sym, max_expiries=expirations)
+    finally:
+        _pub_budget.release()
+
+    if result is None:
+        raise HTTPException(
+            status_code=502,
+            detail=f"Public API unavailable for {sym} — key may be missing or API call failed",
+        )
+
+    contracts = result.get("contracts", [])
+    if expiration:
+        contracts = [c for c in contracts if c.get("expiry") == expiration]
+
+    flat = [
+        {
+            "strike": c.get("strike"),
+            "type": c.get("type"),
+            "expiry": c.get("expiry"),
+            "expiration": c.get("expiry"),
+            "volume": c.get("volume") or 0,
+            "openInterest": c.get("oi") or 0,
+            "oi": c.get("oi") or 0,
+            "impliedVolatility": c.get("iv") or 0,
+            "iv": c.get("iv") or 0,
+            "delta": c.get("delta"),
+            "gamma": c.get("gamma"),
+            "theta": c.get("theta"),
+            "vega": c.get("vega"),
+            "bid": c.get("bid"),
+            "ask": c.get("ask"),
+            "mid": c.get("mid"),
+            "last": c.get("last"),
+            "lastPrice": c.get("last"),
+            "bidSize": c.get("bid_size"),
+            "askSize": c.get("ask_size"),
+            "osi": c.get("osi"),
+        }
+        for c in contracts
+    ]
+    return {
+        "ok": True,
+        "ticker": sym,
+        "spot": result.get("spot", 0),
+        "expiries": result.get("expiries", []),
+        "n_contracts": len(flat),
+        "data_source": "public_api",
+        "stale": result.get("stale", False),
+        "contracts": flat,
+    }
 
 
 @router.get("/screen")
@@ -704,13 +825,24 @@ async def _record_scan_baseline(rows: list) -> None:
         logger.debug(f"scan baseline record skipped: {e}")
 
 
-async def _run_institutional_alerts(rows: list) -> None:
+async def _run_institutional_alerts(
+    rows: list,
+    extras: dict | None = None,
+    dealer: dict | None = None,
+) -> None:
     """Server-side institutional alert pass over a FRESH scan result.
+    (C-REGION — Agent C domain; see ownership note on options_chain.)
 
     Fires on every cache fill (normal + force-refresh), so alerts exist and
     persist even with no Scanner tab open — the browser engine only ever saw
     what a live tab happened to witness. Zero extra cvforge calls: it reuses
     the rows, baselines, prev-OI and regime cache the scan already has.
+
+    extras (paid-scanner quote truth) overlays true premiums/NBBO/velocity
+    onto rows before eval; dealer (per-ticker gamma walls/regime from the
+    same chains) fills GEX context for tickers the heatmap cache doesn't
+    cover — regime propagates to key levels + WHY, without a fabricated
+    magnitude (confluence still needs measured ΓIB).
     """
     try:
         from services import flow_alerts as fa
@@ -718,6 +850,8 @@ async def _run_institutional_alerts(rows: list) -> None:
         from services.duckdb_engine import db as duckdb_engine
 
         normed = fa.norm_rows(rows)
+        if extras:
+            fa.apply_quote_truth(normed, extras)
         if not normed:
             return
         baselines = await _volume_baselines()
@@ -812,6 +946,40 @@ def _cached_gex_context(tickers: list[str]) -> dict[str, dict]:
         return out
     except Exception:
         return {}
+
+
+def _merged_gex_context(
+    tickers: list[str],
+    dealer: dict | None,
+) -> dict[str, dict]:
+    """Heatmap ΓIB where available, Public-scanner dealer regime elsewhere.
+
+    The paper-accurate cache entry wins whenever present (it carries a real
+    ADV-normalized magnitude, which the confluence boolean needs). Dealer
+    entries carry regime + walls with pct 0.0 — regime propagates to key
+    levels + the WHY block, but confluence stays False without measured
+    magnitude. Never fabricate a pct.
+    """
+    out = _cached_gex_context(tickers)
+    for t, d in (dealer or {}).items():
+        if t in out or not isinstance(d, dict):
+            continue
+        if d.get("regime") not in ("negative", "positive"):
+            continue
+        # pct None = UNKNOWN magnitude (dealer walls without ADV normalization).
+        # Regime propagates to key levels + WHY; confluence stays False until
+        # measured ΓIB arrives. Never 0.0 — zero is a measurement, not unknown.
+        out[t] = {
+            "gamma_imbalance": {
+                "gamma_imbalance_pct": None,
+                "regime": d["regime"],
+                "dealer_walls": {
+                    "call": d.get("call_wall"),
+                    "put": d.get("put_wall"),
+                },
+            },
+        }
+    return out
 
 
 _earnings_cache: dict[str, tuple[float, dict[str, str]]] = {"ts": 0.0, "data": {}}
@@ -936,12 +1104,16 @@ async def _volume_baselines() -> dict[str, dict]:
     return out
 
 
-def _scan_payload(rows: list, stale: bool, asof: str, columns: list, cache_age: float = 0, retry_after: float | None = None) -> dict:
+def _scan_payload(rows: list, stale: bool, asof: str, columns: list, cache_age: float = 0, retry_after: float | None = None, limit: int | None = None) -> dict:
     source = "cvserver-screen"
     if stale:
         source = "cvserver-stale"
     elif cache_age > 0 and cache_age < 60:
         source = "cvserver-cached"
+    try:
+        tickers = len({r[0] for r in rows}) if rows else 0
+    except (TypeError, IndexError):
+        tickers = 0
     return {
         "columns": columns, "rows": rows, "count": len(rows),
         "source": source, "stale": stale, "asof": asof,
@@ -950,16 +1122,24 @@ def _scan_payload(rows: list, stale: bool, asof: str, columns: list, cache_age: 
         "scan_ttl": int(_SCAN_TTL),
         "budget": _budget_state(),
         "regimes": _cached_regimes(),
+        # Coverage honesty: the screen is top-N by raw day_volume — when the
+        # payload fills the limit, mid-cap building below the cutoff is cut
+        # (the SNDK gap). The UI reads `truncated` to badge partial coverage
+        # instead of implying the whole market is shown.
+        "truncated": bool(limit is not None and len(rows) >= limit),
+        "coverage": {"tickers": tickers, "limit": limit},
     }
 
 
 @router.get("/scan")
 async def market_scan(
-    # 2026-09-02 noise pass: default floor 1000→2500 — sub-2500-contract day
-    # volume on liquid names is dealer churn; the client's quality gate was
-    # filtering it anyway, so stop paying the wire cost for it.
-    min_volume: int = Query(2500, ge=0),
-    limit: int = Query(300, ge=1, le=1000),
+    # Paid-Public era (2026-09-05): floor 2500→1000, limit 300→500. Same ONE
+    # upstream call — wider net for mid-cap building at zero budget cost.
+    # /scan-public (paid chains, fixed universe) is the structural fix for
+    # the top-N-by-volume cutoff; this keeps the cvserver path as wide as
+    # the wire cost allows while it remains the default Scanner source.
+    min_volume: int = Query(1000, ge=0),
+    limit: int = Query(500, ge=1, le=1000),
     force: bool = Query(False),
 ):
     """
@@ -981,7 +1161,7 @@ async def market_scan(
     def _fresh(now: float):
         cached = _scan_cache.get(cache_key)
         if cached and not force and now - cached["ts"] < _SCAN_TTL:
-            return _scan_payload(cached["data"], False, cached["asof"], columns, cache_age=now - cached["ts"])
+            return _scan_payload(cached["data"], False, cached["asof"], columns, cache_age=now - cached["ts"], limit=limit)
         return None
 
     def _stale_or(now: float, status: int, detail: str, retry_after: float | None = None):
@@ -989,7 +1169,7 @@ async def market_scan(
         best = cached or (max(_scan_cache.values(), key=lambda e: e["ts"]) if _scan_cache else None)
         if best:
             cache_age = now - best["ts"]
-            return _scan_payload(best["data"], True, best["asof"], columns, cache_age=cache_age, retry_after=retry_after)
+            return _scan_payload(best["data"], True, best["asof"], columns, cache_age=cache_age, retry_after=retry_after, limit=limit)
         # No cached data — return empty payload with stale marker + retry hint
         # instead of 503, so the frontend can show "waiting for first scan"
         # rather than an error state. cvserver hits its 20/hour budget and
@@ -1085,7 +1265,7 @@ async def market_scan(
                 _trim_cache(_scan_cache)
                 _spawn_bg(_record_scan_baseline(rows))
                 _spawn_bg(_run_institutional_alerts(rows))
-                out = _scan_payload(rows, False, asof, columns, cache_age=0)
+                out = _scan_payload(rows, False, asof, columns, cache_age=0, limit=limit)
                 out["baselines"] = await _volume_baselines()
                 out["prev_oi"] = await _prev_contract_oi()
                 from services import flow_alerts as _fa_local2  # local import: scan path scope
@@ -1108,7 +1288,7 @@ async def market_scan(
 @router.post("/scan/refresh")
 async def force_refresh_scan(
     min_volume: int = Query(1000, ge=0),
-    limit: int = Query(300, ge=1, le=1000),
+    limit: int = Query(500, ge=1, le=1000),
 ):
     """
     Force refresh the market scan — bypasses cache and backoff.
@@ -1189,7 +1369,7 @@ async def _force_refresh_locked(min_volume: int, limit: int,
             _trim_cache(_scan_cache)
             _spawn_bg(_record_scan_baseline(rows))
             _spawn_bg(_run_institutional_alerts(rows))
-            return _scan_payload(rows, False, asof, columns, cache_age=0)
+            return _scan_payload(rows, False, asof, columns, cache_age=0, limit=limit)
     except HTTPException:
         raise
     except Exception as e:
@@ -1244,6 +1424,70 @@ async def scan_history(days: int = Query(14, ge=2, le=60)):
     payload = {"days": days, "tickers": out, "asof": datetime.now(_ET).isoformat()}
     _history_cache.update(ts=nowt, days=days, data=payload)
     return payload
+
+
+@router.get("/scan-public")
+async def public_market_scan(
+    slice_size: int = Query(default=8, ge=1, le=20),
+    max_expiries: int = Query(default=2, ge=1, le=6),
+):
+    """Market-wide unusual-flow scan over the PAID Public Advanced API.
+
+    Rotating-cursor sweep of a fixed 40-name universe (index ETFs + megas +
+    high-beta mid-caps like SNDK/DVN): each call scans the next slice and
+    returns the merged universe view. No hourly cap (60/min Public budget),
+    no top-300-by-volume cutoff — mid-cap laddered building is included by
+    construction, not crowded out by SPY/QQQ churn.
+
+    Row/column shape is IDENTICAL to /scan so the frontend scanner and
+    eval_institutional consume it unchanged. Fresh slices also feed the
+    institutional alert pipeline (same _record_scan_baseline +
+    _run_institutional_alerts background tasks as /scan).
+    """
+    import services.public_scanner as ps
+    from services.public_budget import BudgetExhausted
+    from services.public_budget import budget as _pub_budget
+
+    try:
+        await _pub_budget.acquire("api.public.com")
+    except BudgetExhausted as e:
+        raise HTTPException(
+            status_code=503,
+            detail={"error": "public budget exhausted", "retry_after": e.retry_after},
+        ) from e
+    try:
+        view = await ps.scan_next(slice_size=slice_size, max_expiries=max_expiries)
+    finally:
+        _pub_budget.release()
+
+    rows = view["rows"]
+    extras = view.get("quote_truth", {})
+    dealer = view.get("dealer", {})
+    asof = datetime.now().isoformat()
+    _spawn_bg(_record_scan_baseline(rows))
+    _spawn_bg(_run_institutional_alerts(rows, extras=extras, dealer=dealer))
+    cov = view.get("coverage", {})
+    # Honest freshness: slices carry their own ages — a merged view with
+    # dropped or aging slices must not claim stale:false.
+    is_stale = bool(cov.get("stale_dropped")) or (cov.get("max_age_s") or 0) > 300
+    return {
+        "columns": view["columns"],
+        "rows": rows,
+        "count": view["count"],
+        "source": "public-scan",
+        "stale": is_stale,
+        "asof": asof,
+        "scan_ttl": 60,
+        "budget": _budget_state(),
+        "public_budget": _pub_budget.status(),
+        "coverage": view["coverage"],
+        "tickers": view["tickers"],
+        "quote_truth": extras,
+        "dealer": dealer,
+        "regimes": _cached_regimes(),
+        "baselines": await _volume_baselines(),
+        "prev_oi": await _prev_contract_oi(),
+    }
 
 
 @router.get("/alerts/quality")

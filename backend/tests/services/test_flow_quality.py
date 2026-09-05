@@ -37,7 +37,10 @@ def test_default_gate_matches_noise_pass():
     """
     assert DEFAULT_EVAL_OPTS["min_score"] == 92
     assert DEFAULT_EVAL_OPTS["whale_premium"] == 25e6
-    assert DEFAULT_EVAL_OPTS["zero_dte_score"] == 70
+    # 0DTE parity with the frontend tape (zeroDteScore=85 + volOI>=2 lotto
+    # shutout) — server must not fire where the tape stays silent.
+    assert DEFAULT_EVAL_OPTS["zero_dte_score"] == 85
+    assert DEFAULT_EVAL_OPTS["zero_dte_vol_oi"] == 2.0
     assert DEFAULT_EVAL_OPTS["sigma_min"] == 6.0
 from services.flow_quality import (
     bh_fdr,
