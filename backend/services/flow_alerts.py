@@ -224,10 +224,17 @@ def infer_side_bias(r: dict) -> tuple[str, str | None]:
     BUYing on a print-less feed; anything else is unlabeled FLOW — a desk
     never claims a side it can't defend.
 
-    Paid-feed upgrade: when the row carries NBBO truth (r["nbbo_side"] from
-    the Public chain's last-vs-mid), initiation is KNOWN, not proxied —
-    ASK = buyer lifted, BID = seller hit, with the desk's direction matrix.
+    Paid-feed upgrade: initiation is KNOWN, not proxied, in two tiers —
+    r["signed_side"] (Lee-Ready via flow_signing: quote rule, else tick test
+    on the previous sweep's mid) wins; legacy r["nbbo_side"] (touch-only,
+    no tick fallback) is the fallback. ASK = buyer lifted, BID = seller
+    hit, with the desk's direction matrix.
     """
+    signed = (r.get("signed_side") or "").upper()
+    if signed in ("ASK", "BID"):
+        from services.public_scanner import side_bias as _side_bias
+
+        return _side_bias(str(r.get("type") or ""), signed)
     nbbo = (r.get("nbbo_side") or "").upper()
     if nbbo in ("ASK", "BID"):
         from services.public_scanner import side_bias as _side_bias
@@ -244,11 +251,11 @@ def apply_quote_truth(
 ) -> list[dict]:
     """Overlay paid-feed quote truth onto normalized rows (in place).
 
-    extras is {ckey: {premium_true, nbbo_side, velocity_per_min, ...}} from
-    the Public scanner. True premium replaces the BS estimate for the
-    PRIME/WHALE money gates; NBBO side upgrades bias inference; velocity
-    feeds conviction. Missing keys leave the row untouched — cvserver rows
-    without extras score exactly as before.
+    extras is {ckey: {premium_true, nbbo_side, signed_side, sign_method,
+    velocity_per_min, ...}} from the Public scanner. True premium replaces
+    the BS estimate for the PRIME/WHALE money gates; signed/NBBO side
+    upgrades bias inference; velocity feeds conviction. Missing keys leave
+    the row untouched — cvserver rows without extras score exactly as before.
     """
     if not extras:
         return rows
@@ -260,6 +267,16 @@ def apply_quote_truth(
             r["premium_truth"] = True
         if x.get("nbbo_side") in ("ASK", "BID"):
             r["nbbo_side"] = x["nbbo_side"]
+        if x.get("signed_side") in ("ASK", "BID"):
+            r["signed_side"] = x["signed_side"]
+            if x.get("sign_method") in ("quote", "tick"):
+                r["sign_method"] = x["sign_method"]
+        rs = x.get("rel_spread")
+        try:
+            if rs is not None and float(rs) >= 0:
+                r["rel_spread"] = float(rs)
+        except (TypeError, ValueError):
+            pass
         v = x.get("velocity_per_min")
         if v is not None and v >= 0:
             r["velocity_per_min"] = v
@@ -362,7 +379,13 @@ def score_conviction(r: dict, factors: dict | None = None,
     # as before — this rewards MEASURED urgency, never a proxy.
     vel = r.get("velocity_per_min") or 0
     vel_bonus = 4 if vel >= 1000 else (2 if vel >= 300 else 0)
-    know_bonus = 2 if r.get("nbbo_side") in ("ASK", "BID") else 0
+    # Known initiation: quote-rule reads full weight, tick-fallback half —
+    # a sweep-mid tick is evidence, not proof.
+    _method = r.get("sign_method")
+    if r.get("signed_side") in ("ASK", "BID"):
+        know_bonus = 2 if _method == "quote" else 1
+    else:
+        know_bonus = 2 if r.get("nbbo_side") in ("ASK", "BID") else 0
 
     return max(0, min(100, round(flow + structure + confluence + tail + bump + vel_bonus + know_bonus)))
 
@@ -490,6 +513,9 @@ def _mk_alert(r: dict, rule: str, extra: dict, factors: dict, asof: str) -> dict
         "premium_truth": bool(r.get("premium_truth", False)),
         "p_move": None,
         "p_method": "uncalibrated",
+        # C4 execution input: relative spread at fire time (None when the
+        # feed had no two-sided quote). Kyle-λ arrives separately (B).
+        "rel_spread": r.get("rel_spread"),
         "why": extra.get("why", ""),
         "ttl_s": _TTL_S.get(rule, 2 * 3600),
         "asof": asof,

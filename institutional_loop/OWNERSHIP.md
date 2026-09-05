@@ -33,6 +33,7 @@ itself is append-only (all agents append rows; D owns structure).
 | backend/routes/public_api.py | B | public routes |
 | frontend/src/components/flowseeker/FlowseekerProBlademap.jsx | B | scanner UI |
 | backend/tests/services/test_market_bars.py | B | B1 tests |
+| backend/tests/services/test_roll_spread.py | A | A9 tests |
 | backend/tests/services/test_public_*.py | B | public path tests |
 | backend/services/flow_calibration.py | C | C2 calibration |
 | backend/services/flow_outcomes.py | C | C1/C7 outcomes |

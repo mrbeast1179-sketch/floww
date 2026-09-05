@@ -136,6 +136,37 @@ def test_nbbo_side_matrix_and_mid_print_unknown():
     assert side_bias("call", None) == ("FLOW", None)
 
 
+def test_mid_rings_feed_ticker_roll_read():
+    """A9: sweeper stamps capped mid rings; dealer carries the pooled Roll read."""
+    import services.public_scanner as ps
+
+    ps._reset_state()
+    try:
+        chain = {"ticker": "SNDK", "spot": 50.0, "contracts": [
+            {"osi": "O:R1", "expiry": "2026-09-18", "type": "call", "strike": 50.0,
+             "volume": 500, "oi": 100, "iv": 0.4, "delta": 0.5,
+             "bid": 1.0, "ask": 1.2, "mid": 1.1, "last": 1.2},
+            {"osi": "O:R2", "expiry": "2026-09-18", "type": "put", "strike": 50.0,
+             "volume": 400, "oi": 100, "iv": 0.4, "delta": -0.5,
+             "bid": 1.0, "ask": 1.2, "mid": 1.1, "last": 1.0},
+        ]}
+        out = ps.unusual_rows_from_chain(
+            chain, vol_marks=ps._vol_marks, mid_marks=ps._mid_marks, now=1000.0)[0]
+        assert len(out) == 2
+        ps._stamp_marks(chain["contracts"], 1000.0)
+        assert ps._mid_rings["O:R1"] == [1.1]
+        assert ps._mid_marks["O:R1"] == 1.1
+        dealer = ps.dealer_context(chain["contracts"], 50.0)
+        tick_rings = {"O:R1": ps._mid_rings["O:R1"], "O:R2": ps._mid_rings["O:R2"]}
+        from services.roll_spread import roll_pooled_for
+        read = roll_pooled_for(tick_rings)
+        assert read["building"] is True  # 2 mids -> 0 deltas, honest warmup
+        dealer["roll_spread"] = read
+        assert dealer["roll_spread"]["spread"] is None
+    finally:
+        ps._reset_state()
+
+
 def test_ckey_matches_norm_rows_and_frontend():
     from services.flow_alerts import norm_rows
     from services.public_scanner import ckey_of
@@ -163,6 +194,58 @@ def test_velocity_marks_turn_cumulative_into_arrival():
     assert x["velocity_per_min"] == pytest.approx(600.0)
     assert x["side"] == "BUY" and x["bias"] == "BULLISH"  # last lifted at ask
     assert x["premium_true"] == pytest.approx(1600 * 100 * 1.1)
+
+
+def test_lee_ready_signing_rides_sweep_mids():
+    """A2: quote rule on this sweep, tick test on the previous sweep's mid."""
+    from services.public_scanner import unusual_rows_from_chain
+
+    def chain_with(**over):
+        base = dict(osi="O:LR", expiry="2026-09-18", type="call", strike=100.0,
+                    volume=1000, oi=100, iv=0.4, delta=0.4)
+        base.update(over)
+        return {"ticker": "SNDK", "spot": 50.0, "contracts": [base]}
+
+    # First sight, last lifted at ask -> quote ASK, no prev needed.
+    _, x1 = unusual_rows_from_chain(
+        chain_with(bid=1.0, ask=1.2, last=1.2, mid=1.1), mid_marks={}, now=1000.0)
+    x = x1["SNDK|call|100|2026-09-18"]
+    assert x["signed_side"] == "ASK" and x["sign_method"] == "quote"
+    # Mid-print with rising sweep mid -> tick ASK.
+    _, x2 = unusual_rows_from_chain(
+        chain_with(bid=1.0, ask=1.2, last=1.1, mid=1.1),
+        mid_marks={"O:LR": 1.0}, now=1060.0)
+    x = x2["SNDK|call|100|2026-09-18"]
+    assert x["signed_side"] == "ASK" and x["sign_method"] == "tick"
+    # Mid-print, no lag anchor -> signed honestly absent (None, not UNKNOWN).
+    _, x3 = unusual_rows_from_chain(
+        chain_with(bid=1.0, ask=1.2, last=1.1, mid=1.1), mid_marks={}, now=1060.0)
+    assert x3["SNDK|call|100|2026-09-18"]["signed_side"] is None
+
+
+def test_engine_prefers_signed_over_touch_and_grades_conviction():
+    """Signed BID beats a touch-ASK proxy; tick evidence weighs half of quote."""
+    from services.flow_alerts import (
+        apply_quote_truth,
+        infer_side_bias,
+        norm_rows,
+        scan_score,
+        score_conviction,
+    )
+
+    rows = norm_rows([["SNDK", "O:S", "call", 50.0, "2026-09-18", 3000, 500, 0.5, 0.4, 49.0]])
+    extras = {"SNDK|call|50|2026-09-18": {
+        "premium_true": 600000.0, "nbbo_side": "ASK",
+        "signed_side": "BID", "sign_method": "quote",
+        "velocity_per_min": 100.0}}
+    apply_quote_truth(rows, extras)
+    r = rows[0]
+    assert r["signed_side"] == "BID" and r["sign_method"] == "quote"
+    assert infer_side_bias(r) == ("SELL", "BEARISH")  # signed truth beats touch proxy
+    r["_score"] = scan_score(r)
+    quote_conv = score_conviction(r, {})
+    r["sign_method"] = "tick"
+    assert score_conviction(r, {}) == quote_conv - 1  # tick weighs half of quote
 
 
 def test_dealer_context_walls_and_regime():
@@ -644,6 +727,74 @@ async def test_sweep_once_runs_pipeline_and_returns_view():
         ps._reset_state()
 
 
+def test_dealer_gib_pct_needs_measured_adv():
+    """B2: real ΓIB pct = net_gex/(spot²·0.01·adv)·100; None without ADV."""
+    from services.public_scanner import dealer_context
+
+    contracts = [
+        {"strike": 100.0, "type": "call", "oi": 5000, "gamma": 0.02},
+        {"strike": 95.0, "type": "put", "oi": 12000, "gamma": 0.018},
+    ]
+    d0 = dealer_context(contracts, 100.0)
+    assert d0["gamma_imbalance_pct"] is None and d0["regime"] == "negative"
+    d1 = dealer_context(contracts, 100.0, adv_shares=10_000_000)
+    net = -(0.02 * 5000 + 0.018 * 12000) * 100 * 100.0**2 * 0.01
+    assert d1["gamma_imbalance_pct"] == pytest.approx(
+        (net / (100.0**2 * 0.01 * 10_000_000)) * 100.0)
+    assert d1["adv_shares"] == 10_000_000
+    # junk ADV degrades to regime-only, never crashes
+    d2 = dealer_context(contracts, 100.0, adv_shares=0)
+    assert d2["gamma_imbalance_pct"] is None and d2["regime"] == "negative"
+
+
+def test_get_universe_rejects_garbage_never_crashes():
+    import services.public_scanner as ps
+
+    with patch.dict("os.environ", {"FLOWW_PUBLIC_UNIVERSE": "SPY, $$$ , TOOLONGTICKERNAME123, 123ABC, ok-name.x"}):
+        out = ps.get_universe()
+    assert out == ["SPY", "OK-NAME.X"]
+    with patch.dict("os.environ", {"FLOWW_PUBLIC_UNIVERSE": "!!!, ???"}):
+        assert ps.get_universe() == ps.UNIVERSE  # all rejected -> default
+
+
+def test_extras_carry_rel_spread():
+    from services.public_scanner import unusual_rows_from_chain
+
+    chain = {"ticker": "SNDK", "spot": 50.0, "contracts": [
+        {"osi": "O:A", "expiry": "2026-09-18", "type": "call", "strike": 50.0,
+         "volume": 500, "oi": 100, "iv": 0.4, "delta": 0.5,
+         "bid": 1.0, "ask": 1.2, "mid": 1.1, "last": 1.2},
+        {"osi": "O:B", "expiry": "2026-09-18", "type": "call", "strike": 55.0,
+         "volume": 500, "oi": 100, "iv": 0.4, "delta": 0.4},  # no quote
+    ]}
+    _, xtras = unusual_rows_from_chain(chain)
+    assert xtras["SNDK|call|50|2026-09-18"]["rel_spread"] == pytest.approx(0.2 / 1.1)
+    assert xtras["SNDK|call|55|2026-09-18"]["rel_spread"] is None
+
+
+def test_alert_carries_rel_spread_when_measured():
+    from services.flow_alerts import apply_quote_truth, eval_institutional, norm_rows
+
+    rows = norm_rows([["SNDK", "O:S", "call", 50.0, "2026-09-18", 3000, 500, 0.5, 0.4, 49.0]])
+    apply_quote_truth(rows, {"SNDK|call|50|2026-09-18": {
+        "premium_true": 600000.0, "rel_spread": 0.04}})
+    alerts = eval_institutional(rows)
+    assert alerts and alerts[0]["rel_spread"] == 0.04
+    rows2 = norm_rows([["SNDK", "O:S", "call", 50.0, "2026-09-18", 3000, 500, 0.5, 0.4, 49.0]])
+    assert eval_institutional(rows2)[0]["rel_spread"] is None
+
+
+def test_merged_gex_prefers_measured_dealer_pct():
+    import routes.flowseeker as fs
+
+    dealer = {"SNDK": {"regime": "negative", "gamma_imbalance_pct": -2.5,
+                       "call_wall": 55.0, "put_wall": 45.0}}
+    with patch.object(fs, "_cached_gex_context", return_value={}):
+        out = fs._merged_gex_context(["SNDK"], dealer)
+    assert out["SNDK"]["gamma_imbalance"]["gamma_imbalance_pct"] == -2.5
+    assert out["SNDK"]["gamma_imbalance"]["regime"] == "negative"
+
+
 def test_merged_gex_context_cache_wins_dealer_fills_gaps():
     fs = _route_module()
     cached = {"SPY": {"gamma_imbalance": {"gamma_imbalance_pct": 2.0, "regime": "x"}}}
@@ -676,6 +827,122 @@ async def test_public_sweep_loop_kill_switch_and_shutdown():
             await srv._public_sweep_loop()
     finally:
         srv._shutdown_event.clear()
+
+
+# ── B4 honest budget: acquire_n + per-ticker debit + adaptive trim ──
+
+def test_acquire_n_atomic_no_partial_spend():
+    from services.public_budget import BudgetExhausted, PublicBudget
+
+    async def run():
+        b = PublicBudget(capacity=10, refill_per_sec=0.0)
+        await b.acquire_n(4, now=1000.0)
+        assert b._tokens == 6.0
+        with pytest.raises(BudgetExhausted) as e:
+            await b.acquire_n(7, now=1000.0)
+        assert e.value.reason == "token_bucket"
+        assert b._tokens == 6.0  # refusal debits nothing
+        b.release()
+        await b.acquire_n(6, now=1000.0)  # slot freed, tokens exact-fit
+        assert b._tokens == 0.0
+
+    asyncio.run(run())
+
+
+def test_peek_available_honors_idle_refill():
+    from services.public_budget import PublicBudget
+
+    async def run():
+        b = PublicBudget(capacity=10, refill_per_sec=1.0)
+        await b.acquire_n(10, now=1000.0)
+        assert await b.peek_available(now=1005.0) == 5.0
+        b.release()
+
+    asyncio.run(run())
+
+
+@pytest.mark.asyncio
+async def test_scan_slice_skips_ticker_on_refused_debit(monkeypatch):
+    import services.public_scanner as ps
+    from services.public_budget import BudgetExhausted
+
+    class DeadBudget:
+        async def acquire(self, host="public"):
+            return None
+
+        async def acquire_n(self, n, host="public", now=None):
+            raise BudgetExhausted(retry_after=9, reason="token_bucket")
+
+        def release(self):
+            return None
+
+    async def boom(ticker, max_expiries=2):  # pragma: no cover
+        raise AssertionError("fetch must not run without budget")
+
+    monkeypatch.setattr("services.public_budget.budget", DeadBudget())
+    monkeypatch.setattr("services.public_api_adapter.fetch_chain_from_public_api", boom)
+    out = await ps.scan_slice(["SPY"], max_expiries=2)
+    assert out["SPY"]["rows"] == [] and out["SPY"]["skipped"] == "budget"
+
+
+@pytest.mark.asyncio
+async def test_scan_next_trims_slice_to_affordability(monkeypatch):
+    import services.public_scanner as ps
+    from services.public_budget import PublicBudget
+
+    ps._reset_state()
+    try:
+        seen: list = []
+
+        async def fake_slice(tickers, max_expiries=2, concurrency=3):
+            seen.extend(tickers)
+            return {t: {"rows": [[t, f"O:{t}", "call", 100.0, "2026-09-18",
+                                  500, 100, 0.4, 0.4, 99.0]],
+                        "extras": {}, "dealer": None} for t in tickers}
+
+        # capacity 9, cost 4/ticker -> afford 2 of 8 requested
+        monkeypatch.setattr("services.public_budget.budget",
+                            PublicBudget(capacity=9, refill_per_sec=0.0))
+        with patch.object(ps, "scan_slice", side_effect=fake_slice):
+            v = await ps.scan_next(slice_size=8, max_expiries=2,
+                                   universe=[f"T{i}" for i in range(8)])
+        assert len(seen) == 2 and v["count"] == 2
+    finally:
+        ps._reset_state()
+
+
+@pytest.mark.asyncio
+async def test_scan_public_503_when_slice_unaffordable(monkeypatch):
+    from fastapi import HTTPException
+
+    from services.public_budget import BudgetExhausted
+
+    fs = _route_module()
+
+    class Budget:
+        async def acquire(self, host="public"):
+            return None
+
+        def release(self):
+            return None
+
+    async def no_baselines():
+        return {}
+
+    async def no_prev():
+        return {}
+
+    async def exhausted_slice(**kw):
+        raise BudgetExhausted(retry_after=11, reason="slice-unaffordable")
+
+    with patch("services.public_budget.budget", Budget()), \
+         patch("services.public_scanner.scan_next", side_effect=exhausted_slice), \
+         patch.object(fs, "_volume_baselines", no_baselines), \
+         patch.object(fs, "_prev_contract_oi", no_prev):
+        with pytest.raises(HTTPException) as e:
+            await fs.public_market_scan(slice_size=8, max_expiries=2)
+    assert e.value.status_code == 503
+    assert e.value.detail["error"] == "public slice unaffordable"
 
 
 def test_scan_payload_truncated_and_coverage():

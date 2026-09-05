@@ -725,6 +725,10 @@ export default function FlowseekerProBlademap({ active = true }) {
           if (xt) {
             if (xt.premium_true != null && xt.premium_true > 0) row.premium = xt.premium_true;
             if (xt.nbbo_side === "ASK" || xt.nbbo_side === "BID") row.nbbo = xt.nbbo_side;
+            if (xt.signed_side === "ASK" || xt.signed_side === "BID") {
+              row.signedSide = xt.signed_side;
+              if (xt.sign_method === "quote" || xt.sign_method === "tick") row.signMethod = xt.sign_method;
+            }
             if (xt.velocity_per_min != null) row.velocity = xt.velocity_per_min;
           }
           // Join yesterday's OI for this exact contract (OCC ticker r[1]).

@@ -10,12 +10,12 @@ Python: `f"{under}|{typ}|{strike:g}|{exp}"` · JS: `` `${r.under}|${r.type}|${r.
 `type` ∈ {call, put} lowercase. Decimal strikes must round-trip (`142.5` both sides). Verified by `test_ckey_matches_norm_rows_and_frontend`.
 
 ## C3. quote_truth extras (paid path only), keyed by ckey
-`{premium_true: float|None (mid×vol×100), side: BUY|SELL|FLOW, nbbo_side: ASK|BID|None, bias: BULLISH|BEARISH|None, mid, last, vol_delta|None, velocity_per_min|None}`
-Rules: None = unknown (never 0-as-dead); premium_true replaces BS estimates only when > 0; no extras key ⇒ row scores exactly as before.
+`{premium_true: float|None (mid×vol×100), side: BUY|SELL|FLOW, nbbo_side: ASK|BID|None, signed_side: ASK|BID|None (Lee-Ready, quote rule + tick on prev sweep mid), sign_method: quote|tick|None, bias: BULLISH|BEARISH|None, mid, last, rel_spread: float|None ((ask-bid)/mid), vol_delta|None, velocity_per_min|None}`
+Rules: None = unknown (never 0-as-dead); premium_true replaces BS estimates only when > 0; no extras key ⇒ row scores exactly as before. Engine preference: signed_side > nbbo_side > vol/OI proxy.
 
 ## C4. dealer context per ticker
-`{call_wall: strike|None, put_wall: strike|None, max_oi_strike|None, net_gex: float|None (dealer-signed dollars), regime: "negative"|"positive"|None}`
-No pct, no ADV guesses. Regime vocabulary is ONLY negative/positive/None everywhere downstream.
+`{call_wall: strike|None, put_wall: strike|None, max_oi_strike|None, net_gex: float|None (dealer-signed dollars), regime: "negative"|"positive"|None, gamma_imbalance_pct: float|None (measured vs 21d ADV, else None), adv_shares: float|None, roll_spread: {spread|None, n, nd, building, truncated}|None (pooled Roll over ticker rings; building until ~30 deltas)}`
+No ADV guesses: pct/adv are None without measured ADV. Regime vocabulary is ONLY negative/positive/None everywhere downstream.
 
 ## C5. gex_context for the alert engine
 `{underlying: {"gamma_imbalance": {"gamma_imbalance_pct": float, "regime": str, ...}}}` (ticker-keyed).
@@ -26,13 +26,13 @@ Dealer fallback (no heatmap ΓIB): `{"gamma_imbalance": {"gamma_imbalance_pct": 
 Keys: `key(rule|ckey, namespaced), ckey, rule ∈ {OICONF,SCORE,WHALE,PRIME,0DTE,SIGMA,CLUSTER}, tier, conviction, side ∈ {BUY,SELL,FLOW,STRATEGY}, bias|None, under, type, strike, exp, dte, score, est_entry, premium(+premium_truth flag), notional, vol_oi, sigma, oi_chg_pct, under_price, key_levels{entry,invalidation,target}|None, context{activity_summary,institutional_indicators,market_regime,dealer_positioning}, cluster bool, cw_spread, why, ttl_s, asof, mins_since_open, p_move|None, p_method`.
 Precedence: OICONF > SCORE > WHALE > PRIME > 0DTE (one per contract); SIGMA/CLUSTER ticker-level. TTLs: OICONF 20h, SIGMA 4h, SCORE 2h, PRIME 2h, CLUSTER 4h, WHALE 6h, 0DTE 1h.
 0DTE gate (both languages): score≥85 AND vol_oi≥2 AND dte≤1. `perTickerCap=2` is frontend-notification-only; the backend feed never caps (completeness) — documented divergence.
-Always-emit keys: `premium_truth: bool`, `p_move` (None until staged), `p_method` ("uncalibrated" until staged), `mins_since_open`.
+Always-emit keys: `premium_truth: bool`, `p_move` (None until staged), `p_method` ("uncalibrated" until staged), `mins_since_open`, `rel_spread` (None without two-sided quote; C4 execution input).
 
 ## C7. Scoring locks
 `scan_score` ≡ `scanScoreOf` term-for-term (pos .34 / size .24 / notl .18 / urg .14 / otm .10, regime nudge +5/3, informed band +4). Gating uses score; ranking uses conviction (`score_conviction` + evidence bonuses, backend-only). GEX S¹ (features) vs S² (display) duality untouched.
 
 ## C8. Budgets & caches
-Public budget units = upstream HTTP calls; 60/min assumption, token bucket + inflight cap + 429 cooler. cvserver: 20/hr total, scan slice ≈14, TTL 240s. Chain caches: adapter 60s + coalescing + stale-serve; flowseeker chain 600s LRU-500. Every stale payload carries age; empty-with-stale beats silent-empty.
+Public budget units = upstream HTTP calls; 60/min assumption, token bucket + inflight cap + 429 cooler. Chain fan-out debited per ticker (`acquire_n(2+N)`; skipped tickers keep prior slices, slices trim to affordability, unaffordable sweep raises). Route/sweep admission holds 1 op-token on top. cvserver: 20/hr total, scan slice ≈14, TTL 240s. Chain caches: adapter 60s + coalescing + stale-serve; flowseeker chain 600s LRU-500. Every stale payload carries age; empty-with-stale beats silent-empty.
 
 ## C9. Time & session
 America/New_York for all session math. RTH sweep 45s / off-hours 600s. DTE = business days. Weekend/holiday rows are stale duplicates — history hygiene (`cleanHistory`) stays.

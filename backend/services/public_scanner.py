@@ -26,9 +26,11 @@ upstream calls):
            flow_alerts.norm_rows / eval_institutional and the frontend
            mkScanRow consume them unchanged.
   extras — quote-truth per contract keyed by ckey: NBBO side (last vs mid),
-           true premium (mid×vol×100, never a BS estimate), per-contract
-           volume velocity (contracts/min since the previous sweep — arrival
-           intensity is the institutional urgency read), mid/last.
+           Lee-Ready signed_side/sign_method (A2: quote rule + tick test on
+           the previous sweep's mid), true premium (mid×vol×100, never a BS
+           estimate), per-contract volume velocity (contracts/min since the
+           previous sweep — arrival intensity is the institutional urgency
+           read), mid/last.
   dealer — per-ticker dealer positioning from real gamma×OI: call/put walls,
            max-OI strike, net dealer gamma + regime. The context an
            institutional alert needs, computed from data already in hand.
@@ -46,6 +48,15 @@ import logging
 import os
 import time
 from typing import Any
+
+from services.flow_signing import sign_print as _sign_print
+from services.roll_spread import push_capped as _push_capped
+from services.roll_spread import roll_pooled_for as _roll_pooled_for
+
+try:
+    from services.market_bars import get_adv_21d as _get_adv
+except Exception:  # pragma: no cover - import-time safety
+    _get_adv = None  # type: ignore[assignment]
 
 log = logging.getLogger(__name__)
 
@@ -70,12 +81,26 @@ UNIVERSE: list[str] = [
 def get_universe() -> list[str]:
     """Active scan universe — FLOWW_PUBLIC_UNIVERSE (comma-separated) wins,
     else the curated default. Env override lets the desk reshape coverage
-    without a deploy."""
+    without a deploy.
+
+    Entries are uppercased, deduped, and validated (B7): anything that is
+    not 1–12 chars of A–Z/0–9/./- is rejected with a warning, never a
+    crash — a typo in env must not take down the sweep loop.
+    """
     raw = os.environ.get("FLOWW_PUBLIC_UNIVERSE", "")
     names = [t.strip().upper() for t in raw.split(",") if t.strip()]
     # Dedupe, preserve order.
     seen: set[str] = set()
-    out = [t for t in names if not (t in seen or seen.add(t))]
+    out: list[str] = []
+    for t in names:
+        if t in seen:
+            continue
+        seen.add(t)
+        if (not t[0].isalpha() or len(t) > 12
+                or not all(ch.isalnum() or ch in ".-" for ch in t)):
+            log.warning("public scanner dropping invalid universe ticker %r", t)
+            continue
+        out.append(t)
     return out or list(UNIVERSE)
 
 
@@ -96,6 +121,16 @@ MAX_ROWS_PER_TICKER = 60
 # Slice cache TTL: a slice older than this is dropped from the merged view
 # rather than served as if fresh (honesty over coverage).
 SLICE_TTL_S = 600.0
+
+# Upstream fan-out per ticker chain fetch (B4): expirations + quotes +
+# one chain call per expiry. Debited per ticker so the 60/min assumption
+# stays honest under fan-out.
+CHAIN_OVERHEAD_CALLS = 2
+
+
+def chain_cost(max_expiries: int) -> int:
+    """Upstream HTTP calls one ticker chain fetch fans out to."""
+    return CHAIN_OVERHEAD_CALLS + max(0, int(max_expiries))
 
 
 # ── Pure helpers ──────────────────────────────────────────────────────
@@ -160,6 +195,7 @@ def side_bias(ctype: str, side: str | None) -> tuple[str, str | None]:
 def dealer_context(
     contracts: list[dict[str, Any]],
     spot: float,
+    adv_shares: float | None = None,
 ) -> dict[str, Any]:
     """Per-ticker dealer positioning from real gamma×OI (zero extra calls).
 
@@ -167,6 +203,13 @@ def dealer_context(
     negative = dealers short gamma → hedging AMPLIFIES moves (the regime in
     which institutional flow chases); positive = dampens (flow mean-reverts
     toward walls). Walls = max-OI strike per side.
+
+    adv_shares (21-session average daily share volume, measured via the C13
+    bars provider) unlocks the Barbon-Buraschi ΓIB percentage:
+    pct = net_gex / (spot² × 0.01 × adv) × 100 — the same normalization as
+    gex_paper_accurate.compute_gamma_imbalance. Without ADV the pct stays
+    None (unknown magnitude, never a fabricated zero) while regime still
+    propagates from the sign of net gamma.
     """
     call_oi: dict[float, float] = {}
     put_oi: dict[float, float] = {}
@@ -201,32 +244,47 @@ def dealer_context(
         all_oi[k] = all_oi.get(k, 0.0) + v
     max_oi_strike = max(all_oi, key=lambda k: all_oi[k]) if all_oi else None
     regime = None
+    gib_pct: float | None = None
+    adv: float | None = None
     if have_gamma:
         regime = "negative" if net_gex < 0 else "positive"
+        try:
+            adv = float(adv_shares) if adv_shares is not None else None
+        except (TypeError, ValueError):
+            adv = None
+        if adv is not None and adv > 0 and s > 0:
+            gib_pct = (net_gex / (s * s * 0.01 * adv)) * 100.0
     return {
         "call_wall": call_wall,
         "put_wall": put_wall,
         "max_oi_strike": max_oi_strike,
         "net_gex": round(net_gex, 1) if have_gamma else None,
         "regime": regime,
+        "gamma_imbalance_pct": gib_pct,
+        "adv_shares": adv if have_gamma and gib_pct is not None else None,
     }
 
 
 def unusual_rows_from_chain(
     chain: dict[str, Any],
     vol_marks: dict[str, tuple[float, float]] | None = None,
+    mid_marks: dict[str, float] | None = None,
     now: float | None = None,
 ) -> tuple[list[list], dict[str, dict[str, Any]]]:
     """Public chain dict → (cvserver-shaped unusual list-rows, quote-truth extras).
 
-    extras[ckey] = {premium_true, side, bias, mid, last, vol_delta,
-    velocity_per_min}. Malformed contracts are dropped, never raised. Rows
-    sorted vol_oi desc so the strongest positioning leads even before scoring.
+    extras[ckey] = {premium_true, side, nbbo_side, signed_side, sign_method,
+    bias, mid, last, vol_delta, velocity_per_min}. Malformed contracts are
+    dropped, never raised. Rows sorted vol_oi desc so the strongest
+    positioning leads even before scoring.
 
     vol_marks ({osi: (vol, ts)}) turns cumulative day-volume into arrival
     intensity: vol_delta = new contracts since the mark; velocity_per_min =
     delta / elapsed minutes (None on first sight or clock anomalies — honest
     unknown, never a fabricated zero that would read as "dead flow").
+    mid_marks ({osi: mid}) feeds the Lee-Ready tick fallback: the previous
+    sweep's mid is the lag anchor (snapshot-data adaptation — prev trade
+    price unavailable in chain snapshots; see flow_signing.sign_print).
     """
     if not isinstance(chain, dict):
         return [], {}
@@ -238,6 +296,7 @@ def unusual_rows_from_chain(
         spot_f = 0
     now = time.time() if now is None else now
     marks = vol_marks if vol_marks is not None else {}
+    mids = mid_marks if mid_marks is not None else {}
     out: list[tuple[float, list]] = []
     extras: dict[str, dict[str, Any]] = {}
     for c in chain.get("contracts", []) or []:
@@ -300,10 +359,34 @@ def unusual_rows_from_chain(
             premium_true = vol * 100 * px if px and px > 0 else None
             side = nbbo_side(last, bid, ask)
             s, bias = side_bias(ctype, side)
+            # Relative spread (C4 execution input): spread/mid, None without
+            # a valid two-sided quote. Wide-spread + aggressive (Glosten–
+            # Milgrom adverse selection) reads as informed urgency.
+            rel_spread: float | None = None
+            try:
+                _b, _a = float(bid), float(ask)
+                _m = float(mid_f) if mid_f else None
+                if _a > _b > 0 and _m and _m > 0:
+                    rel_spread = (_a - _b) / _m
+            except (TypeError, ValueError):
+                rel_spread = None
+            osi = str(c.get("osi") or "")
+            # ── Lee-Ready signing (A2): quote rule on this sweep, tick test
+            # on the previous sweep's mid. prev_mid None on first sight →
+            # tick honestly degrades to UNKNOWN (never a forced side).
+            signed_side: str | None = None
+            sign_method: str | None = None
+            if osi:
+                prev_mid = mids.get(osi)
+                try:
+                    signed_side, sign_method = _sign_print(last, bid, ask, prev_mid)
+                except Exception:
+                    signed_side, sign_method = "UNKNOWN", "none"
+                if signed_side not in ("ASK", "BID"):
+                    signed_side = None
             # ── velocity from marks ──
             vol_delta: float | None = None
             velocity: float | None = None
-            osi = str(c.get("osi") or "")
             if osi:
                 prev = marks.get(osi)
                 if prev is not None:
@@ -319,9 +402,12 @@ def unusual_rows_from_chain(
                 "premium_true": premium_true,
                 "side": s if side else "FLOW",
                 "nbbo_side": side,
+                "signed_side": signed_side,
+                "sign_method": sign_method,
                 "bias": bias,
                 "mid": mid_f,
                 "last": last,
+                "rel_spread": rel_spread,
                 "vol_delta": vol_delta,
                 "velocity_per_min": velocity,
             }
@@ -382,20 +468,41 @@ _slices: dict[str, dict] = {}   # ticker -> {ts, rows, extras, dealer}
 _cursor: int = 0
 _scan_lock = asyncio.Lock()
 _vol_marks: dict[str, tuple[float, float]] = {}  # osi -> (vol, ts)
+_mid_marks: dict[str, float] = {}  # osi -> last-seen mid (Lee-Ready tick anchor)
+_mid_rings: dict[str, list[float]] = {}  # osi -> capped mid history (Roll cost)
 
 
 def _reset_state() -> None:
-    """Tests only — clear slices + cursor + velocity marks."""
+    """Tests only — clear slices + cursor + velocity/mid marks + rings."""
     global _cursor
     _slices.clear()
     _cursor = 0
     _vol_marks.clear()
+    _mid_marks.clear()
+    _mid_rings.clear()
+
+
+def _contract_mid(c: dict[str, Any]) -> float | None:
+    """Best mid for one chain contract: vendor mid, else (bid+ask)/2."""
+    try:
+        mid = c.get("mid")
+        if mid is not None and float(mid) > 0:
+            return float(mid)
+        bid, ask = float(c.get("bid")), float(c.get("ask"))
+        if ask > bid > 0:
+            return (bid + ask) / 2
+    except (TypeError, ValueError):
+        pass
+    return None
 
 
 def _stamp_marks(contracts: list[dict[str, Any]], now: float) -> None:
-    """Record current cumulative volumes for the next sweep's velocity math.
-    Bounded: entries for contracts never seen again are pruned when the map
-    grows past 20k keys (long-lived-process guard)."""
+    """Record current cumulative volumes + mids for the next sweep.
+
+    Volumes feed velocity math; mids feed the Lee-Ready tick fallback and
+    the per-contract Roll rings (bounded at 60 mids/contract).
+    Bounded: entries for contracts never seen again are pruned when the
+    maps grow past 20k keys (long-lived-process guard)."""
     for c in contracts or []:
         try:
             if not isinstance(c, dict):
@@ -404,12 +511,18 @@ def _stamp_marks(contracts: list[dict[str, Any]], now: float) -> None:
             if not osi:
                 continue
             _vol_marks[osi] = (float(c.get("volume") or 0), now)
+            mid = _contract_mid(c)
+            if mid is not None:
+                _mid_marks[osi] = mid
+                _mid_rings[osi] = _push_capped(_mid_rings.get(osi), mid, cap=60)
         except (TypeError, ValueError):
             continue
     if len(_vol_marks) > 20000:
         # Drop oldest by timestamp (marks are (vol, ts) tuples).
         for osi in sorted(_vol_marks, key=lambda k: _vol_marks[k][1])[: len(_vol_marks) - 20000]:
             _vol_marks.pop(osi, None)
+            _mid_marks.pop(osi, None)
+            _mid_rings.pop(osi, None)
 
 
 async def scan_slice(
@@ -420,34 +533,64 @@ async def scan_slice(
     """Fetch chains for `tickers` and extract unusual rows + extras + dealer.
 
     Never raises. Returns {ticker: {"rows", "extras", "dealer"}}. A ticker
-    whose chain fails maps to empty rows (its prior slice is left untouched
-    by the caller so one failure can't wipe coverage).
+    whose chain fails — or whose fan-out the budget refuses — maps to empty
+    rows (its prior slice is left untouched by the caller so one failure
+    can't wipe coverage).
     """
     from services.public_api_adapter import fetch_chain_from_public_api
+    from services.public_budget import BudgetExhausted
+    from services.public_budget import budget as pub_budget
 
     out: dict[str, dict[str, Any]] = {}
     sem = asyncio.Semaphore(max(1, concurrency))
     now = time.time()
+    cost = chain_cost(max_expiries)
 
     async def _one(t: str) -> None:
         async with sem:
+            try:
+                await pub_budget.acquire_n(cost, "api.public.com")
+            except BudgetExhausted as e:
+                log.debug("public scanner skip %s — budget refused %d tokens: %s",
+                          t, cost, e.reason)
+                out[t] = {"rows": [], "extras": {}, "dealer": None, "skipped": "budget"}
+                return
             try:
                 chain = await fetch_chain_from_public_api(t, max_expiries=max_expiries)
             except Exception as e:
                 log.warning("public scanner slice fail %s: %s", t, e)
                 out[t] = {"rows": [], "extras": {}, "dealer": None}
                 return
+            finally:
+                pub_budget.release()
             if not chain:
                 out[t] = {"rows": [], "extras": {}, "dealer": None}
                 return
             contracts = chain.get("contracts", []) or []
-            rows, extras = unusual_rows_from_chain(chain, vol_marks=_vol_marks, now=now)
+            rows, extras = unusual_rows_from_chain(
+                chain, vol_marks=_vol_marks, mid_marks=_mid_marks, now=now
+            )
             try:
                 spot = float(chain.get("spot") or 0)
             except (TypeError, ValueError):
                 spot = 0
-            dealer = dealer_context(contracts, spot)
+            # Measured ADV unlocks the real ΓIB pct (B2). Cached 6h in
+            # market_bars; fail-open to regime-only on any miss.
+            adv: float | None = None
+            if _get_adv is not None:
+                try:
+                    adv = await _get_adv(t)
+                except Exception as e:
+                    log.debug("public scanner ADV miss %s: %s", t, e)
+            dealer = dealer_context(contracts, spot, adv_shares=adv)
             _stamp_marks(contracts, now)
+            # Roll read over this ticker's contracts (pooled bucket).
+            # Building state until ~30 deltas — an honest "warming up",
+            # never a premature number.
+            tick_osis = {str(c.get("osi") or "") for c in contracts
+                         if isinstance(c, dict) and c.get("osi")}
+            tick_rings = {o: _mid_rings[o] for o in tick_osis if o in _mid_rings}
+            dealer["roll_spread"] = _roll_pooled_for(tick_rings)
             out[t] = {"rows": rows, "extras": extras, "dealer": dealer}
 
     await asyncio.gather(*(_one(t) for t in tickers))
@@ -463,12 +606,31 @@ async def scan_next(
 
     Single-flight (concurrent callers share one sweep). The cursor advances
     exactly once per sweep — a slow sweep never double-spends budget.
+
+    Budget-adaptive (B4): the slice is trimmed to what the bucket can
+    afford this tick (one ticker minimum or BudgetExhausted). Skipped
+    tickers keep their prior slices and wait for the next rotation —
+    coverage degrades gracefully instead of stampeding upstream.
     """
     global _cursor
     uni = universe or get_universe()
     async with _scan_lock:
+        from services.public_budget import BudgetExhausted
+        from services.public_budget import budget as pub_budget
+
         idx, _cursor = advance_cursor(_cursor, slice_size, len(uni))
         tickers = [uni[i] for i in idx]
+        per_ticker = chain_cost(max_expiries)
+        try:
+            affordable = max(0, int(await pub_budget.peek_available() // per_ticker))
+        except Exception:
+            affordable = len(tickers)
+        if affordable <= 0 and tickers:
+            raise BudgetExhausted(retry_after=5, reason="slice-unaffordable")
+        if affordable < len(tickers):
+            log.info("public sweep trimmed %d→%d tickers on budget",
+                     len(tickers), affordable)
+            tickers = tickers[:affordable]
         dealer: dict[str, dict[str, Any]] = {
             t: (_slices[t]["dealer"] if isinstance(_slices.get(t), dict) and _slices[t].get("dealer") else None)
             for t in _slices
@@ -518,6 +680,10 @@ async def sweep_once(
         return None
     try:
         view = await scan_next(slice_size=slice_size, max_expiries=max_expiries)
+    except BudgetExhausted as e:
+        log.info("public sweep skipped — slice unaffordable (retry in ~%ss)",
+                 e.retry_after)
+        return None
     finally:
         pub_budget.release()
     try:

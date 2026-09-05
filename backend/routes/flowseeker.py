@@ -981,9 +981,10 @@ def _merged_gex_context(
 
     The paper-accurate cache entry wins whenever present (it carries a real
     ADV-normalized magnitude, which the confluence boolean needs). Dealer
-    entries carry regime + walls with pct 0.0 — regime propagates to key
-    levels + the WHY block, but confluence stays False without measured
-    magnitude. Never fabricate a pct.
+    entries carry regime + walls; pct passes through ONLY when the scanner
+    measured it against real ADV (B2) — otherwise None (unknown), regime
+    propagates to key levels + the WHY block, and confluence stays False
+    until measured ΓIB arrives. Never fabricate a pct.
     """
     out = _cached_gex_context(tickers)
     for t, d in (dealer or {}).items():
@@ -994,9 +995,14 @@ def _merged_gex_context(
         # pct None = UNKNOWN magnitude (dealer walls without ADV normalization).
         # Regime propagates to key levels + WHY; confluence stays False until
         # measured ΓIB arrives. Never 0.0 — zero is a measurement, not unknown.
+        pct = d.get("gamma_imbalance_pct")
+        try:
+            pct = float(pct) if pct is not None else None
+        except (TypeError, ValueError):
+            pct = None
         out[t] = {
             "gamma_imbalance": {
-                "gamma_imbalance_pct": None,
+                "gamma_imbalance_pct": pct,
                 "regime": d["regime"],
                 "dealer_walls": {
                     "call": d.get("call_wall"),
@@ -1482,6 +1488,11 @@ async def public_market_scan(
         ) from e
     try:
         view = await ps.scan_next(slice_size=slice_size, max_expiries=max_expiries)
+    except BudgetExhausted as e:
+        raise HTTPException(
+            status_code=503,
+            detail={"error": "public slice unaffordable", "retry_after": e.retry_after},
+        ) from e
     finally:
         _pub_budget.release()
 

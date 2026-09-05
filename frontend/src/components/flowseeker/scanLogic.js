@@ -697,6 +697,18 @@ export function signedOtm(type, strike, spot) {
   return isCall ? (k - s) / s : (s - k) / s;
 }
 
+// Signed side → (side, bias): the frontend mirror of the server's desk
+// matrix (services/public_scanner.py side_bias, fed by Lee-Ready
+// flow_signing on the backend). ASK = buyer lifted, BID = seller hit;
+// unknown (or anything else) stays unlabeled FLOW — parity tested on the
+// same 5 contracts both sides (scanLogic.test.js ↔ test_public_advantage).
+export function signedBias(type, signedSide) {
+  const t = String(type || "").toLowerCase().startsWith("c") ? "call" : "put";
+  if (signedSide === "ASK") return { side: "BUY", bias: t === "call" ? "BULLISH" : "BEARISH" };
+  if (signedSide === "BID") return { side: "SELL", bias: t === "call" ? "BEARISH" : "BULLISH" };
+  return { side: "FLOW", bias: null };
+}
+
 // OPEX = third Friday of the month (standard US equity expiry week).
 // Date-only inputs parse at local noon to dodge UTC-midnight timezone shift.
 export function isOpexDay(dateLike) {

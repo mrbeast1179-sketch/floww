@@ -7,8 +7,26 @@ import {
   tierOf, selectFires, pickBanner, spreadPosition, overviewStats,
   equityType, signedOtm, isOpexDay, highlightState, flagSpreadLegs,
   interpDeltaIV, skewLevels, pinRisk, quoteSkew, midDrift, stampPollDeltas, nearestExpiryPin,
-  rollSpread, pushCapped, rollPooled, contractKey,
+  rollSpread, pushCapped, rollPooled, contractKey, signedBias,
 } from "./scanLogic";
+
+describe("signedBias mirrors the server desk matrix (A2 parity)", () => {
+  // Same 5 contracts both sides: backend side_bias (public_scanner) and
+  // engine infer_side_bias (flow_alerts) must agree with this table.
+  const cases = [
+    ["call", "ASK", "BUY", "BULLISH"],
+    ["put", "ASK", "BUY", "BEARISH"],
+    ["call", "BID", "SELL", "BEARISH"],
+    ["put", "BID", "SELL", "BULLISH"],
+    ["call", null, "FLOW", null],
+  ];
+  it.each(cases)("%s + %s → %s / %s", (type, signed, side, bias) => {
+    expect(signedBias(type, signed)).toEqual({ side, bias });
+  });
+  it("unknown garbage stays unlabeled", () => {
+    expect(signedBias("call", "MAYBE")).toEqual({ side: "FLOW", bias: null });
+  });
+});
 
 describe("estimateDelta", () => {
   it("is ~±0.5 at the money", () => {
