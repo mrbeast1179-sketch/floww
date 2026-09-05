@@ -15,6 +15,13 @@ import logging
 import os
 import sys
 
+try:
+    from dotenv import load_dotenv
+
+    load_dotenv(__import__("pathlib").Path(__file__).resolve().parent / ".env")
+except Exception:
+    pass
+
 sys.path.insert(0, str(__import__("pathlib").Path(__file__).resolve().parent))
 
 log = logging.getLogger("discord_bot")
