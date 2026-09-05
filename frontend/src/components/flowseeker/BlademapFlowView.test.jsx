@@ -51,7 +51,7 @@ test('free-text focus filters the tape; ALL restores it', async () => {
     fireEvent.change(input, { target: { value: 'ZZZ' } });
     fireEvent.keyDown(input, { key: 'Enter', code: 'Enter' });
     await act(async () => { jest.advanceTimersByTime(1000); });
-    expect(screen.queryByText(/No prints pass the Pulse gates/)).toBeInTheDocument();
+    expect(screen.queryByText(/No prints for/)).toBeInTheDocument();
   } finally {
     jest.useRealTimers();
   }
@@ -69,7 +69,7 @@ test('exclusive DTE bands partition the tape', async () => {
     // ...and hidden under the disjoint 0D band.
     fireEvent.click(screen.getByText('0D'));
     await act(async () => { jest.advanceTimersByTime(500); });
-    expect(screen.queryByText(/No prints pass the Pulse gates/)).toBeInTheDocument();
+    expect(screen.queryByText(/No prints for/)).toBeInTheDocument();
   } finally {
     jest.useRealTimers();
   }
