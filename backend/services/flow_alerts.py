@@ -692,6 +692,17 @@ def init_flow_alert_tables(engine) -> None:
             key TEXT PRIMARY KEY, last_fired_ts DOUBLE, ttl_s DOUBLE
         )
     """)
+    # Horizon-move legs (Agent C, C1, 2026-09-05): per-stamp persistence so
+    # +1/+5/+20 reads don't collapse into the latest move_pct. Append-only;
+    # readers derive session legs from ordered stamps. No PK (stamps are
+    # scan-cadence; microsecond ts keeps collisions practically impossible).
+    engine.execute_write("""
+        CREATE TABLE IF NOT EXISTS flow_alert_moves (
+            asof_date DATE, key TEXT, under TEXT,
+            stamp_ts TIMESTAMP, stamp_date DATE,
+            last_price DOUBLE, move_pct DOUBLE
+        )
+    """)
 
 
 def persist_alerts(engine, alerts, snapshot_date: str | None = None) -> int:
@@ -960,10 +971,21 @@ def dedup_filter(engine, alerts, now: float | None = None) -> list[dict]:
     return kept
 
 
-def update_moves(engine, spot_map: dict) -> int:
+def update_moves(engine, spot_map: dict, stamp_ts: str | None = None) -> int:
     """Stamp the latest underlying price onto open alerts → move-since-alert.
-    Called with every fresh scan's spots; zero extra upstream calls."""
+    Called with every fresh scan's spots; zero extra upstream calls.
+
+    C1 horizon legs: every stamp ALSO appends one row per open alert into
+    flow_alert_moves (fail-open — a leg-write failure never blocks the
+    latest-price UPDATE above). stamp_ts is injectable for deterministic
+    tests; live callers leave it None (now, ET).
+    """
     n = 0
+    now_iso = stamp_ts or datetime.now(_ET).isoformat()
+    try:
+        stamp_day = date.fromisoformat(str(now_iso)[:10]).isoformat()
+    except Exception:
+        stamp_day = date.today().isoformat()
     for under, px in (spot_map or {}).items():
         p = _f(px)
         if p is None or p <= 0:
@@ -980,9 +1002,77 @@ def update_moves(engine, spot_map: dict) -> int:
                 WHERE under = ? AND under_price > 0
             """, [[p, p, under]])
             n += c
+            with contextlib.suppress(Exception):
+                open_rows = engine.query(
+                    "SELECT asof_date, key, under_price FROM flow_alerts_daily "
+                    "WHERE under = ? AND under_price > 0", [under])
+                legs = []
+                for r in open_rows or []:
+                    try:
+                        base = float(r["under_price"])
+                    except (TypeError, ValueError):
+                        continue
+                    if base <= 0:
+                        continue
+                    legs.append([str(r["asof_date"]), str(r["key"]), under,
+                                 now_iso, stamp_day, p,
+                                 (p - base) / base * 100.0])
+                if legs:
+                    engine.execute_write("""
+                        INSERT INTO flow_alert_moves
+                        (asof_date, key, under, stamp_ts, stamp_date,
+                         last_price, move_pct)
+                        VALUES (?, ?, ?, ?, ?, ?, ?)
+                    """, legs)
         except Exception as e:
             logger.debug(f"flow_alerts.update_moves({under}): {e}")
     return n
+
+
+def get_move_path(engine, asof_date: str, key: str) -> list[dict]:
+    """Ordered horizon legs for one alert (oldest stamp first).
+
+    Empty list = never stamped (unknown), never a fabricated zero leg.
+    """
+    try:
+        return engine.query("""
+            SELECT stamp_ts, stamp_date, last_price, move_pct
+            FROM flow_alert_moves
+            WHERE asof_date = ? AND key = ?
+            ORDER BY stamp_ts ASC
+        """, [str(asof_date), str(key)]) or []
+    except Exception as e:
+        logger.debug(f"flow_alerts.get_move_path({key}): {e}")
+        return []
+
+
+def horizon_moves(engine, asof_date: str, key: str,
+                  horizons: tuple[int, ...] = (1, 5, 20)) -> dict[int, float | None]:
+    """Per-horizon move legs: h-th distinct stamp session's move_pct.
+
+    Sessions are counted as distinct stamp_dates in stamp order (no trading
+    calendar needed at write time). Unmeasured horizons are None — honest
+    empty, never interpolated.
+    """
+    legs = get_move_path(engine, asof_date, key)
+    seen: list[str] = []
+    sess_move: dict[str, float | None] = {}
+    for leg in legs:
+        day = str(leg.get("stamp_date") or "")[:10]
+        if day and day not in sess_move:
+            seen.append(day)
+            try:
+                sess_move[day] = None if leg.get("move_pct") is None else float(leg["move_pct"])
+            except (TypeError, ValueError):
+                sess_move[day] = None
+        elif day:
+            # Same session, later stamp wins (closest to close).
+            with contextlib.suppress(TypeError, ValueError):
+                sess_move[day] = None if leg.get("move_pct") is None else float(leg["move_pct"])
+    out: dict[int, float | None] = {}
+    for h in horizons:
+        out[int(h)] = sess_move.get(seen[int(h) - 1]) if 0 < int(h) <= len(seen) else None
+    return out
 
 
 def read_alert_feed(engine, days: int = 7, min_tier: str | None = None,
