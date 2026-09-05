@@ -152,7 +152,11 @@
 .fsb-body { flex: 1; min-height: 0; padding: var(--fsb-gap); overflow: hidden; }
 .fsb-view { display: none; height: 100%; }
 .fsb-view.active { display: grid; gap: var(--fsb-gap); }
-.fsb-view-flow { grid-template-columns: 270px 1fr 340px; grid-template-rows: 1fr; }
+.fsb-view-flow { grid-template-columns: 270px minmax(0, 1fr); grid-template-rows: 1fr; }
+/* Center column scrolls: flow table (internal scroll, min height) first,
+   selected-signal panel below it in normal flow. */
+.fsb-view-flow > .fsb-col + .fsb-col { overflow-y: auto; }
+.fsb-view-flow .fsb-flow-panel { min-height: 560px; }
 
 .fsb-panel {
   background: var(--fsb-panel); border: 1px solid var(--fsb-border);
@@ -204,7 +208,6 @@
 
 /* Flow feed */
 .fsb-flow-panel { flex: 1 1 56%; min-height: 0; min-width: 0; }
-.fsb-sub-panel { flex: 1 1 44%; min-height: 260px; }
 .fsb-flow-wrap { overflow: auto; flex: 1; min-height: 0; }
 .fsb-table { width: 100%; min-width: 1080px; font-family: var(--fsb-mono); font-size: 12px; border-collapse: separate; border-spacing: 0; }
 .fsb-table thead th {
@@ -230,16 +233,11 @@
 .fsb-conv-bar.mid { background: linear-gradient(90deg, var(--fsb-blue), var(--fsb-amber)); }
 .fsb-conv-bar.low { background: linear-gradient(90deg, var(--fsb-muted2), var(--fsb-amber)); }
 
-/* Subtabs */
-.fsb-subtabs { display: flex; gap: 4px; border-bottom: 1px solid var(--fsb-border); margin-bottom: 6px; }
-.fsb-subtab { background: transparent; color: var(--fsb-muted); border: none; padding: 7px 12px; font-size: 12px; cursor: pointer; }
-.fsb-subtab.active { color: var(--fsb-text); background: var(--fsb-panel2); border-bottom: 2px solid var(--fsb-blue); }
 .fsb-chart { width: 100%; flex: 1; min-height: 200px; }
 .fsb-chart.tall { min-height: 500px; }
 .fsb-chart.small { min-height: 180px; }
 
 /* Action panel */
-.fsb-action { flex: 1; min-height: 0; overflow: auto; }
 .fsb-sel-empty { padding: 12px; font-size: 12.5px; color: var(--fsb-muted); }
 .fsb-sel-head { display: flex; align-items: baseline; gap: 8px; padding: 4px 2px 8px; border-bottom: 1px dashed var(--fsb-border2); margin-bottom: 8px; }
 .fsb-sel-head .tk { font-weight: 800; font-size: 16px; font-family: var(--fsb-mono); }
@@ -260,19 +258,6 @@
 .fsb-small { font-size: 11.5px; } .fsb-muted { color: var(--fsb-muted); }
 .fsb-live-dot { display: inline-block; width: 8px; height: 8px; background: var(--fsb-green); border-radius: 50%; margin-right: 4px; box-shadow: 0 0 8px var(--fsb-green); animation: fsbPulse 1.4s ease-in-out infinite; }
 @keyframes fsbPulse { 0%,100% { opacity: 1; transform: scale(1); } 50% { opacity: .5; transform: scale(.85); } }
-
-/* Vol / gamma / scanner / academy */
-.fsb-vol-controls { display: flex; align-items: center; gap: 12px; margin-bottom: 8px; }
-.fsb-vol-controls select { background: var(--fsb-panel2); color: var(--fsb-text); border: 1px solid var(--fsb-border2); border-radius: var(--fsb-radius-sm); padding: 4px 8px; font-size: 12px; }
-.fsb-gamma-grid { display: grid; grid-template-columns: 1fr 1fr; gap: var(--fsb-gap); min-height: 320px; }
-.fsb-notes { margin-top: 10px; padding: 10px; background: var(--fsb-panel2); border: 1px solid var(--fsb-border); border-radius: var(--fsb-radius-sm); font-size: 12.5px; }
-.fsb-academy-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; }
-.fsb-module { background: var(--fsb-panel2); border: 1px solid var(--fsb-border); border-radius: var(--fsb-radius); padding: 14px 16px; position: relative; transition: border-color .15s, transform .15s; }
-.fsb-module:hover { border-color: var(--fsb-blue); transform: translateY(-2px); }
-.fsb-mod-num { position: absolute; top: 12px; right: 14px; font-family: var(--fsb-mono); font-size: 11px; color: var(--fsb-muted); }
-.fsb-mod-title { font-weight: 700; font-size: 14px; margin-bottom: 6px; }
-.fsb-module p { color: var(--fsb-text2); font-size: 12.5px; margin: 0 0 10px; }
-.fsb-mod-meta { font-family: var(--fsb-mono); font-size: 11px; color: var(--fsb-muted); }
 
 .fsb-foot { flex-shrink: 0; height: 26px; display: flex; align-items: center; justify-content: space-between; padding: 0 14px; border-top: 1px solid var(--fsb-border); background: var(--fsb-bg2); color: var(--fsb-muted); font-size: 11px; }
 .fsb-root ::-webkit-scrollbar { width: 8px; height: 8px; }
@@ -1005,13 +990,6 @@
   border-color: var(--fsb-blue);
 }
 /* ────────────────────────────────────────────────────────────── */
-
-/* ── WTI + Pairs view containers (Tidehunter Pro sub-tabs) ── */
-.fsbwtiwrap,
-.fsbpairswrap {
-  flex: 1 1 auto;
-  min-width: 0;
-}
 
 /* Top-conviction badge row (conviction + tier) */
 .fsb-sig-badges {

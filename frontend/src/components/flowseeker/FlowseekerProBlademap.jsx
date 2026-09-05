@@ -280,8 +280,8 @@ export default function FlowseekerProBlademap({ active = true }) {
   const [strikeMax, setStrikeMax] = useState("");
   // Flow feed time-frame preset: All / 0DTE / 1-7D / Weekly / Monthly / Qtrly / LEAPS
   const [dteFilter, setDteFilter] = useState("all");
-  // Pulse tape controls (BladeMap header contract): ticker scope, DTE band,
-  // minimum 0-10 score. Defaults mirror the reference view (0-21D, ALL scores).
+  // Pulse tape controls (BladeMap header contract): ticker scope, exclusive
+  // DTE band, minimum 0-10 score.
   const [pulseTicker, setPulseTicker] = useState("ALL");
   const [pulseQ, setPulseQ] = useState("");
   // Open universe (2026-09-04): focus the tape on ANY ticker, not a list.
@@ -291,9 +291,8 @@ export default function FlowseekerProBlademap({ active = true }) {
     setPulseTicker(t);
     setTicker(t);
   }, [pulseQ]);
-  const [pulseDte, setPulseDte] = useState("0-21D");
+  const [pulseDte, setPulseDte] = useState("ALL");
   const [pulseScore, setPulseScore] = useState(0);
-  const [subtab, setSubtab] = useState("ofi");
   const [regime, setRegime] = useState({ label: "—", cls: "chop" });
   const [clock, setClock] = useState("");
   const [plotlyReady, setPlotlyReady] = useState(!!window.Plotly);
@@ -567,10 +566,7 @@ export default function FlowseekerProBlademap({ active = true }) {
     });
   }, []);
 
-  const microRef = useRef({});            // { vpin, regimeConf, lambdaR2 } for selected ticker
-  const gaugeRef = useRef(null), radarRef = useRef(null), ofiRef = useRef(null);
-  const gexRef = useRef(null);
-  const ofiDataRef = useRef(null), gexDataRef = useRef(null);
+  const gaugeRef = useRef(null), radarRef = useRef(null);
 
   // Plotly CDN
   useEffect(() => {
@@ -798,42 +794,26 @@ export default function FlowseekerProBlademap({ active = true }) {
     return () => { cancelled = true; ctrl.abort(); clearInterval(id); };
   }, [active, tab]);
 
-  // ---- per-ticker microstructure (regime pill + selected conviction inputs) ----
+  // ---- per-ticker regime pill (only live microstructure left) ----
+  // OFI / GEX charts, VPIN, λ removed 2026-09-05 (Nav directive): the
+  // endpoints don't exist (.catch null loops every 6s) and the subtab
+  // charts rendered empty. Regime drives the topbar pill — that stays.
   useEffect(() => {
     if (!active) return;
     let cancelled = false;
     const ctrl = new AbortController();
     const load = async () => {
-      // On the Scanner tab only the header regime pill is visible — skip the
-      // heavy chart feeds (heatmap especially) so they don't crowd /scan out
-      // of the browser's per-host connection budget every 6s.
-      const chartsVisible = tab !== "scanner";
-      const [reg, vpin, lam, ofi, heat] = await Promise.all([
-        getJSON(`${API}/regime/${ticker}`, ctrl.signal).catch(() => null),
-        chartsVisible ? getJSON(`${BACKEND_URL}/api/vpin/${ticker}`, ctrl.signal).catch(() => null) : null,
-        chartsVisible ? getJSON(`${API}/lambda/${ticker}`, ctrl.signal).catch(() => null) : null,
-        chartsVisible ? getJSON(`${API}/ofi/${ticker}`, ctrl.signal).catch(() => null) : null,
-        chartsVisible ? getJSON(`${BACKEND_URL}/api/heatmap/${ticker}?expiries=6&mode=day`, ctrl.signal).catch(() => null) : null,
-      ]);
+      const reg = await getJSON(`${API}/regime/${ticker}`, ctrl.signal).catch(() => null);
       if (cancelled) return;
-      microRef.current = {
-        vpin: vpin?.vpin, regimeConf: reg?.confidence, lambdaR2: lam?.r_squared,
-      };
       const st = String(reg?.current_state || "").toLowerCase();
       const cls = st.includes("trend") || st.includes("bull") ? "up"
         : st.includes("mean") || st.includes("bear") || st.includes("rever") ? "down" : "chop";
       setRegime({ label: reg?.current_state ? `${reg.current_state}${reg.is_warming ? " (warming)" : ""}` : "—", cls });
-      if (chartsVisible) {
-        ofiDataRef.current = ofi;
-        gexDataRef.current = heat;
-        drawOFI(); drawGEX();
-      }
     };
     load();
     const id = setInterval(load, 6000);
     return () => { cancelled = true; ctrl.abort(); clearInterval(id); };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ticker, active, tab, plotlyReady]);
+  }, [ticker, active]);
 
   // auto-select first signal only (don't steal user clicks)
   useEffect(() => {
@@ -933,9 +913,12 @@ export default function FlowseekerProBlademap({ active = true }) {
       if (!leftPass(s)) return false;
       if (pulseTicker !== "ALL" && s.ticker !== pulseTicker) return false;
       const dte = Number(bizDTE(s.expiration)) || 0;
-      if (pulseDte === "0-7D" && (dte < 0 || dte > 7)) return false;
-      else if (pulseDte === "0-21D" && (dte < 0 || dte > 21)) return false;
-      else if (pulseDte === "0-45D" && (dte < 0 || dte > 45)) return false;
+      // Exclusive bands (2026-09-05): each preset is a disjoint slice.
+      if (pulseDte === "0D" && dte !== 0) return false;
+      else if (pulseDte === "1-7D" && (dte < 1 || dte > 7)) return false;
+      else if (pulseDte === "8-21D" && (dte < 8 || dte > 21)) return false;
+      else if (pulseDte === "22-45D" && (dte < 22 || dte > 45)) return false;
+      else if (pulseDte === "45D+" && dte <= 45) return false;
       if (pulseScore > 0 && pulseScore10(s._conv) < pulseScore) return false;
       return true;
     });
@@ -1167,44 +1150,12 @@ export default function FlowseekerProBlademap({ active = true }) {
       margin: { l: 34, r: 34, t: 12, b: 12 }, height: 190, showlegend: false, font: { family: PL.font } },
     { displayModeBar: false, responsive: true });
   }
-  function drawOFI() {
-    if (!P() || !ofiRef.current) return;
-    const o = ofiDataRef.current;
-    const per = (o?.of_per_level || []).map(Number);
-    if (!per.length) { P().react(ofiRef.current, [], { paper_bgcolor: PL.paper, margin: { t: 20 },
-      annotations: [{ text: o ? "OFI warming up…" : "no OFI data", showarrow: false, font: { color: PL.muted } }] }, { displayModeBar: false }); return; }
-    P().react(ofiRef.current, [{
-      type: "bar", x: per.map((_, i) => `L${i + 1}`), y: per,
-      marker: { color: per.map((v) => (v >= 0 ? PL.green : PL.red)) },
-      hovertemplate: "%{x}: %{y:.3f}<extra></extra>",
-    }], { paper_bgcolor: PL.paper, plot_bgcolor: PL.plot, margin: { l: 40, r: 14, t: 24, b: 28 },
-      title: { text: `Order-Flow Imbalance · ${o.imbalance_label || ""} (agg ${(o.of_aggregated ?? 0).toFixed?.(2) ?? o.of_aggregated})`, font: { color: PL.text, size: 11, family: PL.font } },
-      xaxis: { gridcolor: PL.grid, color: PL.muted }, yaxis: { gridcolor: PL.grid, color: PL.muted, zeroline: true, zerolinecolor: PL.axis },
-      font: { family: PL.font } }, { displayModeBar: false, responsive: true });
-  }
-  function drawGEX() {
-    if (!P() || !gexRef.current) return;
-    const h = gexDataRef.current;
-    const grid = h?.grid?.grid, expiries = h?.grid?.expiries || [], strikes = (h?.grid?.strikes || []).slice().sort((a, b) => a - b);
-    if (!grid || !strikes.length) { P().react(gexRef.current, [], { paper_bgcolor: PL.paper, margin: { t: 20 },
-      annotations: [{ text: "no GEX grid", showarrow: false, font: { color: PL.muted } }] }, { displayModeBar: false }); return; }
-    const z = strikes.map((s) => expiries.map((e) => Number(grid?.[e]?.[String(s)] ?? grid?.[e]?.[s] ?? 0)));
-    P().react(gexRef.current, [{
-      type: "heatmap", x: expiries.map((e) => String(e).slice(5)), y: strikes.map((s) => `$${s}`), z,
-      colorscale: [[0, "#5b1424"], [0.5, "#0c1322"], [1, "#1a5c7e"]], zmid: 0, xgap: 1, ygap: 1,
-      colorbar: { thickness: 8, len: 0.7, tickfont: { color: PL.muted, size: 9 } },
-      hovertemplate: "%{y} · %{x}<br>GEX %{z:.2f}<extra></extra>",
-    }], { paper_bgcolor: PL.paper, margin: { l: 64, r: 14, t: 18, b: 34 },
-      xaxis: { color: PL.muted, side: "top" }, yaxis: { color: PL.muted }, font: { family: PL.font } },
-    { displayModeBar: false, responsive: true });
-  }
-
-  // redraw when tab/subtab/plotly changes
+  // redraw conviction charts when tab/plotly changes
   useEffect(() => {
     if (!plotlyReady) return;
-    if (tab === "flow") { if (subtab === "ofi") drawOFI(); else drawGEX(); if (selected) { drawGauge(selected); drawRadar(selected); } }
+    if (tab === "flow" && selected) { drawGauge(selected); drawRadar(selected); }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tab, subtab, plotlyReady]);
+  }, [tab, plotlyReady]);
 
   const sideOf = (p) => (String(p.type || "").toLowerCase().startsWith("c") ? "CALL" : "PUT");
   const typeOf = (p) => String(p.classification || "reg").toUpperCase();
@@ -1392,7 +1343,7 @@ export default function FlowseekerProBlademap({ active = true }) {
                   )}
                 </label>
                 <span className="fsb-pulsebar-group"><span className="fsb-muted fsb-small">DTE</span>
-                  {[["0-7D", "0-7D"], ["0-21D", "0-21D"], ["0-45D", "0-45D"], ["ALL", "ALL"]].map(([v, l]) => (
+                  {[["0D", "0D"], ["1-7D", "1-7D"], ["8-21D", "8-21D"], ["22-45D", "22-45D"], ["45D+", "45D+"], ["ALL", "ALL"]].map(([v, l]) => (
                     <button key={v} className={`fsb-chip fsb-chip-sm${pulseDte === v ? " active" : ""}`} onClick={() => setPulseDte(v)}>{l}</button>
                   ))}
                 </span>
@@ -1450,19 +1401,9 @@ export default function FlowseekerProBlademap({ active = true }) {
                 </table>
               </div>
             </div>
-            <div className="fsb-panel fsb-sub-panel">
-              <div className="fsb-subtabs">
-                <button className={`fsb-subtab${subtab === "ofi" ? " active" : ""}`} onClick={() => setSubtab("ofi")}>Order Flow Imbalance</button>
-                <button className={`fsb-subtab${subtab === "gex" ? " active" : ""}`} onClick={() => setSubtab("gex")}>Dealer GEX Heatmap</button>
-              </div>
-              <div ref={ofiRef} className="fsb-chart" style={{ display: subtab === "ofi" ? "block" : "none" }} />
-              <div ref={gexRef} className="fsb-chart" style={{ display: subtab === "gex" ? "block" : "none" }} />
-            </div>
-          </div>
 
-          {/* right */}
-          <div className="fsb-col">
-            <div className="fsb-panel fsb-action">
+          {/* Selected signal — full width below the tape (scroll to read) */}
+          <div className="fsb-panel">
               <div className="fsb-panel-h">Selected Signal</div>
               {!selected ? <div className="fsb-sel-empty">Click any row to load its conviction profile.</div> : (
                 <>
@@ -1490,7 +1431,6 @@ export default function FlowseekerProBlademap({ active = true }) {
                   <div className="fsb-actions">
                     <div className="fsb-panel-h" style={{ marginBottom: 6 }}>Context</div>
                     <ul>
-                      <li><span className="tag tgt">GEX</span>See dealer positioning in the GEX subtab for {selected.ticker}.</li>
                       <li><span className="tag warn">RISK</span>Paper/educational only — not a trade recommendation.</li>
                     </ul>
                   </div>
@@ -1498,7 +1438,6 @@ export default function FlowseekerProBlademap({ active = true }) {
               )}
             </div>
           </div>
-        </div>
         {/* W8: extras drawer — honest states (fixture-first); only on flow tab, sibling to flow grid */}
         {tab === "flow" && (
           <div className="fsb-panel fsb-drawer" data-testid="flowseeker-drawer">
@@ -1541,6 +1480,7 @@ export default function FlowseekerProBlademap({ active = true }) {
             <div className="fsb-drawer-note fsb-muted fsb-small">Sweep = multi-exchange urgency proxy (cvserver has no venue tape). Ov-bar NetPrem = 90s rolled tape sum — reconcile if diverged (P0).</div>
           </div>
         )}
+        </div>
 
         {/* SCANNER VIEW — cross-symbol BladeMap scanner (scenner34 grid) */}
         <div className={`fsb-view${tab === "scanner" ? " active" : ""}`} style={{ gridTemplateColumns: "1fr" }}>

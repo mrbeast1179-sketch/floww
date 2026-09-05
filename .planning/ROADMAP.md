@@ -327,6 +327,14 @@ new `SkylitControlBar.test.jsx` (4) + `SkylitTickerBar.test.jsx` (3).
 
 ## Phase 9 control log (architect, append-only)
 
+- 2026-09-05: flow-view restructure (Nav) — right rail moved BELOW the
+  tape (2-col grid, center scrolls, middle extended); OFI/Dealer-GEX
+  subtabs + dead fetches removed (regime pill kept); DTE bands made
+  exclusive (0D/1-7D/8-21D/22-45D/45D+/ALL, default ALL); dead CSS
+  purged. Branch hygiene: 13 round11 + 3 gsd/* stale branches pruned
+  (local + remote); tidehunter WT fast-forwarded to main; agent-2 branch
+  fully merged (nothing unique left).
+
 - 2026-09-05: full-sweep closeout — Agent 2 compose verified on main
   (PR #15/#16 merged; orphan modules mounting); tidehunter SHIP landed;
   ruff FULL clean (45 auto-fixes + 2 B904); deploy.yml legacy-peer-deps
