@@ -4,11 +4,11 @@ State: ACTIVE on main beyond Phase 3. Agent 3 owns ongoing Tidehunter SHIP +
 Phase 9 lane work; the Phase-3 cvserver alignment section below is preserved as
 historical context only.
 
-Current HEAD on main: 2a912f2 (docs(phase9): sync stale HEAD refs + commit count to 2a912f2)
+Current HEAD on main: 4fd5328 (docs(phase9): sync stale snapshot first-entry to 4fd5328)
 
 Agent 3 SHIP + Phase 9 lane commits on main (most recent first, snapshot at
-HEAD 2a912f2, 2026-09-04):
-  0ad2826 docs(phase9): sync stale HEAD refs + commit count to 2a912f2
+HEAD 4fd5328, 2026-09-04):
+  4fd5328 docs(phase9): sync stale snapshot first-entry to 0ad2826
   9979eb0 fix(ci): unmask git failures in frontend-fs-integrity gate
   af1d06b docs(phase9): correct CR-002 acceptance reference (was mislabeling the CI gate as CC-001)
   8622f75 fix(ci): correct frontend-fs-integrity path under working-directory ./frontend
