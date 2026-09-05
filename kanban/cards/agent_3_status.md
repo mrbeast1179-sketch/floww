@@ -8,7 +8,7 @@ Current HEAD on main: 6fd9047 (docs(phase9): sync stale HEAD refs + commit count
 
 Agent 3 SHIP + Phase 9 lane commits on main (most recent first, snapshot at
 HEAD 6fd9047, 2026-09-04):
-  6fd9047 docs(phase9): sync stale HEAD refs + commit count to dc36525
+  929670d docs(phase9): sync stale HEAD refs + commit count to 6fd9047
   9979eb0 fix(ci): unmask git failures in frontend-fs-integrity gate
   af1d06b docs(phase9): correct CR-002 acceptance reference (was mislabeling the CI gate as CC-001)
   8622f75 fix(ci): correct frontend-fs-integrity path under working-directory ./frontend
