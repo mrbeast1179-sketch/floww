@@ -327,6 +327,15 @@ new `SkylitControlBar.test.jsx` (4) + `SkylitTickerBar.test.jsx` (3).
 
 ## Phase 9 control log (architect, append-only)
 
+- 2026-09-04: broker-404 root cause — live brokerage paths are
+  `/api/public/*` (router prefix `/public`), never `/api/public/brokerage/*`.
+  Fixed repo-wide incl. both order POSTs (live trading was 404ing).
+  Watchlist removed (free-text tape focus); WTI/Stat-Arb/Dealer tabs +
+  backend routes/services deleted (zero callers); overlay fetches its own
+  wider band; AppShell margin + grid placement hardened vs dead gutters;
+  LIVE·CVFORGE pill dropped; CostCaption tests adapted to ticker-focus UX
+  (their 2 failures were my UX change — fixed, 413/413 green).
+
 - 2026-09-04: Public-path budget ENFORCED (`services/public_budget.py`:
   TokenBucket 60/min + 4 in-flight + 429 backoff, fake-clock tested).
   Wired at FetchCoordinator (refuse-before-task → degraded dict) +
