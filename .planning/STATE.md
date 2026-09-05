@@ -1,7 +1,7 @@
 # STATE.md — Confluence Decoder
 
 **Last updated:** 2026-09-04
-**Branch:** `main` @ 434df66 (docs(phase9): sync stale HEAD refs + commit count to 434df66)
+**Branch:** `main` @ b14e9b4 (docs(phase9): sync stale HEAD refs + commit count to b14e9b4)
 **Tests:** backend 3 passed, 20 warnings · frontend 56 suites / 409 tests · lane trio 4 suites / 178 tests · craco build clean
 **Lint:** ruff (E, E722, F, W, I; ignore E501)
 
@@ -13,7 +13,7 @@ Deploy package hardened and ready: Oracle Always Free runbook
 provisioning** — Phase 1 of ROADMAP.md starts the moment the VM exists.
 
 **Last updated:** 2026-09-04
-**Branch:** `main` @ 434df66 (docs(phase9): sync stale HEAD refs + commit count to 434df66)
+**Branch:** `main` @ b14e9b4 (docs(phase9): sync stale HEAD refs + commit count to b14e9b4)
 **Tests:** backend 3 passed, 20 warnings · frontend 56 suites / 409 tests · lane trio 4 suites / 178 tests
 **Lint:** ruff (E, E722, F, W, I; ignore E501)
 
@@ -52,7 +52,7 @@ Phase 6 — Backlog Promotion [ACTIVE]. Phase 4 (Tidehunter Pro) is gating-only 
   CR-002 + CI frontier gate, full stale-number documentation sweep, and CI
   gate hardening (unmask git failures in frontend-fs-integrity). Lane trio
   4 suites / 178 tests green; full frontend 56 suites / 409 tests green;
-  backend 3/3 green. Origin/main at 434df66.
+  backend 3/3 green. Origin/main at b14e9b4.
 - 2026-09-03 — Phase 7 complete (public-api-only + trade-direct): Schwab/Alpha
   Vantage retired (410s, disabled stubs, fail-closed client); new
   /api/public/{bars,history,technical,expirations}; Triad row-click enriched
