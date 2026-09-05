@@ -904,6 +904,31 @@ async def _run_institutional_alerts(
                     logger.info("journal lifecycle pass closed %d card(s)", closed)
             except Exception as le:
                 logger.warning("journal lifecycle pass failed (non-fatal): %s", le)
+            # P1-7 whale tracker (Agent C): bookmark WHALE-rule fires, then
+            # update all open tracks from this scan's per-contract rows.
+            # Fail-open — tracking must never break the alert persist above.
+            try:
+                from services.journal_store import (
+                    bookmark_whale,
+                    get_engine,
+                    init_whale_tables,
+                    update_whales,
+                )
+                weng = get_engine()
+                init_whale_tables(weng)
+                rows_by_ckey = {r.get("ckey"): r for r in normed if r.get("ckey")}
+                for a in fresh or []:
+                    if a.get("rule") == "WHALE":
+                        r0 = rows_by_ckey.get(a.get("ckey")) or {}
+                        bookmark_whale(weng, a, spot=r0.get("spot") or 0,
+                                       oi=r0.get("oi") or 0, vol=r0.get("vol") or 0)
+                snaps = {c: {"spot": r.get("spot"), "oi": r.get("oi"),
+                             "vol": r.get("vol"), "dte": r.get("dte")}
+                         for c, r in rows_by_ckey.items()}
+                if snaps:
+                    update_whales(weng, snaps)
+            except Exception as we:
+                logger.warning("whale tracker pass failed (non-fatal): %s", we)
             return fresh
 
         spots = {r["under"]: r["spot"] for r in normed if r.get("spot")}

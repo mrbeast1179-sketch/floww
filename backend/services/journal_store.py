@@ -473,7 +473,7 @@ def bookmark_whale(engine, alert: dict, *, spot: float, oi: float, vol: float) -
         return 0
 
 
-def update_whales(engine, snaps: dict[str, dict]) -> dict[str, dict]:
+def update_whales(engine, snaps: dict) -> dict[str, dict]:
     """Apply live snapshots {ckey: {spot, oi, vol, dte}} → {ckey: state row}."""
     out: dict[str, dict] = {}
     try:
