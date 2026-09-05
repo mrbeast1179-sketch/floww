@@ -75,8 +75,7 @@ test('exclusive DTE bands partition the tape', async () => {
   }
 });
 
-test('no watchlist, tabs, or subtabs render in the flow view', async () => {
-  jest.useFakeTimers();
+test('no watchlist, tabs, or subtabs render in the flow view', async () => {  jest.useFakeTimers();
   try {
     await openFlow();
     await act(async () => { jest.advanceTimersByTime(500); });
@@ -86,6 +85,27 @@ test('no watchlist, tabs, or subtabs render in the flow view', async () => {
     expect(screen.queryByText('Dealer Positioning')).not.toBeInTheDocument();
     expect(screen.queryByText('Order Flow Imbalance')).not.toBeInTheDocument();
     expect(screen.queryByText('Dealer GEX Heatmap')).not.toBeInTheDocument();
+  } finally {
+    jest.useRealTimers();
+  }
+});
+
+test('chart modal opens from the selected signal with honest empties', async () => {
+  jest.useFakeTimers();
+  try {
+    await openFlow();
+    await act(async () => { jest.advanceTimersByTime(1000); });
+    // Select the first tape row.
+    const rows = document.querySelectorAll('tbody tr');
+    expect(rows.length).toBeGreaterThan(0);
+    fireEvent.click(rows[0]);
+    // Open the composed chart modal.
+    fireEvent.click(screen.getByTestId('selected-chart-open'));
+    expect(screen.getByTestId('chart-modal')).toBeInTheDocument();
+    expect(screen.getByTestId('chart-history-empty')).toBeInTheDocument();
+    // Close it again.
+    fireEvent.click(screen.getByTestId('chart-close'));
+    expect(screen.queryByTestId('chart-modal')).not.toBeInTheDocument();
   } finally {
     jest.useRealTimers();
   }

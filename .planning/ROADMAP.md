@@ -125,15 +125,21 @@ is already installed; `/metrics` route is live in server.py.
 - [x] Write a test that fails before fix and passes after (test discipline — done in
       test_heatseeker_v2.py + test_v3_costsave.py)
 
-### 6.3 — Alert DSL completion [PROMOTED]
+### 6.3 — Alert DSL completion [COMPLETE 2026-09-05]
 
 **Goal:** Persist alert rules to MongoDB (currently in-memory, lost on restart) and
 add alert quality dashboard endpoint.
 
-- [ ] Persist `_alert_rules` to MongoDB (create alerts collection + CRUD sync)
-- [ ] Persist `_alert_history` to MongoDB (triggered alert history)
-- [ ] Add `/api/alert-quality` endpoint (quality scores per rule/tier)
-- [ ] Alert YAML validation (schema check on `alerts/definitions/gex_alerts.yaml`)
+- [x] Persist `_alert_rules` to MongoDB — DONE: alerts collection with
+      indexes + bidirectional sync at startup (`_init_alert_collection`,
+      `_load_rules_from_mongo` in server.py)
+- [x] Persist `_alert_history` to MongoDB — DONE: write-through trigger
+      inserts; explicit degrade (not silent) when Mongo is down
+- [x] Add `/api/alert-quality` endpoint — DONE: live at
+      `GET /api/alert-quality` (server.py)
+- [x] Alert YAML validation — OBSOLETE: nothing loads
+      `alerts/definitions/gex_alerts.yaml` (zero references repo-wide);
+      there is no loader to validate against
 
 ### 6.4 — Quant signal exposure [COMPLETE 2026-08-31]
 
@@ -145,14 +151,19 @@ infrastructure exists (`signal_translator`, `flow_alerts`, `trading_signals`,
 - [ ] Add signal health/status per ticker (which signals are active for SPY/QQQ/etc.)
 - [ ] Normalize factor/z-score output across signal types
 
-### 6.5 — Portfolio & P&L foundation [PROMOTED]
+### 6.5 — Portfolio & P&L foundation [COMPLETE 2026-09-05]
 
 **Goal:** Basic portfolio state service. Paper trading exists but there's no
 portfolio/P&L tracking service.
 
-- [ ] Add `services/portfolio.py` — position state, P&L, exposure tracking
-- [ ] Add `/api/portfolio/*` routes (positions, P&L, equity curve)
-- [ ] P&L attribution by ticker (later: by signal, by strategy)
+- [x] Position state, P&L, exposure tracking — DONE: paper-trading engine
+      (`services/paper_trading.py`) + portfolio routes
+      (`routes/portfolio.py`, `routes/paper_trading.py`)
+- [x] `/api/portfolio/*` + `/api/paper-trading/*` routes — DONE: positions,
+      P&L, equity curve, scenario, hedge, history, status
+- [x] P&L attribution by ticker — DONE 2026-09-05:
+      `GET /api/paper-trading/attribution` (average-cost realized per
+      symbol + mark-gated unrealized; 6 unit tests)
 
 ### 6.6 — ADR expansion [COMPLETE 2026-08-31]
 
@@ -160,19 +171,21 @@ portfolio/P&L tracking service.
 
 - [x] ADR-0002: Data source priority policy (Public API → cvserver → yfinance → fallbacks)
       — WRITTEN in commit 3c4019f (docs/adr/0002-data-source-policy.md)
-- [x] ADR-0003: Deployment policy (Oracle Always Free, docker-compose, Caddy)
-      — WRITTEN in commit 3c4019f (docs/adr/0003-backtest-equity-model.md — NOTE: title
-      says "backtest equity model" but content covers deployment; verify naming)
+- [x] ADR-0003: Backtest engine equity model (cash-basis, single slippage deduction)
+      — WRITTEN (docs/adr/0003-backtest-equity-model.md; filename ↔ content
+      verified matching 2026-09-05, earlier mismatch note was wrong)
 - [x] ADR-0004: Test discipline (no skip/xfail on passing tests; self-written tests must
-      fail before fix) — WRITTEN in commit 3c4019f (docs/adr/0005-test-discipline.md)
+      fail before fix) — WRITTEN (docs/adr/0005-test-discipline.md; number
+      differs from checkbox, content verified correct)
 - [x] ADR-0005: Backend/frontend coupling (same-origin runtime, no REACT_APP_* build args)
-      — WRITTEN in commit 3c4019f (docs/adr/0004-deploy-cors-headers.md — NOTE: title
-      says "deploy CORS headers" but content may cover coupling; verify naming)
+      — see docs/adr/0004-deploy-cors-headers.md (number differs from
+      checkbox; content verified: CORS/origin policy)
 - [x] ADR-0006: Black Friday/Ferrari coupling boundary — WRITTEN in commit 3c4019f
       (docs/adr/0006-black-friday-coupling.md, EXTRA — not in original checkbox list)
-- [ ] ADR-0001: Model promotion policy — EXISTS at docs/adr/0001-model-promotion-policy.md
+- [x] ADR-0001: Model promotion policy — EXISTS at docs/adr/0001-model-promotion-policy.md
       (pre-existing, not part of this batch)
-- [ ] ADR-0007: Alert persistence policy — NOT YET WRITTEN (dependent on Phase 6.3 build)
+- [x] ADR-0007: Alert persistence policy — WRITTEN 2026-09-05
+      (docs/adr/0007-alert-persistence.md; 6.3 build it depends on is done)
 
 ---
 
@@ -326,6 +339,13 @@ new `SkylitControlBar.test.jsx` (4) + `SkylitTickerBar.test.jsx` (3).
   never force-push. Verified this session via isolated worktrees.
 
 ## Phase 9 control log (architect, append-only)
+
+- 2026-09-05: Round-10 leftovers closed — P1.3 endpoints verified present
+  (`/calibration`, `/calibration/{ticker}`, `/compare`, `/chain`); P1.5
+  fully typed already (4/4 modules, defs == annotations); P2.2 void (TBD
+  ticket, source closeout shows the edge cases were tested in Round 9);
+  16 AUTO cards triaged (8 closed resolved/N/A/duplicate/invalid, 8 true
+  backlog: svm/garch/smoothing retraining + IEEE theme design).
 
 - 2026-09-05: full-repo sweep closeout — backend 4694 passed / 0 failed.
   Fixed: flow-alert gate drift (DEFAULT_EVAL_OPTS extracted, gate pinned

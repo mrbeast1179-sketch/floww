@@ -18,6 +18,7 @@ import DarkPoolPanel from "./darkpool/DarkPoolPanel";
 import { NetPremiumTrend, StrikeDistribution, VolOiFooter } from "./history/HistoryViews";
 import { Checklist, FunnelEmpty } from "./methodology/Methodology";
 import Tracker from "./tracker/Tracker";
+import ChartModal from "./chart/ChartModal";
 import { widenActions, applyFilters, defaultFilterState } from "./filters/filterState";
 import "./FlowseekerProBlademap.css";
 
@@ -271,6 +272,7 @@ export default function FlowseekerProBlademap({ active = true }) {
   const [flowNonce, setFlowNonce] = useState(0);        // Pulse refresh (reference ⟳ button)
   const [howTo, setHowTo] = useState(false);            // HOW TO READ popover
   const [selected, setSelected] = useState(null);
+  const [chartRow, setChartRow] = useState(null);
   const [filter, setFilter] = useState("all");
   // W6 filter depth: equity scope, moneyness, OPEX, strike range.
   const [equity, setEquity] = useState("all");
@@ -1446,7 +1448,21 @@ export default function FlowseekerProBlademap({ active = true }) {
                     <ul>
                       <li><span className="tag warn">RISK</span>Paper/educational only — not a trade recommendation.</li>
                     </ul>
+                    <button
+                      className="fsb-chip"
+                      onClick={() => setChartRow(selected)}
+                      data-testid="selected-chart-open"
+                    >
+                      📊 Chart + checklist
+                    </button>
                   </div>
+                  <ChartModal
+                    row={chartRow}
+                    open={!!chartRow}
+                    onClose={() => setChartRow(null)}
+                    history={[]}
+                    netPremiumSeries={[]}
+                  />
                 </>
               )}
             </div>
