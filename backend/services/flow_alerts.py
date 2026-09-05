@@ -56,6 +56,18 @@ _TTL_S = {
 
 _TIER_RANK = {"GOLD": 0, "SILVER": 1, "BRONZE": 2}
 
+# Production alert gates (see eval_institutional). Module-level so exactly
+# one test pins the values; logic tests pass explicit opts instead.
+DEFAULT_EVAL_OPTS: dict = {
+    "min_score": 92,
+    "whale_premium": 25e6,
+    "zero_dte_score": 70,
+    "oiconf_pct": 0.30,
+    "oiconf_notional": 1e6,
+    "sigma_min": 6.0,
+    "fdr_q": 0.10,
+}
+
 
 # ── helpers ──────────────────────────────────────────────────────────
 
@@ -482,9 +494,10 @@ def eval_institutional(rows, baselines=None, prev_oi=None, regimes=None, opts=No
         # defaults (scanLogic.js / FlowseekerProBlademap.jsx DEFAULT_RULES):
         # SCORE 85→92, WHALE $10M→$25M, SIGMA 3.0→6.0. Parity contract: the
         # frontend tape and this feed must never disagree about what qualifies.
-        "min_score": 92, "whale_premium": 25e6, "zero_dte_score": 70,
-        "oiconf_pct": 0.30, "oiconf_notional": 1e6, "sigma_min": 6.0,
-        "fdr_q": 0.10,
+        # Extracted as DEFAULT_EVAL_OPTS so the gate value is pinned by exactly
+        # one test (test_default_gate_matches_noise_pass) instead of drifting
+        # silently inside dozens of logic fixtures.
+        **DEFAULT_EVAL_OPTS,
         # calibration: pre-fitted stage blob from flow_calibration.fit_calibration
         # (loaded by the caller from the cron's Mongo snapshot). When supplied,
         # every fired alert gains p_move/p_method/p_n — server-computed,

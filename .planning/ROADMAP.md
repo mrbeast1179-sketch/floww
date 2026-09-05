@@ -327,6 +327,15 @@ new `SkylitControlBar.test.jsx` (4) + `SkylitTickerBar.test.jsx` (3).
 
 ## Phase 9 control log (architect, append-only)
 
+- 2026-09-05: full-repo sweep closeout — backend 4694 passed / 0 failed.
+  Fixed: flow-alert gate drift (DEFAULT_EVAL_OPTS extracted, gate pinned
+  once, logic tests decoupled); cvserver None-greeks (contract + chain
+  rows coerce to 0.0); QQQ costsave expectation aligned to documented
+  priority; greeks 400→404 (open universe); NodesTable scroll wrapper.
+  Deferred honestly: 16 AUTO cards (model training/cosmetic backlog),
+  6.3/6.5 promoted phases, silent-except detector (would redden CI),
+  dteBand dead key + 1-7d/weekly alias (Agent-2 filter semantics).
+
 - 2026-09-05: flow-view restructure (Nav) — right rail moved BELOW the
   tape (2-col grid, center scrolls, middle extended); OFI/Dealer-GEX
   subtabs + dead fetches removed (regime pill kept); DTE bands made

@@ -127,6 +127,7 @@ function NodesTable({ data }) {
   return (
     <div className="panel p-3" data-testid="nodes-table">
       <div className="label mb-2">Key Nodes</div>
+      <div style={{ overflowX: "auto" }}>
       <table className="w-full text-[11px] mono">
         <thead className="text-slate-500 text-[10px] uppercase tracking-widest">
           <tr>
@@ -147,6 +148,7 @@ function NodesTable({ data }) {
           ))}
         </tbody>
       </table>
+      </div>
     </div>
   );
 }
