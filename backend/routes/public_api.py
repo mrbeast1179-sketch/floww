@@ -116,9 +116,15 @@ async def get_public_quotes(ticker: str):
     }
 
 
-@router.get("/portfolio")
+@router.get("/portfolio/raw")
 async def get_public_portfolio():
-    """Return the authenticated Public.com paper-trading portfolio."""
+    """Return the raw authenticated Public.com paper-trading portfolio.
+
+    NOTE: the canonical UI-facing portfolio (flattened positions, money
+    fields) lives at GET /api/public/portfolio (routes/public_brokerage.py),
+    which takes precedence on that path. This raw view is kept for
+    debugging/inspection.
+    """
     broker = await _get_broker()
     if broker is None:
         raise HTTPException(

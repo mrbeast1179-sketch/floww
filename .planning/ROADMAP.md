@@ -327,6 +327,16 @@ new `SkylitControlBar.test.jsx` (4) + `SkylitTickerBar.test.jsx` (3).
 
 ## Phase 9 control log (architect, append-only)
 
+- 2026-09-04: route-shadowing kill — `GET /api/public/portfolio` was served
+  by the RAW handler (registered first), shadowing the flattened UI contract
+  (Broker tab showed "No positions" forever). Raw moved to
+  `/api/public/portfolio/raw` (4 tests retargeted); canonical path now
+  serves flattened positions (live-verified). Order-quantity/price 422
+  validation + `.get`-chain + ml `None` crash guards added with tests.
+- 2026-09-04: Tidehunter flow table scrolls horizontally (min-width +
+  min-width:0 chain); expanded density toned to 12.5px/28px; topbar wraps
+  under 1100px instead of clipping.
+
 - 2026-09-04: broker-404 root cause — live brokerage paths are
   `/api/public/*` (router prefix `/public`), never `/api/public/brokerage/*`.
   Fixed repo-wide incl. both order POSTs (live trading was 404ing).

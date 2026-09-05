@@ -384,6 +384,11 @@ class TestChainCache:
         assert r2 is not None and r2["stale"] is True
         assert r2["contracts"] == r1["contracts"]
 
+
+# ---------------------------------------------------------------------------
+# 9. Health reports public_api, retired stub stays disabled
+# ---------------------------------------------------------------------------
+
 class TestHealthPublicApi:
     def test_public_api_healthy_with_key(self):
         with patch.dict(os.environ, {"PUBLIC_API_KEY": "test-key"}):
@@ -406,3 +411,75 @@ class TestHealthPublicApi:
         assert "alphavantage" in d["retired"]
         assert "schwab" in d["retired"]
         assert d["providers"]["alphavantage"]["enabled"] is False
+
+
+# ---------------------------------------------------------------------------
+# 10. Brokerage crash guards (2026-09-04 audit fixes)
+# ---------------------------------------------------------------------------
+
+def _mock_brokerage():
+    """Broker with a trading account + one scalar-lastPrice position."""
+    import types
+    broker = MagicMock()
+    broker.get_trading_account.return_value = MagicMock(account_id="TEST-ACCT")
+    pos = types.SimpleNamespace(
+        raw={},
+        instrument={"symbol": "SPY", "name": "SPY", "type": "EQUITY",
+                    "lastPrice": 450.0},  # scalar (was: .get().get() crash)
+        cost_basis=4000.0,
+        current_value=4500.0,
+        symbol="SPY",
+        name="SPY",
+        quantity=10,
+        last_price=450.0,
+        current_price=450.0,
+        position_daily_gain={},
+    )
+    portfolio = types.SimpleNamespace(
+        positions=[pos],
+        buying_power=10000.0,
+        cash=5000.0,
+        options_buying_power=8000.0,
+        total_account_value=15000.0,
+        orders=[],
+    )
+    broker.get_portfolio = AsyncMock(return_value=portfolio)
+    return broker
+
+
+class TestBrokerageGuards:
+    def test_portfolio_scalar_lastprice_no_500(self):
+        import routes.public_brokerage as mod
+        with patch.object(mod, "_get_broker", new=AsyncMock(return_value=_mock_brokerage())):
+            r = client.get("/api/public/portfolio")
+        assert r.status_code == 200, r.text
+        d = r.json()
+        assert d["ok"] is True
+        assert d["positions"][0]["symbol"] == "SPY"
+
+    @pytest.mark.parametrize("bad", ["abc", None, "", -1, 0])
+    def test_place_order_rejects_bad_quantity_422(self, bad):
+        import routes.public_brokerage as mod
+        broker = _mock_brokerage()
+        broker.place_order = AsyncMock()
+        with patch.object(mod, "_get_broker", new=AsyncMock(return_value=broker)):
+            r = client.post("/api/public/order", headers={"X-API-Key": "test-secret-key"}, json={
+                "symbol": "AAPL", "side": "BUY", "order_type": "MARKET",
+                "quantity": bad, "time_in_force": "DAY",
+                "instrument_type": "EQUITY",
+            })
+        assert r.status_code == 422, r.text
+        broker.place_order.assert_not_called()
+
+    def test_place_order_rejects_bad_prices_422(self):
+        import routes.public_brokerage as mod
+        broker = _mock_brokerage()
+        broker.place_order = AsyncMock()
+        with patch.object(mod, "_get_broker", new=AsyncMock(return_value=broker)):
+            r = client.post("/api/public/order", headers={"X-API-Key": "test-secret-key"}, json={
+                "symbol": "AAPL", "side": "BUY", "order_type": "LIMIT",
+                "quantity": 1, "limit_price": "abc",
+                "time_in_force": "DAY", "instrument_type": "EQUITY",
+            })
+        assert r.status_code == 422, r.text
+        broker.place_order.assert_not_called()
