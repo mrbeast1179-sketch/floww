@@ -2267,6 +2267,30 @@ async def _load_calibration() -> dict | None:
     return None
 
 
+def get_calibration_status() -> dict:
+    """Explicit staged-calibration status for D's C11 health section.
+
+    Fail-open: no blob yet → stage 0 + uncalibrated note (unknown, never
+    fabricated). Replaces health's lazy read of the private _calibration_blob.
+    """
+    import time as _time
+
+    hit = _calibration_blob
+    if not hit:
+        return {"stage": 0, "n": 0, "method_note": "uncalibrated: no fit cached yet",
+                "model_kind": None, "age_s": None}
+    ts, blob = hit
+    blob = blob if isinstance(blob, dict) else {}
+    model = blob.get("model") if isinstance(blob.get("model"), dict) else {}
+    try:
+        age = round(_time.time() - float(ts), 1)
+    except (TypeError, ValueError):
+        age = None
+    return {"stage": blob.get("stage", 0), "n": blob.get("n", 0),
+            "method_note": blob.get("method_note", ""),
+            "model_kind": model.get("kind"), "age_s": age}
+
+
 async def _load_outcomes(days: int, horizon: int) -> dict | None:
     """Precomputed stats from the nightly cron (Mongo flow_outcome_cache);
     falls back to computing live when the cron hasn't run yet."""
