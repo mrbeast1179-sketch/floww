@@ -2,6 +2,7 @@
 //
 // Tests the mapPublicChainToRows helper (pure function) and the
 // live-feed dual-path logic (Public API primary → cvserver fallback).
+/** @jest-environment jsdom */
 
 import { mapPublicChainToRows } from "./FlowseekerProBlademap";
 
