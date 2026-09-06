@@ -45,7 +45,7 @@ def _setup(monkey_rows, budget=None):
 
     mb._reset_state()
 
-    async def upstream(ticker, period, aggregation):
+    async def upstream(ticker, period, aggregation, sessions="regular"):
         return [dict(r) if isinstance(r, dict) else r for r in monkey_rows]
 
     p1 = patch.object(mb, "_upstream", upstream)
