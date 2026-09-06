@@ -69,7 +69,33 @@ async def get_ticker_data(
     t = ticker.strip().upper()
     if t == "SPX":
         t = "^SPX"
-    return await build_heatmap(t, expiries, taps, mode, dte, scalp, max_strikes)
+    payload = await build_heatmap(t, expiries, taps, mode, dte, scalp, max_strikes)
+    # Exposure-change alerts (VEX walls / charm pins vs last grid snapshot).
+    # Fail-open: evaluation or persist must never break the heatmap response.
+    # Grids live nested (payload["grid"]["vex_grid"]) — top-level accepted too.
+    try:
+        from services import exposure_alerts as _ea
+        from services import flow_alerts as _fa
+        from services.duckdb_engine import db as _duckdb
+
+        nested = payload.get("grid", {}) if isinstance(payload.get("grid"), dict) else {}
+        grids = {
+            "vex_grid": nested.get("vex_grid") or payload.get("vex_grid") or {},
+            "charm_grid": nested.get("charm_grid") or payload.get("charm_grid") or {},
+        }
+        if grids["vex_grid"] or grids["charm_grid"]:
+            _fa.init_flow_alert_tables(_duckdb)
+            events = _ea.evaluate_ticker(
+                t, {"vex_grid": grids["vex_grid"], "charm_grid": grids["charm_grid"]},
+                float(payload.get("spot") or 0))
+            if events:
+                kept = _fa.dedup_filter(_duckdb, events)
+                if kept:
+                    _fa.persist_alerts(_duckdb, kept)
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).warning("exposure alerts skipped for %s: %s", t, e)
+    return payload
 
 
 @router.get("/quote/{ticker}")
