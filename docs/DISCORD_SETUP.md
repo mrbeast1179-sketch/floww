@@ -38,6 +38,16 @@ cd backend
 .venv/bin/python3 discord_bot.py     # separate process; backend boots without it
 ```
 
+Persistence across reboots (macOS launchd — secrets stay in `backend/.env`,
+which the bot loads itself; nothing secret in the plist):
+
+```bash
+cp deploy/ai.tidehunter.discord-bot.plist ~/Library/LaunchAgents/
+launchctl load ~/Library/LaunchAgents/ai.tidehunter.discord-bot.plist
+# check: tail -f /tmp/tidehunter-discord-bot.log
+# stop:  launchctl unload ~/Library/LaunchAgents/ai.tidehunter.discord-bot.plist
+```
+
 Verify wiring without Discord open: `GET /api/discord/status` (booleans only)
 and `POST /api/discord/test` (posts a ping; both behind the API key).
 
