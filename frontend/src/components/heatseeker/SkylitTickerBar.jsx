@@ -5,6 +5,11 @@ import React, { memo, useState } from "react";
  * search. Receives the full market universe from App.js (fetched via
  * /api/tickers/all) and renders all available tickers as a scrollable list.
  * Matches Zenith reference: scrollable row of ticker buttons.
+ *
+ * Renders the full universe (up to ~11k tickers) inside a scrollable row so
+ * every market symbol is one click away. Search is the fast path for deep
+ * cuts; the scrollable bar is the browse path. No caps — the browser handles
+ * virtualization natively for a single row of buttons.
  */
 const DEFAULT_TICKERS = [
   "SPY", "QQQ", "IWM", "DIA", "AAPL", "NVDA", "TSLA", "META",
@@ -26,7 +31,11 @@ function SkylitTickerBar({
   allCount = 703,
   universe = null,
 }) {
-  const tickerList = tickers?.popular || tickers?.default || DEFAULT_TICKERS;
+  // Use the full universe when provided; fall back to popular/default/hardcoded.
+  const tickerList = universe && universe.length > 0
+    ? universe
+    : (tickers?.popular || tickers?.default || DEFAULT_TICKERS);
+  const totalCount = tickerList.length || 0;
   const [query, setQuery] = useState("");
 
   const submitQuery = () => {
@@ -42,7 +51,7 @@ function SkylitTickerBar({
       <div className="skylit-ticker-scroll">
         <div className="skylit-ticker-inner">
           <span className="skylit-ticker-count">
-            Market {universeTotal.toLocaleString()} tickers
+            Market {totalCount.toLocaleString()} tickers
           </span>
           <span className="skylit-ticker-sep">|</span>
           <input
@@ -63,7 +72,7 @@ function SkylitTickerBar({
             Go
           </button>
           <span className="skylit-ticker-sep">|</span>
-          {displayList.map((t) => (
+          {tickerList.map((t) => (
             <button
               key={t}
               className={`skylit-ticker-btn${t === activeTicker ? " active" : ""}`}
