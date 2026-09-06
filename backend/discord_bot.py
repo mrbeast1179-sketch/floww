@@ -346,6 +346,9 @@ def _commands():
             from services import heatmap_image as hi
 
             norm = await hi.get_heatmap_data(ticker)
+            if norm is None:
+                await ctx.send(f"Heatmap unavailable for {ticker.upper()} — chain state unknown.")
+                return
             png = hi.render_gex_png(norm)
             if not png:
                 await ctx.send(f"No exposure data for {ticker.upper()} right now.")
@@ -375,6 +378,9 @@ def _commands():
             from services import heatmap_image as hi
 
             norm = await hi.get_vex_data(ticker)
+            if norm is None:
+                await ctx.send(f"Vanna unavailable for {ticker.upper()} — chain state unknown.")
+                return
             png = hi.render_vex_png(norm)
             if not png:
                 await ctx.send(f"No vol-exposure data for {ticker.upper()} right now "
@@ -404,6 +410,9 @@ def _commands():
             from services import heatmap_image as hi
 
             norm = await hi.get_heatmap_data(ticker)
+            if norm is None:
+                await ctx.send(f"Walls unavailable for {ticker.upper()} — chain state unknown.")
+                return
             await ctx.send(hi.walls_text(norm) if norm else
                            f"No wall data for {ticker.upper()} right now.")
         except Exception as e:
