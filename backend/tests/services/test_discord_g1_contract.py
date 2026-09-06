@@ -39,3 +39,18 @@ async def test_alias_surface_pinned(live_bot):
     assert surface["alerts"] == ["a"]
     assert surface["journal"] == ["j"]
     assert surface["cancel"] == ["x"]
+
+
+@pytest.mark.asyncio
+async def test_help_ops_cooldowns_match_table(live_bot):
+    help_cmd = live_bot.get_command("help")
+    import io
+    from contextlib import redirect_stdout
+    sent = []
+    class Ctx:
+        async def send(self, msg):
+            sent.append(msg)
+    await help_cmd.callback(Ctx(), "ops")
+    out = "\n".join(sent)
+    for cmd, secs in gateway._COOLDOWN_S.items():
+        assert cmd in out and f"{int(secs)}s" in out

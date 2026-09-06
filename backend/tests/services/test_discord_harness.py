@@ -45,3 +45,8 @@ def test_fuzzy_hint_suggests_or_empty():
     known = ["heatmap", "walls", "vanna", "help"]
     assert "heatmap" in h.fuzzy_hint("heatma", known)
     assert h.fuzzy_hint("zzzqqq", known) == ""
+
+
+def test_cooldown_line_summarizes_table():
+    line = h.cooldown_line({"heatmap": 20.0, "vanna": 20.0, "walls": 5.0})
+    assert "heatmap/vanna 20s" in line and "walls 5s" in line

@@ -79,9 +79,6 @@ def _commands():
 
         return duckdb_engine
 
-    _ALIASES = {"h": "help", "pos": "holdings", "positions": "holdings",
-                "a": "alerts", "hm": "heatmap", "w": "walls", "v": "vanna",
-                "j": "journal", "p": "positions"}
     _TOPICS = {
         "solstice": ("**Solstice (gamma desk)**\n"
                      "`!heatmap <T>` GEX ladder picture · `!vanna <T>` VEX picture · "
@@ -95,7 +92,7 @@ def _commands():
                       "orders · `!pnl` day P&L · `!risk` buying power · `!journal [n]` "
                       "recent journaled trades"),
         "ops": ("**Ops**\n`!status` desk health · `!clock` market hours · `!audit [n]` command log "
-                "(allowlisted) · `!cancel <order-id>` · cooldowns: heatmap/vanna 20s per user"),
+                f"(allowlisted) · `!cancel <order-id>` · cooldowns: {_harness.cooldown_line(_COOLDOWN_S)} per user"),
     }
 
     @bot.command(name="help", aliases=["h"])

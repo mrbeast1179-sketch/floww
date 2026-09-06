@@ -68,6 +68,14 @@ def parse_nl(text: str):
     return None
 
 
+def cooldown_line(table: dict) -> str:
+    groups: dict[float, list] = {}
+    for cmd, secs in table.items():
+        groups.setdefault(float(secs), []).append(cmd)
+    return " · ".join("/".join(sorted(g)) + f" {int(s)}s"
+                      for s, g in sorted(groups.items()))
+
+
 def fuzzy_hint(typed: str, known: list[str]) -> str:
     guess = difflib.get_close_matches(str(typed or ""), list(known), n=1, cutoff=0.6)
     return guess[0] if guess else ""
