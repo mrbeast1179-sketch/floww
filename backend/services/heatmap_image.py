@@ -19,6 +19,7 @@ to None so commands reply "unavailable" instead of crashing.
 """
 from __future__ import annotations
 
+import contextlib
 import io
 import logging
 import math
@@ -78,14 +79,23 @@ def gex_rows_from_heatmap(payload: dict[str, Any] | None) -> dict[str, Any] | No
     except (TypeError, ValueError):
         spot = 0
     strikes: list[tuple[float, float]] = []
+    splits: dict[float, dict[str, float]] = {}
     for s in payload.get("strikes", []) or []:
         try:
             k = float(s.get("strike"))
             g = float(s.get("gex", 0) or 0)
         except (TypeError, ValueError, AttributeError):
             continue
-        if k > 0:
-            strikes.append((k, g))
+        if k <= 0:
+            continue
+        strikes.append((k, g))
+        with contextlib.suppress(TypeError, ValueError):
+            splits[k] = {
+                "call_gex": float(s.get("call_gex", 0) or 0),
+                "put_gex": float(s.get("put_gex", 0) or 0),
+                "call_oi": float(s.get("call_oi", 0) or 0),
+                "put_oi": float(s.get("put_oi", 0) or 0),
+            }
     if not strikes or spot <= 0:
         return None
     strikes.sort()
@@ -110,10 +120,34 @@ def gex_rows_from_heatmap(payload: dict[str, Any] | None) -> dict[str, Any] | No
         "ticker": str(payload.get("ticker") or "?").upper(),
         "spot": spot,
         "strikes": strikes,
+        "splits": splits,
         "king_strike": king_strike,
         "flip": flip,
         "regime": str(nodes.get("regime") or "?"),
+        "source": str(payload.get("data_source") or "chain"),
     }
+
+
+def max_pain_strike(splits: dict[float, dict[str, float]] | None) -> float | None:
+    """Classic max-pain strike from per-strike OI (no quotes needed).
+
+    Minimizes total option-buyer payout evaluated at each candidate strike:
+    Σ call_OI × max(K−Kc,0) + Σ put_OI × max(Kp−K,0). None without OI.
+    """
+    if not splits:
+        return None
+    calls = [(k, v.get("call_oi", 0) or 0) for k, v in splits.items()]
+    puts = [(k, v.get("put_oi", 0) or 0) for k, v in splits.items()]
+    if not any(oi > 0 for _, oi in calls + puts):
+        return None
+    best: float | None = None
+    best_val = math.inf
+    for k in splits:
+        val = (sum(oi * max(k - kc, 0) for kc, oi in calls)
+               + sum(oi * max(kp - k, 0) for kp, oi in puts))
+        if val < best_val:
+            best_val, best = val, k
+    return best
 
 
 def vex_rows_from_contracts(
@@ -190,8 +224,17 @@ def _dte_years(exp: str) -> float | None:
 
 def _render(rows: list[tuple[float, float]], *, ticker: str, spot: float,
             kind: str, king_strike: float | None, flip: float | None,
-            regime: str, sub: str) -> bytes | None:
-    """Shared strike-ladder renderer. kind ∈ {GEX, VEX}."""
+            regime: str, sub: str, splits: dict | None = None,
+            cumulative: bool = True, max_pain: float | None = None,
+            footer: str | None = None) -> bytes | None:
+    """Shared strike-ladder renderer. kind ∈ {GEX, VEX}.
+
+    v2 layers (GammaGrid/gex-dash vocabulary, own rendering):
+    - call/put SPLIT bars when splits are provided (gold up / purple down),
+      with a white net tick per strike; else single net bars (legacy).
+    - cumulative net-GEX curve seeded at spot, radiating outward (amber).
+    - max-pain dotted level + footer provenance line.
+    """
     try:
         from PIL import Image, ImageDraw
     except ImportError:
@@ -221,15 +264,53 @@ def _render(rows: list[tuple[float, float]], *, ticker: str, spot: float,
     max_abs = max((abs(g) for _, g in rows), default=0) or 1.0
     n = len(rows)
     row_h = max(2.0, (bottom - top) / max(n, 1) - 2)
+    use_split = isinstance(splits, dict) and any(
+        (splits.get(k) or {}).get("call_gex") or (splits.get(k) or {}).get("put_gex")
+        for k, _ in rows)
     for i, (k, g) in enumerate(rows):
         y = top + i * ((bottom - top) / max(n, 1)) + 1
-        wdt = abs(g) / max_abs * (right - left - 120)
-        color = pos_c if g >= 0 else neg_c
-        d.rounded_rectangle([left + 118, y, left + 118 + max(3, wdt), y + row_h],
-                            radius=2, fill=color)
+        if use_split:
+            sp = splits.get(k) or {}
+            cg = abs(float(sp.get("call_gex") or 0))
+            pg = abs(float(sp.get("put_gex") or 0))
+            # stacked diverging bar: gold calls up, purple puts down
+            wdt_c = cg / max_abs * (right - left - 120)
+            wdt_p = pg / max_abs * (right - left - 120)
+            yc = y + row_h / 2
+            d.rounded_rectangle([left + 118, yc - row_h / 2, left + 118 + max(2, wdt_c), yc],
+                                radius=1, fill=pos_c)
+            d.rounded_rectangle([left + 118, yc, left + 118 + max(2, wdt_p), yc + row_h / 2],
+                                radius=1, fill=neg_c)
+            # white net tick
+            nx = left + 118 + abs(g) / max_abs * (right - left - 120)
+            d.line([(nx, y), (nx, y + row_h)], fill=(255, 255, 255, 220), width=2)
+        else:
+            wdt = abs(g) / max_abs * (right - left - 120)
+            color = pos_c if g >= 0 else neg_c
+            d.rounded_rectangle([left + 118, y, left + 118 + max(3, wdt), y + row_h],
+                                radius=2, fill=color)
         if i % max(1, n // 14) == 0:
             d.text((8, y - 4), f"{k:g}", font=f_small, fill=MUTED)
-    # spot + flip + king lines
+    if cumulative and n > 2:
+        # dealer curve: net exposure accumulated outward from spot (gex-dash
+        # vocabulary). Seeded at the strike nearest spot, own normalization.
+        order = sorted(range(n), key=lambda i: abs(rows[i][0] - spot))
+        seq: list[tuple[float, float]] = []
+        run = 0.0
+        for i in order:
+            run += rows[i][1]
+            seq.append((rows[i][0], run))
+        seq.sort(key=lambda kv: kv[0])
+        y_by_k = {k: top + i * ((bottom - top) / max(n, 1)) + 1 + row_h / 2
+                  for i, (k, _) in enumerate(rows)}
+        cmax = max((abs(v) for _, v in seq), default=0) or 1.0
+        pts = [(left + 118 + abs(v) / cmax * (right - left - 120) * 0.92, y_by_k[k])
+               for k, v in seq]
+        if len(pts) > 1:
+            d.line(pts, fill=(251, 191, 36, 235), width=2, joint="curve")
+            for x, y in pts[:: max(1, len(pts) // 24)]:
+                d.ellipse([x - 2, y - 2, x + 2, y + 2], fill=(251, 191, 36, 235))
+    # spot + flip + king + max-pain lines
     d.line([(left, y_of(spot)), (W - 8, y_of(spot))], fill=SPOT_C, width=2)
     d.text((W - 138, y_of(spot) - 22), f"spot {spot:.2f}", font=f_small, fill=SPOT_C)
     if flip and lo <= flip <= hi:
@@ -240,9 +321,16 @@ def _render(rows: list[tuple[float, float]], *, ticker: str, spot: float,
         yk = y_of(king_strike)
         d.text((left + 2, yk - 22), "★ KING", font=f_body, fill=(232, 201, 106))
         d.line([(left, yk), (W - 8, yk)], fill=(232, 201, 106, 90), width=1)
+    if max_pain and lo <= max_pain <= hi:
+        ymp = y_of(max_pain)
+        for xx in range(left, W - 8, 8):
+            d.line([(xx, ymp), (xx + 4, ymp)], fill=(255, 255, 255, 150), width=1)
+        d.text((left + 2, ymp + 2), f"MP {max_pain:g}", font=f_small, fill=(255, 255, 255, 200))
     # right-side scale
     d.text((W - 132, top), _fmt_money(max_abs), font=f_small, fill=MUTED)
     d.text((W - 132, bottom - 18), "0", font=f_small, fill=MUTED)
+    if footer:
+        d.text((left, H - 26), footer[:110], font=f_small, fill=MUTED)
     buf = io.BytesIO()
     img.save(buf, format="PNG")
     return buf.getvalue()
@@ -253,13 +341,21 @@ def render_gex_png(norm: dict[str, Any] | None, *, max_rows: int = 60) -> bytes 
     if not norm:
         return None
     rows = norm["strikes"]
+    splits = norm.get("splits") if isinstance(norm.get("splits"), dict) else None
     if len(rows) > max_rows:
         # keep the most material strikes by |exposure|
         rows = sorted(rows, key=lambda kv: abs(kv[1]), reverse=True)[:max_rows]
         rows.sort()
+    from datetime import UTC, datetime
+
+    mp = max_pain_strike(splits)
+    footer = (f"rendered {datetime.now(UTC).strftime('%H:%M UTC')} · "
+              f"{norm.get('source', 'chain')} · {len(rows)} strikes"
+              + (f" · max pain {mp:g}" if mp else ""))
     return _render(rows, ticker=norm["ticker"], spot=norm["spot"], kind="GEX",
                    king_strike=norm.get("king_strike"), flip=norm.get("flip"),
-                   regime=norm.get("regime", "?"), sub="dealer gamma exposure")
+                   regime=norm.get("regime", "?"), sub="dealer gamma exposure",
+                   splits=splits, cumulative=True, max_pain=mp, footer=footer)
 
 
 def render_vex_png(norm: dict[str, Any] | None, *, max_rows: int = 60) -> bytes | None:
@@ -295,6 +391,9 @@ def walls_text(norm: dict[str, Any] | None) -> str:
         parts.append(f"King Node (pin magnet): {norm['king_strike']:g}")
     net = sum(g for _, g in norm["strikes"])
     parts.append(f"Net GEX: {_fmt_money(net)}")
+    mp = max_pain_strike(norm.get("splits") if isinstance(norm.get("splits"), dict) else None)
+    if mp:
+        parts.append(f"Max pain: {mp:g}")
     return "\n".join(parts)
 
 

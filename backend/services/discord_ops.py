@@ -236,8 +236,10 @@ HELP_TEXT = (
     "`!walls <TICKER>` — call/put walls, flip, regime readout\n"
     "Paper trading (Alpaca paper ONLY):\n"
     "`!buy <qty> <SYM> [limit <px>]` · `!sell <qty> <SYM>`\n"
+    "`!bracket <buy|sell> <qty> <SYM> <tp%> <sl%>` — entry + TP/SL legs\n"
     "`!approve <alert-key> [qty]` — trade a posted alert (journaled)\n"
-    "`!holdings` · `!orders` · `!alerts [n]` · `!help`\n"
+    "`!close <SYM>` · `!holdings` · `!orders` · `!pnl` · `!risk`\n"
+    "`!journal [n]` · `!alerts [n]` · `!help [solstice|trading|portfolio]`\n"
     "Trading commands require allowlist membership."
 )
 

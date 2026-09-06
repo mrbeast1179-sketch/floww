@@ -229,3 +229,33 @@ class TestPostImage:
         assert seen["url"] == "https://discord.test/hook"
         assert seen["files"]["file"][0] == "gex-SPY.png"
         assert seen["files"]["file"][2] == "image/png"
+
+
+class TestBotSurface:
+    def test_all_commands_registered_with_aliases(self):
+        import discord_bot
+
+        bot = discord_bot._commands()
+        names = {c.name for c in bot.commands}
+        for expected in ("heatmap", "vanna", "walls", "buy", "sell", "bracket",
+                         "approve", "close", "holdings", "orders", "pnl",
+                         "risk", "journal", "alerts", "help"):
+            assert expected in names, f"missing command {expected}"
+        alias_map = {}
+        for c in bot.commands:
+            for a in getattr(c, "aliases", []):
+                alias_map[a] = c.name
+        for alias, target in (("h", "help"), ("pos", "holdings"), ("hm", "heatmap"),
+                              ("w", "walls"), ("v", "vanna"), ("j", "journal")):
+            assert alias_map.get(alias) == target, f"alias !{alias} -> {target}"
+
+    def test_help_covers_solstice_and_trading(self):
+        from services import discord_ops as ops
+        assert "!heatmap" in ops.HELP_TEXT and "!bracket" in ops.HELP_TEXT
+        assert "!journal" in ops.HELP_TEXT and "Alpaca paper ONLY" in ops.HELP_TEXT
+
+    def test_fuzzy_suggests_closest_command(self):
+        import difflib
+        known = ["heatmap", "vanna", "walls", "bracket", "approve"]
+        assert difflib.get_close_matches("heatmp", known, n=1, cutoff=0.6) == ["heatmap"]
+        assert difflib.get_close_matches("xyzzy", known, n=1, cutoff=0.6) == []

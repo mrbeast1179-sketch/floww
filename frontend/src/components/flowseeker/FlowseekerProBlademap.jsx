@@ -264,7 +264,7 @@ function markNew(rows, prevKeysRef, mode) {
 }
 
 // ---------- component ----------
-export default function FlowseekerProBlademap({ active = true }) {
+export default function FlowseekerProBlademap({ active = true, onTrade = null }) {
   const [tab, setTab] = useState("scanner");   // land on the cross-symbol scanner (the hero view)
   const [ticker, setTicker] = useState("SPY");
   const [signals, setSignals] = useState([]);     // merged feed, newest first
@@ -718,6 +718,9 @@ export default function FlowseekerProBlademap({ active = true }) {
         const rows = d.rows.map((r) => {
           const row = mkScanRow(r[0], r[2], r[3], r[4], Number(r[5]) || 0, Number(r[6]) || 0,
             r[7], r[8], Number(r[9]) || null, regimes[r[0]] || null);
+          // OCC/OSI contract id rides along for click-to-trade (Alpaca paper
+          // needs the exact contract; never synthesized client-side).
+          row.osi = typeof r[1] === "string" && r[1] ? r[1] : null;
           // Paid quote truth: true premium replaces the BS estimate for
           // the PRIME/WHALE money gates; NBBO side + velocity ride along
           // for display and future sorting (never fabricated when absent).
@@ -2095,6 +2098,24 @@ export default function FlowseekerProBlademap({ active = true }) {
                               </td>
                             );
                           })()}
+                          <td>
+                            <button
+                              className="fsb-chip"
+                              title={r.osi ? `Paper-trade ${r.under} ${r.type} ${r.strike} on Alpaca (paper only)` : "No contract id on this row — trade unavailable"}
+                              disabled={!r.osi || !onTrade}
+                              data-testid={`scan-trade-${r.under}-${r.strike}`}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                if (onTrade && r.osi) onTrade({
+                                  ticker: r.under, strike: r.strike, spot: r.spot,
+                                  oi_symbol: r.osi, iv: r.iv, delta: r.delta,
+                                  oi: r.oi, dte: r.dte, exp: r.exp,
+                                  call_ask: null, call_last: null, put_bid: null, put_last: null,
+                                });
+                              }}>
+                              ⚡Trade
+                            </button>
+                          </td>
                         </tr>
                       );
                     })}

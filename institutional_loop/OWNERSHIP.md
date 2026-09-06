@@ -77,3 +77,6 @@ itself is append-only (all agents append rows; D owns structure).
 | backend/routes/alpaca.py | B | Alpaca paper routes + journal hook |
 | backend/tests/services/test_heatmap_image.py | B | renderer tests |
 | backend/tests/services/test_discord_ops.py | B | discord ops tests |
+| backend/alpaca_client.py | B | Alpaca paper client (options/bracket/reads) |
+| backend/tests/services/test_alpaca_paper.py | B | paper venue pins |
+| frontend/src/App.js | SHARED | surgical trade-submit + panel mounts only (Nav-approved scope) |

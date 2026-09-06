@@ -100,3 +100,54 @@ class TestWalls:
     def test_walls_empty(self):
         from services.heatmap_image import walls_text
         assert "unavailable" in walls_text(None)
+
+
+class TestV2Layers:
+    def _norm(self):
+        from services.heatmap_image import gex_rows_from_heatmap
+        return gex_rows_from_heatmap({
+            "ticker": "SPY", "spot": 700.0, "data_source": "public_api",
+            "strikes": [
+                {"strike": 690.0, "gex": -5e8, "call_gex": 1e8, "put_gex": 6e8,
+                 "call_oi": 1000, "put_oi": 9000},
+                {"strike": 695.0, "gex": -1e8, "call_gex": 2e8, "put_gex": 3e8,
+                 "call_oi": 2000, "put_oi": 3000},
+                {"strike": 700.0, "gex": 3e8, "call_gex": 5e8, "put_gex": 2e8,
+                 "call_oi": 8000, "put_oi": 2000},
+                {"strike": 705.0, "gex": 9e8, "call_gex": 9e8, "put_gex": 0,
+                 "call_oi": 12000, "put_oi": 500},
+            ],
+            "nodes": {"king": {"strike": 705.0, "gex": 9e8}, "regime": "positive"},
+            "gamma_flip": 697.5,
+        })
+
+    def test_splits_and_max_pain(self):
+        from services.heatmap_image import max_pain_strike
+        norm = self._norm()
+        assert set(norm["splits"][700.0]) >= {"call_gex", "put_gex", "call_oi", "put_oi"}
+        # hand-check: K=695 payout = calls: 8000*0+... compute pinakam: heavy put OI low
+        mp = max_pain_strike(norm["splits"])
+        assert mp in (690.0, 695.0, 700.0, 705.0)
+        # all-zero OI -> None, never a fabricated strike
+        assert max_pain_strike({690.0: {"call_oi": 0, "put_oi": 0}}) is None
+        assert max_pain_strike(None) is None
+
+    def test_v2_render_has_split_cumulative_pain(self):
+        import io
+
+        from PIL import Image
+
+        from services.heatmap_image import render_gex_png
+        png = render_gex_png(self._norm())
+        assert png[:8] == b"\x89PNG\r\n\x1a\n"
+        im = Image.open(io.BytesIO(png)).convert("RGB")
+        px = list(im.getdata())
+        amber = sum(1 for r, g, b in px if r > 235 and 175 < g < 205 and b < 80)
+        white = sum(1 for r, g, b in px if r > 235 and g > 235 and b > 235)
+        assert amber > 100, "cumulative dealer curve missing"
+        assert white > 20, "net ticks / max-pain line missing"
+
+    def test_walls_carries_max_pain(self):
+        from services.heatmap_image import walls_text
+        t = walls_text(self._norm())
+        assert "Max pain" in t

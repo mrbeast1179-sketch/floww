@@ -954,6 +954,26 @@ async def _build_heatmap_impl(ticker: str, max_expiries: int = 4, with_taps: boo
     is_index = ticker.startswith("^") or ticker.startswith("I:")
     raw = None  # initialize before cvserver fast-path; falls through to merged fetch
     if is_index and not scalp:
+        # PUBLIC-FIRST (2026-09-06, Nav directive: Solstice data is 100%
+        # Public; cvserver is strict failover). Try the merged (Public-first)
+        # fetch on a short leash first — index option chains may not exist
+        # on every venue, in which case we fall through to the cvserver
+        # screen path below instead of stalling the desk.
+        try:
+            raw = await asyncio.wait_for(
+                fetch_spot_and_chains_merged(ticker, max_expiries),
+                timeout=12.0,
+            )
+            if raw and raw.get("contracts") and (raw.get("spot") or 0) > 0:
+                raw["data_source"] = raw.get("data_source", "public_api")
+                log.info(f"build_heatmap: Public-first hit for index {ticker} "
+                         f"({len(raw['contracts'])} contracts via {raw['data_source']})")
+            else:
+                raw = None
+        except Exception as e:
+            log.info(f"build_heatmap: Public-first miss for index {ticker} ({e}); trying cvserver screen")
+            raw = None
+    if is_index and not scalp and raw is None:
         # First get spot price from a quick chain fetch (just 1 expiry, minimal fields)
         from services.cvserver_client import CVSERVER_API_KEY, fetch_chain_for_heatmap, fetch_chain_from_cvserver
         if CVSERVER_API_KEY:
