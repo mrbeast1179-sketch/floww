@@ -1,4 +1,4 @@
-import React, { memo, useCallback, useEffect, useState } from "react";
+import React, { memo, useCallback, useEffect, useMemo, useState } from "react";
 import { TICKER_SETS } from "./SkylitTickerBar";
 
 /**
@@ -55,21 +55,26 @@ function SkylitControlBar({
     return () => clearInterval(id);
   }, [playing, onRefresh, playbackIntervalMs]);
 
+  const tickerList = useMemo(() => tickers || TICKER_SETS.popular, [tickers]);
+  const tickerPos = useMemo(() => {
+    if (tickerList.length === 0) return null;
+    const idx = tickerList.indexOf(ticker);
+    return idx === -1 ? null : idx + 1;
+  }, [tickerList, ticker]);
   const stepTicker = useCallback((dir) => {
     if (!onTickerChange) return;
-    const list = tickers || TICKER_SETS.popular;
-    if (list.length === 0) return;
-    const idx = list.indexOf(ticker);
+    if (tickerList.length === 0) return;
+    const idx = tickerList.indexOf(ticker);
     let next;
     if (idx === -1) {
       // Open-universe symbol (e.g. VSAT) not in the list — cycle from the
       // boundary so arrows always work: forward -> first, back -> last.
-      next = dir > 0 ? list[0] : list[list.length - 1];
+      next = dir > 0 ? tickerList[0] : tickerList[tickerList.length - 1];
     } else {
-      next = list[(idx + dir + list.length) % list.length];
+      next = tickerList[(idx + dir + tickerList.length) % tickerList.length];
     }
     if (next) onTickerChange(next);
-  }, [onTickerChange, tickers, ticker]);
+  }, [onTickerChange, tickerList, ticker]);
 
   const handleShare = useCallback(async () => {    const url = typeof window !== "undefined" ? window.location.href : "";
     try {
@@ -159,6 +164,9 @@ function SkylitControlBar({
         <div className="skylit-ticker-display">
           <span className="skylit-ticker-name">{ticker}</span>
           {isLive && <span className="skylit-live-dot" />}
+          {tickerPos != null && tickerList.length > 0 && (
+            <span className="skylit-ticker-pos">{tickerPos}/{tickerList.length}</span>
+          )}
         </div>
 
         <div className="skylit-price-display">
