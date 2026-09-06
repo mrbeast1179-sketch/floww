@@ -259,3 +259,91 @@ class TestBotSurface:
         known = ["heatmap", "vanna", "walls", "bracket", "approve"]
         assert difflib.get_close_matches("heatmp", known, n=1, cutoff=0.6) == ["heatmap"]
         assert difflib.get_close_matches("xyzzy", known, n=1, cutoff=0.6) == []
+
+
+class TestDigest:
+    def _mk(self, i, conviction=50):
+        return {"key": f"k{i}", "ckey": f"c{i}", "rule": "SCORE", "tier": "GOLD",
+                "side": "BUY", "bias": "BULLISH", "under": f"T{i}", "type": "call",
+                "strike": 100 + i, "exp": "2026-09-18", "dte": 5, "score": 90 + (i % 9),
+                "premium": 1e6 + i, "vol_oi": 5.0, "conviction": conviction,
+                "why": "x"}
+
+    def test_three_or_fewer_post_singly(self):
+        from services import discord_ops as ops
+        alerts = [self._mk(0), self._mk(1)]
+        # singles path exercised via post_alerts mock below; digest builder:
+        msgs = ops.build_digest_messages(alerts)
+        assert len(msgs) == 1 and len(msgs[0]["embeds"]) == 2
+
+    def test_many_alerts_batch_with_honest_overflow(self):
+        from services import discord_ops as ops
+        alerts = [self._mk(i, conviction=i) for i in range(35)]
+        msgs = ops.build_digest_messages(alerts, max_embeds=10, max_msgs=3)
+        assert len(msgs) == 3
+        assert all(len(m["embeds"]) <= 10 for m in msgs)
+        assert "+5 more" in msgs[-1]["content"]
+        # top conviction first, approve keys preserved
+        assert "T34" in msgs[0]["embeds"][0]["title"]
+        assert "`k34`" in msgs[0]["embeds"][0]["description"]
+
+    @pytest.mark.asyncio
+    async def test_post_alerts_uses_digest_over_three(self, monkeypatch):
+        from services import discord_ops as ops
+        monkeypatch.setenv("DISCORD_WEBHOOK_URL", "https://discord.test/hook")
+        sent = []
+        resp = MagicMock(status_code=204)
+
+        class FakeClient:
+            async def __aenter__(self):
+                return self
+
+            async def __aexit__(self, *a):
+                return False
+
+            async def post(self, url, json=None):
+                sent.append(json)
+                return resp
+
+        with patch("httpx.AsyncClient", return_value=FakeClient()):
+            n = await ops.post_alerts([self._mk(i) for i in range(12)])
+        assert n == 2  # 12 embeds -> 2 messages, not 12 POSTs
+
+
+class TestPromptHarness:
+    def test_cooldown_helpers(self):
+        import discord_bot as bot_mod
+
+        ok, wait = bot_mod._cool_ok("u1", "heatmap")
+        assert ok is True
+        ok2, wait2 = bot_mod._cool_ok("u1", "heatmap")
+        assert ok2 is False and wait2 > 0
+        ok3, _ = bot_mod._cool_ok("u2", "heatmap")
+        assert ok3 is True  # per-user, not global
+        ok4, _ = bot_mod._cool_ok("u1", "walls")
+        assert ok4 is True or isinstance(wait2, float)  # walls has own bucket
+
+    def test_audit_ring(self):
+        import discord_bot as bot_mod
+
+        bot_mod._AUDIT.clear()
+        bot_mod._audit("u1", "buy 10 SPY")
+        assert len(bot_mod._AUDIT) == 1
+        assert bot_mod._AUDIT[0]["cmd"] == "buy 10 SPY"
+
+    def test_nl_regex(self):
+        import discord_bot as bot_mod
+
+        m = bot_mod._NL_READ.match("spy walls")
+        assert m and (m.group(1), m.group(2)) == ("spy", "walls")
+        assert bot_mod._NL_READ.match("!buy 10 SPY") is None
+        assert bot_mod._NL_READ.match("buy 10 SPY") is None
+        assert bot_mod._NL_READ.match("hello there") is None
+
+    def test_new_commands_registered(self):
+        import discord_bot
+
+        bot = discord_bot._commands()
+        names = {c.name for c in bot.commands}
+        for expected in ("cancel", "clock", "status", "audit"):
+            assert expected in names

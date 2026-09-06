@@ -49,8 +49,15 @@ Solstice (works for everyone, no allowlist needed):
 `!walls <TICKER>` — call/put walls, flip, regime readout
 
 Paper trading (allowlisted only):
-`!buy <qty> <SYM> [limit <px>]` · `!sell <qty> <SYM>` · `!approve <alert-key> [qty]`
-`!holdings` · `!orders` · `!alerts [n]` · `!help`
+`!buy <qty> <SYM> [limit <px>]` · `!sell <qty> <SYM>` · `!bracket <buy|sell> <qty> <SYM> <tp%> <sl%>` (entry + TP/SL legs, prices from live quote)
+`!approve <alert-key> [qty]` · `!close <SYM>` · `!cancel <order-id>`
+`!holdings` · `!orders` · `!pnl` · `!risk` · `!journal [n]` · `!audit [n]`
+`!alerts [n]` · `!help [solstice|trading|portfolio|ops]`
+Aliases: h pos/p a hm w v j p x. Plain `spy walls` (no `!`) works for reads;
+trading never triggers without the prefix. Unknown commands get a
+did-you-mean suggestion. Picture commands cool down 20s per user
+(paid-chain budget). Big alert sweeps arrive as digests (≤3 messages, top
+conviction first, approve keys kept) — Discord caps webhooks at ~30/min.
 
 Alert embeds carry the approve key: `!approve score|SPY|call|745|2099-01-08 2`
 buys 2 shares of SPY on Alpaca paper (direction from alert bias).

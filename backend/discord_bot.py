@@ -16,9 +16,13 @@ the FastAPI backend boots without it installed.
 """
 from __future__ import annotations
 
+import collections
+import contextlib
 import logging
 import os
+import re
 import sys
+import time as _time
 
 try:
     from dotenv import load_dotenv
@@ -30,6 +34,32 @@ except Exception:
 sys.path.insert(0, str(__import__("pathlib").Path(__file__).resolve().parent))
 
 log = logging.getLogger("discord_bot")
+
+# Prompt harness: per-user cooldowns on heavy commands (heatmap builds hit
+# paid chains — 20s/user keeps one enthusiastic thumb inside budget) and an
+# audit ring so allowlisted users can see who ran what.
+_COOLDOWNS: dict[tuple[str, str], float] = {}
+_COOLDOWN_S = {"heatmap": 20.0, "vanna": 20.0, "walls": 5.0}
+_AUDIT: collections.deque = collections.deque(maxlen=200)
+_NL_READ = re.compile(r"^([A-Za-z][A-Za-z0-9.\-]{0,9})\s+(heatmap|hm|walls|w|vanna|v|gex)$",
+                      re.IGNORECASE)
+
+
+def _cool_ok(user_id, cmd: str) -> tuple[bool, float]:
+    wait = _COOLDOWN_S.get(cmd, 0)
+    if not wait:
+        return True, 0.0
+    now = _time.monotonic()
+    key = (str(user_id), cmd)
+    last = _COOLDOWNS.get(key, 0.0)
+    if now - last < wait:
+        return False, wait - (now - last)
+    _COOLDOWNS[key] = now
+    return True, 0.0
+
+
+def _audit(user_id, cmd: str) -> None:
+    _AUDIT.append({"t": _time.time(), "user": str(user_id), "cmd": cmd})
 
 
 def _commands():
@@ -69,6 +99,8 @@ def _commands():
         "portfolio": ("**Portfolio**\n`!holdings` open paper positions · `!orders` recent "
                       "orders · `!pnl` day P&L · `!risk` buying power · `!journal [n]` "
                       "recent journaled trades"),
+        "ops": ("**Ops**\n`!status` desk health · `!clock` market hours · `!audit [n]` command log "
+                "(allowlisted) · `!cancel <order-id>` · cooldowns: heatmap/vanna 20s per user"),
     }
 
     @bot.command(name="help", aliases=["h"])
@@ -77,7 +109,7 @@ def _commands():
         if t in _TOPICS:
             await ctx.send(_TOPICS[t])
             return
-        await ctx.send(ops.HELP_TEXT + "\n`!help <solstice|trading|portfolio>` for topics. "
+        await ctx.send(ops.HELP_TEXT + "\n`!help <solstice|trading|portfolio|ops>` for topics. "
                        "Aliases: h pos a hm w v j p.")
 
     @bot.command(name="holdings", aliases=["pos", "positions", "p"])
@@ -137,6 +169,7 @@ def _commands():
         if not _deny(ctx):
             await ctx.send("Trading commands are allowlisted (DISCORD_ALLOWED_USER_IDS).")
             return
+        _audit(getattr(getattr(ctx, "author", None), "id", "?"), f"{side} {qty} {symbol}")
         import time
 
         router = _router()
@@ -294,6 +327,10 @@ def _commands():
         if not ticker:
             await ctx.send("Usage: `!heatmap <TICKER>` — e.g. `!heatmap SPY`")
             return
+        ok, wait = _cool_ok(getattr(getattr(ctx, "author", None), "id", "?"), "heatmap")
+        if not ok:
+            await ctx.send(f"Easy — `heatmap` cools down for {wait:.0f}s more (paid-chain budget).")
+            return
         await ctx.send(f"Building {ticker.upper()} GEX ladder…")
         try:
             from services import heatmap_image as hi
@@ -318,6 +355,10 @@ def _commands():
     async def vanna_cmd(ctx, ticker: str = ""):
         if not ticker:
             await ctx.send("Usage: `!vanna <TICKER>` — e.g. `!vanna QQQ`")
+            return
+        ok, wait = _cool_ok(getattr(getattr(ctx, "author", None), "id", "?"), "vanna")
+        if not ok:
+            await ctx.send(f"Easy — `vanna` cools down for {wait:.0f}s more (paid-chain budget).")
             return
         await ctx.send(f"Building {ticker.upper()} VEX ladder…")
         try:
@@ -345,6 +386,10 @@ def _commands():
         if not ticker:
             await ctx.send("Usage: `!walls <TICKER>` — e.g. `!walls SPY`")
             return
+        ok, wait = _cool_ok(getattr(getattr(ctx, "author", None), "id", "?"), "walls")
+        if not ok:
+            await ctx.send(f"Easy — `walls` cools down for {wait:.0f}s more (paid-chain budget).")
+            return
         try:
             from services import heatmap_image as hi
 
@@ -354,6 +399,112 @@ def _commands():
         except Exception as e:
             await ctx.send(f"walls failed: {e}")
 
+    @bot.command(name="cancel", aliases=["x"])
+    async def cancel_cmd(ctx, order_id: str = ""):
+        if not order_id:
+            await ctx.send("Usage: `!cancel <order-id>` (see `!orders`)")
+            return
+        if not _deny(ctx):
+            await ctx.send("Trading commands are allowlisted (DISCORD_ALLOWED_USER_IDS).")
+            return
+        try:
+            from alpaca_client import AlpacaClient
+
+            ok = await AlpacaClient().cancel_order(order_id)
+            _audit(getattr(getattr(ctx, "author", None), "id", "?"), f"cancel {order_id}")
+            await ctx.send(f"Cancel `{order_id}`: {'confirmed' if ok else 'failed / already gone'}.")
+        except Exception as e:
+            await ctx.send(f"cancel failed: {e}")
+
+    @bot.command(name="clock")
+    async def clock_cmd(ctx):
+        try:
+            from alpaca_client import AlpacaClient
+
+            clk = await AlpacaClient().get_clock() or {}
+            state = "OPEN" if clk.get("is_open") else "CLOSED"
+            await ctx.send(f"Market **{state}** · next open {clk.get('next_open', '?')} · next close {clk.get('next_close', '?')}")
+        except Exception as e:
+            await ctx.send(f"clock failed: {e}")
+
+    @bot.command(name="status")
+    async def status_cmd(ctx):
+        try:
+            from services.public_budget import budget as _budget
+
+            acct_note = "Alpaca keys missing"
+            try:
+                from alpaca_client import AlpacaClient
+
+                c = AlpacaClient()
+                acct_note = "Alpaca paper connected" if c.enabled else "Alpaca paper keys missing"
+            except Exception:
+                pass
+            b = _budget.status()
+            await ctx.send(f"**Desk status** · {acct_note} · budget {b['available']}/{b['capacity']} · "
+                           f"inflight {b['inflight']} · universe 40 · venue alpaca-paper")
+        except Exception as e:
+            await ctx.send(f"status failed: {e}")
+
+    @bot.command(name="audit")
+    async def audit_cmd(ctx, n: int = 10):
+        if not _deny(ctx):
+            await ctx.send("Audit is allowlisted.")
+            return
+        rows = list(_AUDIT)[-max(1, min(int(n), 25)):]
+        if not rows:
+            await ctx.send("Audit log empty.")
+            return
+        import datetime as _dt
+        lines = [f"{_dt.datetime.fromtimestamp(r['t']).strftime('%H:%M:%S')} <@{r['user']}> `{r['cmd']}`" for r in rows]
+        await ctx.send("**Command audit**\n" + "\n".join(lines))
+
+    @bot.event
+    async def on_message(message):
+        # Natural-language reads (no prefix needed, read-only only — trading
+        # NEVER triggers without `!`): "spy walls" -> walls readout.
+        try:
+            me = getattr(bot, "user", None)
+            if getattr(message, "author", None) == me or (me and message.author.id == me.id):
+                return
+            text = str(getattr(message, "content", "") or "").strip()
+            if not text or text.startswith("!"):
+                await bot.process_commands(message)
+                return
+            m = _NL_READ.match(text)
+            if m:
+                ticker, word = m.group(1).upper(), m.group(2).lower()
+                cmd = {"hm": "heatmap", "w": "walls", "v": "vanna", "gex": "heatmap"}.get(word, word)
+                _audit(getattr(message.author, "id", "?"), f"{cmd} {ticker} (nl)")
+                await message.channel.send(f"_{cmd} {ticker} — on it…_")
+                await _run_solstice_read(message, cmd, ticker)
+                return
+            await bot.process_commands(message)
+        except Exception:
+            with contextlib.suppress(Exception):
+                await bot.process_commands(message)
+
+    async def _run_solstice_read(message, cmd: str, ticker: str):
+        import discord as _dc
+
+        from services import heatmap_image as hi
+
+        if cmd == "walls":
+            norm = await hi.get_heatmap_data(ticker)
+            await message.channel.send(hi.walls_text(norm) if norm else f"No wall data for {ticker}.")
+            return
+        if cmd == "heatmap":
+            norm = await hi.get_heatmap_data(ticker)
+            png = hi.render_gex_png(norm)
+        else:
+            norm = await hi.get_vex_data(ticker)
+            png = hi.render_vex_png(norm)
+        if not png:
+            await message.channel.send(f"No data for {ticker} right now.")
+            return
+        await message.channel.send(file=_dc.File(__import__("io").BytesIO(png),
+                                                 filename=f"{cmd}-{ticker}.png"))
+
     @bot.event
     async def on_command_error(ctx, error):
         import difflib
@@ -362,7 +513,7 @@ def _commands():
 
         if isinstance(error, _cmds.CommandNotFound):
             typed = str(getattr(ctx, "invoked_with", "") or "")
-            known = [c.name for c in bot.commands] + ["pos", "h", "a", "hm", "w", "v", "j", "p"]
+            known = [c.name for c in bot.commands] + ["pos", "h", "a", "hm", "w", "v", "j", "p", "x"]
             guess = difflib.get_close_matches(typed, known, n=1, cutoff=0.6)
             hint = f" Did you mean `!{guess[0]}`?" if guess else ""
             await ctx.send(f"Unknown command `!{typed}`.{hint} Try `!help`.")

@@ -134,20 +134,30 @@ def format_alert_message(alert: dict[str, Any]) -> dict[str, Any]:
 
 
 async def post_alerts(alerts: list[dict[str, Any]]) -> int:
-    """Post qualifying alerts to the webhook. Returns count posted. Never raises."""
+    """Post qualifying alerts to the webhook. Returns count posted. Never raises.
+
+    Scaling discipline (Discord allows ~30 webhook POSTs/min/channel; a hot
+    sweep fires 100+ alerts): 3 or fewer qualifying alerts post as rich
+    single embeds (with !approve keys); more than that posts compact
+    digests (≤10 embeds/message, ≤3 messages/sweep). Either way every kept
+    alert keeps its approve key — batching never eats tradability.
+    """
     url = webhook_url()
     if not url:
         return 0
-    posted = 0
     try:
         import httpx
 
+        qualifying = [a for a in alerts or [] if should_notify(a)]
+        if len(qualifying) <= 3:
+            payloads = [format_alert_message(a) for a in qualifying]
+        else:
+            payloads = build_digest_messages(qualifying)
+        posted = 0
         async with httpx.AsyncClient(timeout=10.0) as client:
-            for a in alerts or []:
+            for payload in payloads:
                 try:
-                    if not should_notify(a):
-                        continue
-                    resp = await client.post(url, json=format_alert_message(a))
+                    resp = await client.post(url, json=payload)
                     if resp.status_code in (200, 201, 204):
                         posted += 1
                     else:
@@ -157,6 +167,56 @@ async def post_alerts(alerts: list[dict[str, Any]]) -> int:
     except Exception as e:
         logger.warning("discord webhook unavailable: %s", e)
     return posted
+
+
+def build_digest_messages(alerts: list[dict[str, Any]], max_embeds: int = 10,
+                          max_msgs: int = 3) -> list[dict[str, Any]]:
+    """Compact multi-alert digest payloads (pure). Ranked by conviction desc.
+
+    Each row keeps rule/tier/under/bias/score/premium/approve-key so the
+    digest stays actionable. Overflow collapses into a "+N more" footer row
+    (counted honestly, never silently dropped from the tally).
+    """
+    def _conv(a: dict[str, Any]) -> float:
+        # Explicit None checks — `or`-chaining would promote conviction 0
+        # above everything via the score fallback. Zero is a measurement.
+        for k in ("conviction", "score"):
+            try:
+                v = a.get(k)
+                if v is not None:
+                    return float(v)
+            except (TypeError, ValueError):
+                continue
+        return 0.0
+
+    ranked = sorted(alerts or [], key=_conv, reverse=True)
+    embeds: list[dict[str, Any]] = []
+    for a in ranked:
+        tier = str(a.get("tier", "BRONZE")).upper()
+        under = a.get("under", "?")
+        rule = a.get("rule", "")
+        bias = a.get("bias") or "—"
+        score = a.get("score", "—")
+        premium = _fmt_money(a.get("premium"))
+        key = a.get("key", "")
+        embeds.append({
+            "title": f"{tier} {rule} — {under} {bias}",
+            "color": _TIER_COLOR.get(tier, 0x9AA4B2),
+            "description": (f"score {score} · {premium} · `{key}`"[:900]),
+        })
+    total = len(embeds)
+    shown = embeds[: max_msgs * max_embeds]
+    messages: list[dict[str, Any]] = []
+    for i in range(0, len(shown), max_embeds):
+        messages.append({
+            "content": f"⚡ institutional digest: **{total} alerts** (top by conviction)",
+            "embeds": shown[i:i + max_embeds],
+        })
+    if total > len(shown) and messages:
+        # Overflow rides in the last message's content (embeds cap at 10) —
+        # counted honestly, never silently dropped from the tally.
+        messages[-1]["content"] += f" · +{total - len(shown)} more in the scanner"
+    return messages
 
 
 async def post_image(png: bytes | None, filename: str, content: str = "") -> bool:

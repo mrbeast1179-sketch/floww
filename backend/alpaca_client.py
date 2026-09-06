@@ -162,6 +162,21 @@ class AlpacaClient:
         data = await self._get(f"{ALPACA_BASE_URL}/v2/clock")
         return data if isinstance(data, dict) else None
 
+    async def cancel_order(self, order_id: str) -> bool:
+        """Cancel an open paper order. True when the venue confirms."""
+        if not order_id:
+            return False
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.delete(
+                        f"{ALPACA_BASE_URL}/v2/orders/{order_id}",
+                        headers=self.headers,
+                        timeout=aiohttp.ClientTimeout(total=10)) as resp:
+                    return resp.status in (200, 204)
+        except Exception as e:
+            logger.warning("Alpaca cancel error: %s", e)
+            return False
+
     async def get_bars(self, ticker: str, timeframe: str = "1Day", limit: int = 100) -> list[dict] | None:
         """Stock bars from Alpaca data (paper keys work for data)."""
         try:
