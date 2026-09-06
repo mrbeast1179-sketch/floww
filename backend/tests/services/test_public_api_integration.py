@@ -22,6 +22,13 @@ if _BACKEND not in sys.path:
     sys.path.insert(0, _BACKEND)
 
 
+def _quote(**kw):
+    q = MagicMock()
+    for k, v in kw.items():
+        setattr(q, k, v)
+    return q
+
+
 @pytest.fixture
 def mock_option_contract():
     """A single OptionContract that the adapter will flatten."""
@@ -66,6 +73,7 @@ def mock_broker(mock_option_contract):
     quote = MagicMock()
     quote.mid_price = 520.50
     quote.last = 520.50
+    quote.symbol = "SPY"
     broker.get_quotes = AsyncMock(return_value=[quote])
 
     # Return two calls + two puts for 2026-09-18 only
@@ -264,7 +272,7 @@ class TestEmptyChain:
             return_value=["2026-09-18"]
         )
         broker.get_quotes = AsyncMock(
-            return_value=[MagicMock(mid_price=520.50)]
+            return_value=[_quote(mid_price=520.50, symbol="SPY")]
         )
         broker.get_option_chain_parsed = AsyncMock(
             return_value={"calls": [], "puts": []}

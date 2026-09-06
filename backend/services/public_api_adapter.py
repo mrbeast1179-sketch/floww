@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import math
 import os
 import time
 from datetime import UTC, datetime
@@ -75,6 +76,25 @@ async def _get_broker() -> PublicBroker | None:
             return None
         BROKER = broker
         return BROKER
+
+
+def _matching_quote(quotes: list, symbol: str):
+    """Return the quote for exactly `symbol`, else None.
+
+    Never substitute: if the vendor answers with a different symbol than
+    requested, using quotes[0] would label the wrong price with our ticker
+    (verified failure mode on a sibling stack: QQQ's price served as SPY).
+    A missing symbol degrades to no-data downstream, never a wrong number.
+    """
+    want = _normalize_symbol(symbol)
+    for q in quotes or []:
+        got = getattr(q, "symbol", None)
+        if isinstance(got, str) and _normalize_symbol(got) == want:
+            return q
+    if quotes:
+        log.warning("Public API quote symbol mismatch for %s — refusing substitution",
+                    symbol)
+    return None
 
 
 def _normalize_symbol(symbol: str) -> str:
@@ -169,16 +189,30 @@ async def fetch_chain_from_public_api(
 
 
 def _note_public_429(exc: BaseException) -> None:
-    """Feed real HTTP 429 sightings into the Public-path budget cooler.
+    """Feed real HTTP 429 sightings into the Public-path budget cooler,
+    and record transport failures so they are visible in telemetry.
 
     httpx surfaces throttles as HTTPStatusError with .response.status_code;
-    anything else is ignored (never let observability break fetching).
+    transport errors (httpx.TransportError: connect/read/write/pool timeouts
+    — note httpx.TimeoutException is NOT a builtin TimeoutError, so a bare
+    `except TimeoutError` branch would be dead code here) are counted via
+    record_error without cooling the lane. Anything else is ignored (never
+    let observability break fetching).
     """
     try:
         status = getattr(getattr(exc, "response", None), "status_code", None)
         if status == 429:
             from services.public_budget import budget
             budget.record_429("api.public.com")
+            return
+        try:
+            import httpx
+
+            if isinstance(exc, httpx.TransportError):
+                from services.public_budget import budget
+                budget.record_error("api.public.com")
+        except Exception:
+            pass
     except Exception:
         pass
 
@@ -212,9 +246,10 @@ async def _fetch_chain_live(
     # 2. Get spot quote
     try:
         quotes = await pb.get_quotes([symbol], account_id)
-        spot = quotes[0].mid_price if quotes else None
+        q = _matching_quote(quotes, symbol)
+        spot = q.mid_price if q is not None else None
         if spot is None:
-            spot = quotes[0].last if quotes else None
+            spot = q.last if q is not None else None
         if spot is None:
             spot = 0.0
     except Exception as e:
@@ -300,9 +335,11 @@ async def fetch_spot_from_public_api(
     symbol = _normalize_symbol(ticker)
     try:
         quotes = await pb.get_quotes([symbol], trading.account_id)
-        if quotes:
-            q = quotes[0]
+        q = _matching_quote(quotes, symbol)
+        if q is not None:
             return q.mid_price if q.mid_price is not None else (q.last or 0.0)
+        log.warning("Public API quote symbol mismatch for %s — refusing substitution",
+                    ticker)
     except Exception as e:
         log.warning("Public API spot fail for %s: %s", ticker, e)
         return None
@@ -398,6 +435,11 @@ def _extract_bars(raw: Any) -> list[dict[str, Any]]:
     The gateway returns candles under various keys depending on the
     period/aggregation; accept lists of dicts with o/h/l/c (+v/volume)
     or {t, o, h, l, c, v} rows and pass them through defensively.
+
+    Rows missing any OHLC field are dropped (a None would become $0.00 two
+    hops downstream and read as a real print of zero). Non-finite floats
+    (NaN/Infinity parse happily but make the whole response unserialisable
+    → opaque HTTP 500) are rejected the same way.
     """
     if isinstance(raw, dict):
         for key in ("candles", "bars", "data", "results", "historicData"):
@@ -418,13 +460,17 @@ def _extract_bars(raw: Any) -> list[dict[str, Any]]:
         if o is None or h is None or lo is None or c is None:
             continue
         try:
-            out.append({
-                "t": row.get("t", row.get("timestamp", row.get("time"))),
-                "o": float(o), "h": float(h), "l": float(lo), "c": float(c),
-                "v": float(row.get("v", row.get("volume", 0)) or 0),
-            })
+            vals = [float(o), float(h), float(lo), float(c),
+                    float(row.get("v", row.get("volume", 0)) or 0)]
         except (TypeError, ValueError):
             continue
+        if not all(math.isfinite(v) for v in vals):
+            continue
+        out.append({
+            "t": row.get("t", row.get("timestamp", row.get("time"))),
+            "o": vals[0], "h": vals[1], "l": vals[2], "c": vals[3],
+            "v": vals[4],
+        })
     return out
 
 

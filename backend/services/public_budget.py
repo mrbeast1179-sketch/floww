@@ -77,6 +77,7 @@ class PublicBudget:
         self.total_ok = 0
         self.total_limited = 0
         self.total_429 = 0
+        self.total_errors = 0
 
     def _refill_locked(self, now: float) -> None:
         self._tokens = min(
@@ -140,6 +141,17 @@ class PublicBudget:
         self._cooldowns.pop(host, None)
         self._cooldown_hits.pop(host, None)
 
+    def record_error(self, host: str = "public") -> int:
+        """Record a non-429 upstream failure (transport/timeout/connect).
+
+        Counts only — no cooldown (a single blip must not throttle the
+        lane; repeated 429s still own the cooler). Without this, successes
+        record but failures vanish and the success rate inflates, hiding
+        outages from operators.
+        """
+        self.total_errors += 1
+        return self.total_errors
+
     def record_429(
         self, host: str = "public", now: float | None = None, retry_after: int | None = None
     ) -> int:
@@ -174,6 +186,7 @@ class PublicBudget:
                 "ok": self.total_ok,
                 "limited": self.total_limited,
                 "rate_limited_429": self.total_429,
+                "errors": self.total_errors,
             },
         }
 
