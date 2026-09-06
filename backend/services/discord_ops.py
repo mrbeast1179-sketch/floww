@@ -341,7 +341,7 @@ HELP_TEXT = (
     "`!bracket <buy|sell> <qty> <SYM> <tp%> <sl%>` — entry + TP/SL legs\n"
     "`!approve <alert-key> [qty]` — trade a posted alert (journaled)\n"
     "`!close <SYM>` · `!holdings` · `!orders` · `!pnl` · `!risk`\n"
-    "`!journal [n]` · `!alerts [n]` · `!help [solstice|trading|portfolio]`\n"
+    "`!journal [n]` · `!alerts [n]` · `!help [solstice|trading|portfolio|ops]`\n"
     "Trading commands require allowlist membership."
 )
 

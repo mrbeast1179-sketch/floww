@@ -101,8 +101,9 @@ def _commands():
         if t in _TOPICS:
             await ctx.send(_TOPICS[t])
             return
+        aliases = sorted({a for c in bot.walk_commands() for a in c.aliases})
         await ctx.send(ops.HELP_TEXT + "\n`!help <solstice|trading|portfolio|ops>` for topics. "
-                       "Aliases: h pos a hm w v j p.")
+                       "Aliases: " + " ".join(aliases) + ".")
 
     @bot.command(name="holdings", aliases=["pos", "positions", "p"])
     async def holdings_cmd(ctx):
