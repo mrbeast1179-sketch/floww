@@ -29,6 +29,12 @@ class AlpacaClient:
 
     def __init__(self):
         self._load_keys()
+        # Last HTTP outcome (status + short detail). _get/_post/_delete
+        # still return None on failure (backward compat) — callers read
+        # last_failure() for the honest reason (403 = no options approval,
+        # 401 = bad keys, None = keys missing/unreachable).
+        self._last_status: int | None = None
+        self._last_error: str = ""
 
     def _load_keys(self):
         """Load keys from environment at call time (not import time)."""
@@ -48,42 +54,65 @@ class AlpacaClient:
             "APCA-API-SECRET-KEY": self._secret_key,
         }
 
+    def last_failure(self) -> dict:
+        """Honest last-error detail (never raises)."""
+        return {"http_status": getattr(self, "_last_status", None),
+                "detail": getattr(self, "_last_error", "")}
+
     async def _get(self, url: str, params: dict = None) -> Any | None:
         if not self.enabled:
+            self._last_status = None
+            self._last_error = "alpaca keys not configured"
             return None
         try:
             async with aiohttp.ClientSession() as session:
                 async with session.get(url, headers=self.headers, params=params or {},
                                        timeout=aiohttp.ClientTimeout(total=10)) as resp:
                     if resp.status == 200:
+                        self._last_status = 200
+                        self._last_error = ""
                         return await resp.json()
                     else:
                         text = await resp.text()
+                        self._last_status = resp.status
+                        self._last_error = text[:200]
                         logger.warning(f"Alpaca API error {resp.status}: {text[:200]}")
                         return None
         except Exception as e:
+            self._last_status = None
+            self._last_error = str(e)[:200]
             logger.warning(f"Alpaca API error: {e}")
             return None
 
     async def _post(self, url: str, data: dict = None) -> Any | None:
         if not self.enabled:
+            self._last_status = None
+            self._last_error = "alpaca keys not configured"
             return None
         try:
             async with aiohttp.ClientSession() as session:
                 async with session.post(url, headers=self.headers, json=data or {},
                                         timeout=aiohttp.ClientTimeout(total=10)) as resp:
                     if resp.status in (200, 201):
+                        self._last_status = resp.status
+                        self._last_error = ""
                         return await resp.json()
                     elif resp.status == 207:
                         # Partial success — some orders filled, some failed
                         result = await resp.json()
+                        self._last_status = 207
+                        self._last_error = "partial success"
                         logger.warning(f"Alpaca partial success (207): {result}")
                         return result
                     else:
                         text = await resp.text()
+                        self._last_status = resp.status
+                        self._last_error = text[:200]
                         logger.warning(f"Alpaca API error {resp.status}: {text[:200]}")
                         return None
         except Exception as e:
+            self._last_status = None
+            self._last_error = str(e)[:200]
             logger.warning(f"Alpaca API error: {e}")
             return None
 
@@ -102,6 +131,13 @@ class AlpacaClient:
         except Exception as e:
             logger.warning(f"Alpaca API error: {e}")
             return None
+
+    async def get_order(self, order_id: str) -> dict | None:
+        """Fetch one paper order by venue ID (fill reconciliation read)."""
+        if not order_id:
+            return None
+        data = await self._get(f"{ALPACA_BASE_URL}/v2/orders/{order_id}")
+        return data if isinstance(data, dict) else None
 
     async def place_stock_order(self, symbol: str, qty: int, side: str = "buy",
                                  order_type: str = "market", limit_price: float = 0) -> dict | None:

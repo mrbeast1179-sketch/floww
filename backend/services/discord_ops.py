@@ -378,17 +378,49 @@ async def execute_approve(alert_key: str, qty: int | None, engine, router) -> di
         q = int(qty) if qty else 1
         if q <= 0:
             return {"status": "error", "reason": "qty must be positive"}
+        if _approve_already_journaled(alert_key):
+            return {"status": "duplicate",
+                    "reason": f"already approved: {alert_key}",
+                    "alert": alert_key}
         res = await router.submit_order({
             "ticker": symbol, "side": side, "qty": q, "order_type": "market",
-            "signal_id": f"discord-approve:{alert_key}",
+            "signal_id": f"discord-approve:{alert_key}:{side}:{q}",
             "timestamp_us": int(time.time() * 1e6),
-        })
+        }, allow_market=True)
         if res.get("status") == "submitted":
             _journal_approve_fill(alert, side, q, res)
         return {"status": res.get("status", "error"), "order": res, "alert": alert_key}
+    except TypeError as e:
+        # Back-compat: a router stub without the allow_market opt-in.
+        if "allow_market" in str(e):
+            logger.warning("discord approve router missing allow_market: %s", e)
+            return {"status": "error", "reason": "router missing market opt-in"}
+        logger.warning("discord approve failed: %s", e)
+        return {"status": "error", "reason": str(e)}
     except Exception as e:
         logger.warning("discord approve failed: %s", e)
         return {"status": "error", "reason": str(e)}
+
+
+def _approve_already_journaled(alert_key: str) -> bool:
+    """True when this alert key already has a discord-approve seed.
+
+    Duplicate-approve guard (G3.3 idempotency): the router cache keys on
+    (signal_id, timestamp), so two taps mint different client_order_ids —
+    the journal is the cross-call dedup record. Fail-open: any read error
+    means "not seen", the trade proceeds.
+    """
+    try:
+        from services.journal_store import get_engine, init_journal_tables, read_trades
+
+        engine = get_engine()
+        init_journal_tables(engine)
+        for t in read_trades(engine, days=30):
+            if t.get("source") == "discord-approve" and alert_key in str(t.get("notes", "")):
+                return True
+        return False
+    except Exception:
+        return False
 
 
 def _journal_approve_fill(alert: dict[str, Any], side: str, qty: int, res: dict) -> None:
@@ -403,6 +435,7 @@ def _journal_approve_fill(alert: dict[str, Any], side: str, qty: int, res: dict)
         from services.journal_store import get_engine, init_journal_tables, save_seeds
 
         broker_id = res.get("client_order_id") or (res.get("broker") or {}).get("id", "")
+        broker_status = (res.get("broker") or {}).get("status", "") if isinstance(res.get("broker"), dict) else ""
         # Equity legs have no strike, but strike is PK-NOT-NULL in
         # flow_journal_trades: store the underlying reference price (or 0.0),
         # labeled as such in notes. Uniqueness comes from the per-second
@@ -426,7 +459,9 @@ def _journal_approve_fill(alert: dict[str, Any], side: str, qty: int, res: dict)
             "exit_date": "",
             "notes": (f"Discord approve {side} {qty} shares from {alert.get('rule')} "
                       f"{alert.get('tier')} alert ({alert.get('key')}) | "
-                      f"Alpaca paper ({broker_id}) | ref px {ref_px} (equity leg, "
+                      f"Alpaca paper ({broker_id}, broker status '{broker_status or 'submitted'}' — "
+                      f"submission, not a confirmed fill; reconcile via get_order) | "
+                      f"ref px {ref_px} (equity leg, "
                       f"not a strike) | {alert.get('why', '')}"[:500]),
             "gex_regime": "",
             "setup": f"{str(alert.get('rule') or '').lower()} approve",

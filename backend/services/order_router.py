@@ -95,12 +95,19 @@ class OrderRouter:
         """Generate idempotent client order ID."""
         return hashlib.sha256(f"{signal_id}:{timestamp_us}".encode()).hexdigest()[:16]
 
-    def _build_order_payload(self, intent: dict[str, Any]) -> dict[str, Any]:
-        """Build Alpaca paper order payload from TradeIntent."""
+    def _build_order_payload(self, intent: dict[str, Any],
+                               allow_market: bool = False) -> dict[str, Any]:
+        """Build Alpaca paper order payload from TradeIntent.
+
+        MARKET orders stay rejected by default (safety flag). Callers with
+        an explicit user-tap intent (Discord !approve / !buy) opt in per
+        call with allow_market=True — the default-deny gate test still pins
+        the safe default.
+        """
         order_type = intent.get("order_type", "limit").upper()
 
         # Safety: reject MARKET orders by default
-        if order_type == "MARKET" and not ALLOW_MARKET_ORDERS:
+        if order_type == "MARKET" and not (ALLOW_MARKET_ORDERS or allow_market):
             raise ValueError("MARKET orders disabled. Set ALLOW_MARKET_ORDERS=1 to enable.")
 
         side = intent.get("side", "buy").lower()
@@ -126,8 +133,14 @@ class OrderRouter:
 
         return payload
 
-    async def submit_order(self, intent: dict[str, Any], db=None) -> dict[str, Any]:
-        """Submit a paper order to Alpaca with idempotency check."""
+    async def submit_order(self, intent: dict[str, Any], db=None,
+                           allow_market: bool = False) -> dict[str, Any]:
+        """Submit a paper order to Alpaca with idempotency check.
+
+        allow_market=True is the explicit per-tap opt-in for Discord
+        market orders (!approve/!buy). Default False preserves the
+        default-deny safety posture.
+        """
         signal_id = intent.get("signal_id", "")
         timestamp_us = intent.get("timestamp_us", int(time.time() * 1e6))
         client_order_id = self._make_client_order_id(signal_id, timestamp_us)
@@ -138,7 +151,7 @@ class OrderRouter:
             return self._order_cache[client_order_id]
 
         try:
-            payload = self._build_order_payload(intent)
+            payload = self._build_order_payload(intent, allow_market=allow_market)
         except ValueError as e:
             return {"status": "rejected", "reason": str(e)}
 
