@@ -62,6 +62,14 @@ def _audit(user_id, cmd: str) -> None:
     _AUDIT.append({"t": _time.time(), "user": str(user_id), "cmd": cmd})
 
 
+def usage_counts() -> dict:
+    counts: dict[str, int] = {}
+    for r in _AUDIT:
+        base = str(r["cmd"]).split()[0].lower()
+        counts[base] = counts.get(base, 0) + 1
+    return counts
+
+
 def _commands():
     from discord.ext import commands
 
@@ -478,7 +486,8 @@ def _commands():
             return
         import datetime as _dt
         lines = [f"{_dt.datetime.fromtimestamp(r['t']).strftime('%H:%M:%S')} <@{r['user']}> `{r['cmd']}`" for r in rows]
-        await ctx.send("**Command audit**\n" + "\n".join(lines))
+        use = " ".join(f"{k}×{v}" for k, v in sorted(usage_counts().items()))
+        await ctx.send("**Command audit**\n" + "\n".join(lines) + (f"\n_use: {use}_" if use else ""))
 
     @bot.event
     async def on_message(message):
