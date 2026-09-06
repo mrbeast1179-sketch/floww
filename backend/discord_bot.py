@@ -167,6 +167,9 @@ def _commands():
     @bot.command(name="alerts", aliases=["a"])
     async def alerts_cmd(ctx, n: int = 5):
         rows = ops.fetch_recent_alerts(_engine(), limit=n)
+        if rows is None:
+            await ctx.send("Recent alerts unavailable — feed state unknown.")
+            return
         if not rows:
             await ctx.send("No recent alerts.")
             return

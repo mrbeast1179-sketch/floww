@@ -346,15 +346,19 @@ HELP_TEXT = (
 )
 
 
-def fetch_recent_alerts(engine, limit: int = 10, min_tier: str = "GOLD") -> list[dict]:
-    """Recent alerts for `!alerts` / `!approve` resolution. Never raises."""
+def fetch_recent_alerts(engine, limit: int = 10, min_tier: str = "GOLD") -> list[dict] | None:
+    """Recent alerts for `!alerts` / `!approve` resolution. Never raises.
+
+    Returns None when the feed itself failed (callers must say
+    unavailable, not empty); [] means the feed answered with no rows.
+    """
     try:
         from services.flow_alerts import read_alert_feed
 
         return read_alert_feed(engine, days=2, min_tier=min_tier)[: max(1, int(limit))]
     except Exception as e:
         logger.warning("discord recent-alerts unavailable: %s", e)
-        return []
+        return None
 
 
 async def execute_approve(alert_key: str, qty: int | None, engine, router) -> dict[str, Any]:
@@ -365,7 +369,7 @@ async def execute_approve(alert_key: str, qty: int | None, engine, router) -> di
     """
     try:
         rows = fetch_recent_alerts(engine, limit=50)
-        alert = next((a for a in rows if a.get("key") == alert_key), None)
+        alert = next((a for a in rows or [] if a.get("key") == alert_key), None)
         if alert is None:
             return {"status": "error", "reason": f"alert not found: {alert_key}"}
         bias = str(alert.get("bias") or "").upper()
