@@ -347,3 +347,55 @@ class TestPromptHarness:
         names = {c.name for c in bot.commands}
         for expected in ("cancel", "clock", "status", "audit"):
             assert expected in names
+
+
+class TestPostValidator:
+    def _full(self):
+        return {"key": "k", "rule": "WHALE", "tier": "GOLD", "under": "SPY",
+                "type": "call", "strike": 700, "exp": "2026-09-18", "score": 88,
+                "premium": 1e6, "vol_oi": 3.0, "why": "big", "dte": 5}
+
+    def test_full_alert_passes(self):
+        from services import discord_ops as ops
+        ok, missing = ops.validate_alert_for_post(self._full())
+        assert (ok, missing) == (True, [])
+
+    def test_gutted_alert_fails_with_list(self):
+        from services import discord_ops as ops
+        ok, missing = ops.validate_alert_for_post(
+            {"key": "whale|SPY|call|700|2026-09-18", "rule": "WHALE",
+             "tier": "GOLD", "under": "SPY"})
+        assert ok is False
+        assert set(missing) == {"type", "strike", "exp", "score", "premium", "why"}
+
+    def test_zero_is_a_measurement_not_missing(self):
+        from services import discord_ops as ops
+        a = self._full()
+        a.update(score=0, premium=0)
+        ok, _ = ops.validate_alert_for_post(a)
+        assert ok is True
+
+    def test_empty_type_is_missing(self):
+        from services import discord_ops as ops
+        a = self._full()
+        a["type"] = ""
+        ok, missing = ops.validate_alert_for_post(a)
+        assert ok is False and missing == ["type"]
+
+    @pytest.mark.asyncio
+    async def test_gutted_never_posts_but_counts(self, monkeypatch):
+        from services import discord_ops as ops
+        monkeypatch.setenv("DISCORD_WEBHOOK_URL", "https://discord.test/hook")
+        before = ops.DROPPED_EMPTY["count"]
+        with patch("httpx.AsyncClient", side_effect=AssertionError("must not POST")):
+            n = await ops.post_alerts([{"key": "k", "rule": "WHALE",
+                                        "tier": "GOLD", "under": "SPY"}])
+        assert n == 0
+        assert ops.DROPPED_EMPTY["count"] == before + 1
+
+    def test_digest_skips_gutted(self):
+        from services import discord_ops as ops
+        good = [self._full() | {"key": f"k{i}", "under": f"T{i}"} for i in range(3)]
+        msgs = ops.build_digest_messages(
+            good + [{"key": "bad", "rule": "X", "tier": "GOLD", "under": "Z"}])
+        assert len(msgs) == 1 and len(msgs[0]["embeds"]) == 3

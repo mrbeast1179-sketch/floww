@@ -22,6 +22,7 @@ async def discord_status(_: bool = Depends(require_api_key)):
             "min_tier": ops.min_tier(),
             "rules": sorted(ops.watched_rules()),
             "trading_allowlist_size": len(ops.allowed_user_ids()),
+            "dropped_empty_total": ops.DROPPED_EMPTY["count"],
             "venue": "alpaca-paper",
         }
     except Exception as e:

@@ -32,6 +32,32 @@ _TIER_RANK = {"GOLD": 0, "SILVER": 1, "BRONZE": 2}
 
 _TIER_COLOR = {"GOLD": 0xE8C96A, "SILVER": 0x9AA4B2, "BRONZE": 0xCD7F32}
 
+# Render-required fields. An alert missing any of these must NEVER reach
+# Discord as a "— / —" embed (Sep-2026 incident: gutted WHALE posts).
+# Dropped alerts are logged with their key + missing list (the log line IS
+# the dead letter) and counted in DROPPED_EMPTY for /api/discord/status.
+_REQUIRED_POST_FIELDS = ("type", "strike", "exp", "score", "premium", "why")
+DROPPED_EMPTY = {"count": 0}
+
+
+def validate_alert_for_post(alert: dict[str, Any]) -> tuple[bool, list[str]]:
+    """Check an alert can render a non-empty embed. Pure.
+
+    Returns (ok, missing). Empty-string type counts as missing; numeric
+    fields accept 0 (a real number, not unknown); why must be non-blank.
+    """
+    if not isinstance(alert, dict):
+        return False, ["not-a-dict"]
+    missing: list[str] = []
+    if not alert.get("type"):
+        missing.append("type")
+    for k in ("strike", "exp", "score", "premium"):
+        if alert.get(k) is None:
+            missing.append(k)
+    if not str(alert.get("why") or "").strip():
+        missing.append("why")
+    return (not missing), missing
+
 
 def _env(name: str, default: str = "") -> str:
     return os.environ.get(name, default)
@@ -114,7 +140,7 @@ def format_alert_message(alert: dict[str, Any]) -> dict[str, Any]:
     key = alert.get("key", "")
     title = f"{tier} {rule} — {under} {typ} {strike} {exp}"
     return {
-        "content": f" institutional alert: **{under}** {rule} ({tier})",
+        "content": f"institutional alert: **{under}** {rule} ({tier})",
         "embeds": [{
             "title": title[:256],
             "color": _TIER_COLOR.get(tier, 0x9AA4B2),
@@ -148,7 +174,17 @@ async def post_alerts(alerts: list[dict[str, Any]]) -> int:
     try:
         import httpx
 
-        qualifying = [a for a in alerts or [] if should_notify(a)]
+        qualifying = []
+        for a in alerts or []:
+            if not should_notify(a):
+                continue
+            ok, missing = validate_alert_for_post(a)
+            if not ok:
+                DROPPED_EMPTY["count"] += 1
+                logger.warning("discord dropped gutted alert %s (missing %s): %s",
+                               a.get("key"), ",".join(missing), a)
+                continue
+            qualifying.append(a)
         if len(qualifying) <= 3:
             payloads = [format_alert_message(a) for a in qualifying]
         else:
@@ -192,6 +228,12 @@ def build_digest_messages(alerts: list[dict[str, Any]], max_embeds: int = 10,
     ranked = sorted(alerts or [], key=_conv, reverse=True)
     embeds: list[dict[str, Any]] = []
     for a in ranked:
+        ok, missing = validate_alert_for_post(a)
+        if not ok:
+            DROPPED_EMPTY["count"] += 1
+            logger.warning("discord digest dropped gutted alert %s (missing %s)",
+                           a.get("key"), ",".join(missing))
+            continue
         tier = str(a.get("tier", "BRONZE")).upper()
         under = a.get("under", "?")
         rule = a.get("rule", "")
