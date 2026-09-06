@@ -391,11 +391,103 @@ async def contract(
                 "ask": c.get("ask", 0) or 0,
                 "gex": gex,
             })
-        return _sanitize({"ticker": ticker.strip().upper(), "spot": spot, "rows": rows, "count": len(rows)})
+        return _sanitize({"ticker": ticker.strip().upper(), "spot": spot, "rows": rows, "count": len(rows), "spot_source": raw.get("spot_source")})
     except HTTPException:
         raise
     except Exception as e:
         logger.warning("contract error for %s: %s", ticker, e)
+        return degraded_response("computation_error", str(e))
+
+
+def contracts_for_strike_expiry(rows, strike, expiry):
+    """Filter chain rows to one strike+expiry, shaped for TrinityView enrichment.
+
+    Frontend calls GET /api/contract/{ticker}/{strike}/{expiry} and reads
+    ``data.contracts`` with per-leg ``{type, iv, delta, bid, ask, last,
+    open_interest, osi}``. Chain rows store ``oi``/``midpoint`` — ship both
+    names so old and new readers work. ``last`` prefers a positive midpoint,
+    else mid of bid/ask, else whichever side exists, else 0. Miss -> [].
+    """
+    try:
+        target = float(strike)
+    except (TypeError, ValueError):
+        return []
+    out = []
+    for c in rows or []:
+        if not isinstance(c, dict):
+            continue
+        if (c.get("expiry") or "") != (expiry or ""):
+            continue
+        try:
+            k = float(c.get("strike"))
+        except (TypeError, ValueError):
+            continue
+        if abs(k - target) > 0.001:
+            continue
+        bid = c.get("bid", 0) or 0
+        ask = c.get("ask", 0) or 0
+        mid = c.get("midpoint", 0) or 0
+        if mid and mid > 0:
+            last = mid
+        elif bid > 0 and ask > 0:
+            last = (bid + ask) / 2
+        else:
+            last = bid or ask or 0
+        oi = c.get("oi", c.get("open_interest", 0)) or 0
+        out.append({
+            "type": c.get("type"),
+            "strike": c.get("strike"),
+            "expiry": c.get("expiry"),
+            "iv": c.get("iv", 0) or 0,
+            "delta": c.get("delta", 0) or 0,
+            "gamma": c.get("gamma", 0) or 0,
+            "vega": c.get("vega", 0) or 0,
+            "theta": c.get("theta", 0) or 0,
+            "bid": bid,
+            "ask": ask,
+            "last": last,
+            "midpoint": mid,
+            "open_interest": oi,
+            "oi": oi,
+            "volume": c.get("volume", 0) or 0,
+            "osi": c.get("osi"),
+        })
+    return out
+
+
+@router.get("/contract/{ticker}/{strike}/{expiry}")
+async def contract_strike(
+    ticker: str,
+    strike: float,
+    expiry: str,
+    expiries: int = Query(default=12, ge=1, le=12),
+    max_age_seconds: int = Query(default=300, ge=0, le=3600),
+):
+    """Single-strike enrichment for QuickTradePanel (TrinityView row click).
+
+    Alias over the same chain cache as GET /contract/{ticker}; returns
+    ``{ticker, strike, expiry, spot, contracts}`` in the shape the panel
+    already parses. Empty ``contracts`` (200) when the strike/expiry is
+    absent — the panel keeps its base selection.
+    """
+    try:
+        from server import _sanitize
+        raw = await _cache.get_chain(ticker, expiries, max_age_seconds, _coordinator)
+        _check_chain(raw, ticker)
+        contracts = contracts_for_strike_expiry(raw.get("contracts", []), strike, expiry)
+        return _sanitize({
+            "ticker": ticker.strip().upper(),
+            "strike": strike,
+            "expiry": expiry,
+            "spot": raw.get("spot"),
+            "spot_source": raw.get("spot_source"),
+            "contracts": contracts,
+            "count": len(contracts),
+        })
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.warning("contract-strike error for %s %s %s: %s", ticker, strike, expiry, e)
         return degraded_response("computation_error", str(e))
 
 

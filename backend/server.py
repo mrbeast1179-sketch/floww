@@ -954,6 +954,26 @@ async def _build_heatmap_impl(ticker: str, max_expiries: int = 4, with_taps: boo
     is_index = ticker.startswith("^") or ticker.startswith("I:")
     raw = None  # initialize before cvserver fast-path; falls through to merged fetch
     if is_index and not scalp:
+        # PUBLIC-FIRST (2026-09-06, Nav directive: Solstice data is 100%
+        # Public; cvserver is strict failover). Try the merged (Public-first)
+        # fetch on a short leash first — index option chains may not exist
+        # on every venue, in which case we fall through to the cvserver
+        # screen path below instead of stalling the desk.
+        try:
+            raw = await asyncio.wait_for(
+                fetch_spot_and_chains_merged(ticker, max_expiries),
+                timeout=12.0,
+            )
+            if raw and raw.get("contracts") and (raw.get("spot") or 0) > 0:
+                raw["data_source"] = raw.get("data_source", "public_api")
+                log.info(f"build_heatmap: Public-first hit for index {ticker} "
+                         f"({len(raw['contracts'])} contracts via {raw['data_source']})")
+            else:
+                raw = None
+        except Exception as e:
+            log.info(f"build_heatmap: Public-first miss for index {ticker} ({e}); trying cvserver screen")
+            raw = None
+    if is_index and not scalp and raw is None:
         # First get spot price from a quick chain fetch (just 1 expiry, minimal fields)
         from services.cvserver_client import CVSERVER_API_KEY, fetch_chain_for_heatmap, fetch_chain_from_cvserver
         if CVSERVER_API_KEY:
@@ -1670,55 +1690,6 @@ async def stop_live_tape() -> dict:
     return {"status": "stopped", "stopped": True}
 
 
-# ============ Schwab Stubs (RETIRED 2026-09-03 — public-api-only policy) ============
-# floww has no Schwab account. routes/schwab.py returns 410 Gone with
-# /api/public/* replacements. These helpers are kept only so
-# legacy imports don't break; they always report retired.
-
-def get_schwab_auth_url() -> dict:
-    """Retired — Schwab removed, use /api/public/account."""
-    return {"error": "schwab_retired", "auth_url": None,
-            "replacement": "/api/public/account"}
-
-
-async def schwab_auth_handler(request: dict):
-    """Handle Schwab OAuth callback (stub).
-
-    Returns JSONResponse(503) so monitoring agents that filter on
-    status_code != 200 can detect the unconfigured state (gemini.py
-    JSONResponse precedent — commit 23baf34). The body shape is unchanged
-    (status=error, message=...) so the frontend error path is not affected.
-    """
-    return JSONResponse(
-        status_code=503,
-        content={"status": "error", "message": "Schwab auth not configured"},
-    )
-
-
-async def schwab_get_accounts() -> dict:
-    """Retired — use /api/public/account."""
-    return {"accounts": [], "error": "schwab_retired",
-            "replacement": "/api/public/account"}
-
-
-async def schwab_get_positions(account_hash: str) -> dict:
-    """Retired — use /api/public/portfolio."""
-    return {"positions": [], "error": "schwab_retired",
-            "replacement": "/api/public/portfolio"}
-
-
-async def schwab_get_sweeps(account_hash: str) -> dict:
-    """Retired — use /api/public/chain/{ticker}."""
-    return {"sweeps": [], "error": "schwab_retired",
-            "replacement": "/api/public/chain/SPY"}
-
-
-async def schwab_import_to_portfolio(name: str, account_hash: str) -> dict:
-    """Retired — use /api/public/portfolio."""
-    return {"status": "error", "error": "schwab_retired", "imported": 0,
-            "replacement": "/api/public/portfolio"}
-
-
 # ---------- Scheduled pre-fetch (APScheduler) ----------
 _scheduler_started = False
 _scheduler_task: asyncio.Task | None = None
@@ -1764,6 +1735,30 @@ async def _snapshot_chains():
             batch = contracts_to_recordbatch(raw)
             n = bulk_insert(conn, batch)
             log.info(f"chain snapshot {t}: {n} rows")
+            # Exposure alerts (VEX walls / charm pins vs last grid snapshot).
+            # Ported pattern from floww-2 gsd/010 (their repo untouched):
+            # scheduled coverage for the big three regardless of heatmap
+            # views (the HTTP heatmap route covers viewed tickers). Fail-open.
+            try:
+                from services import exposure_alerts as _ea
+                from services import flow_alerts as _fa
+                from services.duckdb_engine import db as _duckdb
+
+                grid = compute_gex_grid(raw.get("spot") or 0,
+                                        raw.get("contracts") or [], t)
+                _fa.init_flow_alert_tables(_duckdb)
+                events = _ea.evaluate_ticker(
+                    t,
+                    {"vex_grid": grid.get("vex_grid") or {},
+                     "charm_grid": grid.get("charm_grid") or {}},
+                    float(raw.get("spot") or 0))
+                if events:
+                    kept = _fa.dedup_filter(_duckdb, events)
+                    if kept:
+                        _fa.persist_alerts(_duckdb, kept)
+                        log.info(f"exposure alerts {t}: {len(kept)} events")
+            except Exception as e:
+                log.warning(f"exposure alert eval {t}: {e}")
         except Exception as e:
             log.warning(f"chain snapshot {t}: {e}")
 
@@ -1784,8 +1779,7 @@ async def _prefetch_paid_oi():
 
 async def _scheduler_loop():
     """Lightweight scheduler — fires once per day at PREFETCH_HHMM ET. No extra deps.
-    Also refreshes live policy from Mongo every 5 min for multi-worker sync.
-    Updates Schwab token TTL gauge every tick."""
+    Also refreshes live policy from Mongo every 5 min for multi-worker sync."""
     fired_for_date = None
     policy_refresh_counter = 0
     while True:
@@ -1795,21 +1789,6 @@ async def _scheduler_loop():
             if policy_refresh_counter >= 5:
                 policy_refresh_counter = 0
                 await _load_policy_from_mongo()
-
-            # Update Schwab token TTL metric
-            try:
-                from schwab import SchwabTokenManager
-                _tm = SchwabTokenManager()
-                _token = _tm.load()
-                if _token:
-                    _expires_at = _token.get("expires_at", 0)
-                    _now = datetime.now(UTC).timestamp()
-                    _ttl = max(0, _expires_at - _now)
-                    obs_metrics.schwab_token_expires_in_seconds.set(_ttl)
-                else:
-                    obs_metrics.schwab_token_expires_in_seconds.set(0)
-            except Exception:
-                obs_metrics.schwab_token_expires_in_seconds.set(0)
 
             # Update provider health Prometheus gauges from DataProviderMonitor
             try:
@@ -2519,6 +2498,71 @@ async def _vpin_autofeed_loop():
     log.info("VPIN auto-feed: shutdown complete")
 
 
+async def _public_sweep_loop():
+    """Background institutional sweep over the paid Public universe.
+    (B-REGION — Agent B domain: sweep cadence, slice width, budget behavior.)
+
+    Rotates one public_scanner slice per tick — RTH cadence 45s, off-hours
+    600s (FLOWW_PUBLIC_SWEEP_RTH_S / _OFFH_S), slice width
+    FLOWW_PUBLIC_SWEEP_SLICE, chain depth FLOWW_PUBLIC_SWEEP_MAX_EXPIRES —
+    feeding the SAME baseline + institutional alert pipeline as the HTTP scan
+    routes, so alerts fire and persist with no tabs open. Budget-gated inside
+    sweep_once (skips cleanly when the paid budget is spent); kill switch
+    FLOWW_PUBLIC_SWEEP=0. RTH is 09:30–16:05 ET (options session + close
+    auction; pre/post-market burns no paid budget on first boot). Follows the
+    _vpin_autofeed_loop conventions (shutdown event + wait_for timeout).
+    """
+    if os.environ.get("FLOWW_PUBLIC_SWEEP", "1") != "1":
+        log.info("public sweep disabled (FLOWW_PUBLIC_SWEEP=0)")
+        return
+    try:
+        rth_s = float(os.environ.get("FLOWW_PUBLIC_SWEEP_RTH_S", "45"))
+        off_s = float(os.environ.get("FLOWW_PUBLIC_SWEEP_OFFH_S", "600"))
+        sl = int(os.environ.get("FLOWW_PUBLIC_SWEEP_SLICE", "8"))
+        mx = int(os.environ.get("FLOWW_PUBLIC_SWEEP_MAX_EXPIRES", "2"))
+    except (TypeError, ValueError):
+        rth_s, off_s, sl, mx = 45.0, 600.0, 8, 2
+    log.info("public sweep loop started (rth=%ss offh=%ss slice=%d expiries=%d)",
+             rth_s, off_s, sl, mx)
+    # U1 provenance: every future sweep/alert mystery resolves to a process.
+    # PID + tree sha are logged once here (fail-open; never blocks startup).
+    try:
+        import pathlib
+        import subprocess
+
+        _root = str(pathlib.Path(__file__).resolve().parent.parent)
+        _sha = subprocess.run(
+            ["git", "-C", _root, "rev-parse", "--short", "HEAD"],
+            capture_output=True, text=True, timeout=5).stdout.strip() or "unknown"
+    except Exception:
+        _sha = "unknown"
+    log.info("public sweep identity: pid=%d tree=%s", os.getpid(), _sha)
+    cadence = rth_s
+    first_tick = True
+    while not _shutdown_event.is_set():
+        try:
+            try:
+                from zoneinfo import ZoneInfo
+                et_now = datetime.now(ZoneInfo("America/New_York"))
+                mins = et_now.hour * 60 + et_now.minute
+                in_rth = et_now.weekday() < 5 and 9 * 60 + 30 <= mins <= 16 * 60 + 5
+            except Exception:
+                in_rth = True  # unknown TZ: stay fresh rather than stall
+            cadence = rth_s if in_rth else off_s
+            # Off-hours boot must not burn a paid sweep before anyone is
+            # watching: sleep through the first off-hours tick, sweep after.
+            if in_rth or not first_tick:
+                from services.public_scanner import sweep_once
+                await sweep_once(slice_size=sl, max_expiries=mx)
+            first_tick = False
+        except Exception as e:
+            log.warning(f"public sweep loop error: {e}")
+            cadence = 60.0
+        with contextlib.suppress(TimeoutError):
+            await asyncio.wait_for(_shutdown_event.wait(), timeout=cadence)
+    log.info("public sweep: shutdown complete")
+
+
 @app.on_event("startup")
 async def on_start():
     try:
@@ -2547,6 +2591,11 @@ async def on_start():
     _background_tasks.add(_t)
     _t.add_done_callback(_background_tasks.discard)
     log.info("VPIN auto-feed started for toxicity ensemble")
+    # Start paid-Public institutional sweep (alerts with no tabs open)
+    _ps = asyncio.create_task(_logged_task(_public_sweep_loop(), "public_sweep"))
+    _background_tasks.add(_ps)
+    _ps.add_done_callback(_background_tasks.discard)
+    log.info("public sweep loop started")
     log.info("databento cache initialized")
 
 
@@ -2609,6 +2658,10 @@ app.include_router(admin_router, prefix="/api", tags=["admin"])
 from routes.alpaca import router as alpaca_router
 
 app.include_router(alpaca_router, tags=["alpaca"])
+
+from routes.discord import router as discord_router
+
+app.include_router(discord_router, tags=["discord"])
 
 from routes.analytics import router as analytics_router
 
@@ -2699,10 +2752,6 @@ app.include_router(memory_router, prefix="/api", tags=["memory"])
 from routes.portfolio import router as portfolio_router
 
 app.include_router(portfolio_router, prefix="/api", tags=["portfolio"])
-
-from routes.schwab import router as schwab_router
-
-app.include_router(schwab_router, prefix="/api", tags=["schwab"])
 
 from routes.social_flow import router as social_flow_router
 

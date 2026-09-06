@@ -11,6 +11,7 @@ pyjwt>=2.10.1
 tzdata>=2024.2
 motor==3.3.1
 pytest>=8.0.0
+pytest-timeout>=2.2  # per-test ceiling so one hung test can't eat CI; thread method (POSIX-signal unsafe under asyncio)
 black>=24.1.1
 isort>=5.13.2
 flake8>=7.0.0
@@ -45,3 +46,4 @@ pyyaml>=6.0               # services/agent_hub, services/alerts/engine.py (yaml)
 databento>=0.34.0         # services/databento_oi.py, databento_provider.py
 tenacity>=8.2.0           # services/yoptions_fetcher.py
 Pillow>=10.0.0            # services/memory/chart_embeddings.py (PIL)
+discord.py>=2.3.0         # backend/discord_bot.py gateway (lazy import; backend boots without it)

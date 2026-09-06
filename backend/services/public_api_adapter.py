@@ -20,9 +20,10 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import math
 import os
 import time
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from services.public_api import PublicBroker
@@ -77,9 +78,162 @@ async def _get_broker() -> PublicBroker | None:
         return BROKER
 
 
+def _matching_quote(quotes: list, symbol: str):
+    """Return the quote for exactly `symbol`, else None.
+
+    Never substitute: if the vendor answers with a different symbol than
+    requested, using quotes[0] would label the wrong price with our ticker
+    (verified failure mode on a sibling stack: QQQ's price served as SPY).
+    A missing symbol degrades to no-data downstream, never a wrong number.
+    """
+    want = _normalize_symbol(symbol)
+    for q in quotes or []:
+        got = getattr(q, "symbol", None)
+        if isinstance(got, str) and _normalize_symbol(got) == want:
+            return q
+    if quotes:
+        log.warning("Public API quote symbol mismatch for %s — refusing substitution",
+                    symbol)
+    return None
+
+
 def _normalize_symbol(symbol: str) -> str:
     """Map user-facing tickers to Public.com instrument symbols."""
     return symbol.upper().replace("^", "")
+
+
+# ---------------------------------------------------------------------------
+# Spot validation (weekend stale-spot incident, 2026-09-06).
+#
+# Public's equity book can freeze pre-session with a rotten NBBO (AFRM
+# bid 74.41/ask 89.0, SPY 747.35/773.93 crossed) while the option legs stay
+# current. Trusting mid_price unconditionally printed fiction for every
+# Public-served ticker (AFRM 81.705 vs true 72.35). A quote is trusted only
+# when its book is sane AND its timestamp is at/after the last US close;
+# otherwise spot falls back to the yfinance daily close (correct all
+# weekend) and the source is tagged. Exchange holidays are not modeled —
+# worst case there is a same-as-yfinance number, never a crossed mid.
+# ---------------------------------------------------------------------------
+
+_SPOT_MAX_REL_SPREAD = 0.01  # NBBO wider than 1% is not a reference price
+
+
+def _fnum(v) -> float | None:
+    try:
+        f = float(v)
+    except (TypeError, ValueError):
+        return None
+    if math.isnan(f) or math.isinf(f):
+        return None
+    return f
+
+
+def _quote_ts_utc(q) -> datetime | None:
+    ts = getattr(q, "timestamp", None)
+    if not isinstance(ts, str) or not ts:
+        return None
+    try:
+        dt = datetime.fromisoformat(ts.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=UTC)
+    return dt.astimezone(UTC)
+
+
+def _last_us_close_utc(now: datetime | None = None) -> datetime:
+    """Most recent 16:00 America/New_York close, as UTC (weekends walk back)."""
+    from zoneinfo import ZoneInfo
+    et = ZoneInfo("America/New_York")
+    cur = now if now is not None else datetime.now(UTC)
+    if cur.tzinfo is None:
+        cur = cur.replace(tzinfo=UTC)
+    et_now = cur.astimezone(et)
+    day = et_now.date()
+    if (et_now.hour, et_now.minute) < (16, 0):
+        day -= timedelta(days=1)  # today's session hasn't closed yet
+    while day.weekday() >= 5:  # Sat/Sun -> walk back to Friday
+        day -= timedelta(days=1)
+    close_et = datetime(day.year, day.month, day.day, 16, 0, tzinfo=et)
+    return close_et.astimezone(UTC)
+
+
+def _public_quote_spot(q, now: datetime | None = None) -> tuple[float | None, str]:
+    """Trusted Public mid/last, or (None, reason).
+
+    Reasons: crossed-book | wide-book | stale-quote | no-price.
+    Unassessable books/timestamps keep legacy trust (existing callers/mocks).
+    """
+    bid = _fnum(getattr(q, "bid", None))
+    ask = _fnum(getattr(q, "ask", None))
+    if bid is not None and ask is not None and bid > 0 and ask > 0:
+        if bid > ask:
+            return None, "crossed-book"
+        if (ask - bid) / ((ask + bid) / 2) > _SPOT_MAX_REL_SPREAD:
+            return None, "wide-book"
+    ts = _quote_ts_utc(q)
+    if ts is not None and ts < _last_us_close_utc(now):
+        return None, "stale-quote"
+    raw_mid = getattr(q, "mid_price", None)
+    mid = _fnum(raw_mid)
+    if raw_mid is not None and (mid is None or mid <= 0):
+        # Explicit zero/non-numeric mid = honest no-quote: report 0.0 so
+        # downstream fails over, never substitute `last` (pinned contract).
+        return 0.0, "zero-mid"
+    if mid is not None and mid > 0:
+        return mid, "public-mid"
+    last = _fnum(getattr(q, "last", None))
+    if last is not None and last > 0:
+        return last, "public-last"
+    return None, "no-price"
+
+
+def _yfinance_spot(symbol: str) -> float | None:
+    """Daily-close spot (correct all weekend). Sync — call via to_thread."""
+    try:
+        import yfinance as yf
+        h = yf.Ticker(symbol.upper().replace("^", "")).history(period="5d")
+        if h is None or len(h) == 0:
+            return None
+        return float(h["Close"].iloc[-1])
+    except Exception as e:
+        log.warning("yfinance spot fallback fail for %s: %s", symbol, e)
+        return None
+
+
+async def _resolve_spot(pb, symbol: str, account_id: str,
+                        now: datetime | None = None) -> tuple[float | None, str]:
+    """Validated spot + source tag. Never raises.
+
+    Returns (None, 'symbol-mismatch') to fail closed on wrong-symbol
+    substitution (P2 contract); (0.0, reason) when there is honestly no
+    price so downstream fails over to the next provider.
+    """
+    try:
+        quotes = await pb.get_quotes([symbol], account_id)
+        q = _matching_quote(quotes, symbol)
+        if q is not None:
+            price, reason = _public_quote_spot(q, now=now)
+            if price is not None:
+                return price, reason
+            log.warning("Public API spot rejected for %s (%s) — yfinance fallback",
+                        symbol, reason)
+        elif quotes:
+            # Wrong symbol answered: fail CLOSED (P2 contract) — no fallback
+            # may label another instrument's price with our ticker.
+            log.warning("Public API quote symbol mismatch for %s — refusing substitution",
+                        symbol)
+            return None, "symbol-mismatch"
+    except Exception as e:
+        _note_public_429(e)
+        log.warning("Public API quote fail for %s: %s", symbol, e)
+    try:
+        yf_spot = await asyncio.to_thread(_yfinance_spot, symbol)
+        if yf_spot:
+            return yf_spot, "yfinance-fallback"
+    except Exception as e:
+        log.warning("yfinance spot fallback fail for %s: %s", symbol, e)
+    return 0.0, "none"
 
 
 # ---------------------------------------------------------------------------
@@ -169,16 +323,30 @@ async def fetch_chain_from_public_api(
 
 
 def _note_public_429(exc: BaseException) -> None:
-    """Feed real HTTP 429 sightings into the Public-path budget cooler.
+    """Feed real HTTP 429 sightings into the Public-path budget cooler,
+    and record transport failures so they are visible in telemetry.
 
     httpx surfaces throttles as HTTPStatusError with .response.status_code;
-    anything else is ignored (never let observability break fetching).
+    transport errors (httpx.TransportError: connect/read/write/pool timeouts
+    — note httpx.TimeoutException is NOT a builtin TimeoutError, so a bare
+    `except TimeoutError` branch would be dead code here) are counted via
+    record_error without cooling the lane. Anything else is ignored (never
+    let observability break fetching).
     """
     try:
         status = getattr(getattr(exc, "response", None), "status_code", None)
         if status == 429:
             from services.public_budget import budget
             budget.record_429("api.public.com")
+            return
+        try:
+            import httpx
+
+            if isinstance(exc, httpx.TransportError):
+                from services.public_budget import budget
+                budget.record_error("api.public.com")
+        except Exception:
+            pass
     except Exception:
         pass
 
@@ -209,14 +377,10 @@ async def _fetch_chain_live(
         log.warning("Public API returned no expirations for %s", ticker)
         return None
 
-    # 2. Get spot quote
+    # 2. Get spot quote (validated: rotten NBBO / pre-session books fall
+    # back to the yfinance close instead of printing a fiction mid).
     try:
-        quotes = await pb.get_quotes([symbol], account_id)
-        spot = quotes[0].mid_price if quotes else None
-        if spot is None:
-            spot = quotes[0].last if quotes else None
-        if spot is None:
-            spot = 0.0
+        spot, spot_source = await _resolve_spot(pb, symbol, account_id)
     except Exception as e:
         _note_public_429(e)
         log.warning("Public API quote fail for %s: %s", ticker, e)
@@ -243,6 +407,10 @@ async def _fetch_chain_live(
                 except (ValueError, TypeError):
                     continue
                 T = max((exp_d - today).days, 1) / 365.0
+                # NBBO mid from the paid feed — the executable-reference price.
+                # Downstream side inference (last vs mid) and premium math must
+                # use this instead of BS estimates whenever it exists.
+                mid = oc.mid
                 contracts.append({
                     "osi": oc.symbol,  # OSI symbol for order placement (e.g. SPY260904C00760000)
                     "expiry": oc.expiration,
@@ -260,6 +428,10 @@ async def _fetch_chain_live(
                     "vega": oc.vega,
                     "bid": oc.bid,
                     "ask": oc.ask,
+                    "mid": mid,
+                    "last": oc.last,
+                    "bid_size": oc.bid_size,
+                    "ask_size": oc.ask_size,
                     "volume": oc.volume or 0,
                     "oi_source": "public_api",
                 })
@@ -270,7 +442,8 @@ async def _fetch_chain_live(
 
     return {
         "ticker": ticker.upper(),
-        "spot": float(spot),
+        "spot": float(spot or 0.0),
+        "spot_source": spot_source,
         "expiries": exp_dates,
         "contracts": contracts,
         "data_source": "public_api",
@@ -291,14 +464,76 @@ async def fetch_spot_from_public_api(
 
     symbol = _normalize_symbol(ticker)
     try:
-        quotes = await pb.get_quotes([symbol], trading.account_id)
-        if quotes:
-            q = quotes[0]
-            return q.mid_price if q.mid_price is not None else (q.last or 0.0)
+        spot, _source = await _resolve_spot(pb, symbol, trading.account_id)
+        return spot
     except Exception as e:
         log.warning("Public API spot fail for %s: %s", ticker, e)
         return None
-    return None
+
+
+# ---------------------------------------------------------------------------
+# Nested-shape transform (flowseeker /chain/{symbol} contract).
+#
+# That route's frontend (FlowseekerProTab) expects the cvserver nested shape:
+#   params: ["strike","bid","ask","lastPrice","volume","openInterest","impliedVolatility"]
+#   chain: [{expiration, strikes: [[strike, call_vals(6), put_vals(6)], ...]}]
+# This reshapes a paid Public chain into it so /chain can serve Public-first
+# with zero frontend changes. Pure — unit-tested without network.
+# ---------------------------------------------------------------------------
+
+_NESTED_PARAMS = ["strike", "bid", "ask", "lastPrice", "volume", "openInterest", "impliedVolatility"]
+
+
+def public_to_nested(result: dict[str, Any] | None) -> dict[str, Any] | None:
+    """Public flat chain → cvserver nested chain shape. None when empty."""
+    if not isinstance(result, dict):
+        return None
+    contracts = result.get("contracts") or []
+    if not contracts:
+        return None
+    ticker = str(result.get("ticker") or "").upper()
+
+    def _num(v: Any) -> float | None:
+        try:
+            return float(v) if v is not None else None
+        except (TypeError, ValueError):
+            return None
+
+    by_exp: dict[str, dict[float, dict[str, list]]] = {}
+    for c in contracts:
+        if not isinstance(c, dict):
+            continue
+        exp = str(c.get("expiry") or "")
+        try:
+            strike = float(c.get("strike") or 0)
+        except (TypeError, ValueError):
+            continue
+        if not exp or strike <= 0:
+            continue
+        last = _num(c.get("last"))
+        mid = _num(c.get("mid"))
+        vals = [
+            _num(c.get("bid")), _num(c.get("ask")),
+            last if last is not None else mid,
+            _num(c.get("volume")), _num(c.get("oi")), _num(c.get("iv")),
+        ]
+        bucket = by_exp.setdefault(exp, {})
+        legs = bucket.setdefault(strike, {"call": [None] * 6, "put": [None] * 6})
+        if str(c.get("type") or "").lower().startswith("c"):
+            legs["call"] = vals
+        else:
+            legs["put"] = vals
+
+    chain = [
+        {
+            "expiration": exp,
+            "strikes": [[k, v["call"], v["put"]] for k, v in sorted(bucket.items())],
+        }
+        for exp, bucket in sorted(by_exp.items())
+    ]
+    if not chain:
+        return None
+    return {"symbol": ticker, "params": list(_NESTED_PARAMS), "chain": chain}
 
 
 # ---------------------------------------------------------------------------
@@ -319,39 +554,77 @@ _INTERVAL_MAP: dict[str, tuple[str, str | None]] = {
 }
 
 
-def _extract_bars(raw: Any) -> list[dict[str, Any]]:
-    """Normalize Public get_bars() payloads to OHLCV dicts.
+def _extract_bars(raw: Any, sessions: str = "regular") -> list[dict[str, Any]]:
+    """Normalize Public get_bars() payloads to OHLCV dicts with session labels.
 
-    The gateway returns candles under various keys depending on the
-    period/aggregation; accept lists of dicts with o/h/l/c (+v/volume)
-    or {t, o, h, l, c, v} rows and pass them through defensively.
+    The vendor returns session buckets (preMarket/regularMarket/afterMarket),
+    each with expectedBars + bars[]. Default serves regular-session ONLY:
+    mixing extended-hours prints into the regular series corrupts realized-vol
+    windows, backtest fills, and chart axes with look-alike bars.
+    sessions="all" opts into every bucket (each row still labeled).
+    Unknown *Market buckets are logged and served ONLY under sessions="all"
+    as session="unknown" — a future vendor bucket must never silently pose
+    as regular data.
+
+    Rows missing any OHLC field are dropped (a None would become $0.00 two
+    hops downstream and read as a real print of zero). Non-finite floats
+    (NaN/Infinity parse happily but make the whole response unserialisable
+    → opaque HTTP 500) are rejected the same way.
     """
+    buckets: list[tuple[str, list]] = []
     if isinstance(raw, dict):
-        for key in ("candles", "bars", "data", "results", "historicData"):
-            val = raw.get(key)
-            if isinstance(val, list) and val:
-                raw = val
-                break
-    if not isinstance(raw, list):
-        return []
+        for bucket_key, label in (("preMarket", "pre"), ("regularMarket", "regular"),
+                                  ("afterMarket", "after")):
+            section = raw.get(bucket_key)
+            if isinstance(section, dict) and isinstance(section.get("bars"), list):
+                buckets.append((label, section["bars"]))
+        for key, val in raw.items():
+            if not (isinstance(val, dict) and isinstance(val.get("bars"), list)):
+                continue
+            if key in ("preMarket", "regularMarket", "afterMarket"):
+                continue
+            # Any other bars-carrying section is a session bucket this code
+            # has never seen: log it, serve it ONLY under sessions="all" as
+            # session="unknown" — never as regular data by default.
+            log.warning("Public API returned an unrecognised session bucket: %r", key)
+            buckets.append(("unknown", val["bars"]))
+        if not buckets:
+            # Legacy/alternate shapes: bare lists under known keys.
+            for key in ("candles", "bars", "data", "results", "historicData"):
+                val = raw.get(key)
+                if isinstance(val, list) and val:
+                    buckets.append(("unknown", val))
+                    break
+    elif isinstance(raw, list):
+        buckets.append(("unknown", raw))
+    want_all = str(sessions or "regular").lower() == "all"
     out: list[dict[str, Any]] = []
-    for row in raw:
-        if not isinstance(row, dict):
+    for label, rows in buckets:
+        if label == "unknown" and not want_all:
             continue
-        o = row.get("open", row.get("o"))
-        h = row.get("high", row.get("h"))
-        lo = row.get("low", row.get("l"))
-        c = row.get("close", row.get("c"))
-        if o is None or h is None or lo is None or c is None:
+        if label in ("pre", "after") and not want_all:
             continue
-        try:
+        for row in rows:
+            if not isinstance(row, dict):
+                continue
+            o = row.get("open", row.get("o"))
+            h = row.get("high", row.get("h"))
+            lo = row.get("low", row.get("l"))
+            c = row.get("close", row.get("c"))
+            if o is None or h is None or lo is None or c is None:
+                continue
+            try:
+                vals = [float(o), float(h), float(lo), float(c),
+                        float(row.get("v", row.get("volume", 0)) or 0)]
+            except (TypeError, ValueError):
+                continue
+            if not all(math.isfinite(v) for v in vals):
+                continue
             out.append({
                 "t": row.get("t", row.get("timestamp", row.get("time"))),
-                "o": float(o), "h": float(h), "l": float(lo), "c": float(c),
-                "v": float(row.get("v", row.get("volume", 0)) or 0),
+                "o": vals[0], "h": vals[1], "l": vals[2], "c": vals[3],
+                "v": vals[4], "session": label,
             })
-        except (TypeError, ValueError):
-            continue
     return out
 
 
@@ -359,11 +632,16 @@ async def fetch_bars_from_public_api(
     ticker: str,
     interval: str = "daily",
     instrument_type: str = "EQUITY",
+    period: str | None = None,
+    aggregation: str | None = None,
+    sessions: str = "regular",
 ) -> list[dict[str, Any]] | None:
     """Fetch OHLCV bars from Public API. None when unavailable.
 
     `interval` accepts alpha-style labels: 1min/5min/15min/30min/60min,
-    daily/weekly/monthly.
+    daily/weekly/monthly. Explicit `period`/`aggregation` (e.g. from the
+    C13 bars provider) override the label mapping when both are given.
+    `sessions`: "regular" (default, regular-session only) or "all".
     """
     pb = await _get_broker()
     if pb is None:
@@ -372,13 +650,15 @@ async def fetch_bars_from_public_api(
     if trading is None:
         return None
     symbol = _normalize_symbol(ticker)
-    period, aggregation = _INTERVAL_MAP.get(interval, ("YEAR", "ONE_DAY"))
+    default_period, default_agg = _INTERVAL_MAP.get(interval, ("YEAR", "ONE_DAY"))
+    eff_period = period or default_period
+    eff_agg = aggregation if aggregation is not None else default_agg
     try:
-        raw = await pb.get_bars(symbol, period, instrument_type, aggregation)
+        raw = await pb.get_bars(symbol, eff_period, instrument_type, eff_agg)
     except Exception as e:
         log.warning("Public API bars fail for %s %s: %s", ticker, interval, e)
         return None
-    bars = _extract_bars(raw)
+    bars = _extract_bars(raw, sessions=sessions)
     return bars or None
 
 

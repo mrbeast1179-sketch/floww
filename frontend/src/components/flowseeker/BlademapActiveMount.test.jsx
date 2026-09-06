@@ -61,3 +61,39 @@ test("all Tidehunter sub-tabs mount active without a boundary trip", () => {
   render(<FlowseekerProBlademap active={true} />);
   expect(screen.queryByText("Something went wrong")).not.toBeInTheDocument();
 });
+
+test("scanner rows carry a Trade button that lifts the OCC contract to onTrade", async () => {
+  const React = require("react");
+  const { render, screen, fireEvent, waitFor } = require("@testing-library/react");
+  global.fetch = jest.fn().mockImplementation((url) => {
+    if (String(url).includes("/scan-public")) {
+      return Promise.resolve({
+        ok: true, status: 200,
+        json: async () => ({
+          columns: ["underlying_ticker", "ticker", "contract_type", "strike_price",
+            "expiration_date", "day_volume", "open_interest",
+            "implied_volatility", "delta", "underlying_price"],
+          rows: [["SPY", "SPY260918C00760000", "call", 760, "2026-09-18",
+            5000, 1200, 0.22, 0.4, 755.0]],
+          source: "public-scan", stale: false, asof: "2026-09-06T09:30:00",
+        }),
+      });
+    }
+    if (String(url).includes("/scan")) {
+      return Promise.resolve({
+        ok: true, status: 200,
+        json: async () => ({ rows: [], asof: "2026-09-06T09:30:00", stale: false }),
+      });
+    }
+    return Promise.resolve({ ok: true, status: 200, json: async () => ({}) });
+  });
+  window.localStorage.clear();
+  const onTrade = jest.fn();
+  render(React.createElement(FlowseekerProBlademap, { active: true, onTrade }));
+  const btn = await waitFor(() => screen.getByTestId("scan-trade-SPY-760"), { timeout: 8000 });
+  fireEvent.click(btn);
+  expect(onTrade).toHaveBeenCalledTimes(1);
+  expect(onTrade.mock.calls[0][0]).toMatchObject({
+    ticker: "SPY", strike: 760, oi_symbol: "SPY260918C00760000",
+  });
+});
