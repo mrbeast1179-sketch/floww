@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { fmt } from "../lib/helpers";
-import { strategyRiskReward, effectiveOptionPrice, formatNotional, ticketToJournalEntries, JOURNAL_STORAGE_KEY } from "./tradeMath";
+import { strategyRiskReward, effectiveOptionPrice, formatNotional, ticketToJournalEntries, JOURNAL_STORAGE_KEY, legQuote } from "./tradeMath";
+import { API } from "../config/api";
 
 /**
  * Quick Trade Panel — slide-up panel for rapid trade entry from Triad
@@ -24,6 +25,8 @@ export default function QuickTradePanel({ selection, onClose, onSubmit }) {
   const [quantity, setQuantity] = useState(1);
   const [limitPrice, setLimitPrice] = useState("");
   const [showConfirm, setShowConfirm] = useState(false);
+  const [wings, setWings] = useState({ put_long: "", put_short: "", call_short: "", call_long: "", credit: "" });
+  const [backendSha, setBackendSha] = useState("");
 
   const [submitted, setSubmitted] = useState(false);
 
@@ -36,9 +39,28 @@ export default function QuickTradePanel({ selection, onClose, onSubmit }) {
     setSubmitted(false);
   }, [selection?.strike]);
 
+  // Prefill condor wings around the clicked strike; fetch backend SHA once
+  // for the freshness stamp.
+  useEffect(() => {
+    if (selection?.strike != null && strategy === "iron_condor" && !wings.call_short) {
+      const k = Math.round(Number(selection.strike) || 0);
+      setWings(w => ({ ...w, put_long: k - 10, put_short: k - 5, call_short: k, call_long: k + 5 }));
+    }
+  }, [selection?.strike, strategy]);
+  useEffect(() => {
+    let cancelled = false;
+    fetch(`${API}/version`).then(r => r.json()).then(d => {
+      if (!cancelled && d?.sha) setBackendSha(d.sha);
+    }).catch(() => {});
+    return () => { cancelled = true; };
+  }, []);
+
+  const setWing = (key, val) => setWings(prev => ({ ...prev, [key]: val }));
+
   const handleSubmit = useCallback(() => {
     if (!selection) return;
-    const { price: effectivePrice, source: priceSource } = effectiveOptionPrice(selection, strategy, limitPrice);
+    const W = strategy === "iron_condor" ? wings : undefined;
+    const { price: effectivePrice, source: priceSource } = effectiveOptionPrice(selection, strategy, limitPrice, W);
     const trade = {
       ticker: selection.ticker,
       strike: selection.strike,
@@ -49,6 +71,7 @@ export default function QuickTradePanel({ selection, onClose, onSubmit }) {
       limitPrice: limitPrice ? parseFloat(limitPrice) : null,
       effectivePrice: Number.isFinite(effectivePrice) ? effectivePrice : null,
       priceSource,
+      wings: W,
       gex: selection.gex,
       iv: selection.iv,
       delta: selection.delta,
@@ -75,7 +98,7 @@ export default function QuickTradePanel({ selection, onClose, onSubmit }) {
     setTimeout(() => {
       if (onClose) onClose();
     }, 1500);
-  }, [selection, strategy, quantity, limitPrice, onSubmit, onClose]);
+  }, [selection, strategy, quantity, limitPrice, wings, onSubmit, onClose]);
 
   if (!selection) return null;
 
@@ -83,18 +106,24 @@ export default function QuickTradePanel({ selection, onClose, onSubmit }) {
   const isCall = strategy.includes("call") || strategy === "straddle" || strategy === "iron_condor";
   const isBuy = strategy.startsWith("buy");
 
-  // Effective premium: limit override > live leg mid/last (new strike route)
-  // > IV estimate. Works for every ticker, not just ones with Greeks cached.
-  const quote = effectiveOptionPrice(selection, strategy, "");
+  // Effective premium: limit > side-aware executable side (buys at ask,
+  // sells at bid; straddle sums asks; condor needs credit) > IV estimate.
+  const W = strategy === "iron_condor" ? wings : undefined;
+  const quote = effectiveOptionPrice(selection, strategy, "", W);
   const estNum = quote.price;
   const estPrice = Number.isFinite(estNum) ? estNum.toFixed(2) : "—";
-  const live = effectiveOptionPrice(selection, strategy, limitPrice);
+  const live = effectiveOptionPrice(selection, strategy, limitPrice, W);
   const effNum = live.price;
   const hasPrice = Number.isFinite(effNum);
+  const srcLabel = { limit: "", ask: " (ask)", bid: " (bid)", "ask-sum": " (asks)", "ref-sum": " (ref)", mid: " (mid)", last: " (last)", iv: " (est)", credit: " (credit)", none: "" }[live.source] ?? "";
   // Risk follows the price the order will actually use (limit wins), so
   // typing a limit rescues risk/reward on quoteless strikes instead of "—".
-  const { maxRisk, maxReward } = strategyRiskReward(strategy, effNum, quantity, strike);
+  const { maxRisk, maxReward } = strategyRiskReward(strategy, effNum, quantity, strike, W);
   const notional = formatNotional(effNum, quantity);
+  const callQ = legQuote(selection, "call");
+  const putQ = legQuote(selection, "put");
+  const bundleSha = (typeof process !== "undefined" && process.env?.REACT_APP_GIT_SHA) || "dev";
+  const stale = backendSha && bundleSha !== "dev" && backendSha !== bundleSha;
 
   const fmtGex = (v) => {
     if (v == null) return "—";
@@ -206,14 +235,44 @@ export default function QuickTradePanel({ selection, onClose, onSubmit }) {
           </div>
         </div>
 
+        {/* Iron condor wing builder */}
+        {strategy === "iron_condor" && (
+          <div className="quick-trade-details">
+            <div className="quick-trade-row">
+              <label>Put long / short</label>
+              <div style={{ display: "flex", gap: 6 }}>
+                <input type="number" step="1" value={wings.put_long} onChange={e => setWing("put_long", e.target.value)} className="quick-trade-input" placeholder="long" />
+                <input type="number" step="1" value={wings.put_short} onChange={e => setWing("put_short", e.target.value)} className="quick-trade-input" placeholder="short" />
+              </div>
+            </div>
+            <div className="quick-trade-row">
+              <label>Call short / long</label>
+              <div style={{ display: "flex", gap: 6 }}>
+                <input type="number" step="1" value={wings.call_short} onChange={e => setWing("call_short", e.target.value)} className="quick-trade-input" placeholder="short" />
+                <input type="number" step="1" value={wings.call_long} onChange={e => setWing("call_long", e.target.value)} className="quick-trade-input" placeholder="long" />
+              </div>
+            </div>
+            <div className="quick-trade-row">
+              <label>Expected credit</label>
+              <input type="number" step="0.01" value={wings.credit} onChange={e => setWing("credit", e.target.value)} className="quick-trade-input" placeholder="net credit" />
+            </div>
+          </div>
+        )}
+
         {/* Risk summary */}
         <div className="quick-trade-risk">
           <div className="quick-trade-risk-row">
             <span>Est. Price</span>
             <span className="text-amber-400">
-              {hasPrice ? `$${effNum.toFixed(2)}${live.source === "limit" ? "" : live.source === "mid" || live.source === "last" ? " (live)" : " (est)"}` : "— enter limit"}
+              {hasPrice ? `$${effNum.toFixed(2)}${srcLabel}` : (strategy === "iron_condor" ? "— enter credit" : "— enter limit")}
             </span>
           </div>
+          {strategy === "straddle" && Number.isFinite(callQ.ask) && Number.isFinite(putQ.ask) && (
+            <div className="quick-trade-risk-row">
+              <span>Legs</span>
+              <span className="text-slate-400">C ${callQ.ask.toFixed(2)} + P ${putQ.ask.toFixed(2)}</span>
+            </div>
+          )}
           <div className="quick-trade-risk-row">
             <span>Max Risk</span>
             <span className="text-rose-400">{maxRisk}</span>
@@ -274,6 +333,13 @@ export default function QuickTradePanel({ selection, onClose, onSubmit }) {
             </div>
           </div>
         )}
+        {/* Freshness stamp: bundle SHA vs backend SHA */}
+        <div className="quick-trade-risk-row" style={{ marginTop: 6 }}>
+          <span className="text-slate-600">build {bundleSha}{backendSha ? ` · api ${backendSha}` : ""}</span>
+          {stale
+            ? <span className="text-rose-400">stale — rebuild frontend</span>
+            : <span className="text-slate-600">fresh</span>}
+        </div>
       </div>
     </div>
   );

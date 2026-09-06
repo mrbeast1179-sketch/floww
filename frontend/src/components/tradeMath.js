@@ -35,8 +35,9 @@ export function tradeOutcome(t) {
 
 const money = (n) => `$${Math.round(n).toLocaleString()}`;
 
-// Mid of one option leg. Prefers (bid+ask)/2, then last/midpoint, then
-// whichever side exists. NaN when nothing is quoted (far-OTM SOFI case).
+// Mid of one option leg — REFERENCE ONLY (CBOE/IBKR: mid is never a fill
+// promise). Prefers (bid+ask)/2, then last/midpoint, then whichever side
+// exists. NaN when nothing is quoted (far-OTM SOFI case).
 export function contractMid(c) {
   if (!c || typeof c !== "object") return NaN;
   const bid = Number(c.bid);
@@ -51,12 +52,31 @@ export function contractMid(c) {
   return NaN;
 }
 
-function legMids(selection) {
+// Raw leg quotes as finite-or-NaN {bid, ask, last}.
+export function legQuote(selection, side) {
   const s = selection || {};
-  return {
-    call: contractMid({ bid: s.call_bid, ask: s.call_ask, last: s.call_last }),
-    put: contractMid({ bid: s.put_bid, ask: s.put_ask, last: s.put_last }),
+  const p = side === "call"
+    ? { bid: s.call_bid, ask: s.call_ask, last: s.call_last }
+    : { bid: s.put_bid, ask: s.put_ask, last: s.put_last };
+  const num = (v) => {
+    const n = Number(v);
+    return Number.isFinite(n) && n > 0 ? n : NaN;
   };
+  return { bid: num(p.bid), ask: num(p.ask), last: num(p.last) };
+}
+
+// Side-aware executable-side price (industry standard: buys lift the ask,
+// sells hit the bid). Falls back to mid/last reference when the
+// executable side is missing. Returns {price, source}.
+export function legPrice(selection, side, action) {
+  const { bid, ask, last } = legQuote(selection, side);
+  const want = action === "sell" ? bid : ask;   // executable side first
+  if (Number.isFinite(want)) {
+    return { price: want, source: action === "sell" ? "bid" : "ask" };
+  }
+  const mid = contractMid({ bid, ask, last });
+  if (Number.isFinite(mid)) return { price: mid, source: "mid" };
+  return { price: NaN, source: "none" };
 }
 
 function ivEstimate(selection) {
@@ -69,36 +89,56 @@ function ivEstimate(selection) {
 }
 
 // Effective per-share premium for the ticket, with source for the UI.
-// Priority: limit override > live leg mid/last > IV estimate > NaN.
-// Straddle sums both legs. Iron condor has no wings here — limit or IV only.
-export function effectiveOptionPrice(selection, strategy, limitOverride) {
+// Priority: limit override > side-aware executable side (buys at ask,
+// sells at bid) > mid/last reference > IV estimate > NaN.
+// Straddle sums both legs' buy-sides. Iron condor needs wings (see
+// condorCredit): credit field/limit, else NaN — never a single-leg guess.
+export function effectiveOptionPrice(selection, strategy, limitOverride, wings) {
   const lim = Number(limitOverride);
   if (Number.isFinite(lim) && lim > 0) return { price: lim, source: "limit" };
-  const { call, put } = legMids(selection);
-  const isStraddle = strategy === "straddle";
-  const isCondor = strategy === "iron_condor";
-  const wantsCall = strategy.includes("call") || isStraddle || isCondor;
-  const wantsPut = strategy.includes("put") || isStraddle || isCondor;
-  if (isStraddle) {
-    if (Number.isFinite(call) && Number.isFinite(put)) {
-      return { price: call + put, source: "mid" };
+  if (strategy === "straddle") {
+    const c = legPrice(selection, "call", "buy");
+    const p = legPrice(selection, "put", "buy");
+    if (Number.isFinite(c.price) && Number.isFinite(p.price)) {
+      const bothAsk = c.source === "ask" && p.source === "ask";
+      return { price: c.price + p.price, source: bothAsk ? "ask-sum" : "ref-sum" };
     }
-  } else if (wantsCall && !wantsPut && Number.isFinite(call)) {
-    return { price: call, source: callSource(selection, "call") };
-  } else if (wantsPut && !wantsCall && Number.isFinite(put)) {
-    return { price: put, source: callSource(selection, "put") };
+  } else if (strategy === "iron_condor") {
+    const credit = condorCredit(wings);
+    if (Number.isFinite(credit) && credit > 0) return { price: credit, source: "credit" };
+    return { price: NaN, source: "none" };
+  } else if (strategy === "buy_call") {
+    const r = legPrice(selection, "call", "buy");
+    if (Number.isFinite(r.price)) return r;
+  } else if (strategy === "sell_call") {
+    const r = legPrice(selection, "call", "sell");
+    if (Number.isFinite(r.price)) return r;
+  } else if (strategy === "buy_put") {
+    const r = legPrice(selection, "put", "buy");
+    if (Number.isFinite(r.price)) return r;
+  } else if (strategy === "sell_put") {
+    const r = legPrice(selection, "put", "sell");
+    if (Number.isFinite(r.price)) return r;
   }
   const iv = ivEstimate(selection);
   if (Number.isFinite(iv)) return { price: iv, source: "iv" };
   return { price: NaN, source: "none" };
 }
 
-function callSource(selection, side) {
-  const s = selection || {};
-  const bid = Number(side === "call" ? s.call_bid : s.put_bid);
-  const ask = Number(side === "call" ? s.call_ask : s.put_ask);
-  if (Number.isFinite(bid) && Number.isFinite(ask) && bid > 0 && ask > 0) return "mid";
-  return "last";
+// Expected condor credit from the wing subform (user-typed credit wins;
+// rien de plus — wings alone carry no quotes to net against each other).
+export function condorCredit(wings) {
+  const c = Number(wings?.credit);
+  return Number.isFinite(c) && c > 0 ? c : NaN;
+}
+
+// Narrowest condor wing width from wing strikes, or NaN.
+export function condorWidth(wings) {
+  const n = (v) => Number(v);
+  const putW = n(wings?.put_short) - n(wings?.put_long);
+  const callW = n(wings?.call_long) - n(wings?.call_short);
+  const widths = [putW, callW].filter((w) => Number.isFinite(w) && w > 0);
+  return widths.length ? Math.min(...widths) : NaN;
 }
 
 // Notional display: never "$0" on a missing price (the SOFI bug).
@@ -129,6 +169,10 @@ export function ticketToJournalEntries(ticket) {
   const t = ticket || {};
   const m = TICKET_STRATEGY_MAP[t.strategy] || { type: "call", action: "buy", setup: String(t.strategy || "SINGLE").toUpperCase() };
   const px = Number(t.effectivePrice);
+  const w = t.wings || null;
+  const legDetail = w && t.strategy === "iron_condor"
+    ? ` wings P ${w.put_long ?? "—"}/${w.put_short ?? "—"} C ${w.call_short ?? "—"}/${w.call_long ?? "—"} credit ${w.credit ?? t.effectivePrice ?? "—"}`
+    : "";
   const entry = {
     ticker: String(t.ticker || "").replace("^", "").toUpperCase(),
     type: m.type,
@@ -140,7 +184,7 @@ export function ticketToJournalEntries(ticket) {
     exit_price: "",
     entry_date: (t.timestamp || new Date().toISOString()).slice(0, 10),
     exit_date: "",
-    notes: `Quick trade @ spot ${t.spot ?? "—"}${t.priceSource ? ` (${t.priceSource} price)` : ""}`,
+    notes: `Quick trade @ spot ${t.spot ?? "—"}${t.priceSource ? ` (${t.priceSource} price)` : ""}${legDetail}`,
     gex_regime: "",
     setup: m.setup,
     tags: "quick-trade",
@@ -154,10 +198,19 @@ export function ticketToJournalEntries(ticket) {
 // Correct at the strategy-category level; long debit trades have DEFINED risk
 // (premium paid), short naked calls have unlimited risk, condors are defined
 // both sides.
-export function strategyRiskReward(strategy, estPrice, quantity, strike) {
+export function strategyRiskReward(strategy, estPrice, quantity, strike, wings) {
   const q = parseInt(quantity) || 1;
   const px = Number(estPrice);
   if (!Number.isFinite(px)) return { maxRisk: "—", maxReward: "—" };
+  if (strategy === "iron_condor") {
+    // Defined both sides once wings are known: risk = narrowest wing
+    // minus credit, reward = credit. Without wings keep the honest label.
+    const width = condorWidth(wings);
+    if (Number.isFinite(width)) {
+      return { maxRisk: money(Math.max(0, width - px) * q * 100), maxReward: money(px * q * 100) };
+    }
+    return { maxRisk: "Defined", maxReward: money(px * q * 100) };
+  }
   const premium = px * q * 100;                       // debit paid / credit received
   const bounded = Number.isFinite(Number(strike))
     ? Math.max(0, (Number(strike) - px) * q * 100)    // long put profit / short put assignment risk
@@ -173,8 +226,6 @@ export function strategyRiskReward(strategy, estPrice, quantity, strike) {
       return { maxRisk: "Unlimited", maxReward: money(premium) };
     case "sell_put":
       return { maxRisk: boundedStr, maxReward: money(premium) };
-    case "iron_condor":                                // defined both sides (wings unknown here)
-      return { maxRisk: "Defined", maxReward: money(premium) };
     default:
       return { maxRisk: money(premium), maxReward: "Unlimited" };
   }
