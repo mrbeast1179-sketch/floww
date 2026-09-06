@@ -1,4 +1,4 @@
-import { isTradeClosed, tradePnl, tradeOutcome, strategyRiskReward } from "./tradeMath";
+import { isTradeClosed, tradePnl, tradeOutcome, strategyRiskReward, contractMid, effectiveOptionPrice, formatNotional, ticketToJournalEntries, JOURNAL_STORAGE_KEY } from "./tradeMath";
 
 describe("isTradeClosed", () => {
   it("open when no exit date and no exit price", () => {
@@ -65,5 +65,92 @@ describe("strategyRiskReward", () => {
     const r = strategyRiskReward("sell_call", 3, 1, 100);
     expect(r.maxRisk).toBe("Unlimited");
     expect(r.maxReward).toBe("$300");
+  });
+});
+
+describe("contractMid", () => {
+  it("prefers mid of bid/ask", () => {
+    expect(contractMid({ bid: 0.45, ask: 0.55 })).toBeCloseTo(0.5);
+  });
+  it("falls back to last when one-sided", () => {
+    expect(contractMid({ bid: 0, ask: 0, last: 1.3 })).toBeCloseTo(1.3);
+  });
+  it("one-sided bid alone counts", () => {
+    expect(contractMid({ bid: 2.0 })).toBeCloseTo(2.0);
+  });
+  it("NaN when nothing quoted", () => {
+    expect(Number.isFinite(contractMid({}))).toBe(false);
+  });
+});
+
+describe("effectiveOptionPrice (SOFI degraded-ticket regression)", () => {
+  const sofi = { spot: 18.2, strike: 22, iv: null, delta: null, oi: null };
+  it("no quote + no IV + no limit -> NaN (panel must gate Review)", () => {
+    const r = effectiveOptionPrice(sofi, "buy_call", "");
+    expect(Number.isFinite(r.price)).toBe(false);
+    expect(r.source).toBe("none");
+  });
+  it("limit override rescues a quoteless strike", () => {
+    const r = effectiveOptionPrice(sofi, "buy_call", "1.20");
+    expect(r.price).toBeCloseTo(1.2);
+    expect(r.source).toBe("limit");
+  });
+  it("live mid beats IV estimate", () => {
+    const sel = { spot: 18.2, iv: 0.55, call_bid: 0.45, call_ask: 0.55 };
+    const r = effectiveOptionPrice(sel, "buy_call", "");
+    expect(r.price).toBeCloseTo(0.5);
+    expect(r.source).toBe("mid");
+  });
+  it("straddle sums both legs", () => {
+    const sel = { spot: 100, call_bid: 1, call_ask: 1.2, put_bid: 0.9, put_ask: 1.1 };
+    const r = effectiveOptionPrice(sel, "straddle", "");
+    expect(r.price).toBeCloseTo(2.1);
+  });
+  it("IV fallback when no quote (old behavior preserved)", () => {
+    const r = effectiveOptionPrice({ spot: 100, iv: 0.2 }, "buy_call", "");
+    expect(r.price).toBeCloseTo(0.2);
+    expect(r.source).toBe("iv");
+  });
+});
+
+describe("formatNotional", () => {
+  it("never $0 on missing price (SOFI showed $0)", () => {
+    expect(formatNotional(NaN, 1)).toBe("—");
+    expect(formatNotional("—", 1)).toBe("—");
+  });
+  it("prices qty*100", () => {
+    expect(formatNotional(1.2, 1)).toBe("$120");
+  });
+});
+
+describe("ticketToJournalEntries (ticket must land in journal, any ticker)", () => {
+  const base = { ticker: "SOFI", strike: 22, spot: 18.2, quantity: 1,
+    effectivePrice: 1.2, expiry: "2026-09-18", timestamp: "2026-09-06T00:00:00.000Z" };
+  it("buy_call -> single call/buy entry TradeJournal can render", () => {
+    const [e] = ticketToJournalEntries({ ...base, strategy: "buy_call" });
+    expect(e.ticker).toBe("SOFI");
+    expect(e.type).toBe("call");
+    expect(e.action).toBe("buy");
+    expect(e.strike).toBe(22);
+    expect(e.entry_price).toBe(1.2);
+    expect(e.quantity).toBe("1"); // journal form shape (strings; tradePnl parses)
+  });
+  it("sell_put -> put/sell with credit", () => {
+    const [e] = ticketToJournalEntries({ ...base, strategy: "sell_put" });
+    expect(e.type).toBe("put");
+    expect(e.action).toBe("sell");
+  });
+  it("multi-leg collapses to one entry with strategy in setup (no fabricated legs)", () => {
+    const [e] = ticketToJournalEntries({ ...base, strategy: "straddle" });
+    expect(e.setup).toMatch(/STRADDLE/);
+    expect(e.entry_price).toBe(1.2);
+  });
+  it("missing price still journals (price unknown, never dropped)", () => {
+    const entries = ticketToJournalEntries({ ...base, strategy: "buy_call", effectivePrice: NaN });
+    expect(entries.length).toBe(1);
+    expect(entries[0].entry_price).toBe("");
+  });
+  it("storage key matches TradeJournal/TradeAnalytics", () => {
+    expect(JOURNAL_STORAGE_KEY).toBe("floww_trades_v2");
   });
 });
