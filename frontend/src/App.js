@@ -521,8 +521,24 @@ export default function App() {
   const debouncedExpiries = useDebounce(expiries, 300);
   const debouncedDte = useDebounce(dte, 300);
 
-  // Fetch tickers
-  useEffect(() => { axios.get(`${API}/tickers`).then(r => setTickers(r.data)).catch(() => {}); }, []);
+  // Fetch tickers + full market universe
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      try {
+        const [tr, univ] = await Promise.all([
+          axios.get(`${API}/tickers`),
+          axios.get(`${API}/tickers/all?limit=12000`),
+        ]);
+        if (!mounted) return;
+        setTickers(tr.data);
+        setUniverse(univ.data?.tickers || []);
+      } catch (e) {
+        console.warn("[App] ticker/universe fetch failed:", e);
+      }
+    })();
+    return () => { mounted = false; };
+  }, []);
 
   // Flowseeker signal cards dispatch this to focus the desk ticker.
   useEffect(() => {
@@ -532,6 +548,7 @@ export default function App() {
   }, []);
 
   const [loading, setLoading] = useState(false);
+  const [universe, setUniverse] = useState([]);
 
   // Fetch heatmap data
   const fetchData = useCallback(async () => {
@@ -663,23 +680,21 @@ export default function App() {
         case "h": setViewMode("charm"); break;
         case "ArrowUp":
           e.preventDefault();
-          if (tickers) {
-            const all = [...(tickers.trinity || []), ...(tickers.default || []), ...(tickers.popular || [])];
-            if (all.length === 0) break;
-            const idx = all.indexOf(ticker);
-            const prev = idx === -1 ? all[all.length - 1] : (idx > 0 ? all[idx - 1] : null);
-            if (prev) setTicker(prev);
-          }
+          (universe.length > 0 ? universe : null)?.length > 0 &&
+            setTicker(prev => {
+              const list = universe;
+              const idx = list.indexOf(prev);
+              return idx > 0 ? list[idx - 1] : list[list.length - 1];
+            });
           break;
         case "ArrowDown":
           e.preventDefault();
-          if (tickers) {
-            const all = [...(tickers.trinity || []), ...(tickers.default || []), ...(tickers.popular || [])];
-            if (all.length === 0) break;
-            const idx = all.indexOf(ticker);
-            const next = idx === -1 ? all[0] : (idx < all.length - 1 ? all[idx + 1] : null);
-            if (next) setTicker(next);
-          }
+          (universe.length > 0 ? universe : null)?.length > 0 &&
+            setTicker(prev => {
+              const list = universe;
+              const idx = list.indexOf(prev);
+              return idx < list.length - 1 ? list[idx + 1] : list[0];
+            });
           break;
         default: break;
       }

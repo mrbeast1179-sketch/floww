@@ -2,8 +2,9 @@ import React, { memo, useState } from "react";
 
 /**
  * SkylitTickerBar — Top ticker tape with quick-select buttons + free-text
- * search (2026-09-03: open universe — any symbol, not just the tape list).
- * Matches Zenith reference: scrollable row of ticker buttons
+ * search. Receives the full market universe from App.js (fetched via
+ * /api/tickers/all) and renders all available tickers as a scrollable list.
+ * Matches Zenith reference: scrollable row of ticker buttons.
  */
 const DEFAULT_TICKERS = [
   "SPY", "QQQ", "IWM", "DIA", "AAPL", "NVDA", "TSLA", "META",
@@ -23,6 +24,7 @@ function SkylitTickerBar({
   onTickerChange,
   tickers = null,
   allCount = 703,
+  universe = null,
 }) {
   const tickerList = tickers?.popular || tickers?.default || DEFAULT_TICKERS;
   const [query, setQuery] = useState("");
@@ -39,7 +41,9 @@ function SkylitTickerBar({
     <div className="skylit-ticker-bar">
       <div className="skylit-ticker-scroll">
         <div className="skylit-ticker-inner">
-          <span className="skylit-ticker-count">All Tickers {allCount}</span>
+          <span className="skylit-ticker-count">
+            Market {universeTotal.toLocaleString()} tickers
+          </span>
           <span className="skylit-ticker-sep">|</span>
           <input
             value={query}
@@ -59,7 +63,7 @@ function SkylitTickerBar({
             Go
           </button>
           <span className="skylit-ticker-sep">|</span>
-          {tickerList.map((t) => (
+          {displayList.map((t) => (
             <button
               key={t}
               className={`skylit-ticker-btn${t === activeTicker ? " active" : ""}`}

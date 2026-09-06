@@ -213,11 +213,46 @@ class FinnhubClient:
         return results
 
     def all_symbols(self) -> list[dict[str, Any]] | None:
-        """List of all symbols available via Finnhub."""
+        """List of all equity/ETF symbols available via Finnhub (US exchange-listed only).
+
+        Uses ``stock_symbols('US')`` and drops OTC/pink-sheet junk so the
+        frontend ticker bar only surfaces tradable names on XNAS/XNYS/ARCX/BATS/IEXG.
+        """
         if not self._client:
             return None
         try:
-            return self._client.symbol_list()
+            raw = self._client.stock_symbols("US") or []
         except Exception as e:
-            log.error("Finnhub symbol_list failed: %s", e)
+            log.error("Finnhub stock_symbols failed: %s", e)
             return None
+        good_exchanges = {"XNAS", "XNYS", "ARCX", "BATS", "IEXG"}
+        keep: list[dict[str, Any]] = []
+        for s in raw:
+            if s.get("mic") not in good_exchanges:
+                continue
+            t = (s.get("type") or "").strip()
+            if t not in {"Common Stock", "ETP", "REIT", "Closed-End Fund", "Unit"}:
+                continue
+            keep.append(s)
+        return keep
+
+    def symbols_us_equities(self) -> list[str] | None:
+        """Flat list of US equity ticker strings (filtered universe).
+
+        Convenience wrapper around ``all_symbols()`` that returns just the
+        ``symbol`` field, sorted, deduped. Used by the ``/api/tickers/all``
+        endpoint. Returns ``None`` when Finnhub is not configured.
+        """
+        full = self.all_symbols()
+        if not full:
+            return None
+        seen: set[str] = set()
+        out: list[str] = []
+        for s in full:
+            sym = (s.get("symbol") or "").strip().upper()
+            if not sym or sym in seen:
+                continue
+            seen.add(sym)
+            out.append(sym)
+        out.sort()
+        return out

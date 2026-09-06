@@ -773,6 +773,12 @@ POPULAR_UNIVERSE = [
     "KO", "PEP", "MCD", "WMT", "COST", "BABA", "MRNA", "BIDU", "JD", "PDD"
 ]
 
+# ── Full-market ticker cache (for /api/tickers/all) ───────────────────────────
+# Populated on first request; refreshed every CACHE_TTL_S or on demand.
+_TICKER_CACHE: list[str] | None = None
+_TICKER_CACHE_TS: float | None = None
+CACHE_TTL_S = 1800  # 30 minutes
+
 PATTERN_GLOSSARY = {
     "gamma_flip": {"name": "Gamma Flip", "description": "The spot price level where total GEX flips from positive to negative."},
     "call_wall": {"name": "Call Wall", "description": "Strike with highest call gamma exposure — acts as resistance."},

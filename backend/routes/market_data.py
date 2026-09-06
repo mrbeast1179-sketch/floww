@@ -97,7 +97,7 @@ async def list_tickers():
 
 @router.get("/tickers/all", response_model=None)
 async def list_all_tickers(
-    limit: int = Query(2000, ge=100, le=10000),
+    limit: int = Query(12000, ge=100, le=40000),
     page: int = Query(1, ge=1, le=1000),
     refresh: bool = Query(False),
 ):

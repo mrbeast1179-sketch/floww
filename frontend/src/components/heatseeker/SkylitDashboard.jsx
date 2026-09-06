@@ -143,6 +143,7 @@ function SkylitDashboard({
         onTickerChange={onTickerChange}
         tickers={tickers}
         allCount={703}
+        universe={universe}
       />
 
       {/* 2. Control Bar */}
@@ -162,6 +163,7 @@ function SkylitDashboard({
         onExpand={() => setExpanded(true)}
         onTickerChange={onTickerChange}
         tickers={tickers}
+        universe={universe}
       />
 
       {/* 2.5 Trade Mode bar */}
