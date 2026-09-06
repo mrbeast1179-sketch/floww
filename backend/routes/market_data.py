@@ -103,7 +103,7 @@ async def heatmap(
     mode: str = Query("day", pattern="^(day|swing|scalp)$"),
     dte: int | None = Query(None, ge=0, le=30),
     scalp: bool = Query(False),
-    max_strikes: int = Query(80, ge=20, le=200),
+    max_strikes: int = Query(120, ge=20, le=200),
 ):
     from server import build_heatmap
     t = ticker.strip().upper()

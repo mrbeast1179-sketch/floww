@@ -1083,8 +1083,9 @@ async def _build_heatmap_impl(ticker: str, max_expiries: int = 4, with_taps: boo
             grid = compute_gex_grid_volume(spot, raw["contracts"], ticker)
             log.warning(f"build_heatmap: OI unavailable for {ticker} — volume-weighted GEX fallback (grid populated)")
 
-    # Band: scalp=±2%, day=±15%, swing=±25%
+    # Band: scalp=±2%, day=±35%, swing=±45%
     # Dynamic band based on price level: wider bands for low-priced stocks
+    # to ensure a usable number of visible strikes regardless of price.
     if scalp:
         band = 0.02
     elif dte == 0:
@@ -1092,14 +1093,14 @@ async def _build_heatmap_impl(ticker: str, max_expiries: int = 4, with_taps: boo
         # flipping volume-weighting — the expiry IS the trade horizon.
         band = 0.05
     elif mode == "swing":
-        band = 0.25
+        band = 0.45
     else:
-        base_band = 0.15
+        base_band = 0.35
         # Widen band for low-priced stocks (under $50)
         if spot < 50:
-            band = max(base_band, 0.40)  # At least ±40% for low-priced
+            band = max(base_band, 0.55)  # At least ±55% for low-priced
         elif spot < 100:
-            band = max(base_band, 0.30)  # At least ±30% for mid-priced
+            band = max(base_band, 0.45)  # At least ±45% for mid-priced
         else:
             band = base_band
 
