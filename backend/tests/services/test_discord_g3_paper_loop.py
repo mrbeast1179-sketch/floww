@@ -232,18 +232,21 @@ class TestU3OptionReadiness:
     async def test_option_payload_shape_paper(self):
         """U3 dry run: a valid 1-contract OCC builds the right paper payload.
 
-        No POST to the venue here (mocked); the witnessed attempt with Nav
-        uses this exact shape. Expiry 2026-09-04+, strike 760 exist per book.
+        No POST to the venue here (mocked). Symbol is the live Fri weekly
+        as of 2026-09-06 (SPY 760C, venue-verified active); the assertion
+        is shape-only so it never rots when the week rolls — resolve the
+        live contract via the paper contracts API before any witnessed
+        attempt (the old Sep-04 week is already expired).
         """
         from alpaca_client import AlpacaClient
         c = _client_like()
         with patch.object(AlpacaClient, "_post", new=AsyncMock(
                 return_value={"id": "o1", "status": "accepted"})) as post:
-            res = await c.place_option_order("SPY260904C00760000", 1, "buy", "limit", 2.5)
+            res = await c.place_option_order("SPY260911C00760000", 1, "buy", "limit", 11.4)
         assert res and res["status"] == "accepted"
         sent = post.call_args.args[1]
-        assert sent["symbol"] == "SPY260904C00760000"
-        assert sent["qty"] == "1" and sent["limit_price"] == "2.5"
+        assert sent["symbol"] == "SPY260911C00760000"
+        assert sent["qty"] == "1" and sent["limit_price"] == "11.4"
 
     @pytest.mark.asyncio
     async def test_bad_occ_never_reaches_venue(self):
