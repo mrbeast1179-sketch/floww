@@ -184,7 +184,7 @@ async def quant_signal_catalog(
                 "source": "volume_clock",
                 "value": f"bucket_{bucket_id}",
                 "unit": "label",
-                "description": f"Current volume-clock bucket (fill_ratio={current.get("fill_ratio", 0):.2f})",
+                "description": f"Current volume-clock bucket (fill_ratio={current.get('fill_ratio', 0):.2f})",
             })
     except Exception as e:
         logger.debug(f"volume_clock unavailable for {t}: {e}")

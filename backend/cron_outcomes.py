@@ -24,6 +24,7 @@ auth rejected / unexpected failure (so cron-mail surfaces real breakage).
 from __future__ import annotations
 
 import argparse
+import asyncio
 import logging
 import os
 import sys
@@ -83,7 +84,7 @@ def main() -> int:
     # percentile rank over the trailing window → RICH/CHEAP tags. Warmup is
     # contractual: under 60 obs → ivr=None, never a fabricated rank.
     try:
-        n = await _refresh_ivr()
+        n = asyncio.run(_refresh_ivr())
         log.info("ivr refreshed for %d ticker(s)", n)
     except Exception as e:
         log.warning("ivr refresh skipped: %s", e)
