@@ -154,15 +154,17 @@ async def get_public_portfolio():
 async def get_public_bars(
     ticker: str,
     interval: str = Query(default="daily", description="1min/5min/15min/30min/60min/daily/weekly/monthly"),
+    sessions: str = Query(default="regular", description="regular (default, regular-session only) or all"),
 ):
     """OHLCV bars from Public API (replaces alpha intraday)."""
-    bars = await fetch_bars_from_public_api(ticker.upper(), interval=interval)
+    bars = await fetch_bars_from_public_api(ticker.upper(), interval=interval, sessions=sessions)
     if bars is None:
         raise HTTPException(status_code=502, detail=f"Public API bars unavailable for {ticker}")
     return {
         "ok": True,
         "ticker": ticker.upper(),
         "interval": interval,
+        "sessions": sessions,
         "bars": bars,
         "n_bars": len(bars),
         "data_source": "public_api",

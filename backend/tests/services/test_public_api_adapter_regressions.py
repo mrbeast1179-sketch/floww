@@ -98,7 +98,7 @@ async def test_extract_bars_rejects_nonfinite_values() -> None:
         {"t": "2026-09-02", "o": 1.0, "h": float("inf"), "l": 0.5, "c": 1.5, "v": 100},
         {"t": "2026-09-01", "o": 1.0, "h": 2.0, "l": 0.5, "c": 1.5, "v": float("nan")},
         {"t": "2026-08-29", "o": 1.0, "h": 2.0, "l": 0.5},  # missing close
-    ])
+    ], sessions="all")
     assert len(rows) == 1 and rows[0]["t"] == "2026-09-04"
 
 
@@ -164,3 +164,55 @@ async def test_transport_errors_recorded_not_429() -> None:
     with patch("services.public_budget.budget", b):
         _note_public_429(Fake429())
     assert b.total_429 == 1
+
+
+def _session_payload() -> dict:
+    def bar(t, o=10.0):
+        return {"timestamp": t, "open": o, "close": o + 0.1, "high": o + 0.2,
+                "low": o - 0.1, "volume": 1000}
+    return {
+        "preMarket": {"expectedBars": 2, "bars": [bar("2026-09-04T04:00:00-04:00"),
+                                                  bar("2026-09-04T04:01:00-04:00")]},
+        "regularMarket": {"expectedBars": 2, "bars": [bar("2026-09-04T09:30:00-04:00"),
+                                                      bar("2026-09-04T09:31:00-04:00", o=11.0)]},
+        "afterMarket": {"expectedBars": 1, "bars": [bar("2026-09-04T16:01:00-04:00")]},
+    }
+
+
+def test_extract_bars_defaults_to_regular_session_only() -> None:
+    from services.public_api_adapter import _extract_bars
+
+    rows = _extract_bars(_session_payload())
+    assert len(rows) == 2
+    assert all(r["session"] == "regular" for r in rows)
+    assert rows[0]["o"] == 10.0 and rows[1]["o"] == 11.0
+
+
+def test_extract_bars_all_sessions_labels_each() -> None:
+    from services.public_api_adapter import _extract_bars
+
+    rows = _extract_bars(_session_payload(), sessions="all")
+    assert len(rows) == 5
+    assert [r["session"] for r in rows] == ["pre", "pre", "regular", "regular", "after"]
+
+
+def test_extract_bars_unknown_bucket_logged_not_regular() -> None:
+    from services.public_api_adapter import _extract_bars
+
+    payload = {"overnightBook": {"bars": [
+        {"timestamp": "2026-09-04T01:00:00-04:00", "open": 1, "close": 1,
+         "high": 1, "low": 1, "volume": 5}]},
+        "regularMarket": {"bars": []}}
+    assert _extract_bars(payload) == []  # unknown excluded by default
+    rows = _extract_bars(payload, sessions="all")
+    assert len(rows) == 1 and rows[0]["session"] == "unknown"
+
+
+def test_extract_bars_legacy_list_shape() -> None:
+    from services.public_api_adapter import _extract_bars
+
+    rows = _extract_bars([{"t": "x", "o": 1, "h": 2, "l": 0.5, "c": 1.5, "v": 9}])
+    assert rows == []  # session unknown -> excluded by default
+    rows = _extract_bars([{"t": "x", "o": 1, "h": 2, "l": 0.5, "c": 1.5, "v": 9}],
+                         sessions="all")
+    assert len(rows) == 1 and rows[0]["session"] == "unknown"

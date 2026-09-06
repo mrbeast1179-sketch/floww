@@ -429,48 +429,77 @@ _INTERVAL_MAP: dict[str, tuple[str, str | None]] = {
 }
 
 
-def _extract_bars(raw: Any) -> list[dict[str, Any]]:
-    """Normalize Public get_bars() payloads to OHLCV dicts.
+def _extract_bars(raw: Any, sessions: str = "regular") -> list[dict[str, Any]]:
+    """Normalize Public get_bars() payloads to OHLCV dicts with session labels.
 
-    The gateway returns candles under various keys depending on the
-    period/aggregation; accept lists of dicts with o/h/l/c (+v/volume)
-    or {t, o, h, l, c, v} rows and pass them through defensively.
+    The vendor returns session buckets (preMarket/regularMarket/afterMarket),
+    each with expectedBars + bars[]. Default serves regular-session ONLY:
+    mixing extended-hours prints into the regular series corrupts realized-vol
+    windows, backtest fills, and chart axes with look-alike bars.
+    sessions="all" opts into every bucket (each row still labeled).
+    Unknown *Market buckets are logged and served ONLY under sessions="all"
+    as session="unknown" — a future vendor bucket must never silently pose
+    as regular data.
 
     Rows missing any OHLC field are dropped (a None would become $0.00 two
     hops downstream and read as a real print of zero). Non-finite floats
     (NaN/Infinity parse happily but make the whole response unserialisable
     → opaque HTTP 500) are rejected the same way.
     """
+    buckets: list[tuple[str, list]] = []
     if isinstance(raw, dict):
-        for key in ("candles", "bars", "data", "results", "historicData"):
-            val = raw.get(key)
-            if isinstance(val, list) and val:
-                raw = val
-                break
-    if not isinstance(raw, list):
-        return []
+        for bucket_key, label in (("preMarket", "pre"), ("regularMarket", "regular"),
+                                  ("afterMarket", "after")):
+            section = raw.get(bucket_key)
+            if isinstance(section, dict) and isinstance(section.get("bars"), list):
+                buckets.append((label, section["bars"]))
+        for key, val in raw.items():
+            if not (isinstance(val, dict) and isinstance(val.get("bars"), list)):
+                continue
+            if key in ("preMarket", "regularMarket", "afterMarket"):
+                continue
+            # Any other bars-carrying section is a session bucket this code
+            # has never seen: log it, serve it ONLY under sessions="all" as
+            # session="unknown" — never as regular data by default.
+            log.warning("Public API returned an unrecognised session bucket: %r", key)
+            buckets.append(("unknown", val["bars"]))
+        if not buckets:
+            # Legacy/alternate shapes: bare lists under known keys.
+            for key in ("candles", "bars", "data", "results", "historicData"):
+                val = raw.get(key)
+                if isinstance(val, list) and val:
+                    buckets.append(("unknown", val))
+                    break
+    elif isinstance(raw, list):
+        buckets.append(("unknown", raw))
+    want_all = str(sessions or "regular").lower() == "all"
     out: list[dict[str, Any]] = []
-    for row in raw:
-        if not isinstance(row, dict):
+    for label, rows in buckets:
+        if label == "unknown" and not want_all:
             continue
-        o = row.get("open", row.get("o"))
-        h = row.get("high", row.get("h"))
-        lo = row.get("low", row.get("l"))
-        c = row.get("close", row.get("c"))
-        if o is None or h is None or lo is None or c is None:
+        if label in ("pre", "after") and not want_all:
             continue
-        try:
-            vals = [float(o), float(h), float(lo), float(c),
-                    float(row.get("v", row.get("volume", 0)) or 0)]
-        except (TypeError, ValueError):
-            continue
-        if not all(math.isfinite(v) for v in vals):
-            continue
-        out.append({
-            "t": row.get("t", row.get("timestamp", row.get("time"))),
-            "o": vals[0], "h": vals[1], "l": vals[2], "c": vals[3],
-            "v": vals[4],
-        })
+        for row in rows:
+            if not isinstance(row, dict):
+                continue
+            o = row.get("open", row.get("o"))
+            h = row.get("high", row.get("h"))
+            lo = row.get("low", row.get("l"))
+            c = row.get("close", row.get("c"))
+            if o is None or h is None or lo is None or c is None:
+                continue
+            try:
+                vals = [float(o), float(h), float(lo), float(c),
+                        float(row.get("v", row.get("volume", 0)) or 0)]
+            except (TypeError, ValueError):
+                continue
+            if not all(math.isfinite(v) for v in vals):
+                continue
+            out.append({
+                "t": row.get("t", row.get("timestamp", row.get("time"))),
+                "o": vals[0], "h": vals[1], "l": vals[2], "c": vals[3],
+                "v": vals[4], "session": label,
+            })
     return out
 
 
@@ -480,12 +509,14 @@ async def fetch_bars_from_public_api(
     instrument_type: str = "EQUITY",
     period: str | None = None,
     aggregation: str | None = None,
+    sessions: str = "regular",
 ) -> list[dict[str, Any]] | None:
     """Fetch OHLCV bars from Public API. None when unavailable.
 
     `interval` accepts alpha-style labels: 1min/5min/15min/30min/60min,
     daily/weekly/monthly. Explicit `period`/`aggregation` (e.g. from the
     C13 bars provider) override the label mapping when both are given.
+    `sessions`: "regular" (default, regular-session only) or "all".
     """
     pb = await _get_broker()
     if pb is None:
@@ -502,7 +533,7 @@ async def fetch_bars_from_public_api(
     except Exception as e:
         log.warning("Public API bars fail for %s %s: %s", ticker, interval, e)
         return None
-    bars = _extract_bars(raw)
+    bars = _extract_bars(raw, sessions=sessions)
     return bars or None
 
 

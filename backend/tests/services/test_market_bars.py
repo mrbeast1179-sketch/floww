@@ -61,7 +61,7 @@ def test_adv_21d_mean_and_min_sessions():
 async def test_cache_hit_costs_zero_tokens(monkeypatch):
     calls = {"up": 0, "acq": 0}
 
-    async def fake_upstream(ticker, period, aggregation):
+    async def fake_upstream(ticker, period, aggregation, sessions='regular'):
         calls["up"] += 1
         return [_bar("2026-09-04T10:00:00")]
 
@@ -82,10 +82,10 @@ async def test_cache_hit_costs_zero_tokens(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_stale_serve_on_upstream_failure(monkeypatch):
-    async def ok_upstream(ticker, period, aggregation):
+    async def ok_upstream(ticker, period, aggregation, sessions='regular'):
         return [_bar("2026-09-04T10:00:00")]
 
-    async def bad_upstream(ticker, period, aggregation):
+    async def bad_upstream(ticker, period, aggregation, sessions='regular'):
         raise RuntimeError("vendor down")
 
     class Budget:
@@ -119,7 +119,7 @@ async def test_budget_exhausted_cold_returns_none(monkeypatch):
         def release(self):
             pass
 
-    async def boom(ticker, period, aggregation):  # pragma: no cover
+    async def boom(ticker, period, aggregation, sessions='regular'):  # pragma: no cover
         raise AssertionError("must not be called")
 
     monkeypatch.setattr(mb, "_budget", DeadBudget())

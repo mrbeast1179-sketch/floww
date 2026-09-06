@@ -96,7 +96,10 @@ def _validate(rows: list[dict[str, Any]] | None) -> list[dict[str, Any]]:
                 raise ValueError("range violation")
             if v < 0:
                 raise ValueError("negative volume")
-            out.append({"t": r.get("t"), "o": o, "h": h, "l": lo, "c": c, "v": v})
+            row = {"t": r.get("t"), "o": o, "h": h, "l": lo, "c": c, "v": v}
+            if r.get("session") is not None:
+                row["session"] = r["session"]
+            out.append(row)
         except (KeyError, TypeError, ValueError) as e:
             _QUARANTINE["total"] += 1
             log.debug("bars quarantine: %s (%s)", e, str(r)[:80])
@@ -165,7 +168,8 @@ def _cache_stale(key: tuple) -> Any | None:
     return hit[1] if hit is not None else None
 
 
-async def _upstream(ticker: str, period: str, aggregation: str) -> list[dict[str, Any]] | None:
+async def _upstream(ticker: str, period: str, aggregation: str,
+                  sessions: str = "regular") -> list[dict[str, Any]] | None:
     """Raw vendor fetch (no budget — the caller owns acquire/release).
 
     Returns bars or None. Raises on transport failure. Separated for tests.
@@ -173,16 +177,17 @@ async def _upstream(ticker: str, period: str, aggregation: str) -> list[dict[str
     from services.public_api_adapter import fetch_bars_from_public_api
 
     return await fetch_bars_from_public_api(
-        ticker, interval="daily", period=period, aggregation=aggregation
+        ticker, interval="daily", period=period, aggregation=aggregation,
+        sessions=sessions,
     )
 
 
-async def _get(kind: str, ticker: str, days: int) -> list[dict[str, Any]] | None:
+async def _get(kind: str, ticker: str, days: int, sessions: str = "regular") -> list[dict[str, Any]] | None:
     sym = (ticker or "").strip().upper()
     if not sym or days <= 0:
         return None
     ttl = _DAILY_TTL if kind == "daily" else _INTRADAY_TTL
-    key = (sym, kind, days)
+    key = (sym, kind, days, sessions)
     hit = _cache_get(key, ttl)
     if hit is not None:
         return hit
@@ -194,7 +199,7 @@ async def _get(kind: str, ticker: str, days: int) -> list[dict[str, Any]] | None
         return _cache_stale(key)
     try:
         period, aggregation = _period_for(kind, days)
-        raw = await _upstream(sym, period, aggregation)
+        raw = await _upstream(sym, period, aggregation, sessions)
     except Exception as e:
         _note_error("upstream-failure")
         log.warning("bars upstream fail %s: %s", sym, e)
@@ -218,14 +223,16 @@ async def _get(kind: str, ticker: str, days: int) -> list[dict[str, Any]] | None
     return bars
 
 
-async def get_1min_bars(ticker: str, days: int = 5) -> list[dict[str, Any]] | None:
+async def get_1min_bars(ticker: str, days: int = 5,
+                       sessions: str = "regular") -> list[dict[str, Any]] | None:
     """Last `days` sessions of 1-minute bars, oldest-first. None when unavailable."""
-    return await _get("1min", ticker, days)
+    return await _get("1min", ticker, days, sessions)
 
 
-async def get_daily_bars(ticker: str, days: int = 60) -> list[dict[str, Any]] | None:
+async def get_daily_bars(ticker: str, days: int = 60,
+                         sessions: str = "regular") -> list[dict[str, Any]] | None:
     """Last `days` daily bars, oldest-first. None when unavailable."""
-    return await _get("daily", ticker, days)
+    return await _get("daily", ticker, days, sessions)
 
 
 async def get_adv_21d(ticker: str) -> float | None:
