@@ -24,6 +24,29 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
+_STARTED_AT = datetime.now(UTC).isoformat()
+
+
+def _git_sha() -> str:
+    """Running commit, best-effort (source checkout may be absent in prod)."""
+    try:
+        import subprocess
+        out = subprocess.run(
+            ["git", "rev-parse", "--short", "HEAD"],
+            capture_output=True, text=True, timeout=5,
+            cwd=os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+        )
+        sha = (out.stdout or "").strip()
+        return sha or "unknown"
+    except Exception:
+        return "unknown"
+
+
+@router.get("/api/version")
+async def version():
+    """Build-vs-backend freshness stamp for the UI stale banner."""
+    return {"sha": _git_sha(), "started_at": _STARTED_AT}
+
 
 def _institutional_section(feed_status: str) -> dict:
     """C11 payload: feed x budget x sweep-age x alerts x calibration.

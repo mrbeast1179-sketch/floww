@@ -1,4 +1,4 @@
-import { isTradeClosed, tradePnl, tradeOutcome, strategyRiskReward, contractMid, effectiveOptionPrice, formatNotional, ticketToJournalEntries, JOURNAL_STORAGE_KEY } from "./tradeMath";
+import { isTradeClosed, tradePnl, tradeOutcome, strategyRiskReward, contractMid, legPrice, effectiveOptionPrice, formatNotional, ticketToJournalEntries, JOURNAL_STORAGE_KEY, condorWidth } from "./tradeMath";
 
 describe("isTradeClosed", () => {
   it("open when no exit date and no exit price", () => {
@@ -95,21 +95,60 @@ describe("effectiveOptionPrice (SOFI degraded-ticket regression)", () => {
     expect(r.price).toBeCloseTo(1.2);
     expect(r.source).toBe("limit");
   });
-  it("live mid beats IV estimate", () => {
+  it("live ASK beats IV estimate for buys (fills lift the offer)", () => {
     const sel = { spot: 18.2, iv: 0.55, call_bid: 0.45, call_ask: 0.55 };
     const r = effectiveOptionPrice(sel, "buy_call", "");
-    expect(r.price).toBeCloseTo(0.5);
-    expect(r.source).toBe("mid");
+    expect(r.price).toBeCloseTo(0.55);
+    expect(r.source).toBe("ask");
   });
-  it("straddle sums both legs", () => {
+  it("sells price off the BID", () => {
+    const sel = { spot: 18.2, iv: 0.55, call_bid: 0.45, call_ask: 0.55 };
+    const r = effectiveOptionPrice(sel, "sell_call", "");
+    expect(r.price).toBeCloseTo(0.45);
+    expect(r.source).toBe("bid");
+  });
+  it("straddle sums both leg ASKs (debit package)", () => {
     const sel = { spot: 100, call_bid: 1, call_ask: 1.2, put_bid: 0.9, put_ask: 1.1 };
     const r = effectiveOptionPrice(sel, "straddle", "");
-    expect(r.price).toBeCloseTo(2.1);
+    expect(r.price).toBeCloseTo(2.3);
+    expect(r.source).toBe("ask-sum");
   });
   it("IV fallback when no quote (old behavior preserved)", () => {
     const r = effectiveOptionPrice({ spot: 100, iv: 0.2 }, "buy_call", "");
     expect(r.price).toBeCloseTo(0.2);
     expect(r.source).toBe("iv");
+  });
+});
+
+describe("legPrice (executable side)", () => {
+  it("buy prefers ask, sell prefers bid", () => {
+    const sel = { call_bid: 1.0, call_ask: 1.2, call_last: 1.1 };
+    expect(legPrice(sel, "call", "buy")).toEqual({ price: 1.2, source: "ask" });
+    expect(legPrice(sel, "call", "sell")).toEqual({ price: 1.0, source: "bid" });
+  });
+  it("falls back to mid when executable side missing", () => {
+    const sel = { call_bid: 1.0, call_ask: 0, call_last: 0 };
+    expect(legPrice(sel, "call", "buy").source).toBe("mid");
+  });
+});
+
+describe("iron condor wings", () => {
+  const wings = { put_long: 745, put_short: 750, call_short: 760, call_long: 765, credit: 1.5 };
+  it("condor prices off credit, never a single-leg guess", () => {
+    const sel = { spot: 755, iv: 0.2, call_bid: 2, call_ask: 2.2 };
+    expect(effectiveOptionPrice(sel, "iron_condor", "", wings)).toEqual({ price: 1.5, source: "credit" });
+    expect(effectiveOptionPrice(sel, "iron_condor", "").source).toBe("none");
+  });
+  it("risk from narrowest wing minus credit", () => {
+    expect(condorWidth(wings)).toBe(5);
+    const r = strategyRiskReward("iron_condor", 1.5, 1, 755, wings);
+    expect(r.maxRisk).toBe("$350");   // (5 - 1.5) * 100
+    expect(r.maxReward).toBe("$150");
+  });
+  it("journal carries wing structure", () => {
+    const [e] = ticketToJournalEntries({ ticker: "SPY", strike: 755, spot: 755, quantity: 1, effectivePrice: 1.5, strategy: "iron_condor", wings, timestamp: "2026-09-06T00:00:00.000Z" });
+    expect(e.notes).toMatch(/745\/750/);
+    expect(e.notes).toMatch(/760\/765/);
   });
 });
 

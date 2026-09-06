@@ -789,7 +789,10 @@ export default function App() {
                       method: "POST",
                     });
                     const result = await resp.json();
-                    if (!resp.ok) throw new Error(result.detail?.message || result.message || resp.statusText);
+                    // Alpaca route returns HTTP 200 with an error body on
+                    // validation/transport failure — resp.ok alone fakes success
+                    // and orphans the local journal row (issue #23).
+                    if (!resp.ok || result?.error || result?.detail) throw new Error(result.detail?.message || result.message || result.error || resp.statusText);
                     console.log("[Triad] Order placed:", result);
                   } catch (err) {
                     console.error("[Triad] Order failed:", err);
@@ -1188,7 +1191,8 @@ export default function App() {
                       method: "POST",
                     });
                     const result = await resp.json();
-                    if (!resp.ok) throw new Error(result.detail?.message || result.message || resp.statusText);
+                    // Same HTTP200-with-error guard as the Triad handler above.
+                    if (!resp.ok || result?.error || result?.detail) throw new Error(result.detail?.message || result.message || result.error || resp.statusText);
                     console.log("[Solstice] Order placed:", result);
                   } catch (err) {
                     console.error("[Solstice] Order failed:", err);
