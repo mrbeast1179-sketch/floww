@@ -31,6 +31,7 @@ function SkylitDashboard({
   change = null,
   changePct = null,
   data = null,
+  tickers = null,
   viewMode = "gex",
   dte = null,
   onViewModeChange,
@@ -140,6 +141,7 @@ function SkylitDashboard({
       <SkylitTickerBar
         activeTicker={ticker}
         onTickerChange={onTickerChange}
+        tickers={tickers}
         allCount={703}
       />
 
@@ -159,6 +161,7 @@ function SkylitDashboard({
         onRefresh={onRefresh}
         onExpand={() => setExpanded(true)}
         onTickerChange={onTickerChange}
+        tickers={tickers}
       />
 
       {/* 2.5 Trade Mode bar */}

@@ -665,16 +665,20 @@ export default function App() {
           e.preventDefault();
           if (tickers) {
             const all = [...(tickers.trinity || []), ...(tickers.default || []), ...(tickers.popular || [])];
+            if (all.length === 0) break;
             const idx = all.indexOf(ticker);
-            if (idx > 0) setTicker(all[idx - 1]);
+            const prev = idx === -1 ? all[all.length - 1] : (idx > 0 ? all[idx - 1] : null);
+            if (prev) setTicker(prev);
           }
           break;
         case "ArrowDown":
           e.preventDefault();
           if (tickers) {
             const all = [...(tickers.trinity || []), ...(tickers.default || []), ...(tickers.popular || [])];
+            if (all.length === 0) break;
             const idx = all.indexOf(ticker);
-            if (idx < all.length - 1) setTicker(all[idx + 1]);
+            const next = idx === -1 ? all[0] : (idx < all.length - 1 ? all[idx + 1] : null);
+            if (next) setTicker(next);
           }
           break;
         default: break;
@@ -944,6 +948,7 @@ export default function App() {
                   change={livespot?.change ?? data?.change}
                   changePct={livespot?.change_pct ?? data?.change_pct}
                   data={displayData}
+                  tickers={tickers}
                   dte={dte}
                   viewMode={viewMode}
                   onViewModeChange={setViewMode}
@@ -1005,6 +1010,7 @@ export default function App() {
                   change={livespot?.change ?? data?.change}
                   changePct={livespot?.change_pct ?? data?.change_pct}
                   data={displayData}
+                  tickers={tickers}
                   dte={dte}
                   viewMode={viewMode}
                   onViewModeChange={setViewMode}

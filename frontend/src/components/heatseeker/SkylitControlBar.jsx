@@ -58,9 +58,16 @@ function SkylitControlBar({
   const stepTicker = useCallback((dir) => {
     if (!onTickerChange) return;
     const list = tickers || TICKER_SETS.popular;
+    if (list.length === 0) return;
     const idx = list.indexOf(ticker);
-    if (idx === -1) return; // open-universe symbol: stay put
-    const next = list[(idx + dir + list.length) % list.length];
+    let next;
+    if (idx === -1) {
+      // Open-universe symbol (e.g. VSAT) not in the list — cycle from the
+      // boundary so arrows always work: forward -> first, back -> last.
+      next = dir > 0 ? list[0] : list[list.length - 1];
+    } else {
+      next = list[(idx + dir + list.length) % list.length];
+    }
     if (next) onTickerChange(next);
   }, [onTickerChange, tickers, ticker]);
 
