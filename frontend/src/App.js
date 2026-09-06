@@ -775,18 +775,18 @@ export default function App() {
                       ? (trade.limitPrice ?? trade.call_ask ?? trade.call_last ?? NaN)
                       : (trade.limitPrice ?? trade.put_bid ?? trade.put_last ?? NaN);
                     const limitPriceVal = Number.isFinite(price) ? price : null;
-                    const resp = await fetch(`${API}/public/order`, {
+                    // PAPER VENUE (2026-09-06, Nav directive): option clicks
+                    // route to Alpaca paper, never the live Public brokerage.
+                    // UI journaling happens server-side (source api-alpaca-option).
+                    const q = new URLSearchParams({
+                      symbol: trade.oi_symbol,
+                      qty: String(trade.quantity ?? 1),
+                      side: side.toLowerCase(),
+                      order_type: limitPriceVal != null ? "limit" : "market",
+                      limit_price: String(limitPriceVal ?? 0),
+                    });
+                    const resp = await fetch(`${API}/alpaca/order/option?${q}`, {
                       method: "POST",
-                      headers: { "Content-Type": "application/json" },
-                      body: JSON.stringify({
-                        symbol: trade.oi_symbol,
-                        side,
-                        order_type: limitPriceVal != null ? "LIMIT" : "MARKET",
-                        quantity: trade.quantity,
-                        limit_price: limitPriceVal,
-                        time_in_force: "DAY",
-                        instrument_type: "OPTION",
-                      }),
                     });
                     const result = await resp.json();
                     if (!resp.ok) throw new Error(result.detail?.message || result.message || resp.statusText);
@@ -1145,7 +1145,7 @@ export default function App() {
         {page === "flowseeker-pro" && (
           <div className="flex-1 overflow-auto">
             <ErrorBoundary>
-              <FlowseekerProBlademap active={page === "flowseeker-pro"} />
+              <FlowseekerProBlademap active={page === "flowseeker-pro"} onTrade={setTradeSelection} />
             </ErrorBoundary>
           </div>
         )}
@@ -1156,7 +1156,7 @@ export default function App() {
         )}
 
         {/* Quick Trade Panel */}
-        {tradeSelection && page === "heatseeker" && (
+        {tradeSelection && (page === "heatseeker" || page === "flowseeker-pro") && (
           <QuickTradePanel
             selection={tradeSelection}
             onClose={() => setTradeSelection(null)}
@@ -1174,18 +1174,18 @@ export default function App() {
                       ? (trade.limitPrice ?? trade.call_ask ?? trade.call_last ?? NaN)
                       : (trade.limitPrice ?? trade.put_bid ?? trade.put_last ?? NaN);
                     const limitPriceVal = Number.isFinite(price) ? price : null;
-                    const resp = await fetch(`${API}/public/order`, {
+                    // PAPER VENUE (2026-09-06, Nav directive): option clicks
+                    // route to Alpaca paper, never the live Public brokerage.
+                    // UI journaling happens server-side (source api-alpaca-option).
+                    const q = new URLSearchParams({
+                      symbol: trade.oi_symbol,
+                      qty: String(trade.quantity ?? 1),
+                      side: side.toLowerCase(),
+                      order_type: limitPriceVal != null ? "limit" : "market",
+                      limit_price: String(limitPriceVal ?? 0),
+                    });
+                    const resp = await fetch(`${API}/alpaca/order/option?${q}`, {
                       method: "POST",
-                      headers: { "Content-Type": "application/json" },
-                      body: JSON.stringify({
-                        symbol: trade.oi_symbol,
-                        side,
-                        order_type: limitPriceVal != null ? "LIMIT" : "MARKET",
-                        quantity: trade.quantity,
-                        limit_price: limitPriceVal,
-                        time_in_force: "DAY",
-                        instrument_type: "OPTION",
-                      }),
                     });
                     const result = await resp.json();
                     if (!resp.ok) throw new Error(result.detail?.message || result.message || resp.statusText);

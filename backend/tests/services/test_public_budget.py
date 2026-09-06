@@ -139,3 +139,17 @@ async def test_coordinator_releases_slot_after_fetch():
         assert fresh.status()["inflight"] == 0
     finally:
         pb_mod.budget = old
+
+
+@pytest.mark.asyncio
+async def test_record_error_counts_without_cooldown():
+    """Port of floww-2 c8e12c65 lesson: transport failures must be visible
+    in telemetry (successes record, so failures must too) without cooling
+    the lane — only 429s own the cooler."""
+    b = _budget()
+    assert b.record_error("api.public.com") == 1
+    assert b.record_error("api.public.com") == 2
+    assert b.status(now=1000.0)["totals"]["errors"] == 2
+    assert b.status(now=1000.0)["cooldowns"] == {}
+    await b.acquire(host="api.public.com", now=1000.0)  # no cooldown imposed
+    b.release()

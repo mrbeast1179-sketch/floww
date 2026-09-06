@@ -151,6 +151,22 @@ async def get_alert_status():
         return JSONResponse(status_code=503, content={"error": str(e)})
 
 
+@router.get("/whales")
+async def get_whale_tracks(state: str | None = Query(None),
+                           days: int = Query(30, ge=1, le=365)):
+    """P1-7 whale-tracker badge read (Agent C): bookmarked whale alerts with
+    live STILL_IN/PARTIAL/EXITED/EXPIRED state + underlying-leg P&L proxy.
+    Declared before /{ticker} so 'whales' never matches the catch-all."""
+    try:
+        from services.journal_store import get_engine, init_whale_tables, read_whales
+        jeng = get_engine()
+        init_whale_tables(jeng)
+        tracks = read_whales(jeng, state=state, days=days)
+        return {"ok": True, "tracks": tracks, "n": len(tracks)}
+    except Exception as e:
+        return JSONResponse(status_code=503, content={"ok": False, "error": str(e)})
+
+
 @router.get("/{ticker}")
 async def get_alerts(ticker: str, momentum_score: int = Query(50, ge=0, le=100)):
     """Get current alerts for a ticker."""

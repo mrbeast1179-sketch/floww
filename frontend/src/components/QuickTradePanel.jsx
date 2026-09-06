@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { fmt } from "../lib/helpers";
-import { strategyRiskReward } from "./tradeMath";
+import { strategyRiskReward, effectiveOptionPrice, formatNotional, ticketToJournalEntries, JOURNAL_STORAGE_KEY } from "./tradeMath";
 
 /**
  * Quick Trade Panel — slide-up panel for rapid trade entry from Triad
@@ -38,19 +38,37 @@ export default function QuickTradePanel({ selection, onClose, onSubmit }) {
 
   const handleSubmit = useCallback(() => {
     if (!selection) return;
+    const { price: effectivePrice, source: priceSource } = effectiveOptionPrice(selection, strategy, limitPrice);
     const trade = {
       ticker: selection.ticker,
       strike: selection.strike,
       spot: selection.spot,
+      expiry: selection.expiry ?? null,
       strategy,
       quantity,
       limitPrice: limitPrice ? parseFloat(limitPrice) : null,
+      effectivePrice: Number.isFinite(effectivePrice) ? effectivePrice : null,
+      priceSource,
       gex: selection.gex,
       iv: selection.iv,
       delta: selection.delta,
       oi: selection.oi,
+      oi_symbol: selection.oi_symbol ?? null,
+      call_bid: selection.call_bid, call_ask: selection.call_ask, call_last: selection.call_last,
+      put_bid: selection.put_bid, put_ask: selection.put_ask, put_last: selection.put_last,
       timestamp: new Date().toISOString(),
     };
+    // Journal first: every confirmed ticket lands in the store TradeJournal
+    // + TradeAnalytics read. Previously non-OSI tickets were dropped by the
+    // App-level submit handler and never appeared anywhere.
+    try {
+      const entries = ticketToJournalEntries(trade).map(e => ({
+        ...e, id: e.id ?? Date.now() + Math.floor(Math.random() * 1000),
+        created_at: new Date().toISOString(),
+      }));
+      const saved = JSON.parse(localStorage.getItem(JOURNAL_STORAGE_KEY) || "[]");
+      localStorage.setItem(JOURNAL_STORAGE_KEY, JSON.stringify([...entries, ...saved]));
+    } catch (e) { console.error("[QuickTrade] journal write failed:", e); }
     setSubmitted(true);
     if (onSubmit) onSubmit(trade);
     // Auto-close after showing success
@@ -65,13 +83,18 @@ export default function QuickTradePanel({ selection, onClose, onSubmit }) {
   const isCall = strategy.includes("call") || strategy === "straddle" || strategy === "iron_condor";
   const isBuy = strategy.startsWith("buy");
 
-  // Estimate price based on IV (simplified)
-  const estNum = iv ? spot * iv * 0.01 : NaN;
+  // Effective premium: limit override > live leg mid/last (new strike route)
+  // > IV estimate. Works for every ticker, not just ones with Greeks cached.
+  const quote = effectiveOptionPrice(selection, strategy, "");
+  const estNum = quote.price;
   const estPrice = Number.isFinite(estNum) ? estNum.toFixed(2) : "—";
-  // Per-strategy risk/reward (returns formatted strings incl. "—"/"Unlimited"),
-  // not a naive buy→defined / else→Unlimited split that mislabeled straddles
-  // and iron condors and rendered "$NaN" when IV was missing.
-  const { maxRisk, maxReward } = strategyRiskReward(strategy, estNum, quantity, strike);
+  const live = effectiveOptionPrice(selection, strategy, limitPrice);
+  const effNum = live.price;
+  const hasPrice = Number.isFinite(effNum);
+  // Risk follows the price the order will actually use (limit wins), so
+  // typing a limit rescues risk/reward on quoteless strikes instead of "—".
+  const { maxRisk, maxReward } = strategyRiskReward(strategy, effNum, quantity, strike);
+  const notional = formatNotional(effNum, quantity);
 
   const fmtGex = (v) => {
     if (v == null) return "—";
@@ -175,7 +198,7 @@ export default function QuickTradePanel({ selection, onClose, onSubmit }) {
             <input
               type="number"
               step="0.01"
-              placeholder={estPrice}
+              placeholder={Number.isFinite(estNum) ? estPrice : "Enter limit — no quote"}
               value={limitPrice}
               onChange={e => setLimitPrice(e.target.value)}
               className="quick-trade-input"
@@ -187,7 +210,9 @@ export default function QuickTradePanel({ selection, onClose, onSubmit }) {
         <div className="quick-trade-risk">
           <div className="quick-trade-risk-row">
             <span>Est. Price</span>
-            <span className="text-amber-400">${limitPrice || estPrice}</span>
+            <span className="text-amber-400">
+              {hasPrice ? `$${effNum.toFixed(2)}${live.source === "limit" ? "" : live.source === "mid" || live.source === "last" ? " (live)" : " (est)"}` : "— enter limit"}
+            </span>
           </div>
           <div className="quick-trade-risk-row">
             <span>Max Risk</span>
@@ -200,7 +225,7 @@ export default function QuickTradePanel({ selection, onClose, onSubmit }) {
           <div className="quick-trade-risk-row">
             <span>Notional</span>
             <span className="text-slate-300">
-              ${((parseFloat(limitPrice || estPrice) || 0) * quantity * 100).toLocaleString()}
+              {notional}
             </span>
           </div>
         </div>
@@ -211,27 +236,35 @@ export default function QuickTradePanel({ selection, onClose, onSubmit }) {
             <div className="quick-trade-success-icon">✓</div>
             <div className="quick-trade-success-text">Trade Recorded</div>
             <div className="quick-trade-success-sub">
-              {STRATEGIES.find(s => s.id === strategy)?.label} × {quantity} @ ${limitPrice || estPrice}
+              {STRATEGIES.find(s => s.id === strategy)?.label} × {quantity} @ ${hasPrice ? effNum.toFixed(2) : "—"} · saved to journal
             </div>
           </div>
         ) : !showConfirm ? (
           <button
             className="quick-trade-submit"
-            onClick={() => setShowConfirm(true)}
+            onClick={() => hasPrice && setShowConfirm(true)}
+            disabled={!hasPrice}
+            title={hasPrice ? "" : "No market quote or IV for this strike — enter a limit price"}
             style={{
-              background: isBuy
-                ? "linear-gradient(135deg, #16a34a, #22c55e)"
-                : "linear-gradient(135deg, #dc2626, #ef4444)",
+              background: !hasPrice
+                ? "#334155"
+                : isBuy
+                  ? "linear-gradient(135deg, #16a34a, #22c55e)"
+                  : "linear-gradient(135deg, #dc2626, #ef4444)",
+              opacity: hasPrice ? 1 : 0.55,
+              cursor: hasPrice ? "pointer" : "not-allowed",
             }}
           >
-            Review {STRATEGIES.find(s => s.id === strategy)?.label} × {quantity}
+            {hasPrice
+              ? `Review ${STRATEGIES.find(s => s.id === strategy)?.label} × ${quantity}`
+              : "Enter limit price to review"}
           </button>
         ) : (
           <div className="quick-trade-confirm">
             <p className="quick-trade-confirm-text">
               {isBuy ? "Buy" : "Sell"} {quantity} contract{quantity > 1 ? "s" : ""}{" "}
               {ticker.replace("^", "")} {fmt(strike, 0)} {strategy.includes("call") ? "Call" : strategy.includes("put") ? "Put" : ""}{" "}
-              @ ${limitPrice || estPrice}?
+              @ ${hasPrice ? effNum.toFixed(2) : "—"}?
             </p>
             <div className="quick-trade-confirm-btns">
               <button className="quick-trade-cancel" onClick={() => setShowConfirm(false)}>Cancel</button>

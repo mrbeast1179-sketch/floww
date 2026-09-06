@@ -262,8 +262,14 @@ async def drilldown(symbol: str):
 @router.get("/chain/{symbol}")
 async def options_chain(symbol: str):
     """
-    Options chain — tries CVForge first (32 exp, 171 strikes), falls back to yfinance.
-    Cached for 120s.
+    Options chain — Public Advanced API first (paid, real quotes/greeks),
+    CVForge second, yfinance last resort. Cached for 600s.
+
+    OWNERSHIP (institutional loop firewall): this file is split —
+    B-REGION = chain/scan/budget/baseline sections (Agent B);
+    C-REGION = alerts pipeline below (_run_institutional_alerts,
+    _cached/_merged_gex_context, /alerts/*, journal/outcomes) (Agent C).
+    No cross-region edits without owner sign-off in LEDGER.md.
     """
     sym = (symbol or "").strip().upper()
     if not sym:
@@ -275,7 +281,34 @@ async def options_chain(symbol: str):
         if time.time() - ts < CACHE_TTL:
             return data
 
-    # Try CVForge first (fast, rich data)
+    # Try Public Advanced API first (paid primary — real NBBO + greeks).
+    # Budget exhaustion degrades to cvserver, never to an error: chains have
+    # free fallbacks, and the paid budget is reserved for flow-critical paths.
+    try:
+        from services.public_api_adapter import (
+            fetch_chain_from_public_api,
+            public_to_nested,
+        )
+        from services.public_budget import BudgetExhausted
+        from services.public_budget import budget as _pub_budget
+
+        try:
+            await _pub_budget.acquire("api.public.com")
+        except BudgetExhausted:
+            pub_nested = None
+        else:
+            try:
+                pub = await fetch_chain_from_public_api(sym, max_expiries=6)
+                pub_nested = public_to_nested(pub)
+            finally:
+                _pub_budget.release()
+        if pub_nested and pub_nested.get("chain"):
+            _remember_chain(sym, pub_nested)
+            return pub_nested
+    except Exception as e:
+        logger.debug(f"flowseeker chain: public path failed for {sym}: {e}")
+
+    # Try CVForge (fast, rich data)
     data = await _cvforge_chain(sym)
     if data and data.get("chain"):
         _remember_chain(sym, data)
@@ -303,6 +336,94 @@ async def options_chain(symbol: str):
     except Exception as e:
         logger.warning(f"flowseeker chain: {sym}: {e}")
         return {"symbol": sym, "params": [], "chain": [], "error": str(e)}
+
+
+@router.get("/public/chain/{ticker}")
+async def public_chain_flat(
+    ticker: str,
+    expirations: int = Query(default=4, ge=1, le=12),
+    expiration: str | None = Query(default=None),
+    fields: str | None = Query(default=None),
+):
+    """Smart-Order-Flow chain from the paid Public Advanced API (flat shape).
+
+    This is the route the Tidehunter Pro flow tab polls first
+    (`/api/flowseeker/public/chain/{t}?expirations=4&fields=...`); without it
+    every poll 404s and the tab silently degrades to the 20/hour cvserver
+    budget. Flat contract list with TRUE bid/ask/last/volume/OI/IV/greeks —
+    no BS premium estimates, no vol/OI side proxy.
+
+    Budget-gated via services.public_budget (60/min token bucket); on
+    exhaustion returns 503 with retry_after so the tab falls through to
+    cvserver instead of hammering upstream. The adapter's 60s cache +
+    coalescing means steady-state polling costs ~1 token/ticker/min.
+    """
+    from services.public_api_adapter import fetch_chain_from_public_api
+    from services.public_budget import BudgetExhausted
+    from services.public_budget import budget as _pub_budget
+
+    sym = (ticker or "").strip().upper()
+    if not sym:
+        raise HTTPException(400, "ticker required")
+
+    try:
+        await _pub_budget.acquire("api.public.com")
+    except BudgetExhausted as e:
+        raise HTTPException(
+            status_code=503,
+            detail={"error": "public budget exhausted", "retry_after": e.retry_after},
+        ) from e
+    try:
+        result = await fetch_chain_from_public_api(sym, max_expiries=expirations)
+    finally:
+        _pub_budget.release()
+
+    if result is None:
+        raise HTTPException(
+            status_code=502,
+            detail=f"Public API unavailable for {sym} — key may be missing or API call failed",
+        )
+
+    contracts = result.get("contracts", [])
+    if expiration:
+        contracts = [c for c in contracts if c.get("expiry") == expiration]
+
+    flat = [
+        {
+            "strike": c.get("strike"),
+            "type": c.get("type"),
+            "expiry": c.get("expiry"),
+            "expiration": c.get("expiry"),
+            "volume": c.get("volume") or 0,
+            "openInterest": c.get("oi") or 0,
+            "oi": c.get("oi") or 0,
+            "impliedVolatility": c.get("iv") or 0,
+            "iv": c.get("iv") or 0,
+            "delta": c.get("delta"),
+            "gamma": c.get("gamma"),
+            "theta": c.get("theta"),
+            "vega": c.get("vega"),
+            "bid": c.get("bid"),
+            "ask": c.get("ask"),
+            "mid": c.get("mid"),
+            "last": c.get("last"),
+            "lastPrice": c.get("last"),
+            "bidSize": c.get("bid_size"),
+            "askSize": c.get("ask_size"),
+            "osi": c.get("osi"),
+        }
+        for c in contracts
+    ]
+    return {
+        "ok": True,
+        "ticker": sym,
+        "spot": result.get("spot", 0),
+        "expiries": result.get("expiries", []),
+        "n_contracts": len(flat),
+        "data_source": "public_api",
+        "stale": result.get("stale", False),
+        "contracts": flat,
+    }
 
 
 @router.get("/screen")
@@ -704,13 +825,24 @@ async def _record_scan_baseline(rows: list) -> None:
         logger.debug(f"scan baseline record skipped: {e}")
 
 
-async def _run_institutional_alerts(rows: list) -> None:
+async def _run_institutional_alerts(
+    rows: list,
+    extras: dict | None = None,
+    dealer: dict | None = None,
+) -> None:
     """Server-side institutional alert pass over a FRESH scan result.
+    (C-REGION — Agent C domain; see ownership note on options_chain.)
 
     Fires on every cache fill (normal + force-refresh), so alerts exist and
     persist even with no Scanner tab open — the browser engine only ever saw
     what a live tab happened to witness. Zero extra cvforge calls: it reuses
     the rows, baselines, prev-OI and regime cache the scan already has.
+
+    extras (paid-scanner quote truth) overlays true premiums/NBBO/velocity
+    onto rows before eval; dealer (per-ticker gamma walls/regime from the
+    same chains) fills GEX context for tickers the heatmap cache doesn't
+    cover — regime propagates to key levels + WHY, without a fabricated
+    magnitude (confluence still needs measured ΓIB).
     """
     try:
         from services import flow_alerts as fa
@@ -718,6 +850,8 @@ async def _run_institutional_alerts(rows: list) -> None:
         from services.duckdb_engine import db as duckdb_engine
 
         normed = fa.norm_rows(rows)
+        if extras:
+            fa.apply_quote_truth(normed, extras)
         if not normed:
             return
         baselines = await _volume_baselines()
@@ -730,10 +864,13 @@ async def _run_institutional_alerts(rows: list) -> None:
             for r in normed
             if r.get("occ") and prev_occ.get(r["occ"]) is not None
         }
+        oi_tags = _compute_oi_tags(normed, prev)
         alerts = fa.eval_institutional(
             normed, baselines=baselines, prev_oi=prev, regimes=_cached_regimes(),
-            gex_context=_cached_gex_context(sorted({r["under"] for r in normed})),
-            oi_tags=_compute_oi_tags(normed, prev),
+            gex_context=_merged_gex_context(
+                sorted({r["under"] for r in normed}), dealer),
+            oi_tags=oi_tags,
+            **({"opts": {"calibration": cal}} if (cal := await _load_calibration()) else {}),
         )
         # DuckDB calls are synchronous — run them off the event loop so a
         # slow query never stalls concurrent requests (this runs in a
@@ -747,7 +884,7 @@ async def _run_institutional_alerts(rows: list) -> None:
             # Desk pass (Conviction v2.2): fresh-interest gate, campaign
             # promotion, IV context. Fails open. See
             # docs/handoff/FABLE-desk-pass.md for the contract.
-            passed = fd.desk_pass(duckdb_engine, normed, alerts)
+            passed = fd.desk_pass(duckdb_engine, normed, alerts, oi_tags=oi_tags)
             fresh = fa.dedup_filter(duckdb_engine, passed)
             if fresh:
                 fa.persist_alerts(duckdb_engine, fresh)
@@ -767,15 +904,51 @@ async def _run_institutional_alerts(rows: list) -> None:
                     logger.info("journal lifecycle pass closed %d card(s)", closed)
             except Exception as le:
                 logger.warning("journal lifecycle pass failed (non-fatal): %s", le)
+            # P1-7 whale tracker (Agent C): bookmark WHALE-rule fires, then
+            # update all open tracks from this scan's per-contract rows.
+            # Fail-open — tracking must never break the alert persist above.
+            try:
+                from services.journal_store import (
+                    bookmark_whale,
+                    get_engine,
+                    init_whale_tables,
+                    update_whales,
+                )
+                weng = get_engine()
+                init_whale_tables(weng)
+                rows_by_ckey = {r.get("ckey"): r for r in normed if r.get("ckey")}
+                for a in fresh or []:
+                    if a.get("rule") == "WHALE":
+                        r0 = rows_by_ckey.get(a.get("ckey")) or {}
+                        bookmark_whale(weng, a, spot=r0.get("spot") or 0,
+                                       oi=r0.get("oi") or 0, vol=r0.get("vol") or 0)
+                snaps = {c: {"spot": r.get("spot"), "oi": r.get("oi"),
+                             "vol": r.get("vol"), "dte": r.get("dte")}
+                         for c, r in rows_by_ckey.items()}
+                if snaps:
+                    update_whales(weng, snaps)
+            except Exception as we:
+                logger.warning("whale tracker pass failed (non-fatal): %s", we)
             return fresh
 
         spots = {r["under"]: r["spot"] for r in normed if r.get("spot")}
         fresh = await loop.run_in_executor(None, _duck_pass)
         if fresh:
             logger.info(
-                "institutional alerts: %d fired (%s)",
+                "institutional alerts: %d fired (%s) [pid=%d]",
                 len(fresh), ",".join(sorted({a["under"] for a in fresh})),
+                os.getpid(),
             )
+            # Discord webhook fan-out (fail-open, never breaks the scan path;
+            # no-op when DISCORD_WEBHOOK_URL is unset; tier/rule-gated).
+            try:
+                from services import discord_ops as _discord
+
+                posted = await _discord.post_alerts(fresh)
+                if posted:
+                    logger.info("discord webhook: %d alert(s) posted", posted)
+            except Exception as e:
+                logger.warning(f"discord notify failed (non-fatal): {e}")
     except Exception as e:
         logger.warning(f"institutional alert eval failed: {e}")
 
@@ -809,6 +982,46 @@ def _cached_gex_context(tickers: list[str]) -> dict[str, dict]:
         return out
     except Exception:
         return {}
+
+
+def _merged_gex_context(
+    tickers: list[str],
+    dealer: dict | None,
+) -> dict[str, dict]:
+    """Heatmap ΓIB where available, Public-scanner dealer regime elsewhere.
+
+    The paper-accurate cache entry wins whenever present (it carries a real
+    ADV-normalized magnitude, which the confluence boolean needs). Dealer
+    entries carry regime + walls; pct passes through ONLY when the scanner
+    measured it against real ADV (B2) — otherwise None (unknown), regime
+    propagates to key levels + the WHY block, and confluence stays False
+    until measured ΓIB arrives. Never fabricate a pct.
+    """
+    out = _cached_gex_context(tickers)
+    for t, d in (dealer or {}).items():
+        if t in out or not isinstance(d, dict):
+            continue
+        if d.get("regime") not in ("negative", "positive"):
+            continue
+        # pct None = UNKNOWN magnitude (dealer walls without ADV normalization).
+        # Regime propagates to key levels + WHY; confluence stays False until
+        # measured ΓIB arrives. Never 0.0 — zero is a measurement, not unknown.
+        pct = d.get("gamma_imbalance_pct")
+        try:
+            pct = float(pct) if pct is not None else None
+        except (TypeError, ValueError):
+            pct = None
+        out[t] = {
+            "gamma_imbalance": {
+                "gamma_imbalance_pct": pct,
+                "regime": d["regime"],
+                "dealer_walls": {
+                    "call": d.get("call_wall"),
+                    "put": d.get("put_wall"),
+                },
+            },
+        }
+    return out
 
 
 _earnings_cache: dict[str, tuple[float, dict[str, str]]] = {"ts": 0.0, "data": {}}
@@ -933,12 +1146,16 @@ async def _volume_baselines() -> dict[str, dict]:
     return out
 
 
-def _scan_payload(rows: list, stale: bool, asof: str, columns: list, cache_age: float = 0, retry_after: float | None = None) -> dict:
+def _scan_payload(rows: list, stale: bool, asof: str, columns: list, cache_age: float = 0, retry_after: float | None = None, limit: int | None = None) -> dict:
     source = "cvserver-screen"
     if stale:
         source = "cvserver-stale"
     elif cache_age > 0 and cache_age < 60:
         source = "cvserver-cached"
+    try:
+        tickers = len({r[0] for r in rows}) if rows else 0
+    except (TypeError, IndexError):
+        tickers = 0
     return {
         "columns": columns, "rows": rows, "count": len(rows),
         "source": source, "stale": stale, "asof": asof,
@@ -947,16 +1164,24 @@ def _scan_payload(rows: list, stale: bool, asof: str, columns: list, cache_age: 
         "scan_ttl": int(_SCAN_TTL),
         "budget": _budget_state(),
         "regimes": _cached_regimes(),
+        # Coverage honesty: the screen is top-N by raw day_volume — when the
+        # payload fills the limit, mid-cap building below the cutoff is cut
+        # (the SNDK gap). The UI reads `truncated` to badge partial coverage
+        # instead of implying the whole market is shown.
+        "truncated": bool(limit is not None and len(rows) >= limit),
+        "coverage": {"tickers": tickers, "limit": limit},
     }
 
 
 @router.get("/scan")
 async def market_scan(
-    # 2026-09-02 noise pass: default floor 1000→2500 — sub-2500-contract day
-    # volume on liquid names is dealer churn; the client's quality gate was
-    # filtering it anyway, so stop paying the wire cost for it.
-    min_volume: int = Query(2500, ge=0),
-    limit: int = Query(300, ge=1, le=1000),
+    # Paid-Public era (2026-09-05): floor 2500→1000, limit 300→500. Same ONE
+    # upstream call — wider net for mid-cap building at zero budget cost.
+    # /scan-public (paid chains, fixed universe) is the structural fix for
+    # the top-N-by-volume cutoff; this keeps the cvserver path as wide as
+    # the wire cost allows while it remains the default Scanner source.
+    min_volume: int = Query(1000, ge=0),
+    limit: int = Query(500, ge=1, le=1000),
     force: bool = Query(False),
 ):
     """
@@ -978,7 +1203,7 @@ async def market_scan(
     def _fresh(now: float):
         cached = _scan_cache.get(cache_key)
         if cached and not force and now - cached["ts"] < _SCAN_TTL:
-            return _scan_payload(cached["data"], False, cached["asof"], columns, cache_age=now - cached["ts"])
+            return _scan_payload(cached["data"], False, cached["asof"], columns, cache_age=now - cached["ts"], limit=limit)
         return None
 
     def _stale_or(now: float, status: int, detail: str, retry_after: float | None = None):
@@ -986,7 +1211,7 @@ async def market_scan(
         best = cached or (max(_scan_cache.values(), key=lambda e: e["ts"]) if _scan_cache else None)
         if best:
             cache_age = now - best["ts"]
-            return _scan_payload(best["data"], True, best["asof"], columns, cache_age=cache_age, retry_after=retry_after)
+            return _scan_payload(best["data"], True, best["asof"], columns, cache_age=cache_age, retry_after=retry_after, limit=limit)
         # No cached data — return empty payload with stale marker + retry hint
         # instead of 503, so the frontend can show "waiting for first scan"
         # rather than an error state. cvserver hits its 20/hour budget and
@@ -1082,7 +1307,7 @@ async def market_scan(
                 _trim_cache(_scan_cache)
                 _spawn_bg(_record_scan_baseline(rows))
                 _spawn_bg(_run_institutional_alerts(rows))
-                out = _scan_payload(rows, False, asof, columns, cache_age=0)
+                out = _scan_payload(rows, False, asof, columns, cache_age=0, limit=limit)
                 out["baselines"] = await _volume_baselines()
                 out["prev_oi"] = await _prev_contract_oi()
                 from services import flow_alerts as _fa_local2  # local import: scan path scope
@@ -1105,7 +1330,7 @@ async def market_scan(
 @router.post("/scan/refresh")
 async def force_refresh_scan(
     min_volume: int = Query(1000, ge=0),
-    limit: int = Query(300, ge=1, le=1000),
+    limit: int = Query(500, ge=1, le=1000),
 ):
     """
     Force refresh the market scan — bypasses cache and backoff.
@@ -1186,7 +1411,7 @@ async def _force_refresh_locked(min_volume: int, limit: int,
             _trim_cache(_scan_cache)
             _spawn_bg(_record_scan_baseline(rows))
             _spawn_bg(_run_institutional_alerts(rows))
-            return _scan_payload(rows, False, asof, columns, cache_age=0)
+            return _scan_payload(rows, False, asof, columns, cache_age=0, limit=limit)
     except HTTPException:
         raise
     except Exception as e:
@@ -1241,6 +1466,75 @@ async def scan_history(days: int = Query(14, ge=2, le=60)):
     payload = {"days": days, "tickers": out, "asof": datetime.now(_ET).isoformat()}
     _history_cache.update(ts=nowt, days=days, data=payload)
     return payload
+
+
+@router.get("/scan-public")
+async def public_market_scan(
+    slice_size: int = Query(default=8, ge=1, le=20),
+    max_expiries: int = Query(default=2, ge=1, le=6),
+):
+    """Market-wide unusual-flow scan over the PAID Public Advanced API.
+
+    Rotating-cursor sweep of a fixed 40-name universe (index ETFs + megas +
+    high-beta mid-caps like SNDK/DVN): each call scans the next slice and
+    returns the merged universe view. No hourly cap (60/min Public budget),
+    no top-300-by-volume cutoff — mid-cap laddered building is included by
+    construction, not crowded out by SPY/QQQ churn.
+
+    Row/column shape is IDENTICAL to /scan so the frontend scanner and
+    eval_institutional consume it unchanged. Fresh slices also feed the
+    institutional alert pipeline (same _record_scan_baseline +
+    _run_institutional_alerts background tasks as /scan).
+    """
+    import services.public_scanner as ps
+    from services.public_budget import BudgetExhausted
+    from services.public_budget import budget as _pub_budget
+
+    try:
+        await _pub_budget.acquire("api.public.com")
+    except BudgetExhausted as e:
+        raise HTTPException(
+            status_code=503,
+            detail={"error": "public budget exhausted", "retry_after": e.retry_after},
+        ) from e
+    try:
+        view = await ps.scan_next(slice_size=slice_size, max_expiries=max_expiries)
+    except BudgetExhausted as e:
+        raise HTTPException(
+            status_code=503,
+            detail={"error": "public slice unaffordable", "retry_after": e.retry_after},
+        ) from e
+    finally:
+        _pub_budget.release()
+
+    rows = view["rows"]
+    extras = view.get("quote_truth", {})
+    dealer = view.get("dealer", {})
+    asof = datetime.now().isoformat()
+    _spawn_bg(_record_scan_baseline(rows))
+    _spawn_bg(_run_institutional_alerts(rows, extras=extras, dealer=dealer))
+    cov = view.get("coverage", {})
+    # Honest freshness: slices carry their own ages — a merged view with
+    # dropped or aging slices must not claim stale:false.
+    is_stale = bool(cov.get("stale_dropped")) or (cov.get("max_age_s") or 0) > 300
+    return {
+        "columns": view["columns"],
+        "rows": rows,
+        "count": view["count"],
+        "source": "public-scan",
+        "stale": is_stale,
+        "asof": asof,
+        "scan_ttl": 60,
+        "budget": _budget_state(),
+        "public_budget": _pub_budget.status(),
+        "coverage": view["coverage"],
+        "tickers": view["tickers"],
+        "quote_truth": extras,
+        "dealer": dealer,
+        "regimes": _cached_regimes(),
+        "baselines": await _volume_baselines(),
+        "prev_oi": await _prev_contract_oi(),
+    }
 
 
 @router.get("/alerts/quality")
@@ -1990,6 +2284,59 @@ async def risk_killswitch_trip(equity: float = Query(100000.0, gt=0)):
 _outcome_cache: dict[str, tuple[float, dict]] = {}   # key -> (ts, payload)
 _OUTCOME_TTL = 6 * 3600   # nightly cron refreshes Mongo; in-process cache is a courtesy
 
+_calibration_blob: tuple[float, dict] | None = None  # (ts, blob) — cron's fit
+_CALIBRATION_TTL = 1 * 3600  # refresh writes rarely; 1h courtesy window
+
+
+async def _load_calibration() -> dict | None:
+    """Cached stage blob from the cron's /outcomes/refresh fit (Mongo
+    calibration_latest). Fail-open: Mongo down / no fit yet → None, and the
+    live path fires exactly as before (p_move=None, "uncalibrated").
+
+    (C-REGION — Agent C. Closes the C2 loop: fit→cache existed, consume
+    did not — _run_institutional_alerts never loaded this.)
+    """
+    import time as _time
+
+    global _calibration_blob
+    hit = _calibration_blob
+    if hit and _time.time() - hit[0] < _CALIBRATION_TTL:
+        return hit[1]
+    try:
+        from server import db as mongo_db  # deferred: circular import
+        doc = await mongo_db.flow_outcome_cache.find_one({"_id": "calibration_latest"})
+        if doc and isinstance(doc.get("stage"), int) and doc.get("stage") >= 1 and doc.get("model"):
+            blob = {k: v for k, v in doc.items() if k != "_id"}
+            _calibration_blob = (_time.time(), blob)
+            return blob
+    except Exception:
+        pass  # Mongo down — fire uncalibrated, never crash the scan
+    return None
+
+
+def get_calibration_status() -> dict:
+    """Explicit staged-calibration status for D's C11 health section.
+
+    Fail-open: no blob yet → stage 0 + uncalibrated note (unknown, never
+    fabricated). Replaces health's lazy read of the private _calibration_blob.
+    """
+    import time as _time
+
+    hit = _calibration_blob
+    if not hit:
+        return {"stage": 0, "n": 0, "method_note": "uncalibrated: no fit cached yet",
+                "model_kind": None, "age_s": None}
+    ts, blob = hit
+    blob = blob if isinstance(blob, dict) else {}
+    model = blob.get("model") if isinstance(blob.get("model"), dict) else {}
+    try:
+        age = round(_time.time() - float(ts), 1)
+    except (TypeError, ValueError):
+        age = None
+    return {"stage": blob.get("stage", 0), "n": blob.get("n", 0),
+            "method_note": blob.get("method_note", ""),
+            "model_kind": model.get("kind"), "age_s": age}
+
 
 async def _load_outcomes(days: int, horizon: int) -> dict | None:
     """Precomputed stats from the nightly cron (Mongo flow_outcome_cache);
@@ -2091,6 +2438,10 @@ async def alert_outcomes_refresh(
             cal_doc = {"ok": True, "computed_at": stats["computed_at"], **cal}
             await mdb.flow_outcome_cache.update_one(
                 {"_id": "calibration_latest"}, {"$set": cal_doc}, upsert=True)
+            try:  # C7 value table rides the same pass (Sync-3 kill/keep read)
+                stats["rule_value"] = fo.rule_value_table(labeled)
+            except Exception as ve:
+                logger.warning("outcomes/refresh: rule value skipped: %s", ve)
         except Exception as e:  # calibration fit is additive, never fatal
             logger.warning("outcomes/refresh: calibration fit skipped: %s", e)
     finally:
@@ -2129,6 +2480,10 @@ async def calibration_model():
     labeled = fo.label_alerts(alerts, bars, vix.get("^VIX"))
     cal = fc.fit_calibration(labeled)
     out = {"ok": True, **fc.calibration_status_blob(cal)}
+    try:  # C7: per-rule value rides the live report too (Sync-3 kill/keep)
+        out["rule_value"] = fo.rule_value_table(labeled)
+    except Exception as ve:
+        logger.warning("model: rule value skipped: %s", ve)
     # Sample the p semantics on one row so consumers see the shape honestly.
     if labeled:
         out["p_move_sample"] = fc.predict_p_move(cal, labeled[0])

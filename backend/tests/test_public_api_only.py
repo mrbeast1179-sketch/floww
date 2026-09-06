@@ -108,39 +108,48 @@ class TestAggregatorPublicFirst:
 
 
 # ---------------------------------------------------------------------------
-# 3. Schwab routes are 410 Gone
+# 3. Schwab is deleted — no routes, no client module
 # ---------------------------------------------------------------------------
 
-class TestSchwabRetired:
-    def test_auth_url_gone(self):
+class TestSchwabDeleted:
+    def test_auth_url_absent(self):
         r = client.get("/api/schwab/auth-url")
-        assert r.status_code == 410
-        assert r.json()["error"] == "schwab_retired"
-        assert "/api/public/" in r.json()["replacement"]
+        assert r.status_code == 404
 
-    def test_accounts_gone(self):
+    def test_accounts_absent(self):
         r = client.get("/api/schwab/accounts")
-        assert r.status_code == 410
+        assert r.status_code == 404
 
-    def test_positions_gone(self):
+    def test_positions_absent(self):
         r = client.get("/api/schwab/positions/abc123")
-        assert r.status_code == 410
-        assert r.json()["replacement"] == "/api/public/portfolio"
+        assert r.status_code == 404
 
-    def test_sweeps_gone(self):
+    def test_sweeps_absent(self):
         r = client.get("/api/schwab/sweeps/abc123")
-        assert r.status_code == 410
+        assert r.status_code == 404
 
-    def test_import_gone(self):
-        # POST routes sit behind the API-key middleware → send the test key.
+    def test_import_absent(self):
         r = client.post("/api/schwab/import-to-portfolio/x/abc123",
                         headers={"X-API-Key": "test-secret-key"})
-        assert r.status_code == 410
+        assert r.status_code == 404
 
-    def test_client_construction_raises(self):
-        from schwab import SchwabClient, SchwabRetiredError
-        with pytest.raises(SchwabRetiredError):
-            SchwabClient()
+    def test_admin_schwab_health_absent(self):
+        r = client.get("/api/admin/schwab/health",
+                       headers={"X-API-Key": "test-secret-key"})
+        assert r.status_code == 404
+
+    def test_client_module_deleted(self):
+        # NOTE: bare `import schwab` still resolves — as a *namespace package*
+        # for backend/tests/schwab/ (streamer-harness chaos tests, kept).
+        # What must be gone is the brokerage client module file itself.
+        import importlib.util
+        from pathlib import Path
+        assert not (Path(__file__).resolve().parents[1] / "schwab.py").exists()
+        assert importlib.util.find_spec("routes.schwab") is None
+
+    def test_router_module_deleted(self):
+        import importlib.util
+        assert importlib.util.find_spec("routes.schwab") is None
 
 
 # ---------------------------------------------------------------------------

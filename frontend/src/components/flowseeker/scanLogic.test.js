@@ -7,8 +7,26 @@ import {
   tierOf, selectFires, pickBanner, spreadPosition, overviewStats,
   equityType, signedOtm, isOpexDay, highlightState, flagSpreadLegs,
   interpDeltaIV, skewLevels, pinRisk, quoteSkew, midDrift, stampPollDeltas, nearestExpiryPin,
-  rollSpread, pushCapped, rollPooled, contractKey,
+  rollSpread, pushCapped, rollPooled, contractKey, signedBias,
 } from "./scanLogic";
+
+describe("signedBias mirrors the server desk matrix (A2 parity)", () => {
+  // Same 5 contracts both sides: backend side_bias (public_scanner) and
+  // engine infer_side_bias (flow_alerts) must agree with this table.
+  const cases = [
+    ["call", "ASK", "BUY", "BULLISH"],
+    ["put", "ASK", "BUY", "BEARISH"],
+    ["call", "BID", "SELL", "BEARISH"],
+    ["put", "BID", "SELL", "BULLISH"],
+    ["call", null, "FLOW", null],
+  ];
+  it.each(cases)("%s + %s → %s / %s", (type, signed, side, bias) => {
+    expect(signedBias(type, signed)).toEqual({ side, bias });
+  });
+  it("unknown garbage stays unlabeled", () => {
+    expect(signedBias("call", "MAYBE")).toEqual({ side: "FLOW", bias: null });
+  });
+});
 
 describe("estimateDelta", () => {
   it("is ~±0.5 at the money", () => {
@@ -165,6 +183,21 @@ describe("evalAlerts", () => {
     const hits = evalAlerts([mk({ score: 40, premium: 12e6 })], { minScore: 85, whalePremium: 10e6 });
     expect(hits).toHaveLength(1);
     expect(hits[0].rule).toBe("WHALE");
+  });
+  it("PRIME fires in the 55-62% bracket below the SCORE bar (SNDK gap)", () => {
+    const hits = evalAlerts([mk({ score: 82, premium: 600e3, volOI: 6 })]);
+    expect(hits).toHaveLength(1);
+    expect(hits[0].rule).toBe("PRIME");
+    expect(hits[0].key).toBe("prime|SPY|call|745|2099-01-08");
+  });
+  it("PRIME stays off below the $250k / 5x floors", () => {
+    expect(evalAlerts([mk({ score: 82, premium: 100e3, volOI: 6 })])).toEqual([]);
+    expect(evalAlerts([mk({ score: 82, premium: 600e3, volOI: 2 })])).toEqual([]);
+  });
+  it("PRIME yields to SCORE and WHALE (size first)", () => {
+    expect(evalAlerts([mk({ score: 95, premium: 600e3, volOI: 6 })])[0].rule).toBe("SCORE");
+    expect(evalAlerts([mk({ score: 40, premium: 30e6, volOI: 8 })])[0].rule).toBe("WHALE");
+    expect(evalAlerts([mk({ score: 40, premium: 5e6, volOI: 8 })])[0].rule).toBe("PRIME");
   });
   it("0DTE fires on short-dated near-threshold flow", () => {
     const hits = evalAlerts([mk({ score: 72, premium: 1e5, dte: 0 })], { minScore: 85, zeroDteScore: 70 });
