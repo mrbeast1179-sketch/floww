@@ -23,6 +23,7 @@ from __future__ import annotations
 import logging
 import os
 import time
+from datetime import UTC, datetime
 from typing import Any
 
 logger = logging.getLogger(__name__)
@@ -158,6 +159,29 @@ async def post_alerts(alerts: list[dict[str, Any]]) -> int:
     return posted
 
 
+async def post_image(png: bytes | None, filename: str, content: str = "") -> bool:
+    """Post a PNG file to the webhook (multipart). False when unset/fails. Never raises."""
+    url = webhook_url()
+    if not url or not png:
+        return False
+    try:
+        import httpx
+
+        async with httpx.AsyncClient(timeout=15.0) as client:
+            resp = await client.post(
+                url,
+                data={"content": content[:1900]},
+                files={"file": (filename, png, "image/png")},
+            )
+            if resp.status_code in (200, 201, 204):
+                return True
+            logger.warning("discord image post HTTP %s", resp.status_code)
+            return False
+    except Exception as e:
+        logger.warning("discord image post failed: %s", e)
+        return False
+
+
 def parse_command(text: str) -> dict[str, Any] | None:
     """Parse `!cmd args` bot commands. Pure. Returns None when not a command."""
     if not text or not isinstance(text, str):
@@ -206,9 +230,13 @@ def parse_command(text: str) -> dict[str, Any] | None:
 
 
 HELP_TEXT = (
-    "**Tidehunter paper-trading bot** (Alpaca paper ONLY)\n"
+    "**SOLSTICE — dealer-positioning desk** (gamma/vanna exposure)\n"
+    "`!heatmap <TICKER>` — GEX ladder picture (walls, flip, King Node)\n"
+    "`!vanna <TICKER>` — VEX (vomma exposure) picture\n"
+    "`!walls <TICKER>` — call/put walls, flip, regime readout\n"
+    "Paper trading (Alpaca paper ONLY):\n"
     "`!buy <qty> <SYM> [limit <px>]` · `!sell <qty> <SYM>`\n"
-    "`!approve <alert-key> [qty]` — trade a posted alert\n"
+    "`!approve <alert-key> [qty]` — trade a posted alert (journaled)\n"
     "`!holdings` · `!orders` · `!alerts [n]` · `!help`\n"
     "Trading commands require allowlist membership."
 )
@@ -251,7 +279,59 @@ async def execute_approve(alert_key: str, qty: int | None, engine, router) -> di
             "signal_id": f"discord-approve:{alert_key}",
             "timestamp_us": int(time.time() * 1e6),
         })
+        if res.get("status") == "submitted":
+            _journal_approve_fill(alert, side, q, res)
         return {"status": res.get("status", "error"), "order": res, "alert": alert_key}
     except Exception as e:
         logger.warning("discord approve failed: %s", e)
         return {"status": "error", "reason": str(e)}
+
+
+def _journal_approve_fill(alert: dict[str, Any], side: str, qty: int, res: dict) -> None:
+    """Record an executed approve trade in the journal (fail-open).
+
+    Approve fills are EQUITY (Alpaca place_stock_order on the underlying),
+    so the seed is equity-shaped (type=equity, no strike/expiry) — never
+    mislabeled as an option contract. The journal is the position memory:
+    lifecycle tracking follows it to exit. Never raises into the trade path.
+    """
+    try:
+        from services.journal_store import get_engine, init_journal_tables, save_seeds
+
+        broker_id = res.get("client_order_id") or (res.get("broker") or {}).get("id", "")
+        # Equity legs have no strike, but strike is PK-NOT-NULL in
+        # flow_journal_trades: store the underlying reference price (or 0.0),
+        # labeled as such in notes. Uniqueness comes from the per-second
+        # entry_date, so same-day re-trades never silently vanish.
+        try:
+            ref_px = float(alert.get("under_price") or 0)
+        except (TypeError, ValueError):
+            ref_px = 0.0
+        seed = {
+            "ticker": str(alert.get("under", "")).upper(),
+            "type": "equity",
+            "action": side,
+            "strike": ref_px,
+            "expiry": "",
+            "quantity": str(qty),
+            "entry_price": None,
+            "exit_price": "",
+            # Full timestamp (not date-only): equity re-trades the same day
+            # must not PK-collide and silently vanish from position memory.
+            "entry_date": datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%S"),
+            "exit_date": "",
+            "notes": (f"Discord approve {side} {qty} shares from {alert.get('rule')} "
+                      f"{alert.get('tier')} alert ({alert.get('key')}) | "
+                      f"Alpaca paper ({broker_id}) | ref px {ref_px} (equity leg, "
+                      f"not a strike) | {alert.get('why', '')}"[:500]),
+            "gex_regime": "",
+            "setup": f"{str(alert.get('rule') or '').lower()} approve",
+            "tags": "discord,approve,equity",
+            "source": "discord-approve",
+            "key_levels": alert.get("key_levels"),
+        }
+        engine = get_engine()
+        init_journal_tables(engine)
+        save_seeds(engine, [seed])
+    except Exception as e:
+        logger.warning("discord approve journaling failed (non-fatal): %s", e)

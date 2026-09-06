@@ -70,3 +70,10 @@ itself is append-only (all agents append rows; D owns structure).
 | institutional_loop/CONTRACTS.md | SHARED | unanimous to amend |
 | institutional_loop/MASTER_PLAN.md | SHARED | unanimous to amend |
 | * | UNOWNED | allowed but printed as warning for D's sync review |
+| backend/services/heatmap_image.py | B | Solstice PNG renderer |
+| backend/services/discord_ops.py | B | Discord webhook/commands/approve |
+| backend/discord_bot.py | B | Solstice gateway process |
+| backend/routes/discord.py | B | /api/discord status+test |
+| backend/routes/alpaca.py | B | Alpaca paper routes + journal hook |
+| backend/tests/services/test_heatmap_image.py | B | renderer tests |
+| backend/tests/services/test_discord_ops.py | B | discord ops tests |

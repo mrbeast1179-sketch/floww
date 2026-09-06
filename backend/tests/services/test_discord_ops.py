@@ -152,3 +152,80 @@ class TestApprove:
                           return_value=[_alert(bias=None, side="STRATEGY")]):
             res = await ops.execute_approve("k", 1, MagicMock(), MagicMock())
         assert res["status"] == "error"
+
+
+def _mem_engine():
+    from services.duckdb_engine import DuckDBEngine
+    from services.journal_store import init_journal_tables
+    eng = DuckDBEngine(":memory:")
+    init_journal_tables(eng)
+    return eng
+
+
+class TestApproveJournals:
+    @pytest.mark.asyncio
+    async def test_approve_success_saves_equity_seed(self, monkeypatch):
+        from services import discord_ops as ops
+        from services.journal_store import read_trades
+
+        eng = _mem_engine()
+        monkeypatch.setattr("services.journal_store.get_engine", lambda: eng)
+        alert = _alert()
+        router = MagicMock()
+        router.submit_order = AsyncMock(return_value={
+            "status": "submitted", "client_order_id": "cid-1"})
+        with patch.object(ops, "fetch_recent_alerts", return_value=[alert]):
+            res = await ops.execute_approve(alert["key"], 2, MagicMock(), router)
+        assert res["status"] == "submitted"
+        trades = read_trades(eng)
+        assert len(trades) == 1
+        t = trades[0]
+        assert t["ticker"] == "SPY" and t["type"] == "equity"  # never mislabeled option
+        assert t["action"] == "buy" and t["quantity"] == "2"
+        assert "cid-1" in t["notes"] and t["source"] == "discord-approve"
+
+    @pytest.mark.asyncio
+    async def test_approve_failure_saves_nothing(self, monkeypatch):
+        from services import discord_ops as ops
+        from services.journal_store import read_trades
+
+        eng = _mem_engine()
+        monkeypatch.setattr("services.journal_store.get_engine", lambda: eng)
+        router = MagicMock()
+        router.submit_order = AsyncMock(return_value={"status": "error", "reason": "x"})
+        with patch.object(ops, "fetch_recent_alerts", return_value=[_alert()]):
+            res = await ops.execute_approve("k", 1, MagicMock(), router)
+        assert res["status"] == "error"
+        assert read_trades(eng) == []
+
+
+class TestPostImage:
+    @pytest.mark.asyncio
+    async def test_no_webhook_is_false(self, monkeypatch):
+        from services import discord_ops as ops
+        monkeypatch.delenv("DISCORD_WEBHOOK_URL", raising=False)
+        assert await ops.post_image(b"\x89PNG", "x.png") is False
+
+    @pytest.mark.asyncio
+    async def test_posts_multipart(self, monkeypatch):
+        from services import discord_ops as ops
+        monkeypatch.setenv("DISCORD_WEBHOOK_URL", "https://discord.test/hook")
+        seen = {}
+        resp = MagicMock(status_code=200)
+
+        class FakeClient:
+            async def __aenter__(self):
+                return self
+
+            async def __aexit__(self, *a):
+                return False
+
+            async def post(self, url, data=None, files=None, json=None):
+                seen.update(url=url, data=data, files=files)
+                return resp
+
+        with patch("httpx.AsyncClient", return_value=FakeClient()):
+            assert await ops.post_image(b"\x89PNGDATA", "gex-SPY.png", "hi") is True
+        assert seen["url"] == "https://discord.test/hook"
+        assert seen["files"]["file"][0] == "gex-SPY.png"
+        assert seen["files"]["file"][2] == "image/png"

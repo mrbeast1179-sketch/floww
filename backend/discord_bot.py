@@ -1,10 +1,15 @@
 """
-backend/discord_bot.py — Tidehunter Discord gateway bot (separate process).
+backend/discord_bot.py — SOLSTICE Discord gateway bot (separate process).
+
+Solstice = the dealer-positioning desk: gamma/vanna exposure, walls, flips,
+pin magnets — rendered as chart pictures on request. (A separate Tidehunter
+flow bot comes later; this process stays gamma-specialized.)
 
 Run:  cd backend && .venv/bin/python3 discord_bot.py
 Needs: DISCORD_BOT_TOKEN + Alpaca keys in env. Paper venue only.
 
-Commands (! prefix): buy / sell / holdings / orders / approve / alerts / help.
+Commands (! prefix): heatmap / vanna / walls (Solstice); buy / sell /
+holdings / orders / approve / alerts / help (paper trading).
 Trading commands (!buy/!sell/!approve) require DISCORD_ALLOWED_USER_IDS
 membership; everything else is read-only. discord.py is imported lazily so
 the FastAPI backend boots without it installed.
@@ -145,11 +150,92 @@ def _commands():
         else:
             await ctx.send(f"Approve failed: {res.get('reason', res)}")
 
+    # ---------- Solstice: gamma/vanna exposure on request ----------
+    @bot.command(name="heatmap")
+    async def heatmap_cmd(ctx, ticker: str = ""):
+        if not ticker:
+            await ctx.send("Usage: `!heatmap <TICKER>` — e.g. `!heatmap SPY`")
+            return
+        await ctx.send(f"Building {ticker.upper()} GEX ladder…")
+        try:
+            from services import heatmap_image as hi
+
+            norm = await hi.get_heatmap_data(ticker)
+            png = hi.render_gex_png(norm)
+            if not png:
+                await ctx.send(f"No exposure data for {ticker.upper()} right now.")
+                return
+            import discord as _dc
+
+            net = sum(g for _, g in norm["strikes"])
+            await ctx.send(
+                content=(f"**{ticker.upper()}** spot {norm['spot']:.2f} · "
+                         f"net {_money(net)} · regime {norm.get('regime', '?')}"),
+                file=_dc.File(__import__("io").BytesIO(png), filename=f"gex-{ticker.upper()}.png"),
+            )
+        except Exception as e:
+            await ctx.send(f"heatmap failed: {e}")
+
+    @bot.command(name="vanna")
+    async def vanna_cmd(ctx, ticker: str = ""):
+        if not ticker:
+            await ctx.send("Usage: `!vanna <TICKER>` — e.g. `!vanna QQQ`")
+            return
+        await ctx.send(f"Building {ticker.upper()} VEX ladder…")
+        try:
+            from services import heatmap_image as hi
+
+            norm = await hi.get_vex_data(ticker)
+            png = hi.render_vex_png(norm)
+            if not png:
+                await ctx.send(f"No vol-exposure data for {ticker.upper()} right now "
+                               f"(needs chain IVs).")
+                return
+            import discord as _dc
+
+            net = sum(v for _, v in norm["strikes"])
+            await ctx.send(
+                content=(f"**{ticker.upper()} VEX** net {_money(net)} "
+                         f"(dealer vomma exposure)"),
+                file=_dc.File(__import__("io").BytesIO(png), filename=f"vex-{ticker.upper()}.png"),
+            )
+        except Exception as e:
+            await ctx.send(f"vanna failed: {e}")
+
+    @bot.command(name="walls")
+    async def walls_cmd(ctx, ticker: str = ""):
+        if not ticker:
+            await ctx.send("Usage: `!walls <TICKER>` — e.g. `!walls SPY`")
+            return
+        try:
+            from services import heatmap_image as hi
+
+            norm = await hi.get_heatmap_data(ticker)
+            await ctx.send(hi.walls_text(norm) if norm else
+                           f"No wall data for {ticker.upper()} right now.")
+        except Exception as e:
+            await ctx.send(f"walls failed: {e}")
+
     @bot.event
     async def on_command_error(ctx, error):
         await ctx.send(f"Command error: {type(error).__name__}. Try `!help`.")
 
     return bot
+
+
+def _money(v) -> str:
+    try:
+        n = float(v)
+    except (TypeError, ValueError):
+        return "—"
+    a = abs(n)
+    if a >= 1e9:
+        return f"${n / 1e9:.2f}B"
+    if a >= 1e6:
+        return f"${n / 1e6:.1f}M"
+    if a >= 1e3:
+        return f"${n / 1e3:.0f}k"
+    return f"${n:.0f}"
 
 
 def main() -> int:

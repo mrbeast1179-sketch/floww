@@ -83,16 +83,52 @@ async def place_order(
     order_type: str = "market",
     limit_price: float = 0,
 ):
-    """Place a stock order."""
+    """Place a stock order (Alpaca paper). Successful fills are journaled
+    as equity seeds (fail-open) so click-to-trade lands in position memory."""
     try:
         from alpaca_client import AlpacaClient
         client = AlpacaClient()
         result = await client.place_stock_order(symbol, qty, side, order_type, limit_price)
         if result:
+            _journal_equity_fill(symbol, qty, side, order_type, limit_price, result)
             return result
         return {"error": "Order failed. Check Alpaca credentials and parameters."}
     except Exception as e:
         return {"error": str(e)}
+
+
+def _journal_equity_fill(symbol: str, qty: int, side: str,
+                         order_type: str, limit_price: float, result: dict) -> None:
+    """Journal a UI/API equity fill (fail-open, never breaks the trade)."""
+    try:
+        from datetime import UTC, datetime
+
+        from services.journal_store import get_engine, init_journal_tables, save_seeds
+
+        engine = get_engine()
+        init_journal_tables(engine)
+        save_seeds(engine, [{
+            "ticker": symbol.upper(),
+            "type": "equity",
+            "action": side.lower(),
+            # No strike on equity legs, but strike is PK-NOT-NULL: store 0.0
+            # labeled as ref-px convention (see discord_ops approve path).
+            "strike": 0.0,
+            "expiry": "",
+            "quantity": str(qty),
+            "entry_price": None,
+            "exit_price": "",
+            "entry_date": datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%S"),
+            "exit_date": "",
+            "notes": (f"API/UI {side} {qty} {symbol.upper()} "
+                      f"{order_type} (Alpaca paper id={(result or {}).get('id', '')})"[:500]),
+            "gex_regime": "",
+            "setup": "manual equity",
+            "tags": "alpaca,equity,ui-click",
+            "source": "api-alpaca",
+        }])
+    except Exception as e:
+        logger.warning("alpaca order journaling failed (non-fatal): %s", e)
 
 
 @router.delete("/position/{symbol}")

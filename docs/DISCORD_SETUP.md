@@ -1,7 +1,9 @@
-# Discord Ops Setup — Tidehunter paper trading from your server
+# Discord Ops Setup — SOLSTICE bot (gamma/vanna desk) + Alpaca paper
 
-Alert posts + `!buy/!sell/!approve/!holdings` run against **Alpaca paper only**
-(`paper-api.alpaca.markets` is hardcoded — no live-trading code path exists).
+This bot is **Solstice-specialized**: dealer positioning first — `!heatmap`,
+`!vanna`, `!walls` render GEX/VEX pictures on request — paper trading second
+(`!buy/!sell/!approve/!holdings`, Alpaca paper only, hardcoded, no live path).
+A separate Tidehunter flow bot comes later.
 
 ## 1. Create the bot (5 min, Discord side)
 
@@ -41,8 +43,18 @@ and `POST /api/discord/test` (posts a ping; both behind the API key).
 
 ## 5. Commands
 
+Solstice (works for everyone, no allowlist needed):
+`!heatmap <TICKER>` — GEX ladder picture (walls, flip, King Node)
+`!vanna <TICKER>` — VEX (vomma exposure) picture
+`!walls <TICKER>` — call/put walls, flip, regime readout
+
+Paper trading (allowlisted only):
 `!buy <qty> <SYM> [limit <px>]` · `!sell <qty> <SYM>` · `!approve <alert-key> [qty]`
 `!holdings` · `!orders` · `!alerts [n]` · `!help`
 
 Alert embeds carry the approve key: `!approve score|SPY|call|745|2099-01-08 2`
 buys 2 shares of SPY on Alpaca paper (direction from alert bias).
+Every executed trade is journaled as an **equity** seed (type=equity, ref px
+in notes — never mislabeled as an option contract) so position memory and
+the lifecycle tracker follow it to exit. Same for UI/API trades via
+`POST /api/alpaca/order` (source tags: `discord-approve` / `api-alpaca`).
