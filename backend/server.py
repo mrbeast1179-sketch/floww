@@ -2500,6 +2500,19 @@ async def _public_sweep_loop():
         rth_s, off_s, sl, mx = 45.0, 600.0, 8, 2
     log.info("public sweep loop started (rth=%ss offh=%ss slice=%d expiries=%d)",
              rth_s, off_s, sl, mx)
+    # U1 provenance: every future sweep/alert mystery resolves to a process.
+    # PID + tree sha are logged once here (fail-open; never blocks startup).
+    try:
+        import pathlib
+        import subprocess
+
+        _root = str(pathlib.Path(__file__).resolve().parent.parent)
+        _sha = subprocess.run(
+            ["git", "-C", _root, "rev-parse", "--short", "HEAD"],
+            capture_output=True, text=True, timeout=5).stdout.strip() or "unknown"
+    except Exception:
+        _sha = "unknown"
+    log.info("public sweep identity: pid=%d tree=%s", os.getpid(), _sha)
     cadence = rth_s
     first_tick = True
     while not _shutdown_event.is_set():

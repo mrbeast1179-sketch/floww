@@ -935,8 +935,9 @@ async def _run_institutional_alerts(
         fresh = await loop.run_in_executor(None, _duck_pass)
         if fresh:
             logger.info(
-                "institutional alerts: %d fired (%s)",
+                "institutional alerts: %d fired (%s) [pid=%d]",
                 len(fresh), ",".join(sorted({a["under"] for a in fresh})),
+                os.getpid(),
             )
             # Discord webhook fan-out (fail-open, never breaks the scan path;
             # no-op when DISCORD_WEBHOOK_URL is unset; tier/rule-gated).
