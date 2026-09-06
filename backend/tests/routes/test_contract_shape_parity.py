@@ -56,7 +56,7 @@ def test_base_rows_gain_additive_keys():
     assert len(rows) == 2
     for row in rows:
         # every prior key retained ...
-        assert PRIOR_BASE_KEYS <= set(row.keys()), sorted(row.keys())
+        assert set(row.keys()) >= PRIOR_BASE_KEYS, sorted(row.keys())
         # ... plus additive parity keys
         for key in ("last", "open_interest", "midpoint", "osi"):
             assert key in row, sorted(row.keys())
