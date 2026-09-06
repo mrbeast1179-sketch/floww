@@ -23,7 +23,7 @@ import logging
 import math
 import os
 import time
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from services.public_api import PublicBroker
@@ -100,6 +100,124 @@ def _matching_quote(quotes: list, symbol: str):
 def _normalize_symbol(symbol: str) -> str:
     """Map user-facing tickers to Public.com instrument symbols."""
     return symbol.upper().replace("^", "")
+
+
+# ---------------------------------------------------------------------------
+# Spot validation (weekend stale-spot incident, 2026-09-06).
+#
+# Public's equity book can freeze pre-session with a rotten NBBO (AFRM
+# bid 74.41/ask 89.0, SPY 747.35/773.93 crossed) while the option legs stay
+# current. Trusting mid_price unconditionally printed fiction for every
+# Public-served ticker (AFRM 81.705 vs true 72.35). A quote is trusted only
+# when its book is sane AND its timestamp is at/after the last US close;
+# otherwise spot falls back to the yfinance daily close (correct all
+# weekend) and the source is tagged. Exchange holidays are not modeled —
+# worst case there is a same-as-yfinance number, never a crossed mid.
+# ---------------------------------------------------------------------------
+
+_SPOT_MAX_REL_SPREAD = 0.01  # NBBO wider than 1% is not a reference price
+
+
+def _fnum(v) -> float | None:
+    try:
+        f = float(v)
+    except (TypeError, ValueError):
+        return None
+    if math.isnan(f) or math.isinf(f):
+        return None
+    return f
+
+
+def _quote_ts_utc(q) -> datetime | None:
+    ts = getattr(q, "timestamp", None)
+    if not isinstance(ts, str) or not ts:
+        return None
+    try:
+        dt = datetime.fromisoformat(ts.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=UTC)
+    return dt.astimezone(UTC)
+
+
+def _last_us_close_utc(now: datetime | None = None) -> datetime:
+    """Most recent 16:00 America/New_York close, as UTC (weekends walk back)."""
+    from zoneinfo import ZoneInfo
+    et = ZoneInfo("America/New_York")
+    cur = now if now is not None else datetime.now(UTC)
+    if cur.tzinfo is None:
+        cur = cur.replace(tzinfo=UTC)
+    et_now = cur.astimezone(et)
+    day = et_now.date()
+    if (et_now.hour, et_now.minute) < (16, 0):
+        day -= timedelta(days=1)  # today's session hasn't closed yet
+    while day.weekday() >= 5:  # Sat/Sun -> walk back to Friday
+        day -= timedelta(days=1)
+    close_et = datetime(day.year, day.month, day.day, 16, 0, tzinfo=et)
+    return close_et.astimezone(UTC)
+
+
+def _public_quote_spot(q, now: datetime | None = None) -> tuple[float | None, str]:
+    """Trusted Public mid/last, or (None, reason).
+
+    Reasons: crossed-book | wide-book | stale-quote | no-price.
+    Unassessable books/timestamps keep legacy trust (existing callers/mocks).
+    """
+    bid = _fnum(getattr(q, "bid", None))
+    ask = _fnum(getattr(q, "ask", None))
+    if bid is not None and ask is not None and bid > 0 and ask > 0:
+        if bid > ask:
+            return None, "crossed-book"
+        if (ask - bid) / ((ask + bid) / 2) > _SPOT_MAX_REL_SPREAD:
+            return None, "wide-book"
+    ts = _quote_ts_utc(q)
+    if ts is not None and ts < _last_us_close_utc(now):
+        return None, "stale-quote"
+    mid = _fnum(getattr(q, "mid_price", None))
+    if mid is not None and mid > 0:
+        return mid, "public-mid"
+    last = _fnum(getattr(q, "last", None))
+    if last is not None and last > 0:
+        return last, "public-last"
+    return None, "no-price"
+
+
+def _yfinance_spot(symbol: str) -> float | None:
+    """Daily-close spot (correct all weekend). Sync — call via to_thread."""
+    try:
+        import yfinance as yf
+        h = yf.Ticker(symbol.upper().replace("^", "")).history(period="5d")
+        if h is None or len(h) == 0:
+            return None
+        return float(h["Close"].iloc[-1])
+    except Exception as e:
+        log.warning("yfinance spot fallback fail for %s: %s", symbol, e)
+        return None
+
+
+async def _resolve_spot(pb, symbol: str, account_id: str,
+                        now: datetime | None = None) -> tuple[float, str]:
+    """Validated spot + source tag. Never raises; (0.0, 'none') if all fail."""
+    try:
+        quotes = await pb.get_quotes([symbol], account_id)
+        q = _matching_quote(quotes, symbol)
+        if q is not None:
+            price, reason = _public_quote_spot(q, now=now)
+            if price is not None:
+                return price, reason
+            log.warning("Public API spot rejected for %s (%s) — yfinance fallback",
+                        symbol, reason)
+    except Exception as e:
+        _note_public_429(e)
+        log.warning("Public API quote fail for %s: %s", symbol, e)
+    try:
+        yf_spot = await asyncio.to_thread(_yfinance_spot, symbol)
+        if yf_spot:
+            return yf_spot, "yfinance-fallback"
+    except Exception as e:
+        log.warning("yfinance spot fallback fail for %s: %s", symbol, e)
+    return 0.0, "none"
 
 
 # ---------------------------------------------------------------------------
@@ -243,15 +361,10 @@ async def _fetch_chain_live(
         log.warning("Public API returned no expirations for %s", ticker)
         return None
 
-    # 2. Get spot quote
+    # 2. Get spot quote (validated: rotten NBBO / pre-session books fall
+    # back to the yfinance close instead of printing a fiction mid).
     try:
-        quotes = await pb.get_quotes([symbol], account_id)
-        q = _matching_quote(quotes, symbol)
-        spot = q.mid_price if q is not None else None
-        if spot is None:
-            spot = q.last if q is not None else None
-        if spot is None:
-            spot = 0.0
+        spot, spot_source = await _resolve_spot(pb, symbol, account_id)
     except Exception as e:
         _note_public_429(e)
         log.warning("Public API quote fail for %s: %s", ticker, e)
@@ -314,6 +427,7 @@ async def _fetch_chain_live(
     return {
         "ticker": ticker.upper(),
         "spot": float(spot),
+        "spot_source": spot_source,
         "expiries": exp_dates,
         "contracts": contracts,
         "data_source": "public_api",
@@ -334,16 +448,11 @@ async def fetch_spot_from_public_api(
 
     symbol = _normalize_symbol(ticker)
     try:
-        quotes = await pb.get_quotes([symbol], trading.account_id)
-        q = _matching_quote(quotes, symbol)
-        if q is not None:
-            return q.mid_price if q.mid_price is not None else (q.last or 0.0)
-        log.warning("Public API quote symbol mismatch for %s — refusing substitution",
-                    ticker)
+        spot, _source = await _resolve_spot(pb, symbol, trading.account_id)
+        return spot if spot else None
     except Exception as e:
         log.warning("Public API spot fail for %s: %s", ticker, e)
         return None
-    return None
 
 
 # ---------------------------------------------------------------------------

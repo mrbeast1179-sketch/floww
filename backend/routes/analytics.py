@@ -391,7 +391,7 @@ async def contract(
                 "ask": c.get("ask", 0) or 0,
                 "gex": gex,
             })
-        return _sanitize({"ticker": ticker.strip().upper(), "spot": spot, "rows": rows, "count": len(rows)})
+        return _sanitize({"ticker": ticker.strip().upper(), "spot": spot, "rows": rows, "count": len(rows), "spot_source": raw.get("spot_source")})
     except HTTPException:
         raise
     except Exception as e:
@@ -480,6 +480,7 @@ async def contract_strike(
             "strike": strike,
             "expiry": expiry,
             "spot": raw.get("spot"),
+            "spot_source": raw.get("spot_source"),
             "contracts": contracts,
             "count": len(contracts),
         })
