@@ -342,3 +342,20 @@ class TestCloseRouteJournal:
         res = await route_mod.close_position(symbol="SPY")
         assert res["message"] == "Position SPY closed"
         assert "journal_closed" not in res
+
+
+class TestFeedUnavailable:
+    @pytest.mark.asyncio
+    async def test_none_feed_says_unavailable(self, monkeypatch):
+        from services import discord_ops as ops
+
+        eng = _mem_engine()
+        monkeypatch.setattr("services.journal_store.get_engine", lambda: eng)
+        router = MagicMock()
+        router.submit_order = AsyncMock()
+        with patch.object(ops, "fetch_recent_alerts", return_value=None):
+            res = await ops.execute_approve("any-key", 1, MagicMock(), router)
+        assert res["status"] == "error"
+        assert "unavailable" in res["reason"].lower()
+        assert res["alert"] == "any-key"
+        router.submit_order.assert_not_called()

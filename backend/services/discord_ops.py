@@ -365,6 +365,13 @@ async def execute_approve(alert_key: str, qty: int | None, engine, router) -> di
     """
     try:
         rows = fetch_recent_alerts(engine, limit=50)
+        if rows is None:
+            # Feed itself failed (vs answered-empty): say unavailable,
+            # never "alert not found". Forward-compatible with the
+            # alerts-honesty contract ([] still means zero rows).
+            return {"status": "error",
+                    "reason": "alert feed unavailable — try !alerts later",
+                    "alert": alert_key}
         alert = next((a for a in rows if a.get("key") == alert_key), None)
         if alert is None:
             return {"status": "error", "reason": f"alert not found: {alert_key}"}
