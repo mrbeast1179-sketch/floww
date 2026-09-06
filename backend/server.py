@@ -1027,6 +1027,33 @@ async def _build_heatmap_impl(ticker: str, max_expiries: int = 4, with_taps: boo
         except Exception as e:
             log.error(f"fetch_spot_and_chains_merged failed for {ticker}: {e}")
             raise HTTPException(404, f"No options data for {ticker}") from e
+
+    # Enrich sparse chains from cvserver when Public API returned too few strikes.
+    # Public API often serves only a handful of strikes for individual stocks;
+    # cvserver has 171 strikes × 32 expiries and is already wired as failover#2
+    # in fetch_spot_and_chains_merged. A sparse Public result means we want to
+    # retry with cvserver as the primary so the desk sees a full chain.
+    unique_strikes = len({c.get("strike") for c in raw.get("contracts", [])})
+    SPARSE_STRIKE_THRESHOLD = 30
+    if unique_strikes < SPARSE_STRIKE_THRESHOLD and ticker.upper() not in ("^SPX", "^NDX", "^RUT", "^VIX"):
+        from services.cvserver_client import CVSERVER_API_KEY, fetch_chain_for_heatmap
+        if CVSERVER_API_KEY and raw.get("spot", 0) > 0:
+            log.info(f"build_heatmap: Public chain sparse ({unique_strikes} strikes for {ticker}) — trying cvserver enrichment")
+            try:
+                cv_heat = await asyncio.wait_for(
+                    fetch_chain_for_heatmap(ticker, raw["spot"], max_strikes),
+                    timeout=15.0,
+                )
+                if cv_heat and cv_heat.get("contracts") and len(cv_heat["contracts"]) > unique_strikes:
+                    raw = {
+                        "spot": cv_heat["spot"],
+                        "contracts": cv_heat["contracts"],
+                        "expiries": cv_heat["expiries"],
+                        "data_source": "cvserver",
+                    }
+                    log.info(f"build_heatmap: cvserver enrichment for {ticker} — {len(raw['contracts'])} contracts, {len({c['strike'] for c in raw['contracts']})} unique strikes")
+            except Exception as e:
+                log.debug(f"build_heatmap: cvserver enrichment failed for {ticker}: {e}")
     spot = raw["spot"]
     if not spot or spot != spot or not raw["contracts"]:  # spot != spot catches NaN
         raise HTTPException(404, f"No options data for {ticker}")

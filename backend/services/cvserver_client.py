@@ -542,9 +542,15 @@ async def fetch_chain_for_heatmap(
 
     cv_symbol = _SYMBOL_MAP.get(symbol.upper(), symbol.upper())
 
-    # Filter: near-ATM strikes (within 20% of spot) with OI > 0
-    lo_strike = spot * 0.8
-    hi_strike = spot * 1.2
+    # Instead of a fixed ±20% window, compute the band that matches the
+    # heatmap's downstream filter (server.py:_build_heatmap_impl). That filter
+    # now uses 35% (day), 45% (swing), 55% (low-priced) — use 45% as a safe
+    # floor so the cvserver screen returns enough strikes for the band filter
+    # to have something to trim. The max_strikes*4 cap + downstream band
+    # filter keep high-priced symbols bounded.
+    band_pct = 0.45
+    lo_strike = spot * (1.0 - band_pct)
+    hi_strike = spot * (1.0 + band_pct)
 
     columns = ["strike_price", "expiration_date", "contract_type",
                "implied_volatility", "open_interest", "underlying_price"]
