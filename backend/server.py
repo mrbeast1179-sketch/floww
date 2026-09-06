@@ -1735,6 +1735,30 @@ async def _snapshot_chains():
             batch = contracts_to_recordbatch(raw)
             n = bulk_insert(conn, batch)
             log.info(f"chain snapshot {t}: {n} rows")
+            # Exposure alerts (VEX walls / charm pins vs last grid snapshot).
+            # Ported pattern from floww-2 gsd/010 (their repo untouched):
+            # scheduled coverage for the big three regardless of heatmap
+            # views (the HTTP heatmap route covers viewed tickers). Fail-open.
+            try:
+                from services import exposure_alerts as _ea
+                from services import flow_alerts as _fa
+                from services.duckdb_engine import db as _duckdb
+
+                grid = compute_gex_grid(raw.get("spot") or 0,
+                                        raw.get("contracts") or [], t)
+                _fa.init_flow_alert_tables(_duckdb)
+                events = _ea.evaluate_ticker(
+                    t,
+                    {"vex_grid": grid.get("vex_grid") or {},
+                     "charm_grid": grid.get("charm_grid") or {}},
+                    float(raw.get("spot") or 0))
+                if events:
+                    kept = _fa.dedup_filter(_duckdb, events)
+                    if kept:
+                        _fa.persist_alerts(_duckdb, kept)
+                        log.info(f"exposure alerts {t}: {len(kept)} events")
+            except Exception as e:
+                log.warning(f"exposure alert eval {t}: {e}")
         except Exception as e:
             log.warning(f"chain snapshot {t}: {e}")
 
