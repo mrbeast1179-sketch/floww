@@ -194,6 +194,25 @@ class OrderRouter:
                 reason = f"{type(e).__name__}: {reason}"
             return {"status": "error", "reason": reason}
 
+    async def fetch_venue_order(self, venue_order_id: str) -> dict | None:
+        """Refetch one venue order by its Alpaca ID (fill reconciliation).
+
+        Returns the order dict, or None when the broker lacks the read
+        path or the fetch fails. Never raises into the trade path.
+        """
+        if not venue_order_id:
+            return None
+        try:
+            broker = self._broker_or_default()
+            get = getattr(broker, "get_order", None)
+            if not callable(get):
+                return None
+            out = await get(venue_order_id)  # type: ignore[misc]
+            return out if isinstance(out, dict) else None
+        except Exception as e:
+            logger.warning(f"Venue order refetch failed: {e}")
+            return None
+
     async def get_positions_from_alpaca(self) -> dict[str, int]:
         """Fetch positions from Alpaca paper."""
         try:

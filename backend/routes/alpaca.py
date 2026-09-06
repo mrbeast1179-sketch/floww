@@ -205,16 +205,55 @@ def _journal_option_fill(symbol: str, qty: int, side: str, result: dict) -> None
 
 @router.delete("/position/{symbol}")
 async def close_position(symbol: str):
-    """Close a position."""
+    """Close a position.
+
+    On a confirmed venue close, open journal cards for the symbol get
+    their exits stamped (fail-open) so !journal/!pnl review the full
+    loop. The exit price is the latest venue bar close — never invented.
+    """
     try:
         from alpaca_client import AlpacaClient
         client = AlpacaClient()
         result = await client.close_position(symbol)
         if result:
+            closed = await _journal_closeout(symbol, client)
+            if closed:
+                result["journal_closed"] = closed
             return result
         return {"error": "Failed to close position"}
     except Exception as e:
         return {"error": str(e)}
+
+
+async def _journal_closeout(symbol: str, client) -> int:
+    """Stamp exits on open journal cards for a closed symbol.
+
+    Returns count closed, 0 when no reference price or nothing open.
+    Fail-open: never raises into the close path.
+    """
+    try:
+        from datetime import UTC, datetime
+
+        from services.journal_store import close_open_by_symbol, get_engine, init_journal_tables
+
+        bars = await client.get_bars(symbol, timeframe="1Day", limit=1)
+        px = None
+        if bars:
+            try:
+                px = float(bars[-1].get("c"))
+            except (TypeError, ValueError, AttributeError):
+                px = None
+        if not px:
+            logger.warning("alpaca close journaling skipped for %s: no reference price", symbol)
+            return 0
+        engine = get_engine()
+        init_journal_tables(engine)
+        return int(close_open_by_symbol(
+            engine, symbol, exit_price=px,
+            exit_date=datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%S")))
+    except Exception as e:
+        logger.warning("alpaca close journaling failed (non-fatal): %s", e)
+        return 0
 
 
 @router.get("/status")

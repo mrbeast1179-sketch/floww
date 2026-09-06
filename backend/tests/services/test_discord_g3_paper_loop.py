@@ -253,3 +253,89 @@ class TestU3OptionReadiness:
                 side_effect=AssertionError("must not POST"))) as post:
             assert await c.place_option_order("SPY", 1, "buy") is None
         assert post.call_count == 0
+
+
+class TestReconcile:
+    @pytest.mark.asyncio
+    async def test_filled_reconcile_attached(self, monkeypatch):
+        from services import discord_ops as ops
+        from services.journal_store import read_trades
+        from services.order_router import OrderRouter
+
+        eng = _mem_engine()
+        monkeypatch.setattr("services.journal_store.get_engine", lambda: eng)
+        router = OrderRouter("paper", broker=_accepting_broker())
+        with patch.object(ops, "fetch_recent_alerts",
+                          return_value=[_alert()]):
+            res = await ops.execute_approve(
+                "score|SPY|call|745|2099-01-08", 1, MagicMock(), router)
+        assert res["status"] == "submitted"
+        assert res["reconciliation"]["venue_status"] == "filled"
+        notes = read_trades(eng)[0]["notes"]
+        assert "not a confirmed fill" in notes
+        assert "venue reports filled" in notes
+
+    @pytest.mark.asyncio
+    async def test_reconcile_unknown_without_broker_read(self, monkeypatch):
+        import types
+
+        from services import discord_ops as ops
+        from services.order_router import OrderRouter
+
+        eng = _mem_engine()
+        monkeypatch.setattr("services.journal_store.get_engine", lambda: eng)
+        broker = types.SimpleNamespace(
+            place_stock_order=AsyncMock(
+                return_value={"id": "x1", "status": "accepted"}),
+            get_positions=AsyncMock(return_value=[]))
+        router = OrderRouter("paper", broker=broker)
+        with patch.object(ops, "fetch_recent_alerts",
+                          return_value=[_alert()]):
+            res = await ops.execute_approve(
+                "score|SPY|call|745|2099-01-08", 1, MagicMock(), router)
+        assert res["status"] == "submitted"
+        assert res["reconciliation"]["venue_status"] == "unknown"
+
+
+class TestCloseRouteJournal:
+    @pytest.mark.asyncio
+    async def test_close_stamps_open_exit(self, monkeypatch):
+        import routes.alpaca as route_mod
+        from services.duckdb_engine import DuckDBEngine
+        from services.journal_store import init_journal_tables, read_trades, save_seeds
+
+        eng = DuckDBEngine(":memory:")
+        init_journal_tables(eng)
+        save_seeds(eng, [{
+            "ticker": "SPY", "type": "equity", "action": "buy",
+            "strike": 750.0, "expiry": "", "quantity": "1",
+            "entry_price": 749.0, "exit_price": "",
+            "entry_date": "2026-09-06T10:00:00", "exit_date": "",
+            "notes": "seed", "source": "discord-approve"}])
+        monkeypatch.setattr("services.journal_store.get_engine", lambda: eng)
+
+        fake_client = AsyncMock()
+        fake_client.close_position = AsyncMock(
+            return_value={"message": "Position SPY closed", "source": "alpaca"})
+        fake_client.get_bars = AsyncMock(return_value=[{"c": 751.5}])
+        monkeypatch.setattr("alpaca_client.AlpacaClient", lambda: fake_client)
+
+        res = await route_mod.close_position(symbol="SPY")
+        assert res["message"] == "Position SPY closed"
+        assert res.get("journal_closed") == 1
+        open_rows = [t for t in read_trades(eng) if not t.get("exit_date")]
+        assert open_rows == []
+
+    @pytest.mark.asyncio
+    async def test_close_without_price_still_closes(self, monkeypatch):
+        import routes.alpaca as route_mod
+
+        fake_client = AsyncMock()
+        fake_client.close_position = AsyncMock(
+            return_value={"message": "Position SPY closed", "source": "alpaca"})
+        fake_client.get_bars = AsyncMock(return_value=None)
+        monkeypatch.setattr("alpaca_client.AlpacaClient", lambda: fake_client)
+
+        res = await route_mod.close_position(symbol="SPY")
+        assert res["message"] == "Position SPY closed"
+        assert "journal_closed" not in res
