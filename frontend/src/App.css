@@ -3675,6 +3675,8 @@ button, select, input {
 }
 .trin-row { height: 23px; }
 .trin-row:hover td { filter: brightness(1.15); cursor: pointer; }
+.trin-row-interpolated td { opacity: 0.45; }
+.trin-row-interpolated:hover td { opacity: 0.7; }
 .trin-strike-cell {
   position: sticky;
   left: 0;
@@ -3686,6 +3688,10 @@ button, select, input {
   color: #cbd5e1;
   border-bottom: 1px solid rgba(13, 17, 23, 0.9);
   white-space: nowrap;
+}
+.trin-strike-interpolated {
+  font-style: italic;
+  color: #6b7280;
 }
 .trin-spot-chip {
   position: relative;

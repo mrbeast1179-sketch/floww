@@ -13,7 +13,11 @@ import math
 import os
 import time
 from collections import deque
-from datetime import UTC, datetime, timedelta
+from datetime import datetime, timedelta, timezone as _timezone
+try:
+    from datetime import UTC  # type: ignore[attr-defined]
+except ImportError:
+    UTC = _timezone.utc
 from pathlib import Path
 from typing import Any
 
@@ -940,6 +944,61 @@ async def build_heatmap(ticker: str, max_expiries: int = 4, with_taps: bool = Tr
                 "error": str(e)}
 
 
+def _fill_strike_gaps(raw: dict[str, Any], spot: float, gap_threshold: float = 2.50, max_strikes_before: int = 60) -> dict[str, Any] | None:
+    """Insert interpolated strikes for gaps > gap_threshold in sparse chains.
+
+    Only fills gaps when the chain has fewer than ``max_strikes_before`` unique
+    strikes — rich chains (SPY/QQQ with 100+ strikes) don't need fabrication.
+    Interpolated strikes carry no OI/volume/IV — their GEX will be computed as 0
+    by ``compute_gex_by_strike``, which is correct (no real market activity).
+    They are tagged with ``interpolated=True`` so the frontend can style them
+    differently (dashed border / lighter color) to signal estimation.
+    """
+    contracts = raw.get("contracts") or []
+    if not contracts:
+        return None
+    unique = sorted({c.get("strike") or 0 for c in contracts if (c.get("strike") or 0) > 0})
+    if len(unique) >= max_strikes_before or len(unique) < 2:
+        return None
+    # Check if any gap exceeds threshold
+    max_gap = max((unique[i+1] - unique[i]) for i in range(len(unique) - 1)) if len(unique) > 1 else 0
+    if max_gap <= gap_threshold:
+        return None
+    # Build a lookup of existing strikes
+    existing = {c.get("strike") for c in contracts}
+    new_contracts = list(contracts)
+    inserted = 0
+    for i in range(len(unique) - 1):
+        lo, hi = unique[i], unique[i + 1]
+        gap = hi - lo
+        if gap > gap_threshold:
+            # Insert evenly-spaced strikes in the gap
+            n_fill = max(1, int(gap / gap_threshold))
+            for j in range(1, n_fill):
+                strike = round((lo + gap * j / n_fill) * 2) / 2  # round to nearest $0.50
+                if strike in existing or strike <= 0:
+                    continue
+                existing.add(strike)
+                new_contracts.append({
+                    "strike": strike,
+                    "type": "none",
+                    "expiry": raw.get("expiries", ["2026-09-18"])[0] if raw.get("expiries") else "2026-09-18",
+                    "oi": 0,
+                    "volume": 0,
+                    "iv": 0,
+                    "gamma": 0,
+                    "interpolated": True,
+                })
+                inserted += 1
+    if inserted == 0:
+        return None
+    raw = dict(raw)
+    raw["contracts"] = new_contracts
+    raw["_original_contracts"] = contracts
+    raw["_interpolated_strikes"] = sorted(existing - {c.get("strike") for c in contracts})
+    return raw
+
+
 async def _build_heatmap_impl(ticker: str, max_expiries: int = 4, with_taps: bool = True, mode: str = "day", dte: int | None = None, scalp: bool = False, max_strikes: int = 200) -> dict[str, Any]:
     log.info(f"build_heatmap: {ticker} expiries={max_expiries} mode={mode} max_strikes={max_strikes}")
     # Check cache first
@@ -1028,6 +1087,27 @@ async def _build_heatmap_impl(ticker: str, max_expiries: int = 4, with_taps: boo
             log.error(f"fetch_spot_and_chains_merged failed for {ticker}: {e}")
             raise HTTPException(404, f"No options data for {ticker}") from e
 
+    # For non-index tickers, if the chain is sparse (< 40 unique strikes), try
+    # fetching more expiries from Public API to get a deeper chain. Public API
+    # often returns only a few strikes per expiry for low-volume names like VSAT;
+    # more expiries = more unique strikes without hitting cvserver rate limits.
+    if max_expiries < 8 and ticker.upper() not in ("^SPX", "^NDX", "^RUT", "^VIX") and raw is not None:
+        unique_after = len({c.get("strike") for c in raw.get("contracts", [])})
+        if unique_after < 40 and raw.get("spot", 0) > 0:
+            log.info(f"build_heatmap: sparse chain ({unique_after} strikes) — re-fetching with 8 expiries")
+            try:
+                deeper = await asyncio.wait_for(
+                    fetch_spot_and_chains_merged(ticker, max_expiries=8),
+                    timeout=30.0,
+                )
+                if deeper and deeper.get("contracts") and deeper.get("spot", 0) > 0:
+                    deeper_unique = len({c.get("strike") for c in deeper["contracts"]})
+                    if deeper_unique > unique_after:
+                        raw = deeper
+                        log.info(f"build_heatmap: deepened chain for {ticker} — {deeper_unique} unique strikes (was {unique_after})")
+            except Exception as e:
+                log.debug(f"build_heatmap: deeper fetch failed for {ticker}: {e}")
+
     # Enrich sparse chains from cvserver when Public API returned too few strikes.
     # Public API often serves only a handful of strikes for individual stocks;
     # cvserver has up to 171 strikes × 32 expiries. Use the full chain path
@@ -1079,7 +1159,15 @@ async def _build_heatmap_impl(ticker: str, max_expiries: int = 4, with_taps: boo
         raw["contracts"] = [c for c in raw["contracts"] if (c.get("strike") or 0) in kept_strikes]
         raw["expiries"] = sorted({c["expiry"] for c in raw["contracts"]})
 
-    # Scalp mode: force 0DTE only, tight band, volume-weighted
+    # Fill gaps in thin chains with interpolated strikes so the heatmap
+    # looks continuous for low-volume names (VSAT, etc.). Only interpolate
+    # when gaps > $2.50 and we have fewer than 60 unique strikes — rich
+    # chains (SPY, QQQ) don't need it and we don't want to fabricate data
+    # where the market is actually liquid.
+    interpolated = _fill_strike_gaps(raw, spot, gap_threshold=2.50, max_strikes_before=60)
+    if interpolated and interpolated is not raw:
+        raw = interpolated
+        log.info(f"build_heatmap: filled {len(raw['contracts']) - len(raw.get('_original_contracts', raw['contracts']))} interpolated strikes for {ticker}")
     if scalp:
         dte = 0
         mode = "scalp"
@@ -1233,6 +1321,8 @@ async def _build_heatmap_impl(ticker: str, max_expiries: int = 4, with_taps: boo
         "hedge_impulse": hedge_impulse,
         "pressure_cloud": pressure_cloud,
         "charm_integral": charm_integral,
+        # Interpolated strikes for thin chains (frontend renders as dashed rows)
+        "interpolated_strikes": raw.get("_interpolated_strikes", []),
     }
 
     _t = asyncio.create_task(_logged_task(save_snapshot(ticker, payload), f"save_snapshot:{ticker}"))

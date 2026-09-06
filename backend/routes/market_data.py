@@ -15,7 +15,7 @@ import asyncio
 from datetime import UTC, datetime
 from typing import Any
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query, Request
 
 router = APIRouter()
 
@@ -93,6 +93,71 @@ async def list_tickers():
         "default": DEFAULT_TICKERS,
         "popular": POPULAR_UNIVERSE,
     }
+
+
+@router.get("/tickers/all", response_model=None)
+async def list_all_tickers(
+    limit: int = Query(2000, ge=100, le=10000),
+    page: int = Query(1, ge=1, le=1000),
+    refresh: bool = Query(False),
+):
+    """Full exchange-listed equity universe from Finnhub.
+
+    Returns alphabetically sorted ticker symbols on XNAS/XNYS/ARCX/BATS/IEXG
+    (Common Stock, ETP, REIT, Closed-End Fund, Unit). OTC/pink-sheet names are
+    dropped so the frontend ticker bar only surfaces tradable names.
+
+    The list is cached in memory for 30 minutes to avoid hammering Finnhub on
+    every page load; set ``?refresh=true`` to force a fresh fetch.
+    """
+    from server import _TICKER_CACHE, _TICKER_CACHE_TS, CACHE_TTL_S
+    import time as _time
+
+    now_s = _time.time()
+    if not refresh and _TICKER_CACHE_TS and (now_s - _TICKER_CACHE_TS) < CACHE_TTL_S:
+        all_syms = _TICKER_CACHE
+    else:
+        from services.finnhub_client import FinnhubClient
+        client = FinnhubClient()
+        all_syms = client.symbols_us_equities() or []
+        _TICKER_CACHE = all_syms
+        _TICKER_CACHE_TS = now_s
+
+    total = len(all_syms)
+    start = (page - 1) * limit
+    page_syms = all_syms[start: start + limit]
+    _now_dt = datetime.now(tz=UTC) if UTC is not None else datetime.utcnow()
+    return {
+        "tickers": page_syms,
+        "total": total,
+        "page": page,
+        "limit": limit,
+        "has_more": start + limit < total,
+        "cached": not refresh and _TICKER_CACHE_TS is not None,
+        "cached_age_s": round(now_s - _TICKER_CACHE_TS, 1) if _TICKER_CACHE_TS else None,
+        "asof": _now_dt.isoformat(),
+    }
+
+
+# lazy query-string helper for the refresh flag above (imported here to avoid
+# circular issues with fastapi.Request at module level).
+try:
+    from fastapi import Request as _Req
+except Exception:
+    _Req = None
+
+
+def _parse_tickers_all_query(req: Any | None = None) -> dict[str, Any]:
+    """Extract query params for /tickers/all from a FastAPI Request or empty."""
+    out: dict[str, Any] = {"refresh": False}
+    if req is not None:
+        qs = getattr(req, "query_params", None)
+        if qs is not None:
+            try:
+                out["refresh"] = qs.get("refresh", "") == "1"
+            except Exception:
+                pass
+    return out
 
 
 @router.get("/heatmap/{ticker}")

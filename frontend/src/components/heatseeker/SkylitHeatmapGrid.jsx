@@ -201,8 +201,9 @@ function SkylitHeatmapGrid({
             {shownStrikes.map((strike) => {
               const isSpot = strike === spotStrike;
               const sk = strikeKey(strike);
+              const isInterpolated = data?.interpolated_strikes?.includes(strike);
               return (
-                <tr key={strike} className="trin-row">
+                <tr key={strike} className={"trin-row" + (isInterpolated ? " trin-row-interpolated" : "")}>
                   <td
                     className="trin-strike-cell"
                     onClick={() => onStrikeClick && onStrikeClick(strike)}
@@ -210,7 +211,7 @@ function SkylitHeatmapGrid({
                     {isSpot ? (
                       <span className="trin-spot-chip">{fmtStrike(strike)}</span>
                     ) : (
-                      <span className="trin-strike">{fmtStrike(strike)}</span>
+                      <span className={"trin-strike" + (isInterpolated ? " trin-strike-interpolated" : "")}>{fmtStrike(strike)}</span>
                     )}
                   </td>
                   {expiries.map((e) => {
