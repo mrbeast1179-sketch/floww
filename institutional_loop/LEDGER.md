@@ -136,3 +136,9 @@ Agent D owns this file. APPEND-ONLY protocol: agents append timestamped rows/sec
 ### G1 paper prerequisite probe — 2026-09-06T04:35:46Z
 - MEASURED, read-only HTTPS to paper-api.alpaca.markets: /v2/clock 200, timestamp 2026-09-06T00:35:46.273367451-04:00, is_open=false, next_open=2026-09-08T09:30:00-04:00; /v2/account 200 ACTIVE, trading_blocked=false, account_blocked=false, options_approved_level=3; /v2/orders?status=open&limit=10 200, returned_order_count=0. Credentials stayed in memory and were not printed.
 - This proves paper API read access and reported options level, NOT option-order acceptance, Discord command transport, fills, lifecycle, or realized P&L. No POST/DELETE was made.
+
+### G1 restart handoff — 2026-09-06T04:54:36.455849+00:00
+- LANDED: `8f948e7` on origin/phase9/agent2-flowseeker (gateway truth: NL via normal dispatch, honest orders/clock/status; 107 passed incl. 36 new gateway tests, ruff clean). Verified on origin branch; main merge is G4-owned (origin/main diverged, shared checkout dirty).
+- ROOT CAUSE of one-way Discord (measured, read-only): webhook guild 1064310508947255387 vs bot guild 1180641806459879545; bot GET on alert channel 403 code 50001. No code fixes this — Nav invite/webhook move required (RESTART §0/N1).
+- RESTART PLAN: institutional_loop/DISCORD_RESTART_PLAN.md v2 (gates not hours; OFFLINE/CONFIG/WITNESSED proof levels; 4 paste-ready prompts in §6; Nav checklist N1–N5). Original G1–G4 briefs unchanged; deltas live in the restart plan.
+- RED until witnessed: GATE-0 transport, GATE-1 reads, GATE-2 paper loop, U6 non-admin !help round-trip. Paper CONFIG reads only (clock/account/open-orders); zero POST/DELETE made.
