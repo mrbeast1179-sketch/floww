@@ -17,7 +17,7 @@ the FastAPI backend boots without it installed.
 from __future__ import annotations
 
 import collections
-import contextlib
+import copy
 import logging
 import os
 import re
@@ -41,7 +41,7 @@ log = logging.getLogger("discord_bot")
 _COOLDOWNS: dict[tuple[str, str], float] = {}
 _COOLDOWN_S = {"heatmap": 20.0, "vanna": 20.0, "walls": 5.0}
 _AUDIT: collections.deque = collections.deque(maxlen=200)
-_NL_READ = re.compile(r"^([A-Za-z][A-Za-z0-9.\-]{0,9})\s+(heatmap|hm|walls|w|vanna|v|gex)$",
+_NL_READ = re.compile(r"^([A-Za-z][A-Za-z0-9.\-]{0,9})\s+(heatmap|hm|walls|w|vanna|v|gex|flip)$",
                       re.IGNORECASE)
 
 
@@ -123,6 +123,9 @@ def _commands():
                 return
 
             pos = await client.get_positions()
+            if pos is None:
+                await ctx.send("Paper holdings unavailable — positions unknown.")
+                return
             if not pos:
                 await ctx.send("No open paper positions.")
                 return
@@ -141,15 +144,30 @@ def _commands():
             if not client.enabled:
                 await ctx.send("Alpaca paper keys not configured.")
                 return
-            orders = await client.get_orders(status="open", limit=10) or []
-            closed = await client.get_orders(status="closed", limit=5) or []
-            lines = [f"{o.get('symbol')} {o.get('side')} {o.get('qty')} "
-                     f"{o.get('status')} ({o.get('type')})" for o in orders]
-            if closed:
-                lines.append("— recent fills —")
-                lines += [f"{o.get('symbol')} {o.get('side')} {o.get('filled_qty', o.get('qty'))} "
-                          f"filled@{o.get('filled_avg_price', '?')}" for o in closed[:5]]
-            await ctx.send("**Orders (paper)**\n" + ("\n".join(lines) if lines else "none open."))
+            orders = await client.get_orders(status="open", limit=10)
+            closed = await client.get_orders(status="closed", limit=5)
+
+            def order_line(o):
+                return (f"`{o.get('id') or '?'}` {o.get('symbol')} {o.get('side')} "
+                        f"{o.get('qty')} {o.get('status') or '?'} ({o.get('type')}) · "
+                        f"filled {o.get('filled_qty') if o.get('filled_qty') is not None else '?'} "
+                        f"@ {o.get('filled_avg_price') if o.get('filled_avg_price') is not None else '?'}")
+
+            lines = (["Open orders unavailable — state unknown."] if orders is None
+                     else [order_line(o) for o in orders] or ["none open."])
+            if closed is None:
+                lines.append("Recent closed orders unavailable — state unknown.")
+            elif closed:
+                lines.append("— recent closed orders —")
+                lines += [order_line(o) for o in closed[:5]]
+            header = "**Orders (paper)** · `!cancel <order-id>` for open orders\n"
+            chunk = header
+            for line in lines or ["none open."]:
+                if len(chunk) + len(line) + 1 > 2000:
+                    await ctx.send(chunk.rstrip())
+                    chunk = header
+                chunk += line + "\n"
+            await ctx.send(chunk.rstrip())
         except Exception as e:
             await ctx.send(f"orders failed: {e}")
 
@@ -421,8 +439,11 @@ def _commands():
         try:
             from alpaca_client import AlpacaClient
 
-            clk = await AlpacaClient().get_clock() or {}
-            state = "OPEN" if clk.get("is_open") else "CLOSED"
+            clk = await AlpacaClient().get_clock()
+            if not isinstance(clk, dict) or not isinstance(clk.get("is_open"), bool):
+                await ctx.send("Market clock unavailable — session state unknown.")
+                return
+            state = "OPEN" if clk["is_open"] else "CLOSED"
             await ctx.send(f"Market **{state}** · next open {clk.get('next_open', '?')} · next close {clk.get('next_close', '?')}")
         except Exception as e:
             await ctx.send(f"clock failed: {e}")
@@ -437,7 +458,7 @@ def _commands():
                 from alpaca_client import AlpacaClient
 
                 c = AlpacaClient()
-                acct_note = "Alpaca paper connected" if c.enabled else "Alpaca paper keys missing"
+                acct_note = "Alpaca paper keys configured (connectivity unverified)" if c.enabled else "Alpaca paper keys missing"
             except Exception:
                 pass
             b = _budget.status()
@@ -461,49 +482,28 @@ def _commands():
 
     @bot.event
     async def on_message(message):
-        # Natural-language reads (no prefix needed, read-only only — trading
-        # NEVER triggers without `!`): "spy walls" -> walls readout.
-        try:
-            me = getattr(bot, "user", None)
-            if getattr(message, "author", None) == me or (me and message.author.id == me.id):
-                return
-            text = str(getattr(message, "content", "") or "").strip()
-            if not text or text.startswith("!"):
-                await bot.process_commands(message)
-                return
-            m = _NL_READ.match(text)
-            if m:
-                ticker, word = m.group(1).upper(), m.group(2).lower()
-                cmd = {"hm": "heatmap", "w": "walls", "v": "vanna", "gex": "heatmap"}.get(word, word)
-                _audit(getattr(message.author, "id", "?"), f"{cmd} {ticker} (nl)")
-                await message.channel.send(f"_{cmd} {ticker} — on it…_")
-                await _run_solstice_read(message, cmd, ticker)
-                return
-            await bot.process_commands(message)
-        except Exception:
-            with contextlib.suppress(Exception):
-                await bot.process_commands(message)
-
-    async def _run_solstice_read(message, cmd: str, ticker: str):
-        import discord as _dc
-
-        from services import heatmap_image as hi
-
-        if cmd == "walls":
-            norm = await hi.get_heatmap_data(ticker)
-            await message.channel.send(hi.walls_text(norm) if norm else f"No wall data for {ticker}.")
+        author = getattr(message, "author", None)
+        if (author is None or getattr(author, "bot", False)
+                or getattr(message, "webhook_id", None) is not None
+                or author == bot.user):
             return
-        if cmd == "heatmap":
-            norm = await hi.get_heatmap_data(ticker)
-            png = hi.render_gex_png(norm)
-        else:
-            norm = await hi.get_vex_data(ticker)
-            png = hi.render_vex_png(norm)
-        if not png:
-            await message.channel.send(f"No data for {ticker} right now.")
-            return
-        await message.channel.send(file=_dc.File(__import__("io").BytesIO(png),
-                                                 filename=f"{cmd}-{ticker}.png"))
+        text = str(getattr(message, "content", "") or "").strip()
+        m = _NL_READ.fullmatch(text)
+        command_text = None
+        if m:
+            ticker, word = m.group(1).upper(), m.group(2).lower()
+            cmd = {"hm": "heatmap", "w": "walls", "v": "vanna",
+                   "gex": "heatmap", "flip": "walls"}.get(word, word)
+            command_text = f"{cmd} {ticker}"
+        elif text.lower() in {"status", "clock"}:
+            command_text = text.lower()
+        if command_text:
+            _audit(getattr(author, "id", "?"), f"{command_text} (nl)")
+            # Preserve the original event and use the normal parser, checks,
+            # invocation hooks, callbacks, cooldowns, and error dispatch.
+            message = copy.copy(message)
+            message.content = f"!{command_text}"
+        await bot.process_commands(message)
 
     @bot.event
     async def on_command_error(ctx, error):
