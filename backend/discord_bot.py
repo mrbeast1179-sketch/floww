@@ -20,9 +20,10 @@ import collections
 import copy
 import logging
 import os
-import re
 import sys
 import time as _time
+
+from services import discord_harness as _harness
 
 try:
     from dotenv import load_dotenv
@@ -38,36 +39,22 @@ log = logging.getLogger("discord_bot")
 # Prompt harness: per-user cooldowns on heavy commands (heatmap builds hit
 # paid chains — 20s/user keeps one enthusiastic thumb inside budget) and an
 # audit ring so allowlisted users can see who ran what.
-_COOLDOWNS: dict[tuple[str, str], float] = {}
-_COOLDOWN_S = {"heatmap": 20.0, "vanna": 20.0, "walls": 5.0}
-_AUDIT: collections.deque = collections.deque(maxlen=200)
-_NL_READ = re.compile(r"^([A-Za-z][A-Za-z0-9.\-]{0,9})\s+(heatmap|hm|walls|w|vanna|v|gex|flip)$",
-                      re.IGNORECASE)
+_COOLDOWNS: dict[tuple[str, str], float] = _harness.new_cooldowns()
+_COOLDOWN_S = dict(_harness.COOLDOWN_S)
+_AUDIT: collections.deque = _harness.new_audit_ring()
+_NL_READ = _harness.NL_READ
 
 
 def _cool_ok(user_id, cmd: str) -> tuple[bool, float]:
-    wait = _COOLDOWN_S.get(cmd, 0)
-    if not wait:
-        return True, 0.0
-    now = _time.monotonic()
-    key = (str(user_id), cmd)
-    last = _COOLDOWNS.get(key, 0.0)
-    if now - last < wait:
-        return False, wait - (now - last)
-    _COOLDOWNS[key] = now
-    return True, 0.0
+    return _harness.cool_check(_COOLDOWNS, _COOLDOWN_S, user_id, cmd, _time.monotonic())
 
 
 def _audit(user_id, cmd: str) -> None:
-    _AUDIT.append({"t": _time.time(), "user": str(user_id), "cmd": cmd})
+    _harness.audit_append(_AUDIT, user_id, cmd, _time.time())
 
 
 def usage_counts() -> dict:
-    counts: dict[str, int] = {}
-    for r in _AUDIT:
-        base = str(r["cmd"]).split()[0].lower()
-        counts[base] = counts.get(base, 0) + 1
-    return counts
+    return _harness.audit_counts(_AUDIT)
 
 
 def _commands():
@@ -497,15 +484,11 @@ def _commands():
                 or author == bot.user):
             return
         text = str(getattr(message, "content", "") or "").strip()
-        m = _NL_READ.fullmatch(text)
+        parsed = _harness.parse_nl(text)
         command_text = None
-        if m:
-            ticker, word = m.group(1).upper(), m.group(2).lower()
-            cmd = {"hm": "heatmap", "w": "walls", "v": "vanna",
-                   "gex": "heatmap", "flip": "walls"}.get(word, word)
-            command_text = f"{cmd} {ticker}"
-        elif text.lower() in {"status", "clock"}:
-            command_text = text.lower()
+        if parsed:
+            cmd, ticker = parsed
+            command_text = f"{cmd} {ticker}" if ticker else cmd
         if command_text:
             _audit(getattr(author, "id", "?"), f"{command_text} (nl)")
             # Preserve the original event and use the normal parser, checks,
@@ -516,15 +499,13 @@ def _commands():
 
     @bot.event
     async def on_command_error(ctx, error):
-        import difflib
-
         from discord.ext import commands as _cmds
 
         if isinstance(error, _cmds.CommandNotFound):
             typed = str(getattr(ctx, "invoked_with", "") or "")
             known = [c.name for c in bot.commands] + ["pos", "h", "a", "hm", "w", "v", "j", "p", "x"]
-            guess = difflib.get_close_matches(typed, known, n=1, cutoff=0.6)
-            hint = f" Did you mean `!{guess[0]}`?" if guess else ""
+            guess = _harness.fuzzy_hint(typed, known)
+            hint = f" Did you mean `!{guess}`?" if guess else ""
             await ctx.send(f"Unknown command `!{typed}`.{hint} Try `!help`.")
             return
         await ctx.send(f"Command error: {type(error).__name__}. Try `!help`.")
