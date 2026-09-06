@@ -54,3 +54,13 @@ async def test_help_ops_cooldowns_match_table(live_bot):
     out = "\n".join(sent)
     for cmd, secs in gateway._COOLDOWN_S.items():
         assert cmd in out and f"{int(secs)}s" in out
+
+
+@pytest.mark.asyncio
+async def test_message_content_intent_required_for_nl(live_bot):
+    assert live_bot.intents.message_content is True
+
+
+def test_main_refuses_without_token(monkeypatch):
+    monkeypatch.delenv("DISCORD_BOT_TOKEN", raising=False)
+    assert gateway.main() == 2
