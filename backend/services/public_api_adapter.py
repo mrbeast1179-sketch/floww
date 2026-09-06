@@ -174,7 +174,12 @@ def _public_quote_spot(q, now: datetime | None = None) -> tuple[float | None, st
     ts = _quote_ts_utc(q)
     if ts is not None and ts < _last_us_close_utc(now):
         return None, "stale-quote"
-    mid = _fnum(getattr(q, "mid_price", None))
+    raw_mid = getattr(q, "mid_price", None)
+    mid = _fnum(raw_mid)
+    if raw_mid is not None and (mid is None or mid <= 0):
+        # Explicit zero/non-numeric mid = honest no-quote: report 0.0 so
+        # downstream fails over, never substitute `last` (pinned contract).
+        return 0.0, "zero-mid"
     if mid is not None and mid > 0:
         return mid, "public-mid"
     last = _fnum(getattr(q, "last", None))
@@ -197,8 +202,13 @@ def _yfinance_spot(symbol: str) -> float | None:
 
 
 async def _resolve_spot(pb, symbol: str, account_id: str,
-                        now: datetime | None = None) -> tuple[float, str]:
-    """Validated spot + source tag. Never raises; (0.0, 'none') if all fail."""
+                        now: datetime | None = None) -> tuple[float | None, str]:
+    """Validated spot + source tag. Never raises.
+
+    Returns (None, 'symbol-mismatch') to fail closed on wrong-symbol
+    substitution (P2 contract); (0.0, reason) when there is honestly no
+    price so downstream fails over to the next provider.
+    """
     try:
         quotes = await pb.get_quotes([symbol], account_id)
         q = _matching_quote(quotes, symbol)
@@ -208,6 +218,12 @@ async def _resolve_spot(pb, symbol: str, account_id: str,
                 return price, reason
             log.warning("Public API spot rejected for %s (%s) — yfinance fallback",
                         symbol, reason)
+        elif quotes:
+            # Wrong symbol answered: fail CLOSED (P2 contract) — no fallback
+            # may label another instrument's price with our ticker.
+            log.warning("Public API quote symbol mismatch for %s — refusing substitution",
+                        symbol)
+            return None, "symbol-mismatch"
     except Exception as e:
         _note_public_429(e)
         log.warning("Public API quote fail for %s: %s", symbol, e)
@@ -426,7 +442,7 @@ async def _fetch_chain_live(
 
     return {
         "ticker": ticker.upper(),
-        "spot": float(spot),
+        "spot": float(spot or 0.0),
         "spot_source": spot_source,
         "expiries": exp_dates,
         "contracts": contracts,
@@ -449,7 +465,7 @@ async def fetch_spot_from_public_api(
     symbol = _normalize_symbol(ticker)
     try:
         spot, _source = await _resolve_spot(pb, symbol, trading.account_id)
-        return spot if spot else None
+        return spot
     except Exception as e:
         log.warning("Public API spot fail for %s: %s", ticker, e)
         return None
