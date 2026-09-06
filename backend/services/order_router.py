@@ -187,7 +187,12 @@ class OrderRouter:
 
         except Exception as e:
             logger.error(f"Order submission failed: {e}")
-            return {"status": "error", "reason": str(e)}
+            reason = str(e).strip()
+            if not reason or reason == str(type(e)):
+                reason = type(e).__name__
+            else:
+                reason = f"{type(e).__name__}: {reason}"
+            return {"status": "error", "reason": reason}
 
     async def get_positions_from_alpaca(self) -> dict[str, int]:
         """Fetch positions from Alpaca paper."""

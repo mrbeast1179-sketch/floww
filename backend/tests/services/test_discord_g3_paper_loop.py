@@ -117,3 +117,139 @@ class TestPaperTransportPins:
                           new=AsyncMock(return_value={"id": "a1"})) as g:
             assert (await c.get_order("a1"))["id"] == "a1"
         assert "a1" in g.call_args.args[0]
+
+
+def _client_like():
+    from alpaca_client import AlpacaClient
+    c = AlpacaClient.__new__(AlpacaClient)
+    c._api_key = "K"
+    c._secret_key = "S"
+    return c
+
+
+class TestHonestFailures:
+    """G3.3: every failure mode gets a test + an honest message."""
+
+    def test_classify_403_names_approval(self):
+        from alpaca_client import classify_alpaca_http
+        v = classify_alpaca_http(403, "options trading not approved")
+        assert v["ok"] is False
+        assert "approval" in v["reason"].lower()
+
+    def test_classify_401_names_keys(self):
+        from alpaca_client import classify_alpaca_http
+        assert classify_alpaca_http(401)["ok"] is False
+        assert "key" in classify_alpaca_http(401)["reason"].lower()
+
+    def test_classify_422_echoes_body(self):
+        from alpaca_client import classify_alpaca_http
+        v = classify_alpaca_http(422, "qty must be positive")
+        assert v["ok"] is False and "qty must be positive" in v["reason"]
+
+    def test_classify_429_names_backoff(self):
+        from alpaca_client import classify_alpaca_http
+        v = classify_alpaca_http(429, "")
+        assert v["ok"] is False and "back" in v["reason"].lower()
+
+    def test_classify_207_partial_ok(self):
+        from alpaca_client import classify_alpaca_http
+        v = classify_alpaca_http(207, "")
+        assert v["ok"] is True and v["partial"] is True
+
+    def test_classify_200_ok(self):
+        from alpaca_client import classify_alpaca_http
+        v = classify_alpaca_http(200, "")
+        assert v["ok"] is True and v["partial"] is False
+
+    @pytest.mark.asyncio
+    async def test_router_timeout_is_named_error(self):
+        from services.order_router import OrderRouter
+        broker = MagicMock()
+        broker.place_stock_order = AsyncMock(side_effect=TimeoutError())
+        router = OrderRouter("paper", broker=broker)
+        res = await router.submit_order({
+            "ticker": "SPY", "side": "buy", "qty": 1,
+            "order_type": "limit", "limit_price": 700.0,
+            "signal_id": "sig-timeout", "timestamp_us": 3000000})
+        assert res["status"] == "error"
+        assert "TimeoutError" in res["reason"], res
+
+    @pytest.mark.asyncio
+    async def test_router_207_partial_preserved(self):
+        from services.order_router import OrderRouter
+        broker = MagicMock()
+        broker.place_stock_order = AsyncMock(
+            return_value={"id": "p1", "status": "partially_filled"})
+        router = OrderRouter("paper", broker=broker)
+        res = await router.submit_order({
+            "ticker": "SPY", "side": "buy", "qty": 2,
+            "order_type": "limit", "limit_price": 700.0,
+            "signal_id": "sig-207", "timestamp_us": 4000000})
+        assert res["status"] == "submitted"
+        assert res["broker"]["status"] == "partially_filled"
+
+
+class TestBracketLegs:
+    @pytest.mark.asyncio
+    async def test_legs_live_verified(self):
+        from alpaca_client import AlpacaClient
+        c = AlpacaClient.__new__(AlpacaClient)
+        c._api_key = "K"
+        c._secret_key = "S"
+        order = {"id": "b1", "status": "held",
+                 "legs": [{"id": "l1", "status": "accepted", "side": "sell", "qty": "5"},
+                          {"id": "l2", "status": "accepted", "side": "sell", "qty": "5"}]}
+        with patch.object(AlpacaClient, "_get", new=AsyncMock(return_value=order)):
+            v = await c.verify_bracket_legs("b1")
+        assert v["verified"] is True and len(v["legs"]) == 2
+
+    @pytest.mark.asyncio
+    async def test_missing_leg_fails_honest(self):
+        from alpaca_client import AlpacaClient
+        c = AlpacaClient.__new__(AlpacaClient)
+        c._api_key = "K"
+        c._secret_key = "S"
+        order = {"id": "b2", "status": "held",
+                 "legs": [{"id": "l1", "status": "rejected", "side": "sell", "qty": "5"}]}
+        with patch.object(AlpacaClient, "_get", new=AsyncMock(return_value=order)):
+            v = await c.verify_bracket_legs("b2")
+        assert v["verified"] is False
+        assert "rejected" in v["reason"].lower()
+
+    @pytest.mark.asyncio
+    async def test_no_order_found(self):
+        from alpaca_client import AlpacaClient
+        c = AlpacaClient.__new__(AlpacaClient)
+        c._api_key = "K"
+        c._secret_key = "S"
+        with patch.object(AlpacaClient, "_get", new=AsyncMock(return_value=None)):
+            v = await c.verify_bracket_legs("nope")
+        assert v["verified"] is False
+
+
+class TestU3OptionReadiness:
+    @pytest.mark.asyncio
+    async def test_option_payload_shape_paper(self):
+        """U3 dry run: a valid 1-contract OCC builds the right paper payload.
+
+        No POST to the venue here (mocked); the witnessed attempt with Nav
+        uses this exact shape. Expiry 2026-09-04+, strike 760 exist per book.
+        """
+        from alpaca_client import AlpacaClient
+        c = _client_like()
+        with patch.object(AlpacaClient, "_post", new=AsyncMock(
+                return_value={"id": "o1", "status": "accepted"})) as post:
+            res = await c.place_option_order("SPY260904C00760000", 1, "buy", "limit", 2.5)
+        assert res and res["status"] == "accepted"
+        sent = post.call_args.args[1]
+        assert sent["symbol"] == "SPY260904C00760000"
+        assert sent["qty"] == "1" and sent["limit_price"] == "2.5"
+
+    @pytest.mark.asyncio
+    async def test_bad_occ_never_reaches_venue(self):
+        from alpaca_client import AlpacaClient
+        c = _client_like()
+        with patch.object(AlpacaClient, "_post", new=AsyncMock(
+                side_effect=AssertionError("must not POST"))) as post:
+            assert await c.place_option_order("SPY", 1, "buy") is None
+        assert post.call_count == 0
