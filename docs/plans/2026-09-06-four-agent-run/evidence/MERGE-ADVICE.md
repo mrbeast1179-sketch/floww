@@ -1,8 +1,8 @@
 # Merge-advice note — agent-2 backend final posture — 2026-09-07
 
-Branch: `astra/f0-honesty-backend`, base `5b9d9a9`, head `d63d0b3`
-(merge of `origin/main`; local == remote, verified). Clean working tree.
-14 commits ahead of `main`.
+Branch: `astra/f0-honesty-backend`, base `5b9d9a9`, head `f880971`
+(rebased on `origin/main e68bdb5`; local == remote, verified). Clean working tree.
+14 commits ahead of `origin/main` point `e68bdb5`.
 
 ## What this lane authored and pushed
 
