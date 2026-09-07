@@ -12,10 +12,11 @@ Fallback strategy:
 from __future__ import annotations
 
 import asyncio
+import contextlib
 from datetime import UTC, datetime
 from typing import Any
 
-from fastapi import APIRouter, HTTPException, Query, Request
+from fastapi import APIRouter, HTTPException, Query
 
 router = APIRouter()
 
@@ -110,8 +111,9 @@ async def list_all_tickers(
     The list is cached in memory for 30 minutes to avoid hammering Finnhub on
     every page load; set ``?refresh=true`` to force a fresh fetch.
     """
-    from server import _TICKER_CACHE, _TICKER_CACHE_TS, CACHE_TTL_S
     import time as _time
+
+    from server import _TICKER_CACHE, _TICKER_CACHE_TS, CACHE_TTL_S
 
     now_s = _time.time()
     if not refresh and _TICKER_CACHE_TS and (now_s - _TICKER_CACHE_TS) < CACHE_TTL_S:
@@ -153,10 +155,8 @@ def _parse_tickers_all_query(req: Any | None = None) -> dict[str, Any]:
     if req is not None:
         qs = getattr(req, "query_params", None)
         if qs is not None:
-            try:
+            with contextlib.suppress(Exception):
                 out["refresh"] = qs.get("refresh", "") == "1"
-            except Exception:
-                pass
     return out
 
 
