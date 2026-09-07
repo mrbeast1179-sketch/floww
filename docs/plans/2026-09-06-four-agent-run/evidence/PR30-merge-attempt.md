@@ -14,23 +14,20 @@ Gate files vs original PR30 commit: byte-identical (confirmed via git show diff)
 CI on PR head (377dfa5) before merge:
 - ruff: success
 - frontend-build: success
-- backend-tests: success (completed during wait)
+- backend-tests: success
 
 CI on main after merge (e68bdb5):
 - ruff: success
 - frontend-build: success
-- backend-tests: success (or in progress at final write time)
+- backend-tests: success
 - deploy-frontend: skipped
 - deploy-backend: skipped
 
 Merge method: `gh pr merge 30 --merge` (first attempt timed out on stale
 backend-tests CI state; retry completed successfully).
 
-Notes:
-- PR30 gate files were verified identical to 06b7502 before push.
-- PR30 was updated to include PR29/PR31 merged product (TradeEntry, flow_alerts,
-  conviction wiring) so main-merge would not revert those merges.
-- No agent-4 mutation of gate files themselves.
-- PR30 merged to main; no rework needed.
+Outcome: MERGED to main. Gate files unchanged from 06b7502, byte-identical
+verified. PR29/PR31 product (TradeEntry, flow_alerts, conviction wiring)
+preserved in main path.
 
-Outcome: MERGED. No further agent-4 action on PR30.
+No further agent-4 action on PR30.

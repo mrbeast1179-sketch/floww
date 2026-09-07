@@ -6,7 +6,9 @@ Read-only audit of canonical repo `/Users/nav/Documents/GitHub/floww`; no branch
 
 GitHub `branches/main` and local `origin/main` both resolve to `5b9d9a96a29951e548e883d108a806b93c2d11a9` (merge PR #25). Local `main` is older: `efca38f4116ef57f330df3af670d53cce1e21fb3`, behind origin/main by 5 commits, checked out in `floww-worktrees/tidehunter`. Canonical checkout is G1, not main.
 
-All six PRs below have the same base SHA `5b9d9a96a29951e548e883d108a806b93c2d11a9`. Their fresh GitHub check-runs report backend-tests=success, frontend-build=success, ruff=success, docker-build=skipped. None is merged. A non-null `merge_commit_sha` in these records is not evidence of landing; `merged=false`/`merged_at=null` and main history are decisive.
+All six PRs below were initially against the same base SHA `5b9d9a96a29951e548e883d108a806b93c2d11a9`. Initial GitHub check-runs reported backend-tests=success, frontend-build=success, ruff=success, docker-build=skipped. Subsequent merge status changed for #29, #30, #31; see the September 7 addendum.
+
+Initial state (September 6 snapshot):
 
 | PR | Branch | Exact head | State | Actual PR files | Recovery interpretation |
 | --- | --- | --- | --- | --- | --- |
@@ -14,7 +16,7 @@ All six PRs below have the same base SHA `5b9d9a96a29951e548e883d108a806b93c2d11
 | [27](https://github.com/mrbeast1179-sketch/floww/pull/27) | astra/x1-tradeentry-journal | `a66845e67047449deb6e742859f4d442cc04b3dc` | closed unmerged 11:27:27Z | 15 | superseded; 11 unrelated G1/ledger files |
 | [28](https://github.com/mrbeast1179-sketch/floww/pull/28) | astra/d7-clean | `18b10b5601ef0bc0dd27a083d66f2d8ad164665a` | open; mergeable=true, clean | 2, +166/-45 | clean D7 candidate, not landed |
 | [29](https://github.com/mrbeast1179-sketch/floww/pull/29) | astra/x1-clean | `568de16a3d2da32c218660e1007ad89b2d97228f` | open; mergeable=true, clean | 4, +301/-1 | clean X1 candidate, not landed |
-| [30](https://github.com/mrbeast1179-sketch/floww/pull/30) | astra/p1-clean | `06b75020dddb7b6ecc1d9c220b9fffac6fc0575b` | open; mergeable=true, clean | 2, +104/-0 | scanner+fixture candidate; CI use is separate acceptance |
+|| [30](https://github.com/mrbeast1179-sketch/floww/pull/30) | astra/p1-clean → merged to main | `06b75020dddb7b6ecc1d9c220b9fffac6fc0575b` → `e68bdb512a4a56bed3bcbcb8081f975d8c5cddf9` | merged 2026-09-07T18:42:13Z | 2 (+PR29/PR31) | MERGED to main. Gate files byte-identical to original; CI green: ruff, backend-tests, frontend-build. Audit: evidence/PR30-merge-attempt.md |
 | [31](https://github.com/mrbeast1179-sketch/floww/pull/31) | astra/a3-clean | `f7f7103b2744a7a052c66a917a7a7d4662a3c310` | open; mergeable=true, clean | 2, +222/-2 | scorer API+tests; live caller explicitly still missing |
 
 Clean file sets, freshly checked through PR `/files` and git diff:

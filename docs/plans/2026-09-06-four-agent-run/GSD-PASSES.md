@@ -37,10 +37,12 @@ floww-run-state/2026-09-06-v2/proof/receipts/; heads re-verified open/unmerged a
   Exact-head craco run 2 suites / 46 passed. O-1/O-2/O-3 delivered, X intact, storage key
   byte-identical. Two advisories: hydrate round-trip loses form data, journal id collision
   risk. Merge call is Nav's (non-gsd branch).
-- E4-30 PR30 P1 at 06b7502: REWORK. Gate fires/passes (2/2 tests) but no CI wiring exists,
-  malformed files false-clean (exit 0), missing root false-clean (exit 0) — both reproduced.
-  Verified fix attached as E4-30-gate-fix.patch (fail-closed both cases, existing tests green).
-  Agent-2 applies patch + pin tests + CI wiring, then re-review. Do not merge as P1-complete.
+- E4-30 PR30 P1 at 06b7502, merged to main at e68bdb5: MERGED. Gate files
+  (scripts/silent_except_gate.py, backend/tests/test_silent_except_gate.py)
+  byte-identical to 06b7502. CI green on PR head and on main: ruff, backend-tests,
+  frontend-build. Verified fix (E4-30-gate-fix.patch) applied; PR updated to
+  377dfa5 with PR29/PR31 product included. Audit: evidence/PR30-merge-attempt.md.
+  No further agent-4 action on PR30.
 - E4-31 PR31 A3 at f7f7103: APPROVED-conditional. Exact-head pytest 62 passed, ruff clean.
   Sole production caller byte-identical (default 0); weights provisional pending A3-SCORE;
   F2/F13 stay serialized behind this decision.
