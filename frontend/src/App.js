@@ -134,7 +134,7 @@ function TickerSearch({ tickers, value, onChange }) {
   const ref = useRef();
   const universe = useMemo(() => buildTickerUniverse(tickers), [tickers]);
   const filtered = useMemo(() => {
-    if (!q) return universe;
+    if (!q) return universe.slice(0, 12);
     const ql = q.toLowerCase();
     return universe.filter(t => t.toLowerCase().includes(ql)).slice(0, 12);
   }, [universe, q]);
@@ -553,7 +553,7 @@ export default function App() {
           trinity: basicRes.data?.trinity || [],
           default: basicRes.data?.default || [],
           popular: Array.isArray(popularExpanded)
-            ? [...new Set([...popularExpanded])]
+            ? ((seen) => popularExpanded.filter((t) => !seen.has(t) && seen.add(t)))(new Set())
             : basicRes.data?.popular || [],
         };
         setTickers(combined);
