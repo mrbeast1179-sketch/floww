@@ -521,20 +521,17 @@ export default function App() {
   const debouncedExpiries = useDebounce(expiries, 300);
   const debouncedDte = useDebounce(dte, 300);
 
-  // Fetch tickers + full market universe
+  // Fetch tickers — trinity + default + popular. The ticker bar renders
+  // every ticker the API returns as a scrollable list.
   useEffect(() => {
     let mounted = true;
     (async () => {
       try {
-        const [tr, univ] = await Promise.all([
-          axios.get(`${API}/tickers`),
-          axios.get(`${API}/tickers/all?limit=12000`),
-        ]);
+        const res = await axios.get(`${API}/tickers`);
         if (!mounted) return;
-        setTickers(tr.data);
-        setUniverse(univ.data?.tickers || []);
+        setTickers(res.data);
       } catch (e) {
-        console.warn("[App] ticker/universe fetch failed:", e);
+        console.warn("[App] ticker fetch failed:", e);
       }
     })();
     return () => { mounted = false; };
@@ -547,10 +544,6 @@ export default function App() {
     return () => window.removeEventListener("floww:focus-ticker", onFocusTicker);
   }, []);
 
-  const [loading, setLoading] = useState(false);
-  const [universe, setUniverse] = useState([]);
-
-  // Fetch heatmap data
   const fetchData = useCallback(async () => {
     setLoading(true);
     try {
@@ -680,23 +673,28 @@ export default function App() {
         case "h": setViewMode("charm"); break;
         case "ArrowUp":
           e.preventDefault();
-          (universe.length > 0 ? universe : null)?.length > 0 &&
-            setTicker(prev => {
-              const list = universe;
-              const idx = list.indexOf(prev);
-              return idx > 0 ? list[idx - 1] : list[list.length - 1];
-            });
+          if (tickers) {
+            const all = [...(tickers.trinity || []), ...(tickers.default || []), ...(tickers.popular || [])];
+            if (all.length > 0) {
+              setTicker(prev => {
+                const idx = all.indexOf(prev);
+                return idx > 0 ? all[idx - 1] : all[all.length - 1];
+              });
+            }
+          }
           break;
         case "ArrowDown":
           e.preventDefault();
-          (universe.length > 0 ? universe : null)?.length > 0 &&
-            setTicker(prev => {
-              const list = universe;
-              const idx = list.indexOf(prev);
-              return idx < list.length - 1 ? list[idx + 1] : list[0];
-            });
+          if (tickers) {
+            const all = [...(tickers.trinity || []), ...(tickers.default || []), ...(tickers.popular || [])];
+            if (all.length > 0) {
+              setTicker(prev => {
+                const idx = all.indexOf(prev);
+                return idx < all.length - 1 ? all[idx + 1] : all[0];
+              });
+            }
+          }
           break;
-        default: break;
       }
     };
     window.addEventListener("keydown", handler);

@@ -2,14 +2,9 @@ import React, { memo, useState } from "react";
 
 /**
  * SkylitTickerBar — Top ticker tape with quick-select buttons + free-text
- * search. Receives the full market universe from App.js (fetched via
- * /api/tickers/all) and renders all available tickers as a scrollable list.
- * Matches Zenith reference: scrollable row of ticker buttons.
- *
- * Renders the full universe (up to ~11k tickers) inside a scrollable row so
- * every market symbol is one click away. Search is the fast path for deep
- * cuts; the scrollable bar is the browse path. No caps — the browser handles
- * virtualization natively for a single row of buttons.
+ * search. Receives `tickers` from App.js (fetched via /api/tickers) and
+ * renders EVERY available ticker (trinity + default + popular = all 80) as
+ * a scrollable row of buttons. Search is the fast path for deep cuts.
  */
 const DEFAULT_TICKERS = [
   "SPY", "QQQ", "IWM", "DIA", "AAPL", "NVDA", "TSLA", "META",
@@ -29,12 +24,29 @@ function SkylitTickerBar({
   onTickerChange,
   tickers = null,
   allCount = 703,
-  universe = null,
 }) {
-  // Use the full universe when provided; fall back to popular/default/hardcoded.
-  const tickerList = universe && universe.length > 0
-    ? universe
-    : (tickers?.popular || tickers?.default || DEFAULT_TICKERS);
+  // Combine every ticker set the API returns into one scrollable list.
+  // trinity (^SPX, SPY, QQQ) + default (17) + popular (75) = 80 unique.
+  const tickerList = (() => {
+    const seen = new Set();
+    const out = [];
+    const push = (arr) => {
+      if (!arr) return;
+      for (const t of arr) {
+        const k = t.toUpperCase();
+        if (!seen.has(k)) { seen.add(k); out.push(k); }
+      }
+    };
+    push(tickers?.trinity);
+    push(tickers?.default);
+    push(tickers?.popular);
+    if (out.length === 0) {
+      // Final fallback: hardcoded defaults when API hasn't loaded yet.
+      for (const t of DEFAULT_TICKERS) { if (!seen.has(t)) { seen.add(t); out.push(t); } }
+    }
+    return out;
+  })();
+
   const totalCount = tickerList.length || 0;
   const [query, setQuery] = useState("");
 
@@ -51,7 +63,7 @@ function SkylitTickerBar({
       <div className="skylit-ticker-scroll">
         <div className="skylit-ticker-inner">
           <span className="skylit-ticker-count">
-            Market {totalCount.toLocaleString()} tickers
+            {totalCount.toLocaleString()} tickers
           </span>
           <span className="skylit-ticker-sep">|</span>
           <input

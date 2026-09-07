@@ -29,13 +29,9 @@ function SkylitControlBar({
   onExpand,
   // Optional ticker cycling for the prev/next arrows (2026-09-03).
   // Defaults to the tape list; unknown current ticker → no-op so open
-  // universe symbols never get yanked back into the list.
+  // symbols never get yanked back into the list.
   onTickerChange,
   tickers = null,
-  // Full market universe from /api/tickers/all — when provided, arrows and
-  // the position badge cycle through the entire exchange-listed universe
-  // instead of just the popular tape list.
-  universe = null,
   // Auto-refresh cadence while Playback is armed.
   playbackIntervalMs = 15000,
 }) {
@@ -59,7 +55,12 @@ function SkylitControlBar({
     return () => clearInterval(id);
   }, [playing, onRefresh, playbackIntervalMs]);
 
-  const tickerList = useMemo(() => universe || (tickers?.popular || TICKER_SETS.popular), [universe, tickers]);
+  const tickerList = useMemo(() => {
+    if (!tickers) return TICKER_SETS.popular;
+    const all = [...(tickers.trinity || []), ...(tickers.default || []), ...(tickers.popular || [])];
+    if (all.length === 0) return TICKER_SETS.popular;
+    return all;
+  }, [tickers]);
   const tickerPos = useMemo(() => {
     if (tickerList.length === 0) return null;
     const idx = tickerList.indexOf(ticker);
