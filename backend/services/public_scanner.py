@@ -45,6 +45,7 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import logging
+import math
 import os
 import time
 from typing import Any
@@ -294,6 +295,8 @@ def unusual_rows_from_chain(
         spot_f = float(spot) or 0
     except (TypeError, ValueError):
         spot_f = 0
+    if not math.isfinite(spot_f):  # D3: float("nan") is truthy — never emit it
+        spot_f = 0
     now = time.time() if now is None else now
     marks = vol_marks if vol_marks is not None else {}
     mids = mid_marks if mid_marks is not None else {}
@@ -311,7 +314,7 @@ def unusual_rows_from_chain(
             if vol_oi < MIN_VOL_OI and vol < BIG_VOL:
                 continue
             strike = float(c.get("strike") or 0)
-            if strike <= 0:
+            if not math.isfinite(strike) or strike <= 0:  # D3: no nan/inf strikes
                 continue
             typ = str(c.get("type") or "").lower()
             ctype = "call" if typ.startswith("c") else "put" if typ.startswith("p") else None
@@ -325,6 +328,11 @@ def unusual_rows_from_chain(
                 iv_f = float(iv)
             except (TypeError, ValueError):
                 iv_f = 0
+            if not math.isfinite(iv_f):  # D3: never emit nan/inf IV
+                iv_f = 0
+            _delta = c.get("delta")
+            if isinstance(_delta, float) and not math.isfinite(_delta):
+                _delta = None
             row = [
                 under,
                 str(c.get("osi") or ""),
@@ -334,7 +342,7 @@ def unusual_rows_from_chain(
                 vol,
                 oi,
                 iv_f,
-                c.get("delta"),
+                _delta,
                 spot_f,
             ]
             out.append((vol_oi, row))
@@ -356,6 +364,15 @@ def unusual_rows_from_chain(
                     px = float(last) if last is not None else None
                 except (TypeError, ValueError):
                     px = None
+            # D3: quote fields must be finite — a nan/inf float breaks
+            # strict JSON downstream; unknown is None, never fiction.
+            if isinstance(px, float) and not math.isfinite(px):
+                px = None
+            if isinstance(mid_f, float) and not math.isfinite(mid_f):
+                mid_f = None
+            _last = last
+            if isinstance(_last, float) and not math.isfinite(_last):
+                _last = None
             premium_true = vol * 100 * px if px and px > 0 else None
             side = nbbo_side(last, bid, ask)
             s, bias = side_bias(ctype, side)
@@ -369,6 +386,8 @@ def unusual_rows_from_chain(
                 if _a > _b > 0 and _m and _m > 0:
                     rel_spread = (_a - _b) / _m
             except (TypeError, ValueError):
+                rel_spread = None
+            if rel_spread is not None and not math.isfinite(rel_spread):
                 rel_spread = None
             osi = str(c.get("osi") or "")
             # ── Lee-Ready signing (A2): quote rule on this sweep, tick test
@@ -406,7 +425,7 @@ def unusual_rows_from_chain(
                 "sign_method": sign_method,
                 "bias": bias,
                 "mid": mid_f,
-                "last": last,
+                "last": _last,
                 "rel_spread": rel_spread,
                 "vol_delta": vol_delta,
                 "velocity_per_min": velocity,
@@ -538,6 +557,10 @@ async def scan_slice(
     empty rows (its prior slice is left untouched by the caller so one
     failure can't wipe coverage). This layer performs zero budget
     acquisition itself: scanner-side reserve would double-debit (D2).
+
+    Pack status (D3): "ok" even when the fresh scan finds zero unusual
+    rows (the caller then clears obsolete rows); "failed" when no fresh
+    read exists (the caller keeps the prior slice with its age).
     """
     from services.public_api_adapter import fetch_chain_from_public_api
 
@@ -551,10 +574,10 @@ async def scan_slice(
                 chain = await fetch_chain_from_public_api(t, max_expiries=max_expiries)
             except Exception as e:
                 log.warning("public scanner slice fail %s: %s", t, e)
-                out[t] = {"rows": [], "extras": {}, "dealer": None}
+                out[t] = {"rows": [], "extras": {}, "dealer": None, "status": "failed"}
                 return
             if not chain:
-                out[t] = {"rows": [], "extras": {}, "dealer": None}
+                out[t] = {"rows": [], "extras": {}, "dealer": None, "status": "failed"}
                 return
             contracts = chain.get("contracts", []) or []
             rows, extras = unusual_rows_from_chain(
@@ -581,7 +604,7 @@ async def scan_slice(
                          if isinstance(c, dict) and c.get("osi")}
             tick_rings = {o: _mid_rings[o] for o in tick_osis if o in _mid_rings}
             dealer["roll_spread"] = _roll_pooled_for(tick_rings)
-            out[t] = {"rows": rows, "extras": extras, "dealer": dealer}
+            out[t] = {"rows": rows, "extras": extras, "dealer": dealer, "status": "ok"}
 
     await asyncio.gather(*(_one(t) for t in tickers))
     return out
@@ -633,7 +656,15 @@ async def scan_next(
             fresh = await scan_slice(tickers, max_expiries=max_expiries)
             now = time.time()
             for t, pack in fresh.items():
-                if pack["rows"]:  # failure ([]) never wipes a prior good slice
+                # D3: a successful fresh read (even zero rows) replaces the
+                # slice — obsolete rows must not pose as current. Only a
+                # failed read keeps the prior slice with its age (merge
+                # drops it past TTL and names it in coverage).
+                if pack.get("status") == "ok":
+                    _slices[t] = {"ts": now, "rows": pack["rows"],
+                                  "extras": pack["extras"], "dealer": pack["dealer"]}
+                    dealer[t] = pack["dealer"]
+                elif pack["rows"]:
                     _slices[t] = {"ts": now, **pack}
                     dealer[t] = pack["dealer"]
         rows, extras, coverage = merge_slices(_slices)
