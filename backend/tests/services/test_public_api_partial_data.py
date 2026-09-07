@@ -46,7 +46,8 @@ async def test_partial_expiry_failure_keeps_successful_contracts() -> None:
         result = await fetch_chain_from_public_api("SPY")
 
     assert result is not None
-    assert result["expiries"] == ["2026-09-18", "2026-10-16"]
+    # D4: returned coverage lists only fetched expiries (failed expiry excluded)
+    assert result["expiries"] == ["2026-09-18"]
     assert len(result["contracts"]) == 1
 
 

@@ -32,6 +32,19 @@ from services.public_api import PublicBroker
 
 log = logging.getLogger(__name__)
 
+
+def _finite(x: Any, default: Any = None) -> Any:
+    """D4: pass through finite values; map NaN/Infinity (float or string)
+    to `default`. Unknown stays unknown — never a fabricated number."""
+    if x is None or isinstance(x, bool):
+        return x if x is None else default
+    if isinstance(x, (int, float)):
+        return x if math.isfinite(x) else default
+    try:
+        return default if not math.isfinite(float(x)) else x
+    except (TypeError, ValueError):
+        return x
+
 BROKER: PublicBroker | None = None
 _BROKER_LOCK = asyncio.Lock()
 
@@ -405,19 +418,21 @@ async def _fetch_chain_live(
         log.warning("Public API quote fail for %s: %s", ticker, e)
         return None
 
-    # 3. Fetch chain for each expiry (up to max_expiries)
+    # 3. Fetch chain for each expiry (up to max_expiries). Only expiries
+    # that actually return data are reported (D4: requested vs returned
+    # coverage distinguished). Expired contracts are dropped; 0DTE kept.
     contracts: list[dict[str, Any]] = []
     exp_dates = []
     today = datetime.now(UTC).date()
 
     for exp in expiries[:max_expiries]:
-        exp_dates.append(exp)
         try:
             parsed = await pb.get_option_chain_parsed(symbol, exp, account_id)
         except Exception as e:
             _note_public_429(e)
             log.warning("Public API chain fail for %s %s: %s", ticker, exp, e)
             continue
+        exp_dates.append(exp)
 
         for side in ("calls", "puts"):
             for oc in parsed.get(side, []):
@@ -425,11 +440,16 @@ async def _fetch_chain_live(
                     exp_d = datetime.strptime(oc.expiration, "%Y-%m-%d").date()
                 except (ValueError, TypeError):
                     continue
+                if exp_d < today:  # D4: expired listing, not a position
+                    continue
                 T = max((exp_d - today).days, 1) / 365.0
                 # NBBO mid from the paid feed — the executable-reference price.
                 # Downstream side inference (last vs mid) and premium math must
                 # use this instead of BS estimates whenever it exists.
-                mid = oc.mid
+                mid = _finite(oc.mid)
+                strike = _finite(oc.strike)
+                if strike is None or strike <= 0:  # D4: unusable contract
+                    continue
                 contracts.append({
                     "osi": oc.symbol,  # OSI symbol for order placement (e.g. SPY260904C00760000)
                     "expiry": oc.expiration,
@@ -438,20 +458,20 @@ async def _fetch_chain_live(
                     # gex_core.py and analytics.py compare c["type"] == "call"
                     # exactly — uppercase here would flip every GEX sign.
                     "type": "call" if side == "calls" else "put",
-                    "strike": oc.strike,
-                    "oi": oc.open_interest or 0,
-                    "iv": oc.iv or 0.0,
-                    "delta": oc.delta,
-                    "gamma": oc.gamma,
-                    "theta": oc.theta,
-                    "vega": oc.vega,
-                    "bid": oc.bid,
-                    "ask": oc.ask,
+                    "strike": strike,
+                    "oi": _finite(oc.open_interest, 0),
+                    "iv": _finite(oc.iv, 0.0),
+                    "delta": _finite(oc.delta),
+                    "gamma": _finite(oc.gamma),
+                    "theta": _finite(oc.theta),
+                    "vega": _finite(oc.vega),
+                    "bid": _finite(oc.bid),
+                    "ask": _finite(oc.ask),
                     "mid": mid,
-                    "last": oc.last,
-                    "bid_size": oc.bid_size,
-                    "ask_size": oc.ask_size,
-                    "volume": oc.volume or 0,
+                    "last": _finite(oc.last),
+                    "bid_size": _finite(oc.bid_size),
+                    "ask_size": _finite(oc.ask_size),
+                    "volume": _finite(oc.volume, 0),
                     "oi_source": "public_api",
                 })
 
