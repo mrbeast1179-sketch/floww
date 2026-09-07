@@ -1,4 +1,4 @@
-import { isTradeClosed, tradePnl, tradeOutcome, strategyRiskReward, contractMid, legPrice, effectiveOptionPrice, formatNotional, ticketToJournalEntries, JOURNAL_STORAGE_KEY, condorWidth } from "./tradeMath";
+import { isTradeClosed, tradePnl, tradeOutcome, strategyRiskReward, contractMid, legPrice, effectiveOptionPrice, formatNotional, ticketToJournalEntries, tradeIdeaToJournalEntries, JOURNAL_STORAGE_KEY, condorWidth } from "./tradeMath";
 
 describe("isTradeClosed", () => {
   it("open when no exit date and no exit price", () => {
@@ -191,5 +191,97 @@ describe("ticketToJournalEntries (ticket must land in journal, any ticker)", () 
   });
   it("storage key matches TradeJournal/TradeAnalytics", () => {
     expect(JOURNAL_STORAGE_KEY).toBe("floww_trades_v2");
+  });
+});
+
+describe("tradeIdeaToJournalEntries (issue #17: TradeEntry -> journal store)", () => {
+  const idea = (over = {}) => ({
+    template: "iron_condor",
+    templateName: "Iron Condor",
+    ticker: "spy",
+    spot: 645.2,
+    data: { put_short: 630, put_long: 625, call_short: 660, call_long: 665, contracts: 2, credit: 1.5 },
+    regime: "positive_gamma",
+    timestamp: "2026-09-06T12:00:00.000Z",
+    ...over,
+  });
+  const journalKeys = ["ticker", "type", "action", "strike", "expiry", "quantity", "entry_price", "entry_date"];
+  const hasJournalShape = (e) => journalKeys.every(k => k in e);
+
+  it("iron_condor maps without loss: wings+credit in notes/setup, contracts->quantity, regime->gex_regime", () => {
+    const [e] = tradeIdeaToJournalEntries(idea());
+    expect(hasJournalShape(e)).toBe(true);
+    expect(e.ticker).toBe("SPY");
+    expect(e.quantity).toBe("2");
+    expect(e.gex_regime).toBe("positive_gamma");
+    expect(e.setup).toMatch(/IRON CONDOR/);
+    expect(e.notes).toMatch(/625/); expect(e.notes).toMatch(/630/);
+    expect(e.notes).toMatch(/660/); expect(e.notes).toMatch(/665/);
+    expect(e.notes).toMatch(/1\.5/);
+    expect(e.entry_price).toBe(1.5);
+    expect(isTradeClosed(e)).toBe(false); // open idea, renders in journal open list
+  });
+  it("long_straddle sums premiums, no fabricated legs", () => {
+    const [e] = tradeIdeaToJournalEntries(idea({
+      template: "long_straddle", templateName: "Long Straddle",
+      data: { strike: 645, contracts: 1, call_premium: 8.2, put_premium: 7.9 },
+      regime: "negative_gamma",
+    }));
+    expect(e.type).toBe("call"); expect(e.action).toBe("buy");
+    expect(e.strike).toBe(645);
+    expect(e.entry_price).toBeCloseTo(16.1, 5);
+    expect(e.setup).toMatch(/STRADDLE/);
+    expect(e.notes).toMatch(/8\.2/); expect(e.notes).toMatch(/7\.9/);
+    expect(e.gex_regime).toBe("negative_gamma");
+  });
+  it("call_spread keeps both strikes, debit as entry price", () => {
+    const [e] = tradeIdeaToJournalEntries(idea({
+      template: "call_spread", templateName: "Bull Call Spread",
+      data: { long_strike: 645, short_strike: 660, contracts: 3, debit: 4.2 },
+    }));
+    expect(e.type).toBe("call"); expect(e.action).toBe("buy");
+    expect(e.strike).toBe(645);
+    expect(e.notes).toMatch(/660/); expect(e.notes).toMatch(/4\.2/);
+    expect(e.entry_price).toBe(4.2);
+    expect(e.quantity).toBe("3");
+  });
+  it("put_spread maps to put/buy with both strikes", () => {
+    const [e] = tradeIdeaToJournalEntries(idea({
+      template: "put_spread", templateName: "Bear Put Spread",
+      data: { long_strike: 645, short_strike: 630, contracts: 1, debit: 3.1 },
+    }));
+    expect(e.type).toBe("put"); expect(e.action).toBe("buy");
+    expect(e.strike).toBe(645);
+    expect(e.notes).toMatch(/630/);
+    expect(e.entry_price).toBe(3.1);
+  });
+  it("single_leg Buy Put -> put/buy; Sell Call -> call/sell", () => {
+    const [b] = tradeIdeaToJournalEntries(idea({
+      template: "single_leg", templateName: "Single Leg",
+      data: { action: "Buy Put", strike: 640, contracts: 1, premium: 5.5 },
+    }));
+    expect(b.type).toBe("put"); expect(b.action).toBe("buy");
+    expect(b.strike).toBe(640); expect(b.entry_price).toBe(5.5);
+    const [s] = tradeIdeaToJournalEntries(idea({
+      template: "single_leg", templateName: "Single Leg",
+      data: { action: "Sell Call", strike: 670, contracts: 2, premium: 2.1 },
+    }));
+    expect(s.type).toBe("call"); expect(s.action).toBe("sell");
+    expect(s.entry_price).toBe(2.1);
+  });
+  it("missing price still journals (never dropped), unknown template falls back without fabrication", () => {
+    const [e] = tradeIdeaToJournalEntries(idea({
+      template: "weird_new", templateName: "Weird",
+      data: { contracts: 1 },
+    }));
+    expect(hasJournalShape(e)).toBe(true);
+    expect(e.entry_price).toBe("");
+    expect(e.setup).toMatch(/WEIRD_NEW/);
+  });
+  it("entries carry journal-compatible P&L math (short credit kept if closed at 0)", () => {
+    const [e] = tradeIdeaToJournalEntries(idea());
+    expect(isTradeClosed(e)).toBe(false); // open idea, no phantom close
+    // sell entry at 1.5 x2: closed at 0 keeps the credit (normal short math, no NaN)
+    expect(tradePnl({ ...e, exit_price: "0", exit_date: "2026-09-07" })).toBe(300);
   });
 });
