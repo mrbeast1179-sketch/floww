@@ -40,6 +40,12 @@ def test_f3_no_numeric_crash_probability():
     assert "risk_level" in out
 
 
+def test_f7_no_phantom_charm_comment():
+    src = Path(__file__).resolve().parents[2] / "services" / "morning_briefing.py"
+    text = src.read_text()
+    assert "Ni-Pearson 2021 Charm" not in text
+
+
 def test_f4_oi_pcr_labeled_proxy():
     out = gpa.put_call_ratio_signal(call_oi=80.0, put_oi=20.0)
     text = (out.get("interpretation", "") + " " + (gpa.put_call_ratio_signal.__doc__ or "")).lower()

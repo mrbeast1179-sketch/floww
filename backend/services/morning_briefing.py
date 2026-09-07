@@ -747,7 +747,7 @@ async def build_briefing(
             ooi_signal = options_order_imbalance(
                 call_open_interest=call_oi_total, put_open_interest=put_oi_total
             )
-            # Ni-Pearson 2021 Charm — use theta from chain if available
+            # Theta-derived charm proxy from chain averages (heuristic, unverified)
             charm_signal = {"signal": "data_unavailable"}
             if chain_contracts and len(chain_contracts) > 0:
                 avg_theta = sum(c.get("theta", 0) or 0 for c in chain_contracts[:20]) / max(1, min(20, len(chain_contracts)))
