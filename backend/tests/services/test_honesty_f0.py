@@ -31,3 +31,10 @@ def test_f1_charm_held_unverified():
     assert "Per Ni-Pearson 2021" not in text
     lowered = text.lower()
     assert any(m in lowered for m in ("proxy", "heuristic", "unverified")), text
+
+
+def test_f3_no_numeric_crash_probability():
+    out = gpa.flash_crash_risk(gamma_imbalance_pct=-3.0, flip_distance_pct=0.5)
+    assert "crash_probability_estimate" not in out
+    assert out.get("stability") in ("fragile", "stable")
+    assert "risk_level" in out

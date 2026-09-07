@@ -444,10 +444,11 @@ def flash_crash_risk(
     amihud_illiquidity: float | None = None,
     net_gex: float = 0.0,
 ) -> dict[str, Any]:
-    """Estimate flash crash probability from gamma imbalance.
+    """Classify flash crash fragility from gamma imbalance.
 
-    Barbon-Buraschi finding (Table V): one std dev decrease in ΓIB
-    → ~16 bps increase in daily High-Low spread, and the effect is
+    Heuristic tag only — this function does not estimate a numeric crash
+    probability. Barbon-Buraschi finding (Table V): one std dev decrease
+    in ΓIB → ~16 bps increase in daily High-Low spread, and the effect is
     stronger for illiquid stocks and near the flip level.
 
     Args:
@@ -457,7 +458,7 @@ def flash_crash_risk(
         net_gex: Raw net dollar GEX for context
 
     Returns:
-        dict with risk_level, crash_probability_estimate, warning flags
+        dict with risk_level, stability (fragile/stable), warning flags
     """
     # Base risk from gamma imbalance sign and magnitude
     if gamma_imbalance_pct > 2.0:
@@ -520,9 +521,11 @@ def flash_crash_risk(
             "provides structural stabilization."
         )
 
+    stability = "fragile" if risk_level in ("EXTREME", "HIGH", "ELEVATED") else "stable"
+
     return {
         "risk_level": risk_level,
-        "crash_probability_estimate": round(crash_prob, 4),
+        "stability": stability,
         "gamma_imbalance_pct": round(gamma_imbalance_pct, 4),
         "flip_distance_pct": round(flip_distance_pct, 4) if flip_distance_pct is not None else None,
         "recommendation": recommendation,
