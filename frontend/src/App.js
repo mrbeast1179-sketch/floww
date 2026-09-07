@@ -521,21 +521,44 @@ export default function App() {
   const debouncedExpiries = useDebounce(expiries, 300);
   const debouncedDte = useDebounce(dte, 300);
 
-  // Fetch tickers — trinity + default + popular. The ticker bar renders
-  // every ticker the API returns as a scrollable list.
+  // Fetch tickers — trinity + default + popular, plus the full exchange-listed
+  // universe from /api/tickers/all so the ticker bar exposes every tradable name
+  // (not just the ~80 featured ones). No separate "universe" model — the same
+  // trinity/default/popular shape is retained; popular is expanded to the full
+  // Finnhub US equities list (11,220 symbols, capped at 5000 for render perf).
   useEffect(() => {
     let mounted = true;
     (async () => {
       try {
-        const res = await axios.get(`${API}/tickers`);
+        const [basicRes, allRes] = await Promise.all([
+          axios.get(`${API}/tickers`),
+          axios.get(`${API}/tickers/all?limit=5000`),
+        ]);
         if (!mounted) return;
-        setTickers(res.data);
+        const allSyms = (allRes.data && allRes.data.tickers) || [];
+
+        // Expand "popular" to the full Finnhub US equities list (capped at 5000
+        // for render perf). trinity + default stay as the featured sets; no
+        // separate "universe" concept is introduced — the same shape is retained.
+        const popularExpanded = allSyms.slice(0, 5000);
+        const combined = {
+          trinity: basicRes.data?.trinity || [],
+          default: basicRes.data?.default || [],
+          popular: Array.isArray(popularExpanded)
+            ? [...new Set([...popularExpanded])]
+            : basicRes.data?.popular || [],
+        };
+        setTickers(combined);
       } catch (e) {
         console.warn("[App] ticker fetch failed:", e);
+      } finally {
+        /* no-op */
       }
     })();
     return () => { mounted = false; };
   }, []);
+
+  const [loading, setLoading] = useState(false);
 
   // Flowseeker signal cards dispatch this to focus the desk ticker.
   useEffect(() => {
