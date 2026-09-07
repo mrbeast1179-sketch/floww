@@ -14,6 +14,7 @@ Read this package root first, in this order:
 2. `docs/plans/2026-09-06-four-agent-run/HARNESS-V2.md`
 3. `docs/plans/2026-09-06-four-agent-run/RECOVERY-QUEUE.md`
 4. `docs/plans/2026-09-06-four-agent-run/run-state-v2.json`
+5. `docs/plans/2026-09-06-four-agent-run/TASK-CARDS.md`
 
 Then read the relevant task cards and receipts before admitting anything.
 
@@ -27,8 +28,9 @@ Current state you must re-read before any dispatch:
 - `git branch -vv`
 - `git fetch origin` then re-read remote refs
 - `run-state-v2.json`
-- the four prompt files in `docs/superpowers/spark-prompts/`
 - `RECOVERY-QUEUE.md`
+- `TASK-CARDS.md`
+- the four prompt files in `docs/superpowers/spark-prompts/`
 - the relevant task card under
   `/Users/nav/Documents/GitHub/floww-run-state/2026-09-06-v2/task-cards/`
 
@@ -48,7 +50,7 @@ probe without an explicit owner decision and recorded credit posture.
 Owners and gates you must respect:
 - PR28 is Nav-gated and policy-escalated. Do not merge it.
 - PR29 and PR31 require Nav merge calls after E4 approval of the exact head.
-- PR30 is already merged to main; handle it as a documented artifact, not a
+- PR30 is already merged to main at 377dfa5; handle it as a documented artifact, not a
   current candidate.
 - F1, H1, and H2 are backend-leased. Agent 1 admits them; Agent 2 executes
   them. Agent 1 does not claim their implementation.
@@ -56,8 +58,14 @@ Owners and gates you must respect:
 - X credits are not assumed available. No paid probe without a decision.
 - GSD-8 stays BLOCKED until the X-credit gate is resolved.
 
+Current Git truth you must reconcile at boot:
+- `origin/main` = e68bdb5. PR29/30/31 merged. PR28 still open/escalated at 18b10b5. PR32 open at c17fc61.
+- `astra/f0-honesty-backend` = f880971, 14 commits on feature branch, NOT merged to main, local == remote.
+- `agent3/t1-scroller-fix-v2` = c17fc61, 5 commits on top of b5f9ae5, clean, PR32 open.
+- `phase9/g1-reads-witness` is dirty with App.js, SkylitTickerBar.jsx, .serena/project.yml and 4 untracked .planning/ heat docs. These predate this session and are NOT your lease. Do not sweep them.
+
 Evidence discipline:
-- boat.json first, then do the work, then checkpoint.
+- boot.json first, then do the work, then checkpoint.
 - checkpoint after every red test, green test, commit, push, review verdict,
   blocker, and at least every 15 minutes of meaningful work.
 - checkpoint contains dirty owned paths, last command and exit, exact failure,

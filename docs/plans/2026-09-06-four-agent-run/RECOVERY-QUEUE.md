@@ -15,33 +15,29 @@ proprietary-data frontier. Status is evidence-based as of 2026-09-06 20:58 EDT.
 | E4-29 | Agent 4 | REVIEW COMPLETE; APPROVED, Nav merge call | O/X delivered at `568de16`, 46 exact-head tests; two advisories; see proof/receipts/E4-29.md |
 | E4-30 | Agent 4 | MERGED to main | PR30 merged at 377dfa5 (merge of origin/main into astra/p1-clean); scripts/silent_except_gate.py and backend/tests/test_silent_except_gate.py byte-identical to 06b7502; CI green: ruff, backend-tests, frontend-build; audit: evidence/PR30-merge-attempt.md |
 | E4-31 | Agent 4 | REVIEW COMPLETE; APPROVED-conditional | `f7f7103` inert scaffolding, 62 exact-head tests; weights pending A3-SCORE; see proof/receipts/E4-31.md |
-| F0-F1 | Agent 2 | PRESERVED-WIP; no active worker inferred | Finish preserved F1 citation/proxy correction with valid red/green proof |
-| RH-1 | Agent 3 + Agent 4 | AUDIT SAVED; split/admission next | Net-behavior audit of `53267ae..b5f9ae5` plus dirty caps; rework H1/H2/T1/T2 |
+| PR32 | Agent 3 + Agent 4 | CANDIDATE OPEN; review pending | `agent3/t1-scroller-fix-v2` @ `c17fc61`, 5 commits, PR open; see evidence/agent3-t1-scroller-fix-v2.md |
+| F0-F1 | Agent 2 | COMPLETE; pushed | Wave-1 honesty/integrity complete: F1/F3/F4/F7, P1/P3/P4, D1–D7 all shipped on `astra/f0-honesty-backend` rebased on `origin/main e68bdb5`; receipts in agent-2-backend/receipts/; open: P2/P6/P7 |
 | GSD-8 | Agent 1 | BLOCKED | Remove or leave out of build queue until X credits exist; no spend |
 
 Nav merges #28/#29 only after E4 approval of the same head. A later push invalidates
 the verdict and returns the PR to review.
 
-### Wave 1 — close confirmed integrity gaps
+### Wave 1 — Wave-1 integrity complete
 
-September7 priority correction: the final Heat audit reproduced H1 raw-analytics contamination and H2 upstream budget bypass. Admit H1 then H2 to Agent2 after preserving/closing the small F1 unit. These take priority over P2 and speculative new feed work. Agent3 can complete T1/SCROLL-1 discovery in parallel; App.js/unknown-ticker policy is decided before edits. See evidence/recent-heat-audit.md for the exact reproduction and H1/H2/T1/T2 candidate contracts. H1/H2 share server.py and must be serialized. Their proposed call-count targets must be reconciled with the actual provider contract at admission.
+- F1/F3/F4/F7: done, pushed, receipts on disk
+- P1/P3/P4: done, pushed
+- D1–D7: done, pushed
+- Open: P2 (pip-audit timed out, baseline UNKNOWN), P6 (rotation Nav-gated), P7 (Oracle offline, Nav-gated)
 
-| ID | Lane | Source | Contract |
-|---|---|---|---|
-| P1 | Agent 2 | PR #30 as source material | Fail-closed AST gate, baseline/suppression policy, CI wiring, workflow-equivalent proof |
-| P3 | Agent 2 | `QUEUE.md` | Truthful QC command exits and ownership guard reproduction |
-| P4 | Agent 2 + Agent 4 | `QUEUE.md` | Python/runtime matrix and required frontend test/lint policy with baseline resolution |
-| F0-F3 | Agent 2 | Phase9 F3 | Remove numeric crash probability from API; serve supported categorical state only |
-| F0-F4 | Agent 2 | Phase9 F4 | Correct OI put/call proxy framing and citation |
-| F0-F7 | Agent 2 | Phase9 F7 | Remove phantom charm attribution |
-| XH-1 | Agent 3 | Phase9 F5/F6/F11/F19 | UI quote/side/sweep/block copy preserves unknowns and labels proxies |
-| RH-2 | Agent 3 | RH-1 verdict | Clean Heatseeker candidate branch with only approved behavior and tests |
-| RT-1 | Agent 3 | RH-1 verdict | Clean ticker-navigation candidate branch; no dead universe experiment |
-| SCROLL-1 | Agent 3 + Agent 4 | User September7 addition | SOLSTICE-SCROLLER.md: capped DOM, full collection reachability, active-item reveal, actual mounted surface |
+### Next admissions (contracts preserved from QUEUE.md / heat audit)
 
-F2 and F13 both touch `flow_alerts.py` and remain serialized behind the PR #31
-decision. `App.js` is not in Agent 3's lease unless Agent 1 records a surgical waiver
-for RT-1.
+- H1 then H2 to Agent 2, serialized on `backend/server.py`. Source: heat audit (H1 raw-analytics contamination, H2 upstream budget bypass). Reconcile call-count targets with the actual provider contract at admission.
+- XH-1 (Agent 3): UI quote/side/sweep/block copy preserves unknowns, labels proxies.
+- RH-2 (Agent 3): clean Heatseeker candidate branch, only approved behavior + tests.
+- RT-1 (Agent 3): clean ticker-navigation candidate, no dead universe experiment.
+- SCROLL-1 (Agent 3 + Agent 4): capped DOM, full collection reachability, active-item reveal, actual mounted surface.
+- F2/F13 both touch `flow_alerts.py`: serialized behind the PR31 decision.
+- `App.js` not in Agent 3's lease without a surgical Nav waiver (per CLAUDE.md frozen files).
 
 ### Wave 2 — dependency, data, and consumer truth
 

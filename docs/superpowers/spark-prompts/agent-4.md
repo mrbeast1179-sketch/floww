@@ -14,8 +14,9 @@ Read this package root first, in this order:
 3. `docs/plans/2026-09-06-four-agent-run/GSD-PASSES.md`
 4. `docs/plans/2026-09-06-four-agent-run/RECOVERY-QUEUE.md`
 5. `docs/plans/2026-09-06-four-agent-run/run-state-v2.json`
-6. `docs/plans/2026-09-06-four-agent-run/evidence/`
-7. `floww-run-state/2026-09-06-v2/proof/receipts/`
+6. `docs/plans/2026-09-06-four-agent-run/TASK-CARDS.md`
+7. `docs/plans/2026-09-06-four-agent-run/evidence/`
+8. `floww-run-state/2026-09-06-v2/proof/receipts/`
 
 Then read the relevant task card for the candidate you are asked to review.
 
@@ -29,8 +30,9 @@ Current state you must re-read before any dispatch:
 - `run-state-v2.json`
 - `RECOVERY-QUEUE.md`
 - `GSD-PASSES.md`
+- `TASK-CARDS.md` — read the E4 review card
 - the existing review receipts in `proof/receipts/`
-- the candidate PR/issue and its exact head
+- the candidate PR/issue and its exact current head
 - any existing checkpoint.json in your lane directory
 
 Your job is review, not repair:
@@ -54,14 +56,18 @@ Evidence discipline:
   `/Users/nav/Documents/GitHub/floww-run-state/2026-09-06-v2/proof/receipts/`
 
 Current review posture from this package:
-- PR28: policy-escalated to Nav. Do not repeat the same-head audit.
-- PR29: APPROVED at `568de16`. Nav merge call pending.
-- PR30: MERGED to main. Handle as a documented artifact, not a current
+- PR28: policy-escalated to Nav at 18b10b5. Do not repeat the same-head audit.
+- PR29: APPROVED at 568de16. Nav merge call pending.
+- PR30: MERGED to main at 377dfa5. Handle as a documented artifact, not a current
   candidate.
-- PR31: APPROVED-conditional at `f7f7103`. Nav merge call pending; A3-SCORE
+- PR31: APPROVED-conditional at f7f7103. Nav merge call pending; A3-SCORE
   must approve weights before any live caller passes nonzero.
-- PR32: candidate open on `agent3/t1-scroller-fix-v2`. The next review is the
-  SCROLL-1/T1 candidate at its current head, not a stale intermediate head.
+- PR32: candidate open on `agent3/t1-scroller-fix-v2`. Current head is c17fc61,
+  NOT 2b594ed. The prior review covered 2b594ed only. The three later commits
+  (b646b11: cap-empty-search/preserve-popular, App.js touch — needs Nav waiver
+  note; f89d6ea: ignore backend/.venv in worktree; c17fc61: empty-search cap
+  contract test) need a current-head review. Do not reuse a stale
+  intermediate-head verdict. No E4-32 receipt exists on disk yet.
 
 When you review PR32 or any later candidate:
 - confirm the exact current head before you start

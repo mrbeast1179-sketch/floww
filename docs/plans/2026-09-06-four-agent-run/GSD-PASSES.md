@@ -16,9 +16,9 @@ No X request, purchase, credential rename, product edit, push or service restart
 GSD_LOOP_RESULT={"lane":"build","status":"work","reason":"issue-8-handback-credits-unconfirmed"}
 ```
 
-## Review — completed one pass
+## Review — PR28 single pass completed
 
-The explicitly requested single pass selected PR28 / issue18 at18b10b5601ef0bc0dd27a083d66f2d8ad164665a. It was interrupted by the provider usage limit and resumed from GitHub/source evidence. The posted verdict reports 7/7 exact-head contract tests, passing required Ruff, CLEAN merge state, no dependency-manifest change and no blocking code findings.
+The explicitly requested single pass selected PR28 / issue18 at `18b10b5`. It was interrupted by the provider usage limit and resumed from GitHub/source evidence. The posted verdict reports 7/7 exact-head contract tests, passing required Ruff, CLEAN merge state, no dependency-manifest change and no blocking code findings.
 
 Verdict: https://github.com/mrbeast1179-sketch/floww/pull/28#issuecomment-5569790600
 
@@ -28,7 +28,30 @@ The installed review policy routed this non-gsd automation branch to human decis
 GSD_LOOP_RESULT={"lane":"review","status":"work","reason":"pr28-human-authored-escalation"}
 ```
 
-## Agent-4 offline proof — E4-29, E4-30, E4-31 complete
+## Agent-2 backend — Wave-1 integrity complete
+
+The Wave-1 honesty and integrity wave (F1/F3/F4/F7, P1/P3/P4, D1–D7) is complete
+and pushed on `astra/f0-honesty-backend`, 14 commits rebased onto `origin/main e68bdb5`,
+local==remote, tree clean. Receipts in
+`floww-run-state/2026-09-06-v2/agent-2-backend/receipts/`.
+
+Open items not faked closed:
+- P2: dependency advisory unresolved (pip-audit timed out; baseline UNKNOWN)
+- P6: credential rotation inventory-only; rotation Nav-gated
+- P7: Oracle offline validation; Nav-gated
+
+Merge posture: mechanically mergeable; not claimed fully verified by this lane.
+See `evidence/MERGE-ADVICE.md`.
+
+## Agent-3 frontend — T1 scroller candidate ready
+
+PR32 candidate `agent3/t1-scroller-fix-v2` @ `c17fc61`, 5 commits, open against main.
+Evidence: `evidence/agent3-t1-scroller-fix-v2.md`. Not merged; merge decision is Nav's.
+
+## Review — next
+
+The next review is PR32 at its current head `c17fc61`, not any stale intermediate.
+PR28 is policy-escalated and not to be re-audited at the same head.
 
 Managed offline proof (no GitHub mutations; candidate branches untouched). Receipts in
 floww-run-state/2026-09-06-v2/proof/receipts/; heads re-verified open/unmerged after review.

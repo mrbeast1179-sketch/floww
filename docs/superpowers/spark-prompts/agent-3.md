@@ -13,6 +13,7 @@ Read this package root first, in this order:
 2. `docs/plans/2026-09-06-four-agent-run/HARNESS-V2.md`
 3. `docs/plans/2026-09-06-four-agent-run/RECOVERY-QUEUE.md`
 4. `docs/plans/2026-09-06-four-agent-run/run-state-v2.json`
+5. `docs/plans/2026-09-06-four-agent-run/TASK-CARDS.md`
 
 Then read the relevant task card and any existing checkpoint before you touch
 any file.
@@ -27,6 +28,7 @@ Current state you must re-read before any dispatch:
 - `git fetch` then re-read remote state
 - `run-state-v2.json`
 - `RECOVERY-QUEUE.md`
+- `TASK-CARDS.md`
 - the relevant task card, for example SCROLL-1, RT-1, RH-2, or any later
   frontend contract
 - any existing checkpoint.json in your lane directory
@@ -70,6 +72,15 @@ If you are asked to fix scroller or ticker behavior:
 - distinguish source findings, deterministic reproductions, tests, and browser
   evidence
 - if you need the heavy-test lease, request it before a full suite
+
+Current candidate truth you must reconcile at boot:
+- PR32 is open at head `c17fc61` on `agent3/t1-scroller-fix-v2`, 5 commits on
+  top of `b5f9ae5`: `8e30a60`, `2b594ed`, `b646b11`, `f89d6ea`, `c17fc61`.
+- The prior review covered `2b594ed` only. The three later commits are
+  `b646b11` (cap-empty-search/preserve-popular, App.js touch — needs Nav waiver
+  note), `f89d6ea` (ignore `backend/.venv` in worktree) and `c17fc61`
+  (empty-search cap contract test). A current-head review is required — do not
+  reuse a stale intermediate-head verdict.
 
 General rules for every frontend unit:
 - boot.json first, then the work, then checkpoint.

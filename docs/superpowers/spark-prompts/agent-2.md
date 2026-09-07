@@ -13,14 +13,16 @@ Read this package root first, in this order:
 2. `docs/plans/2026-09-06-four-agent-run/HARNESS-V2.md`
 3. `docs/plans/2026-09-06-four-agent-run/RECOVERY-QUEUE.md`
 4. `docs/plans/2026-09-06-four-agent-run/run-state-v2.json`
+5. `docs/plans/2026-09-06-four-agent-run/TASK-CARDS.md`
 
 Then read the relevant task card, the F0-F1 card if you are doing F1, and the
-receive receipts before you touch any file.
+existing receipts before you touch any file.
 
 Your worktree is:
 `/private/tmp/w-f0`
 Branch: `astra/f0-honesty-backend`
 Base SHA: `5b9d9a96a29951e548e883d108a806b93c2d11a9`
+Current head: `f880971` — 14 commits on top of origin/main e68bdb5, NOT merged to main, local == remote.
 
 Current state you must re-read before any dispatch:
 - `git status`
@@ -28,7 +30,7 @@ Current state you must re-read before any dispatch:
 - `git fetch` then re-read remote state
 - `run-state-v2.json`
 - `RECOVERY-QUEUE.md`
-- the F0-F1 task card
+- `TASK-CARDS.md` — read the F0-F1 card
 - any existing checkpoint.json in your lane directory
 - the preserved F1 patch or diff if present
 
@@ -91,7 +93,7 @@ If admitted to H1 or H2:
   at admission.
 
 General rules for every backend unit:
-- bot.json first, then the work, then checkpoint.
+- boot.json first, then the work, then checkpoint.
 - checkpoint after every red test, green test, commit, push, blocker, and at
   least every 15 minutes of meaningful work.
 - checkpoint includes dirty owned paths, last command and exit, exact failure,
