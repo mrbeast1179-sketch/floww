@@ -874,27 +874,19 @@ def test_peek_available_honors_idle_refill():
 
 
 @pytest.mark.asyncio
-async def test_scan_slice_skips_ticker_on_refused_debit(monkeypatch):
+async def test_scan_slice_maps_refused_fetch_to_empty_rows(monkeypatch):
+    # D2: admission lives in the adapter (C8 choke point). A budget
+    # refusal there surfaces as chain None -> empty rows; the scanner
+    # performs no acquisition of its own (no double debit) and the
+    # caller keeps the prior slice.
     import services.public_scanner as ps
-    from services.public_budget import BudgetExhausted
 
-    class DeadBudget:
-        async def acquire(self, host="public"):
-            return None
+    async def refused(ticker, max_expiries=2):
+        return None
 
-        async def acquire_n(self, n, host="public", now=None):
-            raise BudgetExhausted(retry_after=9, reason="token_bucket")
-
-        def release(self):
-            return None
-
-    async def boom(ticker, max_expiries=2):  # pragma: no cover
-        raise AssertionError("fetch must not run without budget")
-
-    monkeypatch.setattr("services.public_budget.budget", DeadBudget())
-    monkeypatch.setattr("services.public_api_adapter.fetch_chain_from_public_api", boom)
+    monkeypatch.setattr("services.public_api_adapter.fetch_chain_from_public_api", refused)
     out = await ps.scan_slice(["SPY"], max_expiries=2)
-    assert out["SPY"]["rows"] == [] and out["SPY"]["skipped"] == "budget"
+    assert out["SPY"]["rows"] == [] and "skipped" not in out["SPY"]
 
 
 @pytest.mark.asyncio

@@ -533,36 +533,26 @@ async def scan_slice(
     """Fetch chains for `tickers` and extract unusual rows + extras + dealer.
 
     Never raises. Returns {ticker: {"rows", "extras", "dealer"}}. A ticker
-    whose chain fails — or whose fan-out the budget refuses — maps to empty
-    rows (its prior slice is left untouched by the caller so one failure
-    can't wipe coverage).
+    whose chain fails — or whose fan-out the budget refuses (the adapter
+    debits acquire_n(2+N) per C8 and returns None on refusal) — maps to
+    empty rows (its prior slice is left untouched by the caller so one
+    failure can't wipe coverage). This layer performs zero budget
+    acquisition itself: scanner-side reserve would double-debit (D2).
     """
     from services.public_api_adapter import fetch_chain_from_public_api
-    from services.public_budget import BudgetExhausted
-    from services.public_budget import budget as pub_budget
 
     out: dict[str, dict[str, Any]] = {}
     sem = asyncio.Semaphore(max(1, concurrency))
     now = time.time()
-    cost = chain_cost(max_expiries)
 
     async def _one(t: str) -> None:
         async with sem:
-            try:
-                await pub_budget.acquire_n(cost, "api.public.com")
-            except BudgetExhausted as e:
-                log.debug("public scanner skip %s — budget refused %d tokens: %s",
-                          t, cost, e.reason)
-                out[t] = {"rows": [], "extras": {}, "dealer": None, "skipped": "budget"}
-                return
             try:
                 chain = await fetch_chain_from_public_api(t, max_expiries=max_expiries)
             except Exception as e:
                 log.warning("public scanner slice fail %s: %s", t, e)
                 out[t] = {"rows": [], "extras": {}, "dealer": None}
                 return
-            finally:
-                pub_budget.release()
             if not chain:
                 out[t] = {"rows": [], "extras": {}, "dealer": None}
                 return
@@ -618,19 +608,23 @@ async def scan_next(
         from services.public_budget import BudgetExhausted
         from services.public_budget import budget as pub_budget
 
-        idx, _cursor = advance_cursor(_cursor, slice_size, len(uni))
-        tickers = [uni[i] for i in idx]
         per_ticker = chain_cost(max_expiries)
         try:
             affordable = max(0, int(await pub_budget.peek_available() // per_ticker))
         except Exception:
-            affordable = len(tickers)
-        if affordable <= 0 and tickers:
+            affordable = slice_size
+        if affordable <= 0:
+            # Unaffordable: raise WITHOUT moving the cursor, or the
+            # skipped rotation starves the slice it consumed (D2).
             raise BudgetExhausted(retry_after=5, reason="slice-unaffordable")
-        if affordable < len(tickers):
+        # D2: advance the cursor only by tickers actually scanned. The
+        # trimmed tail keeps its rotation slot for the next sweep.
+        take = min(slice_size, affordable, len(uni))
+        if take < slice_size:
             log.info("public sweep trimmed %d→%d tickers on budget",
-                     len(tickers), affordable)
-            tickers = tickers[:affordable]
+                     slice_size, take)
+        idx, _cursor = advance_cursor(_cursor, take, len(uni))
+        tickers = [uni[i] for i in idx]
         dealer: dict[str, dict[str, Any]] = {
             t: (_slices[t]["dealer"] if isinstance(_slices.get(t), dict) and _slices[t].get("dealer") else None)
             for t in _slices
