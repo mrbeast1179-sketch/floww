@@ -38,3 +38,10 @@ def test_f3_no_numeric_crash_probability():
     assert "crash_probability_estimate" not in out
     assert out.get("stability") in ("fragile", "stable")
     assert "risk_level" in out
+
+
+def test_f4_oi_pcr_labeled_proxy():
+    out = gpa.put_call_ratio_signal(call_oi=80.0, put_oi=20.0)
+    text = (out.get("interpretation", "") + " " + (gpa.put_call_ratio_signal.__doc__ or "")).lower()
+    assert "oi-based" in text or "oi based" in text or "oi proxy" in text
+    assert "pan-poteshman 2006" not in out.get("interpretation", "").lower()

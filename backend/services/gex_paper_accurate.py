@@ -622,13 +622,12 @@ def put_call_ratio_signal(
     call_vol: float = 0.0,
     put_vol: float = 0.0,
 ) -> dict[str, Any]:
-    """Pan-Poteshman (2006) put-call ratio directional signal.
+    """Put-call ratio directional signal (OI-based proxy).
 
-    'The Information of Option Volume for Future Stock Prices'
-    Review of Financial Studies 19, 871-908.
-
-    Key finding: stocks with LOW PCR outperform by 40bps next day, 1% next week.
-    Uses OI-based PCR as primary proxy when trade-level buyer-initiated data unavailable.
+    Motivated by Pan-Poteshman (2006), 'The Information of Option Volume
+    for Future Stock Prices', who used buyer-initiated trade volume.
+    This function does NOT have that volume data: it uses OI-based PCR
+    as a proxy, and the P&P return finding is not verified for OI PCR here.
     """
     total_oi = call_oi + put_oi
     total_vol = call_vol + put_vol
@@ -638,13 +637,13 @@ def put_call_ratio_signal(
 
     if pcr < 0.35:
         signal, confidence = "BULLISH", "high"
-        interp = f"PCR {pcr:.2f} — calls dominate. Low PCR stocks outperform (Pan-Poteshman 2006)."
+        interp = f"PCR {pcr:.2f} — calls dominate (OI-based proxy, not P&P volume)."
     elif pcr < 0.45:
         signal, confidence = "BULLISH", "medium"
         interp = f"PCR {pcr:.2f} — mild call dominance."
     elif pcr > 0.65:
         signal, confidence = "BEARISH", "high"
-        interp = f"PCR {pcr:.2f} — puts dominate. High PCR stocks underperform."
+        interp = f"PCR {pcr:.2f} — puts dominate (OI-based proxy, not P&P volume)."
     elif pcr > 0.55:
         signal, confidence = "BEARISH", "medium"
         interp = f"PCR {pcr:.2f} — mild put dominance."
