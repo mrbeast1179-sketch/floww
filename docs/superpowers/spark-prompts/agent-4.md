@@ -67,7 +67,8 @@ Current review posture from this package:
   (b646b11: cap-empty-search/preserve-popular, App.js touch — needs Nav waiver
   note; f89d6ea: ignore backend/.venv in worktree; c17fc61: empty-search cap
   contract test) need a current-head review. Do not reuse a stale
-  intermediate-head verdict. No E4-32 receipt exists on disk yet.
+  intermediate-head verdict. E4-32 receipt exists at proof/receipts/E4-32.md
+  (REWORK: lint + scope decision); next review only on a new head or rescoped payload.
 
 When you review PR32 or any later candidate:
 - confirm the exact current head before you start

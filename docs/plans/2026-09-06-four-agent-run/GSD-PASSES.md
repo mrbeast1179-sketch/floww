@@ -48,10 +48,18 @@ See `evidence/MERGE-ADVICE.md`.
 PR32 candidate `agent3/t1-scroller-fix-v2` @ `c17fc61`, 5 commits, open against main.
 Evidence: `evidence/agent3-t1-scroller-fix-v2.md`. Not merged; merge decision is Nav's.
 
-## Review — next
+## Review — E4-32 PR32 current-head review complete → REWORK
 
-The next review is PR32 at its current head `c17fc61`, not any stale intermediate.
-PR28 is policy-escalated and not to be re-audited at the same head.
+Reviewed `c17fc61` live (head re-fetched, three-dot payload 23 files, zero both-sides
+overlap so the merge is textually clean). Blocking: (1) required ruff fails — 5 errors
+in 2 branch-payload files, reproduced locally, main clean; same root fails the
+backend-tests job gate (its pytest shard passed 11/11). (2) No linked issue and the
+payload ships Discord/backend scope beyond the T1 title — split a T1-only branch or
+authorize full scope. T1 core itself is sound: reviewer-observed 61 suites / 469 tests
+green at exact head, frontend-build green, App.js touch surgical (waiver still pending).
+No GitHub mutations (Nav-gated). Receipt: `proof/receipts/E4-32.md`. Loop rules
+hardened from this pass: `harness/loop-improvements.md` (three-dot payloads, CI-first,
+blame-attribution, receipt-backing, scope-vs-title, exact-head repro, waiver line items).
 
 Managed offline proof (no GitHub mutations; candidate branches untouched). Receipts in
 floww-run-state/2026-09-06-v2/proof/receipts/; heads re-verified open/unmerged after review.
