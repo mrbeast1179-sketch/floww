@@ -171,6 +171,24 @@ class PublicBudget:
         logger.warning("Public-path 429 on %s — cooling down %ss", host, applied)
         return applied
 
+    def reset(self, now: float | None = None) -> None:
+        """Restore a full bucket: tokens, slots, cooldowns, counters.
+
+        Test isolation only — production never calls this (the singleton
+        is the shared quota). Without it, modules sharing the singleton
+        exhaust each other's tokens and order-dependence follows.
+        """
+        now = time.monotonic() if now is None else now
+        self._tokens = float(self._capacity)
+        self._inflight = 0
+        self._cooldowns.clear()
+        self._cooldown_hits.clear()
+        self.total_ok = 0
+        self.total_limited = 0
+        self.total_429 = 0
+        self.total_errors = 0
+        self._last = now
+
     def status(self, now: float | None = None) -> dict[str, Any]:
         """Observability snapshot (admin endpoint shape)."""
         now = time.monotonic() if now is None else now

@@ -19,6 +19,7 @@ Routing priority (in fetch_spot_and_chains_merged):
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import logging
 import math
 import os
@@ -26,6 +27,7 @@ import time
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
+from services import public_budget as _public_budget
 from services.public_api import PublicBroker
 
 log = logging.getLogger(__name__)
@@ -304,7 +306,24 @@ async def fetch_chain_from_public_api(
         hit = _CHAIN_CACHE.get(key)
         if hit is not None and hit[1] is pb and now - hit[0] < _CHAIN_CACHE_TTL:
             return _cached_copy(hit[2], stale=False)
-        result = await _fetch_chain_live(pb, ticker, max_expiries)
+        # C8: debit the fan-out (2+N upstream calls) before any Public
+        # call. All-or-nothing: refusal spends zero and returns None.
+        # The in-flight slot releases when this attempt settles.
+        # Module-attribute access keeps the budget singleton patchable.
+        try:
+            await _public_budget.budget.acquire_n(2 + max_expiries)
+            _debit_held = True
+        except _public_budget.BudgetExhausted as exc:
+            log.warning("Public budget refused %s chain fetch: %s", ticker, exc)
+            return None
+        except Exception:
+            _debit_held = False
+        try:
+            result = await _fetch_chain_live(pb, ticker, max_expiries)
+        finally:
+            if _debit_held:
+                with contextlib.suppress(Exception):
+                    _public_budget.budget.release()
         if result is not None:
             result["stale"] = False
             try:
