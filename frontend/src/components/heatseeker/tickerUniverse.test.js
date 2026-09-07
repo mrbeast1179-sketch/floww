@@ -95,3 +95,10 @@ test("search is case-insensitive and capped after filtering", () => {
 test("RENDER_CAP is 500", () => {
   expect(RENDER_CAP).toBe(500);
 });
+
+test("empty search exposes a capped default view, not the full universe", () => {
+  const big = Array.from({ length: 600 }, (_, i) => `T${String(i).padStart(4, "0")}`);
+  const res = searchUniverse(big, "", 12);
+  expect(res.total).toBe(0);
+  expect(res.matches).toEqual([]);
+});
