@@ -1,6 +1,6 @@
 # Binding worker protocol
 
-Read this entire file plus your lane prompt, QUEUE and INVENTORY before editing. Package root: `/Users/nav/Documents/GitHub/floww/docs/plans/2026-09-06-four-agent-run`.
+Read this entire file plus your lane prompt, QUEUE and INVENTORY before editing. Package root: `/Users/nav/Documents/GitHub/floww-worktrees/recovery-control-plane-v2/docs/plans/2026-09-06-four-agent-run`. README/HARNESS-V2/TASK-CARDS and current runtime state supersede historical v1 role names and clocks.
 
 ## Instruction and ownership boundary
 
@@ -29,7 +29,7 @@ Institutional ownership overlaps the new lanes. The coordinator must record incu
 5. **Verify:** targeted tests and Ruff on changed backend paths; relevant integration tests. Frontend uses `npx craco test --watchAll=false` and build when UI/build behavior changes, with bounded worker count for the host. Dependency/middleware change requires full backend tests before handoff. Capture pipeline exit statuses faithfully. Do not repeatedly rerun full suites without new changes or uncertainty.
 6. **Review:** inspect full diff, no secrets/out-of-lane paths; request independent spec review then quality review. Reproduce each REWORK finding. Three distinct failed repair attempts on one item → evidence + handoff, choose another eligible task. Do not erase others' work to undo a fix.
 7. **Commit:** one coherent task commit with explicit `git add <paths>` only; real commands/results in body. No commit for an empty audit, repeated HEAD stamping or elapsed-time filler. Keep unfinished work checkpointed rather than forcing a commit.
-8. **Branch/PR:** each admitted independent task gets a coordinator-approved task branch from fresh main; preserve run branch/worktree identity in state. Never combine unrelated tasks into an unreviewable growing branch. Explicit push `git push -u origin HEAD:<task-branch>`; verify remote branch SHA equals local SHA. For actual GSD issues, obey human ready/claim/linkage gates. Otherwise deliver a local reviewable patch until publication is authorized. This planning package itself does not file/comment on GitHub.
+8. **Branch/PR:** each admitted independent task gets a coordinator-approved task branch from fresh main; preserve run branch/worktree identity in state. Never combine unrelated tasks into an unreviewable growing branch. Explicit push `git push -u origin HEAD:<task-branch>`; verify remote branch SHA equals local SHA. For actual GSD issues, obey human ready/claim/linkage gates. Otherwise deliver a local reviewable patch until publication is authorized. The user explicitly invoked one GSD build and one review pass in this session; those pass receipts record authorized GitHub mutations. Other publication follows its actual task authorization.
 9. **Checkpoint:** record outcome, proof, SHA, review status, remaining blockers and next task. Ask coordinator for next admission; keep doing allowed independent investigation between assignments. Never start an unleased implementation because another agent is slow.
 
 ## Runtime/provider discipline
@@ -41,15 +41,15 @@ Institutional ownership overlaps the new lanes. The coordinator must record incu
 - Missing/stale/unknown data must remain explicit under each actual contract. Avoid NaN/Infinity; do not replace all unknown values with zero. Rate tokens are not dollars. Scientific proxies are not measured tick truth.
 - :8000/:3000 and existing bots belong to incumbent lanes. No kill/restart. On isolated ports verify PID/cwd/head and prevent startup jobs from sharing live DB/quota. If provenance cannot be proved, record NOT VERIFIED.
 
-## Four-hour progress and continuation
+## Multi-day progress and continuation
 
-Coordinator sets each lane's own UTC start and deadline once its admission preflight is ready. Working budget is four hours per lane, not minimum 40 iterations. A staggered start never inherits another lane's earlier deadline; supervisor end time may therefore be later. Checkpoint after each task and at least every 15 minutes of meaningful work; send concise user-visible progress during long operations. A heartbeat contains an artifact/command/result, not just “working.”
+Coordinator records each admitted task's UTC start and any actual host/session budget. Work proceeds in coherent units over multiple sessions; there is no minimum runtime or iteration count. A multi-day backlog does not imply a multi-day running process. Checkpoint after each task and at least every 15 minutes of meaningful work; send concise user-visible progress during long operations. A heartbeat contains an artifact/command/result, not just “working.”
 
 States: DISCOVERY → READY → ACTIVE → REVIEW → ACCEPTED; alternate BLOCKED, REWORK, VERIFIED_EXISTING, DEFERRED. ACCEPTED is reviewed candidate, not merged. Separately record branch/PR/merged/deployed stages.
 
-Only the coordinator writes `run-state.json` at package root. Each worker writes its own external runtime checkpoint under `/Users/nav/Documents/GitHub/floww-run-state/2026-09-06/<lane>/` and can read others' published receipts. Shared state is not a distributed lock. Coordinator admissions/reassignments are serialized.
+Only the coordinator writes central runtime `run-state.json` under `/Users/nav/Documents/GitHub/floww-run-state/2026-09-06-v2/`; the committed `run-state-v2.json` is a template. Each worker writes its own external runtime checkpoint under `/Users/nav/Documents/GitHub/floww-run-state/2026-09-06-v2/<lane>/` and can read others' published receipts. Shared state is not a distributed lock. Coordinator admissions/reassignments are serialized.
 
-Before a context/turn limit: checkpoint task ID, full SHAs, dirty own paths, last exact command/result, unresolved failure, next executable step, lease state, and remaining deadline. A replacement reads checkpoint, checks actual git state, then resumes. Never restart the four-hour clock or redo proven work just because context reset.
+Before a context/turn limit: checkpoint task ID, full SHAs, dirty own paths, last exact command/result, unresolved failure, next executable step, lease state, and remaining deadline. A replacement reads checkpoint, checks actual git state, then resumes. Preserve any real host deadline and prior evidence across context reset.
 
 If all ready work is exhausted, perform the next unverified reserve audit once. If nothing eligible remains, report IDLE/BLOCKED with missing artifact and owner. No spin loops, hash-chasing, fabricated defects, endless full-suite reruns or arbitrary coverage targets. User stop requests always win.
 

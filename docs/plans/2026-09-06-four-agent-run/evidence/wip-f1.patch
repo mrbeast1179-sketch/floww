@@ -1,0 +1,20 @@
+diff --git a/backend/services/gex_paper_accurate.py b/backend/services/gex_paper_accurate.py
+index 7a7ce9d..b58c6b9 100644
+--- a/backend/services/gex_paper_accurate.py
++++ b/backend/services/gex_paper_accurate.py
+@@ -1005,4 +1005 @@ def charm_hedging_pressure(
+-    """Charm hedging pressure — Ni-Pearson-Poteshman-White (2021).
+-
+-    'Charming! Retail Option Volume, Delta Hedging, and the...'
+-    SSRN 5054370.
++    """Charm hedging pressure (theta-derived proxy, unverified against tape).
+@@ -1012,0 +1010,2 @@ def charm_hedging_pressure(
++    Computed here from daily theta as a heuristic proxy — NOT measured
++    dealer flow. Treat signals as unverified estimates.
+@@ -1018 +1017 @@ def charm_hedging_pressure(
+-    Key implications:
++    Key implications (heuristic):
+@@ -1025 +1023,0 @@ def charm_hedging_pressure(
+-        gamma: Current option gamma
+@@ -1027 +1024,0 @@ def charm_hedging_pressure(
+-        net_gamma: Net position gamma for context

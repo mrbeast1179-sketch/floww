@@ -1,0 +1,33 @@
+"""P0 honesty regressions (Agent 2, astra/f0-honesty-backend). One test per fix-queue ID."""
+import inspect
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+
+from services import gex_paper_accurate as gpa
+
+
+def test_f1_no_fabricated_ssrn_citation():
+    doc = gpa.charm_hedging_pressure.__doc__ or ""
+    assert "5054370" not in doc
+    assert "SSRN" not in doc
+
+
+def test_f1_args_match_signature():
+    sig = set(inspect.signature(gpa.charm_hedging_pressure).parameters)
+    doc = gpa.charm_hedging_pressure.__doc__ or ""
+    for name in ("gamma", "net_gamma"):
+        assert f"{name}:" not in doc, f"documented arg {name} absent from signature"
+    for name in sig:
+        assert name in doc
+    assert sig == {"delta", "theta", "dte_days"}
+
+
+def test_f1_charm_held_unverified():
+    out = gpa.charm_hedging_pressure(delta=0.5, theta=-0.05, dte_days=2.0)
+    assert out["signal"] == "CHARM_BUYING_PRESSURE"
+    text = out.get("interpretation", "")
+    assert "Per Ni-Pearson 2021" not in text
+    lowered = text.lower()
+    assert any(m in lowered for m in ("proxy", "heuristic", "unverified")), text

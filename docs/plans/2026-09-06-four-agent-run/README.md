@@ -1,60 +1,39 @@
-# Floww four-agent execution package — 2026-09-06
+# Floww recovery program v2 — start here
 
-> For agentic workers: use `superpowers:subagent-driven-development` for a fresh worker per admitted task, or `superpowers:executing-plans` inside an assigned worker session. The coordinator owns admission and integration. This package is a planning deliverable; it has not started a four-hour run.
+This is the current four-agent launch package, completed from the September 6 recovery audit. Four sessions means **one architect, one backend builder, one frontend builder, one independent reviewer**. The old filenames are retained for existing links; their contents now define those four roles.
 
-**Goal:** four hours of useful work per lane on verified remaining Floww work, with complete backlog accounting, independent review, and resumable evidence.
+Goal: recover saved work, finish verified gaps, and prepare a measured proprietary-data transition through small contracts over multiple days. Program completion is determined by reviewed outcomes, not elapsed time.
 
-**Architecture:** one coordinator, four isolated worker roles. One task per worker at a time, whole-file leases, independent task branches, centralized runtime/provider-budget ownership. A passing audit closes a question; it does not require a cosmetic change.
+## Launch
 
-**Stack:** FastAPI, React/CRACO, MongoDB, DuckDB, Public API, pytest, Ruff, GitHub protected-main PRs.
+Use the full prompt in each file in one fresh session, in this order:
 
-**Sources:** the supplied master plan, current GitHub issues, `INVENTORY.md`, repository contracts, and the source register. This is an execution/discovery queue, not a claim that every candidate already has an implementation-ready product contract.
+1. [Agent 1 — architect](AGENT-1-platform.md): verify state and admit tasks.
+2. [Agent 2 — backend/data](AGENT-2-data.md): resume F1 only after lease confirmation.
+3. [Agent 3 — frontend/Tidehunter](AGENT-3-experience.md): start with the read-only Heatseeker/Solstice audit.
+4. [Agent 4 — proof](AGENT-4-proof.md): audit existing candidates before builders generate more.
 
-## Start here
+Stable local package: `/Users/nav/Documents/GitHub/floww-worktrees/recovery-control-plane-v2/docs/plans/2026-09-06-four-agent-run`.
+Branch: `architect/20260906-recovery-control-plane-v2`. Fetch that branch if working on another machine; resolve the package there rather than inventing a path.
 
-1. Open `COORDINATOR.md` in the architect session. It owns the four-hour clock and task leases.
-2. Give each worker its complete `AGENT-1-platform.md`, `AGENT-2-data.md`, `AGENT-3-experience.md`, or `AGENT-4-proof.md` prompt. These reference the common protocol by an absolute local path, so new worktrees do not need to contain this uncommitted package.
-3. Coordinator performs admission preflight, including release of overlapping institutional/G1/G3 ownership. Workers can read, reproduce offline, and prepare contracts while a product-file lease is pending.
-4. Read `QUEUE.md` for outcomes, paths, proof and dependencies. Use `run-state.json` plus per-lane checkpoints outside git for live progress; only the coordinator writes central state.
-5. Finish with reviewed branches/PR evidence and a remaining-work ledger. Nav owns merges under the installed GSD policy. Do not equate a branch commit with a merge or a merge with deployed proof.
+## Current documents
 
-## Workspaces actually prepared
+- [Recovery audit](RECOVERY-AUDIT.md) and [evidence index](EVIDENCE-INDEX.md): observed state and historical evidence limits.
+- [Recovery queue](RECOVERY-QUEUE.md) and [backlog crosswalk](BACKLOG-CROSSWALK.md): every known program receives an owner/disposition.
+- [Harness](HARNESS-V2.md), [common protocol](COMMON.md), [initial state](run-state-v2.json), [task cards](TASK-CARDS.md).
+- [Solstice scroller contract](SOLSTICE-SCROLLER.md): includes the new 500/200 cap report.
+- [Proprietary-data discovery](PROPRIETARY-DATA-DISCOVERY-MAP.md) and [engineering roadmap](DATA-ENGINEERING-ROADMAP.md).
+- [GSD pass receipts](GSD-PASSES.md): actual build/review invocations in this session.
+- [Implementation plan](../../superpowers/plans/2026-09-06-floww-recovery-control-plane.md).
 
-All four were created from `5b9d9a96a29951e548e883d108a806b93c2d11a9` (`origin/main`). Upstream tracking was removed so a default push cannot target main through an inherited upstream. Use explicit feature-branch pushes only.
+The original `QUEUE.md`, `INVENTORY.md`, source/unchecked registers and `run-state.json` are historical source records, preserved for traceability. Their old role assignments, four-hour clocks and completion claims are superseded by this v2 package. No new worker is ACTIVE until its boot receipt is verified.
 
-| Role | Worktree | Branch | Runtime reservation |
-|---|---|---|---|
-| 1 Platform | `/Users/nav/Documents/GitHub/floww-worktrees/run-20260906-platform` | `run/20260906-platform` | 8101, if free |
-| 2 Data | `/Users/nav/Documents/GitHub/floww-worktrees/run-20260906-data` | `run/20260906-data` | 8102, if free |
-| 3 Experience | `/Users/nav/Documents/GitHub/floww-worktrees/run-20260906-experience` | `run/20260906-experience` | 3103, if free |
-| 4 Proof | `/Users/nav/Documents/GitHub/floww-worktrees/run-20260906-proof` | `run/20260906-proof` | 8104/3104, if free |
+## Continuing for days
 
-Reservations are suggestions, not evidence that a port is free. No servers, dependency installs, databases, brokerage calls, bots, or worker loops were started by creating these worktrees. Baseline tests and dependency setup remain launch preflight. Do not use the shared canonical venv for upgrades or share mutable node_modules.
+Keep only the active contract, relevant code, latest receipt and restart command in a worker's context. The architect admits the next small task after review, rotating sessions when needed. Serialize shared files and heavy tests; use read-only discovery while waiting. Do not keep a single branch growing across unrelated tasks.
 
-The existing canonical checkout is `phase9/g1-reads-witness`, not main. Existing `floww-g3` and `floww-worktrees/tidehunter` lanes remain intact. The two previous untracked Sept-6 plans and unrelated dirty files were preserved.
+A native recurring-task tool is unavailable in this host. These prompts are ready for user-launched sessions; automatic multi-day scheduling has not been created. The existing .gsd lock file alone does not prove a live scheduler. The GSD builder is one pass per invocation and has a single repository-wide claimant; it is a separate mode from managed backend/frontend task cards.
 
-## Four-hour operating budget
+## Meaning of saved
 
-| Elapsed | Expected work in every lane |
-|---|---|
-| 0–25 min | Fresh refs, ownership, isolated dependencies, baseline, next task contract |
-| 25–90 min | First high-value task; red/green proof or a resolved audit; independent review request |
-| 90–165 min | Next independent task or reviewed rework; broaden relevant fault matrix |
-| 165–220 min | Remaining eligible task; cross-lane integration/replay/performance evidence |
-| 220–240 min | Finish current safe unit, verify final heads, checkpoint, PR/handoff, enumerate blockers |
-
-These are planning estimates, not deadlines for passing tests. Each lane has at least four hours of candidate work, with reserve tasks beyond that budget. Each lane records its own start and deadline at admission; a late-starting Proof lane receives its own four-hour window. On a capacity-limited host this can extend coordinator supervision beyond four hours. At a lane's deadline checkpoint unfinished work; do not force a broken commit, invent defects, or erase findings to meet the clock. Continue only if the session's run budget is extended. Stop immediately on a user stop request. An exhausted or blocked queue is reported honestly, not padded with repeated probes.
-
-## Durable execution limitation
-
-A prompt cannot guarantee wall-clock execution after its host ends a turn or exhausts context. This session has no native recurring-task tool. **No scheduler is installed or running.** Use a persistent supervising Hermes/session with continuation, or a supported native scheduler after its preflight. Do not substitute an unattended shell `while` loop for the installed `gsd-loop-schedule` skill.
-
-The installed GSD builder is one bounded pass and permits only one claiming builder per repository. Four workers must not each invoke its global issue picker. Coordinator-dispatched local tasks use GSD-style contracts; actual GitHub GSD issues require the human `gsd:ready` gate. Issues #17/#18 currently have no labels. Issue #8 has `gsd:ready` but remains credit-blocked. No issues or labels were changed by this planning pass.
-
-If this host offers only four total agent slots including the coordinator, run three workers concurrently and rotate the proof worker into a released slot; do not claim four workers are simultaneously running. Four independent user-launched sessions can use all four prompts with the architect in a separate session.
-
-## Priority and exclusions
-
-Track A integrity/dependency work gets first integration priority. Prepare independent C2 work in parallel. Exposure alerts and the named round11 tests already exist: verify first. Redesign B0, paid Phase 4, Oracle provisioning, live Discord witnesses, credentials/rotation, model retraining, and frozen-file changes remain explicit gates. Azure repair and retired-provider restoration remain excluded.
-
-Nothing here authorizes live orders, account changes, Discord/webhook messages, purchases, model retraining, or restarting another lane's services. Offline paper execution tests are in scope; real paper transactions require the existing genuine-human approval gate.
+The recovery branch contains documentation and preservation receipts. Existing product branches remain candidates until independent review and human merge. External vendor entitlements, missing redesign artifacts, Oracle provisioning and genuine Discord/paper witnesses remain explicit dependencies.

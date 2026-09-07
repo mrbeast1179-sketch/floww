@@ -1,0 +1,101 @@
+{
+  "schema": "floww-four-agent-run/v2",
+  "program_id": "floww-recovery-20260906-v2",
+  "control_branch": "architect/20260906-recovery-control-plane-v2",
+  "acceptance_base": "5b9d9a96a29951e548e883d108a806b93c2d11a9",
+  "status": "prepared_waiting_for_boot_ack",
+  "central_writer": "agent-1-architect",
+  "runtime_root": "/Users/nav/Documents/GitHub/floww-run-state/2026-09-06-v2",
+  "native_scheduler": "unsupported_in_current_host",
+  "global_gsd_builder_limit": 1,
+  "live_probe_owner": null,
+  "runtime_owner": null,
+  "heavy_suite_owner": null,
+  "lanes": {
+    "agent-1-architect": {
+      "state": "READY",
+      "task_id": "R0-OPERATE",
+      "worktree": "/Users/nav/Documents/GitHub/floww-worktrees/recovery-control-plane-v2",
+      "branch": "architect/20260906-recovery-control-plane-v2",
+      "head_sha": null,
+      "allowed_files": [],
+      "boot_receipt": null,
+      "last_checkpoint": null,
+      "lease_note": "Central external runtime state and task cards only; repository docs changes require an explicit enumerated path list."
+    },
+    "agent-2-backend": {
+      "state": "READY",
+      "task_id": "F0-F1",
+      "worktree": "/private/tmp/w-f0",
+      "branch": "astra/f0-honesty-backend",
+      "head_sha": "5b9d9a96a29951e548e883d108a806b93c2d11a9",
+      "allowed_files": [
+        "backend/services/gex_paper_accurate.py",
+        "backend/tests/services/test_honesty_f0.py"
+      ],
+      "boot_receipt": null,
+      "last_checkpoint": null
+    },
+    "agent-3-frontend": {
+      "state": "DISCOVERY_READY",
+      "task_id": "RH-1/SCROLL-1",
+      "worktree": "/Users/nav/Documents/GitHub/floww",
+      "branch": "phase9/g1-reads-witness",
+      "head_sha": "b5f9ae5d99a4d502efdaf1d0c4d8386c2fa9b0d0",
+      "allowed_files": [],
+      "boot_receipt": null,
+      "last_checkpoint": null
+    },
+    "agent-4-proof": {
+      "state": "READY",
+      "task_id": "E4-29",
+      "worktree": "/Users/nav/Documents/GitHub/floww-worktrees/run-20260906-proof",
+      "branch": null,
+      "head_sha": "5b9d9a96a29951e548e883d108a806b93c2d11a9",
+      "allowed_files": [],
+      "boot_receipt": null,
+      "last_checkpoint": null,
+      "branch_note": "Resolve the existing worktree branch at boot; use an immutable reviewed-head snapshot."
+    }
+  },
+  "known_candidates": {
+    "pr28": "18b10b5601ef0bc0dd27a083d66f2d8ad164665a",
+    "pr29": "568de16a3d2da32c218660e1007ad89b2d97228f",
+    "pr30": "06b75020dddb7b6ecc1d9c220b9fffac6fc0575b",
+    "pr31": "f7f7103b2744a7a052c66a917a7a7d4662a3c310",
+    "g1_local": "b5f9ae5d99a4d502efdaf1d0c4d8386c2fa9b0d0",
+    "g1_remote": "959b3ff02e2157556b032a275b3d5182aef48e53",
+    "g3": "04d2b1647e1bbb35238f4b4ac2958011afcd0ffa",
+    "g1_archive": {
+      "branch": "archive/20260907-g1-recovery",
+      "sha": "b5f9ae5d99a4d502efdaf1d0c4d8386c2fa9b0d0",
+      "remote_verified": true
+    }
+  },
+  "external_gates": [
+    "Nav merges reviewed PRs and applies gsd:ready",
+    "Nav supplies exact proprietary provider and entitlement contract",
+    "Friend pushes Tidehunter redesign brief and mockups",
+    "Nav provisions Oracle VM",
+    "Nav/G4 perform Discord and genuine paper witnesses",
+    "Security owner rotates identified credentials"
+  ],
+  "launch_history": [
+    {
+      "delegation": "deleg_72bd2bfa",
+      "result": "HARNESS_FAILED",
+      "summary": "three NO_BYTES failures and one HTTP_429; no astra_G receipts"
+    }
+  ],
+  "snapshot_date": "2026-09-07",
+  "template_only": true,
+  "task_card_root": "/Users/nav/Documents/GitHub/floww-run-state/2026-09-06-v2/task-cards",
+  "review_receipts": {
+    "pr28": {
+      "head": "18b10b5601ef0bc0dd27a083d66f2d8ad164665a",
+      "verdict": "policy-escalated-human-decision",
+      "url": "https://github.com/mrbeast1179-sketch/floww/pull/28#issuecomment-5569790600",
+      "next": "Nav decision; no repeated audit at same head"
+    }
+  }
+}
