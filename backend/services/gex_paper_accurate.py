@@ -1002,29 +1002,26 @@ def charm_hedging_pressure(
     theta: float,
     dte_days: float = 1.0,
 ) -> dict[str, Any]:
-    """Charm hedging pressure — Ni-Pearson-Poteshman-White (2021).
-
-    'Charming! Retail Option Volume, Delta Hedging, and the...'
-    SSRN 5054370.
+    """Charm hedging pressure (theta-derived proxy, unverified against tape).
 
     Charm (dDelta/dTime) measures how option delta changes as time passes.
     Unlike gamma which reacts to spot moves, charm creates a PERSISTENT
     hedging need that accumulates each day regardless of spot direction.
+    Computed here from daily theta as a heuristic proxy — NOT measured
+    dealer flow. Treat signals as unverified estimates.
 
     For ATM options near expiry:
       Charm ≈ -Θ / S  (for calls)
       Charm ≈ Θ / S   (for puts)
 
-    Key implications:
+    Key implications (heuristic):
       - High negative charm → dealers must buy more stock each day
       - High positive charm → dealers must sell more stock each day
       - Charm effects peak in the final week before expiration
 
     Args:
         delta: Current option delta
-        gamma: Current option gamma
         theta: Current option theta (daily)
-        net_gamma: Net position gamma for context
         dte_days: Days to expiration
 
     Returns:
@@ -1046,17 +1043,16 @@ def charm_hedging_pressure(
     if charm < -0.01 and near_expiry:
         result["signal"] = "CHARM_BUYING_PRESSURE"
         result["interpretation"] = (
-            f"Charm {charm:.4f} near expiry ({dte_days:.0f}d). "
-            "Dealers must BUY more stock daily to maintain delta-neutral. "
-            "Persistent upward drift from charm hedging. "
-            "Per Ni-Pearson 2021: charm effects strongest in final week."
+            f"Theta-proxy charm {charm:.4f} near expiry ({dte_days:.0f}d). "
+            "Heuristic estimate: dealers may BUY more stock daily to maintain delta-neutral. "
+            "Unverified proxy, not measured dealer flow."
         )
     elif charm > 0.01 and near_expiry:
         result["signal"] = "CHARM_SELLING_PRESSURE"
         result["interpretation"] = (
-            f"Charm +{charm:.4f} near expiry ({dte_days:.0f}d). "
-            "Dealers must SELL more stock daily to maintain delta-neutral. "
-            "Persistent downward drift from charm hedging."
+            f"Theta-proxy charm +{charm:.4f} near expiry ({dte_days:.0f}d). "
+            "Heuristic estimate: dealers may SELL more stock daily to maintain delta-neutral. "
+            "Unverified proxy, not measured dealer flow."
         )
     elif near_expiry:
         result["signal"] = "CHARM_NEUTRAL_NEAR_EXPIRY"
