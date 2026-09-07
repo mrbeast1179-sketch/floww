@@ -37,14 +37,23 @@
       "last_checkpoint": null
     },
     "agent-3-frontend": {
-      "state": "DISCOVERY_READY",
-      "task_id": "RH-1/SCROLL-1",
-      "worktree": "/Users/nav/Documents/GitHub/floww",
-      "branch": "phase9/g1-reads-witness",
-      "head_sha": "b5f9ae5d99a4d502efdaf1d0c4d8386c2fa9b0d0",
-      "allowed_files": [],
-      "boot_receipt": null,
-      "last_checkpoint": null
+      "state": "CANDIDATE_READY",
+      "task_id": "RH-1/SCROLL-1/XH-1",
+      "worktree": "/Users/nav/Documents/GitHub/floww-worktrees/agent3-t1-scroller",
+      "branch": "agent3/t1-scroller-fix-v2",
+      "head_sha": "c17fc61f9c822a1fdc4e46d58229e3f22db37647",
+      "allowed_files": [
+        "frontend/src/App.js",
+        "frontend/src/App.css",
+        "frontend/src/components/heatseeker/SkylitTickerBar.jsx",
+        "frontend/src/components/heatseeker/SkylitControlBar.jsx",
+        "frontend/src/components/heatseeker/SkylitTickerBar.contract.test.jsx",
+        "frontend/src/components/heatseeker/tickerUniverse.js",
+        "frontend/src/components/heatseeker/tickerUniverse.test.js"
+      ],
+      "boot_receipt": "/Users/nav/Documents/GitHub/floww-run-state/2026-09-06-v2/agent-3-frontend/boot.json",
+      "last_checkpoint": "/Users/nav/Documents/GitHub/floww-run-state/2026-09-06-v2/agent-3-frontend/checkpoint.json",
+      "lease_note": "T1 universe contract + SCROLL-1 ticker cap/search/arrows. Inspector-script verified: deduped universe, RENDER_CAP slicing, search before slice, arrow boundary wrap, unknown-ticker wrap from boundary, empty-query capped default. Evidence: evidence/agent3-t1-scroller-fix-v2.md. Verification: 61 suites / 469 tests pass; CRA build clean; PR #32 open."
     },
     "agent-4-proof": {
       "state": "READY",

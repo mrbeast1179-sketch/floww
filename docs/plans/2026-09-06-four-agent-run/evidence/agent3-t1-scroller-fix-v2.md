@@ -6,7 +6,7 @@ Updated: 2026-09-07 ET (final verification pass)
 Worktree: `/Users/nav/Documents/GitHub/floww-worktrees/agent3-t1-scroller`  
 Branch: `agent3/t1-scroller-fix-v2`  
 Base: `b5f9ae5d99a4d502efdaf1d0c4d8386c2fa9b0d0`  
-Candidate head: `f89d6eac0a92eb159a06b1a67c62168ec7c07ba3`  
+Candidate head: `c17fc61f9c822a1fdc4e46d58229e3f22db37647`  
 Remote branch: `origin/agent3/t1-scroller-fix-v2` (pushed, full match)  
 PR: https://github.com/mrbeast1179-sketch/floww/pull/32 (opened, base=main, head=agent3/t1-scroller-fix-v2)
 
@@ -15,7 +15,7 @@ PR: https://github.com/mrbeast1179-sketch/floww/pull/32 (opened, base=main, head
 Agent 3 scope here is frontend/consumer behavior only, per the recovery queue and
 the Agent-3 prompt. No backend integrity, no reviews, no merges.
 
-## Candidate commits (4 on top of `b5f9ae5`)
+## Candidate commits (5 on top of `b5f9ae5`)
 
 1. `8e30a60` — Skylit-side T1/scroller fix
    - `tickerUniverse.js` + `tickerUniverse.test.js`
@@ -37,12 +37,16 @@ the Agent-3 prompt. No backend integrity, no reviews, no merges.
 4. `f89d6ea` — chore: ignore worktree scratch symlink
    - `.gitignore`: `backend/.venv` now ignored in this worktree
 
+5. `c17fc61` — test(tickerUniverse): add empty-search cap contract test
+   - `tickerUniverse.test.js`: explicit contract test that an empty query returns an
+     empty result (0 total, 0 matches) rather than leaking the full universe
+
 ## Verification run in this session
 
-- Focused scroller suites: 4 suites / 24 tests passed
-- Full frontend suite: 61 suites / 468 tests passed
+- Focused scroller suites: 4 suites / 25 tests passed
+- Full frontend suite: 61 suites / 469 tests passed
 - CRA build: clean
-- Remote push: branch `agent3/t1-scroller-fix-v2` pushed; remote HEAD matches local HEAD `f89d6ea`
+- Remote push: branch `agent3/t1-scroller-fix-v2` pushed; remote HEAD matches local HEAD `c17fc61`
 - Worktree: clean (only `backend/.venv` symlink exists, and it is git-ignored)
 
 Commands:
@@ -57,18 +61,18 @@ Commands:
   the control bar position/arrows, the App.js keyboard arrows, and the header search.
 - Search filters before slicing, so symbols past the render cap stay reachable.
 - Empty-query suggestion popover no longer renders the full universe; it shows the
-  first 12 tickers, consistent with the bar’s capped-but-reachable model.
+  first 12 tickers, consistent with the bar's capped-but-reachable model.
 - Arrow navigation wraps at the boundary and does not trap on duplicates or stall on
   unknown tickers.
 - Selected item is rendered even past the cap and scrolled into view.
-- `popularExpanded` order now matches the upstream Finnhub list order, so the “popular”
+- `popularExpanded` order now matches the upstream Finnhub list order, so the "popular"
   set is no longer silently re-sorted by deduplication.
 
 ## What this lane is NOT claiming
 
 - No H1/H2 backend Heat integrity work.
 - No F0-F1 honesty work.
-- No E4 review verdict. This branch is a candidate for the recovery queue’s review step.
+- No E4 review verdict. This branch is a candidate for the recovery queue's review step.
 - No Nav App.js waiver record. The final admission depends on the recovery queue and
   any waiver record from Agent 1/Nav.
 - No merged, deployed, or externally witnessed state.
