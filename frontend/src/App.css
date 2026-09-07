@@ -4106,7 +4106,7 @@ button, select, input {
   outline: none;
 }
 .skylit-ticker-search::placeholder { color: #475569; }
-.scylit-ticker-search:focus { border-color: rgba(56,189,248,0.5); }
+.skylit-ticker-search:focus { border-color: rgba(56,189,248,0.5); }
 
 .skylit-ticker-more {
   font-size: 10px;

@@ -54,6 +54,7 @@ import AppShell from "./shell/AppShell";
 import { useTheme } from "./context/ThemeContext";
 import { autoDecimate } from "./utils/dataDecimator";
 import { PAGE_NAMES } from "./shell/navConfig";
+import { buildTickerUniverse, normalizeTicker } from "./components/heatseeker/tickerUniverse";
 
 import ToxicityGauge from "./components/ToxicityGauge";
 import ErrorBoundary from "./components/ErrorBoundary";
@@ -697,10 +698,12 @@ export default function App() {
         case "ArrowUp":
           e.preventDefault();
           if (tickers) {
-            const all = [...(tickers.trinity || []), ...(tickers.default || []), ...(tickers.popular || [])];
+            // T1 (2026-09-07): deduped universe shared with the ticker bar —
+            // duplicate concatenation used to trap arrows in a two-symbol loop.
+            const all = buildTickerUniverse(tickers);
             if (all.length > 0) {
               setTicker(prev => {
-                const idx = all.indexOf(prev);
+                const idx = all.indexOf(normalizeTicker(prev));
                 return idx > 0 ? all[idx - 1] : all[all.length - 1];
               });
             }
@@ -709,10 +712,10 @@ export default function App() {
         case "ArrowDown":
           e.preventDefault();
           if (tickers) {
-            const all = [...(tickers.trinity || []), ...(tickers.default || []), ...(tickers.popular || [])];
+            const all = buildTickerUniverse(tickers);
             if (all.length > 0) {
               setTicker(prev => {
-                const idx = all.indexOf(prev);
+                const idx = all.indexOf(normalizeTicker(prev));
                 return idx < all.length - 1 ? all[idx + 1] : all[0];
               });
             }

@@ -1,5 +1,6 @@
 import React, { memo, useCallback, useEffect, useMemo, useState } from "react";
 import { TICKER_SETS } from "./SkylitTickerBar";
+import { buildTickerUniverse, stepIndex } from "./tickerUniverse";
 
 /**
  * SkylitControlBar — Second header bar with GEX/VEX tabs, LIVE badge,
@@ -28,8 +29,8 @@ function SkylitControlBar({
   // frozen App.js call sites omit it and the button degrades to a no-op).
   onExpand,
   // Optional ticker cycling for the prev/next arrows (2026-09-03).
-  // Defaults to the tape list; unknown current ticker → no-op so open
-  // symbols never get yanked back into the list.
+  // T1 (2026-09-07): arrows traverse the same deduped universe as the bar;
+  // open-universe tickers wrap from the boundary (pinned by tests).
   onTickerChange,
   tickers = null,
   // Auto-refresh cadence while Playback is armed.
@@ -55,11 +56,11 @@ function SkylitControlBar({
     return () => clearInterval(id);
   }, [playing, onRefresh, playbackIntervalMs]);
 
+  // T1 contract: same deduped universe as the ticker bar (object, array, or
+  // null shape); position denominator and arrows agree with buttons/count.
   const tickerList = useMemo(() => {
-    if (!tickers) return TICKER_SETS.popular;
-    const all = [...(tickers.trinity || []), ...(tickers.default || []), ...(tickers.popular || [])];
-    if (all.length === 0) return TICKER_SETS.popular;
-    return all;
+    const u = buildTickerUniverse(tickers);
+    return u.length > 0 ? u : TICKER_SETS.popular;
   }, [tickers]);
   const tickerPos = useMemo(() => {
     if (tickerList.length === 0) return null;
@@ -69,15 +70,7 @@ function SkylitControlBar({
   const stepTicker = useCallback((dir) => {
     if (!onTickerChange) return;
     if (tickerList.length === 0) return;
-    const idx = tickerList.indexOf(ticker);
-    let next;
-    if (idx === -1) {
-      // Open-universe symbol (e.g. VSAT) not in the list — cycle from the
-      // boundary so arrows always work: forward -> first, back -> last.
-      next = dir > 0 ? tickerList[0] : tickerList[tickerList.length - 1];
-    } else {
-      next = tickerList[(idx + dir + tickerList.length) % tickerList.length];
-    }
+    const next = tickerList[stepIndex(tickerList, ticker, dir)];
     if (next) onTickerChange(next);
   }, [onTickerChange, tickerList, ticker]);
 
