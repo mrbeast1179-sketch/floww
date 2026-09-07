@@ -331,6 +331,9 @@ async def fetch_chain_from_public_api(
             return None
         except Exception:
             _debit_held = False
+        # D5: the success timestamp is the request start, so a stale
+        # in-flight success cannot erase a sibling's fresher 429 contract.
+        _fetch_t0 = time.monotonic()
         try:
             result = await _fetch_chain_live(pb, ticker, max_expiries)
         finally:
@@ -339,11 +342,8 @@ async def fetch_chain_from_public_api(
                     _public_budget.budget.release()
         if result is not None:
             result["stale"] = False
-            try:
-                from services.public_budget import budget as _pub_budget
-                _pub_budget.record_ok("api.public.com")
-            except Exception:
-                pass
+            with contextlib.suppress(Exception):
+                _public_budget.budget.record_ok("api.public.com", now=_fetch_t0)
             if len(_CHAIN_CACHE) >= _CHAIN_CACHE_MAX:
                 _CHAIN_CACHE.pop(next(iter(_CHAIN_CACHE)))
             _CHAIN_CACHE[key] = (time.monotonic(), pb, result)

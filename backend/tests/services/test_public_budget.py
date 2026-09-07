@@ -153,3 +153,17 @@ async def test_record_error_counts_without_cooldown():
     assert b.status(now=1000.0)["cooldowns"] == {}
     await b.acquire(host="api.public.com", now=1000.0)  # no cooldown imposed
     b.release()
+
+
+@pytest.mark.asyncio
+async def test_stale_success_preserves_fresh_cooldown():
+    # D5: a success reflecting pre-429 lane state must not erase a
+    # still-active 429 contract; a newer success recovers the lane.
+    b = _budget()
+    b.record_429("h", now=1000.0)
+    b.record_ok("h", now=999.0)
+    with pytest.raises(BudgetExhausted) as exc:
+        await b.acquire(host="h", now=1001.0)
+    assert exc.value.reason == "host_cooldown"
+    b.record_ok("h", now=1002.0)
+    await b.acquire(host="h", now=1003.0)
