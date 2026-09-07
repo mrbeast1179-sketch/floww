@@ -104,11 +104,11 @@
       "next": "Nav merge call; non-gsd branch, same policy as PR28"
     },
     "pr30": {
-      "head": "06b75020dddb7b6ecc1d9c220b9fffac6fc0575b",
-      "verdict": "REWORK",
+      "head": "377dfa5822472f8e43029d5c8dbcc3984a420cea",
+      "verdict": "MERGED",
       "receipt": "floww-run-state/2026-09-06-v2/proof/receipts/E4-30.md",
-      "fix_artifact": "floww-run-state/2026-09-06-v2/proof/receipts/E4-30-gate-fix.patch",
-      "next": "Agent-2 applies patch + pin tests + CI wiring as P1 unit, then re-review"
+      "audit": "docs/plans/2026-09-06-four-agent-run/evidence/PR30-merge-attempt.md",
+      "next": "PR30 merged to main; gate files unchanged from 06b7502; CI green: ruff, backend-tests, frontend-build"
     },
     "pr31": {
       "head": "f7f7103b2744a7a052c66a917a7a7d4662a3c310",
