@@ -99,6 +99,8 @@ data/x-scrape/
 .claude/worktrees/
 .emergent/
 backend/.venv_old
+# Agent 3 scroller worktree scratch symlink
+backend/.venv
 
 # ML model binaries
 models/
