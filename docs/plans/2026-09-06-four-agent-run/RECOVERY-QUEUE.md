@@ -12,7 +12,9 @@ proprietary-data frontier. Status is evidence-based as of 2026-09-06 20:58 EDT.
 |---|---|---|---|
 | R0 | Agent 1 | PREPARED; publication receipt required | Clean recovery package committed and remote-backed |
 | E4-28 | Agent 4 | REVIEW COMPLETE; policy-escalated to Nav | Verdict at `18b10b5`, seven contract tests passed; no new code blocker; see GSD-PASSES |
-| E4-29 | Agent 4 | NEXT REVIEW | Exact-head O/X + quality verdict for PR #29 at `568de16` |
+| E4-29 | Agent 4 | REVIEW COMPLETE; APPROVED, Nav merge call | O/X delivered at `568de16`, 46 exact-head tests; two advisories; see proof/receipts/E4-29.md |
+| E4-30 | Agent 4 | REVIEW COMPLETE; REWORK, fix artifact ready | `06b7502` missing CI wiring + two false-cleans reproduced; verified patch at proof/receipts/E4-30-gate-fix.patch |
+| E4-31 | Agent 4 | REVIEW COMPLETE; APPROVED-conditional | `f7f7103` inert scaffolding, 62 exact-head tests; weights pending A3-SCORE; see proof/receipts/E4-31.md |
 | F0-F1 | Agent 2 | PRESERVED-WIP; no active worker inferred | Finish preserved F1 citation/proxy correction with valid red/green proof |
 | RH-1 | Agent 3 + Agent 4 | AUDIT SAVED; split/admission next | Net-behavior audit of `53267ae..b5f9ae5` plus dirty caps; rework H1/H2/T1/T2 |
 | GSD-8 | Agent 1 | BLOCKED | Remove or leave out of build queue until X credits exist; no spend |

@@ -48,13 +48,13 @@
     },
     "agent-4-proof": {
       "state": "READY",
-      "task_id": "E4-29",
+      "task_id": "E4-RESERVE",
       "worktree": "/Users/nav/Documents/GitHub/floww-worktrees/run-20260906-proof",
       "branch": null,
       "head_sha": "5b9d9a96a29951e548e883d108a806b93c2d11a9",
       "allowed_files": [],
       "boot_receipt": null,
-      "last_checkpoint": null,
+      "last_checkpoint": "E4-29 APPROVED, E4-30 REWORK, E4-31 APPROVED-conditional; receipts in proof/receipts/",
       "branch_note": "Resolve the existing worktree branch at boot; use an immutable reviewed-head snapshot."
     }
   },
@@ -96,6 +96,25 @@
       "verdict": "policy-escalated-human-decision",
       "url": "https://github.com/mrbeast1179-sketch/floww/pull/28#issuecomment-5569790600",
       "next": "Nav decision; no repeated audit at same head"
+    },
+    "pr29": {
+      "head": "568de16a3d2da32c218660e1007ad89b2d97228f",
+      "verdict": "APPROVED",
+      "receipt": "floww-run-state/2026-09-06-v2/proof/receipts/E4-29.md",
+      "next": "Nav merge call; non-gsd branch, same policy as PR28"
+    },
+    "pr30": {
+      "head": "06b75020dddb7b6ecc1d9c220b9fffac6fc0575b",
+      "verdict": "REWORK",
+      "receipt": "floww-run-state/2026-09-06-v2/proof/receipts/E4-30.md",
+      "fix_artifact": "floww-run-state/2026-09-06-v2/proof/receipts/E4-30-gate-fix.patch",
+      "next": "Agent-2 applies patch + pin tests + CI wiring as P1 unit, then re-review"
+    },
+    "pr31": {
+      "head": "f7f7103b2744a7a052c66a917a7a7d4662a3c310",
+      "verdict": "APPROVED-conditional",
+      "receipt": "floww-run-state/2026-09-06-v2/proof/receipts/E4-31.md",
+      "next": "Nav merge call as inert scaffolding; A3-SCORE must approve weights before any live caller passes nonzero"
     }
   }
 }

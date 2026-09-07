@@ -28,6 +28,23 @@ The installed review policy routed this non-gsd automation branch to human decis
 GSD_LOOP_RESULT={"lane":"review","status":"work","reason":"pr28-human-authored-escalation"}
 ```
 
+## Agent-4 offline proof — E4-29, E4-30, E4-31 complete
+
+Managed offline proof (no GitHub mutations; candidate branches untouched). Receipts in
+floww-run-state/2026-09-06-v2/proof/receipts/; heads re-verified open/unmerged after review.
+
+- E4-29 PR29 issue17 at 568de16: APPROVED. CI green (ruff, backend-tests, frontend-build).
+  Exact-head craco run 2 suites / 46 passed. O-1/O-2/O-3 delivered, X intact, storage key
+  byte-identical. Two advisories: hydrate round-trip loses form data, journal id collision
+  risk. Merge call is Nav's (non-gsd branch).
+- E4-30 PR30 P1 at 06b7502: REWORK. Gate fires/passes (2/2 tests) but no CI wiring exists,
+  malformed files false-clean (exit 0), missing root false-clean (exit 0) — both reproduced.
+  Verified fix attached as E4-30-gate-fix.patch (fail-closed both cases, existing tests green).
+  Agent-2 applies patch + pin tests + CI wiring, then re-review. Do not merge as P1-complete.
+- E4-31 PR31 A3 at f7f7103: APPROVED-conditional. Exact-head pytest 62 passed, ruff clean.
+  Sole production caller byte-identical (default 0); weights provisional pending A3-SCORE;
+  F2/F13 stay serialized behind this decision.
+
 ## Scheduling
 
 The host exposes no native recurring-task tool. No recurring builder or reviewer was created. The installed gsd-loop-schedule instruction is: “If the host has no recurring-task capability, stop and explain that this scheduling skill is unsupported there.” The existing local lock file alone is not evidence of a scheduled task. Use the four prompts in managed sessions; keep one global queue-claiming GSD builder if later switching to native queue mode.
