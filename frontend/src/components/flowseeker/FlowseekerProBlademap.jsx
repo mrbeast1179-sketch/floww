@@ -20,6 +20,7 @@ import { Checklist, FunnelEmpty } from "./methodology/Methodology";
 import Tracker from "./tracker/Tracker";
 import ChartModal from "./chart/ChartModal";
 import { widenActions, applyFilters, defaultFilterState } from "./filters/filterState";
+import { exposureBadgeFor } from "./exposureBadges";
 import "./FlowseekerProBlademap.css";
 
 const API = `${BACKEND_URL}/api/flowseeker`;
@@ -1997,6 +1998,7 @@ export default function FlowseekerProBlademap({ active = true, onTrade = null })
                         </span>
                         <span className="fsb-sig-badges">
                           {tier && <span className={`fsb-sig-tier t-${tier.toLowerCase()}`}>{tier}</span>}
+                          {(() => { const eb = exposureBadgeFor(a.rule); return eb ? <span key={eb.rule} className={`fsb-sig-exp e-${eb.rule.toLowerCase()}`} title={eb.title}>{eb.label}</span> : null; })()}
                           <span className="fsb-sig-conv">{a.conviction}</span>
                         </span>
                       </div>
