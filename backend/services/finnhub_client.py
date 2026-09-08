@@ -27,7 +27,10 @@ import logging
 import os
 from typing import Any
 
-import finnhub
+try:
+    import finnhub
+except ImportError:  # pragma: no cover - missing optional dependency
+    finnhub = None  # type: ignore[assignment]
 
 log = logging.getLogger(__name__)
 
@@ -44,7 +47,9 @@ class FinnhubClient:
         key = api_key or FINNHUB_API_KEY
         if not key:
             log.warning("Finnhub API key not set — methods will return None")
-        self._client = finnhub.Client(api_key=key) if key else None
+        if finnhub is None:
+            log.warning("finnhub package not installed — methods will return None")
+        self._client = finnhub.Client(api_key=key) if (key and finnhub is not None) else None
 
     # ------------------------------------------------------------------
     # Quote
