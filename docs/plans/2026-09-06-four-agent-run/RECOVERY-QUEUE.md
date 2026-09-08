@@ -61,7 +61,7 @@ PR44 merged main 56cfff2 2026-09-08T11:48:51Z; witness gate (external G-WITNESS)
 5. **O-2.** CLOSED (obsolete under Public-unlimited). Reopen only with a
    measured binding Public quota.
 
-### Agent 3 backlog (queued, not admitted)
+### Agent 3 backlog (admitted)
 
 1. **Alert surfacing — the known orphan gap.** Backend emits rules the UI
    never renders. Priority order with exact strings to wire:
@@ -70,17 +70,15 @@ PR44 merged main 56cfff2 2026-09-08T11:48:51Z; witness gate (external G-WITNESS)
       unknowns; copy keeps proxy disclaimers (F5/F6/F11/F19 style — no
       invented precision, heuristic labels).
    b. `VEX_WALL` (+formed/broken), `CHARM_PIN` (+formed/shifted): same
-      treatment. (UI `vex` viewMode and `CHARM_PINNING` are DIFFERENT rules —
-      do not conflate; read both sides first.)
-   c. `GAMMA_FLIP_PROXIMITY`, `VOLUME_SPIKE` (alert_engine), `CLUSTER`
-      (flow_alerts): assess producer liveness first (fire them in tests?);
-      surface only live ones, report dead ones instead of wiring corpses.
-   d. Do NOT invent UI for `FOLLOW`/`SOURCE` (UI-only, no backend producer).
-   Tests for every badge (incl. no-quote/unknown rendering); full-suite green.
+      treatment. (UI `vex` viewMode and `CHARM_PINNING` are DIFFERENT rules —\n      do not conflate; read both sides first.)
+   c. `GAMMA_FLIP_PROXIMITY`, `VOLUME_SPIKE` (alert_engine), `CLUSTER`\n      (flow_alerts): assess producer liveness first (fire them in tests?);\n      surface only live ones, report dead ones instead of wiring corpses.\n   d. Do NOT invent UI for `FOLLOW`/`SOURCE` (UI-only, no backend producer).\n   Tests for every badge (incl. no-quote/unknown rendering); full-suite green.\n   Status: **DONE via PR48** (a3/alert-surfacing, head 498e9c5). PR48 open,\n   agent-4 review + Nav merge gate before merge. Receipt:\n   evidence/ALERT-SURFACING-1A-receipt.md.
 
-2. **XH-1** — UI quote/side/sweep/block copy preserves unknowns, labels proxies.
-3. **X2** — mounted Phase9 consumer + responsive acceptance.
-4. **X4** — poll/remount/race/partial-data stability.
+2. **XH-1** — UI quote/side/sweep/block copy preserves unknowns, labels proxies.\n   Status: **ADMITTED** — task card `XH-1.md` written; discovery phase pending\n   agent-3 boot + Agent-1 go-ahead.
+
+3. **X2** — mounted Phase9 consumer + responsive acceptance.\n   Status: **ADMITTED** — task card `X2.md` written; discovery phase pending\n   agent-3 boot + Agent-1 go-ahead.
+
+4. **X4** — poll/remount/race/partial-data stability.\n   Status: **ADMITTED** — task card `X4.md` written; discovery phase pending\n   agent-3 boot + Agent-1 go-ahead.
+
 5. **RT-1 / RH-2** — only on fresh Agent-1 contracts.
 
 ### Agent 4 standing review
