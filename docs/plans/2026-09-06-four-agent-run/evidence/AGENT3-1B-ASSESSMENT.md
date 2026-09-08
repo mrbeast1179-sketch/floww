@@ -93,7 +93,8 @@ heuristic label and its own RED test. Do NOT fold them into
 the conflation traps above are real bugs waiting to happen.
 
 ## Assessment complete
-All 11 alert_engine catalog rules are live producers. No dead code. No rules
-to report as dead. The rendering gap is real and large (11 rules + 1 proximity
-variant unrendered). Unit 1b assessment complete; unit 1c (wire remaining
+All 11 alert_engine catalog rules + CLUSTER in flow_alerts are live producers.
+No dead code. No rules to report as dead. The rendering gap is real and large
+(11 alert_engine rules + GAMMA_FLIP_PROXIMITY proximity variant + CLUSTER
+still unrendered). Unit 1b assessment complete; unit 1c (wire remaining
 rules) is a separate future unit requiring its own Agent-1 admission.
