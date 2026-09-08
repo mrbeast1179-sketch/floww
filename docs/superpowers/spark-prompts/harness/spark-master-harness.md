@@ -23,7 +23,7 @@ Round 7's fabricated completion log is the floor you never touch.
 
 ## Git truth (verified 2026-09-07 — re-fetch every session, never trust memory)
 
-- `origin/main` = `e68bdb5` (PR30 merge; PR29 + PR31 already in).
+- `origin/main` = `56cfff2` (PR30/29/31/44 merged; PR29+31 in at e68bdb5, PR44 merged 2026-09-08T11:48:51Z; main has since advanced past e68bdb5).
 - Open: PR28 `18b10b5` (astra/d7-clean, policy-escalated, Nav-gated) and
   PR32 `c17fc61` (agent3/t1-scroller-fix-v2, review pending).
 - `astra/f0-honesty-backend` = `f880971`: 14 commits, local == remote, NOT merged.

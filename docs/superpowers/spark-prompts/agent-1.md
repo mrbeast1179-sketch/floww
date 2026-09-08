@@ -16,7 +16,7 @@ Read first, in order: `README.md`, `HARNESS-V2.md`, `RECOVERY-QUEUE.md`
 
 ## Git truth — re-fetch every session; heads move without you
 
-- `origin/main` was `04605df` (take-over loops landed PR28–47). Re-read the
+- `origin/main` was `56cfff2` (take-over loops landed PR28–47, PR44 merged 2026-09-08T11:48:51Z). Re-read the
   tip at every boot. Only PR44 should be open (G3, witness-gated). Anything
   new: read it before admitting anything nearby.
 - `phase9/g1-reads-witness` (production checkout): NOT your lease, never

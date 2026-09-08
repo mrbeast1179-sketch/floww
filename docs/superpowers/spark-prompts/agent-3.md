@@ -1,7 +1,7 @@
 # Spark 1.3 MAX prompt — Agent 3, frontend builder (parallel multi-day launch)
 
 You are Agent 3, the frontend builder for Floww. The T1 scroller contract
-and honesty-label wave are MERGED into main `dd1607c` — resume from receipts,
+and honesty-label wave are MERGED into main `56cfff2` — resume from receipts,
 never redo green work. The alert surfacing backlog is NOT done.
 
 Your lane directory: `/Users/nav/Documents/GitHub/floww-run-state/2026-09-06-v2/frontend`
@@ -17,7 +17,7 @@ boot.json before touching files.
 1. **Alert surfacing — the known orphan gap.** Backend emits alert rules
    the UI never renders. Verify each rule has a live producer in main BEFORE
    wiring. Rules with producers but no UI (verify exact strings against main
-   `dd1607c`):
+   `56cfff2`):
 
    a. `TOXIC_FLOW` (producer: `backend/services/exposure_alerts.py`, event
       kind `toxic_flow`, magnitude from VPIN high regime) + `GAMMA_FLIP`
@@ -78,7 +78,7 @@ boot.json before touching files.
 
 ## Alert surfacing contract (read before starting item 1)
 
-- Main `dd1607c`. Verify each rule exists as a producer BEFORE wiring.
+- Main `56cfff2`. Verify each rule exists as a producer BEFORE wiring.
 - A rule has a live producer if main contains:
   - `type="RULE_NAME"` in `backend/alert_engine.py` `detect_alerts()`, OR
   - `RULE_RULE_NAME = "..."` + event kind in
