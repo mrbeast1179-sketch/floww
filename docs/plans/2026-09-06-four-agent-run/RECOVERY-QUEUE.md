@@ -136,7 +136,6 @@ repo from a Floww task card. Shared ideas cross repositories only through an exp
 interface/spec, never by copying an entire provider or agent framework.
 
 ## Take-over loop 2 — provider directive + sweep (2026-09-08)
-
 Owner directive: Public API (unlimited) is primary; cvserver (20 req/hr) is
 scarce failover; small-stock strike coverage must improve with real rows only.
 
@@ -148,6 +147,11 @@ scarce failover; small-stock strike coverage must improve with real rows only.
   (`CVSERVER_HOURLY_CAP`, stale on exceed) + Public deepen (<40 strikes → 8
   expiries, zero cvserver cost) + budgeted cvserver enrich (<30 strikes, 1
   call, keep-richer). 9 tests (3 RED on main first). No fabricated strikes.
+- PR40 OPEN (`astra/honesty-labels`): F5/F6/F11/F17/F19 done (unknown-side
+  dash, copy corrections; F11 test RED on main first; 62/480 green). F16
+  verified present (no change). Skipped with rationale: F9 (citation year
+  needs source), F18 (optional, already satisfied), F2/F13 (weights),
+  F8/F10/F12/F14 (paper verification).
 - 61-ref archaeology: 6 superseded branches deleted after patch-id proof;
   G3 + swarm-sizing rescue backlogs specced (evidence/DEEP-SWEEP-2026-09-08.md).
 - Baselines @ `dea655a`: backend 5048, frontend 62/479, ruff clean.
