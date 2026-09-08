@@ -85,9 +85,14 @@ async def get_ticker_data(
         }
         if grids["vex_grid"] or grids["charm_grid"]:
             _fa.init_flow_alert_tables(_duckdb)
+            try:
+                from routes.vpin import snapshot_vpin_state
+                _vpin_state = snapshot_vpin_state(t)
+            except Exception:
+                _vpin_state = None
             events = _ea.evaluate_ticker(
                 t, {"vex_grid": grids["vex_grid"], "charm_grid": grids["charm_grid"]},
-                float(payload.get("spot") or 0))
+                float(payload.get("spot") or 0), vpin_state=_vpin_state)
             if events:
                 kept = _fa.dedup_filter(_duckdb, events)
                 if kept:
