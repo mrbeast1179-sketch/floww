@@ -122,7 +122,7 @@ GSD_LOOP_RESULT={"lane":"build","status":"work","reason":"takeover-5prs-1merge"}
 
 ## Agent-2 loop closeout — PR47 merged (2026-09-08)
 
-PR47 `astra/numba-greeks` → main as `56cfff2` (base `dd1607c`, head `65a952e`,
+PR47 `astra/numba-greeks` → main as `56cfff2` (base `04605df`, head `65a952e`,
 merged 2026-09-08T10:57:02Z). Two commits: numba charm-vec wiring (identical
 totals, 1.7x on 15k chains) + Kyle/Amihud LIQUIDITY_STRESS alerts (6 files,
 +346/-5: advanced_analytics, server.py, exposure_alerts, liquidity_state +
