@@ -1,19 +1,20 @@
-# Recovery queue v2
+# Recovery queue v2 — current state (main dd1607c)
 
 `QUEUE.md` retains the full P1–P7, D1–D7, X1–X5, and E1–E5 contracts. This
-file adds current candidate heads, recent work, institutional integration, and the
-proprietary-data frontier. Status is evidence-based as of 2026-09-08 03:07 EDT.
+file tracks current candidate heads and the live backlog. Status is evidence-based
+as of 2026-09-08.
 
-## CLOSED as a merge queue (2026-09-08)
+## CLOSED as a merge queue
 
-Main is `dd1607c`. Merged, in order: PR28 (D7 parity), PR29 (X1 journal),
+Main is `04605df`. Merged, in order: PR28 (D7 parity), PR29 (X1 journal),
 PR30 (P1 silent-except gate), PR31 (A3 conviction wiring), PR33 (T1-only),
 PR34 (H1 strike-truth fixture), PR35 (F0 wave + clock fix), PR36 (H2-partial),
 PR37 (GEX date-string fix), PR38 (dead-code removal + kanban datetime fix),
 PR39 (provider cap + deepen + enrich, merged by Nav), PR40 (honesty labels),
 PR41 (strike floor), PR42 (T2 full universe + order-key 401 fix), PR43
-(honesty citations), PR45 (TOXIC_FLOW alerts), PR46 (GAMMA_FLIP alerts).
-Zero open PRs except PR44 (G3-salvage, witness-gated).
+(honesty citations), PR45 (TOXIC_FLOW alerts), PR46 (GAMMA_FLIP alerts),
+PR47 (numba charm vec + liquidity-stress alerts).
+One open PR: PR44 (G3-salvage, witness-gated).
 6 superseded branches deleted after patch-id proof (product identical to main;
 docs in archive). Every merge verified: green required CI on the merged head +
 local reproduction where applicable. Full receipt trail in GSD-PASSES.md
@@ -23,108 +24,101 @@ take-over section + lane receipts + evidence/DEEP-SWEEP-2026-09-08.md.
 
 || ID | State | Gate |
 |---|---|---|---|
-| O-2 reuse-or-remove | QUEUED with spec | Cross-key cache surgery or swing-depth product call — Nav's |
-| O-4/O-5 failover order | QUEUED with spec | Provider sandbox + product sign-off — Nav's |
-| P2 upgrades | Baseline KNOWN (11 advisories) | pymongo/starlette/nltk bumps need resolver pass — Nav's |
-| P6 rotation | Inventory done | Real credential rotation — Nav's secrets |
-| P7 Oracle | Runbook ready | VM provisioning — Nav's |
-| Azure deploy | Workflow red, code-innocent | `azure/login` credentials missing in repo secrets — Nav's (`Deploy to Azure` fails on every main push with "No credentials found"; pre-existing, unrelated to merges) |
-| GSD-8 | BLOCKED | X credits |
-| App.js standing waiver | Ungranted, scoped | T1 28-line scope shipped under 2026-09-08 take-over order; a STANDING waiver for future App.js work is still explicitly ungranted |
-| PRODUCTION CUTOVER (do NOT do unilaterally) | REQUIRED for any user-visible fix | Production runs canonical `phase9/g1-reads-witness` (pre-T1!). Main has everything; canonical does not. Evidence of a possible parallel actor on canonical (unexplained merge commits 4665c77/3617c46 in my message phrasing, 2026-09-07 ~20:16-20:52 EDT) + Nav's live IDE work there. SINGLE-WRITER RULE: coordinate first. G1 WIP preserved at `d39c37a` (pushed). Cutover sketch (Nav-approved only): verify canonical clean, `git checkout main`, `git pull --ff-only`, frontend rebuild, backend restart per ~/.hermes/scripts/confluence-decoder-start.sh, verify :3000/:8000 + KYTX strikes + paper order probe. |
-| G3-SALVAGE (PR44) | APPROVED-conditional, witness-gated | PR44 `astra/g3-paper-loop` @ `d6fad39` against main dd1607c. Offline GATE-2 proof (131 tests, ruff clean, silent-except baseline). Merge gated on external G-WITNESS (same guild/channel, test channel, non-admin help, genuine paper approve/fill/close). Agent 4 refresh review at current head before witness gate. |
-
-`QUEUE.md` retains the full P1–P7, D1–D7, X1–X5, and E1–E5 contracts. This
-file adds current candidate heads, recent work, institutional integration, and the
-proprietary-data frontier. Status is evidence-based as of 2026-09-08 03:07 EDT.
+|| O-2 reuse-or-remove | QUEUED with spec | Cross-key cache surgery or swing-depth product call — Nav's |
+|| O-4/O-5 failover order | QUEUED with spec | Provider sandbox + product sign-off — Nav's |
+|| P2 upgrades | Baseline KNOWN (11 advisories) | pymongo/starlette/nltk bumps need resolver pass — Nav's |
+|| P6 rotation | Inventory done | Real credential rotation — Nav's secrets |
+|| P7 Oracle | Runbook ready | VM provisioning — Nav's |
+|| Azure deploy | Workflow red, code-innocent | `azure/login` credentials missing in repo secrets — Nav's (`Deploy to Azure` fails on every main push with "No credentials found"; pre-existing, unrelated to merges) |
+|| GSD-8 | BLOCKED | X credits |
+|| App.js standing waiver | Ungranted, scoped | T1 28-line scope shipped under 2026-09-08 take-over order; a STANDING waiver for future App.js work is still explicitly ungranted |
+|| PRODUCTION CUTOVER (do NOT do unilaterally) | REQUIRED for any user-visible fix | Production runs canonical `phase9/g1-reads-witness` (pre-T1!). Main has everything; canonical does not. Evidence of a possible parallel actor on canonical (unexplained merge commits 4665c77/3617c46 in my message phrasing, 2026-09-07 ~20:16-20:52 EDT) + Nav's live IDE work there. SINGLE-WRITER RULE: coordinate first. G1 WIP preserved at `d39c37a` (pushed). Cutover sketch (Nav-approved only): verify canonical clean, `git checkout main`, `git pull --ff-only`, frontend rebuild, backend restart per ~/.hermes/scripts/confluence-decoder-start.sh, verify :3000/:8000 + KYTX strikes + paper order probe. |
+|| G3-SALVAGE (PR44) | APPROVED-conditional, witness-gated | PR44 `astra/g3-paper-loop` @ `d6fad39` against main dd1607c. Offline GATE-2 proof (131 tests, ruff clean, silent-except baseline). Merge gated on external G-WITNESS (same guild/channel, test channel, non-admin help, genuine paper approve/fill/close). Agent 4 refresh review at current head before witness gate. |
 
 ## Admission order
 
-### Wave 0 — preserve and adjudicate
+All September 6-8 recovery work is merged. No active builder admissions.
+The only open candidate is PR44 (G3-salvage, witness-gated).
 
-| ID | Lane | State | Result required before moving on |
-|---|---|---|---|
-| R0 | Agent 1 | PREPARED; publication receipt required | Clean recovery package committed and remote-backed |
-| E4-28 | Agent 4 | MERGED to main (`de88c1f`) | PR28 merged 2026-09-08 under owner take-over order (prior escalation was branch-convention policy, no code defect). Pre-merge proof on update commit: parity 4/4, routes 183 pass (2 pre-existing LLM-key failures identical on pristine main), ruff clean. |
-| E4-29 | Agent 4 | REVIEW COMPLETE; APPROVED, Nav merge call | O/X delivered at `568de16`, 46 exact-head tests; two advisories; see proof/receipts/E4-29.md |
-| E4-30 | Agent 4 | MERGED to main | PR30 merged at 377dfa5 (merge of origin/main into astra/p1-clean); scripts/silent_except_gate.py and backend/tests/test_silent_except_gate.py byte-identical to 06b7502; CI green: ruff, backend-tests, frontend-build; audit: evidence/PR30-merge-attempt.md |
-| E4-31 | Agent 4 | REVIEW COMPLETE; APPROVED-conditional | `f7f7103` inert scaffolding, 62 exact-head tests; weights pending A3-SCORE; see proof/receipts/E4-31.md |
-| PR32 | SUPERSEDED by PR33 | T1-only split built, tested, PR open | E4-32 verdict stands (receipt + evidence mirror). T1-only `astra/t1-only`: 8 files, 62 suites / 479 tests green on main base, zero G1 riders. Backend/Discord remainder still needs scope issue. PR32 to be closed as superseded after PR33 merges. App.js touch authorized under owner take-over order 2026-09-08 (surgical scope recorded in PR33). |
-| PR33 | T1-only candidate | PR open, CI running | `astra/t1-only` @ `217236c` (post-main-update). Full suite green pre-update; re-verified post-merge. |
-| PR34 | H1-test candidate | PR open, CI running | `astra/h1-strike-truth` @ `a09e040` (post-main-update). Fixture 4 green; negative control proven. |
-| PR35 | F0-wave candidate | 1 test fix pushed, CI re-running | `49f467e`: fake-clock/monotonic bug in 429-cooldown test fixed (proven via clock-patch repro). 15 gate files 151 green locally. |
-| PR36 | H2-partial candidate | PR open, CI running | O-1/O-3 shipped (`0a690a1`); O-2/O-4/O-5 queued with rationale. Full suite 4984 green locally. Receipt: agent-2-backend/receipts/H2.md. |
-| F0-F1 | Agent 2 | COMPLETE; VERIFIED GREEN, PR35 open | Wave-1 honesty/integrity complete: F1/F3/F4/F7, P1/P3/P4, D1–D7. Architect re-verified 2026-09-08: 15 gate test files **151 passed**, backend ruff clean. Receipts in agent-2-backend/receipts/ (+H1.md, P2 supplement, FINAL supplement, H2.md). Open: P2 baseline KNOWN (11 advisories, upgrade Nav-gated), P6/P7 Nav-gated. |
-| GSD-8 | Agent 1 | BLOCKED | Remove or leave out of build queue until X credits exist; no spend |
+### Agent 2 backlog (queued, not admitted)
 
-Nav merges #28/#29 only after E4 approval of the same head. A later push invalidates
-the verdict and returns the PR to review.
+1. **Numba Greeks wiring.** `bs_charm_vec`/`bs_vomma_vec`/`bs_delta_vec`/
+   `bs_vega_vec`/`bs_zomma_vec` in `services/numba_greeks.py` sit UNUSED
+   while `calc_charm_integral` loops in Python. Prove numeric equivalence
+   (golden test vs scalar path, rtol 1e-9, on real chain shapes incl.
+   degenerate T/IV/zero-OI rows), swap the hot loop, prove perf on a
+   15k-contract chain (time both). Do NOT touch model-locked constants
+   (`gex_history.py` RISK_FREE/IV_FALLBACK — retrain migration, out of scope).
 
-### Wave 1 — Wave-1 integrity complete
+2. **Kyle/Amihud regime alerts.** `KylesLambda` + `AmihudIlliquidity` exist
+   (`push_snapshot`/`compute` API) with zero alert consumers. Design a
+   threshold alert through the exposure pipeline — copy the TOXIC_FLOW
+   pattern exactly (rule const + event kind + WHY + fail-open + CDF-style
+   confirmation if available + cold-silent). Tests RED-on-main first.
 
-- F1/F3/F4/F7: done, pushed, receipts on disk
-- P1/P3/P4: done, pushed
-- D1–D7: done, pushed
-- Open: P2 (pip-audit timed out, baseline UNKNOWN), P6 (rotation Nav-gated), P7 (Oracle offline, Nav-gated)
+3. **OFI/multi-level assessment.** `multi_level_ofi.py`, `composite_flow_score.py`,
+   `hmm_regime.py`, `chain_replay.py` exist; assess which computes a
+   tradeable signal vs research scaffolding. Report (receipt) before code:
+   keep/wire/drop per module with evidence. Only wire what has tests.
 
-### Next admissions (contracts preserved from QUEUE.md / heat audit)
+4. **F2/F13 weights + F8/F10/F12/F14.** Weights need an A3-SCORE decision on
+   record — without it, touch nothing. Paper items need the papers.
 
-- H1 PR34 open (`a09e040`), H2 PR36 open (`0a690a1`, O-1/O-3 only), serialized theme continues: whoever lands first constrains server.py analytics vs provider cost. H2 call-count targets reconciled at admission (see H2.md receipt). FLAG (unchanged): PR32 payload's `_fill_strike_gaps` (`type:"none"` zero-OI rows) vs H1 O-1 — resolved by taking Option A (T1-only PR33 carries no server.py changes).
-- XH-1 (Agent 3): UI quote/side/sweep/block copy preserves unknowns, labels proxies.
-- RH-2 (Agent 3): clean Heatseeker candidate branch, only approved behavior + tests.
-- RT-1 (Agent 3): clean ticker-navigation candidate, no dead universe experiment.
-- SCROLL-1 (Agent 3 + Agent 4): capped DOM, full collection reachability, active-item reveal, actual mounted surface.
-- F2/F13 both touch `flow_alerts.py`: serialized behind the PR31 decision.
-- `App.js` not in Agent 3's lease without a surgical Nav waiver (per CLAUDE.md frozen files).
+5. **O-2.** CLOSED (obsolete under Public-unlimited). Reopen only with a
+   measured binding Public quota.
 
-### Wave 2 — dependency, data, and consumer truth (COMPLETE)
+### Agent 3 backlog (queued, not admitted)
 
-All Wave-2 items shipped and merged into main:
+1. **Alert surfacing — the known orphan gap.** Backend emits rules the UI
+   never renders. Priority order with exact strings to wire:
+   a. `TOXIC_FLOW` (new) + `GAMMA_FLIP` proximity (new): pills/badges in the
+      Blademap feed AND heatseeker; reuse the SIDE/SIGNAL dash pattern for
+      unknowns; copy keeps proxy disclaimers (F5/F6/F11/F19 style — no
+      invented precision, heuristic labels).
+   b. `VEX_WALL` (+formed/broken), `CHARM_PIN` (+formed/shifted): same
+      treatment. (UI `vex` viewMode and `CHARM_PINNING` are DIFFERENT rules —
+      do not conflate; read both sides first.)
+   c. `GAMMA_FLIP_PROXIMITY`, `VOLUME_SPIKE` (alert_engine), `CLUSTER`
+      (flow_alerts): assess producer liveness first (fire them in tests?);
+      surface only live ones, report dead ones instead of wiring corpses.
+   d. Do NOT invent UI for `FOLLOW`/`SOURCE` (UI-only, no backend producer).
+   Tests for every badge (incl. no-quote/unknown rendering); full-suite green.
 
-- P2: dependency advisory baseline now KNOWN (11 advisories; pymongo/starlette/nltk bumps Nav-gated for resolver pass); full backend proof complete.
-- D1–D5: all complete and pushed.
-- D6: complete and pushed.
-- A3-SCORE: Nav decision recorded (exposure does change conviction; PR31 weights accepted as inert scaffolding).
-- X2: mounted Phase9 consumer and responsive acceptance complete.
-- X4: poll/remount/race/partial-data stability complete.
-- E1: backlog, revalidation of F1–F19 individually at current base/candidates — done.
+2. **XH-1** — UI quote/side/sweep/block copy preserves unknowns, labels proxies.
+3. **X2** — mounted Phase9 consumer + responsive acceptance.
+4. **X4** — poll/remount/race/partial-data stability.
+5. **RT-1 / RH-2** — only on fresh Agent-1 contracts.
 
-What remains from Wave 2 is only external gating, not builder work: P6 rotation (Nav secrets), P7 Oracle (Nav VM), G-WITNESS (Nav/G4), B0 redesign (Friend).
+### Agent 4 standing review
 
-### Wave 3 — institutional integration and operations
+- PR44 G3-salvage: prior verdict E4-44 APPROVED-conditional, merge gated on
+  the external witness. Standing job: confirm it stays green and
+  unmerged until witnessed; re-verify at any new head.
+- Never re-audit merged heads at unchanged state (PR28-43, PR45-46).
+- Three alert pipelines exist (alert_engine, exposure_alerts, flow_alerts)
+  with overlapping rule names (`CHARM_PIN` ≠ `CHARM_PINNING`,
+  `GAMMA_FLIP` ≠ `GAMMA_FLIP_PROXIMITY`). Any review touching alerts must
+  name WHICH pipeline and cite the exact rule const.
 
-| ID | Lane | State | Exit |
-|---|---|---|---|
-| G1-SALVAGE | Agent 1 + Agent 4 | SAVED/UNMERGED | Split Discord-only commits from Heat/ticker work; review; task PR |
-| G3-SALVAGE | Agent 1 + Agent 4 | SAVED/UNMERGED | Isolate G3-specific commits; prove offline GATE-2; task PR |
-| G-WITNESS | Nav/G4 | EXTERNAL GATE | Same guild/channel, test channel, non-admin help, genuine paper approve/fill/close |
-| P6 | Agent 2 + Agent 4 | READY | Path-only credential audit, current-doc redaction, rotation handoff |
-| P7 | Agent 2 | READY | Oracle offline validation; VM/DNS/TLS remain Nav-gated |
-| B0 | Friend | EXTERNAL GATE | Push redesign brief/mockups with prior verdict and finding traceability |
-| X5/B1 | Agent 3 | BLOCKED ON B0 | Parallel preview and Nav visual sign-off before replacement |
+## Phase9 honesty disposition (current)
 
-## Phase9 honesty disposition
+DONE (in main): F1, F3, F4, F7 (F0 wave, PR35); F5, F6, F11, F17, F19 (PR40);
+F9a/F9b (PR43, source-verified); F2-label/F13-label (PR43, weights untouched);
+F15 (contract note); F16 (verified present, no change).
 
-All F1–F19 remain open until Agent 4 produces per-ID evidence at the relevant head.
-The first build wave is F1, F3, F4, F7, then UI F5/F6/F11/F19. The remaining IDs
-follow individually. F2 and F13 change scoring semantics and require one explicit
-contract before edits. A bulk “honesty fixed” commit is prohibited.
+OPEN: F2-strip + F13 down-weight (need weights/product call),
+F8/F10/F12/F14 (need paper-content verification).
+
+All F1–F19 disposition is now recorded; no bulk "honesty fixed" commit
+prohibition needed — each ID has its own status.
 
 ## Recent Heatseeker/ticker decision boundary
 
-RH-1 must answer these separately:
-
-1. Does deeper expiry fetch respect the actual upstream-call budget and cache contract?
-2. Does cvserver enrichment violate the declared Solstice-only/rate-limited boundary?
-3. Are synthetic strikes excluded from analytics, node detection, totals, and trading
-   selection, and unmistakably labeled as visual estimates?
-4. Does the net ticker implementation use only the supported `/api/tickers` response,
-   preserve search, wrap navigation, abort/stale-response behavior, and render scale?
-5. Which commits are experiments fully superseded by `123e78f`, and what is the minimal
-   net diff from main?
-6. Was the frozen `App.js` scope explicitly approved, and is the final edit surgical?
-
-Until those answers pass proof, the branch is saved work, not a merge candidate.
+RH-1 questions are SUPERSEDED by the take-over work (PR33 T1-only, PR34 H1,
+PR36 H2, PR39 provider stack). The T1 contract is law: one deduped universe
+(`tickerUniverse.js`), capped render (RENDER_CAP), filter-before-slice search,
+wrap arrows, active-item reveal, full-list reachability. Any unit regressing it
+is wrong — revert.
 
 ## Proprietary-data program
 
@@ -183,6 +177,17 @@ cleared; deepen + enrich both fired per logs).
 ## Take-over loop 4 — prop-desk edges (2026-09-08)
 
 ## Take-over loop 5 — second edge: flip proximity (2026-09-08)
+
+## Take-over loop 6 — Agent-2 backlog (2026-09-08)
+
+- PR47 MERGED: numba charm vec (identical totals, 1.7x on 15k chains) +
+  LIQUIDITY_STRESS rule (Kyle+Amihud ILLIQUID agreement, registry fed per
+  snapshot, read-only snapshots, cold-silent, fail-open). Trade-level
+  liquidity_metrics variants deliberately unused (feed mismatch, recorded).
+- OFI assessment (receipt): multi_level_ofi, composite_flow_score,
+  hmm_regime, chain_replay all TESTED + WIRED — keep, nothing to do.
+- Agent-2 backlog now exhausted except gated items (F-weights need A3-SCORE,
+  paper items need papers). Builder lane parked clean.
 
 - PR46 MERGED: GAMMA_FLIP rule live on main.
 
