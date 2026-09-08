@@ -177,6 +177,14 @@ cleared; deepen + enrich both fired per logs).
 
 ## Take-over loop 4 — prop-desk edges (2026-09-08)
 
+## Take-over loop 5 — second edge: flip proximity (2026-09-08)
+
+- PR46 OPEN (`astra/gamma-flip-alerts`): GAMMA_FLIP rule (±1% band,
+  above/below direction, proximity score) through the exposure pipeline;
+  warm path threads flip from raw contracts. 8 tests (ImportError RED on
+  main first; one inverted above/below expectation caught + fixed pre-push);
+  45 green with toxic/exposure suites; ruff + silent-gate clean.
+
 Owner directive: build like a prop desk (VPIN toxicity, higher-order Greeks,
 dealer positioning), unlimited data, paper only, everything committed.
 
