@@ -106,6 +106,13 @@
       "verdict": "APPROVED-conditional",
       "receipt": "floww-run-state/2026-09-06-v2/proof/receipts/E4-31.md",
       "next": "Nav merge call as inert scaffolding; A3-SCORE must approve weights before any live caller passes nonzero"
+    },
+    "pr44": {
+      "head": "d6fad39eed41b14f9843fc54dda84e6ce177cb6a",
+      "base": "a6e6f7930e7a9aae497170c0ea8104b62520f2f2",
+      "verdict": "APPROVED-conditional",
+      "receipt": "floww-run-state/2026-09-06-v2/proof/receipts/E4-44.md",
+      "next": "Nav merge call gated on external G-WITNESS (same guild/channel, test channel, non-admin help, genuine paper approve/fill/close). Re-verify mergeability at merge — main moved via PR45/46/47 since review."
     }
   }
 }
