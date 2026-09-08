@@ -538,31 +538,26 @@ async def scan_slice(
     can't wipe coverage).
     """
     from services.public_api_adapter import fetch_chain_from_public_api
-    from services.public_budget import BudgetExhausted
-    from services.public_budget import budget as pub_budget
 
     out: dict[str, dict[str, Any]] = {}
     sem = asyncio.Semaphore(max(1, concurrency))
     now = time.time()
-    cost = chain_cost(max_expiries)
 
     async def _one(t: str) -> None:
         async with sem:
-            try:
-                await pub_budget.acquire_n(cost, "api.public.com")
-            except BudgetExhausted as e:
-                log.debug("public scanner skip %s — budget refused %d tokens: %s",
-                          t, cost, e.reason)
-                out[t] = {"rows": [], "extras": {}, "dealer": None, "skipped": "budget"}
-                return
+            # H2 single ownership: the adapter atomically acquires the exact
+            # 2+N cold fan-out (chain_cost) before any vendor call and releases
+            # its slot on every exit. Pre-acquiring here would double-debit, so
+            # this path holds only the local semaphore. Refusal surfaces as
+            # None from the adapter (stale served when present) and maps to
+            # empty rows below — the "skipped":"budget" marker is retired
+            # (no consumers; verified by grep).
             try:
                 chain = await fetch_chain_from_public_api(t, max_expiries=max_expiries)
             except Exception as e:
                 log.warning("public scanner slice fail %s: %s", t, e)
                 out[t] = {"rows": [], "extras": {}, "dealer": None}
                 return
-            finally:
-                pub_budget.release()
             if not chain:
                 out[t] = {"rows": [], "extras": {}, "dealer": None}
                 return

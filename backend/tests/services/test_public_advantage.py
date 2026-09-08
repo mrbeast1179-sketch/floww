@@ -20,6 +20,17 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+
+@pytest.fixture(autouse=True)
+def _h2_isolated_public_budget(monkeypatch):
+    """H2: adapter-level acquire debits the shared singleton even behind fake
+    brokers. Isolate every test with a fresh high-capacity budget so file
+    order can never starve a suite. Production behavior unchanged."""
+    from services import public_budget as pb_mod
+    monkeypatch.setattr(
+        pb_mod, "budget",
+        pb_mod.PublicBudget(capacity=10000, refill_per_sec=10000.0))
+
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".."))
 
 from tests.services.test_flow_alerts import _future_exp, _raw  # noqa: E402
@@ -862,27 +873,25 @@ def test_peek_available_honors_idle_refill():
 
 
 @pytest.mark.asyncio
-async def test_scan_slice_skips_ticker_on_refused_debit(monkeypatch):
+async def test_scan_slice_degrades_to_empty_rows_on_adapter_none(monkeypatch):
+    """H2 ownership move: the adapter (not the scanner) acquires budget and
+    returns None on refusal. The scanner maps adapter-None to empty rows and
+    never wipes coverage. Zero-upstream-on-refusal is pinned end-to-end in
+    test_provider_cost_h2.py::test_budget_refusal_blocks_upstream_calls; the
+    retired "skipped":"budget" marker had no consumers (verified by grep)."""
     import services.public_scanner as ps
-    from services.public_budget import BudgetExhausted
 
-    class DeadBudget:
-        async def acquire(self, host="public"):
-            return None
+    calls = {"n": 0}
 
-        async def acquire_n(self, n, host="public", now=None):
-            raise BudgetExhausted(retry_after=9, reason="token_bucket")
+    async def counting_none(ticker, max_expiries=2):
+        calls["n"] += 1
+        return None
 
-        def release(self):
-            return None
-
-    async def boom(ticker, max_expiries=2):  # pragma: no cover
-        raise AssertionError("fetch must not run without budget")
-
-    monkeypatch.setattr("services.public_budget.budget", DeadBudget())
-    monkeypatch.setattr("services.public_api_adapter.fetch_chain_from_public_api", boom)
+    monkeypatch.setattr(
+        "services.public_api_adapter.fetch_chain_from_public_api", counting_none)
     out = await ps.scan_slice(["SPY"], max_expiries=2)
-    assert out["SPY"]["rows"] == [] and out["SPY"]["skipped"] == "budget"
+    assert out["SPY"]["rows"] == []
+    assert calls["n"] == 1, "slice still delegates to the adapter exactly once"
 
 
 @pytest.mark.asyncio

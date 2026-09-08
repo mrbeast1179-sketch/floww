@@ -261,6 +261,21 @@ def _chain_lock(key: tuple[str, int]) -> asyncio.Lock:
     return lock
 
 
+def _chain_fanout_budget(key: tuple[str, int]) -> tuple[int, int]:
+    """Return (acquire_cost, max_inflight) for this (ticker, N) cache key.
+
+    O-1 (testability): the exact per-key fan-out cost is surfaced here so a
+    fake broker can prove cold/warm/concurrent totals without reaching the
+    real network or the real budget object.
+    """
+    # One cold fetch_chain_from_public_api(ticker, N) = 1 expirations call
+    # + 1 spot/quote call + N chain calls = 2 + N upstream Public calls.
+    # Cache key is (ticker.upper(), max_expiries) so N is the second commit
+    # component of the key; a different N is a different key and a separate
+    # cold fan-out.
+    return (2 + key[1], 1)
+
+
 def _clear_chain_cache() -> None:
     """Drop all cached chains (tests + admin use)."""
     _CHAIN_CACHE.clear()
@@ -270,6 +285,8 @@ def _cached_copy(entry: dict[str, Any], stale: bool) -> dict[str, Any]:
     out = dict(entry)
     out["contracts"] = list(entry.get("contracts", []))
     out["expiries"] = list(entry.get("expiries", []))
+    if "max_expiries" not in out:
+        out["max_expiries"] = entry.get("max_expiries")
     out["stale"] = stale
     return out
 
@@ -304,9 +321,28 @@ async def fetch_chain_from_public_api(
         hit = _CHAIN_CACHE.get(key)
         if hit is not None and hit[1] is pb and now - hit[0] < _CHAIN_CACHE_TTL:
             return _cached_copy(hit[2], stale=False)
-        result = await _fetch_chain_live(pb, ticker, max_expiries)
+        # O-1 (H2): atomically acquire the exact cold fan-out cost BEFORE any
+        # vendor call. Warm hits return above with zero acquire. Single owner:
+        # callers must NOT pre-acquire for this fetch (see public_scanner).
+        try:
+            from services.public_budget import BudgetExhausted
+            from services.public_budget import budget as _pub_budget
+            await _pub_budget.acquire_n(2 + max_expiries, "api.public.com")
+        except BudgetExhausted:
+            if hit is not None and hit[1] is pb:
+                return _cached_copy(hit[2], stale=True)
+            return None
+        try:
+            result = await _fetch_chain_live(pb, ticker, max_expiries)
+        finally:
+            try:
+                from services.public_budget import budget as _pub_budget_rel
+                _pub_budget_rel.release()
+            except Exception:
+                pass
         if result is not None:
             result["stale"] = False
+            result["max_expiries"] = max_expiries  # H2: key metadata for cost envelope
             try:
                 from services.public_budget import budget as _pub_budget
                 _pub_budget.record_ok("api.public.com")
