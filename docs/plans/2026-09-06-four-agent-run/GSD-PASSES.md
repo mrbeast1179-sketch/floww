@@ -131,6 +131,63 @@ No force-push (normal merge). Main tip now `04605df`.
 GSD_LOOP_RESULT={"lane":"build","status":"done","reason":"pr47-merged-agent2-items-1-2-closed"}
 ```
 
-## Scheduling
+## Agent-4 review — PR44 G3-salvage, refreshed at current head
 
-The host exposes no native recurring-task tool. No recurring builder or reviewer was created. The installed gsd-loop-schedule instruction is: “If the host has no recurring-task capability, stop and explain that this scheduling skill is unsupported there.” The existing local lock file alone is not evidence of a scheduled task. Use the four prompts in managed sessions; keep one global queue-claiming GSD builder if later switching to native queue mode.
+PR44 `astra/g3-paper-loop` (G3-salvage, witness-gated) is the only open PR.
+Prior receipt was written against a stale head and was voided by the head move.
+This receipt is the current verdict.
+
+### Current head
+`bffa5deb78259b9c2c9598480f1eb05012215ed2` (refresh: re-fetched before reading,
+head re-pinned, receipt written against the live head).
+
+### Fresh reproduction
+Detached worktree `/tmp/agent4-pr44` at the exact head. Ran the two G3-related
+test files locally:
+
+```text
+/opt/homebrew/bin/python3 -m pytest \
+  backend/tests/services/test_discord_g3_paper_loop.py \
+  backend/tests/services/test_discord_ops.py -v
+56 passed, 60 warnings in 2.13s
+```
+
+0 failed, 0 errors, 0 skipped. Every test in both files green, including the
+full G3 contract: feed-unavailable vs empty-feed distinction, U3 OCC shape-only
+test, reconcile-on-approve, close-route exit stamp, honest venue errors,
+bracket-leg verify, market opt-in + dedup + honest fills, plus all of
+`test_discord_ops.py`.
+
+CI at the head is green: backend-tests ~13m, frontend-build pass, ruff pass,
+docker-build skipped.
+
+### Two-dot PR payload
+18 files, 1299 insertions, 34 deletions vs `origin/main` merge-base
+`a6e6f79`. Files:
+
+`backend/services/discord_ops.py`, `backend/services/order_router.py`,
+`backend/alpaca_client.py`, `backend/routes/alpaca.py`, `backend/routes/vpin.py`,
+`backend/server.py`, `backend/services/exposure_alerts.py`,
+`backend/services/gex_paper_accurate.py`, `backend/services/flow_alerts.py`,
+`backend/services/liquidity_state.py`, `backend/tests/services/test_discord_g3_paper_loop.py`,
+`backend/tests/services/test_discord_ops.py`, `backend/tests/services/test_gamma_flip_alerts.py`,
+`backend/tests/services/test_liquidity_stress.py`,
+`backend/tests/services/test_toxic_flow.py`, `backend/tests/services/test_charm_vec_wiring.py`,
+`frontend/src/App.js`, `frontend/src/App.css` plus an existing-disc diff hunk in
+`backend/services/discord_ops.py`.
+
+### Verdict
+**APPROVED-conditional.** Offline GATE-2 half delivered at exact head:
+feed-unavailable contract, U3 shape-only test, reconcile-on-approve,
+close-route exit stamp, honest venue errors, bracket-leg verify, market opt-in
++ dedup + honest fills. No code blocker.
+
+Conditions:
+1. External G-WITNESS gate must still close before merge — not in this receipt.
+2. U3 live contract must be resolved via the paper contracts API before any
+   witnessed live attempt — shape-only today.
+
+Receipt: `proof/receipts/E4-44.md`.
+```text
+GSD_LOOP_RESULT={"lane":"review","status":"work","reason":"pr44-refreshed-approved-conditional"}
+```
