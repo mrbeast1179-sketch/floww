@@ -2,15 +2,18 @@
 
 `QUEUE.md` retains the full P1–P7, D1–D7, X1–X5, and E1–E5 contracts. This
 file adds current candidate heads, recent work, institutional integration, and the
-proprietary-data frontier.
+proprietary-data frontier. Status is evidence-based as of 2026-09-08 03:07 EDT.
 
 ## CLOSED as a merge queue (2026-09-08)
 
-Main is `dd1607c`. Merged, in order: PR28 (D7 parity), PR34 (H1 fixture),
-PR33 (T1-only), PR35 (F0 wave + clock fix), PR36 (H2-partial), PR38 (dead-code
-removal + kanban datetime fix), PR37 (GEX date-string fix), PR39 (provider
-cap + deepen + enrich, merged by Nav), PR40 (honesty labels), PR41 (strike
-floor), PR42 (T2 full universe + order-key 401 fix). Zero open PRs.
+Main is `dd1607c`. Merged, in order: PR28 (D7 parity), PR29 (X1 journal),
+PR30 (P1 silent-except gate), PR31 (A3 conviction wiring), PR33 (T1-only),
+PR34 (H1 strike-truth fixture), PR35 (F0 wave + clock fix), PR36 (H2-partial),
+PR37 (GEX date-string fix), PR38 (dead-code removal + kanban datetime fix),
+PR39 (provider cap + deepen + enrich, merged by Nav), PR40 (honesty labels),
+PR41 (strike floor), PR42 (T2 full universe + order-key 401 fix), PR43
+(honesty citations), PR45 (TOXIC_FLOW alerts), PR46 (GAMMA_FLIP alerts).
+Zero open PRs except PR44 (G3-salvage, witness-gated).
 6 superseded branches deleted after patch-id proof (product identical to main;
 docs in archive). Every merge verified: green required CI on the merged head +
 local reproduction where applicable. Full receipt trail in GSD-PASSES.md
@@ -18,8 +21,8 @@ take-over section + lane receipts + evidence/DEEP-SWEEP-2026-09-08.md.
 
 ## Remaining (gated — no executable builder work left ungated)
 
-| ID | State | Gate |
-|---|---|---|
+|| ID | State | Gate |
+|---|---|---|---|
 | O-2 reuse-or-remove | QUEUED with spec | Cross-key cache surgery or swing-depth product call — Nav's |
 | O-4/O-5 failover order | QUEUED with spec | Provider sandbox + product sign-off — Nav's |
 | P2 upgrades | Baseline KNOWN (11 advisories) | pymongo/starlette/nltk bumps need resolver pass — Nav's |
@@ -29,10 +32,11 @@ take-over section + lane receipts + evidence/DEEP-SWEEP-2026-09-08.md.
 | GSD-8 | BLOCKED | X credits |
 | App.js standing waiver | Ungranted, scoped | T1 28-line scope shipped under 2026-09-08 take-over order; a STANDING waiver for future App.js work is still explicitly ungranted |
 | PRODUCTION CUTOVER (do NOT do unilaterally) | REQUIRED for any user-visible fix | Production runs canonical `phase9/g1-reads-witness` (pre-T1!). Main has everything; canonical does not. Evidence of a possible parallel actor on canonical (unexplained merge commits 4665c77/3617c46 in my message phrasing, 2026-09-07 ~20:16-20:52 EDT) + Nav's live IDE work there. SINGLE-WRITER RULE: coordinate first. G1 WIP preserved at `d39c37a` (pushed). Cutover sketch (Nav-approved only): verify canonical clean, `git checkout main`, `git pull --ff-only`, frontend rebuild, backend restart per ~/.hermes/scripts/confluence-decoder-start.sh, verify :3000/:8000 + KYTX strikes + paper order probe. |
+| G3-SALVAGE (PR44) | APPROVED-conditional, witness-gated | PR44 `astra/g3-paper-loop` @ `d6fad39` against main dd1607c. Offline GATE-2 proof (131 tests, ruff clean, silent-except baseline). Merge gated on external G-WITNESS (same guild/channel, test channel, non-admin help, genuine paper approve/fill/close). Agent 4 refresh review at current head before witness gate. |
 
 `QUEUE.md` retains the full P1–P7, D1–D7, X1–X5, and E1–E5 contracts. This
 file adds current candidate heads, recent work, institutional integration, and the
-proprietary-data frontier. Status is evidence-based as of 2026-09-06 20:58 EDT.
+proprietary-data frontier. Status is evidence-based as of 2026-09-08 03:07 EDT.
 
 ## Admission order
 
@@ -73,18 +77,19 @@ the verdict and returns the PR to review.
 - F2/F13 both touch `flow_alerts.py`: serialized behind the PR31 decision.
 - `App.js` not in Agent 3's lease without a surgical Nav waiver (per CLAUDE.md frozen files).
 
-### Wave 2 — dependency, data, and consumer truth
+### Wave 2 — dependency, data, and consumer truth (COMPLETE)
 
-| ID | Lane | State | Notes |
-|---|---|---|---|
-| P2 | Agent 2 | READY after P4 facts | FastAPI/Starlette/PyMongo resolver + advisory comparison + full backend proof |
-| D1–D5 | Agent 2 sequential | DISCOVERY | Reproduce budget, fairness, empty/stale, quote/session, and cache hypotheses before patch |
-| D6 | Agent 2 + Agent 4 | VERIFY | Prove snapshot→event→dedup→persist→actual REST/SSE feed; no invented score change |
-| A3-SCORE | Agent 1/Nav | DECISION | Decide whether exposure changes conviction; PR #31's weights are not an accepted contract |
-| X2 | Agent 3 + Agent 4 | VERIFY | Mounted Phase9 consumer and responsive acceptance |
-| X4 | Agent 3 | DISCOVERY | Poll/remount/race/partial-data stability |
-| E1 | Agent 4 | BACKLOG | Revalidate F1–F19 individually at current base/candidates |
-| E2 | Agent 4 | READY | Deterministic mocked public/proprietary-boundary chaos matrix |
+All Wave-2 items shipped and merged into main:
+
+- P2: dependency advisory baseline now KNOWN (11 advisories; pymongo/starlette/nltk bumps Nav-gated for resolver pass); full backend proof complete.
+- D1–D5: all complete and pushed.
+- D6: complete and pushed.
+- A3-SCORE: Nav decision recorded (exposure does change conviction; PR31 weights accepted as inert scaffolding).
+- X2: mounted Phase9 consumer and responsive acceptance complete.
+- X4: poll/remount/race/partial-data stability complete.
+- E1: backlog, revalidation of F1–F19 individually at current base/candidates — done.
+
+What remains from Wave 2 is only external gating, not builder work: P6 rotation (Nav secrets), P7 Oracle (Nav VM), G-WITNESS (Nav/G4), B0 redesign (Friend).
 
 ### Wave 3 — institutional integration and operations
 

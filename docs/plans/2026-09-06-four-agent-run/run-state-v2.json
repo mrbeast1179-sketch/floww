@@ -2,7 +2,7 @@
   "schema": "floww-four-agent-run/v2",
   "program_id": "floww-recovery-20260906-v2",
   "control_branch": "architect/20260906-recovery-control-plane-v2",
-  "acceptance_base": "5b9d9a96a29951e548e883d108a806b93c2d11a9",
+  "acceptance_base": "dd1607c8b2a643b0b3fd4480b8b5a896f1eb3e1e",
   "status": "prepared_waiting_for_boot_ack",
   "central_writer": "agent-1-architect",
   "runtime_root": "/Users/nav/Documents/GitHub/floww-run-state/2026-09-06-v2",
@@ -17,69 +17,51 @@
       "task_id": "R0-OPERATE",
       "worktree": "/Users/nav/Documents/GitHub/floww-worktrees/recovery-control-plane-v2",
       "branch": "architect/20260906-recovery-control-plane-v2",
+      "head_sha": "de6cfd87c38fa2c125da1d8f3cc6d0c5e0ace91b",
+      "allowed_files": [],
+      "boot_receipt": "/Users/nav/Documents/GitHub/floww-run-state/2026-09-06-v2/platform/boot.json",
+      "last_checkpoint": "/Users/nav/Documents/GitHub/floww-run-state/2026-09-06-v2/platform/checkpoint.json",
+      "lease_note": "Central external runtime state and task cards only; repository docs changes require an explicit enumerated path list. Builder lane held until Agent-2 next admission."
+    },
+    "agent-2-backend": {
+      "state": "READY",
+      "task_id": "BACKLOG_TOP",
+      "worktree": null,
+      "branch": null,
       "head_sha": null,
       "allowed_files": [],
       "boot_receipt": null,
       "last_checkpoint": null,
-      "lease_note": "Central external runtime state and task cards only; repository docs changes require an explicit enumerated path list."
-    },
-    "agent-2-backend": {
-      "state": "READY",
-      "task_id": "F0-F1",
-      "worktree": "/private/tmp/w-f0",
-      "branch": "astra/f0-honesty-backend",
-      "head_sha": "5b9d9a96a29951e548e883d108a806b93c2d11a9",
-      "allowed_files": [
-        "backend/services/gex_paper_accurate.py",
-        "backend/tests/services/test_honesty_f0.py"
-      ],
-      "boot_receipt": null,
-      "last_checkpoint": null
+      "lease_note": "Builder lane held. No active admission. Next backend unit admitted by Agent 1 from ranked backlog in spark-prompts/agent-2.md."
     },
     "agent-3-frontend": {
-      "state": "CANDIDATE_READY",
-      "task_id": "RH-1/SCROLL-1/XH-1",
-      "worktree": "/Users/nav/Documents/GitHub/floww-worktrees/agent3-t1-scroller",
-      "branch": "agent3/t1-scroller-fix-v2",
-      "head_sha": "c17fc61f9c822a1fdc4e46d58229e3f22db37647",
-      "allowed_files": [
-        "frontend/src/App.js",
-        "frontend/src/App.css",
-        "frontend/src/components/heatseeker/SkylitTickerBar.jsx",
-        "frontend/src/components/heatseeker/SkylitControlBar.jsx",
-        "frontend/src/components/heatseeker/SkylitTickerBar.contract.test.jsx",
-        "frontend/src/components/heatseeker/tickerUniverse.js",
-        "frontend/src/components/heatseeker/tickerUniverse.test.js"
-      ],
-      "boot_receipt": "/Users/nav/Documents/GitHub/floww-run-state/2026-09-06-v2/agent-3-frontend/boot.json",
-      "last_checkpoint": "/Users/nav/Documents/GitHub/floww-run-state/2026-09-06-v2/agent-3-frontend/checkpoint.json",
-      "lease_note": "T1 universe contract + SCROLL-1 ticker cap/search/arrows. Inspector-script verified: deduped universe, RENDER_CAP slicing, search before slice, arrow boundary wrap, unknown-ticker wrap from boundary, empty-query capped default. Evidence: evidence/agent3-t1-scroller-fix-v2.md. Verification: 61 suites / 469 tests pass; CRA build clean; PR #32 open."
+      "state": "READY",
+      "task_id": "BACKLOG_TOP",
+      "worktree": null,
+      "branch": null,
+      "head_sha": null,
+      "allowed_files": [],
+      "boot_receipt": null,
+      "last_checkpoint": null,
+      "lease_note": "T1 contract merged (PR33). Alert surfacing is the next frontend unit per spark-prompts/agent-3.md. Builder lane held."
     },
     "agent-4-proof": {
       "state": "READY",
-      "task_id": "E4-RESERVE",
+      "task_id": "PR44-REFRESH",
       "worktree": "/Users/nav/Documents/GitHub/floww-worktrees/run-20260906-proof",
-      "branch": null,
-      "head_sha": "5b9d9a96a29951e548e883d108a806b93c2d11a9",
+      "branch": "origin/astra/g3-paper-loop",
+      "head_sha": "d6fad39eed41b14f9843fc54dda84e6ce177cb6a",
       "allowed_files": [],
       "boot_receipt": null,
-      "last_checkpoint": "E4-29 APPROVED, E4-30 REWORK, E4-31 APPROVED-conditional; receipts in proof/receipts/",
-      "branch_note": "Resolve the existing worktree branch at boot; use an immutable reviewed-head snapshot."
+      "last_checkpoint": "E4-44 APPROVED-conditional at d6fad39; PR44 is the only open PR; refresh review at current head before witness gate",
+      "branch_note": "PR44 head d6fad39eed41 against main dd1607c. Re-verify at boot; a moved head voids the prior verdict."
     }
   },
   "known_candidates": {
-    "pr28": "18b10b5601ef0bc0dd27a083d66f2d8ad164665a",
-    "pr29": "568de16a3d2da32c218660e1007ad89b2d97228f",
-    "pr30": "06b75020dddb7b6ecc1d9c220b9fffac6fc0575b",
-    "pr31": "f7f7103b2744a7a052c66a917a7a7d4662a3c310",
-    "g1_local": "b5f9ae5d99a4d502efdaf1d0c4d8386c2fa9b0d0",
-    "g1_remote": "959b3ff02e2157556b032a275b3d5182aef48e53",
-    "g3": "04d2b1647e1bbb35238f4b4ac2958011afcd0ffa",
-    "g1_archive": {
-      "branch": "archive/20260907-g1-recovery",
-      "sha": "b5f9ae5d99a4d502efdaf1d0c4d8386c2fa9b0d0",
-      "remote_verified": true
-    }
+    "pr44": "d6fad39eed41b14f9843fc54dda84e6ce177cb6a",
+    "pr44_base": "a6e6f7930e7a9aae497170c0ea8104b62520f2f2",
+    "main": "dd1607c8b2a643b0b3fd4480b8b5a896f1eb3e1e",
+    "g1_canonical": "d39c37a (dirty, active, NOT this lane's lease)"
   },
   "external_gates": [
     "Nav merges reviewed PRs and applies gsd:ready",
