@@ -22,8 +22,9 @@ produce it, (c) whether the frontend has any UI rendering for it on main.
 | UNUSUAL_PC_OI_RATIO | MEDIUM | YES — put/call OI ratio > 2x (line 424) | alert_engine | NO |
 | MAX_PAIN_MAGNET | LOW | YES — within 1% of max pain in positive gamma (line 440) | alert_engine | NO |
 | VOLUME_SPIKE | MEDIUM | YES — real contract volume 3x at near-ATM (line 293) | alert_engine | NO |
+| CLUSTER | MEDIUM | YES — laddered accumulation, 3+ legs same side (flow_alerts line 836) | flow_alerts (per-ticker cluster scan) | NO |
 
-## Findings
+(Note: CLUSTER is a live producer in `flow_alerts.py`, not dead code.)## Findings
 
 ### All 11 catalog rules are live producers
 Every rule in `ALERT_TYPE_CATALOG` is actually fired by `detect_alerts()` —
@@ -64,7 +65,7 @@ badges already done)
    - `GAMMA_FLIP` = regime change (alert_engine line 158) + proximity approach
      (exposure_alerts line 317)
    - `GAMMA_FLIP_PROXIMITY` = spot within 0.3% of flip, only if no GAMMA_FLIP
-     already fired (alert_engine line 120-123)
+     already fired (alert_engine line 252, `ALERT_TYPE_CATALOG` entry line 87)
    - Different alert kinds, different semantics. Do NOT map
      `GAMMA_FLIP_PROXIMITY` to the existing `GAMMA_FLIP` badge.
 
