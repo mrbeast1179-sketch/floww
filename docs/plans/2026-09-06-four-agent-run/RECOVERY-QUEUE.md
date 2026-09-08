@@ -14,7 +14,7 @@ PR39 (provider cap + deepen + enrich, merged by Nav), PR40 (honesty labels),
 PR41 (strike floor), PR42 (T2 full universe + order-key 401 fix), PR43
 (honesty citations), PR45 (TOXIC_FLOW alerts), PR46 (GAMMA_FLIP alerts),
 PR47 (numba charm vec + liquidity-stress alerts).
-One open PR: none (PR44 merged main 56cfff2 2026-09-08T11:48:51Z).
+One open PR: PR48 (a3/alert-surfacing, head 4d7172e, agent-4 review pending).
 6 superseded branches deleted after patch-id proof (product identical to main;
 docs in archive). Every merge verified: green required CI on the merged head +
 local reproduction where applicable. Full receipt trail in GSD-PASSES.md
@@ -78,7 +78,7 @@ PR44 merged main 56cfff2 2026-09-08T11:48:51Z; witness gate (external G-WITNESS)
       surface only live ones, report dead ones instead of wiring corpses.
    d. Do NOT invent UI for `FOLLOW`/`SOURCE` (UI-only, no backend producer).
    Tests for every badge (incl. no-quote/unknown rendering); full-suite green.
-   Status: **DONE via PR48** (a3/alert-surfacing, head 498e9c5). PR48 open,
+   Status: **DONE via PR48** (a3/alert-surfacing, head 4d7172e). PR48 open,
    agent-4 review + Nav merge gate before merge. Receipt:
    evidence/ALERT-SURFACING-1A-receipt.md.
 
