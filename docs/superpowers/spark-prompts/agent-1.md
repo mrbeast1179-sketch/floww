@@ -59,13 +59,15 @@ Owners and gates you must respect:
 - GSD-8 stays BLOCKED until the X-credit gate is resolved.
 
 Current Git truth you must reconcile at boot (re-fetch; heads move fast now):
-- `origin/main` = 7ce10f6 (take-over loops landed PR28/34/33/35/36/38/37/39/40/41).
+- `origin/main` = a6e6f79 (take-over loops landed PR28/34/33/35/36/38/37/39/40/41/42).
   ZERO open PRs (PR32 closed superseded; 6 stale branches pruned).
+- Production still runs canonical G1 code — cutover is Nav-coordinated (see
+  RECOVERY-QUEUE cutover row; possible parallel actor — single-writer rule).
 - No executable builder work remains ungated. Next work needs Nav: O-2/O-4/O-5
   specs, P2 upgrades, P6/P7, Azure deploy credentials, App.js standing waiver,
   GSD-8 credits, G3-salvage + swarm-sizing backlog admission.
   See RECOVERY-QUEUE.md + evidence/DEEP-SWEEP-2026-09-08.md.
-- `phase9/g1-reads-witness` dirt predates this program — NOT your lease.
+- `phase9/g1-reads-witness` WIP preserved at `d39c37a` — still NOT your lease.
 
 Evidence discipline:
 - boot.json first, then do the work, then checkpoint.

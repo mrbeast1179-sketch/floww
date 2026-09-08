@@ -6,11 +6,11 @@ proprietary-data frontier.
 
 ## CLOSED as a merge queue (2026-09-08)
 
-Main is `7ce10f6`. Merged, in order: PR28 (D7 parity), PR34 (H1 fixture),
+Main is `a6e6f79`. Merged, in order: PR28 (D7 parity), PR34 (H1 fixture),
 PR33 (T1-only), PR35 (F0 wave + clock fix), PR36 (H2-partial), PR38 (dead-code
 removal + kanban datetime fix), PR37 (GEX date-string fix), PR39 (provider
 cap + deepen + enrich, merged by Nav), PR40 (honesty labels), PR41 (strike
-floor). Zero open PRs.
+floor), PR42 (T2 full universe + order-key 401 fix). Zero open PRs.
 6 superseded branches deleted after patch-id proof (product identical to main;
 docs in archive). Every merge verified: green required CI on the merged head +
 local reproduction where applicable. Full receipt trail in GSD-PASSES.md
@@ -28,6 +28,7 @@ take-over section + lane receipts + evidence/DEEP-SWEEP-2026-09-08.md.
 | Azure deploy | Workflow red, code-innocent | `azure/login` credentials missing in repo secrets — Nav's (`Deploy to Azure` fails on every main push with "No credentials found"; pre-existing, unrelated to merges) |
 | GSD-8 | BLOCKED | X credits |
 | App.js standing waiver | Ungranted, scoped | T1 28-line scope shipped under 2026-09-08 take-over order; a STANDING waiver for future App.js work is still explicitly ungranted |
+| PRODUCTION CUTOVER (do NOT do unilaterally) | REQUIRED for any user-visible fix | Production runs canonical `phase9/g1-reads-witness` (pre-T1!). Main has everything; canonical does not. Evidence of a possible parallel actor on canonical (unexplained merge commits 4665c77/3617c46 in my message phrasing, 2026-09-07 ~20:16-20:52 EDT) + Nav's live IDE work there. SINGLE-WRITER RULE: coordinate first. G1 WIP preserved at `d39c37a` (pushed). Cutover sketch (Nav-approved only): verify canonical clean, `git checkout main`, `git pull --ff-only`, frontend rebuild, backend restart per ~/.hermes/scripts/confluence-decoder-start.sh, verify :3000/:8000 + KYTX strikes + paper order probe. |
 
 `QUEUE.md` retains the full P1–P7, D1–D7, X1–X5, and E1–E5 contracts. This
 file adds current candidate heads, recent work, institutional integration, and the
