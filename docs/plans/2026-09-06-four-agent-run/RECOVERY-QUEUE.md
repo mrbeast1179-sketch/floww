@@ -175,6 +175,25 @@ cleared; deepen + enrich both fired per logs).
   O-5 SATISFIED (deepen reuses merged path, labels follow winner). Rationale
   in agent-2-backend/receipts/H2.md.
 
+## Take-over loop 4 — prop-desk edges (2026-09-08)
+
+Owner directive: build like a prop desk (VPIN toxicity, higher-order Greeks,
+dealer positioning), unlimited data, paper only, everything committed.
+
+- Recon: orderflow (29 analytics incl. VPIN/Kyle/Amihud, Almgren-Chriss, 19
+  pattern flags, dark pool), OptionStratLib (full Greeks incl.
+  Vanna/Vomma/Veta/Charm/Color, vol surfaces, decimal precision, identity
+  tests). Transferable (no Rust rewrite): VPIN alerts, unused numba Greeks,
+  Kyle/Amihud regime, gamma-flip approach alerts.
+- PR45 OPEN (`astra/toxic-flow-alerts`): TOXIC_FLOW rule (VPIN>=0.7 + CDF
+  gate, cold-silent, fail-open) through dedup/persist/feed path; read-only
+  registry snapshots wired at both call sites. 10 tests (ImportError RED on
+  main first); 64 exposure-suite green; ruff + silent-gate clean.
+- Hygiene: 8 merged branches verified-in-main and deleted
+  (trade-fire, sparse-chain-public/v2, honesty-citations/labels,
+  cleanup-dead-code, bugfix-gex-expiry, t1-only). Stale worktrees removed;
+  active lanes only remain.
+
 ## Honesty backlog (fix-queue F-IDs vs landed work)
 
 DONE (in main): F1, F3, F4, F7 (F0 wave); F5, F6, F11, F17, F19 (PR40);
