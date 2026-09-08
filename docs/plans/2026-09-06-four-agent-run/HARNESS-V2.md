@@ -14,7 +14,7 @@ branch, worktree, allowed files, proof commands, dependencies, external gates, a
 first command. A worker's first action is to write `boot.json` in its external lane
 directory with:
 
-The coordinator owns `/Users/nav/Documents/GitHub/floww-run-state/2026-09-06-v2/task-cards/<task-id>.md` and the central runtime state. Future cards live there, so creating a card never requires silently widening a repository-file lease. The committed TASK-CARDS.md contains initial templates only.
+The coordinator owns `/Users/nav/Documents/GitHub/floww-run-state/2026-09-06-v2/task-cards/<task-id>.md` and the central runtime state. Future cards live there, so creating a card never requires silently widening a repository-file lease. The committed TASK-CARDS.md contains initial templates only. The JSON below is a schema example with September 6 values — always use current `origin/main` (run-state-v2.json `acceptance_base`) in a real boot.json.
 
 ```json
 {

@@ -1,4 +1,9 @@
-# Initial task cards
+# Initial task cards — SUPERSEDED 2026-09-08
+
+> All three cards below are CLOSED. F0-F1 merged as PR35; RH-1 superseded by
+> shipped PR33/PR34/PR36; E4 superseded by per-PR receipts (E4-29/30/31/32/44).
+> Live cards live in `/Users/nav/Documents/GitHub/floww-run-state/2026-09-06-v2/task-cards/`
+> (`PR44-g3-witness.md`, `Nav-gated-decisions.md`). Do not admit from this file.
 
 These cards are launch inputs. Agent 1 revalidates the base, incumbent release and exact files before granting ACTIVE. A READY card or existing WIP is not a running worker. Task evidence goes to the lane's external receipt.
 
