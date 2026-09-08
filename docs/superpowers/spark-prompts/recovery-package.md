@@ -34,7 +34,7 @@ Rules:
 
 Verification before use:
 - `git fetch origin`
-- `origin/main` was `a6e6f79` (take-over loops landed 11 PRs, zero open PRs)
+- `origin/main` is `56cfff2` (take-over loops landed PR28–47, 20 PRs, PR44 merged 2026-09-08T11:48:51Z)
 - No ungated builder work remains — see RECOVERY-QUEUE.md remaining table;
   do not invent work to look busy
 - `phase9/g1-reads-witness` dirt predates this program — NOT your lease

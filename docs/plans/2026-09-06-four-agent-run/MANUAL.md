@@ -95,14 +95,22 @@ under `docs/plans/2026-09-06-four-agent-run/`. Product code lives in canonical
 - Production cutover (Nav-coordinated, single-writer)
 
 ## 11. Hybrid evaluation (LLM-as-judge) protocols
-See `docs/evaluation/AGENT-EVALS/`. Current writeups:
-- `METRICS-SYNTHESIS.md` — map of what to measure PER role, existing signals, gaps,
-  suggested judge prompt structure. Covers agent-1 through agent-4 plus prompt-prompt.
-- `DATA-DICTIONARY.md` — all candidate signals and judge criteria across 17 pages,
-  grouped by DB field, role, LLM-vs-deterministic, prompt-input-eligibility, known-position.
-  Index table + per-signal pages.
-- Hybrid eval requires BOTH LLM judgment AND deterministic replay/DB extraction.
-  LLM-only = position, not proof. Never fabricate metrics.
+
+Hybrid eval requires BOTH LLM judgment AND deterministic replay/DB extraction.
+LLM-only = position, not proof. Never fabricate metrics.
+
+Status: no `docs/evaluation/AGENT-EVALS/` tree exists yet. Existing eval-adjacent
+content lives in canonical `docs/reports/` (project audits, completion logs) and
+`.planning/eval/phase-9/` (fix-queue, signed-score-spec, alert-gate-economics,
+dark-pool-methodology — Phase 9 honesty/fix-queue methodology, NOT a general
+LLM-as-judge framework). None of that is a METRICS-SYNTHESIS.md or
+DATA-DICTIONARY.md for agent evaluation.
+
+If you want LLM-as-judge for agent output quality, that is a NEW spec job:
+define what "good" means per role (agent-1 coherence, agent-2 correctness,
+agent-3 UI fidelity, agent-4 verdict quality, plus prompt-prompt), what
+deterministic evidence backs each claim, and what the judge is NOT allowed to
+infer. Do not start from a fabricated METRICS-SYNTHESIS.md or DATA-DICTIONARY.md.
 
 ## 12. Stop conditions
 - Provider stream returns no bytes or HTTP 429 without a durable boot/checkpoint.
