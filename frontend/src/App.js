@@ -186,7 +186,7 @@ function ApHeader({ page, ticker, onTickerChange, tickers, data, onSignOut, user
           {/* Ticker search for relevant pages */}
           {tickers && (page === "heatseeker" || page === "trinity" || page === "skylit" || page === "ticker-analysis") && (
             <TickerSearch
-              tickers={[...(tickers.trinity || []), ...(tickers.default || []), ...(tickers.popular || [])]}
+              tickers={[...(tickers?.trinity || []), ...(tickers?.default || []), ...(tickers?.popular || [])].slice(0, 200)}
               value={ticker}
               onChange={onTickerChange}
             />

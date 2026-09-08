@@ -25,8 +25,10 @@ function SkylitTickerBar({
   tickers = null,
   allCount = 703,
 }) {
-  // Combine every ticker set the API returns into one scrollable list.
-  // trinity (^SPX, SPY, QQQ) + default (17) + popular (75) = 80 unique.
+  // trinity (^SPX, SPY, QQQ) + default (17) + popular (up to 5000 from
+  // /api/tickers/all) = every tradable name. Cap rendered buttons at 500 for
+  // smooth scrolling; search box is the fast path for deep cuts.
+  const RENDER_CAP = 500;
   const tickerList = (() => {
     const seen = new Set();
     const out = [];
@@ -44,10 +46,20 @@ function SkylitTickerBar({
       // Final fallback: hardcoded defaults when API hasn't loaded yet.
       for (const t of DEFAULT_TICKERS) { if (!seen.has(t)) { seen.add(t); out.push(t); } }
     }
+    // Slice for render perf — the full list is still available via search.
+    if (out.length > RENDER_CAP) return out.slice(0, RENDER_CAP);
     return out;
   })();
 
-  const totalCount = tickerList.length || 0;
+  const totalCount = (() => {
+    const seen = new Set();
+    for (const arr of [tickers?.trinity, tickers?.default, tickers?.popular]) {
+      if (!arr) continue;
+      for (const t of arr) { const k = t.toUpperCase(); seen.add(k); }
+    }
+    if (seen.size === 0) { for (const t of DEFAULT_TICKERS) seen.add(t); }
+    return seen.size;
+  })();
   const [query, setQuery] = useState("");
 
   const submitQuery = () => {
