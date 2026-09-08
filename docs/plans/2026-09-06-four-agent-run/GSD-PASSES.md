@@ -116,6 +116,21 @@ Under owner's blanket take-over order, architect-as-builder executed the queue:
 GSD_LOOP_RESULT={"lane":"build","status":"work","reason":"takeover-5prs-1merge"}
 ```
 
+## Agent-2 loop closeout — PR47 merged (2026-09-08)
+
+PR47 `astra/numba-greeks` → main as `04605df` (base `dd1607c`, head `65a952e`,
+merged 2026-09-08T10:57:02Z). Two commits: numba charm-vec wiring (identical
+totals, 1.7x on 15k chains) + Kyle/Amihud LIQUIDITY_STRESS alerts (6 files,
++346/-5: advanced_analytics, server.py, exposure_alerts, liquidity_state +
+2 new test files). CI on head: backend-tests pass (12m58s), frontend-build
+pass, ruff pass, docker-build skipped. Agent-2 ranked backlog items 1–2 now
+DONE; items 3–5 (OFI assessment, F2/F13 weights, O-2) remain queued/gated.
+No force-push (normal merge). Main tip now `04605df`.
+
+```text
+GSD_LOOP_RESULT={"lane":"build","status":"done","reason":"pr47-merged-agent2-items-1-2-closed"}
+```
+
 ## Scheduling
 
 The host exposes no native recurring-task tool. No recurring builder or reviewer was created. The installed gsd-loop-schedule instruction is: “If the host has no recurring-task capability, stop and explain that this scheduling skill is unsupported there.” The existing local lock file alone is not evidence of a scheduled task. Use the four prompts in managed sessions; keep one global queue-claiming GSD builder if later switching to native queue mode.

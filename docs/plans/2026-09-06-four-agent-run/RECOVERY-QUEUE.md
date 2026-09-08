@@ -1,4 +1,4 @@
-# Recovery queue v2 — current state (main dd1607c)
+# Recovery queue v2 — current state (main 04605df)
 
 `QUEUE.md` retains the full P1–P7, D1–D7, X1–X5, and E1–E5 contracts. This
 file tracks current candidate heads and the live backlog. Status is evidence-based
@@ -33,28 +33,22 @@ take-over section + lane receipts + evidence/DEEP-SWEEP-2026-09-08.md.
 | GSD-8 | BLOCKED | X credits |
 | App.js standing waiver | Ungranted, scoped | T1 28-line scope shipped under 2026-09-08 take-over order; a STANDING waiver for future App.js work is still explicitly ungranted |
 | PRODUCTION CUTOVER (do NOT do unilaterally) | REQUIRED for any user-visible fix | Production runs canonical `phase9/g1-reads-witness` (pre-T1!). Main has everything; canonical does not. Evidence of a possible parallel actor on canonical (unexplained merge commits 4665c77/3617c46 in my message phrasing, 2026-09-07 ~20:16-20:52 EDT) + Nav's live IDE work there. SINGLE-WRITER RULE: coordinate first. G1 WIP preserved at `d39c37a` (pushed). Cutover sketch (Nav-approved only): verify canonical clean, `git checkout main`, `git pull --ff-only`, frontend rebuild, backend restart per ~/.hermes/scripts/confluence-decoder-start.sh, verify :3000/:8000 + KYTX strikes + paper order probe. |
-| G3-SALVAGE (PR44) | APPROVED-conditional, witness-gated | PR44 `astra/g3-paper-loop` @ `d6fad39` against main dd1607c. Offline GATE-2 proof (131 tests, ruff clean, silent-except baseline). Merge gated on external G-WITNESS (same guild/channel, test channel, non-admin help, genuine paper approve/fill/close). Agent 4 refresh review at current head before witness gate. |
+| G3-SALVAGE (PR44) | APPROVED-conditional, witness-gated | PR44 `astra/g3-paper-loop` @ `d6fad39` (base `a6e6f79`, against main `04605df` — main moved via PR45/46/47 since review; re-verify mergeability at merge). Offline GATE-2 proof (131 tests, ruff clean, silent-except baseline). Merge gated on external G-WITNESS (same guild/channel, test channel, non-admin help, genuine paper approve/fill/close). Agent 4 refresh review at current head before witness gate. |
 
 ## Admission order
 
 All September 6-8 recovery work is merged. No active builder admissions.
 The only open candidate is PR44 (G3-salvage, witness-gated).
 
-### Agent 2 backlog (queued, not admitted)
+### Agent 2 backlog (items 1–2 DONE via PR47; rest queued)
 
-1. **Numba Greeks wiring.** `bs_charm_vec`/`bs_vomma_vec`/`bs_delta_vec`/
-   `bs_vega_vec`/`bs_zomma_vec` in `services/numba_greeks.py` sit UNUSED
-   while `calc_charm_integral` loops in Python. Prove numeric equivalence
-   (golden test vs scalar path, rtol 1e-9, on real chain shapes incl.
-   degenerate T/IV/zero-OI rows), swap the hot loop, prove perf on a
-   15k-contract chain (time both). Do NOT touch model-locked constants
-   (`gex_history.py` RISK_FREE/IV_FALLBACK — retrain migration, out of scope).
+1. **Numba Greeks wiring — DONE (PR47, main `04605df`).** Charm-vec wired,
+   identical totals, 1.7x on 15k chains. Remaining vecs (`bs_vomma_vec`,
+   `bs_delta_vec`, `bs_vega_vec`, `bs_zomma_vec`) still unused — future unit
+   only on a fresh Agent-1 admission with its own red/green proof.
 
-2. **Kyle/Amihud regime alerts.** `KylesLambda` + `AmihudIlliquidity` exist
-   (`push_snapshot`/`compute` API) with zero alert consumers. Design a
-   threshold alert through the exposure pipeline — copy the TOXIC_FLOW
-   pattern exactly (rule const + event kind + WHY + fail-open + CDF-style
-   confirmation if available + cold-silent). Tests RED-on-main first.
+2. **Kyle/Amihud regime alerts — DONE (PR47, main `04605df`).**
+   LIQUIDITY_STRESS live via exposure pipeline, TOXIC_FLOW pattern copied.
 
 3. **OFI/multi-level assessment.** `multi_level_ofi.py`, `composite_flow_score.py`,
    `hmm_regime.py`, `chain_replay.py` exist; assess which computes a

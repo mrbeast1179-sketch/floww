@@ -2,7 +2,7 @@
   "schema": "floww-four-agent-run/v2",
   "program_id": "floww-recovery-20260906-v2",
   "control_branch": "architect/20260906-recovery-control-plane-v2",
-  "acceptance_base": "dd1607c8b2a643b0b3fd4480b8b5a896f1eb3e1e",
+  "acceptance_base": "04605df475d1daea5c3f7034d127524d33408241",
   "status": "prepared_waiting_for_boot_ack",
   "central_writer": "agent-1-architect",
   "runtime_root": "/Users/nav/Documents/GitHub/floww-run-state/2026-09-06-v2",
@@ -32,7 +32,7 @@
       "allowed_files": [],
       "boot_receipt": null,
       "last_checkpoint": null,
-      "lease_note": "Builder lane held. No active admission. Next backend unit admitted by Agent 1 from ranked backlog in spark-prompts/agent-2.md."
+      "lease_note": "PR47 merged (numba charm-vec + LIQUIDITY_STRESS, main 04605df). No active admission. Next backend unit admitted by Agent 1 from ranked backlog in spark-prompts/agent-2.md."
     },
     "agent-3-frontend": {
       "state": "READY",
@@ -78,7 +78,7 @@
       "summary": "three NO_BYTES failures and one HTTP_429; no astra_G receipts"
     }
   ],
-  "snapshot_date": "2026-09-07",
+  "snapshot_date": "2026-09-08",
   "template_only": true,
   "task_card_root": "/Users/nav/Documents/GitHub/floww-run-state/2026-09-06-v2/task-cards",
   "review_receipts": {
