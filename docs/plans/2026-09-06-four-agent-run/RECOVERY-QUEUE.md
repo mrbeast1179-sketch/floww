@@ -6,7 +6,7 @@ as of 2026-09-08.
 
 ## CLOSED as a merge queue
 
-Main is `04605df`. Merged, in order: PR28 (D7 parity), PR29 (X1 journal),
+Main is `56cfff2`. Merged, in order: PR28 (D7 parity), PR29 (X1 journal),
 PR30 (P1 silent-except gate), PR31 (A3 conviction wiring), PR33 (T1-only),
 PR34 (H1 strike-truth fixture), PR35 (F0 wave + clock fix), PR36 (H2-partial),
 PR37 (GEX date-string fix), PR38 (dead-code removal + kanban datetime fix),
@@ -14,7 +14,7 @@ PR39 (provider cap + deepen + enrich, merged by Nav), PR40 (honesty labels),
 PR41 (strike floor), PR42 (T2 full universe + order-key 401 fix), PR43
 (honesty citations), PR45 (TOXIC_FLOW alerts), PR46 (GAMMA_FLIP alerts),
 PR47 (numba charm vec + liquidity-stress alerts).
-One open PR: PR44 (G3-salvage, witness-gated).
+One open PR: none (PR44 merged main 56cfff2 2026-09-08T11:48:51Z).
 6 superseded branches deleted after patch-id proof (product identical to main;
 docs in archive). Every merge verified: green required CI on the merged head +
 local reproduction where applicable. Full receipt trail in GSD-PASSES.md
@@ -33,21 +33,21 @@ take-over section + lane receipts + evidence/DEEP-SWEEP-2026-09-08.md.
 | GSD-8 | BLOCKED | X credits |
 | App.js standing waiver | Ungranted, scoped | T1 28-line scope shipped under 2026-09-08 take-over order; a STANDING waiver for future App.js work is still explicitly ungranted |
 | PRODUCTION CUTOVER (do NOT do unilaterally) | REQUIRED for any user-visible fix | Production runs canonical `phase9/g1-reads-witness` (pre-T1!). Main has everything; canonical does not. Evidence of a possible parallel actor on canonical (unexplained merge commits 4665c77/3617c46 in my message phrasing, 2026-09-07 ~20:16-20:52 EDT) + Nav's live IDE work there. SINGLE-WRITER RULE: coordinate first. G1 WIP preserved at `d39c37a` (pushed). Cutover sketch (Nav-approved only): verify canonical clean, `git checkout main`, `git pull --ff-only`, frontend rebuild, backend restart per ~/.hermes/scripts/confluence-decoder-start.sh, verify :3000/:8000 + KYTX strikes + paper order probe. |
-| G3-SALVAGE (PR44) | APPROVED-conditional, witness-gated | PR44 `astra/g3-paper-loop` @ `d6fad39` (base `a6e6f79`, against main `04605df` — main moved via PR45/46/47 since review; re-verify mergeability at merge). Offline GATE-2 proof (131 tests, ruff clean, silent-except baseline). Merge gated on external G-WITNESS (same guild/channel, test channel, non-admin help, genuine paper approve/fill/close). Agent 4 refresh review at current head before witness gate. |
+| G3-SALVAGE (PR44) | MERGED + witness pending | PR44 `astra/g3-paper-loop` @ `bffa5deb` (base `a6e6f79`, merged main `56cfff2` 2026-09-08T11:48:51Z). Offline GATE-2 proof at exact head (56/56 green, ruff clean, no code blocker). Witness gate (external G-WITNESS) still pending; merge already landed without it. No further Agent-4 merge authority; re-verify at any new head before any witnessed attempt. |
 
 ## Admission order
 
 All September 6-8 recovery work is merged. No active builder admissions.
-The only open candidate is PR44 (G3-salvage, witness-gated).
+PR44 merged main 56cfff2 2026-09-08T11:48:51Z; witness gate (external G-WITNESS) is Nav/owner-gated, no Agent-4 merge authority.
 
 ### Agent 2 backlog (items 1–2 DONE via PR47; rest queued)
 
-1. **Numba Greeks wiring — DONE (PR47, main `04605df`).** Charm-vec wired,
+1. **Numba Greeks wiring — DONE (PR47, main `56cfff2`).** Charm-vec wired,
    identical totals, 1.7x on 15k chains. Remaining vecs (`bs_vomma_vec`,
    `bs_delta_vec`, `bs_vega_vec`, `bs_zomma_vec`) still unused — future unit
    only on a fresh Agent-1 admission with its own red/green proof.
 
-2. **Kyle/Amihud regime alerts — DONE (PR47, main `04605df`).**
+2. **Kyle/Amihud regime alerts — DONE (PR47, main `56cfff2`).**
    LIQUIDITY_STRESS live via exposure pipeline, TOXIC_FLOW pattern copied.
 
 3. **OFI/multi-level assessment.** `multi_level_ofi.py`, `composite_flow_score.py`,

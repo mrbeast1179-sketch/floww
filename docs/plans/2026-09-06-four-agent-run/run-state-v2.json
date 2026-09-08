@@ -2,7 +2,7 @@
   "schema": "floww-four-agent-run/v2",
   "program_id": "floww-recovery-20260906-v2",
   "control_branch": "architect/20260906-recovery-control-plane-v2",
-  "acceptance_base": "04605df475d1daea5c3f7034d127524d33408241",
+  "acceptance_base": "56cfff2ec909313c81fbe616a3595c937238037a",
   "status": "prepared_waiting_for_boot_ack",
   "central_writer": "agent-1-architect",
   "runtime_root": "/Users/nav/Documents/GitHub/floww-run-state/2026-09-06-v2",
@@ -32,35 +32,44 @@
       "allowed_files": [],
       "boot_receipt": null,
       "last_checkpoint": null,
-      "lease_note": "PR47 merged (numba charm-vec + LIQUIDITY_STRESS, main 04605df). No active admission. Next backend unit admitted by Agent 1 from ranked backlog in spark-prompts/agent-2.md."
+      "lease_note": "PR47 merged (numba charm-vec + LIQUIDITY_STRESS, main 56cfff2). No active admission. Next backend unit admitted by Agent 1 from ranked backlog in spark-prompts/agent-2.md."
     },
     "agent-3-frontend": {
-      "state": "READY",
-      "task_id": "BACKLOG_TOP",
-      "worktree": null,
-      "branch": null,
-      "head_sha": null,
-      "allowed_files": [],
-      "boot_receipt": null,
-      "last_checkpoint": null,
-      "lease_note": "T1 contract merged (PR33). Alert surfacing is the next frontend unit per spark-prompts/agent-3.md. Builder lane held."
+      "state": "PR_OPEN",
+      "task_id": "ALERT-SURFACING-1A",
+      "worktree": "/Users/nav/Documents/GitHub/floww-worktrees/alert-surfacing-agent3",
+      "branch": "a3/alert-surfacing",
+      "head_sha": "498e9c5475d1daea5c3f7034d127524d33408241",
+      "allowed_files": [
+        "frontend/src/components/flowseeker/exposureBadges.js",
+        "frontend/src/components/flowseeker/exposureBadges.test.js",
+        "frontend/src/components/flowseeker/FlowseekerProBlademap.css",
+        "frontend/src/components/flowseeker/FlowseekerProBlademap.jsx",
+        "frontend/src/components/heatseeker/ExposureStrip.css",
+        "frontend/src/components/heatseeker/ExposureStrip.jsx",
+        "frontend/src/components/heatseeker/ExposureStrip.test.jsx",
+        "frontend/src/components/heatseeker/SkylitDashboard.jsx"
+      ],
+      "boot_receipt": "floww-run-state/2026-09-06-v2/frontend/boot.json",
+      "last_checkpoint": "floww-run-state/2026-09-06-v2/frontend/checkpoint.json",
+      "lease_note": "Frontend-only exposure-rule badge surfacing. Blademap v3 + heatseeker ExposureStrip. Reads /api/flowseeker/alerts/feed; maps the five live backend producers (TOXIC_FLOW, GAMMA_FLIP, VEX_WALL, CHARM_PIN, LIQUIDITY_STRESS). No App.js, no App.css global, no backend, no other lanes' tests, no central state. Verified 48 focused + 500 full tests green; CRA build clean. Branch a3/alert-surfacing pushed to origin, rebased onto main 56cfff2. PR #48 open: https://github.com/mrbeast1179-sketch/floww/pull/48 — agent-4 review gate before merge (Nav-gated)."
     },
     "agent-4-proof": {
-      "state": "READY",
+      "state": "DONE",
       "task_id": "PR44-REFRESH",
       "worktree": "/Users/nav/Documents/GitHub/floww-worktrees/run-20260906-proof",
       "branch": "origin/astra/g3-paper-loop",
-      "head_sha": "d6fad39eed41b14f9843fc54dda84e6ce177cb6a",
+      "head_sha": "bffa5deb78259b9c2c9598480f1eb05012215ed2",
       "allowed_files": [],
       "boot_receipt": null,
-      "last_checkpoint": "E4-44 APPROVED-conditional at d6fad39; PR44 is the only open PR; refresh review at current head before witness gate",
-      "branch_note": "PR44 head d6fad39eed41 against main dd1607c. Re-verify at boot; a moved head voids the prior verdict."
+      "last_checkpoint": "E4-44 APPROVED-conditional at bffa5deb (refreshed from d6fad39); 56/56 green; PR44 merged main 56cfff2; witness gate pending",
+      "branch_note": "PR44 head bffa5deb against origin/main 56cfff2. Receipt refreshed at current head; d6fad39 receipt voided. PR44 merged to main 56cfff2 2026-09-08T11:48:51Z. Witness gate (external G-WITNESS) is Nav/owner-gated; no Agent-4 merge authority. Re-verify at any new head before any witnessed attempt."
     }
   },
   "known_candidates": {
-    "pr44": "d6fad39eed41b14f9843fc54dda84e6ce177cb6a",
+    "pr44": "bffa5deb78259b9c2c9598480f1eb05012215ed2",
     "pr44_base": "a6e6f7930e7a9aae497170c0ea8104b62520f2f2",
-    "main": "dd1607c8b2a643b0b3fd4480b8b5a896f1eb3e1e",
+    "main": "56cfff2ec909313c81fbe616a3595c937238037a",
     "g1_canonical": "d39c37a (dirty, active, NOT this lane's lease)"
   },
   "external_gates": [
@@ -99,7 +108,7 @@
       "verdict": "MERGED",
       "receipt": "floww-run-state/2026-09-06-v2/proof/receipts/E4-30.md",
       "audit": "docs/plans/2026-09-06-four-agent-run/evidence/PR30-merge-attempt.md",
-      "next": "PR30 merged to main; gate files unchanged from 06b7502; CI green: ruff, backend-tests, frontend-build"
+      "next": "PR30 merged to main 56cfff2; gate files unchanged from 06b7502; CI green: ruff, backend-tests, frontend-build"
     },
     "pr31": {
       "head": "f7f7103b2744a7a052c66a917a7a7d4662a3c310",
@@ -108,11 +117,12 @@
       "next": "Nav merge call as inert scaffolding; A3-SCORE must approve weights before any live caller passes nonzero"
     },
     "pr44": {
-      "head": "d6fad39eed41b14f9843fc54dda84e6ce177cb6a",
+      "head": "bffa5deb78259b9c2c9598480f1eb05012215ed2",
       "base": "a6e6f7930e7a9aae497170c0ea8104b62520f2f2",
       "verdict": "APPROVED-conditional",
       "receipt": "floww-run-state/2026-09-06-v2/proof/receipts/E4-44.md",
-      "next": "Nav merge call gated on external G-WITNESS (same guild/channel, test channel, non-admin help, genuine paper approve/fill/close). Re-verify mergeability at merge — main moved via PR45/46/47 since review."
+      "state": "MERGED to main 56cfff2 (2026-09-08T11:48:51Z); witness gate pending",
+      "next": "PR44 merged to main. Offline GATE-2 proof delivered at exact head bffa5deb: 56/56 green, ruff clean, no code blocker. Witness gate (external G-WITNESS) is Nav/owner-gated; no Agent-4 merge authority. Re-verify at any new head before witnessed attempt."
     }
   }
 }
