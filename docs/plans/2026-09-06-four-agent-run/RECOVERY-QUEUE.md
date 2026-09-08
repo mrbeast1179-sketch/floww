@@ -151,10 +151,10 @@ cleared; deepen + enrich both fired per logs).
   pin, golden oracle green; silent-except justifications added per P1 gate).
 - PR38 MERGED: dead-code removal (Movers.jsx, finnhub_api shim) + kanban
   datetime fix (un-xfailed).
-- PR39 OPEN (`astra/sparse-chain-public`): cvserver 20/hr hard cap
-  (`CVSERVER_HOURLY_CAP`, stale on exceed) + Public deepen (<40 strikes → 8
-  expiries, zero cvserver cost) + budgeted cvserver enrich (<30 strikes, 1
-  call, keep-richer). 9 tests (3 RED on main first). No fabricated strikes.
+- PR39 MERGED by Nav (`5771dfc`, cap+deepen+enrich); floor follow-up is PR41
+  (`astra/sparse-chain-v2`, server band/floor + 2 tests, CI running). Lesson
+  logged: merged PRs don't track later branch pushes and fire no PR CI —
+  verify `headRefOid` before assuming a push reached its PR.
 - PR40 OPEN (`astra/honesty-labels`): F5/F6/F11/F17/F19 done (unknown-side
   dash, copy corrections; F11 test RED on main first; 62/480 green). F16
   verified present (no change). Skipped with rationale: F9 (citation year
