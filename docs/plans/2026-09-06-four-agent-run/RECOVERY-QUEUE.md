@@ -16,7 +16,7 @@ proprietary-data frontier. Status is evidence-based as of 2026-09-06 20:58 EDT.
 | E4-30 | Agent 4 | MERGED to main | PR30 merged at 377dfa5 (merge of origin/main into astra/p1-clean); scripts/silent_except_gate.py and backend/tests/test_silent_except_gate.py byte-identical to 06b7502; CI green: ruff, backend-tests, frontend-build; audit: evidence/PR30-merge-attempt.md |
 | E4-31 | Agent 4 | REVIEW COMPLETE; APPROVED-conditional | `f7f7103` inert scaffolding, 62 exact-head tests; weights pending A3-SCORE; see proof/receipts/E4-31.md |
 | PR32 | Agent 4 | REVIEW COMPLETE; only Nav scope call remains | E4-32 + lint fix `9289775`: GitHub ruff PASS, frontend-build PASS, backend 4931/4932 (1 flaky ML-threshold fail, green locally — re-run prescribed, no test edits). Remaining: Nav split-vs-authorize call — see evidence/T1-SPLIT-ANALYSIS.md. App.js waiver still unrecorded. Receipt: proof/receipts/E4-32.md |
-| F0-F1 | Agent 2 | COMPLETE; pushed | Wave-1 honesty/integrity complete: F1/F3/F4/F7, P1/P3/P4, D1–D7 all shipped on `astra/f0-honesty-backend` rebased on `origin/main e68bdb5`; receipts in agent-2-backend/receipts/; open: P2/P6/P7 |
+| F0-F1 | Agent 2 | COMPLETE; VERIFIED GREEN @ `f880971` | Wave-1 honesty/integrity complete: F1/F3/F4/F7, P1/P3/P4, D1–D7. Architect re-verified 2026-09-08: 15 gate test files **151 passed**, backend ruff clean. Receipts in agent-2-backend/receipts/ (+H1.md, P2 supplement, FINAL supplement). Open: P2 baseline KNOWN (11 advisories, upgrade Nav-gated), P6/P7 Nav-gated. Merge call is Nav's. |
 | GSD-8 | Agent 1 | BLOCKED | Remove or leave out of build queue until X credits exist; no spend |
 
 Nav merges #28/#29 only after E4 approval of the same head. A later push invalidates
