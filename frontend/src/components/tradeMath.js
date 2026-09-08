@@ -193,6 +193,99 @@ export function ticketToJournalEntries(ticket) {
   return [entry];
 }
 
+// ─── TradeEntry idea -> journal (issue #17) ────────────────────────────────
+// TradeEntry "Save Trade Idea" rows live in component state only and vanish
+// on unmount. This mapper converts one idea (template + form data) into a
+// TradeJournal-shaped entry for the shared `floww_trades_v2` store so the
+// idea survives remount/reload and renders in TradeJournal + TradeAnalytics.
+// One entry per idea (multi-leg templates collapse with legs itemized in
+// `notes` — never fabricate legs). contracts -> quantity, regime ->
+// gex_regime, strikes/credit/debit/premium -> notes/setup. Missing price
+// journals as "" (open, unknown) — an idea is never dropped. Extra display
+// keys (template/templateName/spot/source) ride along; journal consumers
+// ignore unknown keys, TradeEntry uses them to rebuild its in-session list.
+
+const IDEA_TEMPLATE_MAP = {
+  iron_condor: { type: "call", action: "sell", setup: "IRON CONDOR" },
+  long_straddle: { type: "call", action: "buy", setup: "STRADDLE" },
+  call_spread: { type: "call", action: "buy", setup: "BULL CALL SPREAD" },
+  put_spread: { type: "put", action: "buy", setup: "BEAR PUT SPREAD" },
+};
+
+export function tradeIdeaToJournalEntries(idea) {
+  const t = idea || {};
+  const d = t.data || {};
+  const template = t.template || "single_leg";
+  const priceOrBlank = (v) => {
+    const n = Number(v);
+    return Number.isFinite(n) && n > 0 ? n : "";
+  };
+  const at = `@ spot ${t.spot ?? "—"}`;
+  let type = "call", action = "buy", setup = template.toUpperCase();
+  let strike = "", entry_price = "", notes = "";
+  if (template === "iron_condor") {
+    const m = IDEA_TEMPLATE_MAP.iron_condor;
+    type = m.type; action = m.action; setup = m.setup;
+    strike = d.call_short ?? d.put_short ?? "";
+    entry_price = priceOrBlank(d.credit);
+    notes = `Iron Condor P ${d.put_long ?? "—"}/${d.put_short ?? "—"}`
+      + ` C ${d.call_short ?? "—"}/${d.call_long ?? "—"}`
+      + ` credit ${d.credit ?? "—"} ${at}`;
+  } else if (template === "long_straddle") {
+    const m = IDEA_TEMPLATE_MAP.long_straddle;
+    type = m.type; action = m.action; setup = m.setup;
+    strike = d.strike ?? "";
+    const cp = Number(d.call_premium), pp = Number(d.put_premium);
+    const parts = [cp, pp].filter((n) => Number.isFinite(n) && n > 0);
+    entry_price = parts.length ? parts.reduce((a, b) => a + b, 0) : "";
+    notes = `Long Straddle strike ${d.strike ?? "—"}`
+      + ` call premium ${d.call_premium ?? "—"}`
+      + ` put premium ${d.put_premium ?? "—"} ${at}`;
+  } else if (template === "call_spread" || template === "put_spread") {
+    const m = IDEA_TEMPLATE_MAP[template];
+    type = m.type; action = m.action; setup = m.setup;
+    strike = d.long_strike ?? "";
+    entry_price = priceOrBlank(d.debit);
+    const label = template === "call_spread" ? "Bull Call Spread" : "Bear Put Spread";
+    notes = `${label} long ${d.long_strike ?? "—"}`
+      + ` short ${d.short_strike ?? "—"} debit ${d.debit ?? "—"} ${at}`;
+  } else if (template === "single_leg") {
+    const a = String(d.action || "");
+    type = /put/i.test(a) ? "put" : "call";
+    action = /sell/i.test(a) ? "sell" : "buy";
+    setup = a ? a.toUpperCase() : "SINGLE";
+    strike = d.strike ?? "";
+    entry_price = priceOrBlank(d.premium);
+    notes = `${a || "Single leg"} strike ${d.strike ?? "—"}`
+      + ` premium ${d.premium ?? "—"} ${at}`;
+  } else {
+    const detail = Object.entries(d).map(([k, v]) => `${k} ${v}`).join(" ");
+    notes = `${t.templateName || template} ${detail} ${at}`.trim();
+  }
+  return [{
+    ticker: String(t.ticker || "").replace("^", "").toUpperCase(),
+    type,
+    action,
+    strike,
+    expiry: "",
+    quantity: String(d.contracts ?? 1),
+    entry_price,
+    exit_price: "",
+    entry_date: (t.timestamp || new Date().toISOString()).slice(0, 10),
+    exit_date: "",
+    notes,
+    gex_regime: t.regime || "",
+    setup,
+    tags: "trade-entry",
+    // Display extras (ignored by journal consumers; TradeEntry hydrates its
+    // in-session list from these after unmount/remount).
+    source: "trade-entry",
+    template,
+    templateName: t.templateName || template,
+    spot: t.spot ?? null,
+  }];
+}
+
 // Max risk / reward display strings for an option strategy. estPrice is the
 // per-share premium estimate (may be non-finite when IV is missing → "—").
 // Correct at the strategy-category level; long debit trades have DEFINED risk
