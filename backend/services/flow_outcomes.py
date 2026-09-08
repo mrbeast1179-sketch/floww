@@ -52,7 +52,7 @@ from typing import Any
 logger = logging.getLogger(__name__)
 
 # ── tunables (thresholds live in flow_alerts; these are measurement params) ──
-DEFAULT_HORIZON_SESSIONS = 2      # N: forward sessions to measure (Pan-Poteshman next-day power → N=2 primary)
+DEFAULT_HORIZON_SESSIONS = 2      # N: forward sessions to measure (Pan-Poteshman next-day power heuristic → N=2 primary)
 DEFAULT_SIGMA_K = 0.75            # hit = |side-signed cum return| ≥ k·σ20
 DEFAULT_SIGMA_WINDOW = 20         # trailing sessions for σ20
 DEFAULT_CONTROL_PER_ALERT = 20    # matched controls per alert ticker-day
