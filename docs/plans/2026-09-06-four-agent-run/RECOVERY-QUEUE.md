@@ -135,6 +135,32 @@ separate GSD map after its truth audit. No Floww worker deletes Schwab or change
 repo from a Floww task card. Shared ideas cross repositories only through an explicit
 interface/spec, never by copying an entire provider or agent framework.
 
+## Take-over loop 2 — provider directive + sweep (2026-09-08)
+
+Owner directive: Public API (unlimited) is primary; cvserver (20 req/hr) is
+scarce failover; small-stock strike coverage must improve with real rows only.
+
+- PR37 MERGED: GEX date-string crash fix (`_parse_expiry`, unskipped linearity
+  pin, golden oracle green; silent-except justifications added per P1 gate).
+- PR38 MERGED: dead-code removal (Movers.jsx, finnhub_api shim) + kanban
+  datetime fix (un-xfailed).
+- PR39 OPEN (`astra/sparse-chain-public`): cvserver 20/hr hard cap
+  (`CVSERVER_HOURLY_CAP`, stale on exceed) + Public deepen (<40 strikes → 8
+  expiries, zero cvserver cost) + budgeted cvserver enrich (<30 strikes, 1
+  call, keep-richer). 9 tests (3 RED on main first). No fabricated strikes.
+- 61-ref archaeology: 6 superseded branches deleted after patch-id proof;
+  G3 + swarm-sizing rescue backlogs specced (evidence/DEEP-SWEEP-2026-09-08.md).
+- Baselines @ `dea655a`: backend 5048, frontend 62/479, ruff clean.
+
+## Honesty backlog (fix-queue F-IDs vs landed work)
+
+DONE (F0 wave, in main): F1, F3, F4, F7. OPEN, smallest first: F17 (one-word
+"Heuristic" label, flow_outcomes.py:55), F9 (Ni year/title typos), F18 (CW
+label note), F16 (WHALE badge — keep disclaimer), F19 ("negotiated" wording),
+F15 (split-type contract gap), F8/F10/F12/F14 (citation corrections,
+gex_paper_accurate), F5/F6/F11 (UI copy — XH-1 scope), F2/F13 (flow_alerts
+scoring — serialized, needs weights/product call).
+
 ## Stop conditions
 
 - Provider stream returns no bytes or HTTP 429 without a durable boot/checkpoint.
