@@ -134,10 +134,18 @@ policy, paper engine, synthetic backtest concerns, and UI/alert surfaces. It rec
 separate GSD map after its truth audit. No Floww worker deletes Schwab or changes that
 repo from a Floww task card. Shared ideas cross repositories only through an explicit
 interface/spec, never by copying an entire provider or agent framework.
-
 ## Take-over loop 2 — provider directive + sweep (2026-09-08)
+
 Owner directive: Public API (unlimited) is primary; cvserver (20 req/hr) is
 scarce failover; small-stock strike coverage must improve with real rows only.
+
+LIVE KYTX DIAGNOSIS (backend on merged main + PR39 code, real keys):
+Public 400s KYTX expirations (symbol unsupported — vendor limit, not our bug);
+cvserver 429-paused (vendor throttle state; our pause handling correct);
+yfinance fallback had all 8 strikes but the display band cut to 3. Vendor HAS
+the data — our band was the limiter. VALIDATED FIX live: KYTX now shows all
+8 strikes [2.5–20.0] with gex on every row (source cvserver after its 429
+cleared; deepen + enrich both fired per logs).
 
 - PR37 MERGED: GEX date-string crash fix (`_parse_expiry`, unskipped linearity
   pin, golden oracle green; silent-except justifications added per P1 gate).
