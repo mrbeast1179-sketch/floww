@@ -33,7 +33,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: "3.11"
+          python-version: "3.12"
           cache: "pip"
           cache-dependency-path: backend/requirements.txt
 
@@ -136,20 +136,20 @@ jobs:
           echo "Commit or remove them before merge. Run: git add <files> or rm <files>"
           exit 1
 
-      - name: Lint
-        working-directory: ./frontend
-        run: npm run lint 2>&1 || true
+      # NOTE: no `lint` script exists in frontend/package.json and no eslint
+      # config exists in the repo, so the previous `npm run lint || true`
+      # step could never lint (missing script, failure masked). Removed
+      # rather than faked. CRA's production build (next step, CI=true)
+      # compiles with eslint warnings-as-errors and is the current
+      # lint signal. A dedicated eslint flat config is a follow-up
+      # candidate (probe 2026-09-07: no-undef-only surfaced real
+      # findings, e.g. undefined `axios` uses, plus plugin-rule noise).
 
       - name: Tests
         working-directory: ./frontend
-        # Note: 12 visual-panel / axios-mock tests fail locally with text-element /
-        # TypeError-on-then errors; these are non-blocking smoke tests for non-critical
-        # chrome and don't gate the production build. Mirrors the Lint step's existing
-        # `|| true` precedent (line ~84): keep the diagnostic signal in the run logs
-        # but don't let flaky visual smoke tests block the workflow gate. A future
-        # `test(real-fix): jest axios mock + visual selector tightening` commit will
-        # address the 18 failures cleanly without blocking CI in the meantime.
-        continue-on-error: true
+        # Measured baseline 2026-09-07 (node 26, npm ci --legacy-peer-deps):
+        # 59 suites / 453 tests, all green. The old comment claiming 12/18
+        # visual failures is stale; failures block the gate from here on.
         env:
           CI: true
         # CRA's `react-scripts test` runs jest in watch mode by default; --watchAll=false

@@ -33,13 +33,25 @@ def _h2_isolated_public_budget(monkeypatch):
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".."))
 
+
+@pytest.fixture(autouse=True)
+def _isolated_public_budget_singleton():
+    # D1: the adapter debits the shared budget singleton per C8, so each
+    # test starts from a full bucket; otherwise module order decides
+    # who exhausts whom.
+    from services.public_budget import budget
+
+    budget.reset()
+    yield
+    budget.reset()
+
 from tests.services.test_flow_alerts import _future_exp, _raw  # noqa: E402
 
 # ── adapter quote-truth ─────────────────────────────────────────────
 
 def _mock_oc(**over):
     base = dict(
-        symbol="SPY260904C00760000", expiration="2026-09-04", strike=760.0,
+        symbol="SPY260911C00760000", expiration="2026-09-11", strike=760.0,
         open_interest=1200, iv=0.25, delta=0.4, gamma=0.01, theta=-0.5,
         vega=0.3, bid=2.5, ask=2.7, volume=800,
         last=2.65, bid_size=40, ask_size=35,
@@ -58,7 +70,7 @@ async def test_adapter_preserves_last_mid_and_sizes():
 
     broker = MagicMock()
     broker.get_trading_account.return_value = MagicMock(account_id="acct")
-    broker.get_option_expirations = AsyncMock(return_value=["2026-09-04"])
+    broker.get_option_expirations = AsyncMock(return_value=["2026-09-11"])
     broker.get_quotes = AsyncMock(return_value=[MagicMock(mid_price=760.0, last=760.5)])
     broker.get_option_chain_parsed = AsyncMock(
         return_value={"calls": [_mock_oc()], "puts": []}
@@ -873,25 +885,19 @@ def test_peek_available_honors_idle_refill():
 
 
 @pytest.mark.asyncio
-async def test_scan_slice_degrades_to_empty_rows_on_adapter_none(monkeypatch):
-    """H2 ownership move: the adapter (not the scanner) acquires budget and
-    returns None on refusal. The scanner maps adapter-None to empty rows and
-    never wipes coverage. Zero-upstream-on-refusal is pinned end-to-end in
-    test_provider_cost_h2.py::test_budget_refusal_blocks_upstream_calls; the
-    retired "skipped":"budget" marker had no consumers (verified by grep)."""
+async def test_scan_slice_maps_refused_fetch_to_empty_rows(monkeypatch):
+    # D2: admission lives in the adapter (C8 choke point). A budget
+    # refusal there surfaces as chain None -> empty rows; the scanner
+    # performs no acquisition of its own (no double debit) and the
+    # caller keeps the prior slice.
     import services.public_scanner as ps
 
-    calls = {"n": 0}
-
-    async def counting_none(ticker, max_expiries=2):
-        calls["n"] += 1
+    async def refused(ticker, max_expiries=2):
         return None
 
-    monkeypatch.setattr(
-        "services.public_api_adapter.fetch_chain_from_public_api", counting_none)
+    monkeypatch.setattr("services.public_api_adapter.fetch_chain_from_public_api", refused)
     out = await ps.scan_slice(["SPY"], max_expiries=2)
-    assert out["SPY"]["rows"] == []
-    assert calls["n"] == 1, "slice still delegates to the adapter exactly once"
+    assert out["SPY"]["rows"] == [] and "skipped" not in out["SPY"]
 
 
 @pytest.mark.asyncio

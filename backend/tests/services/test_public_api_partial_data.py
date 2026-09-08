@@ -6,14 +6,15 @@ import pytest
 
 
 @pytest.fixture(autouse=True)
-def _h2_isolated_public_budget(monkeypatch):
-    """H2: adapter-level acquire debits the shared singleton even behind fake
-    brokers. Isolate every test with a fresh high-capacity budget so file
-    order can never starve a suite. Production behavior unchanged."""
-    from services import public_budget as pb_mod
-    monkeypatch.setattr(
-        pb_mod, "budget",
-        pb_mod.PublicBudget(capacity=10000, refill_per_sec=10000.0))
+def _isolated_public_budget_singleton():
+    # D1: the adapter debits the shared budget singleton per C8, so each
+    # test starts from a full bucket; otherwise module order decides
+    # who exhausts whom.
+    from services.public_budget import budget
+
+    budget.reset()
+    yield
+    budget.reset()
 
 
 @pytest.mark.asyncio
@@ -45,7 +46,8 @@ async def test_partial_expiry_failure_keeps_successful_contracts() -> None:
         result = await fetch_chain_from_public_api("SPY")
 
     assert result is not None
-    assert result["expiries"] == ["2026-09-18", "2026-10-16"]
+    # D4: returned coverage lists only fetched expiries (failed expiry excluded)
+    assert result["expiries"] == ["2026-09-18"]
     assert len(result["contracts"]) == 1
 
 

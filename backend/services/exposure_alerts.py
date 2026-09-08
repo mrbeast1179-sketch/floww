@@ -25,6 +25,7 @@ of charm moves between expiries' snapshots.
 from __future__ import annotations
 
 import logging
+import math
 from typing import Any
 
 log = logging.getLogger(__name__)
@@ -47,13 +48,18 @@ def _cell_above(value: float, threshold: float) -> bool:
 
 
 def _max_abs(grid_section: dict) -> float:
-    """Max |cell value| across all expiries in a {expiry: {strike: value}} map."""
+    """Max |cell value| across all expiries in a {expiry: {strike: value}} map.
+
+    Non-finite cell values are dropped so the result is always finite (or 0.0
+    for an empty/degenerate section) — this keeps downstream threshold and
+    magnitude math well-defined even when a bad grid leaks in (D6).
+    """
     vals = [
         abs(float(v))
         for row in grid_section.values()
         if isinstance(row, dict)
         for v in row.values()
-        if isinstance(v, (int, float))
+        if isinstance(v, (int, float)) and math.isfinite(float(v))
     ]
     return max(vals, default=0.0)
 
@@ -76,6 +82,8 @@ def _norm_grid(section: Any) -> dict[str, dict[float, float]]:
                 fk = float(k)
                 fv = float(v)
             except (TypeError, ValueError):
+                continue
+            if not math.isfinite(fv):  # D6: never carry NaN/Inf into downstream math
                 continue
             norm_row[fk] = fv
         out[str(expiry)] = norm_row
@@ -122,7 +130,7 @@ def evaluate_exposure_events(
                 if above_now and not above_before:
                     events.append({
                         "kind": "vex_wall_formed", "strike": float(strike),
-                        "expiry": expiry, "magnitude": abs(v),
+                        "expiry": expiry, "magnitude": abs(v) if math.isfinite(v) else 0.0,
                     })
                 elif above_before:
                     # Wall existed at old threshold; check whether it's gone now.
@@ -130,7 +138,7 @@ def evaluate_exposure_events(
                     if not _cell_above(v, broken_thr):
                         events.append({
                             "kind": "vex_wall_broken", "strike": float(strike),
-                            "expiry": expiry, "magnitude": abs(was),
+                            "expiry": expiry, "magnitude": abs(was) if math.isfinite(was) else 0.0,
                         })
     # --- Charm pins ---
     charm_threshold_new = threshold_pct * _max_abs(new_charm)
@@ -152,13 +160,13 @@ def evaluate_exposure_events(
                 if old_pin is None:
                     events.append({
                         "kind": "charm_pin_formed", "strike": float(new_pin),
-                        "expiry": expiry, "magnitude": new_val,
+                        "expiry": expiry, "magnitude": new_val if math.isfinite(new_val) else 0.0,
                     })
                 elif str(old_pin) != str(new_pin):
                     events.append({
                         "kind": "charm_pin_shifted",
                         "strike": float(new_pin),
-                        "expiry": expiry, "magnitude": new_val,
+                        "expiry": expiry, "magnitude": new_val if math.isfinite(new_val) else 0.0,
                     })
 
     events.sort(key=lambda e: e["magnitude"], reverse=True)
@@ -186,6 +194,8 @@ def events_to_alerts(ticker: str, spot: float,
         kind = str(e.get("kind") or "")
         strike = float(e.get("strike") or 0)
         mag = float(e.get("magnitude") or 0)
+        if not math.isfinite(mag):
+            mag = 0.0
         rule = RULE_VEX_WALL if kind.startswith("vex_") else RULE_CHARM_PIN
         out.append({
             "key": f"exposure:{kind}:{ticker.upper()}:{e.get('expiry', '')}:{strike:g}",

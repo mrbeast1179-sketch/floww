@@ -20,6 +20,18 @@ def _h2_isolated_public_budget(monkeypatch):
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".."))
 
 
+@pytest.fixture(autouse=True)
+def _isolated_public_budget_singleton():
+    # D1: the adapter debits the shared budget singleton per C8, so each
+    # test starts from a full bucket; otherwise module order decides
+    # who exhausts whom.
+    from services.public_budget import budget
+
+    budget.reset()
+    yield
+    budget.reset()
+
+
 def _quote(**kw):
     q = MagicMock()
     for k, v in kw.items():
