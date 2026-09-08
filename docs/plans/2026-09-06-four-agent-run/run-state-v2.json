@@ -39,7 +39,7 @@
       "task_id": "ALERT-SURFACING-1A",
       "worktree": "/Users/nav/Documents/GitHub/floww-worktrees/alert-surfacing-agent3",
       "branch": "a3/alert-surfacing",
-      "head_sha": "4040745f55a02adac2ceb30e5ef6ecbff689df7d",
+      "head_sha": "4d7172ef056c7476bbfb4f345a3e961367221f26",
       "allowed_files": [
         "frontend/src/components/flowseeker/exposureBadges.js",
         "frontend/src/components/flowseeker/exposureBadges.test.js",

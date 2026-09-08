@@ -34,9 +34,11 @@ do not re-audit it at that unchanged head. Record the reuse and move on.
 
 ## Standing state (re-verify every session, never assume)
 
-`origin/main` is `dd1607c`. Merged in order: PR28/D7, PR34/H1, PR33/T1-only,
+`origin/main` is `56cfff2`. Merged in order: PR28/D7, PR34/H1, PR33/T1-only,
 PR35/F0-wave, PR36/H2-partial, PR38/dead-code, PR37/GEX-dates, PR39/cap+deepen+
-enrich-by-Nav, PR40/honesty-labels, PR41/strike-floor, PR42/T2+401. Zero open
+enrich-by-Nav, PR40/honesty-labels, PR41/strike-floor, PR42/T2+401, PR43/honesty-citations,
+PR45/TOXIC_FLOW, PR46/GAMMA_FLIP, PR47/numba-greeks. PR44/G3-salvage MERGED 2026-09-08T11:48:51Z.
+Zero open PRs except PR28 (astra/d7-clean, policy-escalated, Nav-gated). Re-verify at boot.
 PRs. Six superseded branches deleted after patch-id proof; product identical
 to main. Every merge verified: required CI green on the merged head, local
 reproduction where applicable.

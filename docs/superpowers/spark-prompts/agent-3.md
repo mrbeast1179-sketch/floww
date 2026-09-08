@@ -47,7 +47,7 @@ boot.json before touching files.
 
    f. Do NOT invent UI for rules that have no backend producer. If a rule
       name appears in a prompt but has no `type=` or `RULE_` or event kind
-      in the backend at main `dd1607c`, it does not exist — stop and say so.
+      in the backend at main `56cfff2`, it does not exist — stop and say so.
 
    Tests for every badge (incl. no-quote/unknown rendering); full-suite
    green before push.
