@@ -22,18 +22,18 @@ take-over section + lane receipts + evidence/DEEP-SWEEP-2026-09-08.md.
 
 ## Remaining (gated — no executable builder work left ungated)
 
-|| ID | State | Gate |
+| ID | State | Gate |
 |---|---|---|---|
-|| O-2 reuse-or-remove | QUEUED with spec | Cross-key cache surgery or swing-depth product call — Nav's |
-|| O-4/O-5 failover order | QUEUED with spec | Provider sandbox + product sign-off — Nav's |
-|| P2 upgrades | Baseline KNOWN (11 advisories) | pymongo/starlette/nltk bumps need resolver pass — Nav's |
-|| P6 rotation | Inventory done | Real credential rotation — Nav's secrets |
-|| P7 Oracle | Runbook ready | VM provisioning — Nav's |
-|| Azure deploy | Workflow red, code-innocent | `azure/login` credentials missing in repo secrets — Nav's (`Deploy to Azure` fails on every main push with "No credentials found"; pre-existing, unrelated to merges) |
-|| GSD-8 | BLOCKED | X credits |
-|| App.js standing waiver | Ungranted, scoped | T1 28-line scope shipped under 2026-09-08 take-over order; a STANDING waiver for future App.js work is still explicitly ungranted |
-|| PRODUCTION CUTOVER (do NOT do unilaterally) | REQUIRED for any user-visible fix | Production runs canonical `phase9/g1-reads-witness` (pre-T1!). Main has everything; canonical does not. Evidence of a possible parallel actor on canonical (unexplained merge commits 4665c77/3617c46 in my message phrasing, 2026-09-07 ~20:16-20:52 EDT) + Nav's live IDE work there. SINGLE-WRITER RULE: coordinate first. G1 WIP preserved at `d39c37a` (pushed). Cutover sketch (Nav-approved only): verify canonical clean, `git checkout main`, `git pull --ff-only`, frontend rebuild, backend restart per ~/.hermes/scripts/confluence-decoder-start.sh, verify :3000/:8000 + KYTX strikes + paper order probe. |
-|| G3-SALVAGE (PR44) | APPROVED-conditional, witness-gated | PR44 `astra/g3-paper-loop` @ `d6fad39` against main dd1607c. Offline GATE-2 proof (131 tests, ruff clean, silent-except baseline). Merge gated on external G-WITNESS (same guild/channel, test channel, non-admin help, genuine paper approve/fill/close). Agent 4 refresh review at current head before witness gate. |
+| O-2 reuse-or-remove | QUEUED with spec | Cross-key cache surgery or swing-depth product call — Nav's |
+| O-4/O-5 failover order | QUEUED with spec | Provider sandbox + product sign-off — Nav's |
+| P2 upgrades | Baseline KNOWN (11 advisories) | pymongo/starlette/nltk bumps need resolver pass — Nav's |
+| P6 rotation | Inventory done | Real credential rotation — Nav's secrets |
+| P7 Oracle | Runbook ready | VM provisioning — Nav's |
+| Azure deploy | Workflow red, code-innocent | `azure/login` credentials missing in repo secrets — Nav's (`Deploy to Azure` fails on every main push with "No credentials found"; pre-existing, unrelated to merges) |
+| GSD-8 | BLOCKED | X credits |
+| App.js standing waiver | Ungranted, scoped | T1 28-line scope shipped under 2026-09-08 take-over order; a STANDING waiver for future App.js work is still explicitly ungranted |
+| PRODUCTION CUTOVER (do NOT do unilaterally) | REQUIRED for any user-visible fix | Production runs canonical `phase9/g1-reads-witness` (pre-T1!). Main has everything; canonical does not. Evidence of a possible parallel actor on canonical (unexplained merge commits 4665c77/3617c46 in my message phrasing, 2026-09-07 ~20:16-20:52 EDT) + Nav's live IDE work there. SINGLE-WRITER RULE: coordinate first. G1 WIP preserved at `d39c37a` (pushed). Cutover sketch (Nav-approved only): verify canonical clean, `git checkout main`, `git pull --ff-only`, frontend rebuild, backend restart per ~/.hermes/scripts/confluence-decoder-start.sh, verify :3000/:8000 + KYTX strikes + paper order probe. |
+| G3-SALVAGE (PR44) | APPROVED-conditional, witness-gated | PR44 `astra/g3-paper-loop` @ `d6fad39` against main dd1607c. Offline GATE-2 proof (131 tests, ruff clean, silent-except baseline). Merge gated on external G-WITNESS (same guild/channel, test channel, non-admin help, genuine paper approve/fill/close). Agent 4 refresh review at current head before witness gate. |
 
 ## Admission order
 
