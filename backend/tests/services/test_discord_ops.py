@@ -125,8 +125,12 @@ class TestAllowlist:
 
 class TestApprove:
     @pytest.mark.asyncio
-    async def test_approve_bullish_executes_buy(self):
+    async def test_approve_bullish_executes_buy(self, monkeypatch):
         from services import discord_ops as ops
+        # Isolate from the real journal: approve seeds + duplicate-guard
+        # reads must never touch data/journal.duckdb from unit tests.
+        eng = _mem_engine()
+        monkeypatch.setattr("services.journal_store.get_engine", lambda: eng)
         engine = MagicMock()
         router = MagicMock()
         router.submit_order = AsyncMock(return_value={"status": "submitted"})
