@@ -493,12 +493,12 @@ _INDICATOR_LABELS = (
     ("score90", "Top-decile composite score"),
     ("whale", "Whale premium (≥$25M)"),
     ("sigma_ticker", "σ spike (BH-FDR surviving)"),
-    ("informed_band", "Informed-positioning band (7–90 DTE, Pan-Poteshman)"),
+    ("informed_band", "Informed-positioning band (7–90 DTE tenor heuristic)"),
     ("regime_confluent", "Regime-confluent tenor"),
     ("prime", "Prime print (≥$250k, ≥5× OI)"),
     ("cluster", "Same-bias cluster (≥3 contracts)"),
     ("cw_confirm", "Cremers-Weinbaum IV spread confirms"),
-    ("gex_confluent", "Dealer gamma confluency (ΓIB)"),
+    ("gex_confluent", "Dealer gamma confluency (ΓIB proxy)"),
 )
 
 
