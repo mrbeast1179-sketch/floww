@@ -6,7 +6,7 @@ proprietary-data frontier.
 
 ## CLOSED as a merge queue (2026-09-08)
 
-Main is `fdd1fcf`. Merged, in order: PR28 (D7 parity), PR34 (H1 fixture),
+Main is `dd1607c`. Merged, in order: PR28 (D7 parity), PR34 (H1 fixture),
 PR33 (T1-only), PR35 (F0 wave + clock fix), PR36 (H2-partial), PR38 (dead-code
 removal + kanban datetime fix), PR37 (GEX date-string fix), PR39 (provider
 cap + deepen + enrich, merged by Nav), PR40 (honesty labels), PR41 (strike
@@ -179,11 +179,7 @@ cleared; deepen + enrich both fired per logs).
 
 ## Take-over loop 5 — second edge: flip proximity (2026-09-08)
 
-- PR46 OPEN (`astra/gamma-flip-alerts`): GAMMA_FLIP rule (±1% band,
-  above/below direction, proximity score) through the exposure pipeline;
-  warm path threads flip from raw contracts. 8 tests (ImportError RED on
-  main first; one inverted above/below expectation caught + fixed pre-push);
-  45 green with toxic/exposure suites; ruff + silent-gate clean.
+- PR46 MERGED: GAMMA_FLIP rule live on main.
 
 Owner directive: build like a prop desk (VPIN toxicity, higher-order Greeks,
 dealer positioning), unlimited data, paper only, everything committed.
@@ -193,10 +189,7 @@ dealer positioning), unlimited data, paper only, everything committed.
   Vanna/Vomma/Veta/Charm/Color, vol surfaces, decimal precision, identity
   tests). Transferable (no Rust rewrite): VPIN alerts, unused numba Greeks,
   Kyle/Amihud regime, gamma-flip approach alerts.
-- PR45 OPEN (`astra/toxic-flow-alerts`): TOXIC_FLOW rule (VPIN>=0.7 + CDF
-  gate, cold-silent, fail-open) through dedup/persist/feed path; read-only
-  registry snapshots wired at both call sites. 10 tests (ImportError RED on
-  main first); 64 exposure-suite green; ruff + silent-gate clean.
+- PR45 MERGED: TOXIC_FLOW rule live on main.
 - Hygiene: 8 merged branches verified-in-main and deleted
   (trade-fire, sparse-chain-public/v2, honesty-citations/labels,
   cleanup-dead-code, bugfix-gex-expiry, t1-only). Stale worktrees removed;
