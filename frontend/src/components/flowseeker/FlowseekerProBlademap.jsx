@@ -86,9 +86,9 @@ export function mapPublicChainToRows(contracts, spot, ticker) {
     const cls = premium >= 5e7 ? "block" : dte <= 2 ? "sweep" : "unusual";
     // Pulse SIDE inference (BladeMap contract): last trading at/above the
     // quote mid = aggressive lift (ASK), below = hit (BID). No quotes →
-    // fall back to positioning proxy (high vol/OI = aggressive).
+    // UNKNOWN (F11: never guess from vol/OI proxy); renders as a dash.
     const midQ = (bid > 0 && ask > 0) ? (bid + ask) / 2 : 0;
-    const side = (bid > 0 && ask > 0 && last > 0) ? (last >= midQ ? "ASK" : "BID") : (voi >= 1.5 ? "ASK" : "BID");
+    const side = (bid > 0 && ask > 0 && last > 0) ? (last >= midQ ? "ASK" : "BID") : "UNKNOWN";
     const sp = Number(spot) || 0;
     const strikeN = Number(c.strike);
     const otm = sp > 0 && strikeN > 0 ? Math.abs((strikeN - sp) / sp) * 100 : null;
@@ -121,9 +121,13 @@ export function pulseScore10(conv) {
 }
 
 // ASK (aggressive lift) → BULLISH, BID (hit) → BEARISH. Matches the
-// reference tape on every visible row (CALL or PUT alike).
+// reference tape on every visible row (CALL or PUT alike). UNKNOWN (no
+// quote, F11) stays UNKNOWN — never defaulted to BEARISH.
 export function pulseSignal(side) {
-  return String(side || "").toUpperCase() === "ASK" ? "BULLISH" : "BEARISH";
+  const s = String(side || "").toUpperCase();
+  if (s === "ASK") return "BULLISH";
+  if (s === "BID") return "BEARISH";
+  return "UNKNOWN";
 }
 
 // Put-ASK is often protective buying, not directional bullishness. The tape
@@ -641,7 +645,7 @@ export default function FlowseekerProBlademap({ active = true, onTrade = null })
                 const premium = Math.round(vol * mid * 100);
                 const dte = bizDTE(exp.expiration);
                 const cls = premium >= 5e7 ? "block" : dte <= 2 ? "sweep" : "unusual";
-                const side = (bidV > 0 && askV > 0 && last > 0) ? (last >= (bidV + askV) / 2 ? "ASK" : "BID") : (voi >= 1.5 ? "ASK" : "BID");
+                const side = (bidV > 0 && askV > 0 && last > 0) ? (last >= (bidV + askV) / 2 ? "ASK" : "BID") : "UNKNOWN";
                 const p = {
                   ticker, type: sideU.toLowerCase(), classification: cls,
                   strike, expiration: exp.expiration, timestamp: Date.now(),
@@ -1334,7 +1338,7 @@ export default function FlowseekerProBlademap({ active = true, onTrade = null })
                 <span><i className="fsb-dot call" /> Call flow</span>
                 <span><i className="fsb-dot put" /> Put flow</span>
                 <span><i className="fsb-dot sweep" /> Sweep (urgent)</span>
-                <span><i className="fsb-dot block" /> Block (negotiated)</span>
+                <span><i className="fsb-dot block" /> Block (large print)</span>
                 <span><i className="fsb-dot burst" /> 15s burst &gt; OI</span>
                 <span><i className="fsb-dot voloi" /> Vol &gt; OI</span>
               </div>
@@ -1346,7 +1350,7 @@ export default function FlowseekerProBlademap({ active = true, onTrade = null })
             <div className="fsb-panel fsb-flow-panel">
               <div className="fsb-panel-h"><span>Live Options Flow</span><span><i className="fsb-live-dot" style={flowPaused ? { background: "#f5b042" } : undefined} /><span className="fsb-muted fsb-small">{flowPaused ? "PAUSED" : "LIVE"} · LAST UPDATED {clock || "—"} · SHOWING {pulseRows.length} PRINTS</span><button className="fsb-iconbtn" title="Refresh now" onClick={() => { setFlowPaused(false); setFlowNonce((n) => n + 1); }}>⟳</button><button className="fsb-iconbtn" title={flowPaused ? "Resume live polling" : "Pause live polling"} onClick={() => setFlowPaused((p) => !p)}>{flowPaused ? "▶" : "⏸"}</button></span></div>
               <div><button className="fsb-howto" onClick={() => setHowTo((h) => !h)}>ⓘ HOW TO READ</button></div>
-              {howTo && <div className="fsb-howto-pop">SIDE = where the print crossed: ASK (lifted the offer → aggressive buy) vs BID (hit the bid). SIGNAL follows SIDE: ASK→BULLISH, BID→BEARISH, calls and puts alike. BADGES: SILVER every row; GOLDEN ≥$900K rolled premium; WHALE ≥$1M (tape size tier — not the $25M alert rule). HEDGE? = put bought aggressively, often protection rather than direction. SCORE = conviction/10. PREM subline = 90s rolled premium (print count).</div>}
+              {howTo && <div className="fsb-howto-pop">SIDE = inferred print side (last vs mid, no tape — unknown when quotes are missing). SIGNAL follows SIDE: ASK→BULLISH, BID→BEARISH, calls and puts alike. BADGES: SILVER every row; GOLDEN ≥$900K rolled premium; WHALE ≥$1M (tape size tier — not the $25M alert rule). HEDGE? = put bought aggressively, often protection rather than direction. SCORE = conviction/10. PREM subline = 90s rolled premium (print count).</div>}
               <div className="fsb-pulsebar">
                 <span className="fsb-ovbar" title="Session rollup over the visible 90s tape (direction = premium-flow proxy, not confirmed buys/sells)">
                   <span className={`fsb-pill ${pulseOv.lean === "Bullish" ? "fsb-sig-bullish" : pulseOv.lean === "Bearish" ? "fsb-sig-bearish" : "fsb-badge-silver"}`}>{pulseOv.lean}</span>
@@ -1436,16 +1440,16 @@ export default function FlowseekerProBlademap({ active = true, onTrade = null })
                             tabIndex={0} onClick={() => selectSignal(p)}
                             onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); selectSignal(p); } }}>
                           <td className="fsb-muted">{fmtClock(p._aggTs ?? p.timestamp, true)}</td>
-                          <td className="tk" title={pcls === "SWEEP" ? "Sweep: urgent multi-exchange fill (heuristic)" : pcls === "BLOCK" ? "Block: negotiated single fill (heuristic)" : typeOf(p)}>{flowIcon}{p.ticker}</td>
+                          <td className="tk" title={pcls === "SWEEP" ? "Sweep: urgent multi-print burst (proxy)" : pcls === "BLOCK" ? "Block: large single-contract size (proxy)" : typeOf(p)}>{flowIcon}{p.ticker}</td>
                           <td className="num">{Number(p.strike).toFixed(0)}</td>
                           <td className={`fsb-type-${cp.toLowerCase()}`} title={p._strat ? `${p._strat} multi-leg fingerprint (heuristic: matched volumes, no exchange linkage)` : cp}>{p._strat ? "◈" : ""}{cp}</td>
                           <td className="num">{p.otm == null ? "—" : `+${Number(p.otm).toFixed(1)}%`}</td>
                           <td className="fsb-muted">{String(p.expiration || "").slice(0, 10)}</td>
                           <td className="num">{bizDTE(p.expiration)}</td>
                           <td className="num" title={driftArrow ? `Mid ${qs.tag === "UP" ? "up" : "down"} ${Math.abs(qs.driftBp).toFixed(0)}bp vs prior poll (dealer-pressure read, Ho-Stoll-lite)` : undefined}>{driftArrow}{fill > 0 ? fill.toFixed(2) : price > 0 ? price.toFixed(2) : "—"}</td>
-                          <td><span className={`fsb-pill fsb-side-${side.toLowerCase()}`}>{side}</span></td>
+                          <td><span className={`fsb-pill fsb-side-${side.toLowerCase()}`}>{side === "UNKNOWN" ? "—" : side}</span></td>
                           <td>{sp.state === "NO_QUOTE" ? <span className="fsb-muted fsb-small" title="No quote — bid/ask unavailable">no quote</span> : sp.state === "LOCKED" ? <span className="fsb-muted fsb-small" title="Locked/crossed spread — no fill">LOCKED</span> : <span className="fsb-spreadbar" title={`last at ${(sp.pos * 100).toFixed(0)}% of bid-ask spread${qs.relSpread != null ? ` · rel spread ${(qs.relSpread * 100).toFixed(2)}%` : ""}`}><span className="fsb-spreadmark" style={{ left: `${(sp.pos * 100).toFixed(1)}%` }} /></span>}</td>
-                          <td><span className={`fsb-pill fsb-sig-${sig.toLowerCase()}`}>{sig}</span>{pulseHedge(p.type, side) && <span className="fsb-pill fsb-hedge" title="Put bought aggressively — often a hedge, not directional bullishness">HEDGE?</span>}</td>
+                          <td><span className={`fsb-pill fsb-sig-${sig.toLowerCase()}`}>{sig === "UNKNOWN" ? "—" : sig}</span>{pulseHedge(p.type, side) && <span className="fsb-pill fsb-hedge" title="Put bought aggressively — often a hedge, not directional bullishness">HEDGE?</span>}</td>
                           <td>{badges.map((b) => <span key={b} className={`fsb-pill fsb-badge-${b.toLowerCase()}`} title={b === "WHALE" ? "Tape size tier: ≥$1M rolled premium in 90s — not the $25M alert rule" : b === "GOLDEN" ? "Premium ≥ $900K rolled in 90s" : "Baseline badge: every print starts here"}>{b}</span>)}</td>
                           <td className="num">{score.toFixed(1)}</td>
                           <td className="num">{Number(p._aggSize ?? p.volume) || 0}</td>

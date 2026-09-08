@@ -4,7 +4,7 @@
 // live-feed dual-path logic (Public API primary → cvserver fallback).
 /** @jest-environment jsdom */
 
-import { mapPublicChainToRows } from "./FlowseekerProBlademap";
+import { mapPublicChainToRows, pulseSignal } from "./FlowseekerProBlademap";
 
 // ---- mapPublicChainToRows: pure helper tests ----
 
@@ -291,6 +291,16 @@ describe("Pulse helpers — BladeMap tape contract", () => {
     expect(rows[0].side).toBe("ASK");
     expect(rows[0].mid).toBeCloseTo(4.1);
     expect(rows[0].otm).toBeCloseTo((10 / 450) * 100);
+  });
+
+  it("F11: missing quotes stamp side UNKNOWN, never a voi guess", () => {
+    const rows = mapPublicChainToRows(
+      [{ strike: 460, type: "call", expiry: "2026-09-18", volume: 500, oi: 100, iv: 0.2 }],
+      450, "SPY",
+    );
+    expect(rows).toHaveLength(1);
+    expect(rows[0].side).toBe("UNKNOWN");
+    expect(pulseSignal(rows[0].side)).toBe("UNKNOWN");
   });
 });
 
