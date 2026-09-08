@@ -1,12 +1,14 @@
 /**
  * exposureBadges — badge descriptors for backend exposure rules.
  *
- * Backend producers (main): RULE_TOXIC_FLOW / RULE_GAMMA_FLIP /
- * RULE_VEX_WALL / RULE_CHARM_PIN / RULE_LIQUIDITY_STRESS in
- * backend/services/exposure_alerts.py (events_to_alerts). The Blademap v3
- * feed (/api/flowseeker/alerts/feed) carries these rows with a `rule`
- * field; this module maps rule → badge. Unknown rules map to null:
- * never invent a badge for a rule with no wired producer.
+ * Backend producers (main): RULE_TOXIC_FLOW, RULE_VEX_WALL,
+ * RULE_CHARM_PIN, RULE_LIQUIDITY_STRESS in backend/services/
+ * exposure_alerts.py; RULE_GAMMA_FLIP also fires from
+ * backend/alert_engine.py (GAMMA_FLIP regime-change alert).
+ * The Blademap v3 feed (/api/flowseeker/alerts/feed) carries these
+ * rows with a `rule` field; this module maps rule → badge. Unknown
+ * rules map to null: never invent a badge for a rule with no wired
+ * producer.
  *
  * Copy rule: heuristic labels only, no invented precision (F5/F6/F11/F19
  * style). Do NOT conflate CHARM_PIN (exposure) with CHARM_PINNING
@@ -25,7 +27,7 @@ const BADGES = {
     rule: "GAMMA_FLIP",
     label: "GAMMA FLIP",
     title:
-      "Gamma flip proximity — price pressing dealer flip level (support above / resistance below; heuristic)",
+      "Gamma regime change — dealer gamma flipped from positive to negative (heuristic, not a direction call)",
   },
   VEX_WALL: {
     rule: "VEX_WALL",
