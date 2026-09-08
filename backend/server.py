@@ -1834,11 +1834,17 @@ async def _snapshot_chains():
                 grid = compute_gex_grid(raw.get("spot") or 0,
                                         raw.get("contracts") or [], t)
                 _fa.init_flow_alert_tables(_duckdb)
+                try:
+                    from routes.vpin import snapshot_vpin_state
+                    _vpin_state = snapshot_vpin_state(t)
+                except Exception:
+                    _vpin_state = None
                 events = _ea.evaluate_ticker(
                     t,
                     {"vex_grid": grid.get("vex_grid") or {},
                      "charm_grid": grid.get("charm_grid") or {}},
-                    float(raw.get("spot") or 0))
+                    float(raw.get("spot") or 0),
+                    vpin_state=_vpin_state)
                 if events:
                     kept = _fa.dedup_filter(_duckdb, events)
                     if kept:
