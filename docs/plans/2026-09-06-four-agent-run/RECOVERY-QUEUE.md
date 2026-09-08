@@ -11,12 +11,16 @@ proprietary-data frontier. Status is evidence-based as of 2026-09-06 20:58 EDT.
 | ID | Lane | State | Result required before moving on |
 |---|---|---|---|
 | R0 | Agent 1 | PREPARED; publication receipt required | Clean recovery package committed and remote-backed |
-| E4-28 | Agent 4 | REVIEW COMPLETE; policy-escalated to Nav | Verdict at `18b10b5`, seven contract tests passed; no new code blocker; see GSD-PASSES |
+| E4-28 | Agent 4 | MERGED to main (`de88c1f`) | PR28 merged 2026-09-08 under owner take-over order (prior escalation was branch-convention policy, no code defect). Pre-merge proof on update commit: parity 4/4, routes 183 pass (2 pre-existing LLM-key failures identical on pristine main), ruff clean. |
 | E4-29 | Agent 4 | REVIEW COMPLETE; APPROVED, Nav merge call | O/X delivered at `568de16`, 46 exact-head tests; two advisories; see proof/receipts/E4-29.md |
 | E4-30 | Agent 4 | MERGED to main | PR30 merged at 377dfa5 (merge of origin/main into astra/p1-clean); scripts/silent_except_gate.py and backend/tests/test_silent_except_gate.py byte-identical to 06b7502; CI green: ruff, backend-tests, frontend-build; audit: evidence/PR30-merge-attempt.md |
 | E4-31 | Agent 4 | REVIEW COMPLETE; APPROVED-conditional | `f7f7103` inert scaffolding, 62 exact-head tests; weights pending A3-SCORE; see proof/receipts/E4-31.md |
-| PR32 | Agent 4 | REVIEW COMPLETE; only Nav scope call remains | E4-32 + lint fix `9289775`: GitHub ruff PASS, frontend-build PASS, backend 4931/4932 (1 flaky ML-threshold fail, green locally — re-run prescribed, no test edits). Remaining: Nav split-vs-authorize call — see evidence/T1-SPLIT-ANALYSIS.md. App.js waiver still unrecorded. Receipt: proof/receipts/E4-32.md |
-| F0-F1 | Agent 2 | COMPLETE; VERIFIED GREEN @ `f880971` | Wave-1 honesty/integrity complete: F1/F3/F4/F7, P1/P3/P4, D1–D7. Architect re-verified 2026-09-08: 15 gate test files **151 passed**, backend ruff clean. Receipts in agent-2-backend/receipts/ (+H1.md, P2 supplement, FINAL supplement). Open: P2 baseline KNOWN (11 advisories, upgrade Nav-gated), P6/P7 Nav-gated. Merge call is Nav's. |
+| PR32 | SUPERSEDED by PR33 | T1-only split built, tested, PR open | E4-32 verdict stands (receipt + evidence mirror). T1-only `astra/t1-only`: 8 files, 62 suites / 479 tests green on main base, zero G1 riders. Backend/Discord remainder still needs scope issue. PR32 to be closed as superseded after PR33 merges. App.js touch authorized under owner take-over order 2026-09-08 (surgical scope recorded in PR33). |
+| PR33 | T1-only candidate | PR open, CI running | `astra/t1-only` @ `217236c` (post-main-update). Full suite green pre-update; re-verified post-merge. |
+| PR34 | H1-test candidate | PR open, CI running | `astra/h1-strike-truth` @ `a09e040` (post-main-update). Fixture 4 green; negative control proven. |
+| PR35 | F0-wave candidate | 1 test fix pushed, CI re-running | `49f467e`: fake-clock/monotonic bug in 429-cooldown test fixed (proven via clock-patch repro). 15 gate files 151 green locally. |
+| PR36 | H2-partial candidate | PR open, CI running | O-1/O-3 shipped (`0a690a1`); O-2/O-4/O-5 queued with rationale. Full suite 4984 green locally. Receipt: agent-2-backend/receipts/H2.md. |
+| F0-F1 | Agent 2 | COMPLETE; VERIFIED GREEN, PR35 open | Wave-1 honesty/integrity complete: F1/F3/F4/F7, P1/P3/P4, D1–D7. Architect re-verified 2026-09-08: 15 gate test files **151 passed**, backend ruff clean. Receipts in agent-2-backend/receipts/ (+H1.md, P2 supplement, FINAL supplement, H2.md). Open: P2 baseline KNOWN (11 advisories, upgrade Nav-gated), P6/P7 Nav-gated. |
 | GSD-8 | Agent 1 | BLOCKED | Remove or leave out of build queue until X credits exist; no spend |
 
 Nav merges #28/#29 only after E4 approval of the same head. A later push invalidates
@@ -31,7 +35,7 @@ the verdict and returns the PR to review.
 
 ### Next admissions (contracts preserved from QUEUE.md / heat audit)
 
-- H1 ACTIVE to Agent 2, then H2, serialized on `backend/server.py`. Red fixture `573fe8c` landed (= remote, base `e68bdb5`, worktree `/private/tmp/w-h1` clean); card `task-cards/H1-strike-truth.md` updated. Source: heat audit (H1 raw-analytics contamination, H2 upstream budget bypass). Reconcile H2 call-count targets with the actual provider contract at admission. FLAG: PR32 payload adds `_fill_strike_gaps` (`type:"none"` zero-OI rows) — H1's O-1 forbids exactly these in analytics inputs; whoever lands first constrains the other.
+- H1 PR34 open (`a09e040`), H2 PR36 open (`0a690a1`, O-1/O-3 only), serialized theme continues: whoever lands first constrains server.py analytics vs provider cost. H2 call-count targets reconciled at admission (see H2.md receipt). FLAG (unchanged): PR32 payload's `_fill_strike_gaps` (`type:"none"` zero-OI rows) vs H1 O-1 — resolved by taking Option A (T1-only PR33 carries no server.py changes).
 - XH-1 (Agent 3): UI quote/side/sweep/block copy preserves unknowns, labels proxies.
 - RH-2 (Agent 3): clean Heatseeker candidate branch, only approved behavior + tests.
 - RT-1 (Agent 3): clean ticker-navigation candidate, no dead universe experiment.

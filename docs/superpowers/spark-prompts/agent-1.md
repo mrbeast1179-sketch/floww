@@ -58,12 +58,14 @@ Owners and gates you must respect:
 - X credits are not assumed available. No paid probe without a decision.
 - GSD-8 stays BLOCKED until the X-credit gate is resolved.
 
-Current Git truth you must reconcile at boot:
-- `origin/main` = e68bdb5. PR29/30/31 merged. PR28 still open/escalated at 18b10b5. PR32 open at 9289775 (lint fix atop c17fc61, CI re-running; scope call pending — see evidence/T1-SPLIT-ANALYSIS.md).
-- `astra/f0-honesty-backend` = f880971, 14 commits on feature branch, NOT merged to main, local == remote.
-- `agent3/t1-scroller-fix-v2` = 9289775, clean, PR32 open.
-- H1 ACTIVE: `astra/h1-strike-truth` = 573fe8c (= remote), worktree /private/tmp/w-h1 clean, red fixture landed; card task-cards/H1-strike-truth.md current.
-- `phase9/g1-reads-witness` is dirty with App.js, SkylitTickerBar.jsx, .serena/project.yml and 4 untracked .planning/ heat docs. These predate this session and are NOT your lease. Do not sweep them.
+Current Git truth you must reconcile at boot (re-fetch; heads move fast now):
+- `origin/main` = de88c1f (PR28 merged 2026-09-08). PR29/30/31 already in.
+- Open PRs: #33 T1-only (`217236c`), #34 H1-test (`a09e040`), #35 F0-wave
+  (`49f467e`, fake-clock test fix landed), #36 H2-partial (`0a690a1`),
+  #32 PR32 (superseded by #33; close after #33 merges).
+- Merged this loop: PR28 (`de88c1f`). PR32 backend remainder still needs a
+  scope issue (see evidence/T1-SPLIT-ANALYSIS.md).
+- `phase9/g1-reads-witness` dirt predates this program — NOT your lease.
 
 Evidence discipline:
 - boot.json first, then do the work, then checkpoint.

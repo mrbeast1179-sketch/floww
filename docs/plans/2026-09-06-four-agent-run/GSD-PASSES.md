@@ -43,10 +43,12 @@ Open items not faked closed:
 Merge posture: mechanically mergeable; not claimed fully verified by this lane.
 See `evidence/MERGE-ADVICE.md`.
 
-## Agent-3 frontend — T1 scroller candidate ready
+## Agent-3 frontend — SUPERSEDED by T1-only PR33
 
-PR32 candidate `agent3/t1-scroller-fix-v2` @ `c17fc61`, 5 commits, open against main.
-Evidence: `evidence/agent3-t1-scroller-fix-v2.md`. Not merged; merge decision is Nav's.
+PR32's T1 portion was rebuilt hunk-level onto main as `astra/t1-only` (PR33):
+8 files, 62/479 green, zero G1 riders. This section's `c17fc61` notes are
+historical; live state is in RECOVERY-QUEUE (PR33 row) and the take-over
+section below.
 
 ## Review — E4-32 PR32 current-head review complete → REWORK
 
@@ -87,6 +89,32 @@ floww-run-state/2026-09-06-v2/proof/receipts/; heads re-verified open/unmerged a
 - E4-31 PR31 A3 at f7f7103: APPROVED-conditional. Exact-head pytest 62 passed, ruff clean.
   Sole production caller byte-identical (default 0); weights provisional pending A3-SCORE;
   F2/F13 stay serialized behind this decision.
+
+## Build/merge pass — owner take-over loop (2026-09-08)
+
+Under owner's blanket take-over order, architect-as-builder executed the queue:
+- PR28 MERGED (`de88c1f`): branch updated to main (merge commit, no conflicts),
+  pre-merge proof parity 4/4 + routes 183 pass (2 pre-existing LLM-key failures
+  identical on pristine main) + ruff clean.
+- PR33 opened (T1-only split `1e9d033`): hunk-level port onto main, 8 files,
+  62 suites / 479 tests green, zero G1 riders (no backend, no yarn.lock churn,
+  no worktree gitignore); ControlBar arrow test updated to wrap contract.
+- PR34 opened (H1-test `573fe8c`): fixture 4 green + negative control proven.
+- PR35 opened (F0-wave `f880971`): 15 gate files 151 green; CI found a REAL
+  fake-clock bug (record_ok without now= vs container monotonic) — fixed in
+  `49f467e`, proven via clock-patch repro (OLD+container REFUSED = CI symptom,
+  NEW+container CLEARED, OLD+dev CLEARED = local green).
+- PR36 opened (H2-partial `0a690a1`): adapter owns acquire_n(2+N), scanner
+  pre-acquire removed (identical totals), 6 files budget-isolated, advantage
+  refusal test rewritten to new contract. Local: H2 5 green, adjacent 93 green,
+  FULL suite 4984 green, ruff clean. O-2/O-4/O-5 queued (live-routing flips
+  need sandbox + product sign-off — refused to flip blind).
+- P2 baseline COMPLETED via uvx pip-audit: 11 advisories (pymongo/starlette/nltk),
+  pins untouched (upgrades Nav-gated).
+
+```text
+GSD_LOOP_RESULT={"lane":"build","status":"work","reason":"takeover-5prs-1merge"}
+```
 
 ## Scheduling
 
