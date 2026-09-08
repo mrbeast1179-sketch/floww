@@ -137,9 +137,9 @@ GSD_LOOP_RESULT={"lane":"build","status":"done","reason":"pr47-merged-agent2-ite
 
 ## Agent-4 review — PR44 G3-salvage, refreshed at current head
 
-PR44 `astra/g3-paper-loop` (G3-salvage, witness-gated) is the only open PR.
-Prior receipt was written against a stale head and was voided by the head move.
-This receipt is the current verdict.
+PR44 `astra/g3-paper-loop` (G3-salvage, witness-gated) merged to main
+`56cfff2` 2026-09-08T11:48:51Z. Prior receipt was written against a stale
+head and was voided by the head move. This receipt is the refreshed verdict.
 
 ### Current head
 `bffa5deb78259b9c2c9598480f1eb05012215ed2` (refresh: re-fetched before reading,
@@ -186,8 +186,10 @@ feed-unavailable contract, U3 shape-only test, reconcile-on-approve,
 close-route exit stamp, honest venue errors, bracket-leg verify, market opt-in
 + dedup + honest fills. No code blocker.
 
-Conditions:
-1. External G-WITNESS gate must still close before merge — not in this receipt.
+Post-merge note:
+1. External G-WITNESS gate was not satisfied before merge (merge landed 2026-09-08T11:48:51Z).
+   Nav/owner-gated; Agent-4 had no merge authority. Re-verify at any new head before any
+   witnessed live attempt.
 2. U3 live contract must be resolved via the paper contracts API before any
    witnessed live attempt — shape-only today.
 
