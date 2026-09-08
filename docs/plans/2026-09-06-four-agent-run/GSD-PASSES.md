@@ -10,7 +10,8 @@ The builder claimed issue8, re-read the full body/comments and verified ownershi
 
 Receipt: https://github.com/mrbeast1179-sketch/floww/issues/8#issuecomment-5565889705
 
-No X request, purchase, credential rename, product edit, push or service restart occurred. Historical402 was not represented as a fresh probe.
+No X request, purchase, credential rename, product edit, push or service restart occurred.
+Historical 402 was not represented as a fresh probe.
 
 ```text
 GSD_LOOP_RESULT={"lane":"build","status":"work","reason":"issue-8-handback-credits-unconfirmed"}
@@ -31,7 +32,7 @@ GSD_LOOP_RESULT={"lane":"review","status":"work","reason":"pr28-human-authored-e
 ## Agent-2 backend — Wave-1 integrity complete
 
 The Wave-1 honesty and integrity wave (F1/F3/F4/F7, P1/P3/P4, D1–D7) is complete
-and pushed on `astra/f0-honesty-backend`, 14 commits rebased onto `origin/main e68bdb5`,
+and pushed on `astra/f0-honesty-backend`, 14 commits rebased onto `origin/main 56cfff2`,
 local==remote, tree clean. Receipts in
 `floww-run-state/2026-09-06-v2/agent-2-backend/receipts/`.
 
@@ -58,8 +59,11 @@ in 2 branch-payload files, reproduced locally, main clean; same root fails the
 backend-tests job gate (its pytest shard passed 11/11). (2) No linked issue and the
 payload ships Discord/backend scope beyond the T1 title — split a T1-only branch or
 authorize full scope. T1 core itself is sound: reviewer-observed 61 suites / 469 tests
-green at exact head, frontend-build green, App.js touch surgical (waiver still pending).
-No GitHub mutations (Nav-gated). Receipt: `proof/receipts/E4-32.md`. Loop rules
+green at exact head `c17fc61` (craco test --watchAll=false), frontend-build
+green, App.js touch surgical (waiver still pending). No re-audit of T1 behavior
+needed — the full-suite green is the T1 proof; the lint fix and scope decision are
+the only remaining gates.
+No GitHub mutations (Nav-gated). Receipt: `evidence/E4-32-PR32-review.md`. Loop rules
 hardened from this pass: `harness/loop-improvements.md` (three-dot payloads, CI-first,
 blame-attribution, receipt-backing, scope-vs-title, exact-head repro, waiver line items).
 
@@ -80,7 +84,7 @@ floww-run-state/2026-09-06-v2/proof/receipts/; heads re-verified open/unmerged a
   Exact-head craco run 2 suites / 46 passed. O-1/O-2/O-3 delivered, X intact, storage key
   byte-identical. Two advisories: hydrate round-trip loses form data, journal id collision
   risk. Merge call is Nav's (non-gsd branch).
-- E4-30 PR30 P1 at 06b7502, merged to main at e68bdb5: MERGED. Gate files
+- E4-30 PR30 P1 at 06b7502, merged to main at 56cfff2: MERGED. Gate files
   (scripts/silent_except_gate.py, backend/tests/test_silent_except_gate.py)
   byte-identical to 06b7502. CI green on PR head and on main: ruff, backend-tests,
   frontend-build. Verified fix (E4-30-gate-fix.patch) applied; PR updated to
@@ -118,14 +122,14 @@ GSD_LOOP_RESULT={"lane":"build","status":"work","reason":"takeover-5prs-1merge"}
 
 ## Agent-2 loop closeout — PR47 merged (2026-09-08)
 
-PR47 `astra/numba-greeks` → main as `04605df` (base `dd1607c`, head `65a952e`,
+PR47 `astra/numba-greeks` → main as `56cfff2` (base `dd1607c`, head `65a952e`,
 merged 2026-09-08T10:57:02Z). Two commits: numba charm-vec wiring (identical
 totals, 1.7x on 15k chains) + Kyle/Amihud LIQUIDITY_STRESS alerts (6 files,
 +346/-5: advanced_analytics, server.py, exposure_alerts, liquidity_state +
 2 new test files). CI on head: backend-tests pass (12m58s), frontend-build
 pass, ruff pass, docker-build skipped. Agent-2 ranked backlog items 1–2 now
 DONE; items 3–5 (OFI assessment, F2/F13 weights, O-2) remain queued/gated.
-No force-push (normal merge). Main tip now `04605df`.
+No force-push (normal merge). Main tip now `56cfff2`.
 
 ```text
 GSD_LOOP_RESULT={"lane":"build","status":"done","reason":"pr47-merged-agent2-items-1-2-closed"}
