@@ -3,7 +3,7 @@ backend/services/gex_paper_accurate.py
 
 Paper-accurate GEX metrics implementing the methodology from:
 
-  Paper #1 — Ni, Pearson, Poteshman & White (2020)
+  Paper #1 — Ni, Pearson, Poteshman & White (2021)
     "Does Option Trading Have a Pervasive Impact on Underlying Stock Prices?"
     SSRN: https://papers.ssrn.com/sol3/papers.cfm?abstract_id=2867461
 
@@ -624,7 +624,7 @@ def put_call_ratio_signal(
 ) -> dict[str, Any]:
     """Put-call ratio directional signal (OI-based proxy).
 
-    Motivated by Pan-Poteshman (2006), 'The Information of Option Volume
+    Motivated by Pan-Poteshman (2006), 'The Information in Option Volume
     for Future Stock Prices', who used buyer-initiated trade volume.
     This function does NOT have that volume data: it uses OI-based PCR
     as a proxy, and the P&P return finding is not verified for OI PCR here.
