@@ -68,8 +68,11 @@ async def test_429_cooldown_backoff_and_ok_clears():
     # Second 429 while cooling doubles the backoff (capped at 300s).
     second = b.record_429("api.public.com", now=1001.0)
     assert second > first
-    # Success clears the cooldown.
-    b.record_ok("api.public.com")
+    # Success clears the cooldown. now= is REQUIRED (D5 contract): without it
+    # record_ok falls back to time.monotonic(), which on a fresh CI container
+    # (<1001s uptime) precedes the fake-clock 429 sightings and the still-fresh
+    # cooldown survives — order-dependent green locally, red in CI.
+    b.record_ok("api.public.com", now=1002.0)
     await b.acquire(host="api.public.com", now=1002.0)
 
 
