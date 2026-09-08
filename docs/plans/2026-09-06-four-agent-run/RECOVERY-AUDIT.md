@@ -4,6 +4,8 @@
 
 Canonical G1 is now b5f9ae5d99a4d502efdaf1d0c4d8386c2fa9b0d0. The two subsequent commits are fb34324 (visible ticker scrollbar) and b5f9ae5 (5000 Finnhub symbols alongside featured tickers). There are five local commits beyond the named origin/G1 head959b3ff; the complete current history has been pushed separately to origin/archive/20260907-g1-recovery and its full SHA verified. Dirty scroller caps, Serena migration and four untracked notes are preserved in the evidence directory. Sections below retain their original earlier boundary.
 
+Snapshot note: this audit was taken at the Sep-6 boundary with `origin/main=5b9d9a9` and G1 local head `b5f9ae5`. Main has since advanced to `56cfff2` (PR28–47 merged, PR44 merged 2026-09-08T11:48:51Z). The PR table, candidate findings and external gates below record the state at that boundary — re-read GSD-PASSES.md and RECOVERY-QUEUE.md for current truth before acting on any item below.
+
 Latest delegated Heat audit reports deterministic failures in synthetic-row analytics, upstream budget accounting, ticker cache behavior and capped search reachability. Its final receipt records the commands and limits; these are repair inputs, not completed fixes. The GSD build pass handed issue8 back for unconfirmed credits. See GSD-PASSES.md for actual current build/review mutations.
 
 This is the architect's current-state boundary. It distinguishes fresh source/GitHub

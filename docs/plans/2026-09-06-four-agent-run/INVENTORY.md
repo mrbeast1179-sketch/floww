@@ -82,3 +82,5 @@ Security evidence must record filenames, line numbers and detector categories on
 ## Limits
 
 This is a broad source/history/issue sweep, not a proof that every reachable code path works. `source-register.txt` enumerates discovered planning sources so workers can account for remaining items explicitly. Candidate tasks require a failing reproduction or a clarified contract before implementation. Work done by other agents after this snapshot must be incorporated through fresh evidence, never overwritten.
+
+Snapshot note: this inventory records the Sep-6 boundary at `5b9d9a9` (read-only GitHub query, open issues #8/#17/#18, zero open PRs at that head). Main has since advanced to `56cfff2` (PR28–47 merged, PR44 merged 2026-09-08T11:48:51Z). Re-fetch at every launch; do not treat `5b9d9a9` as live main.

@@ -5,6 +5,8 @@
 > Live cards live in `/Users/nav/Documents/GitHub/floww-run-state/2026-09-06-v2/task-cards/`
 > (`PR44-g3-witness.md`, `Nav-gated-decisions.md`). Do not admit from this file.
 
+Snapshot note: these initial task cards record the Sep-6 launch boundary at `5b9d9a9`. Main has since advanced to `56cfff2` (PR28–47 merged, PR44 merged 2026-09-08T11:48:51Z). Do not admit from this file — re-fetch at every launch.
+
 These cards are launch inputs. Agent 1 revalidates the base, incumbent release and exact files before granting ACTIVE. A READY card or existing WIP is not a running worker. Task evidence goes to the lane's external receipt.
 
 ## F0-F1 — complete preserved citation/proxy correction
