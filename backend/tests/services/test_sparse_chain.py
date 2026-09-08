@@ -177,6 +177,8 @@ def test_floor_shows_all_listed_for_thin_name():
     got = sorted(s["strike"] for s in out["strikes"])
     assert got == [2.5, 5.0, 7.5, 10.0, 12.5, 15.0, 17.5, 20.0]
     assert all("gex" in s for s in out["strikes"]), "every shown row carries analytics"
+    assert sorted(out["grid"]["strikes"]) == got, "grid tracks the topped-up set"
+    assert out["expiries_used"] == ["2026-09-18"]
 
 
 def test_cvserver_cap_refuses_over_quota():
