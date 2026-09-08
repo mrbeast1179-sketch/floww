@@ -36,6 +36,7 @@ RULE_VEX_WALL = "VEX_WALL"
 RULE_CHARM_PIN = "CHARM_PIN"
 RULE_TOXIC_FLOW = "TOXIC_FLOW"
 RULE_GAMMA_FLIP = "GAMMA_FLIP"
+RULE_LIQUIDITY_STRESS = "LIQUIDITY_STRESS"
 
 # VPIN toxicity gate (Easley-Lopez de Prado-O'Hara high-toxicity regime).
 # vpin_state: {"vpin": float, "cdf": float|None, "n_buckets": int} | None.
@@ -110,6 +111,7 @@ def evaluate_exposure_events(
     vpin_state: dict | None = None,
     spot: float | None = None,
     flip_level: float | None = None,
+    liquidity_state: dict | None = None,
 ) -> list[dict]:
     """Compare two heatmap grid payloads and emit exposure events.
 
@@ -197,8 +199,31 @@ def evaluate_exposure_events(
     # --- Gamma-flip proximity ---
     events.extend(_flip_approach_event(flip_level, spot))
 
+    # --- Liquidity stress (Kyle + Amihud agreement) ---
+    events.extend(_liquidity_stress_event(liquidity_state, spot))
+
     events.sort(key=lambda e: e["magnitude"], reverse=True)
     return events
+
+
+def _liquidity_stress_event(liquidity_state: Any, spot: Any) -> list[dict]:
+    """One liquidity_stress event when Kyle AND Amihud both read ILLIQUID.
+
+    Agreement = conviction (either alone is noisy). Absent/mismatched/cold
+    state emits nothing. Fail-open: never raises.
+    """
+    try:
+        if not isinstance(liquidity_state, dict):
+            return []
+        if (str(liquidity_state.get("kyle_label") or "") != "ILLIQUID"
+                or str(liquidity_state.get("amihud_label") or "") != "ILLIQUID"):
+            return []
+        px = float(spot) if spot is not None else 0.0
+        strike = px if math.isfinite(px) and px > 0 else 0.0
+        return [{"kind": "liquidity_stress", "strike": strike, "expiry": "",
+                 "magnitude": 1.0}]
+    except (TypeError, ValueError):
+        return []
 
 
 def _flip_approach_event(flip_level: Any, spot: Any) -> list[dict]:
@@ -266,6 +291,7 @@ _WHY = {
     "charm_pin_shifted": "Charm pin migrated — hedging magnet moved strikes",
     "toxic_flow": "Toxic flow — VPIN in the high regime: makers adversely selected, spreads/vol may widen (heuristic, not a direction call)",
     "gamma_flip_approach": "Gamma flip proximity — price pressing dealer flip level (support above / resistance below)",
+    "liquidity_stress": "Liquidity stress — Kyle and Amihud agree the tape is illiquid: size moves price, expect slippage (heuristic, not a direction call)",
 }
 
 
@@ -290,6 +316,9 @@ def events_to_alerts(ticker: str, spot: float,
         elif kind == "gamma_flip_approach":
             rule = RULE_GAMMA_FLIP
             score = min(99, max(50, 100 - int(round(abs(mag) * 10000))))
+        elif kind == "liquidity_stress":
+            rule = RULE_LIQUIDITY_STRESS
+            score = 75
         else:
             rule = RULE_VEX_WALL if kind.startswith("vex_") else RULE_CHARM_PIN
             score = min(99, max(50, int(abs(mag) / 1e6) + 50))
@@ -331,7 +360,8 @@ def events_to_alerts(ticker: str, spot: float,
 def evaluate_ticker(ticker: str, grid_payload: dict | None, spot: float,
                     threshold_pct: float = 0.25,
                     vpin_state: dict | None = None,
-                    flip_level: float | None = None) -> list[dict[str, Any]]:
+                    flip_level: float | None = None,
+                    liquidity_state: dict | None = None) -> list[dict[str, Any]]:
     """Diff one ticker's grid vs its last snapshot; cache and return alerts.
 
     Fail-open by contract: any error returns [] (callers must never let
@@ -339,6 +369,7 @@ def evaluate_ticker(ticker: str, grid_payload: dict | None, spot: float,
     "formed" events only (documented baseline behavior, not a bug).
     vpin_state (optional): {"vpin", "cdf", "n_buckets"} — toxic-flow gate.
     flip_level (optional): gamma-flip price — proximity gate.
+    liquidity_state (optional): {"kyle_label", "amihud_label", ...} — stress gate.
     """
     try:
         sym = (ticker or "").strip().upper()
@@ -347,7 +378,8 @@ def evaluate_ticker(ticker: str, grid_payload: dict | None, spot: float,
         old = _LAST_GRIDS.get(sym)
         events = evaluate_exposure_events(grid_payload, old, threshold_pct,
                                           vpin_state=vpin_state, spot=spot,
-                                          flip_level=flip_level)
+                                          flip_level=flip_level,
+                                          liquidity_state=liquidity_state)
         _LAST_GRIDS[sym] = {
             "vex_grid": grid_payload.get("vex_grid") or {},
             "charm_grid": grid_payload.get("charm_grid") or {},
