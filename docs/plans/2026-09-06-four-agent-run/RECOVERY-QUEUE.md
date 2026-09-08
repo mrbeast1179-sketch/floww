@@ -6,11 +6,13 @@ proprietary-data frontier.
 
 ## CLOSED as a merge queue (2026-09-08)
 
-Main is `dea655a`. Merged, in order: PR28 (D7 parity), PR34 (H1 fixture),
-PR33 (T1-only), PR35 (F0 wave + clock fix), PR36 (H2-partial). Zero open PRs
-(PR32 closed as superseded). Every merge verified: green required CI on the
-merged head + local reproduction where applicable. Full receipt trail in
-GSD-PASSES.md take-over section + lane receipts.
+Main is `e62acab`. Merged, in order: PR28 (D7 parity), PR34 (H1 fixture),
+PR33 (T1-only), PR35 (F0 wave + clock fix), PR36 (H2-partial), PR38 (dead-code
+removal + kanban datetime fix), PR37 (GEX date-string fix). Zero open PRs.
+6 superseded branches deleted after patch-id proof (product identical to main;
+docs in archive). Every merge verified: green required CI on the merged head +
+local reproduction where applicable. Full receipt trail in GSD-PASSES.md
+take-over section + lane receipts + evidence/DEEP-SWEEP-2026-09-08.md.
 
 ## Remaining (gated — no executable builder work left ungated)
 

@@ -59,11 +59,12 @@ Owners and gates you must respect:
 - GSD-8 stays BLOCKED until the X-credit gate is resolved.
 
 Current Git truth you must reconcile at boot (re-fetch; heads move fast now):
-- `origin/main` = dea655a (2026-09-08 take-over loop landed PR28/34/33/35/36).
-  ZERO open PRs (PR32 closed superseded).
+- `origin/main` = e62acab (take-over loop landed PR28/34/33/35/36/38/37).
+  ZERO open PRs (PR32 closed superseded; 6 stale branches pruned).
 - No executable builder work remains ungated. Next work needs Nav: O-2/O-4/O-5
   specs, P2 upgrades, P6/P7, Azure deploy credentials, App.js standing waiver,
-  GSD-8 credits. See RECOVERY-QUEUE.md remaining table.
+  GSD-8 credits, G3-salvage + swarm-sizing backlog admission.
+  See RECOVERY-QUEUE.md + evidence/DEEP-SWEEP-2026-09-08.md.
 - `phase9/g1-reads-witness` dirt predates this program — NOT your lease.
 
 Evidence discipline:
