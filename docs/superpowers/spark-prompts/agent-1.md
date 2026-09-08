@@ -59,7 +59,7 @@ Owners and gates you must respect:
 - GSD-8 stays BLOCKED until the X-credit gate is resolved.
 
 Current Git truth you must reconcile at boot (re-fetch; heads move fast now):
-- `origin/main` = a6e6f79 (take-over loops landed PR28/34/33/35/36/38/37/39/40/41/42).
+- `origin/main` = fdd1fcf (take-over loops landed PR28/34/33/35/36/38/37/39/40/41/42/43; PR44 G3 open pending review).
   ZERO open PRs (PR32 closed superseded; 6 stale branches pruned).
 - Production still runs canonical G1 code — cutover is Nav-coordinated (see
   RECOVERY-QUEUE cutover row; possible parallel actor — single-writer rule).

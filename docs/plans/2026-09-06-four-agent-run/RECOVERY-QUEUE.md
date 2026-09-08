@@ -6,7 +6,7 @@ proprietary-data frontier.
 
 ## CLOSED as a merge queue (2026-09-08)
 
-Main is `a6e6f79`. Merged, in order: PR28 (D7 parity), PR34 (H1 fixture),
+Main is `fdd1fcf`. Merged, in order: PR28 (D7 parity), PR34 (H1 fixture),
 PR33 (T1-only), PR35 (F0 wave + clock fix), PR36 (H2-partial), PR38 (dead-code
 removal + kanban datetime fix), PR37 (GEX date-string fix), PR39 (provider
 cap + deepen + enrich, merged by Nav), PR40 (honesty labels), PR41 (strike
@@ -165,9 +165,7 @@ cleared; deepen + enrich both fired per logs).
 
 ## Take-over loop 3 — honesty + G3 (2026-09-08)
 
-- PR43 OPEN (`astra/honesty-citations`): F9a/F9b source-verified (RFS 2021,
-  Pan-Poteshman "in"), F2/F13 label-only (tenor heuristic, ΓIB proxy).
-  Weights + paper-content citations deliberately untouched.
+- PR43 MERGED: F9a/F9b source-verified (RFS 2021, Pan-Poteshman "in"), F2/F13 label-only. Weights + paper-content citations untouched.
 - PR44 OPEN (`astra/g3-paper-loop`, DO NOT MERGE): G3 product hunks split
   from ledger docs (5 commits squashed, LEDGER dropped); 109 offline green.
   Needs Agent-4 review + external G-WITNESS gate.
