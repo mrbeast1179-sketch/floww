@@ -34,8 +34,9 @@ Rules:
 
 Verification before use:
 - `git fetch origin`
-- re-read `origin/main` merge state: PR29/30/31 merged, PR28 still open/escalated at 18b10b5, PR32 open at c17fc61
+- re-read `origin/main` merge state: PR29/30/31 merged, PR28 still open/escalated at 18b10b5, PR32 open at 9289775 (scope call pending — evidence/T1-SPLIT-ANALYSIS.md)
 - re-read `astra/f0-honesty-backend` head: f880971, NOT merged to main, 14 commits on feature branch
-- re-read `agent3/t1-scroller-fix-v2` head: c17fc61, clean, PR32 open
+- re-read `agent3/t1-scroller-fix-v2` head: 9289775, clean, PR32 open
+- H1 ACTIVE: `astra/h1-strike-truth` 573fe8c (= remote), red fixture landed
 - re-read `architect/20260906-recovery-control-plane-v2` actual head (`git log --oneline -1`): recovery package committed, remote-backed
 - confirm `phase9/g1-reads-witness` dirty files are NOT your lease and predate this session

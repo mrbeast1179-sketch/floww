@@ -61,6 +61,13 @@ No GitHub mutations (Nav-gated). Receipt: `proof/receipts/E4-32.md`. Loop rules
 hardened from this pass: `harness/loop-improvements.md` (three-dot payloads, CI-first,
 blame-attribution, receipt-backing, scope-vs-title, exact-head repro, waiver line items).
 
+Supplement (same session): [CI] FIXED by architect lane — `9289775` on
+`agent3/t1-scroller-fix-v2` (drop unused `Request`, sort imports, suppress SIM105,
+direct `datetime.UTC`; import-level only, no behavior change), pushed, remote verified.
+CI-equivalent `ruff check .` clean, 77 ticker tests green (2 pre-existing env skips),
+compile OK. Remaining: CI re-run confirmation + Nav split-vs-authorize call
+(`evidence/T1-SPLIT-ANALYSIS.md`) + App.js waiver. No re-audit of T1 behavior needed.
+
 Managed offline proof (no GitHub mutations; candidate branches untouched). Receipts in
 floww-run-state/2026-09-06-v2/proof/receipts/; heads re-verified open/unmerged after review.
 

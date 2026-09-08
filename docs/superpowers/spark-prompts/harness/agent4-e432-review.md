@@ -1,5 +1,9 @@
 # Mission E4-32 — PR32 current-head review → receipt (Spark 1.3, Agent 4 lane)
 
+> STATUS 2026-09-07: COMPLETE. Receipt at proof/receipts/E4-32.md (REWORK —
+> lint since fixed in `9289775`, scope still open). Do NOT re-run this mission;
+> next PR32 review only on a head past `9289775` or a rescoped payload.
+
 ## Objective
 
 Produce `/Users/nav/Documents/GitHub/floww-run-state/2026-09-06-v2/proof/receipts/E4-32.md`:

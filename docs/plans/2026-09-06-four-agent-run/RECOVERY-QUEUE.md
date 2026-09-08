@@ -15,7 +15,7 @@ proprietary-data frontier. Status is evidence-based as of 2026-09-06 20:58 EDT.
 | E4-29 | Agent 4 | REVIEW COMPLETE; APPROVED, Nav merge call | O/X delivered at `568de16`, 46 exact-head tests; two advisories; see proof/receipts/E4-29.md |
 | E4-30 | Agent 4 | MERGED to main | PR30 merged at 377dfa5 (merge of origin/main into astra/p1-clean); scripts/silent_except_gate.py and backend/tests/test_silent_except_gate.py byte-identical to 06b7502; CI green: ruff, backend-tests, frontend-build; audit: evidence/PR30-merge-attempt.md |
 | E4-31 | Agent 4 | REVIEW COMPLETE; APPROVED-conditional | `f7f7103` inert scaffolding, 62 exact-head tests; weights pending A3-SCORE; see proof/receipts/E4-31.md |
-| PR32 | Agent 4 | REVIEW COMPLETE; REWORK (2 blocking) | E4-32 at `c17fc61`: required ruff fails (5 errors, branch-attributable, main clean); no linked issue + payload ships Discord/backend beyond T1 title (split vs authorize needed). T1 core sound: 61 suites / 469 tests + frontend-build green. Receipt: proof/receipts/E4-32.md |
+| PR32 | Agent 4 | REVIEW COMPLETE; REWORK (lint fixed, scope pending Nav) | E4-32 at `c17fc61` + lint fix `9289775` pushed (CI-equivalent ruff clean, 77 ticker tests green, compile OK; CI re-running). Remaining: Nav split-vs-authorize call — see evidence/T1-SPLIT-ANALYSIS.md (hunk-level rebase needed, mechanical checkout insufficient; yarn.lock + .gitignore must not ship). App.js waiver still unrecorded. Receipt: proof/receipts/E4-32.md |
 | F0-F1 | Agent 2 | COMPLETE; pushed | Wave-1 honesty/integrity complete: F1/F3/F4/F7, P1/P3/P4, D1–D7 all shipped on `astra/f0-honesty-backend` rebased on `origin/main e68bdb5`; receipts in agent-2-backend/receipts/; open: P2/P6/P7 |
 | GSD-8 | Agent 1 | BLOCKED | Remove or leave out of build queue until X credits exist; no spend |
 
@@ -31,7 +31,7 @@ the verdict and returns the PR to review.
 
 ### Next admissions (contracts preserved from QUEUE.md / heat audit)
 
-- H1 then H2 to Agent 2, serialized on `backend/server.py`. Source: heat audit (H1 raw-analytics contamination, H2 upstream budget bypass). Reconcile call-count targets with the actual provider contract at admission.
+- H1 ACTIVE to Agent 2, then H2, serialized on `backend/server.py`. Red fixture `573fe8c` landed (= remote, base `e68bdb5`, worktree `/private/tmp/w-h1` clean); card `task-cards/H1-strike-truth.md` updated. Source: heat audit (H1 raw-analytics contamination, H2 upstream budget bypass). Reconcile H2 call-count targets with the actual provider contract at admission. FLAG: PR32 payload adds `_fill_strike_gaps` (`type:"none"` zero-OI rows) — H1's O-1 forbids exactly these in analytics inputs; whoever lands first constrains the other.
 - XH-1 (Agent 3): UI quote/side/sweep/block copy preserves unknowns, labels proxies.
 - RH-2 (Agent 3): clean Heatseeker candidate branch, only approved behavior + tests.
 - RT-1 (Agent 3): clean ticker-navigation candidate, no dead universe experiment.

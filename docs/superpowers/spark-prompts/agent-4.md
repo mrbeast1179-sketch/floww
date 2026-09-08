@@ -62,13 +62,11 @@ Current review posture from this package:
   candidate.
 - PR31: APPROVED-conditional at f7f7103. Nav merge call pending; A3-SCORE
   must approve weights before any live caller passes nonzero.
-- PR32: candidate open on `agent3/t1-scroller-fix-v2`. Current head is c17fc61,
-  NOT 2b594ed. The prior review covered 2b594ed only. The three later commits
-  (b646b11: cap-empty-search/preserve-popular, App.js touch — needs Nav waiver
-  note; f89d6ea: ignore backend/.venv in worktree; c17fc61: empty-search cap
-  contract test) need a current-head review. Do not reuse a stale
-  intermediate-head verdict. E4-32 receipt exists at proof/receipts/E4-32.md
-  (REWORK: lint + scope decision); next review only on a new head or rescoped payload.
+- PR32: candidate open on `agent3/t1-scroller-fix-v2`. E4-32 reviewed `c17fc61`
+  (REWORK); lint since fixed in `9289775` (import-level only, CI-equivalent clean —
+  confirm CI green, do not re-audit T1 behavior). Open: scope decision per
+  evidence/T1-SPLIT-ANALYSIS.md + App.js waiver. Next review only on a new head
+  past `9289775` or a rescoped payload. Receipt: proof/receipts/E4-32.md.
 
 When you review PR32 or any later candidate:
 - confirm the exact current head before you start

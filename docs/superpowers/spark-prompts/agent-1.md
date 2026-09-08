@@ -59,9 +59,10 @@ Owners and gates you must respect:
 - GSD-8 stays BLOCKED until the X-credit gate is resolved.
 
 Current Git truth you must reconcile at boot:
-- `origin/main` = e68bdb5. PR29/30/31 merged. PR28 still open/escalated at 18b10b5. PR32 open at c17fc61.
+- `origin/main` = e68bdb5. PR29/30/31 merged. PR28 still open/escalated at 18b10b5. PR32 open at 9289775 (lint fix atop c17fc61, CI re-running; scope call pending — see evidence/T1-SPLIT-ANALYSIS.md).
 - `astra/f0-honesty-backend` = f880971, 14 commits on feature branch, NOT merged to main, local == remote.
-- `agent3/t1-scroller-fix-v2` = c17fc61, 5 commits on top of b5f9ae5, clean, PR32 open.
+- `agent3/t1-scroller-fix-v2` = 9289775, clean, PR32 open.
+- H1 ACTIVE: `astra/h1-strike-truth` = 573fe8c (= remote), worktree /private/tmp/w-h1 clean, red fixture landed; card task-cards/H1-strike-truth.md current.
 - `phase9/g1-reads-witness` is dirty with App.js, SkylitTickerBar.jsx, .serena/project.yml and 4 untracked .planning/ heat docs. These predate this session and are NOT your lease. Do not sweep them.
 
 Evidence discipline:

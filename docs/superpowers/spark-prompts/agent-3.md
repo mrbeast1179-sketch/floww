@@ -74,13 +74,15 @@ If you are asked to fix scroller or ticker behavior:
 - if you need the heavy-test lease, request it before a full suite
 
 Current candidate truth you must reconcile at boot:
-- PR32 is open at head `c17fc61` on `agent3/t1-scroller-fix-v2`, 5 commits on
-  top of `b5f9ae5`: `8e30a60`, `2b594ed`, `b646b11`, `f89d6ea`, `c17fc61`.
-- The prior review covered `2b594ed` only. The three later commits are
-  `b646b11` (cap-empty-search/preserve-popular, App.js touch — needs Nav waiver
-  note), `f89d6ea` (ignore `backend/.venv` in worktree) and `c17fc61`
-  (empty-search cap contract test). A current-head review is required — do not
-  reuse a stale intermediate-head verdict.
+- PR32 is open at head `9289775` on `agent3/t1-scroller-fix-v2`: the T1 5 commits
+  (`8e30a60`, `2b594ed`, `b646b11`, `f89d6ea`, `c17fc61`) plus architect-lane lint
+  fix `9289775` (import-level only, CI-equivalent ruff clean). CI re-running.
+- E4-32 reviewed `c17fc61` (REWORK: lint — now fixed; scope — still open). Do not
+  re-argue T1 behavior (proven 61/469); your next unit is either the Nav-ordered
+  T1-only hunk-level rebase (see evidence/T1-SPLIT-ANALYSIS.md — mechanical
+  checkout is insufficient, drop yarn.lock + .gitignore) or newly admitted work.
+- `b646b11` touches `App.js` — Nav waiver still unrecorded; do not touch App.js
+  again until it is.
 
 General rules for every frontend unit:
 - boot.json first, then the work, then checkpoint.
