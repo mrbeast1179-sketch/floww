@@ -34,7 +34,7 @@ Rules:
 
 Verification before use:
 - `git fetch origin`
-- re-read `origin/main` head (moves fast during take-over loop; was `de88c1f`)
-- re-read open PR heads (33 T1-only, 34 H1-test, 35 F0-wave, 36 H2-partial;
-  #32 superseded by #33)
+- `origin/main` was `dea655a` (all five take-over PRs merged, zero open PRs)
+- No ungated builder work remains — see RECOVERY-QUEUE.md remaining table;
+  do not invent work to look busy
 - `phase9/g1-reads-witness` dirt predates this program — NOT your lease

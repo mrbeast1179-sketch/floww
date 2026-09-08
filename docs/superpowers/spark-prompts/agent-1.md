@@ -59,12 +59,11 @@ Owners and gates you must respect:
 - GSD-8 stays BLOCKED until the X-credit gate is resolved.
 
 Current Git truth you must reconcile at boot (re-fetch; heads move fast now):
-- `origin/main` = de88c1f (PR28 merged 2026-09-08). PR29/30/31 already in.
-- Open PRs: #33 T1-only (`217236c`), #34 H1-test (`a09e040`), #35 F0-wave
-  (`49f467e`, fake-clock test fix landed), #36 H2-partial (`0a690a1`),
-  #32 PR32 (superseded by #33; close after #33 merges).
-- Merged this loop: PR28 (`de88c1f`). PR32 backend remainder still needs a
-  scope issue (see evidence/T1-SPLIT-ANALYSIS.md).
+- `origin/main` = dea655a (2026-09-08 take-over loop landed PR28/34/33/35/36).
+  ZERO open PRs (PR32 closed superseded).
+- No executable builder work remains ungated. Next work needs Nav: O-2/O-4/O-5
+  specs, P2 upgrades, P6/P7, Azure deploy credentials, App.js standing waiver,
+  GSD-8 credits. See RECOVERY-QUEUE.md remaining table.
 - `phase9/g1-reads-witness` dirt predates this program — NOT your lease.
 
 Evidence discipline:

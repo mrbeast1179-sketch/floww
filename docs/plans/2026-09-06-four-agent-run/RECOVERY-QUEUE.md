@@ -2,6 +2,31 @@
 
 `QUEUE.md` retains the full P1–P7, D1–D7, X1–X5, and E1–E5 contracts. This
 file adds current candidate heads, recent work, institutional integration, and the
+proprietary-data frontier.
+
+## CLOSED as a merge queue (2026-09-08)
+
+Main is `dea655a`. Merged, in order: PR28 (D7 parity), PR34 (H1 fixture),
+PR33 (T1-only), PR35 (F0 wave + clock fix), PR36 (H2-partial). Zero open PRs
+(PR32 closed as superseded). Every merge verified: green required CI on the
+merged head + local reproduction where applicable. Full receipt trail in
+GSD-PASSES.md take-over section + lane receipts.
+
+## Remaining (gated — no executable builder work left ungated)
+
+| ID | State | Gate |
+|---|---|---|
+| O-2 reuse-or-remove | QUEUED with spec | Cross-key cache surgery or swing-depth product call — Nav's |
+| O-4/O-5 failover order | QUEUED with spec | Provider sandbox + product sign-off — Nav's |
+| P2 upgrades | Baseline KNOWN (11 advisories) | pymongo/starlette/nltk bumps need resolver pass — Nav's |
+| P6 rotation | Inventory done | Real credential rotation — Nav's secrets |
+| P7 Oracle | Runbook ready | VM provisioning — Nav's |
+| Azure deploy | Workflow red, code-innocent | `azure/login` credentials missing in repo secrets — Nav's (`Deploy to Azure` fails on every main push with "No credentials found"; pre-existing, unrelated to merges) |
+| GSD-8 | BLOCKED | X credits |
+| App.js standing waiver | Ungranted, scoped | T1 28-line scope shipped under 2026-09-08 take-over order; a STANDING waiver for future App.js work is still explicitly ungranted |
+
+`QUEUE.md` retains the full P1–P7, D1–D7, X1–X5, and E1–E5 contracts. This
+file adds current candidate heads, recent work, institutional integration, and the
 proprietary-data frontier. Status is evidence-based as of 2026-09-06 20:58 EDT.
 
 ## Admission order
