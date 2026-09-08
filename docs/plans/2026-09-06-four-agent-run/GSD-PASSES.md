@@ -65,7 +65,10 @@ Supplement (same session): [CI] FIXED by architect lane — `9289775` on
 `agent3/t1-scroller-fix-v2` (drop unused `Request`, sort imports, suppress SIM105,
 direct `datetime.UTC`; import-level only, no behavior change), pushed, remote verified.
 CI-equivalent `ruff check .` clean, 77 ticker tests green (2 pre-existing env skips),
-compile OK. Remaining: CI re-run confirmation + Nav split-vs-authorize call
+compile OK. GitHub CI on `9289775`: ruff PASS, frontend-build PASS, backend
+4931 passed / 1 failed (`test_overfit_small_dataset`, loss=0.0131 vs 0.01 — main-side
+ML-threshold test, green on local rerun: flaky, re-run prescribed, no test edits).
+Remaining: Nav split-vs-authorize call
 (`evidence/T1-SPLIT-ANALYSIS.md`) + App.js waiver. No re-audit of T1 behavior needed.
 
 Managed offline proof (no GitHub mutations; candidate branches untouched). Receipts in
