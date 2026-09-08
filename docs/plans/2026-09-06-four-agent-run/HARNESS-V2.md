@@ -139,3 +139,7 @@ host does not expose one, so no recurring builder/reviewer was created. The four
 files support user-launched persistent sessions now. When a native scheduler is
 available, schedule the build lane and review lane in separate chats after running the
 GSD doctor; never emulate it with a shell loop.
+
+Snapshot note: this file records the Sep-6 boundary state at `5b9d9a9`. Main has
+since advanced to `56cfff2` (PR28–47 merged, PR44 merged 2026-09-08T11:48:51Z).
+Do not treat `5b9d9a9` as live main — re-fetch at every launch.
