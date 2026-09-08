@@ -45,6 +45,42 @@ export function searchUniverse(universe, query, limit = SUGGEST_CAP) {
 }
 
 /**
+ * Fetch the full listed universe page by page (T2). `get` is an
+ * axios-compatible getter `(url) => Promise<{data}>` so tests inject fakes.
+ * Stops at `has_more === false`, on error, or at the safety caps. Returns
+ * `{ symbols, pages, total }`; empty symbols on total failure (callers keep
+ * the featured-only sets as fallback).
+ */
+export const UNIVERSE_PAGE_LIMIT = 5000;
+export const UNIVERSE_MAX_SYMBOLS = 12000;
+export const UNIVERSE_MAX_PAGES = 8;
+
+export async function fetchFullUniverse(get, baseUrl) {
+  const symbols = [];
+  let pages = 0;
+  let total = 0;
+  for (let page = 1; page <= UNIVERSE_MAX_PAGES; page += 1) {
+    let data;
+    try {
+      const res = await get(
+        `${baseUrl}/tickers/all?limit=${UNIVERSE_PAGE_LIMIT}&page=${page}`
+      );
+      data = (res && res.data) || {};
+    } catch (_) {
+      break; // transport failure: keep what we have (possibly nothing)
+    }
+    const batch = Array.isArray(data.tickers) ? data.tickers : [];
+    if (batch.length === 0) break;
+    symbols.push(...batch);
+    pages += 1;
+    total = Number(data.total) || total;
+    if (data.has_more !== true) break;
+    if (symbols.length >= UNIVERSE_MAX_SYMBOLS) break;
+  }
+  return { symbols: symbols.slice(0, UNIVERSE_MAX_SYMBOLS), pages, total };
+}
+
+/**
  * Step through the universe with wrap. Unknown current ticker wraps from
  * the boundary (forward -> first, back -> last) — pinned contract, covered
  * by SkylitControlBar tests. Returns an index into list.

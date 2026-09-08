@@ -221,3 +221,21 @@ class FinnhubClient:
         except Exception as e:
             log.error("Finnhub symbol_list failed: %s", e)
             return None
+
+    def symbols_us_equities(self) -> list[str] | None:
+        """Flat sorted deduped ticker strings. Thin wrapper over
+        ``all_symbols()`` for the ``/api/tickers/all`` endpoint (T2).
+        Returns ``None`` when Finnhub is not configured."""
+        full = self.all_symbols()
+        if not full:
+            return None
+        seen: set[str] = set()
+        out: list[str] = []
+        for s in full:
+            sym = (s.get("symbol") or "").strip().upper()
+            if not sym or sym in seen:
+                continue
+            seen.add(sym)
+            out.append(sym)
+        out.sort()
+        return out

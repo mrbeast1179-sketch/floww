@@ -754,6 +754,12 @@ async def tap_counts(ticker: str, strikes: list[float], days: int = 5) -> dict[f
 
 TRINITY = ["^SPX", "SPY", "QQQ"]
 DEFAULT_TICKERS = ["SPY", "QQQ", "^SPX", "IWM", "AAPL", "NVDA", "TSLA", "META", "AMZN", "MSFT", "GOOGL", "AMD", "KO", "XOM", "GM", "MCD", "^VIX"]
+
+# Full-listed-universe cache for /api/tickers/all (T2). Finnhub US symbols,
+# refreshed at most every 30 min; the frontend pages through it.
+_TICKER_CACHE: list[str] | None = None
+_TICKER_CACHE_TS: float | None = None
+CACHE_TTL_S = 1800  # 30 minutes
 POPULAR_UNIVERSE = [
     # Mega Cap Tech
     "AAPL", "MSFT", "GOOGL", "AMZN", "META", "NVDA", "TSLA", "AMD", "AVGO", "NFLX",
