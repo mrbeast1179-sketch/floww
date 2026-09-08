@@ -30,7 +30,7 @@ evidence from historical test totals in worker reports.
 | #27 X1 original | `a66845e` | closed, unmerged | 15 | Superseded; carried 11 unrelated files |
 | #28 D7 clean | `18b10b5` | open, clean/mergeable | 2 | Review exact issue #18 contract; Nav merge if approved |
 | #29 X1 clean | `568de16` | open, clean/mergeable | 4 | Review exact issue #17 contract; Nav merge if approved |
-|| #30 silent gate | `06b7502` → `377dfa5` → `e68bdb5` | merged to main 2026-09-07T18:42:13Z | 2 (+PR29/PR31) | MERGED. Gate files byte-identical to 06b7502; CI green on PR head and main; audit evidence/PR30-merge-attempt.md |
+|| #30 silent gate | `06b7502` → `377dfa5` → `e68bdb5` (now `56cfff2`) | merged to main 2026-09-07T18:42:13Z | 2 (+PR29/PR31) | MERGED. Gate files byte-identical to 06b7502; CI green on PR head and main; audit evidence/PR30-merge-attempt.md |
 | #31 exposure score | `f7f7103` | open, clean/mergeable | 2 | DECISION/REWORK: helper unused by production; weights are new policy |
 
 GitHub reports backend-tests, frontend-build, and ruff successful on #28–#31.
@@ -45,7 +45,7 @@ all those checks passed.
 PR30 was reviewed by Agent-4 as REWORK (gate fires/passes but missing CI wiring,
 malformed/missing-root false-clean bugs). Fix was verified as
 E4-30-gate-fix.patch. Branch was updated to 377dfa5 with PR29/PR31 product
-included, then merged to main at e68bdb5 on 2026-09-07T18:42:13Z. Gate files
+included, then merged to main at e68bdb5 on 2026-09-07T18:42:13Z (now `56cfff2`). Gate files
 (script/silent_except_gate.py, backend/tests/test_silent_except_gate.py) are
 byte-identical to the original 06b7502 commit. CI green on PR head and on main:
 ruff, backend-tests, frontend-build. Final audit: evidence/PR30-merge-attempt.md.
