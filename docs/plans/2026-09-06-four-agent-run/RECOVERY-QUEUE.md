@@ -154,27 +154,36 @@ cleared; deepen + enrich both fired per logs).
   pin, golden oracle green; silent-except justifications added per P1 gate).
 - PR38 MERGED: dead-code removal (Movers.jsx, finnhub_api shim) + kanban
   datetime fix (un-xfailed).
-- PR39 MERGED by Nav (`5771dfc`, cap+deepen+enrich); floor follow-up is PR41
-  (`astra/sparse-chain-v2`, server band/floor + 2 tests, CI running). Lesson
-  logged: merged PRs don't track later branch pushes and fire no PR CI —
-  verify `headRefOid` before assuming a push reached its PR.
-- PR40 OPEN (`astra/honesty-labels`): F5/F6/F11/F17/F19 done (unknown-side
-  dash, copy corrections; F11 test RED on main first; 62/480 green). F16
-  verified present (no change). Skipped with rationale: F9 (citation year
-  needs source), F18 (optional, already satisfied), F2/F13 (weights),
-  F8/F10/F12/F14 (paper verification).
+- PR39 MERGED by Nav (`5771dfc`, cap+deepen+enrich). Lesson logged: merged PRs
+  don't track later branch pushes and fire no PR CI — verify `headRefOid`
+  before assuming a push reached its PR.
+- PR40 MERGED (F5/F6/F11/F17/F19 honesty wave; F16 verified present).
+- PR41 MERGED (strike floor; KYTX live-validated 8 strikes).
 - 61-ref archaeology: 6 superseded branches deleted after patch-id proof;
   G3 + swarm-sizing rescue backlogs specced (evidence/DEEP-SWEEP-2026-09-08.md).
 - Baselines @ `dea655a`: backend 5048, frontend 62/479, ruff clean.
 
+## Take-over loop 3 — honesty + G3 (2026-09-08)
+
+- PR43 OPEN (`astra/honesty-citations`): F9a/F9b source-verified (RFS 2021,
+  Pan-Poteshman "in"), F2/F13 label-only (tenor heuristic, ΓIB proxy).
+  Weights + paper-content citations deliberately untouched.
+- PR44 OPEN (`astra/g3-paper-loop`, DO NOT MERGE): G3 product hunks split
+  from ledger docs (5 commits squashed, LEDGER dropped); 109 offline green.
+  Needs Agent-4 review + external G-WITNESS gate.
+- F15 closed via scanLogic JSDoc contract note. F16 verified present.
+  Skipped with rationale: F8/F10/F12/F14 (paper-content), F18 (satisfied).
+- O-2 CLOSED obsolete-under-directive; O-4 SUPERSEDED by provider directive;
+  O-5 SATISFIED (deepen reuses merged path, labels follow winner). Rationale
+  in agent-2-backend/receipts/H2.md.
+
 ## Honesty backlog (fix-queue F-IDs vs landed work)
 
-DONE (F0 wave, in main): F1, F3, F4, F7. OPEN, smallest first: F17 (one-word
-"Heuristic" label, flow_outcomes.py:55), F9 (Ni year/title typos), F18 (CW
-label note), F16 (WHALE badge — keep disclaimer), F19 ("negotiated" wording),
-F15 (split-type contract gap), F8/F10/F12/F14 (citation corrections,
-gex_paper_accurate), F5/F6/F11 (UI copy — XH-1 scope), F2/F13 (flow_alerts
-scoring — serialized, needs weights/product call).
+DONE (in main): F1, F3, F4, F7 (F0 wave); F5, F6, F11, F17, F19 (PR40);
+F9a/F9b (PR43, source-verified); F2-label/F13-label (PR43, weights untouched);
+F15 (contract note); F16 (verified present, no change).
+OPEN: F2-strip + F13 down-weight (need weights/product call),
+F8/F10/F12/F14 (need paper-content verification).
 
 ## Stop conditions
 
