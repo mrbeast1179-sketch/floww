@@ -1834,11 +1834,39 @@ async def _snapshot_chains():
                 grid = compute_gex_grid(raw.get("spot") or 0,
                                         raw.get("contracts") or [], t)
                 _fa.init_flow_alert_tables(_duckdb)
+                try:
+                    from routes.vpin import snapshot_vpin_state
+                    _vpin_state = snapshot_vpin_state(t)
+                except Exception:
+                    _vpin_state = None
+                try:
+                    from advanced_analytics import calc_gamma_flip_levels
+                    _flip = calc_gamma_flip_levels(
+                        float(raw.get("spot") or 0),
+                        raw.get("contracts") or [], t).get("gamma_flip")
+                except Exception:
+                    _flip = None
+                try:
+                    from services.liquidity_state import feed as _liq_feed
+                    from services.liquidity_state import snapshot as _liq_snap
+                    _contracts = raw.get("contracts") or []
+                    _call_vol = sum(float(c.get("volume") or 0)
+                                    for c in _contracts
+                                    if str(c.get("type") or "").lower() == "call")
+                    _put_vol = sum(float(c.get("volume") or 0)
+                                   for c in _contracts
+                                   if str(c.get("type") or "").lower() == "put")
+                    _liq_feed(t, _call_vol, _put_vol, float(raw.get("spot") or 0))
+                    _liq_state = _liq_snap(t)
+                except Exception:
+                    _liq_state = None
                 events = _ea.evaluate_ticker(
                     t,
                     {"vex_grid": grid.get("vex_grid") or {},
                      "charm_grid": grid.get("charm_grid") or {}},
-                    float(raw.get("spot") or 0))
+                    float(raw.get("spot") or 0),
+                    vpin_state=_vpin_state, flip_level=_flip,
+                    liquidity_state=_liq_state)
                 if events:
                     kept = _fa.dedup_filter(_duckdb, events)
                     if kept:

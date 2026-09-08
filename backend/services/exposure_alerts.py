@@ -34,6 +34,20 @@ log = logging.getLogger(__name__)
 # kind detail rides in `why` so the tape stays readable).
 RULE_VEX_WALL = "VEX_WALL"
 RULE_CHARM_PIN = "CHARM_PIN"
+RULE_TOXIC_FLOW = "TOXIC_FLOW"
+RULE_GAMMA_FLIP = "GAMMA_FLIP"
+RULE_LIQUIDITY_STRESS = "LIQUIDITY_STRESS"
+
+# VPIN toxicity gate (Easley-Lopez de Prado-O'Hara high-toxicity regime).
+# vpin_state: {"vpin": float, "cdf": float|None, "n_buckets": int} | None.
+TOXIC_VPIN = 0.7
+TOXIC_MIN_CDF = 0.5  # skipped when cdf absent (vpin-only gate)
+TOXIC_MIN_BUCKETS = 10  # cold engines stay silent
+
+# Gamma-flip proximity (dealer positioning edge): price within ±1% of the
+# flip level behaves as support (above, mean-reverting) or resistance
+# (below, momentum). One event per evaluation when in band.
+FLIP_PROXIMITY_PCT = 0.01
 
 _TTL_S = 4 * 3600  # matches CLUSTER (ticker-level structural, hours-long)
 
@@ -94,13 +108,23 @@ def evaluate_exposure_events(
     new_grid: dict,
     old_grid: dict | None = None,
     threshold_pct: float = 0.25,
+    vpin_state: dict | None = None,
+    spot: float | None = None,
+    flip_level: float | None = None,
+    liquidity_state: dict | None = None,
 ) -> list[dict]:
     """Compare two heatmap grid payloads and emit exposure events.
 
     Returns a list of event dicts sorted by |magnitude| descending:
     {"kind": "vex_wall_formed" | "vex_wall_broken"
-             | "charm_pin_formed" | "charm_pin_shifted",
+             | "charm_pin_formed" | "charm_pin_shifted" | "toxic_flow"
+             | "gamma_flip_approach",
      "strike": float, "expiry": str, "magnitude": float}
+
+    vpin_state (optional): {"vpin": float, "cdf": float|None,
+    "n_buckets": int} — toxic gate, see _toxic_flow_event.
+    flip_level (optional): gamma-flip price level; with spot set, emits one
+    gamma_flip_approach event when |spot - flip| / spot <= FLIP_PROXIMITY_PCT.
     """
     events: list[dict] = []
     if not new_grid:
@@ -169,8 +193,95 @@ def evaluate_exposure_events(
                         "expiry": expiry, "magnitude": new_val if math.isfinite(new_val) else 0.0,
                     })
 
+    # --- Toxic flow (VPIN gate) ---
+    events.extend(_toxic_flow_event(vpin_state, spot))
+
+    # --- Gamma-flip proximity ---
+    events.extend(_flip_approach_event(flip_level, spot))
+
+    # --- Liquidity stress (Kyle + Amihud agreement) ---
+    events.extend(_liquidity_stress_event(liquidity_state, spot))
+
     events.sort(key=lambda e: e["magnitude"], reverse=True)
     return events
+
+
+def _liquidity_stress_event(liquidity_state: Any, spot: Any) -> list[dict]:
+    """One liquidity_stress event when Kyle AND Amihud both read ILLIQUID.
+
+    Agreement = conviction (either alone is noisy). Absent/mismatched/cold
+    state emits nothing. Fail-open: never raises.
+    """
+    try:
+        if not isinstance(liquidity_state, dict):
+            return []
+        if (str(liquidity_state.get("kyle_label") or "") != "ILLIQUID"
+                or str(liquidity_state.get("amihud_label") or "") != "ILLIQUID"):
+            return []
+        px = float(spot) if spot is not None else 0.0
+        strike = px if math.isfinite(px) and px > 0 else 0.0
+        return [{"kind": "liquidity_stress", "strike": strike, "expiry": "",
+                 "magnitude": 1.0}]
+    except (TypeError, ValueError):
+        return []
+
+
+def _flip_approach_event(flip_level: Any, spot: Any) -> list[dict]:
+    """One gamma_flip_approach event when spot sits within ±FLIP_PROXIMITY_PCT
+    of the flip level, else []. Direction: above = support (mean-reverting
+    regime), below = resistance (momentum regime). Fail-open on missing or
+    non-numeric inputs; never raises."""
+    try:
+        if isinstance(flip_level, bool) or isinstance(spot, bool):
+            return []
+        flip = float(flip_level) if flip_level is not None else 0.0
+        px = float(spot) if spot is not None else 0.0
+        if (not math.isfinite(flip) or not math.isfinite(px)
+                or flip <= 0 or px <= 0):
+            return []
+        dist = abs(px - flip) / px
+        if dist > FLIP_PROXIMITY_PCT:
+            return []
+        return [{"kind": "gamma_flip_approach", "strike": flip, "expiry": "",
+                 "magnitude": dist,
+                 "direction": "above" if px >= flip else "below"}]
+    except (TypeError, ValueError):
+        return []
+
+
+def _toxic_flow_event(vpin_state: Any, spot: Any) -> list[dict]:
+    """One toxic_flow event when VPIN is in the high-toxicity regime, else [].
+
+    Fail-open: non-dict state, non-numeric vpin, cold engines (few buckets),
+    or a mediocre CDF tail all yield []. CDF confirmation is skipped only
+    when cdf is absent (vpin-only gate).
+    """
+    try:
+        if not isinstance(vpin_state, dict):
+            return []
+        vpin = vpin_state.get("vpin")
+        if isinstance(vpin, bool) or not isinstance(vpin, (int, float)):
+            return []
+        vpin = float(vpin)
+        if not math.isfinite(vpin) or vpin < TOXIC_VPIN:
+            return []
+        n_buckets = vpin_state.get("n_buckets", 0)
+        try:
+            if int(n_buckets) < TOXIC_MIN_BUCKETS:
+                return []
+        except (TypeError, ValueError):
+            return []
+        cdf = vpin_state.get("cdf", None)
+        if cdf is not None:
+            try:
+                if not math.isfinite(float(cdf)) or float(cdf) < TOXIC_MIN_CDF:
+                    return []
+            except (TypeError, ValueError):
+                return []
+        strike = float(spot) if isinstance(spot, (int, float)) and math.isfinite(float(spot)) and float(spot) > 0 else 0.0
+        return [{"kind": "toxic_flow", "strike": strike, "expiry": "", "magnitude": vpin}]
+    except Exception:
+        return []
 
 
 _WHY = {
@@ -178,6 +289,9 @@ _WHY = {
     "vex_wall_broken": "VEX wall broken — vol suppression released, regime may shift",
     "charm_pin_formed": "Charm pin formed — delta-hedging concentration into expiry",
     "charm_pin_shifted": "Charm pin migrated — hedging magnet moved strikes",
+    "toxic_flow": "Toxic flow — VPIN in the high regime: makers adversely selected, spreads/vol may widen (heuristic, not a direction call)",
+    "gamma_flip_approach": "Gamma flip proximity — price pressing dealer flip level (support above / resistance below)",
+    "liquidity_stress": "Liquidity stress — Kyle and Amihud agree the tape is illiquid: size moves price, expect slippage (heuristic, not a direction call)",
 }
 
 
@@ -196,7 +310,18 @@ def events_to_alerts(ticker: str, spot: float,
         mag = float(e.get("magnitude") or 0)
         if not math.isfinite(mag):
             mag = 0.0
-        rule = RULE_VEX_WALL if kind.startswith("vex_") else RULE_CHARM_PIN
+        if kind == "toxic_flow":
+            rule = RULE_TOXIC_FLOW
+            score = min(99, max(50, int(round(abs(mag) * 100))))
+        elif kind == "gamma_flip_approach":
+            rule = RULE_GAMMA_FLIP
+            score = min(99, max(50, 100 - int(round(abs(mag) * 10000))))
+        elif kind == "liquidity_stress":
+            rule = RULE_LIQUIDITY_STRESS
+            score = 75
+        else:
+            rule = RULE_VEX_WALL if kind.startswith("vex_") else RULE_CHARM_PIN
+            score = min(99, max(50, int(abs(mag) / 1e6) + 50))
         out.append({
             "key": f"exposure:{kind}:{ticker.upper()}:{e.get('expiry', '')}:{strike:g}",
             "ckey": f"{ticker.upper()}|exposure|{strike:g}|{e.get('expiry', '')}",
@@ -209,7 +334,7 @@ def events_to_alerts(ticker: str, spot: float,
             "strike": strike,
             "exp": str(e.get("expiry", "")),
             "dte": None,
-            "score": min(99, max(50, int(abs(mag) / 1e6) + 50)),
+            "score": score,
             "est_entry": None,
             "premium": None,
             "notional": None,
@@ -233,19 +358,28 @@ def events_to_alerts(ticker: str, spot: float,
 
 
 def evaluate_ticker(ticker: str, grid_payload: dict | None, spot: float,
-                    threshold_pct: float = 0.25) -> list[dict[str, Any]]:
+                    threshold_pct: float = 0.25,
+                    vpin_state: dict | None = None,
+                    flip_level: float | None = None,
+                    liquidity_state: dict | None = None) -> list[dict[str, Any]]:
     """Diff one ticker's grid vs its last snapshot; cache and return alerts.
 
     Fail-open by contract: any error returns [] (callers must never let
     exposure evaluation break the heatmap response). First sight emits
     "formed" events only (documented baseline behavior, not a bug).
+    vpin_state (optional): {"vpin", "cdf", "n_buckets"} — toxic-flow gate.
+    flip_level (optional): gamma-flip price — proximity gate.
+    liquidity_state (optional): {"kyle_label", "amihud_label", ...} — stress gate.
     """
     try:
         sym = (ticker or "").strip().upper()
         if not sym or not grid_payload:
             return []
         old = _LAST_GRIDS.get(sym)
-        events = evaluate_exposure_events(grid_payload, old, threshold_pct)
+        events = evaluate_exposure_events(grid_payload, old, threshold_pct,
+                                          vpin_state=vpin_state, spot=spot,
+                                          flip_level=flip_level,
+                                          liquidity_state=liquidity_state)
         _LAST_GRIDS[sym] = {
             "vex_grid": grid_payload.get("vex_grid") or {},
             "charm_grid": grid_payload.get("charm_grid") or {},

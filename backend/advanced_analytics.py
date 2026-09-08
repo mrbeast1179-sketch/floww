@@ -20,6 +20,11 @@ import numpy as np
 from bs_greeks import bs_call_price, bs_charm, bs_gamma, bs_vanna
 from domain.greek_scalers import dollar_vex_per_1pct_spot_move
 
+try:
+    from services.numba_greeks import bs_charm_vec
+except ImportError:  # pragma: no cover - numba optional in some envs
+    bs_charm_vec = None  # type: ignore[assignment]
+
 
 def safe_float(v, default=0.0):
     """Safely convert a value to float, handling None and NaN."""
@@ -578,9 +583,52 @@ def calc_charm_integral(spot: float, contracts: list[dict[str, Any]],
 
     minutes_remaining = days_remaining * 390  # trading minutes
 
-    # Total charm exposure
+    # Total charm exposure — vectorized numba path for plain-numeric rows
+    # (identical math to bs_charm, per-day output rescaled ×365; pinned by
+    # test_charm_vec_wiring.py), scalar fallback for anything exotic.
     total_charm = 0.0
-    for c in contracts:
+    vec_rows: list[int] = []
+    if bs_charm_vec is not None:
+        import numpy as _np
+
+        _K, _T, _V, _Oi, _Sgn, _Idx = [], [], [], [], [], []
+        for _i, _c in enumerate(contracts):
+            _oi = _c.get("oi", 0) or 0
+            if not (isinstance(_oi, (int, float)) and not isinstance(_oi, bool)
+                    and _oi > 0 and math.isfinite(_oi)):
+                continue
+            _st, _tt, _vv = _c.get("strike"), _c.get("T"), _c.get("iv")
+            if not all(isinstance(_v, (int, float)) and not isinstance(_v, bool)
+                       and math.isfinite(_v) for _v in (_st, _tt, _vv)):
+                continue
+            _K.append(_st)
+            _T.append(_tt)
+            _V.append(_vv)
+            _Oi.append(_oi)
+            _Sgn.append(1.0 if _c.get("type") == "call" else -1.0)
+            _Idx.append(_i)
+        if _K:
+            # calls (kind 0) and puts (kind 1) need separate passes
+            _out = _np.zeros(len(_K))
+            for _kind, _want in ((0, "call"), (1, "put")):
+                _ii = [j for j, _jj in enumerate(_Idx)
+                       if contracts[_jj].get("type") == _want]
+                if not _ii:
+                    continue
+                _ia = _np.array(_ii)
+                _out[_ia] = bs_charm_vec(
+                    float(spot), _np.array(_K)[_ia], _np.array(_T)[_ia],
+                    _np.array(_V)[_ia], q, _kind)
+            for _j, _jj in enumerate(_Idx):
+                _charm = float(_out[_j]) * 365.0
+                if math.isnan(_charm) or math.isinf(_charm):
+                    continue
+                total_charm += _Sgn[_j] * _charm * _Oi[_j] * 100.0 * spot * 0.01
+                vec_rows.append(_jj)
+    vec_done = set(vec_rows)
+    for _i, c in enumerate(contracts):
+        if _i in vec_done:
+            continue
         oi = c.get("oi", 0) or 0
         if oi <= 0 or math.isnan(oi) or math.isinf(oi):
             continue
