@@ -15,7 +15,7 @@ produce it, (c) whether the frontend has any UI rendering for it on main.
 | MOMENTUM_EXTREME | HIGH | YES — score > 80 or < 20 (lines 191, 199) | alert_engine | NO |
 | WALL_BREACH | MEDIUM | YES — call/put wall cross (lines 212, 224) | alert_engine | NO |
 | GEX_MAGNITUDE_SHIFT | MEDIUM | YES — total GEX change > 40% (line 236) | alert_engine | NO |
-| GAMMA_FLIP_PROXIMITY | MEDIUM | YES — within 0.3% of flip, no GAMMA_FLIP already fired (line 122) | alert_engine | NO (distinct from GAMMA_FLIP; do NOT conflate) |
+| GAMMA_FLIP_PROXIMITY | MEDIUM | YES — within 0.3% of flip, no GAMMA_FLIP already fired (line 252) | alert_engine | NO (distinct from GAMMA_FLIP; do NOT conflate) |
 | PIN_RISK | LOW | YES — within 0.2% of max gamma strike (line 263) | alert_engine | NO (distinct from CHARM_PIN; do NOT conflate) |
 | CHARM_PINNING | HIGH | YES — _detect_charm_pinning (line 383) | alert_engine | NO (0DTE charm; distinct from exposure CHARM_PIN; do NOT conflate) |
 | VANNA_REGIME_CHANGE | HIGH | YES — _detect_vanna_regime_change (line 404) | alert_engine | NO |
