@@ -940,6 +940,25 @@ async def build_heatmap(ticker: str, max_expiries: int = 4, with_taps: bool = Tr
                 "error": str(e)}
 
 
+MIN_GRID_STRIKES = 8  # sparse-grid floor: thin names keep a usable grid
+
+
+def _top_up_strike_set(shown: set, full_ordered: list, min_n: int) -> set:
+    """Top a band-filtered strike set back up to `min_n` with the nearest-by-
+    distance listed strikes (same ordering the max_strikes cap uses). Returns
+    a set of strike values already present in the analytics inputs — callers
+    filter their rows by it, so every shown row carries full data. Real rows
+    only, never fabricated (H1). `full_ordered` is strike values nearest-first."""
+    if len(shown) >= min_n:
+        return set(shown)
+    kept = set(shown)
+    for strike in full_ordered:
+        if len(kept) >= min_n:
+            break
+        kept.add(strike)
+    return kept
+
+
 async def _build_heatmap_impl(ticker: str, max_expiries: int = 4, with_taps: bool = True, mode: str = "day", dte: int | None = None, scalp: bool = False, max_strikes: int = 200) -> dict[str, Any]:
     log.info(f"build_heatmap: {ticker} expiries={max_expiries} mode={mode} max_strikes={max_strikes}")
     # Check cache first
@@ -1148,10 +1167,20 @@ async def _build_heatmap_impl(ticker: str, max_expiries: int = 4, with_taps: boo
         else:
             band = base_band
 
-    strikes = [s for s in strikes if abs(s["strike"] - spot) / spot <= band]
+    # Band + sparse-grid floor. Banding computes SETS (never rebinds the row
+    # lists first): rebinding would destroy dropped rows and the floor could
+    # never restore them. Floor tops the band set back up to MIN_GRID_STRIKES
+    # with the nearest listed strikes (KYTX: band left 3 of 8), then rows are
+    # filtered by the topped-up set — every shown row keeps full analytics
+    # data. Real rows only, never fabricated (H1).
+    band_set = {s["strike"] for s in strikes if abs(s["strike"] - spot) / spot <= band}
+    full_ordered = sorted({(c.get("strike") or 0) for c in raw.get("contracts", [])},
+                          key=lambda s: abs(s - spot))
+    kept = _top_up_strike_set(band_set, full_ordered, MIN_GRID_STRIKES)
+    strikes = [s for s in strikes if s["strike"] in kept]
     if not scalp:
-        grid["strikes"] = [k for k in grid["strikes"] if abs(k - spot) / spot <= band]
-        grid["strike_totals"] = [s for s in grid["strike_totals"] if abs(s["strike"] - spot) / spot <= band]
+        grid["strikes"] = [k for k in grid["strikes"] if k in kept]
+        grid["strike_totals"] = [s for s in grid["strike_totals"] if s["strike"] in kept]
 
     # Tag fresh/tested via tap counts
     tap_map: dict[float, int] = {}

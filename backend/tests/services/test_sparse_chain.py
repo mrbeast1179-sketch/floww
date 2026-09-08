@@ -161,6 +161,24 @@ def test_result_strikes_subset_of_vendor_rows(monkeypatch):
     assert {s["strike"] for s in out["strikes"]} <= vendor_strikes
 
 
+def test_top_up_unit():
+    from server import MIN_GRID_STRIKES, _top_up_strike_set
+    assert MIN_GRID_STRIKES == 8
+    full = [7.5, 10.0, 5.0, 12.5, 2.5, 15.0, 17.5, 20.0, 22.5]
+    assert _top_up_strike_set({7.5, 10.0, 5.0}, full, 8) == set(full[:8])
+    assert _top_up_strike_set(set(full[:8]), full, 8) == set(full[:8])
+    assert _top_up_strike_set(set(), [], 8) == set()
+
+
+def test_floor_shows_all_listed_for_thin_name():
+    """KYTX: band left 3 of 8 listed; floor restores all 8 with full data."""
+    payload = _payload("KYTX_F", 8.32, [2.5, 5.0, 7.5, 10.0, 12.5, 15.0, 17.5, 20.0])
+    out = _run_impl("KYTX_F", AsyncMock(return_value=payload))
+    got = sorted(s["strike"] for s in out["strikes"])
+    assert got == [2.5, 5.0, 7.5, 10.0, 12.5, 15.0, 17.5, 20.0]
+    assert all("gex" in s for s in out["strikes"]), "every shown row carries analytics"
+
+
 def test_cvserver_cap_refuses_over_quota():
     now = time.time()
     cvmod._req_log.extend([now - 60 * i for i in range(20)])
