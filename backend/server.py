@@ -1027,6 +1027,51 @@ async def _build_heatmap_impl(ticker: str, max_expiries: int = 4, with_taps: boo
         except Exception as e:
             log.error(f"fetch_spot_and_chains_merged failed for {ticker}: {e}")
             raise HTTPException(404, f"No options data for {ticker}") from e
+
+    # Sparse-chain strategy (Public-first; cvserver strictly budgeted):
+    # small caps often return only a handful of strikes per expiry. Deepen
+    # with Public (unlimited) first; enrich from cvserver (20/hr cap, 1 call)
+    # only if still sparse. Real vendor rows only — never fabricated strikes
+    # (H1: test_strike_truth_h1.py bans synthetic row generators on main).
+    if max_expiries < 8 and ticker.upper() not in ("^SPX", "^NDX", "^RUT", "^VIX") and raw is not None:
+        unique_after = len({c.get("strike") for c in raw.get("contracts", [])})
+        if unique_after < 40 and raw.get("spot", 0) > 0:
+            log.info(f"build_heatmap: sparse chain ({unique_after} strikes) — re-fetching with 8 expiries")
+            try:
+                deeper = await asyncio.wait_for(
+                    fetch_spot_and_chains_merged(ticker, max_expiries=8),
+                    timeout=30.0,
+                )
+                if deeper and deeper.get("contracts") and deeper.get("spot", 0) > 0:
+                    deeper_unique = len({c.get("strike") for c in deeper["contracts"]})
+                    if deeper_unique > unique_after:
+                        raw = deeper
+                        log.info(f"build_heatmap: deepened chain for {ticker} — {deeper_unique} unique strikes (was {unique_after})")
+            except Exception as e:
+                log.debug(f"build_heatmap: deeper fetch failed for {ticker}: {e}")
+    unique_strikes = len({c.get("strike") for c in raw.get("contracts", [])})
+    SPARSE_STRIKE_THRESHOLD = 30
+    if unique_strikes < SPARSE_STRIKE_THRESHOLD and ticker.upper() not in ("^SPX", "^NDX", "^RUT", "^VIX"):
+        from services.cvserver_client import CVSERVER_API_KEY, fetch_chain_from_cvserver
+        if CVSERVER_API_KEY and raw.get("spot", 0) > 0:
+            log.info(f"build_heatmap: Public chain sparse ({unique_strikes} strikes for {ticker}) — enriching from cvserver full chain")
+            try:
+                cv_data = await asyncio.wait_for(
+                    fetch_chain_from_cvserver(ticker, max_expiries=max_expiries),
+                    timeout=15.0,
+                )
+                if cv_data and cv_data.get("contracts") and cv_data.get("spot", 0) > 0:
+                    cv_unique = len({c.get("strike") for c in cv_data["contracts"]})
+                    if cv_unique > unique_strikes:
+                        raw = {
+                            "spot": cv_data["spot"],
+                            "contracts": cv_data["contracts"],
+                            "expiries": cv_data.get("expiries", raw.get("expiries", [])),
+                            "data_source": "cvserver",
+                        }
+                        log.info(f"build_heatmap: cvserver full-chain enrichment for {ticker} — {len(raw['contracts'])} contracts, {cv_unique} unique strikes")
+            except Exception as e:
+                log.debug(f"build_heatmap: cvserver enrichment failed for {ticker}: {e}")
     spot = raw["spot"]
     if not spot or spot != spot or not raw["contracts"]:  # spot != spot catches NaN
         raise HTTPException(404, f"No options data for {ticker}")
