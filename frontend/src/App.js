@@ -54,6 +54,7 @@ import AppShell from "./shell/AppShell";
 import { useTheme } from "./context/ThemeContext";
 import { autoDecimate } from "./utils/dataDecimator";
 import { PAGE_NAMES } from "./shell/navConfig";
+import { buildTickerUniverse, normalizeTicker } from "./components/heatseeker/tickerUniverse";
 
 import ToxicityGauge from "./components/ToxicityGauge";
 import ErrorBoundary from "./components/ErrorBoundary";
@@ -124,12 +125,19 @@ function Movers({ onPick }) {
 // ============ Nodes Table ============
 // ============ Ticker Search ============
 // Open universe (2026-09-03, Nav-approved): Enter submits free text — any
-// symbol, not just the suggestion list. Backend accepts arbitrary tickers.
+// symbol, not just the suggestion list. For the suggestion popover we render
+// from the same deduped universe the ticker bar and arrows use, so the header
+// suggestions, bar buttons, count, and arrow order are one contract.
 function TickerSearch({ tickers, value, onChange }) {
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState("");
   const ref = useRef();
-  const filtered = (tickers || []).filter(t => !q || t.toLowerCase().includes(q.toLowerCase())).slice(0, 12);
+  const universe = useMemo(() => buildTickerUniverse(tickers), [tickers]);
+  const filtered = useMemo(() => {
+    if (!q) return universe.slice(0, 12);
+    const ql = q.toLowerCase();
+    return universe.filter(t => t.toLowerCase().includes(ql)).slice(0, 12);
+  }, [universe, q]);
   const submitFreeText = () => {
     const t = q.trim().toUpperCase().replace(/^\$/, "");
     if (t) { onChange(t); setOpen(false); setQ(""); }
@@ -186,7 +194,7 @@ function ApHeader({ page, ticker, onTickerChange, tickers, data, onSignOut, user
           {/* Ticker search for relevant pages */}
           {tickers && (page === "heatseeker" || page === "trinity" || page === "skylit" || page === "ticker-analysis") && (
             <TickerSearch
-              tickers={[...(tickers.trinity || []), ...(tickers.default || []), ...(tickers.popular || [])]}
+              tickers={buildTickerUniverse(tickers)}
               value={ticker}
               onChange={onTickerChange}
             />
@@ -664,17 +672,29 @@ export default function App() {
         case "ArrowUp":
           e.preventDefault();
           if (tickers) {
-            const all = [...(tickers.trinity || []), ...(tickers.default || []), ...(tickers.popular || [])];
-            const idx = all.indexOf(ticker);
-            if (idx > 0) setTicker(all[idx - 1]);
+            const all = buildTickerUniverse(tickers);
+            if (all.length > 0) {
+              setTicker(prev => {
+                const current = normalizeTicker(prev);
+                const idx = all.indexOf(current);
+                if (idx === -1) return all[all.length - 1];
+                return idx > 0 ? all[idx - 1] : all[all.length - 1];
+              });
+            }
           }
           break;
         case "ArrowDown":
           e.preventDefault();
           if (tickers) {
-            const all = [...(tickers.trinity || []), ...(tickers.default || []), ...(tickers.popular || [])];
-            const idx = all.indexOf(ticker);
-            if (idx < all.length - 1) setTicker(all[idx + 1]);
+            const all = buildTickerUniverse(tickers);
+            if (all.length > 0) {
+              setTicker(prev => {
+                const current = normalizeTicker(prev);
+                const idx = all.indexOf(current);
+                if (idx === -1) return all[0];
+                return idx < all.length - 1 ? all[idx + 1] : all[0];
+              });
+            }
           }
           break;
         default: break;
