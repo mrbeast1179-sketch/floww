@@ -34,7 +34,7 @@ Rules:
 
 Verification before use:
 - `git fetch origin`
-- `origin/main` was `e62acab` (take-over loop landed 7 PRs, zero open PRs)
+- `origin/main` was `7ce10f6` (take-over loops landed 10 PRs, zero open PRs)
 - No ungated builder work remains — see RECOVERY-QUEUE.md remaining table;
   do not invent work to look busy
 - `phase9/g1-reads-witness` dirt predates this program — NOT your lease

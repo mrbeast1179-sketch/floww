@@ -6,9 +6,11 @@ proprietary-data frontier.
 
 ## CLOSED as a merge queue (2026-09-08)
 
-Main is `e62acab`. Merged, in order: PR28 (D7 parity), PR34 (H1 fixture),
+Main is `7ce10f6`. Merged, in order: PR28 (D7 parity), PR34 (H1 fixture),
 PR33 (T1-only), PR35 (F0 wave + clock fix), PR36 (H2-partial), PR38 (dead-code
-removal + kanban datetime fix), PR37 (GEX date-string fix). Zero open PRs.
+removal + kanban datetime fix), PR37 (GEX date-string fix), PR39 (provider
+cap + deepen + enrich, merged by Nav), PR40 (honesty labels), PR41 (strike
+floor). Zero open PRs.
 6 superseded branches deleted after patch-id proof (product identical to main;
 docs in archive). Every merge verified: green required CI on the merged head +
 local reproduction where applicable. Full receipt trail in GSD-PASSES.md

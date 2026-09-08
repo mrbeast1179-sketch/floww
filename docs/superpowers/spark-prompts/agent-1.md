@@ -59,7 +59,7 @@ Owners and gates you must respect:
 - GSD-8 stays BLOCKED until the X-credit gate is resolved.
 
 Current Git truth you must reconcile at boot (re-fetch; heads move fast now):
-- `origin/main` = e62acab (take-over loop landed PR28/34/33/35/36/38/37).
+- `origin/main` = 7ce10f6 (take-over loops landed PR28/34/33/35/36/38/37/39/40/41).
   ZERO open PRs (PR32 closed superseded; 6 stale branches pruned).
 - No executable builder work remains ungated. Next work needs Nav: O-2/O-4/O-5
   specs, P2 upgrades, P6/P7, Azure deploy credentials, App.js standing waiver,
