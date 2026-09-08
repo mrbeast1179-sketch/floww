@@ -5,7 +5,7 @@ requests-oauthlib>=2.0.0
 cryptography>=42.0.8
 python-dotenv>=1.0.1
 pymongo==4.6.3
-starlette==0.40.0
+starlette==0.37.2
 pydantic>=2.6.4
 email-validator>=2.2.0
 pyjwt>=2.10.1
