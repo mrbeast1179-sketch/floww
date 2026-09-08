@@ -260,13 +260,13 @@ class GexAggregator:
             try:
                 return float(s)
             except (ValueError, TypeError):
-                pass
+                pass  # silent by design: non-numeric string, try date parse next
             try:
                 exp_d = datetime.strptime(s[:10], "%Y-%m-%d").date()
                 days = (exp_d - date.today()).days
                 return max(days, 0) / 365.0
             except (ValueError, TypeError):
-                pass
+                pass  # silent by design: not a date string, try T key next
         if contract:
             t_val = contract.get("T", contract.get("time_to_expiry"))
             if isinstance(t_val, (int, float, np.integer, np.floating)) and not isinstance(t_val, bool):
@@ -275,7 +275,7 @@ class GexAggregator:
                 try:
                     return float(t_val.strip())
                 except (ValueError, TypeError, AttributeError):
-                    pass
+                    pass  # silent by design: unparseable expiry degrades to 0.0 (unknown)
         return 0.0
 
     @staticmethod
