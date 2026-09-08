@@ -1,4 +1,4 @@
-# Recovery queue v2 — current state (main 04605df)
+# Recovery queue v2 — current state (main 56cfff2)
 
 `QUEUE.md` retains the full P1–P7, D1–D7, X1–X5, and E1–E5 contracts. This
 file tracks current candidate heads and the live backlog. Status is evidence-based
@@ -154,7 +154,7 @@ cleared; deepen + enrich both fired per logs).
 - PR41 MERGED (strike floor; KYTX live-validated 8 strikes).
 - 61-ref archaeology: 6 superseded branches deleted after patch-id proof;
   G3 + swarm-sizing rescue backlogs specced (evidence/DEEP-SWEEP-2026-09-08.md).
-- Baselines @ `dea655a`: backend 5048, frontend 62/479, ruff clean.
+- Baselines @ `56cfff2`: backend 5048, frontend 62/479, ruff clean.
 
 ## Take-over loop 3 — honesty + G3 (2026-09-08)
 
