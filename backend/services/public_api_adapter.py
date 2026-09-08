@@ -19,6 +19,7 @@ Routing priority (in fetch_spot_and_chains_merged):
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import logging
 import math
 import os
@@ -26,9 +27,23 @@ import time
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
+from services import public_budget as _public_budget
 from services.public_api import PublicBroker
 
 log = logging.getLogger(__name__)
+
+
+def _finite(x: Any, default: Any = None) -> Any:
+    """D4: pass through finite values; map NaN/Infinity (float or string)
+    to `default`. Unknown stays unknown — never a fabricated number."""
+    if x is None or isinstance(x, bool):
+        return x if x is None else default
+    if isinstance(x, (int, float)):
+        return x if math.isfinite(x) else default
+    try:
+        return default if not math.isfinite(float(x)) else x
+    except (TypeError, ValueError):
+        return x
 
 BROKER: PublicBroker | None = None
 _BROKER_LOCK = asyncio.Lock()
@@ -304,14 +319,31 @@ async def fetch_chain_from_public_api(
         hit = _CHAIN_CACHE.get(key)
         if hit is not None and hit[1] is pb and now - hit[0] < _CHAIN_CACHE_TTL:
             return _cached_copy(hit[2], stale=False)
-        result = await _fetch_chain_live(pb, ticker, max_expiries)
+        # C8: debit the fan-out (2+N upstream calls) before any Public
+        # call. All-or-nothing: refusal spends zero and returns None.
+        # The in-flight slot releases when this attempt settles.
+        # Module-attribute access keeps the budget singleton patchable.
+        try:
+            await _public_budget.budget.acquire_n(2 + max_expiries)
+            _debit_held = True
+        except _public_budget.BudgetExhausted as exc:
+            log.warning("Public budget refused %s chain fetch: %s", ticker, exc)
+            return None
+        except Exception:
+            _debit_held = False
+        # D5: the success timestamp is the request start, so a stale
+        # in-flight success cannot erase a sibling's fresher 429 contract.
+        _fetch_t0 = time.monotonic()
+        try:
+            result = await _fetch_chain_live(pb, ticker, max_expiries)
+        finally:
+            if _debit_held:
+                with contextlib.suppress(Exception):
+                    _public_budget.budget.release()
         if result is not None:
             result["stale"] = False
-            try:
-                from services.public_budget import budget as _pub_budget
-                _pub_budget.record_ok("api.public.com")
-            except Exception:
-                pass
+            with contextlib.suppress(Exception):
+                _public_budget.budget.record_ok("api.public.com", now=_fetch_t0)
             if len(_CHAIN_CACHE) >= _CHAIN_CACHE_MAX:
                 _CHAIN_CACHE.pop(next(iter(_CHAIN_CACHE)))
             _CHAIN_CACHE[key] = (time.monotonic(), pb, result)
@@ -386,19 +418,21 @@ async def _fetch_chain_live(
         log.warning("Public API quote fail for %s: %s", ticker, e)
         return None
 
-    # 3. Fetch chain for each expiry (up to max_expiries)
+    # 3. Fetch chain for each expiry (up to max_expiries). Only expiries
+    # that actually return data are reported (D4: requested vs returned
+    # coverage distinguished). Expired contracts are dropped; 0DTE kept.
     contracts: list[dict[str, Any]] = []
     exp_dates = []
     today = datetime.now(UTC).date()
 
     for exp in expiries[:max_expiries]:
-        exp_dates.append(exp)
         try:
             parsed = await pb.get_option_chain_parsed(symbol, exp, account_id)
         except Exception as e:
             _note_public_429(e)
             log.warning("Public API chain fail for %s %s: %s", ticker, exp, e)
             continue
+        exp_dates.append(exp)
 
         for side in ("calls", "puts"):
             for oc in parsed.get(side, []):
@@ -406,11 +440,16 @@ async def _fetch_chain_live(
                     exp_d = datetime.strptime(oc.expiration, "%Y-%m-%d").date()
                 except (ValueError, TypeError):
                     continue
+                if exp_d < today:  # D4: expired listing, not a position
+                    continue
                 T = max((exp_d - today).days, 1) / 365.0
                 # NBBO mid from the paid feed — the executable-reference price.
                 # Downstream side inference (last vs mid) and premium math must
                 # use this instead of BS estimates whenever it exists.
-                mid = oc.mid
+                mid = _finite(oc.mid)
+                strike = _finite(oc.strike)
+                if strike is None or strike <= 0:  # D4: unusable contract
+                    continue
                 contracts.append({
                     "osi": oc.symbol,  # OSI symbol for order placement (e.g. SPY260904C00760000)
                     "expiry": oc.expiration,
@@ -419,20 +458,20 @@ async def _fetch_chain_live(
                     # gex_core.py and analytics.py compare c["type"] == "call"
                     # exactly — uppercase here would flip every GEX sign.
                     "type": "call" if side == "calls" else "put",
-                    "strike": oc.strike,
-                    "oi": oc.open_interest or 0,
-                    "iv": oc.iv or 0.0,
-                    "delta": oc.delta,
-                    "gamma": oc.gamma,
-                    "theta": oc.theta,
-                    "vega": oc.vega,
-                    "bid": oc.bid,
-                    "ask": oc.ask,
+                    "strike": strike,
+                    "oi": _finite(oc.open_interest, 0),
+                    "iv": _finite(oc.iv, 0.0),
+                    "delta": _finite(oc.delta),
+                    "gamma": _finite(oc.gamma),
+                    "theta": _finite(oc.theta),
+                    "vega": _finite(oc.vega),
+                    "bid": _finite(oc.bid),
+                    "ask": _finite(oc.ask),
                     "mid": mid,
-                    "last": oc.last,
-                    "bid_size": oc.bid_size,
-                    "ask_size": oc.ask_size,
-                    "volume": oc.volume or 0,
+                    "last": _finite(oc.last),
+                    "bid_size": _finite(oc.bid_size),
+                    "ask_size": _finite(oc.ask_size),
+                    "volume": _finite(oc.volume, 0),
                     "oi_source": "public_api",
                 })
 

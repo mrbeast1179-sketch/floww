@@ -18,6 +18,18 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 _BACKEND = os.path.join(os.path.dirname(__file__), "..", "..")
+
+
+@pytest.fixture(autouse=True)
+def _isolated_public_budget_singleton():
+    # D1: the adapter debits the shared budget singleton per C8, so each
+    # test starts from a full bucket; otherwise module order decides
+    # who exhausts whom.
+    from services.public_budget import budget
+
+    budget.reset()
+    yield
+    budget.reset()
 if _BACKEND not in sys.path:
     sys.path.insert(0, _BACKEND)
 

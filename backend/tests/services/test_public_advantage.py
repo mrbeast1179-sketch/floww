@@ -22,13 +22,25 @@ import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".."))
 
+
+@pytest.fixture(autouse=True)
+def _isolated_public_budget_singleton():
+    # D1: the adapter debits the shared budget singleton per C8, so each
+    # test starts from a full bucket; otherwise module order decides
+    # who exhausts whom.
+    from services.public_budget import budget
+
+    budget.reset()
+    yield
+    budget.reset()
+
 from tests.services.test_flow_alerts import _future_exp, _raw  # noqa: E402
 
 # ── adapter quote-truth ─────────────────────────────────────────────
 
 def _mock_oc(**over):
     base = dict(
-        symbol="SPY260904C00760000", expiration="2026-09-04", strike=760.0,
+        symbol="SPY260911C00760000", expiration="2026-09-11", strike=760.0,
         open_interest=1200, iv=0.25, delta=0.4, gamma=0.01, theta=-0.5,
         vega=0.3, bid=2.5, ask=2.7, volume=800,
         last=2.65, bid_size=40, ask_size=35,
@@ -47,7 +59,7 @@ async def test_adapter_preserves_last_mid_and_sizes():
 
     broker = MagicMock()
     broker.get_trading_account.return_value = MagicMock(account_id="acct")
-    broker.get_option_expirations = AsyncMock(return_value=["2026-09-04"])
+    broker.get_option_expirations = AsyncMock(return_value=["2026-09-11"])
     broker.get_quotes = AsyncMock(return_value=[MagicMock(mid_price=760.0, last=760.5)])
     broker.get_option_chain_parsed = AsyncMock(
         return_value={"calls": [_mock_oc()], "puts": []}
@@ -862,27 +874,19 @@ def test_peek_available_honors_idle_refill():
 
 
 @pytest.mark.asyncio
-async def test_scan_slice_skips_ticker_on_refused_debit(monkeypatch):
+async def test_scan_slice_maps_refused_fetch_to_empty_rows(monkeypatch):
+    # D2: admission lives in the adapter (C8 choke point). A budget
+    # refusal there surfaces as chain None -> empty rows; the scanner
+    # performs no acquisition of its own (no double debit) and the
+    # caller keeps the prior slice.
     import services.public_scanner as ps
-    from services.public_budget import BudgetExhausted
 
-    class DeadBudget:
-        async def acquire(self, host="public"):
-            return None
+    async def refused(ticker, max_expiries=2):
+        return None
 
-        async def acquire_n(self, n, host="public", now=None):
-            raise BudgetExhausted(retry_after=9, reason="token_bucket")
-
-        def release(self):
-            return None
-
-    async def boom(ticker, max_expiries=2):  # pragma: no cover
-        raise AssertionError("fetch must not run without budget")
-
-    monkeypatch.setattr("services.public_budget.budget", DeadBudget())
-    monkeypatch.setattr("services.public_api_adapter.fetch_chain_from_public_api", boom)
+    monkeypatch.setattr("services.public_api_adapter.fetch_chain_from_public_api", refused)
     out = await ps.scan_slice(["SPY"], max_expiries=2)
-    assert out["SPY"]["rows"] == [] and out["SPY"]["skipped"] == "budget"
+    assert out["SPY"]["rows"] == [] and "skipped" not in out["SPY"]
 
 
 @pytest.mark.asyncio

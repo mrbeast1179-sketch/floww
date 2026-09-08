@@ -72,6 +72,7 @@ class PublicBudget:
         self._inflight = 0
         self._cooldowns: dict[str, float] = {}
         self._cooldown_hits: dict[str, int] = {}
+        self._cool_set_at: dict[str, float] = {}
         self._guard = asyncio.Lock()
         self._last = time.monotonic()
         self.total_ok = 0
@@ -135,11 +136,19 @@ class PublicBudget:
             self._refill_locked(now)
             return self._tokens
 
-    def record_ok(self, host: str = "public") -> None:
-        """A success clears any cooldown for the host."""
+    def record_ok(self, host: str = "public", now: float | None = None) -> None:
+        """A success clears any cooldown for the host — unless the success
+        reflects lane state older than the 429 sighting (D5: a stale
+        in-flight success finishing after a sibling's fresh 429 must not
+        erase the still-active contract). Pass the request-start time as
+        `now`; defaults to the current clock (sequential flow unchanged).
+        """
+        now = time.monotonic() if now is None else now
         self.total_ok += 1
-        self._cooldowns.pop(host, None)
-        self._cooldown_hits.pop(host, None)
+        if self._cool_set_at.get(host, 0.0) <= now:
+            self._cooldowns.pop(host, None)
+            self._cool_set_at.pop(host, None)
+            self._cooldown_hits.pop(host, None)
 
     def record_error(self, host: str = "public") -> int:
         """Record a non-429 upstream failure (transport/timeout/connect).
@@ -168,8 +177,28 @@ class PublicBudget:
         if len(self._cooldowns) >= CACHE_MAX_HOSTS:
             self._cooldowns.pop(next(iter(self._cooldowns)))
         self._cooldowns[host] = now + applied
+        self._cool_set_at[host] = now
         logger.warning("Public-path 429 on %s — cooling down %ss", host, applied)
         return applied
+
+    def reset(self, now: float | None = None) -> None:
+        """Restore a full bucket: tokens, slots, cooldowns, counters.
+
+        Test isolation only — production never calls this (the singleton
+        is the shared quota). Without it, modules sharing the singleton
+        exhaust each other's tokens and order-dependence follows.
+        """
+        now = time.monotonic() if now is None else now
+        self._tokens = float(self._capacity)
+        self._inflight = 0
+        self._cooldowns.clear()
+        self._cooldown_hits.clear()
+        self._cool_set_at.clear()
+        self.total_ok = 0
+        self.total_limited = 0
+        self.total_429 = 0
+        self.total_errors = 0
+        self._last = now
 
     def status(self, now: float | None = None) -> dict[str, Any]:
         """Observability snapshot (admin endpoint shape)."""
