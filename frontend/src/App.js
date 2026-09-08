@@ -53,8 +53,9 @@ import PWAInstallBanner from "./components/PWAInstallBanner";
 import AppShell from "./shell/AppShell";
 import { useTheme } from "./context/ThemeContext";
 import { autoDecimate } from "./utils/dataDecimator";
+import { mutatingHeaders } from "./utils/appKey";
 import { PAGE_NAMES } from "./shell/navConfig";
-import { buildTickerUniverse, normalizeTicker } from "./components/heatseeker/tickerUniverse";
+import { buildTickerUniverse, fetchFullUniverse, normalizeTicker } from "./components/heatseeker/tickerUniverse";
 
 import ToxicityGauge from "./components/ToxicityGauge";
 import ErrorBoundary from "./components/ErrorBoundary";
@@ -529,8 +530,31 @@ export default function App() {
   const debouncedExpiries = useDebounce(expiries, 300);
   const debouncedDte = useDebounce(dte, 300);
 
-  // Fetch tickers
-  useEffect(() => { axios.get(`${API}/tickers`).then(r => setTickers(r.data)).catch(() => {}); }, []);
+  // Fetch tickers: featured sets first, then the full listed universe page by
+  // page (T2) so the scroller/search/arrows traverse every tradable name, not
+  // just featured ones. Same {trinity, default, popular} shape is retained —
+  // the full list rides in `popular` and the shared universe helper dedups.
+  useEffect(() => {
+    let on = true;
+    (async () => {
+      let base = null;
+      try {
+        const r = await axios.get(`${API}/tickers`);
+        base = r.data || null;
+        if (on && base) setTickers(base);
+      } catch (_) { /* offline: leave prior tickers */ }
+      try {
+        const full = await fetchFullUniverse((u) => axios.get(u), API);
+        if (!on || full.symbols.length === 0) return;
+        setTickers({
+          trinity: (base && base.trinity) || [],
+          default: (base && base.default) || [],
+          popular: full.symbols,
+        });
+      } catch (_) { /* full list failed: featured sets already set */ }
+    })();
+    return () => { on = false; };
+  }, []);
 
   // Flowseeker signal cards dispatch this to focus the desk ticker.
   useEffect(() => {
@@ -807,6 +831,10 @@ export default function App() {
                     });
                     const resp = await fetch(`${API}/alpaca/order/option?${q}`, {
                       method: "POST",
+                      // App key header: auth middleware 401s every mutating
+                      // call without it (orders failed from birth). Prompted
+                      // once, stored in this browser only (utils/appKey).
+                      headers: mutatingHeaders() || undefined,
                     });
                     const result = await resp.json();
                     // Alpaca route returns HTTP 200 with an error body on
@@ -1209,6 +1237,10 @@ export default function App() {
                     });
                     const resp = await fetch(`${API}/alpaca/order/option?${q}`, {
                       method: "POST",
+                      // App key header: auth middleware 401s every mutating
+                      // call without it (orders failed from birth). Prompted
+                      // once, stored in this browser only (utils/appKey).
+                      headers: mutatingHeaders() || undefined,
                     });
                     const result = await resp.json();
                     // Same HTTP200-with-error guard as the Triad handler above.

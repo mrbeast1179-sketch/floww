@@ -11,6 +11,7 @@ import {
   buildTickerUniverse,
   searchUniverse,
   stepIndex,
+  fetchFullUniverse,
   RENDER_CAP,
 } from "./tickerUniverse";
 
@@ -101,4 +102,43 @@ test("empty search exposes a capped default view, not the full universe", () => 
   const res = searchUniverse(big, "", 12);
   expect(res.total).toBe(0);
   expect(res.matches).toEqual([]);
+});
+
+describe("fetchFullUniverse (T2 paged universe)", () => {
+  const pagesOf = (lists) => {
+    let i = 0;
+    const calls = [];
+    const get = async (url) => {
+      calls.push(url);
+      const batch = lists[Math.min(i, lists.length - 1)];
+      const last = i >= lists.length - 1;
+      i += 1;
+      return { data: { tickers: batch, total: 6000, has_more: !last } };
+    };
+    return { get, calls };
+  };
+
+  test("walks pages until has_more is false", async () => {
+    const { get, calls } = pagesOf([["A", "B"], ["C"]]);
+    const out = await fetchFullUniverse(get, "http://x/api");
+    expect(out.symbols).toEqual(["A", "B", "C"]);
+    expect(calls).toHaveLength(2);
+    expect(calls[0]).toContain("page=1");
+    expect(calls[1]).toContain("page=2");
+  });
+
+  test("stops on transport failure, keeping fetched rows", async () => {
+    const get = async (url) => {
+      if (url.includes("page=1")) return { data: { tickers: ["A"], total: 99, has_more: true } };
+      throw new Error("down");
+    };
+    const out = await fetchFullUniverse(get, "http://x/api");
+    expect(out.symbols).toEqual(["A"]);
+  });
+
+  test("empty on total failure", async () => {
+    const out = await fetchFullUniverse(async () => { throw new Error("down"); }, "http://x/api");
+    expect(out.symbols).toEqual([]);
+    expect(out.pages).toBe(0);
+  });
 });

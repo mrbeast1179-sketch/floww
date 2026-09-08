@@ -27,7 +27,10 @@ import logging
 import os
 from typing import Any
 
-import finnhub
+try:
+    import finnhub
+except ImportError:  # pragma: no cover - missing optional dependency
+    finnhub = None  # type: ignore[assignment]
 
 log = logging.getLogger(__name__)
 
@@ -44,7 +47,9 @@ class FinnhubClient:
         key = api_key or FINNHUB_API_KEY
         if not key:
             log.warning("Finnhub API key not set — methods will return None")
-        self._client = finnhub.Client(api_key=key) if key else None
+        if finnhub is None:
+            log.warning("finnhub package not installed — methods will return None")
+        self._client = finnhub.Client(api_key=key) if (key and finnhub is not None) else None
 
     # ------------------------------------------------------------------
     # Quote
@@ -221,3 +226,21 @@ class FinnhubClient:
         except Exception as e:
             log.error("Finnhub symbol_list failed: %s", e)
             return None
+
+    def symbols_us_equities(self) -> list[str] | None:
+        """Flat sorted deduped ticker strings. Thin wrapper over
+        ``all_symbols()`` for the ``/api/tickers/all`` endpoint (T2).
+        Returns ``None`` when Finnhub is not configured."""
+        full = self.all_symbols()
+        if not full:
+            return None
+        seen: set[str] = set()
+        out: list[str] = []
+        for s in full:
+            sym = (s.get("symbol") or "").strip().upper()
+            if not sym or sym in seen:
+                continue
+            seen.add(sym)
+            out.append(sym)
+        out.sort()
+        return out
