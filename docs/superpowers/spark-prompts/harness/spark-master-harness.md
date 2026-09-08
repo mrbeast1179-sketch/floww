@@ -26,12 +26,15 @@ Round 7's fabricated completion log is the floor you never touch.
 - `origin/main` = `56cfff2` (PR30/29/31/44 merged; PR29+31 in at e68bdb5, PR44 merged 2026-09-08T11:48:51Z; main has since advanced past e68bdb5).
 - Open: PR28 `18b10b5` (astra/d7-clean, policy-escalated, Nav-gated) and
   PR32 `c17fc61` (agent3/t1-scroller-fix-v2, review pending).
-- `astra/f0-honesty-backend` = `f880971`: 14 commits, local == remote, NOT merged.
++ `astra/f0-honesty-backend` = `f880971`: 14 commits, local == remote, NOT merged, rebase onto `56cfff2` advised before any merge call.
   Reflog shows normal post-rebase push — the old "force-push" claim was false.
   Test files were modified/added (+1083/-154), never deleted.
 - `agent3/t1-scroller-fix-v2` = `c17fc61`: 5 commits on `b5f9ae5`
   (`8e30a60`, `2b594ed`, `b646b11`, `f89d6ea`, `c17fc61`). Worktree
   `/Users/nav/Documents/GitHub/floww-worktrees/agent3-t1-scroller` clean.
+- `PR33` (T1-only split) = `1e9d033` MERGED into `56cfff2`; `PR34` (H1-test) = `573fe8c`
+  MERGED; `PR35` (F0-wave) = `f880971` MERGED; `PR36` (H2-partial) = `0a690a1` MERGED;
+  `PR44` (G3-salvage) = `bffa5deb` MERGED 2026-09-08T11:48:51Z.
 - Canonical `/Users/nav/Documents/GitHub/floww` @ `b5f9ae5` (`phase9/g1-reads-witness`)
   is dirty (App.js, SkylitTickerBar, .serena, 4 untracked .planning docs). Predates
   this program. NOT your lease. Never sweep it.
