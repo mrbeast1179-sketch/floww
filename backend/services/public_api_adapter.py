@@ -276,6 +276,21 @@ def _chain_lock(key: tuple[str, int]) -> asyncio.Lock:
     return lock
 
 
+def _chain_fanout_budget(key: tuple[str, int]) -> tuple[int, int]:
+    """Return (acquire_cost, max_inflight) for this (ticker, N) cache key.
+
+    O-1 (testability): the exact per-key fan-out cost is surfaced here so a
+    fake broker can prove cold/warm/concurrent totals without reaching the
+    real network or the real budget object.
+    """
+    # One cold fetch_chain_from_public_api(ticker, N) = 1 expirations call
+    # + 1 spot/quote call + N chain calls = 2 + N upstream Public calls.
+    # Cache key is (ticker.upper(), max_expiries) so N is the second commit
+    # component of the key; a different N is a different key and a separate
+    # cold fan-out.
+    return (2 + key[1], 1)
+
+
 def _clear_chain_cache() -> None:
     """Drop all cached chains (tests + admin use)."""
     _CHAIN_CACHE.clear()
@@ -285,6 +300,8 @@ def _cached_copy(entry: dict[str, Any], stale: bool) -> dict[str, Any]:
     out = dict(entry)
     out["contracts"] = list(entry.get("contracts", []))
     out["expiries"] = list(entry.get("expiries", []))
+    if "max_expiries" not in out:
+        out["max_expiries"] = entry.get("max_expiries")
     out["stale"] = stale
     return out
 
@@ -342,6 +359,7 @@ async def fetch_chain_from_public_api(
                     _public_budget.budget.release()
         if result is not None:
             result["stale"] = False
+            result["max_expiries"] = max_expiries  # H2: key metadata for cost envelope
             with contextlib.suppress(Exception):
                 _public_budget.budget.record_ok("api.public.com", now=_fetch_t0)
             if len(_CHAIN_CACHE) >= _CHAIN_CACHE_MAX:
