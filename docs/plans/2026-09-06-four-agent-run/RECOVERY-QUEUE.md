@@ -38,6 +38,7 @@ take-over section + lane receipts + evidence/DEEP-SWEEP-2026-09-08.md.
 ## Admission order
 
 All September 6-8 recovery work is merged. No active builder admissions.
+
 PR44 merged main 56cfff2 2026-09-08T11:48:51Z; witness gate (external G-WITNESS) is Nav/owner-gated, no Agent-4 merge authority.
 
 ### Agent 2 backlog (items 1–2 DONE via PR47; rest queued)
@@ -70,14 +71,28 @@ PR44 merged main 56cfff2 2026-09-08T11:48:51Z; witness gate (external G-WITNESS)
       unknowns; copy keeps proxy disclaimers (F5/F6/F11/F19 style — no
       invented precision, heuristic labels).
    b. `VEX_WALL` (+formed/broken), `CHARM_PIN` (+formed/shifted): same
-      treatment. (UI `vex` viewMode and `CHARM_PINNING` are DIFFERENT rules —\n      do not conflate; read both sides first.)
-   c. `GAMMA_FLIP_PROXIMITY`, `VOLUME_SPIKE` (alert_engine), `CLUSTER`\n      (flow_alerts): assess producer liveness first (fire them in tests?);\n      surface only live ones, report dead ones instead of wiring corpses.\n   d. Do NOT invent UI for `FOLLOW`/`SOURCE` (UI-only, no backend producer).\n   Tests for every badge (incl. no-quote/unknown rendering); full-suite green.\n   Status: **DONE via PR48** (a3/alert-surfacing, head 498e9c5). PR48 open,\n   agent-4 review + Nav merge gate before merge. Receipt:\n   evidence/ALERT-SURFACING-1A-receipt.md.
+      treatment. (UI `vex` viewMode and `CHARM_PINNING` are DIFFERENT rules —
+      do not conflate; read both sides first.)
+   c. `GAMMA_FLIP_PROXIMITY`, `VOLUME_SPIKE` (alert_engine), `CLUSTER`
+      (flow_alerts): assess producer liveness first (fire them in tests?);
+      surface only live ones, report dead ones instead of wiring corpses.
+   d. Do NOT invent UI for `FOLLOW`/`SOURCE` (UI-only, no backend producer).
+   Tests for every badge (incl. no-quote/unknown rendering); full-suite green.
+   Status: **DONE via PR48** (a3/alert-surfacing, head 498e9c5). PR48 open,
+   agent-4 review + Nav merge gate before merge. Receipt:
+   evidence/ALERT-SURFACING-1A-receipt.md.
 
-2. **XH-1** — UI quote/side/sweep/block copy preserves unknowns, labels proxies.\n   Status: **ADMITTED** — task card `XH-1.md` written; discovery phase pending\n   agent-3 boot + Agent-1 go-ahead.
+2. **XH-1** — UI quote/side/sweep/block copy preserves unknowns, labels proxies.
+   Status: **ADMITTED** — task card `XH-1.md` written; discovery phase pending
+   agent-3 boot + Agent-1 go-ahead.
 
-3. **X2** — mounted Phase9 consumer + responsive acceptance.\n   Status: **ADMITTED** — task card `X2.md` written; discovery phase pending\n   agent-3 boot + Agent-1 go-ahead.
+3. **X2** — mounted Phase9 consumer + responsive acceptance.
+   Status: **ADMITTED** — task card `X2.md` written; discovery phase pending
+   agent-3 boot + Agent-1 go-ahead.
 
-4. **X4** — poll/remount/race/partial-data stability.\n   Status: **ADMITTED** — task card `X4.md` written; discovery phase pending\n   agent-3 boot + Agent-1 go-ahead.
+4. **X4** — poll/remount/race/partial-data stability.
+   Status: **ADMITTED** — task card `X4.md` written; discovery phase pending
+   agent-3 boot + Agent-1 go-ahead.
 
 5. **RT-1 / RH-2** — only on fresh Agent-1 contracts.
 
@@ -86,6 +101,7 @@ PR44 merged main 56cfff2 2026-09-08T11:48:51Z; witness gate (external G-WITNESS)
 - PR44 G3-salvage: prior verdict E4-44 APPROVED-conditional, merge gated on
   the external witness. Standing job: confirm it stays green and
   unmerged until witnessed; re-verify at any new head.
+- PR48 alert-surfacing: open, agent-4 review + Nav merge gate before merge.
 - Never re-audit merged heads at unchanged state (PR28-43, PR45-46).
 - Three alert pipelines exist (alert_engine, exposure_alerts, flow_alerts)
   with overlapping rule names (`CHARM_PIN` ≠ `CHARM_PINNING`,
@@ -124,92 +140,3 @@ not filed contracts until the discovery process approves them.
 ## Separate `swarmSPX` program
 
 `/Users/nav/GitHub/swarmSPX` has its own Git history, configuration, tests, provider
-policy, paper engine, synthetic backtest concerns, and UI/alert surfaces. It receives a
-separate GSD map after its truth audit. No Floww worker deletes Schwab or changes that
-repo from a Floww task card. Shared ideas cross repositories only through an explicit
-interface/spec, never by copying an entire provider or agent framework.
-## Take-over loop 2 — provider directive + sweep (2026-09-08)
-
-Owner directive: Public API (unlimited) is primary; cvserver (20 req/hr) is
-scarce failover; small-stock strike coverage must improve with real rows only.
-
-LIVE KYTX DIAGNOSIS (backend on merged main + PR39 code, real keys):
-Public 400s KYTX expirations (symbol unsupported — vendor limit, not our bug);
-cvserver 429-paused (vendor throttle state; our pause handling correct);
-yfinance fallback had all 8 strikes but the display band cut to 3. Vendor HAS
-the data — our band was the limiter. VALIDATED FIX live: KYTX now shows all
-8 strikes [2.5–20.0] with gex on every row (source cvserver after its 429
-cleared; deepen + enrich both fired per logs).
-
-- PR37 MERGED: GEX date-string crash fix (`_parse_expiry`, unskipped linearity
-  pin, golden oracle green; silent-except justifications added per P1 gate).
-- PR38 MERGED: dead-code removal (Movers.jsx, finnhub_api shim) + kanban
-  datetime fix (un-xfailed).
-- PR39 MERGED by Nav (`5771dfc`, cap+deepen+enrich). Lesson logged: merged PRs
-  don't track later branch pushes and fire no PR CI — verify `headRefOid`
-  before assuming a push reached its PR.
-- PR40 MERGED (F5/F6/F11/F17/F19 honesty wave; F16 verified present).
-- PR41 MERGED (strike floor; KYTX live-validated 8 strikes).
-- 61-ref archaeology: 6 superseded branches deleted after patch-id proof;
-  G3 + swarm-sizing rescue backlogs specced (evidence/DEEP-SWEEP-2026-09-08.md).
-- Baselines @ `56cfff2`: backend 5048, frontend 62/479, ruff clean.
-
-## Take-over loop 3 — honesty + G3 (2026-09-08)
-
-- PR43 MERGED: F9a/F9b source-verified (RFS 2021, Pan-Poteshman "in"), F2/F13 label-only. Weights + paper-content citations untouched.
-- PR44 OPEN (`astra/g3-paper-loop`, DO NOT MERGE): G3 product hunks split
-  from ledger docs (5 commits squashed, LEDGER dropped); 109 offline green.
-  Needs Agent-4 review + external G-WITNESS gate.
-- F15 closed via scanLogic JSDoc contract note. F16 verified present.
-  Skipped with rationale: F8/F10/F12/F14 (paper-content), F18 (satisfied).
-- O-2 CLOSED obsolete-under-directive; O-4 SUPERSEDED by provider directive;
-  O-5 SATISFIED (deepen reuses merged path, labels follow winner). Rationale
-  in agent-2-backend/receipts/H2.md.
-
-## Take-over loop 4 — prop-desk edges (2026-09-08)
-
-## Take-over loop 5 — second edge: flip proximity (2026-09-08)
-
-## Take-over loop 6 — Agent-2 backlog (2026-09-08)
-
-- PR47 MERGED: numba charm vec (identical totals, 1.7x on 15k chains) +
-  LIQUIDITY_STRESS rule (Kyle+Amihud ILLIQUID agreement, registry fed per
-  snapshot, read-only snapshots, cold-silent, fail-open). Trade-level
-  liquidity_metrics variants deliberately unused (feed mismatch, recorded).
-- OFI assessment (receipt): multi_level_ofi, composite_flow_score,
-  hmm_regime, chain_replay all TESTED + WIRED — keep, nothing to do.
-- Agent-2 backlog now exhausted except gated items (F-weights need A3-SCORE,
-  paper items need papers). Builder lane parked clean.
-
-- PR46 MERGED: GAMMA_FLIP rule live on main.
-
-Owner directive: build like a prop desk (VPIN toxicity, higher-order Greeks,
-dealer positioning), unlimited data, paper only, everything committed.
-
-- Recon: orderflow (29 analytics incl. VPIN/Kyle/Amihud, Almgren-Chriss, 19
-  pattern flags, dark pool), OptionStratLib (full Greeks incl.
-  Vanna/Vomma/Veta/Charm/Color, vol surfaces, decimal precision, identity
-  tests). Transferable (no Rust rewrite): VPIN alerts, unused numba Greeks,
-  Kyle/Amihud regime, gamma-flip approach alerts.
-- PR45 MERGED: TOXIC_FLOW rule live on main.
-- Hygiene: 8 merged branches verified-in-main and deleted
-  (trade-fire, sparse-chain-public/v2, honesty-citations/labels,
-  cleanup-dead-code, bugfix-gex-expiry, t1-only). Stale worktrees removed;
-  active lanes only remain.
-
-## Honesty backlog (fix-queue F-IDs vs landed work)
-
-DONE (in main): F1, F3, F4, F7 (F0 wave); F5, F6, F11, F17, F19 (PR40);
-F9a/F9b (PR43, source-verified); F2-label/F13-label (PR43, weights untouched);
-F15 (contract note); F16 (verified present, no change).
-OPEN: F2-strip + F13 down-weight (need weights/product call),
-F8/F10/F12/F14 (need paper-content verification).
-
-## Stop conditions
-
-- Provider stream returns no bytes or HTTP 429 without a durable boot/checkpoint.
-- Branch ancestry or diff includes files outside the task lease.
-- A task needs a frozen file without a recorded waiver.
-- A data field's semantics, licensing, entitlement, or timestamp are unresolved.
-- A worker would hide a failing check, fabricate a live witness, or infer merge/deploy.
-- Two builders need the same whole file.
