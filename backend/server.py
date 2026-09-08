@@ -1839,12 +1839,19 @@ async def _snapshot_chains():
                     _vpin_state = snapshot_vpin_state(t)
                 except Exception:
                     _vpin_state = None
+                try:
+                    from advanced_analytics import calc_gamma_flip_levels
+                    _flip = calc_gamma_flip_levels(
+                        float(raw.get("spot") or 0),
+                        raw.get("contracts") or [], t).get("gamma_flip")
+                except Exception:
+                    _flip = None
                 events = _ea.evaluate_ticker(
                     t,
                     {"vex_grid": grid.get("vex_grid") or {},
                      "charm_grid": grid.get("charm_grid") or {}},
                     float(raw.get("spot") or 0),
-                    vpin_state=_vpin_state)
+                    vpin_state=_vpin_state, flip_level=_flip)
                 if events:
                     kept = _fa.dedup_filter(_duckdb, events)
                     if kept:
