@@ -27,7 +27,7 @@ take-over section + lane receipts + evidence/DEEP-SWEEP-2026-09-08.md.
 |---|---|---|---|
 | O-2 reuse-or-remove | QUEUED with spec | Cross-key cache surgery or swing-depth product call — Nav's |
 | O-4/O-5 failover order | QUEUED with spec | Provider sandbox + product sign-off — Nav's |
-| P2 upgrades | Baseline KNOWN (11 advisories) | pymongo/starlette/nltk bumps need resolver pass — Nav's |
+|| P2 upgrades | PINNED — DONE (agent-2, phase9/g1-reads-witness) | pymongo==4.6.3 (CVE-2024-5629 closed), starlette==1.6.0 + fastapi==0.141.1 (all 8 starlette CVEs closed), cryptography==50.0.1 (CVE-2026-69247 closed); nltk==3.10.3 upgraded but CVE-2026-81726 has fix_versions=[] (unfixable by version). 14 advisories remain on unpinned transitive deps (aiohttp, ecdsa, pip, pyasn1, pypdf2, setuptools, torch) — advisory-only, not blocked |
 | P6 rotation | Inventory done | Real credential rotation — Nav's secrets |
 | P7 Oracle | Runbook ready | VM provisioning — Nav's |
 | Azure deploy | Workflow red, code-innocent | `azure/login` credentials missing in repo secrets — Nav's (`Deploy to Azure` fails on every main push with "No credentials found"; pre-existing, unrelated to merges) |

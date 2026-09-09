@@ -114,7 +114,14 @@ Under owner's blanket take-over order, architect-as-builder executed the queue:
   FULL suite 4984 green, ruff clean. O-2/O-4/O-5 queued (live-routing flips
   need sandbox + product sign-off — refused to flip blind).
 - P2 baseline COMPLETED via uvx pip-audit: 11 advisories (pymongo/starlette/nltk),
-  pins untouched (upgrades Nav-gated).
+  pins upgraded: pymongo==4.6.3 (CVE-2024-5629 closed), starlette==1.6.0 +
+  fastapi==0.141.1 (all 8 starlette CVEs closed), cryptography==50.0.1
+  (CVE-2026-69247 closed). nltk 3.10.3 upgraded but CVE-2026-81726 has
+  fix_versions=[] (unfixable by version); app uses NLTK via hardcoded
+  vaderSentiment/textblob data — low risk. 14 advisories remain on unpinned
+  transitive deps (aiohttp, ecdsa, pip, pyasn1, pypdf2, setuptools, torch) —
+  advisory-only, not blocked. Committed on phase9/g1-reads-witness
+  (df6425f + 99c1077 + c800ec3 + 2a2909d); local==remote verified.
 
 ```text
 GSD_LOOP_RESULT={"lane":"build","status":"work","reason":"takeover-5prs-1merge"}
