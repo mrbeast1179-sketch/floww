@@ -72,6 +72,7 @@ describe("ExposureStrip", () => {
   });
 
   test("ticker change with failed fetch clears the previous ticker badges", async () => {
+    expect.assertions(3);
     axios.get
       .mockResolvedValueOnce({
         data: { alerts: [{ key: "a", rule: "TOXIC_FLOW", under: "SPY" }] },

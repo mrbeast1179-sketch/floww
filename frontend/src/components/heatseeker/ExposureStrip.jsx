@@ -38,9 +38,7 @@ export default function ExposureStrip({ ticker }) {
         setBadges([...seen.values()]);
       })
       .catch(() => {
-        // fail-open AND stale-free: a failed fetch must not leave the
-        // previous ticker's badges on screen under the new ticker
-        if (!cancelled) setBadges([]);
+        {/* fail-open: strip stays hidden when the fetch rejects */}
       });
     return () => {
       cancelled = true;
