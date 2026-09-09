@@ -168,3 +168,23 @@ What the original pass got wrong (corrected above):
 Receipt: `evidence/E4-48-PR48-review.md`.
 
 No GitHub mutations (Nav-gated merge).
+
+## Empirical proof for DEFECT 1 (2026-09-09, temp tree only — no product touched)
+
+DEFECT 1 was code-reading until this pass. Proved at exact head `4d7172e` in
+detached worktree `/tmp/agent4-pr48` with a throwaway jsdom test (removed
+afterwards, never committed anywhere):
+
+- Exact-head code + repro (render SPY badges → rerender QQQ with rejected
+  fetch → assert old badges gone): **FAIL** — "TOXIC FLOW" persists.
+  First attempt failed on assertion timing; refined with `waitFor` on the
+  absence assertion, still FAIL. Defect confirmed empirically.
+- Temp-only fix (`if (!cancelled) setBadges([])` in `.catch`) + same repro:
+  **PASS**. Existing 5 ExposureStrip tests still green with the fix (no
+  regression in the covered paths).
+- Fix reverted afterwards; worktree left at exact-head code (only npm
+  install-artifact lockfile mods remain, uncommitted in /tmp).
+
+The prescription in DEFECT 1 is therefore RED/GREEN-proven, not inferred.
+Agent-3 can apply it verbatim: the one-line catch fix plus the repro test
+(render → rerender-with-rejection → `waitFor` absence) as the regression pin.
