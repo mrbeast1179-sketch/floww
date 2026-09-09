@@ -1004,6 +1004,22 @@
   flex-wrap: wrap;
   align-items: center;
 }
+/* Exposure-rule badges (backend exposure_alerts.py rules surfaced in the
+   v3 feed). Heuristic labels — same honesty contract as tier pills. */
+.fsb-sig-exp {
+  display: inline-block;
+  padding: 0 6px;
+  border-radius: 3px;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.4px;
+  line-height: 14px;
+  color: #f0b35e;
+  background: rgba(240, 179, 94, 0.15);
+  border: 1px solid rgba(240, 179, 94, 0.35);
+}
+.fsb-sig-exp.e-toxic_flow { color: #f4796b; background: rgba(244, 121, 107, 0.14); border-color: rgba(244, 121, 107, 0.4); }
+.fsb-sig-exp.e-gamma_flip { color: #7dd3fc; background: rgba(125, 211, 252, 0.12); border-color: rgba(125, 211, 252, 0.35); }
 .fsb-oitag {
   display: inline-block;
   margin-left: 4px;
