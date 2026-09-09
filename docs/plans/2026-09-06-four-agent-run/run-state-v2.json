@@ -1,145 +1,145 @@
 {
-  "schema": "floww-four-agent-run/v2",
-  "program_id": "floww-recovery-20260906-v2",
-  "control_branch": "architect/20260906-recovery-control-plane-v2",
-  "acceptance_base": "56cfff2ec909313c81fbe616a3595c937238037a",
-  "status": "prepared_waiting_for_boot_ack",
-  "central_writer": "agent-1-architect",
-  "runtime_root": "/Users/nav/Documents/GitHub/floww-run-state/2026-09-06-v2",
-  "native_scheduler": "unsupported_in_current_host",
-  "global_gsd_builder_limit": 1,
-  "live_probe_owner": null,
-  "runtime_owner": null,
-  "heavy_suite_owner": null,
-  "lanes": {
-    "agent-1-architect": {
-      "state": "READY",
-      "task_id": "R0-OPERATE",
-      "worktree": "/Users/nav/Documents/GitHub/floww-worktrees/recovery-control-plane-v2",
-      "branch": "architect/20260906-recovery-control-plane-v2",
-      "head_sha": "3c15e2cf0362dcdd4ccbc40a036d2eac2dfe064c",
-      "allowed_files": [],
-      "boot_receipt": "/Users/nav/Documents/GitHub/floww-run-state/2026-09-06-v2/agent-1-architect/boot.json",
-      "last_checkpoint": "/Users/nav/Documents/GitHub/floww-run-state/2026-09-06-v2/agent-1-architect/checkpoint.json",
-      "lease_note": "Central external runtime state and task cards only; repository docs changes require an explicit enumerated path list. Builder lane held until Agent-2 next admission."
-    },
-    "agent-2-backend": {
-      "state": "READY",
-      "task_id": "BACKLOG_TOP",
-      "worktree": null,
-      "branch": null,
-      "head_sha": null,
-      "allowed_files": [],
-      "boot_receipt": null,
-      "last_checkpoint": null,
-      "lease_note": "PR47 merged (numba charm-vec + LIQUIDITY_STRESS, main 56cfff2). No active admission. Next backend unit admitted by Agent 1 from ranked backlog in spark-prompts/agent-2.md."
-    },
-    "agent-3-frontend": {
-      "state": "PR_OPEN",
-      "task_id": "ALERT-SURFACING-1A",
-      "worktree": "/Users/nav/Documents/GitHub/floww-worktrees/alert-surfacing-agent3",
-      "branch": "a3/alert-surfacing",
-      "head_sha": "4d7172ef056c7476bbfb4f345a3e961367221f26",
-      "allowed_files": [
-        "frontend/src/components/flowseeker/exposureBadges.js",
-        "frontend/src/components/flowseeker/exposureBadges.test.js",
-        "frontend/src/components/flowseeker/FlowseekerProBlademap.css",
-        "frontend/src/components/flowseeker/FlowseekerProBlademap.jsx",
-        "frontend/src/components/heatseeker/ExposureStrip.css",
-        "frontend/src/components/heatseeker/ExposureStrip.jsx",
-        "frontend/src/components/heatseeker/ExposureStrip.test.jsx",
-        "frontend/src/components/heatseeker/SkylitDashboard.jsx"
-      ],
-      "boot_receipt": "/Users/nav/Documents/GitHub/floww-run-state/2026-09-06-v2/agent-3-frontend/boot.json",
-      "last_checkpoint": "/Users/nav/Documents/GitHub/floww-run-state/2026-09-06-v2/agent-3-frontend/checkpoint.json",
-      "lease_note": "Frontend-only exposure-rule badge surfacing. Blademap v3 + heatseeker ExposureStrip. Reads /api/flowseeker/alerts/feed; maps the five live backend producers (TOXIC_FLOW, GAMMA_FLIP, VEX_WALL, CHARM_PIN, LIQUIDITY_STRESS). No App.js, no App.css global, no backend, no other lanes' tests, no central state. Verified 48 focused + 500 full tests green; CRA build clean. Branch a3/alert-surfacing pushed to origin, rebased onto main 56cfff2. PR #48 open: https://github.com/mrbeast1179-sketch/floww/pull/48 \u2014 agent-4 review gate before merge (Nav-gated)."
-    },
-    "agent-4-proof": {
-      "state": "DONE",
-      "task_id": "PR44-REFRESH",
-      "worktree": "/Users/nav/Documents/GitHub/floww-worktrees/run-20260906-proof",
-      "branch": "origin/astra/g3-paper-loop",
-      "head_sha": "bffa5deb78259b9c2c9598480f1eb05012215ed2",
-      "allowed_files": [],
-      "boot_receipt": null,
-      "last_checkpoint": "E4-44 APPROVED-conditional at bffa5deb (refreshed from d6fad39); 56/56 green; PR44 merged main 56cfff2; witness gate pending",
-      "branch_note": "PR44 head bffa5deb against origin/main 56cfff2. Receipt refreshed at current head; d6fad39 receipt voided. PR44 merged to main 56cfff2 2026-09-08T11:48:51Z. Witness gate (external G-WITNESS) is Nav/owner-gated; no Agent-4 merge authority. Re-verify at any new head before any witnessed attempt."
-    }
+ "schema": "floww-four-agent-run/v2",
+ "program_id": "floww-recovery-20260906-v2",
+ "control_branch": "architect/20260906-recovery-control-plane-v2",
+ "acceptance_base": "56cfff2ec909313c81fbe616a3595c937238037a",
+ "status": "prepared_waiting_for_boot_ack",
+ "central_writer": "agent-1-architect",
+ "runtime_root": "/Users/nav/Documents/GitHub/floww-run-state/2026-09-06-v2",
+ "native_scheduler": "unsupported_in_current_host",
+ "global_gsd_builder_limit": 1,
+ "live_probe_owner": null,
+ "runtime_owner": null,
+ "heavy_suite_owner": null,
+ "lanes": {
+  "agent-1-architect": {
+   "state": "READY",
+   "task_id": "R0-OPERATE",
+   "worktree": "/Users/nav/Documents/GitHub/floww-worktrees/recovery-control-plane-v2",
+   "branch": "architect/20260906-recovery-control-plane-v2",
+   "head_sha": "3c15e2cf0362dcdd4ccbc40a036d2eac2dfe064c",
+   "allowed_files": [],
+   "boot_receipt": "/Users/nav/Documents/GitHub/floww-run-state/2026-09-06-v2/agent-1-architect/boot.json",
+   "last_checkpoint": "/Users/nav/Documents/GitHub/floww-run-state/2026-09-06-v2/agent-1-architect/checkpoint.json",
+   "lease_note": "Central external runtime state and task cards only; repository docs changes require an explicit enumerated path list. Builder lane held until Agent-2 next admission."
   },
-  "known_candidates": {
-    "pr44": "bffa5deb78259b9c2c9598480f1eb05012215ed2",
-    "pr44_base": "a6e6f7930e7a9aae497170c0ea8104b62520f2f2",
-    "main": "56cfff2ec909313c81fbe616a3595c937238037a",
-    "g1_canonical": "d39c37a (dirty, active, NOT this lane's lease)"
+  "agent-2-backend": {
+   "state": "READY",
+   "task_id": "BACKLOG_TOP",
+   "worktree": null,
+   "branch": null,
+   "head_sha": null,
+   "allowed_files": [],
+   "boot_receipt": null,
+   "last_checkpoint": null,
+   "lease_note": "PR47 merged (numba charm-vec + LIQUIDITY_STRESS, main 56cfff2). No active admission. Next backend unit admitted by Agent 1 from ranked backlog in spark-prompts/agent-2.md."
   },
-  "external_gates": [
-    "Nav merges reviewed PRs and applies gsd:ready",
-    "Nav supplies exact proprietary provider and entitlement contract",
-    "Friend pushes Tidehunter redesign brief and mockups",
-    "Nav provisions Oracle VM",
-    "Nav/G4 perform Discord and genuine paper witnesses",
-    "Security owner rotates identified credentials"
-  ],
-  "launch_history": [
-    {
-      "delegation": "deleg_72bd2bfa",
-      "result": "HARNESS_FAILED",
-      "summary": "three NO_BYTES failures and one HTTP_429; no astra_G receipts"
-    }
-  ],
-  "snapshot_date": "2026-09-09",
-  "template_only": true,
-  "task_card_root": "/Users/nav/Documents/GitHub/floww-run-state/2026-09-06-v2/task-cards",
-  "review_receipts": {
-    "pr28": {
-      "head": "18b10b5601ef0bc0dd27a083d66f2d8ad164665a",
-      "verdict": "policy-escalated-human-decision",
-      "url": "https://github.com/mrbeast1179-sketch/floww/pull/28#issuecomment-5569790600",
-      "next": "Nav decision; no repeated audit at same head"
-    },
-    "pr29": {
-      "head": "568de16a3d2da32c218660e1007ad89b2d97228f",
-      "verdict": "APPROVED",
-      "receipt": "floww-run-state/2026-09-06-v2/proof/receipts/E4-29.md",
-      "next": "Nav merge call; non-gsd branch, same policy as PR28"
-    },
-    "pr30": {
-      "head": "377dfa5822472f8e43029d5c8dbcc3984a420cea",
-      "verdict": "MERGED",
-      "receipt": "floww-run-state/2026-09-06-v2/proof/receipts/E4-30.md",
-      "audit": "docs/plans/2026-09-06-four-agent-run/evidence/PR30-merge-attempt.md",
-      "next": "PR30 merged to main 56cfff2; gate files unchanged from 06b7502; CI green: ruff, backend-tests, frontend-build"
-    },
-    "pr31": {
-      "head": "f7f7103b2744a7a052c66a917a7a7d4662a3c310",
-      "verdict": "APPROVED-conditional",
-      "receipt": "floww-run-state/2026-09-06-v2/proof/receipts/E4-31.md",
-      "next": "Nav merge call as inert scaffolding; A3-SCORE must approve weights before any live caller passes nonzero"
-    },
-    "pr48": {
-      "head": "4d7172ef056c7476bbfb4f345a3e961367221f26",
-      "base": "56cfff2ec909313c81fbe616a3595c937238037a",
-      "verdict": "APPROVED-conditional (E4-48, 2026-09-09)",
-      "state": "REVIEWED — Nav merge call; no agent merge authority",
-      "url": "https://github.com/mrbeast1179-sketch/floww/pull/48",
-      "receipt": "docs/plans/2026-09-06-four-agent-run/evidence/E4-48.md",
-      "next": "PR48 open (a3/alert-surfacing, head 4d7172e). CI green: backend-tests SUCCESS, ruff SUCCESS, frontend-build SUCCESS, docker-build SKIPPED (2026-09-08T19:35Z). Agent-4 review + Nav merge gate. Receipt: docs/plans/2026-09-06-four-agent-run/evidence/ALERT-SURFACING-1A-receipt.md."
-    },
-    "pr49": {
-      "head": "2f19bb4",
-      "base": "a3/alert-surfacing @ 4d7172e (stacked on PR48)",
-      "verdict": "PENDING CI + agent-4 review; merge only after PR48",
-      "state": "OPEN — 1c mapper + CLUSTER badge, 66/66 green locally",
-      "url": "https://github.com/mrbeast1179-sketch/floww/pull/49",
-      "next": "E4-49 REWORK at 18ee54f (unwired mapper + 2 copy flags); 1c rework landed as 2f19bb4 (titles fixed, wiring held for 1d). Merge held until rework complete + PR48 merges first."
-    },
-    "pr44": {
-      "head": "bffa5deb78259b9c2c9598480f1eb05012215ed2",
-      "base": "a6e6f7930e7a9aae497170c0ea8104b62520f2f2",
-      "verdict": "APPROVED-conditional",
-      "receipt": "floww-run-state/2026-09-06-v2/proof/receipts/E4-44.md",
-      "state": "MERGED to main 56cfff2 (2026-09-08T11:48:51Z); witness gate pending",
-      "next": "PR44 merged to main. Offline GATE-2 proof delivered at exact head bffa5deb: 56/56 green, ruff clean, no code blocker. Witness gate (external G-WITNESS) is Nav/owner-gated; no Agent-4 merge authority. Re-verify at any new head before witnessed attempt."
-    }
+  "agent-3-frontend": {
+   "state": "PR_OPEN",
+   "task_id": "ALERT-SURFACING-1A",
+   "worktree": "/Users/nav/Documents/GitHub/floww-worktrees/alert-surfacing-agent3",
+   "branch": "a3/alert-surfacing",
+   "head_sha": "4d7172ef056c7476bbfb4f345a3e961367221f26",
+   "allowed_files": [
+    "frontend/src/components/flowseeker/exposureBadges.js",
+    "frontend/src/components/flowseeker/exposureBadges.test.js",
+    "frontend/src/components/flowseeker/FlowseekerProBlademap.css",
+    "frontend/src/components/flowseeker/FlowseekerProBlademap.jsx",
+    "frontend/src/components/heatseeker/ExposureStrip.css",
+    "frontend/src/components/heatseeker/ExposureStrip.jsx",
+    "frontend/src/components/heatseeker/ExposureStrip.test.jsx",
+    "frontend/src/components/heatseeker/SkylitDashboard.jsx"
+   ],
+   "boot_receipt": "/Users/nav/Documents/GitHub/floww-run-state/2026-09-06-v2/agent-3-frontend/boot.json",
+   "last_checkpoint": "/Users/nav/Documents/GitHub/floww-run-state/2026-09-06-v2/agent-3-frontend/checkpoint.json",
+   "lease_note": "Frontend-only exposure-rule badge surfacing. Blademap v3 + heatseeker ExposureStrip. Reads /api/flowseeker/alerts/feed; maps the five live backend producers (TOXIC_FLOW, GAMMA_FLIP, VEX_WALL, CHARM_PIN, LIQUIDITY_STRESS). No App.js, no App.css global, no backend, no other lanes' tests, no central state. Verified 48 focused + 500 full tests green; CRA build clean. Branch a3/alert-surfacing pushed to origin, rebased onto main 56cfff2. PR #48 open: https://github.com/mrbeast1179-sketch/floww/pull/48 — agent-4 review gate before merge (Nav-gated)."
+  },
+  "agent-4-proof": {
+   "state": "DONE",
+   "task_id": "PR44-REFRESH",
+   "worktree": "/Users/nav/Documents/GitHub/floww-worktrees/run-20260906-proof",
+   "branch": "origin/astra/g3-paper-loop",
+   "head_sha": "bffa5deb78259b9c2c9598480f1eb05012215ed2",
+   "allowed_files": [],
+   "boot_receipt": null,
+   "last_checkpoint": "E4-44 APPROVED-conditional at bffa5deb (refreshed from d6fad39); 56/56 green; PR44 merged main 56cfff2; witness gate pending",
+   "branch_note": "PR44 head bffa5deb against origin/main 56cfff2. Receipt refreshed at current head; d6fad39 receipt voided. PR44 merged to main 56cfff2 2026-09-08T11:48:51Z. Witness gate (external G-WITNESS) is Nav/owner-gated; no Agent-4 merge authority. Re-verify at any new head before any witnessed attempt."
   }
+ },
+ "known_candidates": {
+  "pr44": "bffa5deb78259b9c2c9598480f1eb05012215ed2",
+  "pr44_base": "a6e6f7930e7a9aae497170c0ea8104b62520f2f2",
+  "main": "56cfff2ec909313c81fbe616a3595c937238037a",
+  "g1_canonical": "d39c37a (dirty, active, NOT this lane's lease)"
+ },
+ "external_gates": [
+  "Nav merges reviewed PRs and applies gsd:ready",
+  "Nav supplies exact proprietary provider and entitlement contract",
+  "Friend pushes Tidehunter redesign brief and mockups",
+  "Nav provisions Oracle VM",
+  "Nav/G4 perform Discord and genuine paper witnesses",
+  "Security owner rotates identified credentials"
+ ],
+ "launch_history": [
+  {
+   "delegation": "deleg_72bd2bfa",
+   "result": "HARNESS_FAILED",
+   "summary": "three NO_BYTES failures and one HTTP_429; no astra_G receipts"
+  }
+ ],
+ "snapshot_date": "2026-09-09",
+ "template_only": true,
+ "task_card_root": "/Users/nav/Documents/GitHub/floww-run-state/2026-09-06-v2/task-cards",
+ "review_receipts": {
+  "pr28": {
+   "head": "18b10b5601ef0bc0dd27a083d66f2d8ad164665a",
+   "verdict": "policy-escalated-human-decision",
+   "url": "https://github.com/mrbeast1179-sketch/floww/pull/28#issuecomment-5569790600",
+   "next": "Nav decision; no repeated audit at same head"
+  },
+  "pr29": {
+   "head": "568de16a3d2da32c218660e1007ad89b2d97228f",
+   "verdict": "APPROVED",
+   "receipt": "floww-run-state/2026-09-06-v2/proof/receipts/E4-29.md",
+   "next": "Nav merge call; non-gsd branch, same policy as PR28"
+  },
+  "pr30": {
+   "head": "377dfa5822472f8e43029d5c8dbcc3984a420cea",
+   "verdict": "MERGED",
+   "receipt": "floww-run-state/2026-09-06-v2/proof/receipts/E4-30.md",
+   "audit": "docs/plans/2026-09-06-four-agent-run/evidence/PR30-merge-attempt.md",
+   "next": "PR30 merged to main 56cfff2; gate files unchanged from 06b7502; CI green: ruff, backend-tests, frontend-build"
+  },
+  "pr31": {
+   "head": "f7f7103b2744a7a052c66a917a7a7d4662a3c310",
+   "verdict": "APPROVED-conditional",
+   "receipt": "floww-run-state/2026-09-06-v2/proof/receipts/E4-31.md",
+   "next": "Nav merge call as inert scaffolding; A3-SCORE must approve weights before any live caller passes nonzero"
+  },
+  "pr48": {
+   "head": "4d7172ef056c7476bbfb4f345a3e961367221f26",
+   "base": "56cfff2ec909313c81fbe616a3595c937238037a",
+   "verdict": "REWORK (E4-48 amended 2026-09-09: 3 semantic defects)",
+   "state": "REVIEWED — merge HELD for rework; no agent merge authority",
+   "url": "https://github.com/mrbeast1179-sketch/floww/pull/48",
+   "receipt": "docs/plans/2026-09-06-four-agent-run/evidence/E4-48-PR48-review.md (live); evidence/E4-48.md VOID/superseded",
+   "next": "Agent-3 rework: clear badges on ticker-change failure + regression test; broken-wall copy by kind; approach copy for GAMMA_FLIP. Re-verify at new head."
+  },
+  "pr49": {
+   "head": "2f19bb4",
+   "base": "a3/alert-surfacing @ 4d7172e (stacked on PR48)",
+   "verdict": "APPROVED-conditional (E4-49 re-verified at 2f19bb4, 2026-09-09: 29/29 green)",
+   "state": "REVIEWED — wiring held for 1d by design; merge-now-or-hold is Nav/agent-1 call",
+   "url": "https://github.com/mrbeast1179-sketch/floww/pull/49",
+   "next": "No further Agent-4 review until head moves or 1d wiring lands."
+  },
+  "pr44": {
+   "head": "bffa5deb78259b9c2c9598480f1eb05012215ed2",
+   "base": "a6e6f7930e7a9aae497170c0ea8104b62520f2f2",
+   "verdict": "APPROVED-conditional",
+   "receipt": "floww-run-state/2026-09-06-v2/proof/receipts/E4-44.md",
+   "state": "MERGED to main 56cfff2 (2026-09-08T11:48:51Z); witness gate pending",
+   "next": "PR44 merged to main. Offline GATE-2 proof delivered at exact head bffa5deb: 56/56 green, ruff clean, no code blocker. Witness gate (external G-WITNESS) is Nav/owner-gated; no Agent-4 merge authority. Re-verify at any new head before witnessed attempt."
+  }
+ }
 }

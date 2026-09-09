@@ -113,3 +113,41 @@ CLUSTER placement are all correct — the rework is small and precisely scoped.
 
 No GitHub mutations (Nav-gated). No merge (stacked on unmerged PR48 + no CI
 + unwired + 2 copy flags).
+
+## Re-verification at new head `2f19bb4` (2026-09-09) — verdict updated
+
+Head moved `18ee54f` → `2f19bb4` (1 commit). Delta is exactly the two E4-49
+flag fixes + 2 TDD tests (4 files touched total unchanged; only
+`alertEngineBadges.js` + its test changed in the delta).
+
+### Fresh reproduction at `2f19bb4`
+Detached worktree `/tmp/agent4-pr48`, checked out `2f19bb4`:
+
+```text
+cd frontend && CI=true npx craco test --watchAll=false --runInBand \
+  --testPathPattern='alertEngineBadges|exposureBadges'
+PASS src/components/flowseeker/alertEngineBadges.test.js
+PASS src/components/flowseeker/exposureBadges.test.js
+Test Suites: 2 passed, 2 total
+Tests:       29 passed, 29 total
+```
+
+29/29 (was 27/27 — the 2 new TDD pin tests included and green).
+
+### Flag resolution (verified, not trusted)
+- FLAG 1 resolved: title now reads "momentum score at an extreme high or low";
+  "conviction" and "tape" gone (confirmed by read + the new pin test).
+- FLAG 2 resolved: title now reads "negative gamma with spot near the flip
+  and volume spiking"; "chasing price" and "dealer" gone (confirmed by read +
+  the new pin test).
+- Wiring: CONFIRMED still no call site outside module+test (git grep at the
+  new head). This is now a DOCUMENTED hold for the 1d wiring unit (commit
+  message states the feed-vs-alerts stream merge is new scope), not an
+  undisclosed gap.
+
+### Verdict at `2f19bb4`
+**APPROVED-conditional.** Both copy flags resolved with TDD evidence. Sole
+watch item: the mapper is tested-but-unrendered by explicit design hold for
+1d. Merge now (mapper as reviewed scaffolding) or hold for 1d is a
+Nav/agent-1 admission call — either way, no further Agent-4 review needed
+until the head moves again or 1d wiring lands.

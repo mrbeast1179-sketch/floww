@@ -98,18 +98,63 @@ PR body claims: "Could not cleanly merge the original un-rebased commit (`f1f17f
 
 Verified: rebased head `4d7172e` applies cleanly onto `56cfff2` — only +2 lines in FlowseekerProBlademap.jsx and +4 in SkylitDashboard.jsx vs main. The rebase is the correct resolution; the note is accurate.
 
-## Verdict
+## Re-audit correction (2026-09-09) — verdict amended APPROVED → REWORK
 
-**APPROVED.** No code blocker. Offline GATE-2 half delivered at exact head:
+A follow-up audit re-read the exact head against backend semantics and found
+three defects this receipt missed. I verified each against `origin/main`
+backend source myself; all three are real. The original verdict stands
+corrected below. The 48/48 reproduction and provenance table above remain
+accurate — the defects are semantic, not structural.
 
+DEFECT 1 — stale badges across ticker change (ExposureStrip.jsx).
+The `.catch(() => {})` never calls `setBadges`. After a ticker change whose
+fetch fails, the PREVIOUS ticker's badges stay rendered under the new ticker.
+The "fetch failure renders nothing" test only covers initial mount (empty
+state), never ticker-change-then-failure. Prescription: in `.catch`, add
+`if (!cancelled) setBadges([])`; add a test that renders SPY badges, rerenders
+QQQ with a rejected fetch, and asserts the old badges are gone.
+
+DEFECT 2 — broken VEX walls described as defending.
+`events_to_alerts` (`backend/services/exposure_alerts.py`, origin/main)
+collapses kind `vex_wall_broken` → rule `VEX_WALL` (same branch as
+`vex_wall_formed`). The badge title says "dealers defending this vol level".
+Backend's own `_WHY` for the broken kind says the opposite: "VEX wall broken
+— vol suppression released, regime may shift". The kind rides in `key` and
+`context.kind`, so the fix is precise: read the kind at the call site and
+render broken copy ("wall broken — suppression released") for broken rows.
+
+DEFECT 3 — GAMMA_FLIP badge asserts a flip on approach rows.
+The exposure pipeline emits rule `GAMMA_FLIP` for kind `gamma_flip_approach`
+(price within ±1% of the flip, `FLIP_PROXIMITY_PCT = 0.01`); the badge title
+claims "dealer gamma flipped from positive to negative". An approach is not
+a flip — and `alert_engine` fires the same string for an actual regime
+change, so the badge conflates both producers. Backend's own `_WHY` for the
+approach kind says "price pressing dealer flip level (support above /
+resistance below)" — the badge should say that. Prescription: retitle to the
+approach semantics, or split approach vs regime-change on the kind/column
+before rendering.
+
+## Verdict (amended)
+
+**REWORK.** Three precise fixes: (1) clear badges on fetch failure after
+ticker change + regression test; (2) broken-wall copy keyed on event kind;
+(3) gamma-flip-approach copy matching backend `_WHY`, not regime-change copy.
+Mapper structure, priorities, CLUSTER placement, and rebase resolution remain
+correct — the rework is scoped, not architectural.
+
+What still holds from the original pass (structural, unaffected by the defects):
 - Feed-unavailable vs empty-feed distinction: exposed (test L55-66)
-- Heuristic copy, no invented precision: observed
 - Unknown/missing → null: observed
-- Fail-open rendering: observed
 - Dedup: observed
 - Source provenance correct: confirmed against backend source
 - Conflation traps documented and guarded: confirmed
 - Rebase resolution correct: confirmed
+
+What the original pass got wrong (corrected above):
+- "Heuristic copy, no invented precision" — WITHDRAWN for VEX_WALL on broken
+  rows and GAMMA_FLIP on approach rows (defects 2–3).
+- "Fail-open rendering: observed" — QUALIFIED to initial mount only; the
+  ticker-change failure path is stale, not fail-open (defect 1).
 
 ## Limitations
 

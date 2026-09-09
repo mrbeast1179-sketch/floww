@@ -38,8 +38,8 @@ do not re-audit it at that unchanged head. Record the reuse and move on.
 PR35/F0-wave, PR36/H2-partial, PR38/dead-code, PR37/GEX-dates, PR39/cap+deepen+
 enrich-by-Nav, PR40/honesty-labels, PR41/strike-floor, PR42/T2+401, PR43/honesty-citations,
 PR45/TOXIC_FLOW, PR46/GAMMA_FLIP, PR47/numba-greeks. PR44/G3-salvage MERGED 2026-09-08T11:48:51Z.
-Open: PR48 (a3/alert-surfacing, head 4d7172e, E4-48 APPROVED-conditional, Nav merge call)
-and stacked PR49 (a3/alert-engine-badges, head 18ee54f, E4-49 REWORK, merge held). Re-verify at boot.
+Open: PR48 (a3/alert-surfacing, head 4d7172e, E4-48 REWORK — 3 semantic defects, merge held)
+and stacked PR49 (a3/alert-engine-badges, head 2f19bb4, E4-49 APPROVED-conditional — wiring held for 1d). Re-verify at boot.
 PRs. Six superseded branches deleted after patch-id proof; product identical
 to main. Every merge verified: required CI green on the merged head, local
 reproduction where applicable.

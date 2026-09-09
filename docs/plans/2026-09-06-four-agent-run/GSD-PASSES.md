@@ -284,3 +284,32 @@ Tests:       27 passed, 27 total
 ```text
 GSD_LOOP_RESULT={"lane":"review","status":"work","reason":"pr49-rework-unwired-plus-copy-flags"}
 ```
+
+## Agent-4 correction — E4-48 amended APPROVED → REWORK (2026-09-09)
+
+Re-audit at unchanged head `4d7172e` found three semantic defects the original
+pass missed, each verified against `origin/main` backend source:
+(1) ExposureStrip catch never clears badges — ticker-change-then-failure shows
+stale badges (initial-mount tests don't cover it); (2) `events_to_alerts`
+collapses `vex_wall_broken` → rule VEX_WALL but the badge claims "dealers
+defending" (backend `_WHY` says suppression released); (3) exposure pipeline
+emits rule GAMMA_FLIP for kind `gamma_flip_approach` (±1% band) but the badge
+claims an actual regime flip. Prescriptions in `evidence/E4-48-PR48-review.md`
+(Re-audit correction section). Sibling `evidence/E4-48.md` APPROVED-conditional
+marked VOID/superseded. Merge HELD for rework.
+
+```text
+GSD_LOOP_RESULT={"lane":"review","status":"work","reason":"e4-48-amended-rework-3-defects"}
+```
+
+## Agent-4 re-verification — E4-49 at new head `2f19bb4` → APPROVED-conditional
+
+Head moved `18ee54f` → `2f19bb4` (1 commit: the two E4-49 flag fixes + 2 TDD
+pin tests). Fresh repro at exact head: 29/29 green. Both titles verified
+fixed by read + pin tests. Still no call site (documented 1d hold, not a gap).
+Watch item: tested-but-unrendered by design; merge-now-or-hold-for-1d is
+Nav/agent-1's call. Full record appended in `evidence/E4-49-PR49-review.md`.
+
+```text
+GSD_LOOP_RESULT={"lane":"review","status":"work","reason":"e4-49-new-head-approved-conditional"}
+```
