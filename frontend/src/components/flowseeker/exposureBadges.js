@@ -3,8 +3,11 @@
  *
  * Backend producers (main): RULE_TOXIC_FLOW, RULE_VEX_WALL,
  * RULE_CHARM_PIN, RULE_LIQUIDITY_STRESS in backend/services/
- * exposure_alerts.py; RULE_GAMMA_FLIP also fires from
- * backend/alert_engine.py (GAMMA_FLIP regime-change alert).
+ * exposure_alerts.py; RULE_GAMMA_FLIP fires from BOTH
+ * exposure_alerts.py (kind gamma_flip_approach = price pressing the flip
+ * level) and backend/alert_engine.py (GAMMA_FLIP regime-change alert).
+ * The feed `rule` field carries no producer split, so the GAMMA_FLIP and
+ * VEX_WALL badge titles name both meanings instead of claiming one.
  * The Blademap v3 feed (/api/flowseeker/alerts/feed) carries these
  * rows with a `rule` field; this module maps rule → badge. Unknown
  * rules map to null: never invent a badge for a rule with no wired
@@ -12,17 +15,16 @@
  *
  * Copy rule: heuristic labels only, no invented precision (F5/F6/F11/F19
  * style). Do NOT conflate CHARM_PIN (exposure) with CHARM_PINNING
- * (alert_engine 0DTE), or GAMMA_FLIP (exposure approach) with
- * GAMMA_FLIP_PROXIMITY (alert_engine).
+ * (alert_engine 0DTE), or GAMMA_FLIP (flip zone: approach or regime
+ * change) with GAMMA_FLIP_PROXIMITY (alert_engine spot-within-0.3%).
  *
- * Kind-aware copy (E4-48 D2/D3): the feed persists the backend event kind
- * per row — `key` is `exposure:{kind}:{ticker}:{expiry}:{strike}` and
- * `context_json` carries `{magnitude, kind}` (see events_to_alerts in
+ * Kind-aware refinement: the feed DOES persist the backend event kind per
+ * row — `key` is `exposure:{kind}:{ticker}:{expiry}:{strike}` and
+ * `context_json` carries `{magnitude, kind}` (events_to_alerts in
  * backend/services/exposure_alerts.py, persisted via context_json in
- * flow_alerts.py). vex_wall_broken and gamma_flip_approach rows MUST NOT
- * render formed/regime copy: their titles use the backend's own _WHY
- * language for that kind. Pass the feed row (or kind string) as the
- * second arg; rule-only calls keep the formed/regime default.
+ * flow_alerts.py). Pass the feed row (or kind string) as the second arg
+ * and broken/approach rows get the backend's own _WHY copy instead of
+ * the dual-meaning default below.
  */
 
 const BADGES = {
@@ -36,13 +38,13 @@ const BADGES = {
     rule: "GAMMA_FLIP",
     label: "GAMMA FLIP",
     title:
-      "Gamma regime change — dealer gamma flipped from positive to negative (heuristic, not a direction call)",
+      "Gamma flip zone — price pressing or through the dealer flip level: flip approach (exposure path) or regime change pos-to-neg (alert-engine path), heuristic, not a direction call",
   },
   VEX_WALL: {
     rule: "VEX_WALL",
     label: "VEX WALL",
     title:
-      "VEX wall — dealers defending this vol level, vol suppression (heuristic, not a direction call)",
+      "VEX wall event — formed (dealers defending, vol suppression) or broken (suppression released, regime may shift); pass the feed row for kind-specific copy, heuristic",
   },
   CHARM_PIN: {
     rule: "CHARM_PIN",
