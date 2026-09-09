@@ -22,10 +22,15 @@ boot.json before touching files.
    a. `TOXIC_FLOW` (producer: `backend/services/exposure_alerts.py`, event
       kind `toxic_flow`, magnitude from VPIN high regime) + `GAMMA_FLIP`
       (producer: `exposure_alerts.py`, event kind `gamma_flip_approach`,
-      spot within 0.3% of flip) — the TAKE-OVER loop 5 rules. Wire pills/
-      badges in Blademap feed AND heatseeker. Use the SIDE/SIGNAL dash
-      pattern for unknowns; keep proxy disclaimers (F5/F6/F11/F19 style —
-      no invented precision, heuristic labels only).
+      spot within ±1% of flip per `FLIP_PROXIMITY_PCT` — NOT 0.3%; that is
+      alert_engine's separate `GAMMA_FLIP_PROXIMITY_PCT`. Approach ≠ flip:
+      badge copy must say pressing/near, never "flipped") — the TAKE-OVER
+      loop 5 rules. Wire pills/badges in Blademap feed AND heatseeker. Use
+      the SIDE/SIGNAL dash pattern for unknowns; keep proxy disclaimers
+      (F5/F6/F11/F19 style — no invented precision, heuristic labels only).
+      `VEX_WALL` covers BOTH `vex_wall_formed` and `vex_wall_broken` kinds
+      in the feed `rule` column — read the event kind and render broken
+      copy ("suppression released") for broken rows, never defending copy.
 
    b. `GEX_MAGNITUDE_SHIFT`, `MOMENTUM_EXTREME`, `WALL_BREACH`,
       `PIN_RISK`, `VANNA_REGIME_CHANGE`, `UNUSUAL_PC_OI_RATIO`,

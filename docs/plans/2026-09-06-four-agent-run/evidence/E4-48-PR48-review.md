@@ -114,7 +114,9 @@ state), never ticker-change-then-failure. Prescription: in `.catch`, add
 `if (!cancelled) setBadges([])`; add a test that renders SPY badges, rerenders
 QQQ with a rejected fetch, and asserts the old badges are gone.
 
-DEFECT 2 — broken VEX walls described as defending.
+DEFECT 2 — broken VEX walls described as defending (both call sites:
+FlowseekerProBlademap.jsx:2001 renders `a.rule` only; ExposureStrip.jsx
+maps `row?.rule` only — neither reads the event kind).
 `events_to_alerts` (`backend/services/exposure_alerts.py`, origin/main)
 collapses kind `vex_wall_broken` → rule `VEX_WALL` (same branch as
 `vex_wall_formed`). The badge title says "dealers defending this vol level".
@@ -123,7 +125,8 @@ Backend's own `_WHY` for the broken kind says the opposite: "VEX wall broken
 `context.kind`, so the fix is precise: read the kind at the call site and
 render broken copy ("wall broken — suppression released") for broken rows.
 
-DEFECT 3 — GAMMA_FLIP badge asserts a flip on approach rows.
+DEFECT 3 — GAMMA_FLIP badge asserts a flip on approach rows (both call
+sites render the shared `exposureBadgeFor("GAMMA_FLIP")` title).
 The exposure pipeline emits rule `GAMMA_FLIP` for kind `gamma_flip_approach`
 (price within ±1% of the flip, `FLIP_PROXIMITY_PCT = 0.01`); the badge title
 claims "dealer gamma flipped from positive to negative". An approach is not
