@@ -14,7 +14,8 @@ PR39 (provider cap + deepen + enrich, merged by Nav), PR40 (honesty labels),
 PR41 (strike floor), PR42 (T2 full universe + order-key 401 fix), PR43
 (honesty citations), PR45 (TOXIC_FLOW alerts), PR46 (GAMMA_FLIP alerts),
 PR47 (numba charm vec + liquidity-stress alerts).
-One open PR: PR48 (a3/alert-surfacing, head 4d7172e, agent-4 review pending).
+One open PR: PR48 (a3/alert-surfacing, head 4d7172e, E4-48 APPROVED-conditional,
+Nav merge call). Stacked PR49 (a3/alert-engine-badges, head 18ee54f, CI pending).
 6 superseded branches deleted after patch-id proof (product identical to main;
 docs in archive). Every merge verified: green required CI on the merged head +
 local reproduction where applicable. Full receipt trail in GSD-PASSES.md
@@ -78,9 +79,15 @@ PR44 merged main 56cfff2 2026-09-08T11:48:51Z; witness gate (external G-WITNESS)
       surface only live ones, report dead ones instead of wiring corpses.
    d. Do NOT invent UI for `FOLLOW`/`SOURCE` (UI-only, no backend producer).
    Tests for every badge (incl. no-quote/unknown rendering); full-suite green.
-   Status: **DONE via PR48** (a3/alert-surfacing, head 4d7172e). PR48 open,
-   agent-4 review + Nav merge gate before merge. Receipt:
-   evidence/ALERT-SURFACING-1A-receipt.md.
+    Status: **DONE via PR48** (a3/alert-surfacing, head 4d7172e). E4-48
+    APPROVED-conditional, Nav merge call. Receipt:
+    evidence/ALERT-SURFACING-1A-receipt.md + evidence/E4-48.md.
+
+  1b. **Alert-engine mapper (1c)** — `alertEngineBadges.js` (11 catalog types,
+    TDD RED-first, 17 tests) + CLUSTER badge in exposureBadges (feed-proven).
+    No UI wiring yet (alert_engine serves via /api/alerts/*, design = 1d).
+    Status: **DONE via PR49** (a3/alert-engine-badges, head 18ee54f, stacked
+    on PR48 — do NOT merge before #48). 66/66 green.
 
 2. **XH-1** — UI quote/side/sweep/block copy preserves unknowns, labels proxies.
    Status: **ADMITTED** — task card `XH-1.md` written; discovery phase pending
@@ -101,7 +108,8 @@ PR44 merged main 56cfff2 2026-09-08T11:48:51Z; witness gate (external G-WITNESS)
 - PR44 G3-salvage: prior verdict E4-44 APPROVED-conditional, merge gated on
   the external witness. Standing job: confirm it stays green and
   unmerged until witnessed; re-verify at any new head.
-- PR48 alert-surfacing: open, agent-4 review + Nav merge gate before merge.
+- PR48 alert-surfacing: E4-48 APPROVED-conditional, Nav merge call.
+- PR49 alert-engine-badges (stacked on PR48): needs CI + agent-4 review, merge only after #48.
 - Never re-audit merged heads at unchanged state (PR28-43, PR45-46).
 - Three alert pipelines exist (alert_engine, exposure_alerts, flow_alerts)
   with overlapping rule names (`CHARM_PIN` ≠ `CHARM_PINNING`,

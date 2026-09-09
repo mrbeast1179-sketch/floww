@@ -125,6 +125,14 @@
       "receipt": "docs/plans/2026-09-06-four-agent-run/evidence/E4-48.md",
       "next": "PR48 open (a3/alert-surfacing, head 4d7172e). CI green: backend-tests SUCCESS, ruff SUCCESS, frontend-build SUCCESS, docker-build SKIPPED (2026-09-08T19:35Z). Agent-4 review + Nav merge gate. Receipt: docs/plans/2026-09-06-four-agent-run/evidence/ALERT-SURFACING-1A-receipt.md."
     },
+    "pr49": {
+      "head": "18ee54f",
+      "base": "a3/alert-surfacing @ 4d7172e (stacked on PR48)",
+      "verdict": "PENDING CI + agent-4 review; merge only after PR48",
+      "state": "OPEN — 1c mapper + CLUSTER badge, 66/66 green locally",
+      "url": "https://github.com/mrbeast1179-sketch/floww/pull/49",
+      "next": "Wait CI; agent-4 review at head; Nav merge call after PR48 lands."
+    },
     "pr44": {
       "head": "bffa5deb78259b9c2c9598480f1eb05012215ed2",
       "base": "a6e6f7930e7a9aae497170c0ea8104b62520f2f2",
