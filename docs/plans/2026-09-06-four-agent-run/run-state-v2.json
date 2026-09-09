@@ -17,10 +17,10 @@
       "task_id": "R0-OPERATE",
       "worktree": "/Users/nav/Documents/GitHub/floww-worktrees/recovery-control-plane-v2",
       "branch": "architect/20260906-recovery-control-plane-v2",
-      "head_sha": "de6cfd87c38fa2c125da1d8f3cc6d0c5e0ace91b",
+      "head_sha": "a92550cfbecb08565cea68a6bdc334788ca9f0c2",
       "allowed_files": [],
-      "boot_receipt": "/Users/nav/Documents/GitHub/floww-run-state/2026-09-06-v2/platform/boot.json",
-      "last_checkpoint": "/Users/nav/Documents/GitHub/floww-run-state/2026-09-06-v2/platform/checkpoint.json",
+      "boot_receipt": "/Users/nav/Documents/GitHub/floww-run-state/2026-09-06-v2/agent-1-architect/boot.json",
+      "last_checkpoint": "/Users/nav/Documents/GitHub/floww-run-state/2026-09-06-v2/agent-1-architect/checkpoint.json",
       "lease_note": "Central external runtime state and task cards only; repository docs changes require an explicit enumerated path list. Builder lane held until Agent-2 next admission."
     },
     "agent-2-backend": {
@@ -50,9 +50,9 @@
         "frontend/src/components/heatseeker/ExposureStrip.test.jsx",
         "frontend/src/components/heatseeker/SkylitDashboard.jsx"
       ],
-      "boot_receipt": "floww-run-state/2026-09-06-v2/frontend/boot.json",
-      "last_checkpoint": "floww-run-state/2026-09-06-v2/frontend/checkpoint.json",
-      "lease_note": "Frontend-only exposure-rule badge surfacing. Blademap v3 + heatseeker ExposureStrip. Reads /api/flowseeker/alerts/feed; maps the five live backend producers (TOXIC_FLOW, GAMMA_FLIP, VEX_WALL, CHARM_PIN, LIQUIDITY_STRESS). No App.js, no App.css global, no backend, no other lanes' tests, no central state. Verified 48 focused + 500 full tests green; CRA build clean. Branch a3/alert-surfacing pushed to origin, rebased onto main 56cfff2. PR #48 open: https://github.com/mrbeast1179-sketch/floww/pull/48 — agent-4 review gate before merge (Nav-gated)."
+      "boot_receipt": "/Users/nav/Documents/GitHub/floww-run-state/2026-09-06-v2/agent-3-frontend/boot.json",
+      "last_checkpoint": "/Users/nav/Documents/GitHub/floww-run-state/2026-09-06-v2/agent-3-frontend/checkpoint.json",
+      "lease_note": "Frontend-only exposure-rule badge surfacing. Blademap v3 + heatseeker ExposureStrip. Reads /api/flowseeker/alerts/feed; maps the five live backend producers (TOXIC_FLOW, GAMMA_FLIP, VEX_WALL, CHARM_PIN, LIQUIDITY_STRESS). No App.js, no App.css global, no backend, no other lanes' tests, no central state. Verified 48 focused + 500 full tests green; CRA build clean. Branch a3/alert-surfacing pushed to origin, rebased onto main 56cfff2. PR #48 open: https://github.com/mrbeast1179-sketch/floww/pull/48 \u2014 agent-4 review gate before merge (Nav-gated)."
     },
     "agent-4-proof": {
       "state": "DONE",
@@ -115,6 +115,14 @@
       "verdict": "APPROVED-conditional",
       "receipt": "floww-run-state/2026-09-06-v2/proof/receipts/E4-31.md",
       "next": "Nav merge call as inert scaffolding; A3-SCORE must approve weights before any live caller passes nonzero"
+    },
+    "pr48": {
+      "head": "4d7172ef056c7476bbfb4f345a3e961367221f26",
+      "base": "56cfff2ec909313c81fbe616a3595c937238037a",
+      "verdict": "PENDING agent-4 review",
+      "state": "OPEN — agent-4 review + Nav merge gate before merge",
+      "url": "https://github.com/mrbeast1179-sketch/floww/pull/48",
+      "next": "PR48 open (a3/alert-surfacing, head 4d7172e). CI green: backend-tests SUCCESS, ruff SUCCESS, frontend-build SUCCESS, docker-build SKIPPED (2026-09-08T19:35Z). Agent-4 review + Nav merge gate. Receipt: docs/plans/2026-09-06-four-agent-run/evidence/ALERT-SURFACING-1A-receipt.md."
     },
     "pr44": {
       "head": "bffa5deb78259b9c2c9598480f1eb05012215ed2",
