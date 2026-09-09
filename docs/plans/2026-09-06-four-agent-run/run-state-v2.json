@@ -17,7 +17,7 @@
       "task_id": "R0-OPERATE",
       "worktree": "/Users/nav/Documents/GitHub/floww-worktrees/recovery-control-plane-v2",
       "branch": "architect/20260906-recovery-control-plane-v2",
-      "head_sha": "a92550cfbecb08565cea68a6bdc334788ca9f0c2",
+      "head_sha": "6685dfac73e0325ab8060afec3670d1eaa6ad4dd",
       "allowed_files": [],
       "boot_receipt": "/Users/nav/Documents/GitHub/floww-run-state/2026-09-06-v2/agent-1-architect/boot.json",
       "last_checkpoint": "/Users/nav/Documents/GitHub/floww-run-state/2026-09-06-v2/agent-1-architect/checkpoint.json",
@@ -87,7 +87,7 @@
       "summary": "three NO_BYTES failures and one HTTP_429; no astra_G receipts"
     }
   ],
-  "snapshot_date": "2026-09-08",
+  "snapshot_date": "2026-09-09",
   "template_only": true,
   "task_card_root": "/Users/nav/Documents/GitHub/floww-run-state/2026-09-06-v2/task-cards",
   "review_receipts": {
@@ -120,7 +120,7 @@
       "head": "4d7172ef056c7476bbfb4f345a3e961367221f26",
       "base": "56cfff2ec909313c81fbe616a3595c937238037a",
       "verdict": "PENDING agent-4 review",
-      "state": "OPEN — agent-4 review + Nav merge gate before merge",
+      "state": "OPEN \u2014 agent-4 review + Nav merge gate before merge",
       "url": "https://github.com/mrbeast1179-sketch/floww/pull/48",
       "next": "PR48 open (a3/alert-surfacing, head 4d7172e). CI green: backend-tests SUCCESS, ruff SUCCESS, frontend-build SUCCESS, docker-build SKIPPED (2026-09-08T19:35Z). Agent-4 review + Nav merge gate. Receipt: docs/plans/2026-09-06-four-agent-run/evidence/ALERT-SURFACING-1A-receipt.md."
     },
