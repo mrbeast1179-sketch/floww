@@ -133,6 +133,15 @@
       "url": "https://github.com/mrbeast1179-sketch/floww/pull/49",
       "next": "Rebase PR49 onto f25de2e31 (agent-3, via agent-1 admission), then Agent-4 re-verify at new head."
     },
+    "pr51": {
+      "head": "b1fad090a86355e391378ae7fc807c7ca160ef59",
+      "base": "56cfff2ec909313c81fbe616a3595c937238037a",
+      "verdict": "APPROVED post-merge (E4-51, 2026-09-09: RED 4/4 on main, GREEN 12/12 at fix)",
+      "state": "MERGED to main d4a5b1f (2026-09-09T05:03:29Z); 0 reviews on record before merge",
+      "url": "https://github.com/mrbeast1179-sketch/floww/pull/51",
+      "receipt": "docs/plans/2026-09-06-four-agent-run/evidence/E4-51-PR51-signal-truth.md",
+      "next": "Nothing further. Main advanced 56cfff2 -> d4a5b1f; PR48 base now stale (rebase note recorded)."
+    },
     "pr44": {
       "head": "bffa5deb78259b9c2c9598480f1eb05012215ed2",
       "base": "a6e6f7930e7a9aae497170c0ea8104b62520f2f2",

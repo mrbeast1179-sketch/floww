@@ -1,4 +1,4 @@
-# Recovery queue v2 — current state (main 56cfff2)
+# Recovery queue v2 — current state (main d4a5b1f)
 
 `QUEUE.md` retains the full P1–P7, D1–D7, X1–X5, and E1–E5 contracts. This
 file tracks current candidate heads and the live backlog. Status is evidence-based
@@ -6,14 +6,16 @@ as of 2026-09-08.
 
 ## CLOSED as a merge queue
 
-Main is `56cfff2`. Merged, in order: PR28 (D7 parity), PR29 (X1 journal),
+Main is `d4a5b1f`. Merged, in order: PR28 (D7 parity), PR29 (X1 journal),
 PR30 (P1 silent-except gate), PR31 (A3 conviction wiring), PR33 (T1-only),
 PR34 (H1 strike-truth fixture), PR35 (F0 wave + clock fix), PR36 (H2-partial),
 PR37 (GEX date-string fix), PR38 (dead-code removal + kanban datetime fix),
 PR39 (provider cap + deepen + enrich, merged by Nav), PR40 (honesty labels),
 PR41 (strike floor), PR42 (T2 full universe + order-key 401 fix), PR43
 (honesty citations), PR45 (TOXIC_FLOW alerts), PR46 (GAMMA_FLIP alerts),
-PR47 (numba charm vec + liquidity-stress alerts).
+PR47 (numba charm vec + liquidity-stress alerts), PR51 (signal-truth repair:
+charm type normalization + liquidity interval flow, merged d4a5b1f,
+E4-51 APPROVED post-merge).
 One open PR: PR48 (a3/alert-surfacing, head f25de2e31, E4-48b APPROVED — rework
 verified 49/49, merge needs CI green + Nav call). Stacked PR49 (head 2f19bb4,
 needs rebase onto f25de2e31).

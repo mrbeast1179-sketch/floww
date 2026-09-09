@@ -327,3 +327,18 @@ rebase. Full receipt: `evidence/E4-48b-PR48-rereview.md`.
 ```text
 GSD_LOOP_RESULT={"lane":"review","status":"work","reason":"e4-48b-approved-ci-pending"}
 ```
+
+## Agent-4 post-merge review — PR51 signal-truth @ b1fad09 → APPROVED
+
+Main advanced `56cfff2` → `d4a5b1f` via PR51 (agent2 signal-truth repair,
+merged 2026-09-09T05:03:29Z, 0 reviews on record). Post-merge audit:
+3 files +115/-8. RED at 56cfff2 (4/4 new tests fail) / GREEN at b1fad09
+(12/12 with neighbors) reproduced locally at exact commits. Both fixes
+verified correct (charm normalization routes unknown types to scalar with
+legacy semantics pinned; liquidity differencing seeds baseline, guards
+non-finite input). Full receipt: `evidence/E4-51-PR51-signal-truth.md`.
+Side effect: PR48 base now stale (needs rebase onto d4a5b1f before merge).
+
+```text
+GSD_LOOP_RESULT={"lane":"review","status":"work","reason":"e4-51-approved-post-merge"}
+```
