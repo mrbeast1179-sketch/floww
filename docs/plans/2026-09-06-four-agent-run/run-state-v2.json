@@ -117,21 +117,21 @@
       "next": "Nav merge call as inert scaffolding; A3-SCORE must approve weights before any live caller passes nonzero"
     },
     "pr48": {
-      "head": "4d7172ef056c7476bbfb4f345a3e961367221f26",
+      "head": "f25de2e31153c8dbdd99746b0b0f69e6ebb3761a",
       "base": "56cfff2ec909313c81fbe616a3595c937238037a",
-      "verdict": "REWORK (E4-48 amended 2026-09-09: 3 semantic defects)",
-      "state": "REVIEWED — merge HELD for rework; no agent merge authority",
+      "verdict": "APPROVED (E4-48b re-review at f25de2e31, 2026-09-09: 49/49 green)",
+      "state": "REVIEWED — merge needs CI green + Nav call; no agent merge authority",
       "url": "https://github.com/mrbeast1179-sketch/floww/pull/48",
-      "receipt": "docs/plans/2026-09-06-four-agent-run/evidence/E4-48-PR48-review.md (live); evidence/E4-48.md VOID/superseded",
-      "next": "Agent-3 rework: clear badges on ticker-change failure + regression test; broken-wall copy by kind; approach copy for GAMMA_FLIP. Re-verify at new head."
+      "receipt": "docs/plans/2026-09-06-four-agent-run/evidence/E4-48b-PR48-rereview.md (live; prior head 4d7172e: E4-48.md VOID, E4-48-PR48-review.md REWORK superseded)",
+      "next": "CI at f25de2e31 was IN_PROGRESS at review (ruff SUCCESS). Confirm green before any merge call. No further Agent-4 review until head moves."
     },
     "pr49": {
       "head": "2f19bb4",
       "base": "a3/alert-surfacing @ 4d7172e (stacked on PR48)",
-      "verdict": "APPROVED-conditional (E4-49 re-verified at 2f19bb4, 2026-09-09: 29/29 green)",
-      "state": "REVIEWED — wiring held for 1d by design; merge-now-or-hold is Nav/agent-1 call",
+      "verdict": "APPROVED-conditional (E4-49 re-verified at 2f19bb4, 2026-09-09: 29/29 green) BUT stacked on old PR48 head",
+      "state": "REVIEWED — needs rebase onto f25de2e31, then re-verify; merge held until then",
       "url": "https://github.com/mrbeast1179-sketch/floww/pull/49",
-      "next": "No further Agent-4 review until head moves or 1d wiring lands."
+      "next": "Rebase PR49 onto f25de2e31 (agent-3, via agent-1 admission), then Agent-4 re-verify at new head."
     },
     "pr44": {
       "head": "bffa5deb78259b9c2c9598480f1eb05012215ed2",

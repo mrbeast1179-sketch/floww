@@ -14,9 +14,9 @@ PR39 (provider cap + deepen + enrich, merged by Nav), PR40 (honesty labels),
 PR41 (strike floor), PR42 (T2 full universe + order-key 401 fix), PR43
 (honesty citations), PR45 (TOXIC_FLOW alerts), PR46 (GAMMA_FLIP alerts),
 PR47 (numba charm vec + liquidity-stress alerts).
-One open PR: PR48 (a3/alert-surfacing, head 4d7172e, E4-48 REWORK — 3 semantic
-defects, merge held). Stacked PR49 (a3/alert-engine-badges, head 2f19bb4,
-E4-49 APPROVED-conditional — copy flags fixed with TDD, wiring held for 1d).
+One open PR: PR48 (a3/alert-surfacing, head f25de2e31, E4-48b APPROVED — rework
+verified 49/49, merge needs CI green + Nav call). Stacked PR49 (head 2f19bb4,
+needs rebase onto f25de2e31).
 6 superseded branches deleted after patch-id proof (product identical to main;
 docs in archive). Every merge verified: green required CI on the merged head +
 local reproduction where applicable. Full receipt trail in GSD-PASSES.md
@@ -80,12 +80,11 @@ PR44 merged main 56cfff2 2026-09-08T11:48:51Z; witness gate (external G-WITNESS)
       surface only live ones, report dead ones instead of wiring corpses.
    d. Do NOT invent UI for `FOLLOW`/`SOURCE` (UI-only, no backend producer).
    Tests for every badge (incl. no-quote/unknown rendering); full-suite green.
-    Status: **DONE via PR48** (a3/alert-surfacing, head 4d7172e). E4-48
-    REWORK (2026-09-09 re-audit: stale badges across ticker change,
-    broken-VEX-as-defending copy, regime-change copy on approach rows).
-    Merge HELD for rework. Receipt:
-    evidence/ALERT-SURFACING-1A-receipt.md + evidence/E4-48.md (VOID,
-    superseded) + evidence/E4-48-PR48-review.md (live).
+    Status: **DONE via PR48** (a3/alert-surfacing, head f25de2e31). E4-48b
+    APPROVED (2026-09-09 re-review: all 3 rework defects resolved, 49/49
+    green; merge needs CI green + Nav call). Receipt:
+    evidence/E4-48b-PR48-rereview.md (live; E4-48 + E4-48-PR48-review.md cover
+    the superseded head 4d7172e).
 
   1b. **Alert-engine mapper (1c)** — `alertEngineBadges.js` (11 catalog types,
     TDD RED-first, 17 tests) + CLUSTER badge in exposureBadges (feed-proven).
@@ -113,11 +112,10 @@ PR44 merged main 56cfff2 2026-09-08T11:48:51Z; witness gate (external G-WITNESS)
 
 ### Agent 4 standing review
 
-- PR44 G3-salvage: prior verdict E4-44 APPROVED-conditional, merge gated on
-  the external witness. Standing job: confirm it stays green and
-  unmerged until witnessed; re-verify at any new head.
-- PR48 alert-surfacing: E4-48 REWORK (3 semantic defects, merge held for rework).
-- PR49 alert-engine-badges (stacked on PR48): E4-49 APPROVED-conditional at 2f19bb4 (copy flags fixed with TDD evidence; wiring held for 1d by design). Merge now-or-hold-for-1d is Nav/agent-1's call.
+- PR44 G3-salvage: E4-44 APPROVED-conditional, MERGED to main 56cfff2. Witness
+  gate pending; re-verify at any new head before any witnessed attempt.
+- PR48 alert-surfacing: E4-48b APPROVED at f25de2e31 (rework verified 49/49; merge needs CI green + Nav call).
+- PR49 alert-engine-badges: E4-49 APPROVED-conditional at 2f19bb4 BUT stacked on old PR48 head — needs rebase onto f25de2e31, then re-verify. Merge held until then.
 - Never re-audit merged heads at unchanged state (PR28-43, PR45-46).
 - Three alert pipelines exist (alert_engine, exposure_alerts, flow_alerts)
   with overlapping rule names (`CHARM_PIN` ≠ `CHARM_PINNING`,

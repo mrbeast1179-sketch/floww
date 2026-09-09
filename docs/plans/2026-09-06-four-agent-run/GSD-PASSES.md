@@ -313,3 +313,17 @@ Nav/agent-1's call. Full record appended in `evidence/E4-49-PR49-review.md`.
 ```text
 GSD_LOOP_RESULT={"lane":"review","status":"work","reason":"e4-49-new-head-approved-conditional"}
 ```
+
+## Agent-4 re-review — PR48 rework head `f25de2e31` → APPROVED
+
+Head moved `4d7172e` → `f25de2e31` (1 commit: dual-producer titles + stale-badge clear).
+Prior REWORK void for new head; re-verified fresh. Exact-head repro 49/49 green
+(48 + new ticker-change regression test). All 3 defects resolved: setBadges([])
+on effect start + catch (matches proven prescription line-for-line); VEX and
+GAMMA_FLIP titles name both meanings honestly. CI IN_PROGRESS at review time
+(ruff SUCCESS) — merge needs green + Nav call. PR49 stacked on OLD head, needs
+rebase. Full receipt: `evidence/E4-48b-PR48-rereview.md`.
+
+```text
+GSD_LOOP_RESULT={"lane":"review","status":"work","reason":"e4-48b-approved-ci-pending"}
+```
