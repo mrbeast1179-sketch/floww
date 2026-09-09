@@ -17,7 +17,7 @@
       "task_id": "R0-OPERATE",
       "worktree": "/Users/nav/Documents/GitHub/floww-worktrees/recovery-control-plane-v2",
       "branch": "architect/20260906-recovery-control-plane-v2",
-      "head_sha": "de9d6bc31593229faf45fbb7fe1ab3e64f64d6d31",
+      "head_sha": "550b4f15d7e629dc5c58b6f7258794eb5fdf2947",
       "allowed_files": [],
       "boot_receipt": "/Users/nav/Documents/GitHub/floww-run-state/2026-09-06-v2/agent-1-architect/boot.json",
       "last_checkpoint": "/Users/nav/Documents/GitHub/floww-run-state/2026-09-06-v2/agent-1-architect/checkpoint.json",
