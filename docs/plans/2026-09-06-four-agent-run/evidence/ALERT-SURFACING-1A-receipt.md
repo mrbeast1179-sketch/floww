@@ -38,6 +38,16 @@ Wire the 5 backend exposure rules (TOXIC_FLOW, GAMMA_FLIP, VEX_WALL, CHARM_PIN, 
 - Cannot cleanly merge onto current main because PR45/46/47 introduced conflicting exposure-rule lines in FlowseekerProBlademap.jsx — rebasing produces the correct diff (1 commit on top of 56cfff2)
 - Recovering from a handoff gap: boot.json/checkpoint.json had drifted to stale SHA `04605df` in `floww-run-state/` mirror; reconciled to actual working-tree head `498e9c5`
 
+## Head advance (2026-09-09, coordinator addendum — original above untouched)
+
+- Head moved `498e9c5` → `4d7172e` (5 commits, all docs/comment-only).
+- Delta `498e9c5..4d7172e`: new `evidence/AGENT3-1B-ASSESSMENT.md` + docstring/title
+  wording in `exposureBadges.js` (GAMMA_FLIP producer attribution + badge title).
+  No logic change: badge keys, rule mapping, tests untouched.
+- Product verification from `498e9c5` (48/48 focused, 500 full, CRA build clean)
+  carries. CI at `4d7172e` green: backend-tests, frontend-build, ruff PASS,
+  docker-build SKIPPED. PR48 MERGEABLE/CLEAN — agent-4 review + Nav merge gate.
+
 ## Remaining on agent-3 backlog (not in this unit)
 - 1b: assess alert_engine rule catalog (GEX_MAGNITUDE_SHIFT, MOMENTUM_EXTREME, WALL_BREACH, PIN_RISK, VANNA_REGIME_CHANGE, UNUSUAL_PC_OI_RATIO, MAX_PAIN_MAGNET, GAMMA_SQUEEZE, VOLUME_SPIKE, CLUSTER) — live producer vs dead code
 - XH-1, X2, X4 — not started
