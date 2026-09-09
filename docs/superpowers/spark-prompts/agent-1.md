@@ -16,9 +16,9 @@ Read first, in order: `README.md`, `HARNESS-V2.md`, `RECOVERY-QUEUE.md`
 
 ## Git truth — re-fetch every session; heads move without you
 
-- `origin/main` was `d4a5b1f` (take-over loops landed PR28–47, PR44 merged 2026-09-08T11:48:51Z, PR51 signal-truth merged 2026-09-09T05:03:29Z). Re-read the
-  tip at every boot. Open: PR48 (a3/alert-surfacing, head 73533e1e8, E4-48c APPROVED — CI green, merge-ready, Nav call)
-  + stacked PR49 (head 6387f13, stacked on PR48) + stacked PR50 (head f7bc499, E4-48c APPROVED — kind-aware copy, stacked on PR48). Anything
+- `origin/main` was `84fc1ed` (was `56cfff2`→`d4a5b1f`→`84fc1ed`; PR51 signal-truth merged 2026-09-09T05:03:29Z, PR50 KIND_TITLES merged 2026-09-09T15:35:57Z, PR52 vomma-walls + PR53 gamma-vanna-vec merged). Re-read the
+  tip at every boot. Open: PR48 (a3/alert-surfacing, head 2f57bea3d, E4-48d APPROVED at E4-48b level — 49/49 green, frontend-only, clean merge to main; UNSTABLE/behind main — needs rebase onto origin/main; Nav decides merge-as-is vs rebase-first)
+  + stacked PR49 (head 6387f13, E4-49 APPROVED-conditional — 29/29 green, DIRTY on merge, needs rebase + conflict resolution; wiring gap holds). PR50 MERGED (kind-aware copy now in main). Anything
   new: read it before admitting anything nearby.
 - `phase9/g1-reads-witness` (production checkout): NOT your lease, never
   sweep it. Production cutover to main is a Nav-coordinated single-writer

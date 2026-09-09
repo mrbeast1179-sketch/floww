@@ -6,7 +6,7 @@ as of 2026-09-08.
 
 ## CLOSED as a merge queue
 
-Main is `d4a5b1f`. Merged, in order: PR28 (D7 parity), PR29 (X1 journal),
+Main is `84fc1ed`. Merged, in order: PR28 (D7 parity), PR29 (X1 journal),
 PR30 (P1 silent-except gate), PR31 (A3 conviction wiring), PR33 (T1-only),
 PR34 (H1 strike-truth fixture), PR35 (F0 wave + clock fix), PR36 (H2-partial),
 PR37 (GEX date-string fix), PR38 (dead-code removal + kanban datetime fix),
@@ -15,8 +15,15 @@ PR41 (strike floor), PR42 (T2 full universe + order-key 401 fix), PR43
 (honesty citations), PR45 (TOXIC_FLOW alerts), PR46 (GAMMA_FLIP alerts),
 PR47 (numba charm vec + liquidity-stress alerts), PR51 (signal-truth repair:
 charm type normalization + liquidity interval flow, merged d4a5b1f,
-E4-51 APPROVED post-merge).
-Three open PRs (stacked): PR48 (a3/alert-surfacing, head 73533e1e8, E4-48c APPROVED — CI green, merge-ready, Nav call); PR50 (a3/pr48-semantic-fixes, head f7bc499eaa2, E4-48c APPROVED — kind-aware badge copy, stacked on PR48); PR49 (a3/alert-engine-badges, head 6387f1359095b, E4-49c APPROVED-conditional — wiring gap holds, stacked on PR48).
+E4-51 APPROVED post-merge), PR50 (kind-aware badge copy + stale-strip fix,
+merged 2026-09-09T15:35:57Z, KIND_TITLES in main), PR52 (vomma-walls alerts),
+PR53 (gamma-vanna-vec wiring).
+PR48 (a3/alert-surfacing, head 2f57bea3d, E4-48d APPROVED at E4-48b level —
+49/49 green, frontend-only, clean merge to main; UNSTABLE/behind main — needs
+rebase onto origin/main to become CLEAN; Nav decides merge-as-is vs rebase-first).
+PR49 (a3/alert-engine-badges, head 6387f1359095b, E4-49 APPROVED-conditional —
+29/29 green, DIRTY on merge, needs rebase + conflict resolution; wiring gap
+holds).
 6 superseded branches deleted after patch-id proof (product identical to main;
 docs in archive). Every merge verified: green required CI on the merged head +
 local reproduction where applicable. Full receipt trail in GSD-PASSES.md

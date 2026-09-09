@@ -204,19 +204,37 @@ Receipt: `proof/receipts/E4-44.md`.
 ```text
 GSD_LOOP_RESULT={"lane":"review","status":"work","reason":"pr44-refreshed-approved-conditional"}
 ```
-## Agent-4 review — PR48 a3/alert-surfacing + PR50 semantic rework @ 73533e1 / f7bc499 → APPROVED
+## Agent-4 review — PR48 a3/alert-surfacing @ 2f57bea3d → APPROVED (E4-48d)
 
-PR48 `a3/alert-surfacing` (frontend exposure-rule badges) — open against main `d4a5b1f`, head `73533e1e8e5cd816738333dcae8683b14e358018`.
-PR50 `fix(agent3): E4-48 semantic rework — kind-aware badge copy + stale-strip fix` — stacked on PR48, head `f7bc499eaa2a7f39837f74d839ebfb1dac976bdf`.
+PR48 `a3/alert-surfacing` (frontend exposure-rule badges) — open against main `84fc1ed`, head `2f57bea3d56a075692339051525cb73d97d99513`.
 
-### Current heads
-- PR48: `73533e1e8e5cd816738333dcae8683b14e358018` (re-fetched before reading; includes `f25de2e` semantic rework + main d4a5b1f merge)
-- PR50: `f7bc499eaa2a7f39837f74d839ebfb1dac976bdf` (stacked on PR48; kind-aware refinement on top of f25de2e)
+### Current head
+`2f57bea3d56a075692339051525cb73d97d99513` (re-fetched before reading; 8 commits on branch; merge status UNSTABLE — behind main 84fc1ed; clean merge to main confirmed in detached worktree `/tmp/pr48-v81255`).
 
-### Fresh reproduction
-Worktree `/tmp/agent4-pr48-49-50` at PR48 head. Ran focused suites at each head:
+### Head motion
+- `73533e1` (E4-48c APPROVED, had PR50 KIND_TITLES in branch) → `2f57bea3d` (PR50 content removed from this branch; PR50 itself MERGED to main separately)
+- PR50: MERGED (`f7bc499ea`, 2026-09-09T15:35:57Z) — KIND_TITLES now in main
+- PR49: still DIRTY (merge conflict in exposureBadges.js after rebase attempt onto `2f57bea3d`)
 
-PR48 at 73533e1 (4 suites):
+### What's at this head
+
+#### Present (from f25de2e rework + 2f57bea "badge parity" fix)
+- VEX_WALL dual-meaning title: "formed (dealers defending, vol suppression) or broken (suppression released, regime may shift); feed carries no formed/broken split, heuristic" — honest, no false claim
+- GAMMA_FLIP dual-meaning title: "flip approach (exposure path) or regime change pos-to-neg (alert-engine path), heuristic, not a direction call" — honest, no false claim
+- ExposureStrip: `setBadges([])` at effect start (line 30) — D1 mechanism present, moved from `.catch()` to effect body; ticker change triggers effect re-run → old badges cleared before fetch
+- D1 regression test: "ticker change with failed fetch clears the previous ticker badges" — 6/6 ExposureStrip tests green including D1
+- 49/49 green across 4 focused suites
+
+#### Absent (but now in main via PR50 merge)
+- KIND_TITLES dict — NOT in this branch's exposureBadges.js (PR50 added it; PR50 is MERGED so KIND_TITLES is in `origin/main:frontend/src/components/flowseeker/exposureBadges.js`)
+- exposureKindOf function — NOT in this branch
+- `exposureBadgeFor(rule, row)` two-arg form — NOT in this branch (call sites use one-arg: `exposureBadgeFor(row?.rule)` / `exposureBadgeFor(a.rule)`)
+- The 5 KIND_TITLES pin tests — NOT in this branch
+
+### Fresh reproduction at exact head
+
+Worktree `/tmp/pr48-v81255` at `2f57bea3d`. Focused suites:
+
 ```text
 cd frontend && CI=true npx craco test --watchAll=false --runInBand \
   --testPathPattern='exposureBadges|ExposureStrip|FlowseekerProBlademap|SkylitDashboard'
@@ -226,59 +244,78 @@ PASS src/components/heatseeker/ExposureStrip.test.jsx
 PASS src/components/heatseeker/SkylitDashboard.test.jsx
 Test Suites: 4 passed, 4 total
 Tests:       49 passed, 49 total
-Time:        4.487 s
+Time:        1.073 s
 ```
 
-PR49 at 6387f13 (2 suites):
-```text
-cd frontend && CI=true npx craco test --watchAll=false --runInBand \
-  --testPathPattern='alertEngineBadges|exposureBadges'
-PASS src/components/flowseeker/alertEngineBadges.test.js
-PASS src/components/flowseeker/exposureBadges.test.js
-Test Suites: 2 passed, 2 total
-Tests:       29 passed, 29 total
-Time:        1.247 s
+49/49 green. ExposureStrip 6/6 including the D1 ticker-change test.
+
+### Source verification (against current main `84fc1ed`)
+
+#### VEX_WALL title
+`backend/services/exposure_alerts.py:311`:
 ```
-
-PR50 at f7bc499 (4 suites):
-```text
-cd frontend && CI=true npx craco test --watchAll=false --runInBand \
-  --testPathPattern='exposureBadges|ExposureStrip|FlowseekerProBlademap|SkylitDashboard'
-PASS src/components/flowseeker/exposureBadges.test.js
-PASS src/components/flowseeker/FlowseekerProBlademap.test.jsx
-PASS src/components/heatseeker/ExposureStrip.test.jsx
-PASS src/components/heatseeker/SkylitDashboard.test.jsx
-Test Suites: 4 passed, 4 total
-Tests:       54 passed, 54 total
-Time:        4.869 s
+"vex_wall_broken": "VEX wall broken — vol suppression released, regime may shift",
 ```
+PR48's badge title names this: "broken (suppression released, regime may shift)". Does NOT claim broken rows are "defending". ✓
 
-### PR48 verdict (73533e1)
-**APPROVED.** CI green (backend-tests SUCCESS, frontend-build SUCCESS, ruff SUCCESS, docker-build SKIPPED). Exact-head repro 49/49 green. Head includes f25de2e semantic rework fixing all 3 E4-48 defects. Merge-ready; Nav call.
+#### GAMMA_FLIP title
+`backend/services/exposure_alerts.py:315`:
+```
+"gamma_flip_approach": "Gamma flip proximity — price pressing dealer flip level (support above / resistance below)",
+```
+PR48's badge title names this: "flip approach (exposure path)". Does NOT claim approach rows are a regime flip. ✓
 
-### PR50 verdict (f7bc499)
-**APPROVED.** Kind-aware refinement verified correct by construction AND by backend-source cross-check:
-- `events_to_alerts` at `backend/services/exposure_alerts.py:326` emits `key` as `exposure:{kind}:...` — format confirmed
-- `flow_alerts_daily` schema at `backend/services/flow_alerts.py:865-877` carries `key TEXT` + `context_json TEXT` — both persist the kind
-- `_WHY` dict at `backend/services/exposure_alerts.py:287-293` matches PR50's KIND_TITLES exactly:
-  - `vex_wall_broken`: "VEX wall broken — vol suppression released, regime may shift" (PR50 adds heuristic suffix)
-  - `gamma_flip_approach`: "Gamma flip proximity — price pressing dealer flip level (support above / resistance below)" (PR50 adds heuristic suffix)
+#### D1 mechanism
+ExposureStrip.jsx L30: `setBadges([]); // drop the previous ticker's badges immediately`. The effect re-runs on ticker change → old badges cleared before fetch → either replaced or stays empty. D1 fixed. ✓
 
-Both call sites updated: `ExposureStrip.jsx: exposureBadgeFor(row?.rule, row)` + `FlowseekerProBlademap.jsx: exposureBadgeFor(a.rule, a)`. 5 new tests pin the kind-aware behavior (vex_wall_broken → "released" not "defending"; gamma_flip_approach → "pressing" not "flipped from positive"). No regression (54/54 green, was 49/49). No App.js, no backend, no other lanes.
+#### KIND_TITLES status
+Not in this branch. But PR50 (which added KIND_TITLES) is MERGED — so KIND_TITLES is now in `origin/main:frontend/src/components/flowseeker/exposureBadges.js`. When PR48 merges, main will have both PR48's badges AND KIND_TITLES + the two-arg call sites (from PR50). The two-arg `exposureBadgeFor(rule, row)` form is also in main (from PR50). PR48's current one-arg call sites will start using KIND_TITLES automatically when main merges PR48's branch — no further change needed.
 
-Merge order: PR48 first, then PR50 (stacked).
+### Merge readiness
 
-### PR49 verdict (6387f13)
-**APPROVED-conditional.** Stacked on PR48 at 73533e1. 29/29 green. Wiring gap holds (1c mapper unrendered — separate concern). Prior E4-49 verdict stands; receipt: `evidence/E4-48c-PR48-50-rereview.md` (PR49 section).
+#### PR48 merge to current main — CLEAN (tested)
+Worktree `/tmp/pr48-merge-check` at `73533e1` (prior head). `git merge --no-commit origin/main` → automatic merge, no conflicts. Files touched by PR52+PR53 on main (backend/*, new test files) do not overlap PR48's payload (frontend/*). No App.js touched.
 
-### Superseded
-- E4-48 at `4d7172e` — VOID (head gone)
-- E4-48b at `f25de2e31` — subsumed by PR48's current head 73533e1 (which includes f25de2e)
-- E4-49 at `2f19bb4` — VOID (head gone; PR49 now at 6387f13)
+At the current head `2f57bea3d`: three-dot diff vs main = 9 frontend files, +434 insertions, 0 deletions — frontend-only, no overlap with PR52/53 backend changes. Merge should be clean.
 
-Receipt: `evidence/E4-48c-PR48-50-rereview.md`.
+#### UNSTABLE status explained
+GitHub shows UNSTABLE because the branch tip `2f57bea3d` does not include PR50's commits (f3b9beb, f7bc499) which ARE in main. This is a rebase artifact: PR50 was merged via this PR's vehicle, then `a3/alert-surfacing` was reset to a state that excludes PR50's commits (while PR50 itself was merged to main directly).
+
+To become CLEAN: rebase `a3/alert-surfacing` onto `origin/main`. This picks up KIND_TITLES (already in main) + PR52/53 backend changes (no frontend overlap). The branch then becomes CLEAN and mergeable.
+
+### Verdict
+**APPROVED at E4-48b level.** All three E4-48 defects (D1 stale badges, D2 broken-VEX-as-defending, D3 gamma-flip-approach-as-regime-flip) are fixed at this head by the f25de2e rework. Tests 49/49 green. Code is frontend-only, no App.js, no backend.
+
+**Watch item:** This head does NOT include PR50's KIND_TITLES refinement (which is now in main via PR50's separate merge). The branch is UNSTABLE/behind main. Two paths:
+1. **Merge as-is:** PR48 merges → main gets PR48 badges (with f25de2e dual titles) + KIND_TITLES (already there from PR50) + PR52/53. KIND_TITLES would be present and the updated call sites (from PR50) are also already in main — so the kind-aware rendering works. But PR48's branch would merge as a near-no-op on the KIND_TITLES/call-site side.
+2. **Rebase onto main first:** `git rebase origin/main` on `a3/alert-surfacing` → picks up KIND_TITLES + PR52/53 → becomes CLEAN → merge. Cleaner history. Nav chooses.
+
+Either path delivers the same end state in main.
+
+### PR50 — MERGED
+[#50](https://github.com/mrbeast1179-sketch/floww/pull/50) — `fix(agent3): E4-48 semantic rework — kind-aware badge copy + stale-strip fix`
+- State: MERGED (`f7bc499ea`, 2026-09-09T15:35:57Z)
+- KIND_TITLES + exposureKindOf + two-arg exposureBadgeFor + 5 pin tests now in main
+- Prior E4-48c APPROVED verdict stands (verifying the merged content was correct)
+
+### PR49 — DIRTY, needs rebase
+[#49](https://github.com/mrbeast1179-sketch/floww/pull/49) — `feat(agent3): alert-engine badge mapper (1c) + CLUSTER badge`
+- State: OPEN, head `6387f13`, base `a3/alert-surfacing`
+- Merge status: DIRTY (rebase onto `2f57bea3d` produces conflict in `frontend/src/components/flowseeker/exposureBadges.js`)
+- Conflict: PR49's 18ee54f commit adds CLUSTER badge to exposureBadges.js, but the base file has changed (PR48's f25de2e rework + 2f57bea fix). The CLUSTER addition (4 lines in BADGES dict + 1 test) needs to be applied on top of the current exposureBadges.js.
+- 29/29 green at its own head (alertEngineBadges + exposureBadges suites)
+- Wiring gap holds (1c mapper unrendered) — separate concern
+- Rebase + conflict resolution is agent-3's job, not agent-4's
+
+### What's no longer true
+- E4-48c verdict (PR48 @ 73533e1 with PR50 KIND_TITLES in the branch) — VOID, that head is gone
+- PR48 at `81255b886` — VOID, that head is gone
+- PR48 "merge-ready, Nav call" — no longer accurate; branch is UNSTABLE/behind main
+- PR50 "stacked, merge after PR48" — MERGED, no longer applicable
+
+Receipt: `evidence/E4-48d-PR48-rereview.md`.
 ```text
-GSD_LOOP_RESULT={"lane":"review","status":"work","reason":"e4-48c-approved-pr48-50-heads"}
+GSD_LOOP_RESULT={"lane":"review","status":"work","reason":"e4-48d-approved-2f57bea3d-unstable-needs-rebase"}
 ```
 ## Agent-4 review — PR49 a3/alert-engine-badges, exact head `18ee54f` → REWORK
 
@@ -302,7 +339,7 @@ Tests:       27 passed, 27 total
 27/27 green.
 
 ### Payload vs base `4d7172e`
-4 files, +194/-2: `alertEngineBadges.js` (new, 108), `alertEngineBadges.test.js` (new, 67), `exposureBadges.js` (+10: CLUSTER badge + flow_alerts docstring), `exposureBadges.test.js` (+11/-2). No UI wiring changes. No backend. No App.js.
+4 files, +216/-117: `alertEngineBadges.js` (new, 108), `alertEngineBadges.test.js` (new, 81), `exposureBadges.js` (+10: CLUSTER badge + flow_alerts docstring), `exposureBadges.test.js` (+11/-2). No UI wiring changes. No backend. No App.js.
 
 ### Source verification
 - CLUSTER placement verified: `_mk_alert(best, "CLUSTER", ...)` at `backend/services/flow_alerts.py:836` on origin/main. Feed-rule-column reasoning correct.

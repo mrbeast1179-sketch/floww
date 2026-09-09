@@ -32,7 +32,7 @@
       "allowed_files": [],
       "boot_receipt": null,
       "last_checkpoint": null,
-      "lease_note": "PR47 merged (numba charm-vec + LIQUIDITY_STRESS, main 56cfff2). No active admission. Next backend unit admitted by Agent 1 from ranked backlog in spark-prompts/agent-2.md."
+      "lease_note": "PR47 merged (numba charm-vec + LIQUIDITY_STRESS, main 56cfff2). PR51 merged (signal-truth repair, main d4a5b1f). PR52 PR53 merged (vomma-walls + gamma-vanna-vec, main 84fc1ed). No active agent-2 admission. Next backend unit admitted by Agent 1 from ranked backlog in spark-prompts/agent-2.md."
     },
     "agent-3-frontend": {
       "state": "PR_OPEN",
@@ -52,7 +52,7 @@
       ],
       "boot_receipt": "/Users/nav/Documents/GitHub/floww-run-state/2026-09-06-v2/agent-3-frontend/boot.json",
       "last_checkpoint": "/Users/nav/Documents/GitHub/floww-run-state/2026-09-06-v2/agent-3-frontend/checkpoint.json",
-      "lease_note": "Frontend-only exposure-rule badge surfacing. Blademap v3 + heatseeker ExposureStrip. Reads /api/flowseeker/alerts/feed; maps the five live backend producers (TOXIC_FLOW, GAMMA_FLIP, VEX_WALL, CHARM_PIN, LIQUIDITY_STRESS). No App.js, no App.css global, no backend, no other lanes' tests, no central state. Verified 48 focused + 500 full tests green; CRA build clean. Branch a3/alert-surfacing pushed to origin, rebased onto main 56cfff2. PR #48 open: https://github.com/mrbeast1179-sketch/floww/pull/48 \u2014 agent-4 review gate before merge (Nav-gated)."
+      "lease_note": "Frontend-only badge surfacing + kind-aware copy layer (PR50). Blademap v3 + heatseeker ExposureStrip + alert-engine mapper (1c, unrendered). Reads /api/flowseeker/alerts/feed (exposure path) and /api/alerts/* (alert-engine path). Maps TOXIC_FLOW, GAMMA_FLIP, VEX_WALL, CHARM_PIN, LIQUIDITY_STRESS. VEX_WALL/GAMMA_FLIP titles are kind-aware via PR50: vex_wall_broken → 'suppression released', gamma_flip_approach → 'pressing flip level'. 3 open PRs stacked on a3/alert-surfacing: PR48 (CI green, 73533e1) → PR50 (kind-aware, f7bc499) → PR49 (1c mapper, wiring gap, 6387f13). PR48 BEHIND main 84fc1ed — rebase needed before merge. No App.js global, no backend, no other lanes."
     },
     "agent-4-proof": {
       "state": "DONE",
@@ -69,7 +69,7 @@
   "known_candidates": {
     "pr44": "bffa5deb78259b9c2c9598480f1eb05012215ed2",
     "pr44_base": "a6e6f7930e7a9aae497170c0ea8104b62520f2f2",
-    "main": "d4a5b1f55f57abddd659bd9981c2c82b2e6feec9",
+    "main": "84fc1ed1dd5bd20045821f2343e036712a61bb06",
     "g1_canonical": "d39c37a (dirty, active, NOT this lane's lease)"
   },
   "external_gates": [
@@ -117,34 +117,34 @@
       "next": "Nav merge call as inert scaffolding; A3-SCORE must approve weights before any live caller passes nonzero"
     },
     "pr48": {
-      "head": "73533e1e8e5cd816738333dcae8683b14e358018",
-      "base": "56cfff2ec909313c81fbe616a3595c937238037a",
-      "verdict": "APPROVED (E4-48c re-re-review at 73533e1, 2026-09-09: 49/49 green; CI green)",
-      "state": "REVIEWED — merge-ready; Nav merge call",
-      "url": "https://github.com/mrbeast1179-sketch/floww/pull/48",
-      "receipt": "docs/plans/2026-09-06-four-agent-run/evidence/E4-48c-PR48-50-rereview.md",
-      "next": "Nav merge call. PR48 head includes f25de2e semantic rework; all 3 E4-48 defects fixed."
-    },
-    "pr49": {
-      "head": "6387f1359095b437465014c6f14561f1bf604f1a",
-      "base": "a3/alert-surfacing @ 73533e1 (stacked on PR48)",
-      "verdict": "APPROVED-conditional (E4-49c, 2026-09-09: 29/29 green; stacked on PR48)",
-      "state": "REVIEWED — wiring gap holds; merge after PR48",
-      "url": "https://github.com/mrbeast1179-sketch/floww/pull/49",
-      "next": "Merge after PR48. Wiring gap (1c mapper unrendered) is separate; PR48/50 only touch exposure-badge rendering."
-    },
-    "pr50": {
-      "head": "f7bc499eaa2a7f39837f74d839ebfb1dac976bdf",
-      "base": "a3/alert-surfacing @ 73533e1 (stacked on PR48)",
-      "verdict": "APPROVED (E4-48c re-re-review, 2026-09-09: 54/54 green; kind-aware copy verified against backend _WHY)",
-      "state": "REVIEWED — merge after PR48; no CI on branch",
-      "url": "https://github.com/mrbeast1179-sketch/floww/pull/50",
-      "receipt": "docs/plans/2026-09-06-four-agent-run/evidence/E4-48c-PR48-50-rereview.md",
-      "next": "Merge after PR48. Kind-aware refinement correct by construction + backend-source cross-check."
-    },
+          "head": "2f57bea3d56a075692339051525cb73d97d99513",
+          "base": "84fc1ed1dd5bd20045821f2343e036712a61bb06",
+          "verdict": "APPROVED (E4-48d, 2026-09-09: 49/49 green, frontend-only; UNSTABLE/behind main — needs rebase onto origin/main; Nav decides merge-as-is vs rebase-first)",
+          "state": "REVIEWED — UNSTABLE merge status (branch behind main 84fc1ed); clean merge to main confirmed in detached worktree; badge code matches E4-48b rework (f25de2e) at this head",
+          "url": "https://github.com/mrbeast1179-sketch/floww/pull/48",
+          "receipt": "docs/plans/2026-09-06-four-agent-run/evidence/E4-48d-PR48-rereview.md",
+          "next": "Nav merge call. Branch behind main — needs rebase onto origin/main to become CLEAN. PR50 KIND_TITLES now in main (merged separately); when PR48 merges, main has both badges + KIND_TITLES + updated call sites. No agent merge authority."
+        },
+        "pr49": {
+          "head": "6387f1359095b437465014c6f14561f1bf604f1a",
+          "base": "a3/alert-surfacing @ 2f57bea3d (stacked on PR48)",
+          "verdict": "APPROVED-conditional (E4-49, 2026-09-09: 29/29 green; DIRTY on merge — needs rebase + conflict resolution)",
+          "state": "REVIEWED — merge DIRTY; rebase onto a3/alert-surfacing @ 2f57bea3d produces conflict in exposureBadges.js (CLUSTER badge addition vs reworked base); agent-3 resolves",
+          "url": "https://github.com/mrbeast1179-sketch/floww/pull/49",
+          "next": "Rebase PR49 onto a3/alert-surfacing @ 2f57bea3d, resolve exposureBadges.js conflict, then re-verify at new head. Wiring gap (1c mapper unrendered) holds."
+        },
+        "pr50": {
+          "head": "f7bc499eaa2a7f39837f74d839ebfb1dac976bdf",
+          "base": "a3/alert-surfacing @ 73533e1 (stacked on PR48)",
+          "verdict": "MERGED (PR50 landed 2026-09-09T15:35:57Z; KIND_TITLES + exposureKindOf + two-arg exposureBadgeFor + 5 pin tests now in main)",
+          "state": "MERGED",
+          "url": "https://github.com/mrbeast1179-sketch/floww/pull/50",
+          "receipt": "docs/plans/2026-09-06-four-agent-run/evidence/E4-48c-PR48-50-rereview.md",
+          "next": "PR50 merged. Kind-aware refinement live on main. PR48 verdicts now at E4-48d-PR48-rereview.md (2f57bea3d head)."
+        },
     "pr51": {
       "head": "b1fad090a86355e391378ae7fc807c7ca160ef59",
-      "base": "56cfff2ec909313c81fbe616a3595c937238037a",
+      "base": "84fc1ed1dd5bd20045821f2343e036712a61bb06",
       "verdict": "APPROVED post-merge (E4-51, 2026-09-09: RED 4/4 on main, GREEN 12/12 at fix)",
       "state": "MERGED to main d4a5b1f (2026-09-09T05:03:29Z); 0 reviews on record before merge",
       "url": "https://github.com/mrbeast1179-sketch/floww/pull/51",
