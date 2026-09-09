@@ -17,6 +17,10 @@
  * style). Do NOT conflate CHARM_PIN (exposure) with CHARM_PINNING
  * (alert_engine 0DTE), or GAMMA_FLIP (flip zone: approach or regime
  * change) with GAMMA_FLIP_PROXIMITY (alert_engine spot-within-0.3%).
+ *
+ * CLUSTER is a flow_alerts-pipeline rule (not exposure_alerts.py) but shares
+ * the persisted feed `rule` column (_mk_alert(best, "CLUSTER", ...) in
+ * backend/services/flow_alerts.py), so both badge call sites already see it.
  */
 
 const BADGES = {
@@ -49,6 +53,12 @@ const BADGES = {
     label: "LIQUIDITY STRESS",
     title:
       "Liquidity stress — Kyle/Amihud impact regime elevated, wider effective spreads likely (heuristic)",
+  },
+  CLUSTER: {
+    rule: "CLUSTER",
+    label: "CLUSTER",
+    title:
+      "Cluster — laddered same-bias accumulation in one snapshot (heuristic, not a direction call)",
   },
 };
 
