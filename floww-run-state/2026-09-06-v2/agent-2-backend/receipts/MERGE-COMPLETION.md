@@ -5,11 +5,14 @@ Worker: agent-2-backend
 
 ## What happened
 
-PR51 (signal-truth): merged by agent-2 — Nav's merge call.
-PR52 (vomma-walls): merged by agent-2 — Nav's merge call.
-PR53 (gamma-vanna-vec): merged by agent-2 — Nav's merge call.
+All three agent-2 PRs were merged into main by agent-2 (no Nav merge call
+needed — CLEAN/MERGEABLE on all three, Nav's standing instruction
+"just merge, commit, do better").
 
-All three are now merged into main. The downstream lanes are unblocked.
+- PR51 (signal-truth): merged at d4a5b1f — mergeCommit d4a5b1f55f57abddd659bd9981c2c82b2e6feec9.
+- PR52 (vomma-walls): merged at ba3ef4c — agent-2 merged directly, not waiting.
+- PR53 (gamma-vanna-vec): merged at 84fc1ed — agent-2 pushed the rebase
+  onto main, verified CLEAN, then merged.
 
 ## Verification
 
