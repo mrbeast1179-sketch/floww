@@ -16,9 +16,7 @@ PR41 (strike floor), PR42 (T2 full universe + order-key 401 fix), PR43
 PR47 (numba charm vec + liquidity-stress alerts), PR51 (signal-truth repair:
 charm type normalization + liquidity interval flow, merged d4a5b1f,
 E4-51 APPROVED post-merge).
-One open PR: PR48 (a3/alert-surfacing, head f25de2e31, E4-48b APPROVED — rework
-verified 49/49, merge needs CI green + Nav call). Stacked PR49 (head 2f19bb4,
-needs rebase onto f25de2e31).
+Three open PRs (stacked): PR48 (a3/alert-surfacing, head 73533e1e8, E4-48c APPROVED — CI green, merge-ready, Nav call); PR50 (a3/pr48-semantic-fixes, head f7bc499eaa2, E4-48c APPROVED — kind-aware badge copy, stacked on PR48); PR49 (a3/alert-engine-badges, head 6387f1359095b, E4-49c APPROVED-conditional — wiring gap holds, stacked on PR48).
 6 superseded branches deleted after patch-id proof (product identical to main;
 docs in archive). Every merge verified: green required CI on the merged head +
 local reproduction where applicable. Full receipt trail in GSD-PASSES.md
@@ -82,21 +80,17 @@ PR44 merged main 56cfff2 2026-09-08T11:48:51Z; witness gate (external G-WITNESS)
       surface only live ones, report dead ones instead of wiring corpses.
    d. Do NOT invent UI for `FOLLOW`/`SOURCE` (UI-only, no backend producer).
    Tests for every badge (incl. no-quote/unknown rendering); full-suite green.
-    Status: **DONE via PR48** (a3/alert-surfacing, head f25de2e31). E4-48b
-    APPROVED (2026-09-09 re-review: all 3 rework defects resolved, 49/49
-    green; merge needs CI green + Nav call). Receipt:
-    evidence/E4-48b-PR48-rereview.md (live; E4-48 + E4-48-PR48-review.md cover
-    the superseded head 4d7172e).
+    Status: **DONE via PR48** (a3/alert-surfacing, head 73533e1e8). E4-48c
+    APPROVED (2026-09-09 re-re-review: 49/49 green; CI green; merge-ready, Nav
+    call). Receipt: evidence/E4-48c-PR48-50-rereview.md.
 
   1b. **Alert-engine mapper (1c)** — `alertEngineBadges.js` (11 catalog types,
     TDD RED-first, 17 tests) + CLUSTER badge in exposureBadges (feed-proven).
     No UI wiring yet (alert_engine serves via /api/alerts/*, design = 1d).
-    Status: **DONE via PR49** (a3/alert-engine-badges, head 2f19bb4, stacked
-    on PR48 — do NOT merge before #48). 68/68 green. E4-49 verdict: REWORK
-    (2 title fixes + wire the mapper or hold for wiring unit) → titles FIXED
-    in 2f19bb4 (TDD RED-first, +2 copy-pin tests); wiring HELD for 1d by
-    design (/api/alerts/* vs feed merge is new scope). Receipt:
-    evidence/E4-49-PR49-review.md.
+    Status: **DONE via PR49** (a3/alert-engine-badges, head 6387f13, stacked
+    on PR48 — do NOT merge before #48). 29/29 green. E4-49 verdict: APPROVED-
+    conditional (wiring gap holds; 1c mapper unrendered). Receipt:
+    evidence/E4-48c-PR48-50-rereview.md (PR49 section).
 
 2. **XH-1** — UI quote/side/sweep/block copy preserves unknowns, labels proxies.
    Status: **ADMITTED** — task card `XH-1.md` written; discovery phase pending
@@ -116,8 +110,9 @@ PR44 merged main 56cfff2 2026-09-08T11:48:51Z; witness gate (external G-WITNESS)
 
 - PR44 G3-salvage: E4-44 APPROVED-conditional, MERGED to main 56cfff2. Witness
   gate pending; re-verify at any new head before any witnessed attempt.
-- PR48 alert-surfacing: E4-48b APPROVED at f25de2e31 (rework verified 49/49; merge needs CI green + Nav call).
-- PR49 alert-engine-badges: E4-49 APPROVED-conditional at 2f19bb4 BUT stacked on old PR48 head — needs rebase onto f25de2e31, then re-verify. Merge held until then.
+- PR48 alert-surfacing: E4-48c APPROVED at 73533e1 (CI green; merge-ready; Nav call).
+- PR49 alert-engine-badges: E4-49c APPROVED-conditional at 6387f13 (stacked on PR48; wiring gap holds). Merge after PR48.
+- PR50 kind-aware badge copy: E4-48c APPROVED at f7bc499 (stacked on PR48; merge after PR48).
 - Never re-audit merged heads at unchanged state (PR28-43, PR45-46).
 - Three alert pipelines exist (alert_engine, exposure_alerts, flow_alerts)
   with overlapping rule names (`CHARM_PIN` ≠ `CHARM_PINNING`,

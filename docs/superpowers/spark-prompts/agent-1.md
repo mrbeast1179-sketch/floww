@@ -17,8 +17,8 @@ Read first, in order: `README.md`, `HARNESS-V2.md`, `RECOVERY-QUEUE.md`
 ## Git truth — re-fetch every session; heads move without you
 
 - `origin/main` was `d4a5b1f` (take-over loops landed PR28–47, PR44 merged 2026-09-08T11:48:51Z, PR51 signal-truth merged 2026-09-09T05:03:29Z). Re-read the
-  tip at every boot. Open: PR48 (a3/alert-surfacing, head f25de2e31, E4-48b APPROVED — merge needs CI green + Nav call)
-  + stacked PR49 (head 2f19bb4, stacked on old PR48 head — needs rebase, then re-verify). Anything
+  tip at every boot. Open: PR48 (a3/alert-surfacing, head 73533e1e8, E4-48c APPROVED — CI green, merge-ready, Nav call)
+  + stacked PR49 (head 6387f13, stacked on PR48) + stacked PR50 (head f7bc499, E4-48c APPROVED — kind-aware copy, stacked on PR48). Anything
   new: read it before admitting anything nearby.
 - `phase9/g1-reads-witness` (production checkout): NOT your lease, never
   sweep it. Production cutover to main is a Nav-coordinated single-writer

@@ -24,8 +24,9 @@ Round 7's fabricated completion log is the floor you never touch.
 ## Git truth (verified 2026-09-07 — re-fetch every session, never trust memory)
 
 - `origin/main` = `d4a5b1f` (was `56cfff2`; PR51 signal-truth merged 2026-09-09T05:03:29Z).
-- Open: PR48 `f25de2e31` (a3/alert-surfacing, E4-48b APPROVED — merge needs CI green + Nav call) and
-  stacked PR49 `2f19bb4` (stacked on OLD PR48 head — needs rebase, then re-verify).
+- Open: PR48 `73533e1e8` (a3/alert-surfacing, E4-48c APPROVED — CI green, merge-ready, Nav call) and
+  stacked PR49 `6387f13` (a3/alert-engine-badges, stacked on PR48) and stacked PR50 `f7bc499`
+  (a3/alert-surfacing, E4-48c APPROVED — kind-aware copy, stacked on PR48).
 + `astra/f0-honesty-backend` = `f880971`: 14 commits, local == remote, NOT merged, rebase onto current `origin/main` advised before any merge call.
   Reflog shows normal post-rebase push — the old "force-push" claim was false.
   Test files were modified/added (+1083/-154), never deleted.

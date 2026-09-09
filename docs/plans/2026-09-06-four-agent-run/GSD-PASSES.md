@@ -204,16 +204,19 @@ Receipt: `proof/receipts/E4-44.md`.
 ```text
 GSD_LOOP_RESULT={"lane":"review","status":"work","reason":"pr44-refreshed-approved-conditional"}
 ```
-## Agent-4 review — PR48 a3/alert-surfacing, exact head `4d7172e`
+## Agent-4 review — PR48 a3/alert-surfacing + PR50 semantic rework @ 73533e1 / f7bc499 → APPROVED
 
-PR48 `a3/alert-surfacing` (frontend exposure-rule badges: TOXIC_FLOW, GAMMA_FLIP, VEX_WALL, CHARM_PIN, LIQUIDITY_STRESS in Blademap v3 + heatseeker) — open against main `56cfff2`, agent-4 review + Nav merge gate.
+PR48 `a3/alert-surfacing` (frontend exposure-rule badges) — open against main `d4a5b1f`, head `73533e1e8e5cd816738333dcae8683b14e358018`.
+PR50 `fix(agent3): E4-48 semantic rework — kind-aware badge copy + stale-strip fix` — stacked on PR48, head `f7bc499eaa2a7f39837f74d839ebfb1dac976bdf`.
 
-### Current head
-`4d7172ef056c7476bbfb4f345a3e961367221f26` (re-fetched before reading, exact head).
+### Current heads
+- PR48: `73533e1e8e5cd816738333dcae8683b14e358018` (re-fetched before reading; includes `f25de2e` semantic rework + main d4a5b1f merge)
+- PR50: `f7bc499eaa2a7f39837f74d839ebfb1dac976bdf` (stacked on PR48; kind-aware refinement on top of f25de2e)
 
 ### Fresh reproduction
-Detached worktree `/tmp/agent4-pr48` at the exact head. Ran focused suites locally:
+Worktree `/tmp/agent4-pr48-49-50` at PR48 head. Ran focused suites at each head:
 
+PR48 at 73533e1 (4 suites):
 ```text
 cd frontend && CI=true npx craco test --watchAll=false --runInBand \
   --testPathPattern='exposureBadges|ExposureStrip|FlowseekerProBlademap|SkylitDashboard'
@@ -222,31 +225,60 @@ PASS src/components/flowseeker/FlowseekerProBlademap.test.jsx
 PASS src/components/heatseeker/ExposureStrip.test.jsx
 PASS src/components/heatseeker/SkylitDashboard.test.jsx
 Test Suites: 4 passed, 4 total
-Tests:       48 passed, 48 total
-Time:        2.047 s
+Tests:       49 passed, 49 total
+Time:        4.487 s
 ```
 
-48/48 green: exposureBadges 9/9, ExposureStrip 5/5, FlowseekerProBlademap + SkylitDashboard 34/34.
-
-### Payload vs main `56cfff2`
-9 files, +413/-0: `exposureBadges.js` (new, 60 lines), `exposureBadges.test.js` (new, 71), `FlowseekerProBlademap.jsx` (+2: import + badge pill per v3 signal card), `FlowseekerProBlademap.css` (+16), `ExposureStrip.jsx` (new, 62), `ExposureStrip.test.jsx` (new, 73), `ExposureStrip.css` (new, 25), `SkylitDashboard.jsx` (+4: import + mount), `AGENT3-1B-ASSESSMENT.md` (new docs, 100 — agent-3 self-documentation, not product code). No App.js, no App.css global, no backend, no central state, no other lanes' tests.
-
-### Source verification
-All 5 rule attributions verified against origin/main backend source:
-- `RULE_VEX_WALL`, `RULE_CHARM_PIN` — `backend/services/exposure_alerts.py` L34-35.
-- `RULE_GAMMA_FLIP` — `backend/alert_engine.py` L82 (type catalog) + L158 (fired on regime sign change).
-- `RULE_TOXIC_FLOW`, `RULE_LIQUIDITY_STRESS` — produced elsewhere in exposure pipeline (live in v3 feed); their absence from the two named files is documented, not a defect.
-- `exposureBadges.js` docstring (L4-7) correctly attributes GAMMA_FLIP to `alert_engine.py`; badge title matches alert semantics.
-- Copy rule: heuristic labels only, no invented precision, no direction calls.
-- Unknown/missing → null: CHARM_PINNING, GAMMA_FLIP_PROXIMITY, FOLLOW, SOURCE, SOMETHING_NEW all null.
-- Conflation traps documented and guarded: CHARM_PIN ≠ CHARM_PINNING, GAMMA_FLIP ≠ GAMMA_FLIP_PROXIMITY.
-- Fail-open: empty feed → null, fetch failure → null, no ticker → no fetch. Dedup: repeated rows → one badge.
-
-### Verdict
-**APPROVED.** No code blocker. Offline GATE-2 half delivered at exact head. Rebase resolution correct (only +2 in FlowseekerProBlademap.jsx vs main). Nav-gated merge; no GitHub mutations. Full receipt: `evidence/E4-48-PR48-review.md`.
-
+PR49 at 6387f13 (2 suites):
 ```text
-GSD_LOOP_RESULT={"lane":"review","status":"work","reason":"pr48-approved-no-blocker"}
+cd frontend && CI=true npx craco test --watchAll=false --runInBand \
+  --testPathPattern='alertEngineBadges|exposureBadges'
+PASS src/components/flowseeker/alertEngineBadges.test.js
+PASS src/components/flowseeker/exposureBadges.test.js
+Test Suites: 2 passed, 2 total
+Tests:       29 passed, 29 total
+Time:        1.247 s
+```
+
+PR50 at f7bc499 (4 suites):
+```text
+cd frontend && CI=true npx craco test --watchAll=false --runInBand \
+  --testPathPattern='exposureBadges|ExposureStrip|FlowseekerProBlademap|SkylitDashboard'
+PASS src/components/flowseeker/exposureBadges.test.js
+PASS src/components/flowseeker/FlowseekerProBlademap.test.jsx
+PASS src/components/heatseeker/ExposureStrip.test.jsx
+PASS src/components/heatseeker/SkylitDashboard.test.jsx
+Test Suites: 4 passed, 4 total
+Tests:       54 passed, 54 total
+Time:        4.869 s
+```
+
+### PR48 verdict (73533e1)
+**APPROVED.** CI green (backend-tests SUCCESS, frontend-build SUCCESS, ruff SUCCESS, docker-build SKIPPED). Exact-head repro 49/49 green. Head includes f25de2e semantic rework fixing all 3 E4-48 defects. Merge-ready; Nav call.
+
+### PR50 verdict (f7bc499)
+**APPROVED.** Kind-aware refinement verified correct by construction AND by backend-source cross-check:
+- `events_to_alerts` at `backend/services/exposure_alerts.py:326` emits `key` as `exposure:{kind}:...` — format confirmed
+- `flow_alerts_daily` schema at `backend/services/flow_alerts.py:865-877` carries `key TEXT` + `context_json TEXT` — both persist the kind
+- `_WHY` dict at `backend/services/exposure_alerts.py:287-293` matches PR50's KIND_TITLES exactly:
+  - `vex_wall_broken`: "VEX wall broken — vol suppression released, regime may shift" (PR50 adds heuristic suffix)
+  - `gamma_flip_approach`: "Gamma flip proximity — price pressing dealer flip level (support above / resistance below)" (PR50 adds heuristic suffix)
+
+Both call sites updated: `ExposureStrip.jsx: exposureBadgeFor(row?.rule, row)` + `FlowseekerProBlademap.jsx: exposureBadgeFor(a.rule, a)`. 5 new tests pin the kind-aware behavior (vex_wall_broken → "released" not "defending"; gamma_flip_approach → "pressing" not "flipped from positive"). No regression (54/54 green, was 49/49). No App.js, no backend, no other lanes.
+
+Merge order: PR48 first, then PR50 (stacked).
+
+### PR49 verdict (6387f13)
+**APPROVED-conditional.** Stacked on PR48 at 73533e1. 29/29 green. Wiring gap holds (1c mapper unrendered — separate concern). Prior E4-49 verdict stands; receipt: `evidence/E4-48c-PR48-50-rereview.md` (PR49 section).
+
+### Superseded
+- E4-48 at `4d7172e` — VOID (head gone)
+- E4-48b at `f25de2e31` — subsumed by PR48's current head 73533e1 (which includes f25de2e)
+- E4-49 at `2f19bb4` — VOID (head gone; PR49 now at 6387f13)
+
+Receipt: `evidence/E4-48c-PR48-50-rereview.md`.
+```text
+GSD_LOOP_RESULT={"lane":"review","status":"work","reason":"e4-48c-approved-pr48-50-heads"}
 ```
 ## Agent-4 review — PR49 a3/alert-engine-badges, exact head `18ee54f` → REWORK
 
@@ -326,6 +358,26 @@ rebase. Full receipt: `evidence/E4-48b-PR48-rereview.md`.
 
 ```text
 GSD_LOOP_RESULT={"lane":"review","status":"work","reason":"e4-48b-approved-ci-pending"}
+```
+
+## Agent-4 re-re-review — PR48 + PR50 @ 73533e1 / f7bc499 → APPROVED
+
+Heads moved again. PR48 `4d7172e` → `f25de2e` → `73533e1` (merged main d4a5b1f in).
+PR50 is NEW (`f7bc499`) — kind-aware badge copy stacked on PR48.
+Prior E4-48b at `f25de2e31` is now subsumed by PR48's current head 73533e1
+(which includes f25de2e). Fresh repro at exact heads:
+
+PR48 at 73533e1 (4 suites): 49/49 green. CI green (backend-tests SUCCESS, frontend-build SUCCESS, ruff SUCCESS).
+PR50 at f7bc499 (4 suites): 54/54 green. Kind-aware copy verified against backend _WHY (exposure_alerts.py:287-293):
+vex_wall_broken → "released" not "defending"; gamma_flip_approach → "pressing" not "flipped from positive".
+Both call sites updated: ExposureStrip.jsx + FlowseekerProBlademap.jsx pass the row.
+
+PR49 at 6387f13 (2 suites): 29/29 green. Stacked on PR48. Wiring gap holds. APPROVED-conditional.
+
+Merge order: PR48 → PR50 (stacked) → PR49 (stacked, conditional). Receipt: evidence/E4-48c-PR48-50-rereview.md.
+
+```text
+GSD_LOOP_RESULT={"lane":"review","status":"work","reason":"e4-48c-approved-pr48-50-heads"}
 ```
 
 ## Agent-4 post-merge review — PR51 signal-truth @ b1fad09 → APPROVED

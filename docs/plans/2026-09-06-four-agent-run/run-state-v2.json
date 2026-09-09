@@ -17,7 +17,7 @@
       "task_id": "R0-OPERATE",
       "worktree": "/Users/nav/Documents/GitHub/floww-worktrees/recovery-control-plane-v2",
       "branch": "architect/20260906-recovery-control-plane-v2",
-      "head_sha": "3c15e2cf0362dcdd4ccbc40a036d2eac2dfe064c",
+      "head_sha": "e95fa4c47b0171e67d51ff843e6874cb401edf2f",
       "allowed_files": [],
       "boot_receipt": "/Users/nav/Documents/GitHub/floww-run-state/2026-09-06-v2/agent-1-architect/boot.json",
       "last_checkpoint": "/Users/nav/Documents/GitHub/floww-run-state/2026-09-06-v2/agent-1-architect/checkpoint.json",
@@ -39,7 +39,7 @@
       "task_id": "ALERT-SURFACING-1A",
       "worktree": "/Users/nav/Documents/GitHub/floww-worktrees/alert-surfacing-agent3",
       "branch": "a3/alert-surfacing",
-      "head_sha": "4d7172ef056c7476bbfb4f345a3e961367221f26",
+      "head_sha": "73533e1e8e5cd816738333dcae8683b14e358018",
       "allowed_files": [
         "frontend/src/components/flowseeker/exposureBadges.js",
         "frontend/src/components/flowseeker/exposureBadges.test.js",
@@ -69,7 +69,7 @@
   "known_candidates": {
     "pr44": "bffa5deb78259b9c2c9598480f1eb05012215ed2",
     "pr44_base": "a6e6f7930e7a9aae497170c0ea8104b62520f2f2",
-    "main": "56cfff2ec909313c81fbe616a3595c937238037a",
+    "main": "d4a5b1f55f57abddd659bd9981c2c82b2e6feec9",
     "g1_canonical": "d39c37a (dirty, active, NOT this lane's lease)"
   },
   "external_gates": [
@@ -117,21 +117,30 @@
       "next": "Nav merge call as inert scaffolding; A3-SCORE must approve weights before any live caller passes nonzero"
     },
     "pr48": {
-      "head": "f25de2e31153c8dbdd99746b0b0f69e6ebb3761a",
+      "head": "73533e1e8e5cd816738333dcae8683b14e358018",
       "base": "56cfff2ec909313c81fbe616a3595c937238037a",
-      "verdict": "APPROVED (E4-48b re-review at f25de2e31, 2026-09-09: 49/49 green)",
-      "state": "REVIEWED — merge needs CI green + Nav call; no agent merge authority",
+      "verdict": "APPROVED (E4-48c re-re-review at 73533e1, 2026-09-09: 49/49 green; CI green)",
+      "state": "REVIEWED — merge-ready; Nav merge call",
       "url": "https://github.com/mrbeast1179-sketch/floww/pull/48",
-      "receipt": "docs/plans/2026-09-06-four-agent-run/evidence/E4-48b-PR48-rereview.md (live; prior head 4d7172e: E4-48.md VOID, E4-48-PR48-review.md REWORK superseded)",
-      "next": "CI at f25de2e31 (2026-09-09T05:03Z): ruff SUCCESS, frontend-build SUCCESS, backend-tests IN_PROGRESS (started 05:00Z, ~13m typical). Confirm green before any merge call. No further Agent-4 review until head moves."
+      "receipt": "docs/plans/2026-09-06-four-agent-run/evidence/E4-48c-PR48-50-rereview.md",
+      "next": "Nav merge call. PR48 head includes f25de2e semantic rework; all 3 E4-48 defects fixed."
     },
     "pr49": {
-      "head": "2f19bb4",
-      "base": "a3/alert-surfacing @ 4d7172e (stacked on PR48)",
-      "verdict": "APPROVED-conditional (E4-49 re-verified at 2f19bb4, 2026-09-09: 29/29 green) BUT stacked on old PR48 head",
-      "state": "REVIEWED — needs rebase onto f25de2e31, then re-verify; merge held until then",
+      "head": "6387f1359095b437465014c6f14561f1bf604f1a",
+      "base": "a3/alert-surfacing @ 73533e1 (stacked on PR48)",
+      "verdict": "APPROVED-conditional (E4-49c, 2026-09-09: 29/29 green; stacked on PR48)",
+      "state": "REVIEWED — wiring gap holds; merge after PR48",
       "url": "https://github.com/mrbeast1179-sketch/floww/pull/49",
-      "next": "Rebase PR49 onto f25de2e31 (agent-3, via agent-1 admission), then Agent-4 re-verify at new head."
+      "next": "Merge after PR48. Wiring gap (1c mapper unrendered) is separate; PR48/50 only touch exposure-badge rendering."
+    },
+    "pr50": {
+      "head": "f7bc499eaa2a7f39837f74d839ebfb1dac976bdf",
+      "base": "a3/alert-surfacing @ 73533e1 (stacked on PR48)",
+      "verdict": "APPROVED (E4-48c re-re-review, 2026-09-09: 54/54 green; kind-aware copy verified against backend _WHY)",
+      "state": "REVIEWED — merge after PR48; no CI on branch",
+      "url": "https://github.com/mrbeast1179-sketch/floww/pull/50",
+      "receipt": "docs/plans/2026-09-06-four-agent-run/evidence/E4-48c-PR48-50-rereview.md",
+      "next": "Merge after PR48. Kind-aware refinement correct by construction + backend-source cross-check."
     },
     "pr51": {
       "head": "b1fad090a86355e391378ae7fc807c7ca160ef59",
