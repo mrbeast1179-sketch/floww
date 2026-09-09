@@ -86,9 +86,11 @@ PR44 merged main 56cfff2 2026-09-08T11:48:51Z; witness gate (external G-WITNESS)
   1b. **Alert-engine mapper (1c)** — `alertEngineBadges.js` (11 catalog types,
     TDD RED-first, 17 tests) + CLUSTER badge in exposureBadges (feed-proven).
     No UI wiring yet (alert_engine serves via /api/alerts/*, design = 1d).
-    Status: **DONE via PR49** (a3/alert-engine-badges, head 18ee54f, stacked
-    on PR48 — do NOT merge before #48). 66/66 green. E4-49 verdict: REWORK
-    (2 title fixes + wire the mapper or hold for wiring unit). Receipt:
+    Status: **DONE via PR49** (a3/alert-engine-badges, head 2f19bb4, stacked
+    on PR48 — do NOT merge before #48). 68/68 green. E4-49 verdict: REWORK
+    (2 title fixes + wire the mapper or hold for wiring unit) → titles FIXED
+    in 2f19bb4 (TDD RED-first, +2 copy-pin tests); wiring HELD for 1d by
+    design (/api/alerts/* vs feed merge is new scope). Receipt:
     evidence/E4-49-PR49-review.md.
 
 2. **XH-1** — UI quote/side/sweep/block copy preserves unknowns, labels proxies.
