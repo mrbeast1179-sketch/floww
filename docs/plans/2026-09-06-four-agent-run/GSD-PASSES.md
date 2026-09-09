@@ -248,3 +248,39 @@ All 5 rule attributions verified against origin/main backend source:
 ```text
 GSD_LOOP_RESULT={"lane":"review","status":"work","reason":"pr48-approved-no-blocker"}
 ```
+## Agent-4 review — PR49 a3/alert-engine-badges, exact head `18ee54f` → REWORK
+
+PR49 `a3/alert-engine-badges` (alert-engine badge mapper 1c + CLUSTER badge) — open, STACKED on PR48 (`a3/alert-surfacing`), not main. No CI reported on the stacked branch.
+
+### Current head
+`18ee54f0803abcb6e406694cceaaceb92c15cd65` (re-fetched before reading, exact head).
+
+### Fresh reproduction
+Reused detached worktree `/tmp/agent4-pr48` (node_modules present), checked out `18ee54f`:
+
+```text
+cd frontend && CI=true npx craco test --watchAll=false --runInBand \
+  --testPathPattern='alertEngineBadges|exposureBadges'
+PASS src/components/flowseeker/alertEngineBadges.test.js
+PASS src/components/flowseeker/exposureBadges.test.js
+Test Suites: 2 passed, 2 total
+Tests:       27 passed, 27 total
+```
+
+27/27 green.
+
+### Payload vs base `4d7172e`
+4 files, +194/-2: `alertEngineBadges.js` (new, 108), `alertEngineBadges.test.js` (new, 67), `exposureBadges.js` (+10: CLUSTER badge + flow_alerts docstring), `exposureBadges.test.js` (+11/-2). No UI wiring changes. No backend. No App.js.
+
+### Source verification
+- CLUSTER placement verified: `_mk_alert(best, "CLUSTER", ...)` at `backend/services/flow_alerts.py:836` on origin/main. Feed-rule-column reasoning correct.
+- All 11 priorities match `ALERT_TYPE_CATALOG` (alert_engine.py L81-94) and fire sites. GAMMA_FLIP exclusion sound (dual-producer string). CLUSTER exclusion from new module sound (feed rule, not Alert.type).
+- 9/11 titles accurate (thresholds match backend constants). Two copy flags: MOMENTUM_EXTREME says "conviction score" (backend input is `momentum_score`, gates L189/L197) + "crowded tape" (nowhere in backend); GAMMA_SQUEEZE says "dealers chasing price" (backend L180 says "volume spiking"; title omits the volume condition it should name).
+- BLOCKING structural finding: `alertEngineBadgeFor` has NO call site — only the module and its own test reference it (verified via git grep at `18ee54f`). 11 tested-but-unrendered mappings. Per E4-32 scope-vs-title rule, not mergeable until wired or held for the wiring unit.
+
+### Verdict
+**REWORK.** Fix 2 titles + wire the mapper or hold for wiring unit. Mapper structure, boundary decisions, priorities, CLUSTER placement all correct. Full receipt: `evidence/E4-49-PR49-review.md`. No GitHub mutations. No merge (stacked + no CI + unwired + 2 copy flags).
+
+```text
+GSD_LOOP_RESULT={"lane":"review","status":"work","reason":"pr49-rework-unwired-plus-copy-flags"}
+```

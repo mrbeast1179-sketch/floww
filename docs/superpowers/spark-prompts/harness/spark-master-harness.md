@@ -24,8 +24,8 @@ Round 7's fabricated completion log is the floor you never touch.
 ## Git truth (verified 2026-09-07 — re-fetch every session, never trust memory)
 
 - `origin/main` = `56cfff2` (PR30/29/31/44 merged; PR29+31 in at e68bdb5, PR44 merged 2026-09-08T11:48:51Z; main has since advanced past e68bdb5).
-- Open: PR28 `18b10b5` (astra/d7-clean, policy-escalated, Nav-gated) and
-  PR32 `c17fc61` (agent3/t1-scroller-fix-v2, review pending).
+- Open: PR48 `4d7172e` (a3/alert-surfacing, E4-48 APPROVED-conditional, Nav merge call) and
+  stacked PR49 `18ee54f` (a3/alert-engine-badges, E4-49 REWORK, merge held).
 + `astra/f0-honesty-backend` = `f880971`: 14 commits, local == remote, NOT merged, rebase onto `56cfff2` advised before any merge call.
   Reflog shows normal post-rebase push — the old "force-push" claim was false.
   Test files were modified/added (+1083/-154), never deleted.

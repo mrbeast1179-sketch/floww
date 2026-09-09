@@ -15,7 +15,7 @@ PR41 (strike floor), PR42 (T2 full universe + order-key 401 fix), PR43
 (honesty citations), PR45 (TOXIC_FLOW alerts), PR46 (GAMMA_FLIP alerts),
 PR47 (numba charm vec + liquidity-stress alerts).
 One open PR: PR48 (a3/alert-surfacing, head 4d7172e, E4-48 APPROVED-conditional,
-Nav merge call). Stacked PR49 (a3/alert-engine-badges, head 18ee54f, CI pending).
+Nav merge call). Stacked PR49 (a3/alert-engine-badges, head 18ee54f, E4-49 REWORK — unwired + 2 copy flags, merge held).
 6 superseded branches deleted after patch-id proof (product identical to main;
 docs in archive). Every merge verified: green required CI on the merged head +
 local reproduction where applicable. Full receipt trail in GSD-PASSES.md
@@ -87,7 +87,9 @@ PR44 merged main 56cfff2 2026-09-08T11:48:51Z; witness gate (external G-WITNESS)
     TDD RED-first, 17 tests) + CLUSTER badge in exposureBadges (feed-proven).
     No UI wiring yet (alert_engine serves via /api/alerts/*, design = 1d).
     Status: **DONE via PR49** (a3/alert-engine-badges, head 18ee54f, stacked
-    on PR48 — do NOT merge before #48). 66/66 green.
+    on PR48 — do NOT merge before #48). 66/66 green. E4-49 verdict: REWORK
+    (2 title fixes + wire the mapper or hold for wiring unit). Receipt:
+    evidence/E4-49-PR49-review.md.
 
 2. **XH-1** — UI quote/side/sweep/block copy preserves unknowns, labels proxies.
    Status: **ADMITTED** — task card `XH-1.md` written; discovery phase pending
@@ -109,7 +111,7 @@ PR44 merged main 56cfff2 2026-09-08T11:48:51Z; witness gate (external G-WITNESS)
   the external witness. Standing job: confirm it stays green and
   unmerged until witnessed; re-verify at any new head.
 - PR48 alert-surfacing: E4-48 APPROVED-conditional, Nav merge call.
-- PR49 alert-engine-badges (stacked on PR48): needs CI + agent-4 review, merge only after #48.
+- PR49 alert-engine-badges (stacked on PR48): E4-49 REWORK (unwired mapper + MOMENTUM/GAMMA_SQUEEZE copy flags), merge held until rework + PR48 merges first.
 - Never re-audit merged heads at unchanged state (PR28-43, PR45-46).
 - Three alert pipelines exist (alert_engine, exposure_alerts, flow_alerts)
   with overlapping rule names (`CHARM_PIN` ≠ `CHARM_PINNING`,

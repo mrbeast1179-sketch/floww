@@ -38,15 +38,15 @@ do not re-audit it at that unchanged head. Record the reuse and move on.
 PR35/F0-wave, PR36/H2-partial, PR38/dead-code, PR37/GEX-dates, PR39/cap+deepen+
 enrich-by-Nav, PR40/honesty-labels, PR41/strike-floor, PR42/T2+401, PR43/honesty-citations,
 PR45/TOXIC_FLOW, PR46/GAMMA_FLIP, PR47/numba-greeks. PR44/G3-salvage MERGED 2026-09-08T11:48:51Z.
-Zero open PRs except PR28 (astra/d7-clean, policy-escalated, Nav-gated). Re-verify at boot.
+Open: PR48 (a3/alert-surfacing, head 4d7172e, E4-48 APPROVED-conditional, Nav merge call)
+and stacked PR49 (a3/alert-engine-badges, head 18ee54f, E4-49 REWORK, merge held). Re-verify at boot.
 PRs. Six superseded branches deleted after patch-id proof; product identical
 to main. Every merge verified: required CI green on the merged head, local
 reproduction where applicable.
 
-PR44 G3-salvage is OPEN and UNMERGED: `astra/g3-paper-loop`. Prior standing
-verdict: E4-44 APPROVED-conditional. Gate: external G-WITNESS. Your standing
-job: confirm it stays green and unmerged until witnessed; re-verify at any new
-head. Do not merge it. Do not close it. Do not weaken the witness gate.
+PR44 G3-salvage is MERGED to main `56cfff2` (2026-09-08T11:48:51Z). Prior standing
+verdict: E4-44 APPROVED-conditional. Gate: external G-WITNESS still pending. Your standing
+job: re-verify at any new head before any witnessed live attempt. Do not weaken the witness gate.
 
 Settled, never re-audit at unchanged heads:
 PR28/29/30/31/32/33/34/35/36/37/38/39/40/41/42/43/45/46. Receipts are on
