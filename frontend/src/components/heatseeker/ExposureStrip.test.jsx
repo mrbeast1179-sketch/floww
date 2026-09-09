@@ -70,4 +70,22 @@ describe("ExposureStrip", () => {
     render(<ExposureStrip ticker="" />);
     expect(axios.get).not.toHaveBeenCalled();
   });
+
+  test("E4-48 D1: ticker change with failed fetch clears old badges", async () => {
+    axios.get.mockResolvedValueOnce({
+      data: {
+        alerts: [
+          { key: "exposure:toxic_flow:SPY::650", rule: "TOXIC_FLOW", under: "SPY" },
+        ],
+      },
+    });
+    const { rerender } = render(<ExposureStrip ticker="SPY" />);
+    await waitFor(() => expect(screen.getByText("TOXIC FLOW")).toBeInTheDocument());
+    axios.get.mockRejectedValueOnce(new Error("network down"));
+    rerender(<ExposureStrip ticker="QQQ" />);
+    await waitFor(() => expect(axios.get).toHaveBeenCalledTimes(2));
+    await waitFor(() =>
+      expect(screen.queryByText("TOXIC FLOW")).not.toBeInTheDocument()
+    );
+  });
 });

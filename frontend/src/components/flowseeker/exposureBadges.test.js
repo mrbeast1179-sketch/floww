@@ -68,4 +68,43 @@ describe("exposureBadgeFor", () => {
       ["CHARM_PIN", "GAMMA_FLIP", "LIQUIDITY_STRESS", "TOXIC_FLOW", "VEX_WALL"].sort()
     );
   });
+
+  test("E4-48 D2: vex_wall_broken rows do not claim defending", () => {
+    const b = exposureBadgeFor("VEX_WALL", {
+      key: "exposure:vex_wall_broken:SPY::65000",
+    });
+    expect(b).not.toBeNull();
+    expect(b.label).toBe("VEX WALL");
+    expect(b.title.toLowerCase()).toContain("released");
+    expect(b.title.toLowerCase()).not.toContain("defending");
+  });
+
+  test("E4-48 D2: kind string form works; formed rows keep defending copy", () => {
+    const broken = exposureBadgeFor("VEX_WALL", "vex_wall_broken");
+    expect(broken.title.toLowerCase()).toContain("released");
+    const formed = exposureBadgeFor("VEX_WALL", {
+      key: "exposure:vex_wall_formed:SPY::65000",
+    });
+    expect(formed.title.toLowerCase()).toContain("defending");
+    const bare = exposureBadgeFor("VEX_WALL");
+    expect(bare.title.toLowerCase()).toContain("defending");
+  });
+
+  test("E4-48 D2: context_json string form carries the kind", () => {
+    const b = exposureBadgeFor("VEX_WALL", {
+      rule: "VEX_WALL",
+      context_json: JSON.stringify({ magnitude: 1, kind: "vex_wall_broken" }),
+    });
+    expect(b.title.toLowerCase()).toContain("released");
+  });
+
+  test("E4-48 D3: gamma_flip_approach rows do not claim a regime flip", () => {
+    const b = exposureBadgeFor("GAMMA_FLIP", {
+      key: "exposure:gamma_flip_approach:SPY::65000",
+    });
+    expect(b).not.toBeNull();
+    expect(b.label).toBe("GAMMA FLIP");
+    expect(b.title.toLowerCase()).toContain("pressing");
+    expect(b.title.toLowerCase()).not.toContain("flipped from positive");
+  });
 });

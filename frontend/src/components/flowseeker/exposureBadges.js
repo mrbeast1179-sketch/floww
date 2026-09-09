@@ -14,6 +14,15 @@
  * style). Do NOT conflate CHARM_PIN (exposure) with CHARM_PINNING
  * (alert_engine 0DTE), or GAMMA_FLIP (exposure approach) with
  * GAMMA_FLIP_PROXIMITY (alert_engine).
+ *
+ * Kind-aware copy (E4-48 D2/D3): the feed persists the backend event kind
+ * per row — `key` is `exposure:{kind}:{ticker}:{expiry}:{strike}` and
+ * `context_json` carries `{magnitude, kind}` (see events_to_alerts in
+ * backend/services/exposure_alerts.py, persisted via context_json in
+ * flow_alerts.py). vex_wall_broken and gamma_flip_approach rows MUST NOT
+ * render formed/regime copy: their titles use the backend's own _WHY
+ * language for that kind. Pass the feed row (or kind string) as the
+ * second arg; rule-only calls keep the formed/regime default.
  */
 
 const BADGES = {
@@ -51,10 +60,63 @@ const BADGES = {
 
 export const EXPOSURE_RULES = Object.freeze(Object.keys(BADGES));
 
-export function exposureBadgeFor(rule) {
+/**
+ * Kind-specific title overrides, keyed `${RULE}:${kind}`. Copy is the
+ * backend's own _WHY language for that kind (exposure_alerts.py), not
+ * paraphrase: broken walls release suppression; approach rows press the
+ * flip level without flipping it.
+ */
+const KIND_TITLES = {
+  "VEX_WALL:vex_wall_broken":
+    "VEX wall broken — vol suppression released, regime may shift (heuristic, not a direction call)",
+  "GAMMA_FLIP:gamma_flip_approach":
+    "Gamma flip proximity — price pressing dealer flip level (support above / resistance below) (heuristic, not a direction call)",
+};
+
+/**
+ * Resolve the backend event kind from a feed row or a bare kind string.
+ * Prefer context.kind / context_json.kind; fall back to the `key`
+ * segment (`exposure:{kind}:...`). Returns "" when unknown — callers
+ * keep the rule default.
+ */
+export function exposureKindOf(rowOrKind) {
+  if (rowOrKind == null) return "";
+  if (typeof rowOrKind === "string") return rowOrKind.trim().toLowerCase();
+  const row = rowOrKind;
+  const ctx = row.context;
+  if (ctx && typeof ctx.kind === "string" && ctx.kind.trim()) {
+    return ctx.kind.trim().toLowerCase();
+  }
+  const cj = row.context_json;
+  if (typeof cj === "string" && cj.trim()) {
+    try {
+      const parsed = JSON.parse(cj);
+      if (parsed && typeof parsed.kind === "string" && parsed.kind.trim()) {
+        return parsed.kind.trim().toLowerCase();
+      }
+    } catch {
+      /* not JSON — fall through to key */
+    }
+  } else if (cj && typeof cj.kind === "string" && cj.kind.trim()) {
+    return cj.kind.trim().toLowerCase();
+  }
+  if (typeof row.key === "string") {
+    const seg = row.key.split(":");
+    if (seg.length >= 2 && seg[0] === "exposure" && seg[1].trim()) {
+      return seg[1].trim().toLowerCase();
+    }
+  }
+  return "";
+}
+
+export function exposureBadgeFor(rule, rowOrKind) {
   if (rule == null) return null;
   const key = String(rule).trim().toUpperCase();
   if (!key) return null;
   const b = BADGES[key];
-  return b ? { ...b } : null;
+  if (!b) return null;
+  const out = { ...b };
+  const kindTitle = KIND_TITLES[`${key}:${exposureKindOf(rowOrKind)}`];
+  if (kindTitle) out.title = kindTitle;
+  return out;
 }
