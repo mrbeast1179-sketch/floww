@@ -23,12 +23,65 @@ ALPACA_SECRET_KEY = os.environ.get("ALPACA_SECRET_KEY", "")
 ALPACA_BASE_URL = "https://paper-api.alpaca.markets"  # Paper trading
 ALPACA_DATA_URL = "https://data.alpaca.markets"
 
+# Venue order statuses that mean a bracket leg is live (working, held, or
+# already filled). Anything else on a leg (rejected/expired/canceled) fails
+# verification honestly — G3.4 follow-through, never assumed.
+LIVE_LEG_STATUSES = frozenset({
+    "new", "accepted", "partially_filled", "pending_new", "held", "filled",
+})
+
+
+def classify_alpaca_http(status: int | None, body_text: str = "") -> dict:
+    """Pure mapping of venue HTTP outcome → honest handling instruction.
+
+    Returns {"ok", "partial", "reason"}. ok=True for 200/201 (and 207
+    partial). Every failure names its likely cause so the bot surfaces it
+    instead of "Order failed": 403 = venue rejected (options approval U3 /
+    permission), 401 = keys, 422 = bad parameters (body echoed), 429 =
+    rate-limited, 5xx = venue-side retryable.
+    """
+    body = str(body_text or "")[:200]
+    if status in (200, 201):
+        return {"ok": True, "partial": False, "reason": ""}
+    if status == 207:
+        return {"ok": True, "partial": True, "reason": "partial success"}
+    if status == 401:
+        return {"ok": False, "partial": False,
+                "reason": "unauthorized (401) — check ALPACA_API_KEY/SECRET"}
+    if status == 403:
+        return {"ok": False, "partial": False,
+                "reason": "venue rejected (403) — likely no options approval "
+                          f"on this paper account or missing permission: {body}"}
+    if status == 404:
+        return {"ok": False, "partial": False,
+                "reason": f"not found (404) — bad order/contract id: {body}"}
+    if status == 422:
+        return {"ok": False, "partial": False,
+                "reason": f"venue rejected parameters (422): {body}"}
+    if status == 429:
+        return {"ok": False, "partial": False,
+                "reason": "rate-limited (429) — back off before retry"}
+    if isinstance(status, int) and 500 <= status <= 599:
+        return {"ok": False, "partial": False,
+                "reason": f"venue error ({status}) — retryable: {body}"}
+    if status is None:
+        return {"ok": False, "partial": False,
+                "reason": f"no venue response (timeout/unreachable): {body}"}
+    return {"ok": False, "partial": False,
+            "reason": f"venue HTTP {status}: {body}"}
+
 
 class AlpacaClient:
     """Alpaca paper trading client."""
 
     def __init__(self):
         self._load_keys()
+        # Last HTTP outcome (status + short detail). _get/_post/_delete
+        # still return None on failure (backward compat) — callers read
+        # last_failure() for the honest reason (403 = no options approval,
+        # 401 = bad keys, None = keys missing/unreachable).
+        self._last_status: int | None = None
+        self._last_error: str = ""
 
     def _load_keys(self):
         """Load keys from environment at call time (not import time)."""
@@ -48,42 +101,63 @@ class AlpacaClient:
             "APCA-API-SECRET-KEY": self._secret_key,
         }
 
+    def last_failure(self) -> dict:
+        """Honest last-error detail (never raises)."""
+        return {"http_status": getattr(self, "_last_status", None),
+                "detail": getattr(self, "_last_error", "")}
+
     async def _get(self, url: str, params: dict = None) -> Any | None:
         if not self.enabled:
+            self._last_status = None
+            self._last_error = "alpaca keys not configured"
             return None
         try:
             async with aiohttp.ClientSession() as session:
                 async with session.get(url, headers=self.headers, params=params or {},
                                        timeout=aiohttp.ClientTimeout(total=10)) as resp:
                     if resp.status == 200:
+                        self._last_status = 200
+                        self._last_error = ""
                         return await resp.json()
                     else:
                         text = await resp.text()
+                        self._last_status = resp.status
+                        self._last_error = text[:200]
                         logger.warning(f"Alpaca API error {resp.status}: {text[:200]}")
                         return None
         except Exception as e:
+            self._last_status = None
+            self._last_error = str(e)[:200]
             logger.warning(f"Alpaca API error: {e}")
             return None
 
     async def _post(self, url: str, data: dict = None) -> Any | None:
         if not self.enabled:
+            self._last_status = None
+            self._last_error = "alpaca keys not configured"
             return None
         try:
             async with aiohttp.ClientSession() as session:
                 async with session.post(url, headers=self.headers, json=data or {},
                                         timeout=aiohttp.ClientTimeout(total=10)) as resp:
-                    if resp.status in (200, 201):
-                        return await resp.json()
-                    elif resp.status == 207:
-                        # Partial success — some orders filled, some failed
+                    if resp.status in (200, 201, 207):
                         result = await resp.json()
-                        logger.warning(f"Alpaca partial success (207): {result}")
+                        self._last_status = resp.status
+                        v = classify_alpaca_http(resp.status, "")
+                        self._last_error = v["reason"]
+                        if resp.status == 207:
+                            logger.warning(f"Alpaca partial success (207): {result}")
                         return result
                     else:
                         text = await resp.text()
+                        self._last_status = resp.status
+                        self._last_error = classify_alpaca_http(
+                            resp.status, text)["reason"]
                         logger.warning(f"Alpaca API error {resp.status}: {text[:200]}")
                         return None
         except Exception as e:
+            self._last_status = None
+            self._last_error = classify_alpaca_http(None, str(e))["reason"]
             logger.warning(f"Alpaca API error: {e}")
             return None
 
@@ -102,6 +176,44 @@ class AlpacaClient:
         except Exception as e:
             logger.warning(f"Alpaca API error: {e}")
             return None
+
+    async def get_order(self, order_id: str) -> dict | None:
+        """Fetch one paper order by venue ID (fill reconciliation read)."""
+        if not order_id:
+            return None
+        data = await self._get(f"{ALPACA_BASE_URL}/v2/orders/{order_id}")
+        return data if isinstance(data, dict) else None
+
+    async def verify_bracket_legs(self, order_id: str) -> dict:
+        """Confirm a bracket's TP/SL legs are live, not just accepted.
+
+        G3.4 follow-through: refetches the order and reports each leg's
+        venue status. verified=True only when every leg sits in
+        LIVE_LEG_STATUSES. Never raises — a missing order or a dead leg
+        returns verified=False with the honest reason.
+        """
+        order = await self.get_order(order_id)
+        if not order:
+            fail = self.last_failure()
+            return {"verified": False, "order_id": order_id, "legs": [],
+                    "reason": f"order not found: {order_id}"
+                              + (f" ({fail['detail']})" if fail["detail"] else "")}
+        legs = order.get("legs") or []
+        slim = [{"id": leg.get("id", ""), "status": leg.get("status", ""),
+                 "side": leg.get("side", ""), "qty": leg.get("qty", "")}
+                for leg in legs if isinstance(leg, dict)]
+        dead = [leg for leg in slim if leg["status"] not in LIVE_LEG_STATUSES]
+        if not slim:
+            return {"verified": False, "order_id": order_id, "legs": [],
+                    "order_status": order.get("status", ""),
+                    "reason": "no legs on bracket order — entry may have filled solo"}
+        if dead:
+            bad = ", ".join(f"{leg['id']}:{leg['status']}" for leg in dead)
+            return {"verified": False, "order_id": order_id, "legs": slim,
+                    "order_status": order.get("status", ""),
+                    "reason": f"dead legs: {bad}"}
+        return {"verified": True, "order_id": order_id, "legs": slim,
+                "order_status": order.get("status", ""), "reason": ""}
 
     async def place_stock_order(self, symbol: str, qty: int, side: str = "buy",
                                  order_type: str = "market", limit_price: float = 0) -> dict | None:

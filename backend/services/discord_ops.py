@@ -365,6 +365,13 @@ async def execute_approve(alert_key: str, qty: int | None, engine, router) -> di
     """
     try:
         rows = fetch_recent_alerts(engine, limit=50)
+        if rows is None:
+            # Feed itself failed (vs answered-empty): say unavailable,
+            # never "alert not found". Forward-compatible with the
+            # alerts-honesty contract ([] still means zero rows).
+            return {"status": "error",
+                    "reason": "alert feed unavailable — try !alerts later",
+                    "alert": alert_key}
         alert = next((a for a in rows if a.get("key") == alert_key), None)
         if alert is None:
             return {"status": "error", "reason": f"alert not found: {alert_key}"}
@@ -378,20 +385,84 @@ async def execute_approve(alert_key: str, qty: int | None, engine, router) -> di
         q = int(qty) if qty else 1
         if q <= 0:
             return {"status": "error", "reason": "qty must be positive"}
+        if _approve_already_journaled(alert_key):
+            return {"status": "duplicate",
+                    "reason": f"already approved: {alert_key}",
+                    "alert": alert_key}
         res = await router.submit_order({
             "ticker": symbol, "side": side, "qty": q, "order_type": "market",
-            "signal_id": f"discord-approve:{alert_key}",
+            "signal_id": f"discord-approve:{alert_key}:{side}:{q}",
             "timestamp_us": int(time.time() * 1e6),
-        })
+        }, allow_market=True)
         if res.get("status") == "submitted":
-            _journal_approve_fill(alert, side, q, res)
-        return {"status": res.get("status", "error"), "order": res, "alert": alert_key}
+            rec = await _reconcile_fill(router, res)
+            _journal_approve_fill(alert, side, q, res, rec)
+            return {"status": "submitted", "order": res, "alert": alert_key,
+                    "reconciliation": rec}
+        return {"status": res.get("status", "error"), "order": res, "alert": alert_key,
+                "reconciliation": {"venue_status": "unknown", "reason": "order not submitted"}}
+    except TypeError as e:
+        # Back-compat: a router stub without the allow_market opt-in.
+        if "allow_market" in str(e):
+            logger.warning("discord approve router missing allow_market: %s", e)
+            return {"status": "error", "reason": "router missing market opt-in"}
+        logger.warning("discord approve failed: %s", e)
+        return {"status": "error", "reason": str(e)}
     except Exception as e:
         logger.warning("discord approve failed: %s", e)
         return {"status": "error", "reason": str(e)}
 
 
-def _journal_approve_fill(alert: dict[str, Any], side: str, qty: int, res: dict) -> None:
+def _approve_already_journaled(alert_key: str) -> bool:
+    """True when this alert key already has a discord-approve seed.
+
+    Duplicate-approve guard (G3.3 idempotency): the router cache keys on
+    (signal_id, timestamp), so two taps mint different client_order_ids —
+    the journal is the cross-call dedup record. Fail-open: any read error
+    means "not seen", the trade proceeds.
+    """
+    try:
+        from services.journal_store import get_engine, init_journal_tables, read_trades
+
+        engine = get_engine()
+        init_journal_tables(engine)
+        for t in read_trades(engine, days=30):
+            if t.get("source") == "discord-approve" and alert_key in str(t.get("notes", "")):
+                return True
+        return False
+    except Exception:
+        return False
+
+
+async def _reconcile_fill(router, res: dict) -> dict:
+    """One-shot venue refetch after submit (fail-open, never raises).
+
+    Returns {"venue_status", "filled_avg_price", "filled_qty", "reason"}.
+    Unknown when the broker lacks the read path or the refetch fails —
+    the seed stays submission-language in that case.
+    """
+    try:
+        raw_broker = res.get("broker")
+        broker = raw_broker if isinstance(raw_broker, dict) else {}
+        venue_id = str(broker.get("id", "") or "")
+        fetch = getattr(router, "fetch_venue_order", None)
+        if not venue_id or not callable(fetch):
+            return {"venue_status": "unknown",
+                    "reason": "no venue read available at submit time"}
+        order = await fetch(venue_id)  # pyright: ignore
+        if not isinstance(order, dict):
+            return {"venue_status": "unknown",
+                    "reason": f"venue refetch empty for {venue_id}"}
+        return {"venue_status": str(order.get("status", "unknown")),
+                "filled_avg_price": order.get("filled_avg_price", ""),
+                "filled_qty": order.get("filled_qty", ""),
+                "reason": ""}
+    except Exception as e:
+        return {"venue_status": "unknown", "reason": f"refetch failed: {e}"}
+
+
+def _journal_approve_fill(alert: dict[str, Any], side: str, qty: int, res: dict,
+                          rec: dict | None = None) -> None:
     """Record an executed approve trade in the journal (fail-open).
 
     Approve fills are EQUITY (Alpaca place_stock_order on the underlying),
@@ -402,7 +473,17 @@ def _journal_approve_fill(alert: dict[str, Any], side: str, qty: int, res: dict)
     try:
         from services.journal_store import get_engine, init_journal_tables, save_seeds
 
-        broker_id = res.get("client_order_id") or (res.get("broker") or {}).get("id", "")
+        broker_raw = res.get("broker")
+        broker_map = broker_raw if isinstance(broker_raw, dict) else {}
+        broker_id = res.get("client_order_id") or broker_map.get("id", "")
+        broker_status = broker_map.get("status", "")
+        rec = rec or {}
+        venue_status = str(rec.get("venue_status", "unknown") or "unknown")
+        fill_bits = ""
+        if venue_status not in ("unknown",):
+            px = rec.get("filled_avg_price", "") or ""
+            fq = rec.get("filled_qty", "") or ""
+            fill_bits = f" | venue reports {venue_status}" + (f" {fq} @ {px}" if fq or px else "")
         # Equity legs have no strike, but strike is PK-NOT-NULL in
         # flow_journal_trades: store the underlying reference price (or 0.0),
         # labeled as such in notes. Uniqueness comes from the per-second
@@ -426,7 +507,9 @@ def _journal_approve_fill(alert: dict[str, Any], side: str, qty: int, res: dict)
             "exit_date": "",
             "notes": (f"Discord approve {side} {qty} shares from {alert.get('rule')} "
                       f"{alert.get('tier')} alert ({alert.get('key')}) | "
-                      f"Alpaca paper ({broker_id}) | ref px {ref_px} (equity leg, "
+                      f"Alpaca paper ({broker_id}, broker status '{broker_status or 'submitted'}' — "
+                      f"submission, not a confirmed fill; reconcile via get_order){fill_bits} | "
+                      f"ref px {ref_px} (equity leg, "
                       f"not a strike) | {alert.get('why', '')}"[:500]),
             "gex_regime": "",
             "setup": f"{str(alert.get('rule') or '').lower()} approve",

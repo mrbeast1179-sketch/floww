@@ -627,7 +627,7 @@ def calc_charm_integral(spot: float, contracts: list[dict[str, Any]],
     if bs_charm_vec is not None:
         import numpy as _np
 
-        _K, _T, _V, _Oi, _Sgn, _Idx = [], [], [], [], [], []
+        _K, _T, _V, _Oi, _Sgn, _Idx, _Typ = [], [], [], [], [], [], []
         for _i, _c in enumerate(contracts):
             _oi = _c.get("oi", 0) or 0
             if not (isinstance(_oi, (int, float)) and not isinstance(_oi, bool)
@@ -637,18 +637,25 @@ def calc_charm_integral(spot: float, contracts: list[dict[str, Any]],
             if not all(isinstance(_v, (int, float)) and not isinstance(_v, bool)
                        and math.isfinite(_v) for _v in (_st, _tt, _vv)):
                 continue
+            # Normalize once: providers emit "CALL"/"Call"/None. The vec
+            # passes match exact "call"/"put" — an unnormalized type would
+            # match neither pass, contribute 0.0, yet be marked vec-done.
+            # Unknown types route to the scalar fallback (legacy semantics).
+            _t = str(_c.get("type") or "").strip().lower()
+            if _t not in ("call", "put"):
+                continue
             _K.append(_st)
             _T.append(_tt)
             _V.append(_vv)
             _Oi.append(_oi)
-            _Sgn.append(1.0 if _c.get("type") == "call" else -1.0)
+            _Sgn.append(1.0 if _t == "call" else -1.0)
+            _Typ.append(_t)
             _Idx.append(_i)
         if _K:
             # calls (kind 0) and puts (kind 1) need separate passes
             _out = _np.zeros(len(_K))
             for _kind, _want in ((0, "call"), (1, "put")):
-                _ii = [j for j, _jj in enumerate(_Idx)
-                       if contracts[_jj].get("type") == _want]
+                _ii = [j for j, _tj in enumerate(_Typ) if _tj == _want]
                 if not _ii:
                     continue
                 _ia = _np.array(_ii)
