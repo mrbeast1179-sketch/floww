@@ -204,3 +204,47 @@ Receipt: `proof/receipts/E4-44.md`.
 ```text
 GSD_LOOP_RESULT={"lane":"review","status":"work","reason":"pr44-refreshed-approved-conditional"}
 ```
+## Agent-4 review — PR48 a3/alert-surfacing, exact head `4d7172e`
+
+PR48 `a3/alert-surfacing` (frontend exposure-rule badges: TOXIC_FLOW, GAMMA_FLIP, VEX_WALL, CHARM_PIN, LIQUIDITY_STRESS in Blademap v3 + heatseeker) — open against main `56cfff2`, agent-4 review + Nav merge gate.
+
+### Current head
+`4d7172ef056c7476bbfb4f345a3e961367221f26` (re-fetched before reading, exact head).
+
+### Fresh reproduction
+Detached worktree `/tmp/agent4-pr48` at the exact head. Ran focused suites locally:
+
+```text
+cd frontend && CI=true npx craco test --watchAll=false --runInBand \
+  --testPathPattern='exposureBadges|ExposureStrip|FlowseekerProBlademap|SkylitDashboard'
+PASS src/components/flowseeker/exposureBadges.test.js
+PASS src/components/flowseeker/FlowseekerProBlademap.test.jsx
+PASS src/components/heatseeker/ExposureStrip.test.jsx
+PASS src/components/heatseeker/SkylitDashboard.test.jsx
+Test Suites: 4 passed, 4 total
+Tests:       48 passed, 48 total
+Time:        2.047 s
+```
+
+48/48 green: exposureBadges 9/9, ExposureStrip 5/5, FlowseekerProBlademap + SkylitDashboard 34/34.
+
+### Payload vs main `56cfff2`
+9 files, +413/-0: `exposureBadges.js` (new, 60 lines), `exposureBadges.test.js` (new, 71), `FlowseekerProBlademap.jsx` (+2: import + badge pill per v3 signal card), `FlowseekerProBlademap.css` (+16), `ExposureStrip.jsx` (new, 62), `ExposureStrip.test.jsx` (new, 73), `ExposureStrip.css` (new, 25), `SkylitDashboard.jsx` (+4: import + mount), `AGENT3-1B-ASSESSMENT.md` (new docs, 100 — agent-3 self-documentation, not product code). No App.js, no App.css global, no backend, no central state, no other lanes' tests.
+
+### Source verification
+All 5 rule attributions verified against origin/main backend source:
+- `RULE_VEX_WALL`, `RULE_CHARM_PIN` — `backend/services/exposure_alerts.py` L34-35.
+- `RULE_GAMMA_FLIP` — `backend/alert_engine.py` L82 (type catalog) + L158 (fired on regime sign change).
+- `RULE_TOXIC_FLOW`, `RULE_LIQUIDITY_STRESS` — produced elsewhere in exposure pipeline (live in v3 feed); their absence from the two named files is documented, not a defect.
+- `exposureBadges.js` docstring (L4-7) correctly attributes GAMMA_FLIP to `alert_engine.py`; badge title matches alert semantics.
+- Copy rule: heuristic labels only, no invented precision, no direction calls.
+- Unknown/missing → null: CHARM_PINNING, GAMMA_FLIP_PROXIMITY, FOLLOW, SOURCE, SOMETHING_NEW all null.
+- Conflation traps documented and guarded: CHARM_PIN ≠ CHARM_PINNING, GAMMA_FLIP ≠ GAMMA_FLIP_PROXIMITY.
+- Fail-open: empty feed → null, fetch failure → null, no ticker → no fetch. Dedup: repeated rows → one badge.
+
+### Verdict
+**APPROVED.** No code blocker. Offline GATE-2 half delivered at exact head. Rebase resolution correct (only +2 in FlowseekerProBlademap.jsx vs main). Nav-gated merge; no GitHub mutations. Full receipt: `evidence/E4-48-PR48-review.md`.
+
+```text
+GSD_LOOP_RESULT={"lane":"review","status":"work","reason":"pr48-approved-no-blocker"}
+```
