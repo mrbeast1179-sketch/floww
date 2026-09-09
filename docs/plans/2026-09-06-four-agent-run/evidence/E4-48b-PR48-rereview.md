@@ -7,7 +7,9 @@
 - Head: `f25de2e31153c8dbdd99746b0b0f69e6ebb3761a` (re-fetched before reading; prior E4-48 REWORK at `4d7172e` is VOID for this head per the head-move rule)
 - Base: `56cfff2`
 - Delta `4d7172e..f25de2e31`: 1 commit ("fix(agent3): PR48 badge honesty — dual-producer titles + stale-badge clear"), 3 files, +29/-7
-- CI at head: IN_PROGRESS at review time (backend-tests + frontend-build running, ruff SUCCESS). Merge requires green + Nav call.
+- CI at head: ruff SUCCESS, frontend-build SUCCESS (1m55s); backend-tests
+  IN_PROGRESS, started 2026-09-09T05:00:13Z (~13m typical). Merge requires
+  green + Nav call.
 
 ## Fresh reproduction at exact head
 

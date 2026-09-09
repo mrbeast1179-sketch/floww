@@ -123,7 +123,7 @@
       "state": "REVIEWED — merge needs CI green + Nav call; no agent merge authority",
       "url": "https://github.com/mrbeast1179-sketch/floww/pull/48",
       "receipt": "docs/plans/2026-09-06-four-agent-run/evidence/E4-48b-PR48-rereview.md (live; prior head 4d7172e: E4-48.md VOID, E4-48-PR48-review.md REWORK superseded)",
-      "next": "CI at f25de2e31 was IN_PROGRESS at review (ruff SUCCESS). Confirm green before any merge call. No further Agent-4 review until head moves."
+      "next": "CI at f25de2e31 (2026-09-09T05:03Z): ruff SUCCESS, frontend-build SUCCESS, backend-tests IN_PROGRESS (started 05:00Z, ~13m typical). Confirm green before any merge call. No further Agent-4 review until head moves."
     },
     "pr49": {
       "head": "2f19bb4",
