@@ -21,9 +21,11 @@ from bs_greeks import bs_call_price, bs_charm, bs_gamma, bs_vanna
 from domain.greek_scalers import dollar_vex_per_1pct_spot_move
 
 try:
-    from services.numba_greeks import bs_charm_vec
+    from services.numba_greeks import bs_charm_vec, bs_gamma_vec, bs_vanna_vec
 except ImportError:  # pragma: no cover - numba optional in some envs
     bs_charm_vec = None  # type: ignore[assignment]
+    bs_gamma_vec = None  # type: ignore[assignment]
+    bs_vanna_vec = None  # type: ignore[assignment]
 
 
 def safe_float(v, default=0.0):
@@ -275,28 +277,62 @@ def calc_hedge_impulse_curve(spot: float, contracts: list[dict[str, Any]],
 
     q = {"SPY": 0.013, "QQQ": 0.006, "^SPX": 0.013, "IWM": 0.012}.get(ticker, 0.0)
 
-    # Extract strike-space exposures
-    strikes = []
-    gex_values = []
-    vex_values = []
-    for c in contracts:
-        s = safe_float(c.get("strike"))
-        if s <= 0:
+    # Extract strike-space exposures — vectorized numba path for plain-numeric
+    # rows (identical math to bs_gamma/bs_vanna with r=0.05 default; pinned by
+    # test_gamma_vanna_vec_wiring.py), scalar fallback for anything exotic.
+    _vec_ok = bs_gamma_vec is not None and bs_vanna_vec is not None
+    strikes: list[float] = []
+    gex_values: list[float] = []
+    vex_values: list[float] = []
+    _K, _T, _V = [], [], []
+    # _order preserves original contract order: ("vec", batch_idx) or
+    # ("scalar", contract). Vec rows must not jump ahead of exotic rows —
+    # strike order feeds kernel spacing below.
+    _order: list[tuple[str, Any]] = []
+    for _c in contracts:
+        _s = safe_float(_c.get("strike"))
+        if _s <= 0:
             continue
-        oi = safe_float(c.get("oi", 0))
-        if oi <= 0 or math.isnan(oi) or math.isinf(oi):
+        _oi = safe_float(_c.get("oi", 0))
+        if _oi <= 0 or math.isnan(_oi) or math.isinf(_oi):
             continue
-        T = safe_float(c.get("T"))
-        iv = safe_float(c.get("iv"))
-        if T <= 0 or iv <= 0:
+        _tt = safe_float(_c.get("T"))
+        _vv = safe_float(_c.get("iv"))
+        if _tt <= 0 or _vv <= 0:
             continue
-        gamma = bs_gamma(spot, s, T, iv, q=q)
-        vanna = bs_vanna(spot, s, T, iv, q=q)
-        if math.isnan(gamma) or math.isinf(gamma) or math.isnan(vanna) or math.isinf(vanna):
+        _st, _tt0, _vv0 = _c.get("strike"), _c.get("T"), _c.get("iv")
+        if (_vec_ok and all(isinstance(_v, (int, float))
+                            and not isinstance(_v, bool) and math.isfinite(_v)
+                            for _v in (_st, _tt0, _vv0))):
+            _order.append(("vec", (len(_K), _s, _oi)))
+            _K.append(_s)
+            _T.append(_tt)
+            _V.append(_vv)
+        else:
+            _order.append(("scalar", (_s, _oi, _tt, _vv)))
+    _G: Any = None
+    _Vn: Any = None
+    if any(k == "vec" for k, _ in _order):
+        assert bs_gamma_vec is not None and bs_vanna_vec is not None
+        import numpy as _np
+        _G = bs_gamma_vec(spot, _np.array(_K), _np.array(_T),
+                          _np.array(_V), q)
+        _Vn = bs_vanna_vec(spot, _np.array(_K), _np.array(_T),
+                           _np.array(_V), q)
+    for _kind, _pay in _order:
+        if _kind == "vec":
+            _bi, _s, _oi = _pay
+            _gamma, _vanna = float(_G[_bi]), float(_Vn[_bi])
+        else:
+            _s, _oi, _tt, _vv = _pay
+            _gamma = bs_gamma(spot, _s, _tt, _vv, q=q)
+            _vanna = bs_vanna(spot, _s, _tt, _vv, q=q)
+        if (math.isnan(_gamma) or math.isinf(_gamma)
+                or math.isnan(_vanna) or math.isinf(_vanna)):
             continue
-        gex = gamma * oi * 100.0 * spot * spot * 0.01
-        vex = vanna * oi * 100.0 * spot * 0.01
-        strikes.append(s)
+        gex = _gamma * _oi * 100.0 * spot * spot * 0.01
+        vex = _vanna * _oi * 100.0 * spot * 0.01
+        strikes.append(_s)
         gex_values.append(gex)
         vex_values.append(vex)
 
