@@ -16,7 +16,7 @@ PR41 (strike floor), PR42 (T2 full universe + order-key 401 fix), PR43
 PR47 (numba charm vec + liquidity-stress alerts), PR51 (signal-truth repair:
 charm type normalization + liquidity interval flow, merged d4a5b1f,
 E4-51 APPROVED post-merge), PR50 (kind-aware badge copy + stale-strip fix,
-merged 2026-09-09T15:35:57Z, KIND_TITLES in main), PR52 (vomma-walls alerts),
+merged 2026-09-09T15:35:57Z **— MERGE COMMIT ORPHANED; KIND_TITLES NOT in main; exists only in origin/a3/pr48-semantic-fixes**), PR52 (vomma-walls alerts),
 PR53 (gamma-vanna-vec wiring).
 PR48 (a3/alert-surfacing, head 2f57bea3d, E4-48d APPROVED at E4-48b level —
 49/49 green, frontend-only, clean merge to main; UNSTABLE/behind main — needs
@@ -87,9 +87,10 @@ PR44 merged main 56cfff2 2026-09-08T11:48:51Z; witness gate (external G-WITNESS)
       surface only live ones, report dead ones instead of wiring corpses.
    d. Do NOT invent UI for `FOLLOW`/`SOURCE` (UI-only, no backend producer).
    Tests for every badge (incl. no-quote/unknown rendering); full-suite green.
-    Status: **DONE via PR48** (a3/alert-surfacing, head 73533e1e8). E4-48c
-    APPROVED (2026-09-09 re-re-review: 49/49 green; CI green; merge-ready, Nav
-    call). Receipt: evidence/E4-48c-PR48-50-rereview.md.
+    Status: **DONE via PR48** (a3/alert-surfacing, head 2f57bea3d). E4-48d
+    APPROVED (2026-09-09 re-review: 49/49 green; frontend-only; clean merge to
+    main; UNSTABLE/behind main — rebase onto origin/main before merge; Nav call).
+    Receipt: evidence/E4-48d-PR48-rereview.md.
 
   1b. **Alert-engine mapper (1c)** — `alertEngineBadges.js` (11 catalog types,
     TDD RED-first, 17 tests) + CLUSTER badge in exposureBadges (feed-proven).
@@ -117,9 +118,9 @@ PR44 merged main 56cfff2 2026-09-08T11:48:51Z; witness gate (external G-WITNESS)
 
 - PR44 G3-salvage: E4-44 APPROVED-conditional, MERGED to main 56cfff2. Witness
   gate pending; re-verify at any new head before any witnessed attempt.
-- PR48 alert-surfacing: E4-48c APPROVED at 73533e1 (CI green; merge-ready; Nav call).
-- PR49 alert-engine-badges: E4-49c APPROVED-conditional at 6387f13 (stacked on PR48; wiring gap holds). Merge after PR48.
-- PR50 kind-aware badge copy: E4-48c APPROVED at f7bc499 (stacked on PR48; merge after PR48).
+- PR48 alert-surfacing: E4-48d APPROVED at 2f57bea3d (49/49 green; frontend-only; clean merge to main; UNSTABLE/behind main 84fc1ed — needs rebase onto origin/main; Nav call; **merges WITHOUT KIND_TITLES at current main — PR50 content orphaned, not in main**).
+- PR49 alert-engine-badges: E4-49 APPROVED-conditional at 6387f13 (stacked on PR48; wiring gap holds). Merge after PR48 (once PR48 rebased + merged).
+- PR50 kind-aware badge copy: **MERGED** (closed 2026-09-09T15:35:57Z into a3/alert-surfacing, merge commit 81255b8 **ORPHANED**). KIND_TITLES is **NOT** in main (verified: 0 occurrences in origin/main exposureBadges.js), not in a3/alert-surfacing. Exists only in origin/a3/pr48-semantic-fixes for potential re-merge PR. No longer a stacked PR — merged separately but content not delivered to main.
 - Never re-audit merged heads at unchanged state (PR28-43, PR45-46).
 - Three alert pipelines exist (alert_engine, exposure_alerts, flow_alerts)
   with overlapping rule names (`CHARM_PIN` ≠ `CHARM_PINNING`,
