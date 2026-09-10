@@ -29,7 +29,7 @@ def _parse_strike_map(raw: Any, value_kind: str = "float") -> dict[float, Any]:
         try:
             strike = float(key)
             amount = float(value)
-        except (TypeError, ValueError):
+        except (TypeError, ValueError, OverflowError):
             continue
         if not math.isfinite(strike) or not math.isfinite(amount):
             continue
@@ -41,7 +41,7 @@ def _parse_momentum_score(raw: Any) -> int:
     """Coerce a momentum input to the 0-100 detector scale."""
     try:
         score = int(float(raw))
-    except (TypeError, ValueError):
+    except (TypeError, ValueError, OverflowError):
         return 50
     return max(0, min(100, score))
 

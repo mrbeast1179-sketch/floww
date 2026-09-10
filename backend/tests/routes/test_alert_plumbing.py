@@ -61,6 +61,17 @@ def _types(alerts):
     return [a.get("type") for a in alerts]
 
 
+@pytest.mark.parametrize("value", ["inf", "-inf", 10 ** 400])
+def test_nonfinite_momentum_uses_neutral_default(value):
+    from routes.alerts import _parse_momentum_score
+    assert _parse_momentum_score(value) == 50
+
+
+def test_overflowed_strike_entry_does_not_drop_valid_entries():
+    from routes.alerts import _parse_strike_map
+    assert _parse_strike_map({"500": 10 ** 400, "505": 100}) == {505.0: 100.0}
+
+
 class TestMomentumQueryPlumbing:
     def test_get_alerts_forwards_momentum_score(self, client):
         """momentum_score=95 through the API must surface MOMENTUM_EXTREME."""
