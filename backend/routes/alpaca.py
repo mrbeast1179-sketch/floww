@@ -207,28 +207,31 @@ def _journal_option_fill(symbol: str, qty: int, side: str, result: dict) -> None
 async def close_position(symbol: str):
     """Close a position.
 
-    On a confirmed venue close, open journal cards for the symbol get
-    their exits stamped (fail-open) so !journal/!pnl review the full
-    loop. The exit price is the latest venue bar close — never invented.
+    Open journal cards are closed only after the venue reports a confirmed
+    fill with a usable average price. Accepted/pending close orders leave
+    journal P&L open rather than substituting a market bar for execution.
     """
     try:
         from alpaca_client import AlpacaClient
         client = AlpacaClient()
         result = await client.close_position(symbol)
         if result:
-            closed = await _journal_closeout(symbol, client)
+            closed = await _journal_closeout(symbol, client, result)
             if closed:
                 result["journal_closed"] = closed
+                result["journal_status"] = "confirmed_fill"
+            else:
+                result["journal_status"] = "pending_fill"
             return result
         return {"error": "Failed to close position"}
     except Exception as e:
         return {"error": str(e)}
 
 
-async def _journal_closeout(symbol: str, client) -> int:
+async def _journal_closeout(symbol: str, client, close_order: dict) -> int:
     """Stamp exits on open journal cards for a closed symbol.
 
-    Returns count closed, 0 when no reference price or nothing open.
+    Returns count closed, 0 when no confirmed fill or nothing open.
     Fail-open: never raises into the close path.
     """
     try:
@@ -236,15 +239,17 @@ async def _journal_closeout(symbol: str, client) -> int:
 
         from services.journal_store import close_open_by_symbol, get_engine, init_journal_tables
 
-        bars = await client.get_bars(symbol, timeframe="1Day", limit=1)
-        px = None
-        if bars:
-            try:
-                px = float(bars[-1].get("c"))
-            except (TypeError, ValueError, AttributeError):
-                px = None
-        if not px:
-            logger.warning("alpaca close journaling skipped for %s: no reference price", symbol)
+        order = close_order if isinstance(close_order, dict) else {}
+        if str(order.get("status") or "").lower() != "filled" and order.get("id"):
+            fetched = await client.get_order(str(order["id"]))
+            if isinstance(fetched, dict):
+                order = fetched
+        try:
+            px = float(order.get("filled_avg_price") or 0)
+        except (TypeError, ValueError):
+            px = 0.0
+        if str(order.get("status") or "").lower() != "filled" or px <= 0:
+            logger.info("alpaca close journaling pending for %s: fill unconfirmed", symbol)
             return 0
         engine = get_engine()
         init_journal_tables(engine)
