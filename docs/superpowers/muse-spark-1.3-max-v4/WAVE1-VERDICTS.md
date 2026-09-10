@@ -52,11 +52,9 @@ Exact-head CI green (backend 11m48s, frontend, Ruff). Branch updated to
 main via a364128 (5 PR55 frontend files only, zero payload drift); CI
 re-running. Merge iff green at a364128.
 
-## PR60 (agent2/eval-harness @ c8ca7c4) — APPROVED, queued
+## PR59 (agent2/data-contract) — DONE, merged via 43fa666
 
-Additive-only: eval_harness.py (88) + test (95). Exact-head CI green
-(backend 13m16s, frontend, Ruff). Needs main-update + CI, then merge.
-Next after PR59 lands.
+## PR60 (agent2/eval-harness) — DONE, merged via 2c33de0
 
 ## PR61 (agent2/vex-parity @ dc01004) — APPROVED (payload), queued
 
@@ -73,17 +71,14 @@ in both mirrored modules — verified) + 40-line parity guard. No behavior
 change. Exact-head CI green (backend 12m37s, frontend, Ruff). Needs
 main-update + CI, then merge. Queued behind PR61.
 
-## PR63 (agent2/calib-registry @ 2c63666) — verdict withheld (flake rerun)
+## PR63 — APPROVED at 2c63666 (was: withheld), queued last
 
-Additive-only (2 new files, +187/-0). CI backend red on
-test_greeks_api.py::TestPerformance::test_latency_under_50ms_all[SPY]
-(2974.9ms vs 2500ms wall-clock budget under load) — cannot be caused by an
-additive-only payload. Classified environmental; Agent-1 reran the failed
-workflow (in_progress at same head). Merge iff the rerun goes green; any
-second failure needs base-rate evidence before another rerun.
+Additive-only (2 new files, +187/-0). Backend rerun PASSED (12m42s) —
+latency-budget flake classification confirmed; frontend + Ruff pass.
+Needs main-update + CI at merged head, then merge.
 
 ## Integration order (disjoint payloads, branch protection needs fresh base)
 
-PR59 -> PR60 -> PR61 -> PR62, each: merge main (fast-forward push, no
-force, never touching lane worktrees) -> green CI at merged head -> merge.
-PR57 needs a repair push first. PR58/PR63 need green reruns first.
+PR59 -> PR60 -> PR58 -> PR61 -> PR62 -> PR63, each: merge main
+(fast-forward push, no force, never touching lane worktrees) -> green CI
+at merged head -> merge. PR57 needs a repair push first.
