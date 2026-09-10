@@ -86,4 +86,59 @@ describe("ExposureStrip", () => {
       expect(screen.queryByText("TOXIC FLOW")).not.toBeInTheDocument()
     );
   });
+
+  test("clearing the ticker removes the previous ticker badges", async () => {
+    axios.get.mockResolvedValueOnce({
+      data: { alerts: [{ key: "a", rule: "TOXIC_FLOW", under: "SPY" }] },
+    });
+    const { rerender } = render(<ExposureStrip ticker="SPY" />);
+    await screen.findByText("TOXIC FLOW");
+
+    rerender(<ExposureStrip ticker="" />);
+
+    await waitFor(() =>
+      expect(screen.queryByText("TOXIC FLOW")).not.toBeInTheDocument()
+    );
+    expect(axios.get).toHaveBeenCalledTimes(1);
+  });
+
+  test("passes the feed kind through to badge copy", async () => {
+    axios.get.mockResolvedValueOnce({
+      data: {
+        alerts: [{
+          key: "exposure:vex_wall_broken:SPY::65000",
+          rule: "VEX_WALL",
+          under: "SPY",
+        }],
+      },
+    });
+    render(<ExposureStrip ticker="SPY" />);
+    const badge = await screen.findByText("VEX WALL");
+    expect(badge.title.toLowerCase()).toContain("released");
+    expect(badge.title.toLowerCase()).not.toContain("defending");
+  });
+
+  test("formed + broken rows render one badge showing the broken state", async () => {
+    axios.get.mockResolvedValueOnce({
+      data: {
+        alerts: [
+          {
+            key: "exposure:vex_wall_formed:SPY::65000",
+            rule: "VEX_WALL",
+            under: "SPY",
+          },
+          {
+            key: "exposure:vex_wall_broken:SPY::65000",
+            rule: "VEX_WALL",
+            under: "SPY",
+          },
+        ],
+      },
+    });
+    render(<ExposureStrip ticker="SPY" />);
+    await waitFor(() => expect(screen.getAllByText("VEX WALL")).toHaveLength(1));
+    const badge = screen.getByText("VEX WALL");
+    expect(badge.title.toLowerCase()).toContain("released");
+    expect(badge.title.toLowerCase()).not.toContain("defending");
+  });
 });
