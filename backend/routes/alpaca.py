@@ -228,7 +228,8 @@ async def close_position(symbol: str):
         return {"error": str(e)}
 
 
-async def _journal_closeout(symbol: str, client, close_order: dict) -> int:
+async def _journal_closeout(symbol: str, client, close_order: dict,
+                            engine=None) -> int:
     """Stamp exits on open journal cards for a closed symbol.
 
     Returns count closed, 0 when no confirmed fill or nothing open.
@@ -251,7 +252,8 @@ async def _journal_closeout(symbol: str, client, close_order: dict) -> int:
         if str(order.get("status") or "").lower() != "filled" or px <= 0:
             logger.info("alpaca close journaling pending for %s: fill unconfirmed", symbol)
             return 0
-        engine = get_engine()
+        if engine is None:
+            engine = get_engine()
         init_journal_tables(engine)
         return int(close_open_by_symbol(
             engine, symbol, exit_price=px,
@@ -273,5 +275,56 @@ async def get_status():
             "base_url": "https://paper-api.alpaca.markets",
             "mode": "paper trading",
         }
+    except Exception as e:
+        return {"error": str(e)}
+
+
+async def reconcile_pending_close(symbol: str, order_id: str,
+                                  client=None, engine=None) -> dict:
+    """Re-poll the venue for a pending close order and journal a confirmed fill.
+
+    Eventual reconciliation for closes that left journal_status=pending_fill:
+    fetches the venue order by id, then delegates to _journal_closeout, which
+    closes cards only on status=filled with a positive average price.
+    Fail-open: never raises; unknown/missing/failed states report honestly.
+    """
+    try:
+        if not order_id:
+            return {"symbol": symbol, "order_id": order_id,
+                    "reconciled": False, "journal_closed": 0,
+                    "status": "unknown"}
+        if client is None:
+            from alpaca_client import AlpacaClient
+            client = AlpacaClient()
+        order = await client.get_order(str(order_id))
+        if not isinstance(order, dict):
+            return {"symbol": symbol, "order_id": order_id,
+                    "reconciled": False, "journal_closed": 0,
+                    "status": "unknown"}
+        closed = await _journal_closeout(symbol, client, order, engine=engine)
+        status = str(order.get("status") or "unknown")
+        if closed:
+            return {"symbol": symbol, "order_id": order_id,
+                    "reconciled": True, "journal_closed": int(closed),
+                    "status": status}
+        return {"symbol": symbol, "order_id": order_id,
+                "reconciled": False, "journal_closed": 0,
+                "status": status}
+    except Exception as e:
+        logger.warning("alpaca reconcile failed for %s: %s", symbol, e)
+        return {"symbol": symbol, "order_id": order_id,
+                "reconciled": False, "journal_closed": 0,
+                "status": "unknown", "error": str(e)}
+
+
+@router.post("/reconcile-close")
+async def reconcile_close(payload: dict,
+                          _: bool = Depends(require_api_key)):
+    """Reconcile a pending paper-close order. Body: {symbol, order_id}."""
+    try:
+        return await reconcile_pending_close(
+            str(payload.get("symbol", "")).upper(),
+            str(payload.get("order_id", "")),
+        )
     except Exception as e:
         return {"error": str(e)}
