@@ -5,7 +5,11 @@
  * CHARM_PIN, LIQUIDITY_STRESS) map to badge descriptors with heuristic
  * copy. Unknown/missing rules map to null — never invent a badge.
  */
-import { exposureBadgeFor, EXPOSURE_RULES } from "./exposureBadges";
+import {
+  exposureBadgeFor,
+  exposureKindOf,
+  EXPOSURE_RULES,
+} from "./exposureBadges";
 
 describe("exposureBadgeFor", () => {
   test("TOXIC_FLOW maps with heuristic disclaimer", () => {
@@ -74,5 +78,33 @@ describe("exposureBadgeFor", () => {
     expect(b).not.toBeNull();
     expect(b.rule).toBe("CLUSTER");
     expect(b.title.toLowerCase()).toContain("heuristic");
+  });
+
+  test("broken VEX rows describe released, not defending, walls", () => {
+    const b = exposureBadgeFor("VEX_WALL", {
+      key: "exposure:vex_wall_broken:SPY::65000",
+    });
+    expect(b.title.toLowerCase()).toContain("released");
+    expect(b.title.toLowerCase()).not.toContain("defending");
+  });
+
+  test("gamma-approach rows do not claim a completed regime flip", () => {
+    const b = exposureBadgeFor("GAMMA_FLIP", {
+      context_json: JSON.stringify({ kind: "gamma_flip_approach" }),
+    });
+    expect(b.title.toLowerCase()).toContain("pressing");
+    expect(b.title.toLowerCase()).not.toContain("regime change");
+  });
+
+  test("event kind resolves from context, context_json, or feed key", () => {
+    expect(exposureKindOf({ context: { kind: "VEX_WALL_BROKEN" } })).toBe(
+      "vex_wall_broken"
+    );
+    expect(exposureKindOf({ context_json: '{"kind":"gamma_flip_approach"}' })).toBe(
+      "gamma_flip_approach"
+    );
+    expect(exposureKindOf({ key: "exposure:vex_wall_formed:SPY::65000" })).toBe(
+      "vex_wall_formed"
+    );
   });
 });

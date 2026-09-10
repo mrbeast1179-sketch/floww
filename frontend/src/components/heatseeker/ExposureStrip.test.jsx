@@ -86,4 +86,20 @@ describe("ExposureStrip", () => {
       expect(screen.queryByText("TOXIC FLOW")).not.toBeInTheDocument()
     );
   });
+
+  test("passes the feed kind through to badge copy", async () => {
+    axios.get.mockResolvedValueOnce({
+      data: {
+        alerts: [{
+          key: "exposure:vex_wall_broken:SPY::65000",
+          rule: "VEX_WALL",
+          under: "SPY",
+        }],
+      },
+    });
+    render(<ExposureStrip ticker="SPY" />);
+    const badge = await screen.findByText("VEX WALL");
+    expect(badge.title.toLowerCase()).toContain("released");
+    expect(badge.title.toLowerCase()).not.toContain("defending");
+  });
 });

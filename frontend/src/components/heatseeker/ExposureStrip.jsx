@@ -32,13 +32,14 @@ export default function ExposureStrip({ ticker }) {
         const rows = r?.data?.alerts || [];
         const seen = new Map();
         for (const row of rows) {
-          const b = exposureBadgeFor(row?.rule);
+          const b = exposureBadgeFor(row?.rule, row);
           if (b && !seen.has(b.rule)) seen.set(b.rule, b);
         }
         setBadges([...seen.values()]);
       })
       .catch(() => {
-        {/* fail-open: strip stays hidden when the fetch rejects */}
+        // Fail open and stale-free: never retain the prior ticker's badges.
+        if (!cancelled) setBadges([]);
       });
     return () => {
       cancelled = true;
