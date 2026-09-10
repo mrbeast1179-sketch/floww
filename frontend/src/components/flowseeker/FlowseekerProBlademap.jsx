@@ -159,6 +159,24 @@ export function costLabel(costRead) {
   return { text: `COST ~$${Number(costRead.spread).toFixed(2)}`, title: COST_TITLE, caption: COST_CAPTION };
 }
 
+// Sweep/block copy in ONE place (XH-1 honesty contract): snapshot-chain
+// classes are size/tenor buckets, not observed executions. The old titles
+// ("multi-print burst", "multi-exchange urgency") described mechanisms the
+// classifiers never measure — scanTypeOf buckets single-row volume
+// (vol>=25000 sweep, vol>=8000 block) and the chain-scan path buckets
+// premium/DTE. Jest pins the wording so the labels can't silently harden.
+export const FLOW_PROXY_NOTE = "Sweep/Block classes are size/tenor-bucket proxies on snapshot chains (cvserver has no venue tape). Ov-bar NetPrem = 90s rolled tape sum — reconcile if diverged (P0).";
+export function flowClassTitle(pcls) {
+  const c = String(pcls || "").toUpperCase();
+  if (c === "SWEEP") return "Sweep class: size/tenor-bucket proxy — no multi-venue execution observed (no venue tape)";
+  if (c === "BLOCK") return "Block class: volume size-bucket proxy — not an observed block print";
+  return c || "REG";
+}
+export const FILTER_CHIP_TITLES = {
+  SWEEP: "Sweep class: size/tenor-bucket proxy — no venue tape",
+  BLOCK: "Block class: volume size-bucket proxy — not an observed block print",
+};
+
 // Drop prints older than the Pulse window (trailing-90s tape).
 export function pruneBuffer(buf, windowMs = 90e3, now = Date.now()) {
   return (buf || []).filter((r) => now - (Number(r.timestamp) || now) < windowMs);
@@ -1305,7 +1323,7 @@ export default function FlowseekerProBlademap({ active = true, onTrade = null })
               <div className="fsb-panel-h">Filters</div>
               <div className="fsb-chips">
                 {[["all", "All"], ["CALL", "Calls"], ["PUT", "Puts"], ["SWEEP", "Sweep"], ["BLOCK", "Block"], ["ASK", "Ask"], ["BID", "Bid"], ["high", "≥80"]].map(([v, l]) => (
-                  <button key={v} className={`fsb-chip${filter === v ? " active" : ""}`} onClick={() => setFilter(v)}>{l}</button>
+                  <button key={v} className={`fsb-chip${filter === v ? " active" : ""}`} onClick={() => setFilter(v)} title={FILTER_CHIP_TITLES[v]}>{l}</button>
                 ))}
               </div>
               <div className="fsb-panel-h fsb-panel-h-sm" style={{ marginTop: 8 }}>Equity</div>
@@ -1441,7 +1459,7 @@ export default function FlowseekerProBlademap({ active = true, onTrade = null })
                             tabIndex={0} onClick={() => selectSignal(p)}
                             onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); selectSignal(p); } }}>
                           <td className="fsb-muted">{fmtClock(p._aggTs ?? p.timestamp, true)}</td>
-                          <td className="tk" title={pcls === "SWEEP" ? "Sweep: urgent multi-print burst (proxy)" : pcls === "BLOCK" ? "Block: large single-contract size (proxy)" : typeOf(p)}>{flowIcon}{p.ticker}</td>
+                          <td className="tk" title={pcls === "SWEEP" || pcls === "BLOCK" ? flowClassTitle(pcls) : typeOf(p)}>{flowIcon}{p.ticker}</td>
                           <td className="num">{Number(p.strike).toFixed(0)}</td>
                           <td className={`fsb-type-${cp.toLowerCase()}`} title={p._strat ? `${p._strat} multi-leg fingerprint (heuristic: matched volumes, no exchange linkage)` : cp}>{p._strat ? "◈" : ""}{cp}</td>
                           <td className="num">{p.otm == null ? "—" : `+${Number(p.otm).toFixed(1)}%`}</td>
@@ -1552,7 +1570,7 @@ export default function FlowseekerProBlademap({ active = true, onTrade = null })
                 </div>
               )}
             </div>
-            <div className="fsb-drawer-note fsb-muted fsb-small">Sweep = multi-exchange urgency proxy (cvserver has no venue tape). Ov-bar NetPrem = 90s rolled tape sum — reconcile if diverged (P0).</div>
+            <div className="fsb-drawer-note fsb-muted fsb-small">{FLOW_PROXY_NOTE}</div>
           </div>
         )}
         </div>

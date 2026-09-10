@@ -304,6 +304,35 @@ describe("Pulse helpers — BladeMap tape contract", () => {
   });
 });
 
+describe("flowClassTitle — sweep/block proxy-copy contract (XH-1)", () => {
+  const { flowClassTitle: ft, FLOW_PROXY_NOTE: N, FILTER_CHIP_TITLES: CT } = require("./FlowseekerProBlademap");
+  it("sweep title names the proxy mechanism honestly", () => {
+    const t = ft("SWEEP");
+    expect(t).toMatch(/proxy/i);
+    expect(t).toMatch(/no multi-venue execution observed/i);
+    expect(t).not.toMatch(/multi-print burst|multi-exchange urgency/);
+  });
+  it("block title names the proxy mechanism honestly", () => {
+    const t = ft("BLOCK");
+    expect(t).toMatch(/proxy/i);
+    expect(t).toMatch(/not an observed block print/i);
+  });
+  it("other classes pass through unchanged", () => {
+    expect(ft("unusual")).toBe("UNUSUAL");
+    expect(ft(null)).toBe("REG");
+  });
+  it("drawer note discloses the snapshot-chain limitation", () => {
+    expect(N).toMatch(/size\/tenor-bucket prox/i);
+    expect(N).toMatch(/no venue tape/);
+    expect(N).not.toMatch(/multi-exchange urgency/);
+  });
+  it("filter chips carry proxy titles for sweep/block only", () => {
+    expect(CT.SWEEP).toMatch(/proxy/i);
+    expect(CT.BLOCK).toMatch(/proxy/i);
+    expect(CT.CALL).toBeUndefined();
+  });
+});
+
 describe("costLabel — COST honesty contract (Step 1.4)", () => {
   const { costLabel: cl, COST_TITLE: T, COST_CAPTION: C, COST_CAPTION_TITLE: CT } = require("./FlowseekerProBlademap");
   it("null in, null out; building shows a count, never a number", () => {
