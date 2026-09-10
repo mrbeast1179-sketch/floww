@@ -1,0 +1,44 @@
+{
+  "schema": "floww-four-agent-run/v4",
+  "snapshot_only": true,
+  "snapshot_date_et": "2026-09-10",
+  "repository": "mrbeast1179-sketch/floww",
+  "runtime_root": "/Users/nav/Documents/GitHub/floww-run-state/2026-09-09-v4",
+  "control_branch": "architect/20260908-evidence-control-v3",
+  "main_at_publication": "d5dbd7dd683993242b96fc3ce290f9ce6a216429",
+  "execution_boundary": "paper-replay-research-only",
+  "max_agents_total": 4,
+  "central_writer": "agent-1-architect",
+  "merge_owner": "agent-1-architect-with-exact-head-agent4-and-green-ci",
+  "lanes": {
+    "agent-1-architect": {
+      "state": "ACTIVE",
+      "task_id": "R0-INTEGRATE-55-56",
+      "lease": ["runtime run-state", "admission cards", "v4 coordination docs"]
+    },
+    "agent-2-backend": {
+      "state": "PARKED",
+      "task_id": null,
+      "next_after_gate": "EXEC-RECON-1 or ALERT-API-1, exactly one"
+    },
+    "agent-3-frontend": {
+      "state": "PARKED",
+      "task_id": null,
+      "next_after_gate": "ALERT-UI-1 only after ALERT-API-1, or XH-1 discovery"
+    },
+    "agent-4-reviewer": {
+      "state": "READY",
+      "task_id": "REVIEW-55-56-SERIAL",
+      "queue": [55, 56]
+    }
+  },
+  "open_prs_at_publication": {
+    "54": "c4970a53c5f93079f81e279e74d3ecee48f88b77-merged-via-d5dbd7d",
+    "55": "c8dbf9a2b151c5ff8eb21eb8b0786f246f1d3dfc-plus-main-merge-f695849",
+    "56": "a46f7b48cad37eb5da1d93d6b68be0b7c682505c-plus-main-merge-f7bb35f"
+  },
+  "excluded_programs": ["swarmSPX", "Azure", "X-credit"],
+  "external_witnesses": "never synthesized",
+  "boot_rule": "fetch and replace every snapshot fact before ACTIVE"
+}
+
