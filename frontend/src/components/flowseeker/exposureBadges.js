@@ -41,7 +41,7 @@ const BADGES = {
     rule: "VEX_WALL",
     label: "VEX WALL",
     title:
-      "VEX wall event — formed (dealers defending, vol suppression) or broken (suppression released, regime may shift); feed carries no formed/broken split, heuristic",
+      "VEX wall event of unknown subtype — formed means dealers defending (vol suppression), broken means suppression released and regime may shift (heuristic, not a direction call)",
   },
   CHARM_PIN: {
     rule: "CHARM_PIN",
@@ -113,4 +113,44 @@ export function exposureBadgeFor(rule, rowOrKind) {
   const title = KIND_TITLES[`${key}:${exposureKindOf(rowOrKind)}`];
   if (title) badge.title = title;
   return badge;
+}
+
+/**
+ * Rank of an event kind when several feed rows share one rule. A broken
+ * wall supersedes a formed one (the break is the newer regime state); any
+ * explicitly recognized kind beats a kindless row. Unrecognized rows score
+ * 0 and lose ties to the first row, keeping selection deterministic even
+ * though the feed is conviction-sorted, not time-sorted.
+ */
+const KIND_PRIORITY = {
+  vex_wall_broken: 2,
+  vex_wall_formed: 1,
+  gamma_flip_approach: 1,
+};
+
+function _kindRank(row) {
+  const kind = exposureKindOf(row);
+  if (!kind) return 0;
+  if (Object.hasOwn(KIND_TITLES, `${String(row?.rule || "").trim().toUpperCase()}:${kind}`)) {
+    return KIND_PRIORITY[kind] || 1;
+  }
+  return 0;
+}
+
+/**
+ * One badge per live rule. Rows with unknown rules never produce a badge.
+ * When several rows share a rule (e.g. a formed and a broken VEX wall in
+ * the same 2-day window), the highest-ranked kind wins so the strip cannot
+ * show a stale regime state.
+ */
+export function selectExposureBadges(rows) {
+  const best = new Map();
+  for (const row of rows || []) {
+    const b = exposureBadgeFor(row?.rule, row);
+    if (!b) continue;
+    const rank = _kindRank(row);
+    const prev = best.get(b.rule);
+    if (!prev || rank > prev.rank) best.set(b.rule, { badge: b, rank });
+  }
+  return [...best.values()].map((v) => v.badge);
 }

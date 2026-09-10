@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
 import axios from "axios";
 import { API as BACKEND_API } from "../../config/api";
-import { exposureBadgeFor } from "../flowseeker/exposureBadges";
+import { selectExposureBadges } from "../flowseeker/exposureBadges";
 import "./ExposureStrip.css";
 
 /**
@@ -11,7 +11,8 @@ import "./ExposureStrip.css";
  * already carries exposure rows (rule TOXIC_FLOW / GAMMA_FLIP / VEX_WALL /
  * CHARM_PIN / LIQUIDITY_STRESS) written by the heatmap route + snapshot
  * path. Renders one badge per live rule; unknown rules never render.
- * Fail-open: empty feed or fetch failure renders nothing, never blanks.
+ * Fail-open: empty feed or fetch failure renders nothing, leaving the rest
+ * of the dashboard untouched.
  */
 export default function ExposureStrip({ ticker }) {
   const [badges, setBadges] = useState([]);
@@ -33,12 +34,10 @@ export default function ExposureStrip({ ticker }) {
       .then((r) => {
         if (cancelled) return;
         const rows = r?.data?.alerts || [];
-        const seen = new Map();
-        for (const row of rows) {
-          const b = exposureBadgeFor(row?.rule, row);
-          if (b && !seen.has(b.rule)) seen.set(b.rule, b);
-        }
-        setBadges([...seen.values()]);
+        // One badge per rule; a broken wall supersedes a formed one so a
+        // 2-day window cannot show a stale regime state (see
+        // selectExposureBadges — feed is conviction-sorted, not time-sorted).
+        setBadges(selectExposureBadges(rows));
       })
       .catch(() => {
         // Fail open and stale-free: never retain the prior ticker's badges.

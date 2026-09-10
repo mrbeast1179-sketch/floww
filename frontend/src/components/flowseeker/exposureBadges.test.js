@@ -8,6 +8,7 @@
 import {
   exposureBadgeFor,
   exposureKindOf,
+  selectExposureBadges,
   EXPOSURE_RULES,
 } from "./exposureBadges";
 
@@ -106,5 +107,49 @@ describe("exposureBadgeFor", () => {
     expect(exposureKindOf({ key: "exposure:vex_wall_formed:SPY::65000" })).toBe(
       "vex_wall_formed"
     );
+  });
+
+  test("VEX_WALL without a kind stays honest about the unknown subtype", () => {
+    const b = exposureBadgeFor("VEX_WALL", { key: "SCORE|SPY|650|2026-09-18" });
+    expect(b.title.toLowerCase()).not.toMatch(/no .*split|carries no/);
+    expect(b.title.toLowerCase()).toContain("formed");
+    expect(b.title.toLowerCase()).toContain("broken");
+  });
+
+  test("selectExposureBadges prefers a broken wall over a formed one", () => {
+    const rows = [
+      { key: "exposure:vex_wall_formed:SPY::65000", rule: "VEX_WALL" },
+      { key: "exposure:vex_wall_broken:SPY::65000", rule: "VEX_WALL" },
+    ];
+    const badges = selectExposureBadges(rows);
+    expect(badges).toHaveLength(1);
+    expect(badges[0].title.toLowerCase()).toContain("released");
+    expect(badges[0].title.toLowerCase()).not.toContain("defending");
+    // Order-independent: feed is conviction-sorted, not time-sorted.
+    const flipped = selectExposureBadges([...rows].reverse());
+    expect(flipped).toHaveLength(1);
+    expect(flipped[0].title).toBe(badges[0].title);
+  });
+
+  test("selectExposureBadges prefers an explicit approach kind over a kindless row", () => {
+    const rows = [
+      { key: "SCORE|SPY|650|2026-09-18", rule: "GAMMA_FLIP" },
+      { key: "exposure:gamma_flip_approach:SPY::650", rule: "GAMMA_FLIP" },
+    ];
+    const badges = selectExposureBadges(rows);
+    expect(badges).toHaveLength(1);
+    expect(badges[0].title.toLowerCase()).toContain("pressing");
+    expect(badges[0].title.toLowerCase()).not.toContain("regime change");
+  });
+
+  test("selectExposureBadges drops unknown rules and keeps one badge per rule", () => {
+    const rows = [
+      { key: "a", rule: "TOXIC_FLOW" },
+      { key: "b", rule: "TOXIC_FLOW" },
+      { key: "c", rule: "SOMETHING_NEW" },
+    ];
+    const badges = selectExposureBadges(rows);
+    expect(badges).toHaveLength(1);
+    expect(badges[0].rule).toBe("TOXIC_FLOW");
   });
 });

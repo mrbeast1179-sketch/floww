@@ -117,4 +117,28 @@ describe("ExposureStrip", () => {
     expect(badge.title.toLowerCase()).toContain("released");
     expect(badge.title.toLowerCase()).not.toContain("defending");
   });
+
+  test("formed + broken rows render one badge showing the broken state", async () => {
+    axios.get.mockResolvedValueOnce({
+      data: {
+        alerts: [
+          {
+            key: "exposure:vex_wall_formed:SPY::65000",
+            rule: "VEX_WALL",
+            under: "SPY",
+          },
+          {
+            key: "exposure:vex_wall_broken:SPY::65000",
+            rule: "VEX_WALL",
+            under: "SPY",
+          },
+        ],
+      },
+    });
+    render(<ExposureStrip ticker="SPY" />);
+    await waitFor(() => expect(screen.getAllByText("VEX WALL")).toHaveLength(1));
+    const badge = screen.getByText("VEX WALL");
+    expect(badge.title.toLowerCase()).toContain("released");
+    expect(badge.title.toLowerCase()).not.toContain("defending");
+  });
 });
