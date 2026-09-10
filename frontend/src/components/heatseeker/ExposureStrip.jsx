@@ -17,7 +17,10 @@ export default function ExposureStrip({ ticker }) {
   const [badges, setBadges] = useState([]);
 
   useEffect(() => {
-    if (!ticker) return undefined;
+    if (!ticker) {
+      setBadges([]);
+      return undefined;
+    }
     let cancelled = false;
     const ctrl = new AbortController();
     setBadges([]); // drop the previous ticker's badges immediately; the

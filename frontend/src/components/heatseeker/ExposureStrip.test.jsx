@@ -87,6 +87,21 @@ describe("ExposureStrip", () => {
     );
   });
 
+  test("clearing the ticker removes the previous ticker badges", async () => {
+    axios.get.mockResolvedValueOnce({
+      data: { alerts: [{ key: "a", rule: "TOXIC_FLOW", under: "SPY" }] },
+    });
+    const { rerender } = render(<ExposureStrip ticker="SPY" />);
+    await screen.findByText("TOXIC FLOW");
+
+    rerender(<ExposureStrip ticker="" />);
+
+    await waitFor(() =>
+      expect(screen.queryByText("TOXIC FLOW")).not.toBeInTheDocument()
+    );
+    expect(axios.get).toHaveBeenCalledTimes(1);
+  });
+
   test("passes the feed kind through to badge copy", async () => {
     axios.get.mockResolvedValueOnce({
       data: {
