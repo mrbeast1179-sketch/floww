@@ -34,13 +34,13 @@ do not re-audit it at that unchanged head. Record the reuse and move on.
 
 ## Standing state (re-verify every session, never assume)
 
-- `origin/main` is `84fc1ed` (was `56cfff2`→`d4a5b1f`; PR51 signal-truth merged 2026-09-09T05:03:29Z, PR50 KIND_TITLES merged 2026-09-09T15:35:57Z, PR52 vomma-walls + PR53 gamma-vanna-vec merged). Merged in order: PR28/D7, PR34/H1, PR33/T1-only,
+- `origin/main` is `12c53d8` (was `56cfff2`→`d4a5b1f`→`84fc1ed`; PR51 signal-truth merged 2026-09-09T05:03:29Z, PR50 KIND_TITLES merged 2026-09-09T15:35:57Z, PR49 + PR48 merged 2026-09-09T17:08:59Z/23:19:09Z, PR52 vomma-walls + PR53 gamma-vanna-vec merged). Merged in order: PR28/D7, PR34/H1, PR33/T1-only,
 PR35/F0-wave, PR36/H2-partial, PR38/dead-code, PR37/GEX-dates, PR39/cap+deepen+
 enrich-by-Nav, PR40/honesty-labels, PR41/strike-floor, PR42/T2+401, PR43/honesty-citations,
 PR45/TOXIC_FLOW, PR46/GAMMA_FLIP, PR47/numba-greeks, PR51/signal-truth, PR50/KIND_TITLES,
-PR52/vomma-walls, PR53/gamma-vanna-vec. PR44/G3-salvage MERGED 2026-09-08T11:48:51Z.
-Open: PR48 (a3/alert-surfacing, head 2f57bea3d, E4-48d APPROVED at E4-48b level — 49/49 green, frontend-only, clean merge to main; UNSTABLE/behind main — needs rebase onto origin/main; Nav decides merge-as-is vs rebase-first)
-and stacked PR49 (a3/alert-engine-badges, head 6387f13, E4-49 APPROVED-conditional — 29/29 green, DIRTY on merge, needs rebase + conflict resolution; wiring gap holds). PR50 MERGED (kind-aware copy now in main). Re-verify at boot.
+PR52/vomma-walls, PR53/gamma-vanna-vec, PR49/alert-engine-badges (MERGED 2026-09-09T17:08:59Z),
+PR48/alert-surfacing (MERGED 2026-09-09T23:19:09Z). PR44/G3-salvage MERGED 2026-09-08T11:48:51Z.
+All PRs 28-53 are now in main. Re-verify at boot.
 PRs. Six superseded branches deleted after patch-id proof; product identical
 to main. Every merge verified: required CI green on the merged head, local
 reproduction where applicable.

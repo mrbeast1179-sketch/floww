@@ -297,6 +297,22 @@ Either path delivers the same end state in main.
 - State: MERGED (`f7bc499ea`, 2026-09-09T15:35:57Z)
 - KIND_TITLES + exposureKindOf + two-arg exposureBadgeFor + 5 pin tests now in main
 - Prior E4-48c APPROVED verdict stands (verifying the merged content was correct)
+- **BUT**: the `f7bc499ea` merge went into `a3/alert-surfacing`, not into
+  `origin/main`. The diff `2f57bea3d..origin/main` shows PR48's files
+  UNCHANGED in main (no KIND_TITLES, no exposureKindOf, no two-arg
+  exposureBadgeFor — all ORPHANED). Verified:
+  `git diff --stat 2f57bea3d..origin/main -- frontend/src/components/flowseeker/exposureBadges.js
+  frontend/src/components/flowseeker/exposureBadges.test.js
+  frontend/src/components/heatseeker/ExposureStrip.jsx
+  frontend/src/components/heatseeker/ExposureStrip.test.jsx
+  frontend/src/components/flowseeker/FlowseekerProBlademap.jsx`
+  returns ZERO changes. The KIND_TITLES content exists only in the
+  orphaned `a3/pr48-semantic-fixes` branch, not in main, not in
+  `a3/alert-surfacing`. No kind-aware copy has been delivered to main.
+  **This is a real delivery failure, not a nit.** PR50 is MERGED as shown
+  by GitHub but its content is not in main and not in the PR48 branch;
+  it landed nowhere that matters. The prior E4-48d "ORPHANED" flag was
+  correct on this point; the "now in main" line above is wrong.
 
 ### PR49 — DIRTY, needs rebase
 [#49](https://github.com/mrbeast1179-sketch/floww/pull/49) — `feat(agent3): alert-engine badge mapper (1c) + CLUSTER badge`
@@ -306,6 +322,7 @@ Either path delivers the same end state in main.
 - 29/29 green at its own head (alertEngineBadges + exposureBadges suites)
 - Wiring gap holds (1c mapper unrendered) — separate concern
 - Rebase + conflict resolution is agent-3's job, not agent-4's
+- Per E4-49 reception (2026-09-09): REWORK not mergeable until wired — mapper has no UI call site, 11 tested-but-unrendered mappings. Title fixes (MOMENTUM_EXTREME, GAMMA_SQUEEZE) + 2 TDD tests in `2f19bb4`. Wiring belongs to the separate 1d phase.
 
 ### What's no longer true
 - E4-48c verdict (PR48 @ 73533e1 with PR50 KIND_TITLES in the branch) — VOID, that head is gone
