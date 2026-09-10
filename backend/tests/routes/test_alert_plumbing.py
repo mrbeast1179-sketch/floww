@@ -28,6 +28,17 @@ def client():
     return TestClient(app, headers={"X-API-Key": "test-secret-key"})
 
 
+@pytest.fixture(autouse=True)
+def _isolated_engine():
+    """Reset the global alert singleton so seeded snapshots never leak
+    into other modules (e.g. the empty-state summary tests)."""
+    import routes.alerts as alert_routes
+
+    alert_routes._alert_engine = None
+    yield
+    alert_routes._alert_engine = None
+
+
 def _payload(ticker: str, **overrides):
     base = {
         "ticker": ticker,
