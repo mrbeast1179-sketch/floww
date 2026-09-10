@@ -6,7 +6,8 @@ as of 2026-09-08.
 
 ## CLOSED as a merge queue
 
-Main is `84fc1ed` → `12c53d8` (PR51 merged 2026-09-09T05:03:29Z, PR50 merged 2026-09-09T15:35:57Z, PR52 + PR53 merged 2026-09-09T23:19:09Z → all MAIN). Merged, in order: PR28 (D7 parity), PR29 (X1 journal),
+Main is `d5dbd7d` (was `12c53d8`; PR54 order-safety merged 2026-09-10T01:44:39Z;
+PR48/49/50/51/52/53/54 all in main). Merged, in order: PR28 (D7 parity), PR29 (X1 journal),
 PR30 (P1 silent-except gate), PR31 (A3 conviction wiring), PR33 (T1-only),
 PR34 (H1 strike-truth fixture), PR35 (F0 wave + clock fix), PR36 (H2-partial),
 PR37 (GEX date-string fix), PR38 (dead-code removal + kanban datetime fix),
@@ -17,11 +18,17 @@ PR47 (numba charm vec + liquidity-stress alerts), PR51 (signal-truth repair:
 charm type normalization + liquidity interval flow, merged d4a5b1f,
 E4-51 APPROVED post-merge), PR50 (kind-aware badge copy + stale-strip fix,
 merged 2026-09-09T15:35:57Z), PR52 (vomma-walls alerts, merged 2026-09-09T23:19:09Z),
-PR53 (gamma-vanna-vec wiring, merged 2026-09-09T23:19:09Z).
+PR53 (gamma-vanna-vec wiring, merged 2026-09-09T23:19:09Z), PR48 (alert-surfacing,
+MERGED 2026-09-09T23:19:09Z into main `12c53d8`), PR49 (alert-engine-badges,
+MERGED 2026-09-09T17:08:59Z into a3/alert-surfacing parent lineage), PR54 (order-safety:
+idempotency key reuse + paper-order venue-idempotent retries, merged `d5dbd7d` 2026-09-10T01:44:39Z),
+PR56 (P2 dependency pins: FastAPI 0.141.1 + Starlette 1.6.0 + PyMongo 4.6.3 +
+cryptography 50.0.1 + 4 route-inventory assertion adaptations, MERGED 2026-09-10T02:15:08Z).
 PR48 (a3/alert-surfacing, head `9eb5e7d567f56180a25723bb07b363a0562149a5`, E4-48d APPROVED at 2f57bea3d — 49/49 green, frontend-only, MERGED to main `12c53d8` 2026-09-09T23:19:09Z. PR48 is **MERGED** on GitHub [#48](https://github.com/mrbeast1179-sketch/floww/pull/48).
 PR49 (a3/alert-engine-badges, head `8ed71c2857030fc2e132c160e4b65763d175379d`, E4-49 APPROVED-conditional —
 29/29 green, MERGED (closed 2026-09-09T17:08:59Z, merge commit `480e953`), now part of `a3/alert-surfacing` parent lineage;
 wiring gap holds).
+**OPEN**: PR55 `fix(frontend): restore kind-aware exposure badge truth` (architect/pr48-semantic-main-v1, head `7481f72`, E4-55 APPROVED below). Tasked by agent-4.
 6 superseded branches deleted after patch-id proof (product identical to main;
 docs in archive). Every merge verified: green required CI on the merged head +
 local reproduction where applicable. Full receipt trail in GSD-PASSES.md
@@ -116,6 +123,9 @@ PR44 merged main 56cfff2 2026-09-08T11:48:51Z; witness gate (external G-WITNESS)
 - PR48 alert-surfacing: E4-48d APPROVED at `2f57bea3d56a075692339051525cb73d97d99513` (49/49 green; frontend-only; MERGED to main `12c53d8` 2026-09-09T23:19:09Z on GitHub [#48](https://github.com/mrbeast1179-sketch/floww/pull/48)). PR48 merges WITHOUT KIND_TITLES to main — only 10-line CLUSTER addition landed from the PR49 merge commit; the 108-line alertEngineBadges.js (PR49 payload) is in the merge tree but not wired to any UI call site (1c mapper unrendered). KIND_TITLES (PR50 payload) exists only in `origin/a3/pr48-semantic-fixes`.
 - PR49 alert-engine-badges: E4-49 APPROVED-conditional at `8ed71c2857030fc2e132c160e4b65763d175379d` (29/29 green; MERGED (closed 2026-09-09T17:08:59Z, merge commit `480e953`); PR49 is **MERGED** on GitHub [#49](https://github.com/mrbeast1179-sketch/floww/pull/49)); now part of `a3/alert-surfacing` parent lineage. Wiring gap holds (1c mapper unrendered).
 - PR50 kind-aware badge copy: **MERGED** (closed 2026-09-09T15:35:57Z into a3/alert-surfacing, merge commit 81255b8 **ORPHANED**). KIND_TITLES is **NOT** in main (verified: 0 occurrences in origin/main exposureBadges.js), not in a3/alert-surfacing. Exists only in origin/a3/pr48-semantic-fixes for potential re-merge PR. No longer a stacked PR — merged separately but content not delivered to main.
+- **PR54 order-safety**: MERGED to main `d5dbd7d` (2026-09-10T01:44:39Z). Idempotency key reuse + paper-order venue-idempotent retries. No agent-4 review gate (Nav/owner merged).
+- **PR56 P2 dependency pins**: MERGED to main `d5dbd7d` (2026-09-10T02:15:08Z). FastAPI 0.141.1 + Starlette 1.6.0 + PyMongo 4.6.3 + cryptography 50.0.1 + 4 route-inventory assertion adaptations. Nav/owner merged.
+- **PR55 kind-aware badge truth (OPEN)**: E4-55 APPROVED at `7481f72` (60/60 focused green, 5 TDD tests Red→Green, source-verified KIND_TITLES content; full-suite 66/531 green re-confirmed at exact head — see receipt). 5 frontend files. CI: ruff+frontend-build+backend-tests all green at PR head. REST: agent-4 full-suite OK; CI is the merge gate.
 - Never re-audit merged heads at unchanged state (PR28-43, PR45-46).
 - Three alert pipelines exist (alert_engine, exposure_alerts, flow_alerts)
   with overlapping rule names (`CHARM_PIN` ≠ `CHARM_PINNING`,
