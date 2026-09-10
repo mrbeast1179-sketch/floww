@@ -14,16 +14,16 @@ Dependencies are hard gates, not suggestions.
 - Residual: pending/partial/rejected/canceled closes stay honest-pending;
   eventual reconciliation worker still required (EXEC-RECON-1).
 
-### G-55 — kind-aware exposure copy review and integration
+### G-55 — kind-aware exposure copy review and integration — DONE
 
-- Candidate: PR55 at head `7481f72` (payload `c8dbf9a` + `0a5a55b`
-  kind-precedence repair, main-merged over PR54+PR56).
-- Local proof: 60 focused / 66 suites 531 full / build pass (verified by
-  Agent 1 at this head for the focused set).
+- Merged: PR55 at `7481f72` via `7a0a16a` (2026-09-10).
+- Delivered: PR50 subtype semantics on current main with CLUSTER retained;
+  complete feed rows at both badge surfaces; stale-free ticker change, empty
+  ticker, and failed-request states; kind-precedence selection
+  (`0a5a55b`); exact-head CI green (backend, frontend, Ruff).
 - Outcomes: PR50 subtype semantics reach main; CLUSTER remains; full frontend and
   build green; broken/approach copy remains truthful.
 - Exclusions: no backend, global shell, new badges, or visual redesign.
-- Owner: Agent 4 review, then Agent 1 merge if exact-head gates pass.
 
 ### G-56 — P2 dependency compatibility — DONE
 

@@ -4,10 +4,10 @@ Revalidate all facts at boot. A moved SHA invalidates a prior review.
 
 ## GitHub graph
 
-- `origin/main` at audit: `d5dbd7dd683993242b96fc3ce290f9ce6a216429`
-  (PR54 merge, 2026-09-10).
-- Prior base `12c53d88d431880d87a688ffc072bbb586af770b` (PR48 merge)
-  remains the ancestor all three repair candidates were reviewed against.
+- `origin/main` at audit: `7a0a16aedd503f427a6b43ae453e7f6f541c2078`
+  (PR55 merge, 2026-09-10). Wave 0 complete: PR54, PR56, PR55 all ancestors.
+- Prior bases `12c53d8` (PR48 merge), `d5dbd7d` (PR54 merge), `5851f53`
+  (PR56 merge) remain the ancestors each candidate was reviewed against.
 - PR51 (`d4a5b1f`), PR52 (`ba3ef4c`), and PR53 (`84fc1ed`) are ancestors of
   current main.
 - PR49 merge `480e953` is an ancestor of current main through PR48.
@@ -15,11 +15,8 @@ Revalidate all facts at boot. A moved SHA invalidates a prior review.
   behavior was lost when the feature lineage was rebuilt.
 - PR54 (`c4970a5`, merged via `d5dbd7d`) is an ancestor of current main.
 - PR56 (`a46f7b4`, merged via `5851f53`) is an ancestor of current main.
-- Open repair PRs at publication:
-  - PR55 `7481f72` (payload `c8dbf9a` + `0a5a55b` kind-precedence repair +
-    main-merge) — minimal current-main restoration of PR50 semantics while
-    retaining PR49 CLUSTER support, plus empty-ticker stale-badge repair
-    and kind-precedence selection.
+- PR55 (`7481f72`, merged via `7a0a16a`) is an ancestor of current main.
+- No open repair PRs remain from the publication set. Wave 0 is DONE.
 
 ## Verified product facts
 
