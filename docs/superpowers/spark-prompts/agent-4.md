@@ -34,7 +34,7 @@ do not re-audit it at that unchanged head. Record the reuse and move on.
 
 ## Standing state (re-verify every session, never assume)
 
-- `origin/main` is `d5dbd7d` (was `56cfff2`→`d4a5b1f`→`84fc1ed`→`12c53d8`; PR51 signal-truth merged 2026-09-09T05:03:29Z, PR50 KIND_TITLES merged 2026-09-09T15:35:57Z, PR49+PR48 merged 2026-09-09T17:08:59Z/23:19:09Z, PR52/PR53 merged 2026-09-09T23:19:09Z, PR54 order-safety merged 2026-09-10T01:44:39Z, PR56 P2 pins merged 2026-09-10T02:15:08Z). All PRs 28-56 are now in main. Re-verify at boot.
+- `origin/main` is `2c33de0` (PR60 eval-harness merged 2026-09-10T03:22:51Z; PR59 data-contract merged 2026-09-10T03:07:38Z; PR54 order-safety 2026-09-10T01:44:39Z; PR56 P2 pins 2026-09-10T02:15:08Z; PR55 kind-aware badge truth MERGED 2026-09-10T02:44:15Z; PR48/49/50/51/52/53 all in main). All PRs 28-60 now in main. Re-verify at boot.
 PRs. Six superseded branches deleted after patch-id proof; product identical
 to main. Every merge verified: required CI green on the merged head, local
 reproduction where applicable.
