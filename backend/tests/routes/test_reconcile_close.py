@@ -136,3 +136,17 @@ class TestReconcilePendingClose:
         assert out["reconciled"] is False
         assert "error" in out
         assert len(_open_cards(jeng, "RCN_DOWN")) == 1
+
+    async def test_partial_fill_stays_pending(self, jeng):
+        """A partially filled close is not a confirmed fill: card stays open."""
+        from routes.alpaca import reconcile_pending_close
+
+        save_seeds(jeng, [_seed("RCN_PART")])
+        client = _FakeClient({"ord-5": {"id": "ord-5", "status": "partially_filled",
+                                        "filled_avg_price": 8.0,
+                                        "filled_qty": 1, "qty": 2}})
+        out = await reconcile_pending_close("RCN_PART", "ord-5",
+                                            client=client, engine=jeng)
+        assert out["reconciled"] is False
+        assert out["journal_closed"] == 0
+        assert len(_open_cards(jeng, "RCN_PART")) == 1
