@@ -328,3 +328,73 @@ async def reconcile_close(payload: dict,
         )
     except Exception as e:
         return {"error": str(e)}
+
+
+def _signed_qty(action, quantity) -> float:
+    """Net journal quantity: sells offset buys. Malformed rows count 0."""
+    try:
+        qty = float(quantity)
+    except (TypeError, ValueError):
+        return 0.0
+    if qty != qty:  # NaN guard
+        return 0.0
+    if str(action or "").lower().startswith("sell"):
+        return -abs(qty)
+    return abs(qty)
+
+
+async def check_position_journal_drift(symbol: str, client=None,
+                                       engine=None) -> dict:
+    """Compare venue position against net open journal cards (read-only).
+
+    Returns venue_qty, journal_qty, drift (venue minus journal), and
+    status aligned/drift/unknown. Mutates nothing; never raises.
+    """
+    try:
+        from services.journal_store import get_engine, init_journal_tables, read_trades
+
+        sym = str(symbol or "").upper()
+        if client is None:
+            from alpaca_client import AlpacaClient
+            client = AlpacaClient()
+        positions = await client.get_positions()
+        if not isinstance(positions, list):
+            return {"symbol": sym, "venue_qty": None, "journal_qty": None,
+                    "drift": None, "status": "unknown"}
+        venue_qty = 0.0
+        for pos in positions:
+            if not isinstance(pos, dict):
+                continue
+            if str(pos.get("symbol") or "").upper() != sym:
+                continue
+            try:
+                venue_qty += float(pos.get("qty") or 0)
+            except (TypeError, ValueError):
+                continue
+        if engine is None:
+            engine = get_engine()
+        init_journal_tables(engine)
+        journal_qty = sum(
+            _signed_qty(t.get("action"), t.get("quantity"))
+            for t in read_trades(engine, status="open")
+            if str(t.get("ticker") or "").upper() == sym
+        )
+        drift = venue_qty - journal_qty
+        return {"symbol": sym, "venue_qty": venue_qty,
+                "journal_qty": journal_qty, "drift": drift,
+                "status": "aligned" if drift == 0 else "drift"}
+    except Exception as e:
+        logger.warning("alpaca drift check failed for %s: %s", symbol, e)
+        return {"symbol": str(symbol or "").upper(), "venue_qty": None,
+                "journal_qty": None, "drift": None,
+                "status": "unknown", "error": str(e)}
+
+
+@router.get("/position-journal-drift/{symbol}")
+async def position_journal_drift(symbol: str,
+                                 _: bool = Depends(require_api_key)):
+    """Read-only venue-vs-journal quantity check for one symbol."""
+    try:
+        return await check_position_journal_drift(symbol)
+    except Exception as e:
+        return {"error": str(e)}
