@@ -23,7 +23,15 @@ engine reset, or unique tickers plus cleanup) so the pair passes; then
 green CI at the new head. Verdict posted on the PR. Never weaken the
 empty-state test.
 
-## PR58 — verdict withheld (head moved 1c5f886 -> a3fe6db, CI churning)
+## PR58 — APPROVED at a3fe6db (was: withheld), queued behind PR60
+
+- Full payload reviewed: eventual reconciler (fail-open, journal close only
+  on filled + positive price, key-gated POST /reconcile-close) plus
+  read-only drift check (GET /position-journal-drift/{symbol}, never raises,
+  never mutates). Matches EXEC-RECON-1 contract.
+- Backend rerun at a3fe6db PASSED (11m41s) — flake classification confirmed;
+  frontend + Ruff pass. Needs main-update + CI at merged head, then merge.
+- The Agent-1 rerun of the stale head is void and recorded as such.
 
 - At 1c5f886: backend red on
   test_anomaly_training.py::TestTraining::test_overfit_small_dataset
