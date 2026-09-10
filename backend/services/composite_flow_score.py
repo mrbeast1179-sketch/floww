@@ -26,8 +26,8 @@ The score combines four orthogonal sub-scores (each in [0, 1]):
 
 Composite::
 
-    score = 100 · (0.30·illiquidity + 0.25·toxicity
-                  + 0.25·dislocation + 0.20·direction)
+    score = 100 · (0.25·illiquidity + 0.20·toxicity + 0.25·dislocation
+                  + 0.20·direction + 0.10·sentiment)
 
 Threshold bands (mirrors the Blademap
 :func:`institutional_detector.convictionLabel` precedent)::
