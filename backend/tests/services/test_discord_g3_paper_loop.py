@@ -31,6 +31,7 @@ def _accepting_broker():
     broker = MagicMock()
     broker.place_stock_order = AsyncMock(
         return_value={"id": "alpaca-1", "status": "accepted"})
+    broker.get_order_by_client_order_id = AsyncMock(return_value=None)
     broker.get_positions = AsyncMock(return_value=[])
     broker.get_order = AsyncMock(
         return_value={"id": "alpaca-1", "status": "filled",
@@ -117,6 +118,29 @@ class TestPaperTransportPins:
                           new=AsyncMock(return_value={"id": "a1"})) as g:
             assert (await c.get_order("a1"))["id"] == "a1"
         assert "a1" in g.call_args.args[0]
+
+    @pytest.mark.asyncio
+    async def test_stock_order_transmits_client_order_id(self):
+        """The venue, not only the router cache, receives the retry key."""
+        from alpaca_client import AlpacaClient
+        c = _client_like()
+        with patch.object(AlpacaClient, "_post", new=AsyncMock(
+                return_value={"id": "a1", "status": "accepted"})) as post:
+            await c.place_stock_order(
+                "SPY", 1, client_order_id="floww-logical-order-1")
+        assert post.call_args.args[1]["client_order_id"] == \
+            "floww-logical-order-1"
+
+    @pytest.mark.asyncio
+    async def test_get_order_by_client_id_read_path(self):
+        from alpaca_client import AlpacaClient
+        c = _client_like()
+        with patch.object(AlpacaClient, "_get", new=AsyncMock(
+                return_value={"id": "a1"})) as get:
+            assert (await c.get_order_by_client_order_id("floww-1"))["id"] == "a1"
+        assert get.call_args.args[0].endswith("/v2/orders:by_client_order_id")
+        assert get.call_args.kwargs["params"] == {
+            "client_order_id": "floww-1"}
 
 
 def _client_like():
@@ -318,14 +342,16 @@ class TestCloseRouteJournal:
         monkeypatch.setattr("services.journal_store.get_engine", lambda: eng)
 
         fake_client = AsyncMock()
-        fake_client.close_position = AsyncMock(
-            return_value={"message": "Position SPY closed", "source": "alpaca"})
-        fake_client.get_bars = AsyncMock(return_value=[{"c": 751.5}])
+        fake_client.close_position = AsyncMock(return_value={
+            "id": "close-1", "status": "filled", "filled_qty": "1",
+            "filled_avg_price": "751.5",
+            "message": "Position SPY close submitted", "source": "alpaca"})
         monkeypatch.setattr("alpaca_client.AlpacaClient", lambda: fake_client)
 
         res = await route_mod.close_position(symbol="SPY")
-        assert res["message"] == "Position SPY closed"
+        assert res["message"] == "Position SPY close submitted"
         assert res.get("journal_closed") == 1
+        assert res.get("journal_status") == "confirmed_fill"
         open_rows = [t for t in read_trades(eng) if not t.get("exit_date")]
         assert open_rows == []
 
@@ -342,6 +368,38 @@ class TestCloseRouteJournal:
         res = await route_mod.close_position(symbol="SPY")
         assert res["message"] == "Position SPY closed"
         assert "journal_closed" not in res
+
+    @pytest.mark.asyncio
+    async def test_close_does_not_stamp_daily_bar_as_execution(self, monkeypatch):
+        """An accepted-but-unfilled close must leave journal P&L open."""
+        import routes.alpaca as route_mod
+        from services.duckdb_engine import DuckDBEngine
+        from services.journal_store import init_journal_tables, read_trades, save_seeds
+
+        eng = DuckDBEngine(":memory:")
+        init_journal_tables(eng)
+        save_seeds(eng, [{
+            "ticker": "SPY", "type": "equity", "action": "buy",
+            "strike": 750.0, "expiry": "", "quantity": "1",
+            "entry_price": 749.0, "exit_price": "",
+            "entry_date": "2026-09-06T10:00:00", "exit_date": "",
+            "notes": "seed", "source": "discord-approve"}])
+        monkeypatch.setattr("services.journal_store.get_engine", lambda: eng)
+
+        fake_client = AsyncMock()
+        fake_client.close_position = AsyncMock(return_value={
+            "id": "close-1", "status": "accepted",
+            "message": "Position SPY close submitted", "source": "alpaca"})
+        fake_client.get_order = AsyncMock(return_value={
+            "id": "close-1", "status": "accepted",
+            "filled_avg_price": None, "filled_qty": "0"})
+        fake_client.get_bars = AsyncMock(return_value=[{"c": 751.5}])
+        monkeypatch.setattr("alpaca_client.AlpacaClient", lambda: fake_client)
+
+        res = await route_mod.close_position(symbol="SPY")
+        assert res.get("journal_closed") is None
+        assert res.get("journal_status") == "pending_fill"
+        assert [t for t in read_trades(eng) if not t.get("exit_date")]
 
 
 class TestFeedUnavailable:

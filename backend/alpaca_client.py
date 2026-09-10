@@ -167,7 +167,9 @@ class AlpacaClient:
         try:
             async with aiohttp.ClientSession() as session, session.delete(url, headers=self.headers,
                                       timeout=aiohttp.ClientTimeout(total=10)) as resp:
-                if resp.status in (200, 204):
+                if resp.status == 200:
+                    return await resp.json()
+                if resp.status == 204:
                     return True
                 else:
                     text = await resp.text()
@@ -182,6 +184,17 @@ class AlpacaClient:
         if not order_id:
             return None
         data = await self._get(f"{ALPACA_BASE_URL}/v2/orders/{order_id}")
+        return data if isinstance(data, dict) else None
+
+    async def get_order_by_client_order_id(
+            self, client_order_id: str) -> dict | None:
+        """Recover a paper order by Floww's stable venue idempotency key."""
+        if not client_order_id:
+            return None
+        data = await self._get(
+            f"{ALPACA_BASE_URL}/v2/orders:by_client_order_id",
+            params={"client_order_id": client_order_id},
+        )
         return data if isinstance(data, dict) else None
 
     async def verify_bracket_legs(self, order_id: str) -> dict:
@@ -216,7 +229,8 @@ class AlpacaClient:
                 "order_status": order.get("status", ""), "reason": ""}
 
     async def place_stock_order(self, symbol: str, qty: int, side: str = "buy",
-                                 order_type: str = "market", limit_price: float = 0) -> dict | None:
+                                 order_type: str = "market", limit_price: float = 0,
+                                 client_order_id: str = "") -> dict | None:
         """Place a stock order."""
         order_data = {
             "symbol": symbol.upper(),
@@ -225,6 +239,8 @@ class AlpacaClient:
             "type": order_type,
             "time_in_force": "day",
         }
+        if client_order_id:
+            order_data["client_order_id"] = client_order_id
         if order_type == "limit" and limit_price:
             order_data["limit_price"] = str(limit_price)
 
@@ -237,16 +253,24 @@ class AlpacaClient:
                 "side": data.get("side", ""),
                 "qty": data.get("qty", ""),
                 "type": data.get("type", ""),
+                "client_order_id": data.get("client_order_id", client_order_id),
                 "message": f"Order {data.get('status', 'unknown')}",
                 "source": "alpaca",
             }
         return None
 
     async def close_position(self, symbol: str) -> dict | None:
-        """Close a position."""
+        """Submit a paper-position close and preserve the returned order."""
         data = await self._delete(f"{ALPACA_BASE_URL}/v2/positions/{symbol.upper()}")
+        if isinstance(data, dict):
+            return {
+                **data,
+                "message": f"Position {symbol} close submitted",
+                "source": "alpaca",
+            }
         if data:
-            return {"message": f"Position {symbol} closed", "source": "alpaca"}
+            return {"message": f"Position {symbol} close submitted",
+                    "source": "alpaca", "status": "unknown"}
         return None
 
     async def get_positions(self) -> list[dict] | None:

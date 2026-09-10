@@ -18,6 +18,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 def _mock_broker(**over):
     broker = MagicMock()
     broker.place_stock_order = AsyncMock(return_value={"id": "ord-1", "status": "accepted"})
+    broker.get_order_by_client_order_id = AsyncMock(return_value=None)
     broker.get_positions = AsyncMock(return_value=[])
     for k, v in over.items():
         setattr(broker, k, v)
@@ -127,6 +128,15 @@ class TestOrderRouter:
         id1 = router._make_client_order_id("sig-abc", 1000000)
         id2 = router._make_client_order_id("sig-xyz", 1000000)
         assert id1 != id2
+
+    def test_client_order_id_stable_across_retry_timestamps(self):
+        """One logical signal keeps one venue id across process retries."""
+        from services.order_router import OrderRouter
+        router = OrderRouter.__new__(OrderRouter)
+        router.account_id = "test"
+        first = router._make_client_order_id("sig-abc", 1000000)
+        retry = router._make_client_order_id("sig-abc", 9000000)
+        assert first == retry
 
     def test_build_limit_payload(self):
         from services.order_router import OrderRouter
@@ -256,6 +266,64 @@ class TestOrderRouter:
         call = broker.place_stock_order.call_args
         assert call.args[0] == "SPY" and call.args[1] == 5
         assert router.position_tracker.get("SPY") == 5
+
+    @pytest.mark.asyncio
+    async def test_anonymous_submission_uses_one_client_order_id(self):
+        """Cache, lookup, response, and venue payload share one generated ID."""
+        from services.order_router import OrderRouter
+
+        broker = _mock_broker()
+        router = OrderRouter("acc-123", broker=broker)
+        with patch("services.order_router.time.time", side_effect=[1.0, 2.0]):
+            result = await router.submit_order({
+                "ticker": "SPY", "side": "buy", "qty": 1,
+            })
+
+        transmitted = broker.place_stock_order.call_args.kwargs["client_order_id"]
+        assert result["client_order_id"] == transmitted
+        broker.get_order_by_client_order_id.assert_awaited_once_with(transmitted)
+
+    @pytest.mark.asyncio
+    async def test_restart_retry_recovers_existing_venue_order(self):
+        """A fresh router finds the first order instead of posting a duplicate."""
+        from services.order_router import OrderRouter
+        broker = _mock_broker()
+        broker.get_order_by_client_order_id = AsyncMock(return_value={
+            "id": "ord-existing", "status": "accepted",
+            "client_order_id": "venue-cid",
+        })
+        router = OrderRouter("acc-123", broker=broker)
+        with patch.object(router, "_make_client_order_id",
+                          return_value="venue-cid"):
+            result = await router.submit_order({
+                "ticker": "SPY", "side": "buy", "qty": 1,
+                "signal_id": "sig-retry", "timestamp_us": 9000000,
+            })
+        assert result["status"] == "submitted"
+        assert result["recovered"] is True
+        broker.place_stock_order.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    async def test_ambiguous_submit_recovers_by_client_order_id(self):
+        """A lost POST response is resolved by the stable venue key."""
+        from services.order_router import OrderRouter
+        broker = _mock_broker()
+        broker.place_stock_order = AsyncMock(return_value=None)
+        broker.get_order_by_client_order_id = AsyncMock(side_effect=[
+            None,
+            {"id": "ord-existing", "status": "accepted",
+             "client_order_id": "venue-cid"},
+        ])
+        router = OrderRouter("acc-123", broker=broker)
+        with patch.object(router, "_make_client_order_id",
+                          return_value="venue-cid"):
+            result = await router.submit_order({
+                "ticker": "SPY", "side": "buy", "qty": 1,
+                "signal_id": "sig-lost-response", "timestamp_us": 1000000,
+            })
+        assert result["status"] == "submitted"
+        assert result["recovered"] is True
+        broker.place_stock_order.assert_awaited_once()
 
     @pytest.mark.asyncio
     async def test_submit_order_broker_failure_is_error(self):
