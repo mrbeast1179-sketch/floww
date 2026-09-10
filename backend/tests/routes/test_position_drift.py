@@ -33,8 +33,8 @@ def jeng():
 
 def _seed(ticker, action="buy", quantity="2", **over):
     base = {
-        "ticker": ticker, "type": "call", "action": action, "strike": 500.0,
-        "expiry": "2026-09-18", "quantity": quantity, "entry_price": 1.25,
+        "ticker": ticker, "type": "equity", "action": action, "strike": 0.0,
+        "expiry": "", "quantity": quantity, "entry_price": 1.25,
         "exit_price": "", "entry_date": "2026-08-22", "exit_date": "",
         "notes": "", "gex_regime": "", "setup": "drift", "tags": "auto",
         "ckey": f"{ticker}|call|500|2026-09-18|{action}|{quantity}",
@@ -105,3 +105,18 @@ class TestPositionJournalDrift:
             "DRF_DOWN", client=_FakeClient(fail=True), engine=jeng)
         assert out["status"] == "unknown"
         assert out["venue_qty"] is None
+
+    @pytest.mark.parametrize("qty", ["nan", "inf", "broken"])
+    async def test_malformed_venue_quantity_is_unknown(self, jeng, qty):
+        from routes.alpaca import check_position_journal_drift
+        result = await check_position_journal_drift(
+            "SPY", client=_FakeClient([{"symbol": "SPY", "qty": qty}]), engine=jeng)
+        assert result["status"] == "unknown"
+        assert result["drift"] is None
+
+    async def test_equity_drift_does_not_count_option_contracts(self, jeng):
+        from routes.alpaca import check_position_journal_drift
+        save_seeds(jeng, [_seed("SPY", type="call", strike=500, expiry="2026-09-18")])
+        result = await check_position_journal_drift("SPY", client=_FakeClient([]), engine=jeng)
+        assert result["status"] == "aligned"
+        assert result["journal_qty"] == 0
