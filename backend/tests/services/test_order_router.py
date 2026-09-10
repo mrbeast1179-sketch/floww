@@ -268,6 +268,22 @@ class TestOrderRouter:
         assert router.position_tracker.get("SPY") == 5
 
     @pytest.mark.asyncio
+    async def test_anonymous_submission_uses_one_client_order_id(self):
+        """Cache, lookup, response, and venue payload share one generated ID."""
+        from services.order_router import OrderRouter
+
+        broker = _mock_broker()
+        router = OrderRouter("acc-123", broker=broker)
+        with patch("services.order_router.time.time", side_effect=[1.0, 2.0]):
+            result = await router.submit_order({
+                "ticker": "SPY", "side": "buy", "qty": 1,
+            })
+
+        transmitted = broker.place_stock_order.call_args.kwargs["client_order_id"]
+        assert result["client_order_id"] == transmitted
+        broker.get_order_by_client_order_id.assert_awaited_once_with(transmitted)
+
+    @pytest.mark.asyncio
     async def test_restart_retry_recovers_existing_venue_order(self):
         """A fresh router finds the first order instead of posting a duplicate."""
         from services.order_router import OrderRouter

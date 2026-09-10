@@ -177,19 +177,20 @@ class OrderRouter:
         market orders (!approve/!buy). Default False preserves the
         default-deny safety posture.
         """
-        signal_id = intent.get("signal_id", "")
-        timestamp_us = intent.get("timestamp_us", int(time.time() * 1e6))
-        client_order_id = self._make_client_order_id(signal_id, timestamp_us)
+        try:
+            payload = self._build_order_payload(intent, allow_market=allow_market)
+        except ValueError as e:
+            return {"status": "rejected", "reason": str(e)}
+
+        # The payload is the single source of truth. In particular, anonymous
+        # intents derive their key from time, so computing it twice could give
+        # cache/lookup and venue submission different identifiers.
+        client_order_id = str(payload["client_order_id"])
 
         # Idempotency check
         if client_order_id in self._order_cache:
             logger.info(f"Duplicate order suppressed: {client_order_id}")
             return self._order_cache[client_order_id]
-
-        try:
-            payload = self._build_order_payload(intent, allow_market=allow_market)
-        except ValueError as e:
-            return {"status": "rejected", "reason": str(e)}
 
         try:
             broker = self._broker_or_default()
