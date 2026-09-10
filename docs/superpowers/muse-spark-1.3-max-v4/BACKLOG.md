@@ -16,21 +16,22 @@ Dependencies are hard gates, not suggestions.
 
 ### G-55 — kind-aware exposure copy review and integration
 
-- Candidate: PR55 at its fetched remote head.
+- Candidate: PR55 at head `7481f72` (payload `c8dbf9a` + `0a5a55b`
+  kind-precedence repair, main-merged over PR54+PR56).
+- Local proof: 60 focused / 66 suites 531 full / build pass (verified by
+  Agent 1 at this head for the focused set).
 - Outcomes: PR50 subtype semantics reach main; CLUSTER remains; full frontend and
   build green; broken/approach copy remains truthful.
 - Exclusions: no backend, global shell, new badges, or visual redesign.
 - Owner: Agent 4 review, then Agent 1 merge if exact-head gates pass.
 
-### G-56 — P2 dependency compatibility
+### G-56 — P2 dependency compatibility — DONE
 
-- Candidate: PR56 at its fetched remote head.
-- Outcomes: clean-CI application compatibility; direct-package advisories closed;
-  remaining no-fix NLTK advisory recorded; requirements plus the narrowly scoped
-  public-route-inventory compatibility test.
-- Exclusions: no test weakening, no unrelated package churn, no claim that local
-  `pip check` is clean.
-- Owner: Agent 4 review, then Agent 1 merge only if all required CI passes.
+- Merged: PR56 at `a46f7b4` via `5851f53` (2026-09-10).
+- Delivered: FastAPI 0.141.1 / Starlette 1.6.0 / PyMongo 4.6.3 /
+  cryptography 50.0.1 pins; four route-inventory assertions adapted to the
+  nested-router layout via the public OpenAPI contract; exact-head CI green.
+- Residual: NLTK advisory with no published fix version remains recorded.
 
 ## Wave 1 — correctness before new signal count
 

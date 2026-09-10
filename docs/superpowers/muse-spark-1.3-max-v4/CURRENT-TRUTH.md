@@ -14,13 +14,12 @@ Revalidate all facts at boot. A moved SHA invalidates a prior review.
 - PR50 merge `81255b8` is **not** an ancestor of main. Its kind-aware badge
   behavior was lost when the feature lineage was rebuilt.
 - PR54 (`c4970a5`, merged via `d5dbd7d`) is an ancestor of current main.
+- PR56 (`a46f7b4`, merged via `5851f53`) is an ancestor of current main.
 - Open repair PRs at publication:
-  - PR55 `c8dbf9a` (+ main-merge `f695849`) — minimal current-main
-    restoration of PR50 semantics while retaining PR49 CLUSTER support,
-    plus empty-ticker stale-badge repair.
-  - PR56 `a46f7b4` (+ main-merge `f7bb35f`) — P2 security pins plus the
-    narrowly scoped public-route-inventory compatibility test
-    (not requirements-only).
+  - PR55 `7481f72` (payload `c8dbf9a` + `0a5a55b` kind-precedence repair +
+    main-merge) — minimal current-main restoration of PR50 semantics while
+    retaining PR49 CLUSTER support, plus empty-ticker stale-badge repair
+    and kind-precedence selection.
 
 ## Verified product facts
 
@@ -30,13 +29,13 @@ Revalidate all facts at boot. A moved SHA invalidates a prior review.
 - PR54 merged evidence: 97 focused order/Discord tests and Ruff pass at
   `c4970a5` (includes the anonymous-idempotency-key repair); no venue or
   Discord request was made.
-- PR55 local exact-head evidence at `c8dbf9a`: 55 focused tests
-  (includes the empty-ticker stale-badge repair), full frontend 66 suites /
-  526 tests, and production build pass.
-- PR56 exact-head CI at `a46f7b4` was fully green (backend, frontend, Ruff);
-  the four upgraded direct packages have no findings; one NLTK advisory
-  remains with no published fix version. Local full-suite output is not a
-  clean claim; GitHub CI at each new head remains mandatory.
+- PR56 merged evidence: exact-head CI green at `a46f7b4` (backend, frontend,
+  Ruff); merged via `5851f53`. The four upgraded direct packages have no
+  findings; one NLTK advisory remains with no published fix version.
+- PR55 local exact-head evidence at payload: 60 focused tests
+  (55-suite base + empty-ticker repair + 5 kind-precedence tests),
+  full frontend 66 suites / 531 tests, and production build pass.
+  GitHub CI at each new head remains mandatory.
 
 ## Known unresolved defects and limitations
 

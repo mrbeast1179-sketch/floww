@@ -5,7 +5,7 @@
   "repository": "mrbeast1179-sketch/floww",
   "runtime_root": "/Users/nav/Documents/GitHub/floww-run-state/2026-09-09-v4",
   "control_branch": "architect/20260908-evidence-control-v3",
-  "main_at_publication": "d5dbd7dd683993242b96fc3ce290f9ce6a216429",
+  "main_at_publication": "5851f53fa86f990efdaa069d1cc5b5c569d337fd",
   "execution_boundary": "paper-replay-research-only",
   "max_agents_total": 4,
   "central_writer": "agent-1-architect",
@@ -13,7 +13,7 @@
   "lanes": {
     "agent-1-architect": {
       "state": "ACTIVE",
-      "task_id": "R0-INTEGRATE-55-56",
+      "task_id": "R0-INTEGRATE-55",
       "lease": ["runtime run-state", "admission cards", "v4 coordination docs"]
     },
     "agent-2-backend": {
@@ -28,14 +28,14 @@
     },
     "agent-4-reviewer": {
       "state": "READY",
-      "task_id": "REVIEW-55-56-SERIAL",
-      "queue": [55, 56]
+      "task_id": "REVIEW-55-SERIAL",
+      "queue": [55]
     }
   },
   "open_prs_at_publication": {
     "54": "c4970a53c5f93079f81e279e74d3ecee48f88b77-merged-via-d5dbd7d",
-    "55": "c8dbf9a2b151c5ff8eb21eb8b0786f246f1d3dfc-plus-main-merge-f695849",
-    "56": "a46f7b48cad37eb5da1d93d6b68be0b7c682505c-plus-main-merge-f7bb35f"
+    "55": "7481f727cdbf826145190a6ada2668666c34a191-payload-c8dbf9a-plus-0a5a55b",
+    "56": "a46f7b48cad37eb5da1d93d6b68be0b7c682505c-merged-via-5851f53"
   },
   "excluded_programs": ["swarmSPX", "Azure", "X-credit"],
   "external_witnesses": "never synthesized",
