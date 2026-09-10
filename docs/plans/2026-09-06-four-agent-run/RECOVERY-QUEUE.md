@@ -100,7 +100,8 @@ PR44 merged main 56cfff2 2026-09-08T11:48:51Z; witness gate (external G-WITNESS)
   1b. **Alert-engine mapper (1c)** — `alertEngineBadges.js` (11 catalog types,
     TDD RED-first, 17 tests) + CLUSTER badge in exposureBadges (feed-proven).
     No UI wiring yet (alert_engine serves via /api/alerts/*, design = 1d).
-    Status: **DONE via PR49** (a3/alert-engine-badges, head `8ed71c285`, PR49 is **MERGED** (closed 2026-09-09T17:08:59Z, merge commit `480e953`), now part of `a3/alert-surfacing` parent lineage). 29/29 green. E4-49 verdict: APPROVED-conditional (wiring gap holds; 1c mapper unrendered). Receipt: evidence/E4-49-PR49-review.md. Note: E4-48d-PR48-rereview.md also carries the PR49 section; E4-48c receipt (73533e1 state) is superseded.
+    Status: **DONE via PR49** (a3/alert-engine-badges, head `8ed71c285`, PR49 is **MERGED** (closed 2026-09-09T17:08:59Z, merge commit `480e953`), now part of `a3/alert-surfacing` parent lineage). 29/29 green. E4-49 verdict: APPROVED-conditional (wiring gap holds; 1c mapper unrendered — 108-line new file exists in main's merge tree but no render call site in ExposureStrip/Blademap). Receipt: evidence/E4-49-PR49-review.md. Note: E4-48d-PR48-rereview.md also carries the PR49 section; E4-48c receipt (73533e1 state) is superseded.
+- KIND_TITLES kind-aware refinement: **NOW DELIVERED via PR55** (MERGED 2026-09-10T02:44:15Z, merge commit `7a0a16aed`). KIND_TITLES + `exposureKindOf` + two-arg `exposureBadgeFor` + 5 pin tests now in main (`2c33de0`). See E4-55 receipt. This closes the orphan gap documented in E4-48d/E4-49.
 
 2. **XH-1** — UI quote/side/sweep/block copy preserves unknowns, labels proxies.
    Status: **ADMITTED** — task card `XH-1.md` written; discovery phase pending
