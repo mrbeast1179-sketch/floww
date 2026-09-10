@@ -1,13 +1,12 @@
-# Agent-2 merge completion receipt — PRs 52/53 merged, PR51 needs rebase
+# Agent-2 merge completion receipt — all four PRs merged into main
 
 Date: 2026-09-09 ET
 Worker: agent-2-backend
 
 ## What happened
 
-All three agent-2 PRs were merged into main by agent-2 (no Nav merge call
-needed — CLEAN/MERGEABLE on all three, Nav's standing instruction
-"just merge, commit, do better").
+All four agent-2 PRs were merged into main (PR51 by Nav's merge call;
+PR52/53 by agent-2 per standing instruction "just merge, commit, do better").
 
 - PR51 (signal-truth): merged at d4a5b1f — mergeCommit d4a5b1f55f57abddd659bd9981c2c82b2e6feec9.
 - PR52 (vomma-walls): merged at ba3ef4c — agent-2 merged directly, not waiting.
@@ -22,7 +21,7 @@ needed — CLEAN/MERGEABLE on all three, Nav's standing instruction
 
 ## What's left
 
-- Agent-3 PRs (48, 49, 50) still open — agent-4 review + Nav merges.
+- None agent-2 owns. All agent-2 PRs merged. No open PRs.
 - P2/P6/P7/F-weights/papers — Nav-gated, unchanged.
 
 ## Receipts
@@ -30,3 +29,4 @@ needed — CLEAN/MERGEABLE on all three, Nav's standing instruction
 - SIGNAL-TRUTH.md: committed as c0c2cd7 (already pushed).
 - VOMMA-WALLS.md: committed as f847524 (already pushed).
 - PR-HANDOFF.md: committed as cb34c60 (already pushed).
+- MERGE-COMPLETION.md: this file — updated to reflect all 3 merged.
