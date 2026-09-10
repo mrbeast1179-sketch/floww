@@ -4,7 +4,11 @@ Read this package's shared protocol and Agent 1's current card. No card means
 read-only discovery and a checkpoint, not self-admission. Own no frontend files,
 frozen model paths, shared control docs or merges.
 
-First admitted repair candidate: PR58, starting from its fetched remote head
+Read INTEGRATION.md and NEXT-WAVE.md first. The PR58 repair below is delivered
+at 5c07acf; preserve its regression cases, do not reimplement it. Agent 1 must
+assign a new card from the current queue before product work.
+
+Historical repair contract: PR58, starting from its fetched remote head
 (not stale local b9d611a). Inspect routes/alpaca.py, services/journal_store.py,
 alpaca_client.py and tests/routes/test_reconcile_close.py/test_position_drift.py.
 Resolve exact paths against your assigned worktree.

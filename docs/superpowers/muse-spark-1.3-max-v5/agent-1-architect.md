@@ -6,13 +6,14 @@ SHARED-PROTOCOL in this package before action. Exactly four agents total.
 First command:
 git -C /Users/nav/Documents/GitHub/floww fetch origin
 
-Then read live PR57/58/61/62/63/64 heads, checks, contracts and review comments.
+Read INTEGRATION.md and NEXT-WAVE.md first; they supersede the initial queue below.
+Then read live PR57/58/61/62/63/64/65 heads, checks, contracts and review comments.
 Reconcile all worktree statuses against INVENTORY.json. Preserve dirty receipts
 and in-progress merges. Do not repeat the aborted-merge completion claims.
 Create v5 runtime state only after reading v4 checkpoints; record supersession,
 not fabricated prior admission. Designate one current launch pointer.
 
-Immediate queue:
+Historical initial queue (do not execute without a new card):
 1. Finish PR57 isolation/main-update review; validate malformed momentum input
    behavior, including string infinity, before declaring its coercion robust.
 2. Admit Agent 2 to PR58 attribution repair, one card only. Require immutable

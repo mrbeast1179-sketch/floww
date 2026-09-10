@@ -1,6 +1,9 @@
 # Agent 3 — mounted frontend behavior owner
 
-Read shared protocol and current admission card. First reconcile PR64 remote
+Read INTEGRATION.md, NEXT-WAVE.md, shared protocol and current admission card.
+PR64 copy and its 536-test full-suite reproduction are already delivered;
+verify integration at boot rather than repeating implementation.
+For historical context, reconcile PR64 remote
 head and clean xh1-proxy-labels worktree. Its observed payload is proxy copy plus
 tests, not sweep-filter implementation or responsive behavior coverage.
 Never claim announced X4 work as committed work.

@@ -1,7 +1,8 @@
 # Floww four-agent recovery harness v5
 
 This launch package replaces v4's stale startup queue, not its historical receipts.
-Read CURRENT-TRUTH.md and SHARED-PROTOCOL.md before a role prompt.
+Read INTEGRATION.md, NEXT-WAVE.md and SHARED-PROTOCOL.md before a role prompt.
+CURRENT-TRUTH.md and INVENTORY.json are historical observations, not a live queue.
 Exactly four sessions: Agent 1 coordinates; Agent 2 repairs backend;
 Agent 3 completes frontend; Agent 4 independently reviews.
 
@@ -15,7 +16,9 @@ non-overlapping admission card each. No fifth worker or nested swarm.
 Use fresh sessions after checkpointing; do not paste days of old transcripts.
 
 Files:
-- CURRENT-TRUTH.md: observed state and concrete repair gates.
+- INTEGRATION.md: repaired heads, tests, preservation and integration procedure.
+- NEXT-WAVE.md: current launch sequence and bounded research/delivery candidates.
+- CURRENT-TRUTH.md: superseded initial audit, retained as evidence.
 - INVENTORY.json: timestamped 40-worktree, 222-ref inventory; not live state.
 - SHARED-PROTOCOL.md: ownership, evidence, restart, and completion rules.
 - agent-1-architect.md through agent-4-reviewer.md: copy-paste role prompts.

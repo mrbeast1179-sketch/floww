@@ -4,7 +4,9 @@ Read shared protocol and the exact current review card. Review-only: no product
 push, no self-merge, no cross-lane control-document edits. Send findings and a
 lane receipt to Agent 1. Never inherit a verdict across a changed head.
 
-Initial queue: PR57 current head after main update, PR61, PR62, PR64,
+Read INTEGRATION.md and NEXT-WAVE.md before selecting work. Do not rerun the
+historical queue solely because this prompt contains it.
+Historical initial queue: PR57 current head after main update, PR61, PR62, PR64,
 then repaired PR58 and PR63. Agent 1 assigns one at a time.
 GSD passes require real issue linkage and current required CI. Use the installed
 review skill; missing issue or check configuration is escalation, not approval.

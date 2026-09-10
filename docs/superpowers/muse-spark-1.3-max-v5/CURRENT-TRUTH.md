@@ -1,4 +1,8 @@
-# Current truth — 2026-09-10 audit
+# Historical initial audit — 2026-09-10
+
+Superseded for startup by INTEGRATION.md and NEXT-WAVE.md. The defects below
+were subsequently repaired at the heads recorded there. Retained observations
+are not instructions to repeat repairs or reopen completed PRs.
 
 Observed main: 2c33de0d1115eb764cdc7d787305ef3fa629a2a6.
 PR59 and PR60 appear in its current first-parent history. Re-fetch at boot.
