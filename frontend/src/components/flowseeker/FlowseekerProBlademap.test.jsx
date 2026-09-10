@@ -317,6 +317,24 @@ describe("flowClassTitle — sweep/block proxy-copy contract (XH-1)", () => {
     expect(t).toMatch(/proxy/i);
     expect(t).toMatch(/not an observed block print/i);
   });
+  it("premium-based Pulse blocks do not get volume-only row or chip titles", () => {
+    // Same volume, below Scanner's 8,000-contract BLOCK threshold;
+    // only the premium crosses Pulse's $50M BLOCK threshold.
+    const contract = {
+      strike: 450, type: "call", expiry: "2099-09-18",
+      volume: 5000, oi: 5000, iv: 0.2,
+    };
+    const [below] = mapPublicChainToRows([{ ...contract, last: 99 }], 450, "SPY");
+    const [block] = mapPublicChainToRows([{ ...contract, last: 100 }], 450, "SPY");
+    expect(below.classification).toBe("unusual");
+    expect(block.premium).toBe(50000000);
+    expect(block.classification).toBe("block");
+    for (const title of [ft(block.classification), CT[block.classification.toUpperCase()]]) {
+      expect(title).toMatch(/size-bucket proxy/i);
+      expect(title).toMatch(/not an observed block print/i);
+      expect(title).not.toMatch(/volume/i);
+    }
+  });
   it("other classes pass through unchanged", () => {
     expect(ft("unusual")).toBe("UNUSUAL");
     expect(ft(null)).toBe("REG");

@@ -169,12 +169,12 @@ export const FLOW_PROXY_NOTE = "Sweep/Block classes are size/tenor-bucket proxie
 export function flowClassTitle(pcls) {
   const c = String(pcls || "").toUpperCase();
   if (c === "SWEEP") return "Sweep class: size/tenor-bucket proxy — no multi-venue execution observed (no venue tape)";
-  if (c === "BLOCK") return "Block class: volume size-bucket proxy — not an observed block print";
+  if (c === "BLOCK") return "Block class: size-bucket proxy — not an observed block print";
   return c || "REG";
 }
 export const FILTER_CHIP_TITLES = {
   SWEEP: "Sweep class: size/tenor-bucket proxy — no venue tape",
-  BLOCK: "Block class: volume size-bucket proxy — not an observed block print",
+  BLOCK: "Block class: size-bucket proxy — not an observed block print",
 };
 
 // Drop prints older than the Pulse window (trailing-90s tape).
