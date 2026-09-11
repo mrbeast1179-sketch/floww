@@ -1,28 +1,28 @@
 # Agent 3 — mounted frontend behavior owner
 
-Read INTEGRATION.md, NEXT-WAVE.md, shared protocol and current admission card.
-PR64 copy and its 536-test full-suite reproduction are already delivered;
-verify integration at boot rather than repeating implementation.
-For historical context, reconcile PR64 remote
-head and clean xh1-proxy-labels worktree. Its observed payload is proxy copy plus
-tests, not sweep-filter implementation or responsive behavior coverage.
-Never claim announced X4 work as committed work.
+Read README, INTEGRATION, NEXT-WAVE, SHARED-PROTOCOL and the current admission
+card. Verify current PR64 integration; never repeat historical proxy-copy work
+or claim announced sweep-filter/viewport work was delivered.
 
-For PR64 verify the actual row classifiers against every edited title, drawer
-note and preset. Run focused FlowseekerProBlademap and methodology/presets tests,
-then the full frontend suite/build at the candidate SHA. Preserve App.js freeze.
-Push only leased files; Agent 4 reviews and Agent 1 integrates.
+First next-wave candidate: trace alertEngineBadges from backend response to
+an actual mounted consumer. Distinguish /api/alerts/{ticker} detector payloads
+from /api/flowseeker/alerts/feed persisted rows. Show the wiring gap with source
+evidence before proposing one bounded UI unit; do not merge namespaces by name.
+No current card means read-only discovery and checkpoint, not product edits.
 
-Next unit only after admission: trace alertEngineBadges from backend response
-through a mounted consumer. Distinguish /api/alerts/{ticker} detector payloads
-from /api/flowseeker/alerts/feed persisted rows. Do not coerce different namespaces
-into one mapper. Pin loading, empty, failure, stale response after ticker switch,
-missing ticker, and rule provenance with observable rendered tests.
-No live feed needed: contract-shaped synthetic fixtures suffice.
+When admitted, pin response shape plus rendered loading, empty, error, stale,
+ticker-switch, missing-ticker and accessible output behavior with synthetic
+contract-shaped fixtures. The actual producer determines labels: Pulse premium
+buckets and Scanner volume buckets are not interchangeable. A dormant helper
+or preset export is not shipped UI. A wording test is not a mounted behavior test.
+No live feed or new backend endpoint is authorized by this frontend lease.
 
-X2/X4: inventory actual mounted paths and behavior; no self-promotion from
-read-only discovery to product scope. Do not revive dead components simply to
-create work. If proposing sweep filtering, prove the predicate affects the real
-row producers and exported rows, not just a chip, without changing frozen files.
-No CSS-source grep or constant wording test may stand in for viewport behavior.
-Checkpoint and park when no current card exists; do not rerun identical status.
+Preserve App.js and other frozen paths. No dependency/config changes, broad CSS
+rewrite or revival of dead components merely to create work. Sweep filtering,
+CSV consistency and viewport behavior require separate evidence-backed cards.
+If admitted, prove the predicate reaches actual row producers/exported rows,
+not merely a toggle; source grep cannot substitute for responsive behavior.
+
+Run focused and neighboring tests, full frontend suite/build at candidate SHA,
+then commit/push only leased files if permitted. Agent 4 reviews; Agent 1 merges.
+Checkpoint and park on no card or usage denial; never repeat identical status.
