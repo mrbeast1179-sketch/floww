@@ -36,23 +36,19 @@ timestamp: 2026-09-11T01:55:00Z
 
 ## Summary
 
-PR64 expanded significantly since the review draft. The new head (73c88ae) adds a genuine mounted AlertEngineStrip consumer that closes XH-1 — the original finding that `alertEngineBadgeFor()` existed as a pure function with no consumer. Additionally, commit 90d21a2 adds an abort-safety fix for `forceRefresh` in FlowseekerProBlademap (cancels in-flight POST on ticker switch/click). The eval_harness files show +27/+94 in git diff stat but the actual diff is trailing newlines only — this is a PR67 rebase artifact, not PR64 work.
+PR64 expanded significantly since the review draft. The new head (73c88ae) adds a genuine mounted AlertEngineStrip consumer that closes XH-1 — the original finding that `alertEngineBadgeFor()` existed as a pure function with no consumer. Additionally, commit 90d21a2 adds an abort-safety fix for `forceRefresh` in FlowseekerProBlademap. The eval_harness files are PR67 rebase artifacts (trailing newlines only), not PR64 work.
 
 The component:
 - Fetches `/api/alerts/{ticker}` (detector path, NOT the persisted `/api/flowseeker/alerts/feed`)
 - Maps each Alert.type through `alertEngineBadgeFor()` from alertEngineBadges.js
 - Renders one badge per live alert-engine rule with CSS classes matching badge rules
 - Excludes GAMMA_FLIP (stays in exposureBadges/ExposureStrip — same string fired by two producers)
-- Handles loading (initial empty), empty response, fetch failure, ticker switch with abort, missing ticker
+- Handles loading, empty response, fetch failure, ticker switch with abort, missing ticker
 - Has accessibility (aria-label on each badge)
 
 The component is mounted in SkylitDashboard.jsx (heatseeker panel) right after ExposureStrip. 7 tests cover live types, GAMMA_FLIP exclusion, empty, fetch failure, ticker switch abort, missing ticker, and accessibility.
 
-The copy fix (FlowseekerProBlademap.jsx: flowClassTitle + FILTER_CHIP_TITLES for BLOCK) is still correct and limited to 16+/2-.
-
-The forceRefresh abort fix (90d21a2, +14 lines) cancels in-flight POST on repeated clicks — when the user clicks ⟳ rapidly, the pending `/scan/refresh` POST is aborted. This is independent of AlertEngineStrip but related: rapid clicks in the dashboard could leave stale in-flight requests.
-
-The X4 dynamic-behavior tests (21 tests across 2 files) pin pure-function contracts for pulseState classification and pollMs persistence. No mounted behavior.
+The copy fix and X4 tests are unchanged from the review draft.
 
 ## Findings
 
