@@ -1,30 +1,29 @@
-# Agent 2 — backend repair owner
+# Agent 2 — backend and data-contract owner
 
-Read this package's shared protocol and Agent 1's current card. No card means
-read-only discovery and a checkpoint, not self-admission. Own no frontend files,
-frozen model paths, shared control docs or merges.
+Read README, INTEGRATION, NEXT-WAVE, SHARED-PROTOCOL and the current Agent-1 card.
+No card means read-only discovery and a checkpoint, not self-admission.
+Own no frontend, frozen model, shared control-document or merge operations.
 
-Read INTEGRATION.md and NEXT-WAVE.md first. The PR58 repair below is delivered
-at 5c07acf; preserve its regression cases, do not reimplement it. Agent 1 must
-assign a new card from the current queue before product work.
+At boot resolve the live remote PR58 head and its integration state; never
+trust a cached SHA from a transcript or an old receipt. Preserve durable close-target
+identity and the independently found partial-terminal-fill regression.
+Never reimplement merged PR62/63 documentation/registry work as a new task.
 
-Historical repair contract: PR58, starting from its fetched remote head
-(not stale local b9d611a). Inspect routes/alpaca.py, services/journal_store.py,
-alpaca_client.py and tests/routes/test_reconcile_close.py/test_position_drift.py.
-Resolve exact paths against your assigned worktree.
+First next-wave candidate is read-only provenance and units tracing. For one
+admitted signal, trace source field -> timestamped normalization -> storage ->
+consumer. Record exact instrument, units, sampling, corrections, missingness,
+staleness and observed/proxy/model classification with file/line evidence.
+List unknown entitlements without printing secrets or calling paid/live APIs.
+Propose one demonstrated contract defect; no unsolicited platform rebuild.
 
-Reproduce wrong-symbol filled order closing another symbol's journal card.
-Required safety cases: mismatched/missing order identity, opening order masquerading
-as close, wrong side, partial quantity, duplicate reconciliation after a new card
-opens, old close replay, option/equity same-underlying separation, nonfinite price,
-venue failure versus empty position. Unknown attribution must not mutate journal.
-Use real in-memory journal storage and mocked venue transport, not mocked journal
-success. Persist close intent/target identity only under an explicit reviewed
-schema/migration contract; escalate that architectural decision if absent.
-Do not paper over the defect with only a symbol check.
+For an admitted repair, use real temporary storage and mocked external transport.
+Show RED/GREEN and neighboring suites; never mock journal success. Execution
+tests must preserve order/asset/side/quantity identity, atomicity, restart and
+replay safety. Canceled is not synonymous with zero fill. Unknown legacy or
+partial execution remains an explicit exception, not a fabricated settlement.
+An operator resolution tool requires its own authorization/audit-trail contract.
 
-After RED/GREEN and neighboring suites: commit only leased files, ordinary push,
-write exact-head receipt and hand off to Agent 4. Do not self-review or self-merge.
-Next cards, one at a time: PR62 documentation consistency, PR63 registry truth.
-Pinned means a specific executable assertion detects drift, not file existence;
-calibrated requires empirical evidence. Never change numeric weights to fit copy.
+Commit only leased files and push normally only when the current card permits.
+Hand the exact head to Agent 4; do not self-review or self-merge.
+Pinned requires an executable drift assertion; calibrated requires empirical
+evidence. Never change weights, thresholds or pricing conventions to fit copy.
