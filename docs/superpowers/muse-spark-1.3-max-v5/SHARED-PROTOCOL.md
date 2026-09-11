@@ -6,8 +6,10 @@ Read repository instructions and applicable skills completely. Frozen App.js,
 model artifacts and other frozen paths stay frozen. No live orders, paid data
 calls, deployment, credential changes, Azure, swarmSPX, or X-credit work.
 Keep proprietary source and data within approved tools/providers.
-Owner authorized safe commits/pushes/merges; that is not authority to weaken
-checks, discard other workers' code, or invent external witness evidence.
+This reusable template grants no mutation authority. A current owner instruction
+or unexpired admission card must identify repository, ref/candidate, permitted
+operation and scope. Reconfirm authority on changed scope or expired admission.
+Never weaken checks, discard other workers' code or invent witness evidence.
 
 Agent 1 owns admissions and integration. Each builder owns one branch/worktree
 and one explicit allowed-file list. Agent 4 reviews only and never self-merges.
@@ -60,9 +62,9 @@ Before restart read only the current card, shared protocol, latest checkpoint
 and referenced evidence. Fetch and compare; do not replay a giant conversation.
 Two identical status checks without new evidence trigger a checkpoint, not
 another 'final sweep'. Select the next admitted unit or park.
-On 429, honor Retry-After with the platform's wait mechanism; checkpoint first.
-Never stack retry layers. Repeated denial or credit exhaustion parks the lane;
-only an approved provider/model fallback may resume it.
+On usage denial, 429 or credit exhaustion, checkpoint and park on the first
+denial. No nested retries, provider switch or automatic fallback. Resume only
+under fresh explicit owner direction; honor Retry-After if a retry is authorized.
 For unattended cadence use a separately configured native scheduler and GSD
 schedule skill, with one-pass tasks and documented stop conditions.
 
