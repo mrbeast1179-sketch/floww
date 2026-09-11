@@ -6,6 +6,7 @@ import SkylitControlBar from "./SkylitControlBar";
 import SkylitHeatmapGrid from "./SkylitHeatmapGrid";
 import SkylitMetricsSidebar from "./SkylitMetricsSidebar";
 import ExposureStrip from "./ExposureStrip";
+import AlertEngineStrip from "../flowseeker/AlertEngineStrip";
 
 /**
  * SkylitDashboard — Full Zenith-style trading dashboard
@@ -164,6 +165,9 @@ function SkylitDashboard({
 
       {/* 2.5 Exposure strip — live backend exposure-rule badges, hidden when none */}
       <ExposureStrip ticker={ticker} />
+
+      {/* 2.6 Alert-engine strip — live detector badges (GAMMA_FLIP excluded; stays in exposure path) */}
+      <AlertEngineStrip ticker={ticker} />
 
       {/* 2.5 Trade Mode bar */}
       <div className="skylit-col-bar">
