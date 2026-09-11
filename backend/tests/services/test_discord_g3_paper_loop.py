@@ -344,6 +344,7 @@ class TestCloseRouteJournal:
         fake_client = AsyncMock()
         fake_client.close_position = AsyncMock(return_value={
             "id": "close-1", "status": "filled", "filled_qty": "1",
+            "symbol": "SPY", "side": "sell", "qty": "1",
             "filled_avg_price": "751.5",
             "message": "Position SPY close submitted", "source": "alpaca"})
         monkeypatch.setattr("alpaca_client.AlpacaClient", lambda: fake_client)
@@ -358,6 +359,12 @@ class TestCloseRouteJournal:
     @pytest.mark.asyncio
     async def test_close_without_price_still_closes(self, monkeypatch):
         import routes.alpaca as route_mod
+        from services.duckdb_engine import DuckDBEngine
+        from services.journal_store import init_journal_tables
+
+        eng = DuckDBEngine(":memory:")
+        init_journal_tables(eng)
+        monkeypatch.setattr("services.journal_store.get_engine", lambda: eng)
 
         fake_client = AsyncMock()
         fake_client.close_position = AsyncMock(
@@ -389,6 +396,7 @@ class TestCloseRouteJournal:
         fake_client = AsyncMock()
         fake_client.close_position = AsyncMock(return_value={
             "id": "close-1", "status": "accepted",
+            "symbol": "SPY", "side": "sell", "qty": "1",
             "message": "Position SPY close submitted", "source": "alpaca"})
         fake_client.get_order = AsyncMock(return_value={
             "id": "close-1", "status": "accepted",
