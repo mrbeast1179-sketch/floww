@@ -86,3 +86,30 @@ class FailedHypothesisRegistry:
 
     def list_failed(self) -> list[dict[str, Any]]:
         return list(self._entries)
+
+
+def pit_filter(envelopes, pred_key="prediction", actual_key="actual"):
+    """Return (predictions, actuals) from point-in-time-complete envelopes only.
+
+    Consumers of eval_harness with event_envelope data must filter before
+    scoring. Rows with missing_event_time are excluded — unknown stays unknown.
+    """
+    from services.event_envelope import is_point_in_time_complete  # local import
+
+    filtered = [e for e in envelopes if is_point_in_time_complete(e)]
+    preds = [e["payload"].get(pred_key) for e in filtered]
+    actuals = [e["payload"].get(actual_key) for e in filtered]
+    return preds, actuals
+
+
+def costed_hit_rate_enveloped(envelopes, *, win=1.0, loss=1.0, cost=0.0,
+                              pred_key="prediction", actual_key="actual"):
+    """Score net of costs from event_envelope-wrapped rows.
+
+    Filters to point-in-time-complete envelopes before scoring. Rows missing
+    event_time are excluded; no timestamp is fabricated.
+    """
+    preds, actuals = pit_filter(envelopes, pred_key=pred_key, actual_key=actual_key)
+    if not preds:
+        return 0.0
+    return costed_hit_rate(preds, actuals, win=win, loss=loss, cost=cost)
