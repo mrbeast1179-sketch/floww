@@ -59,13 +59,19 @@ No action needed. This is correct scoping.
 
 ### WR-1: X4 tests add 21 tests but the receipt claims "discovery findings remain scoped — not implemented" (Warning)
 
-**File:** `scanLogic.X4.test.js:1-15` (header comment)
+**File:** `scanLogic.X4.test.js:1-15` (header comment), commit message 095a273
 
 The commit message says: "Discovery findings (race-safety gap, partial-data visibility gap, inline-surface poll gap) remain scoped in receipts — not implemented". However, the tests pin contracts for `pulseState` classification and `pollMs` persistence — these ARE implementations of the discovery contracts, not just scoped findings. The wording is slightly inconsistent: the tests implement the pinned contracts, which is the right thing to do, but the commit message frames them as "not implemented".
 
 This is a Warning because it could confuse future readers about what X4 actually delivered. The tests are good — they pin real contracts. The framing should match: "X4 pins dynamic-behavior contracts for pulseState and pollMs; full mounted behavior requires separate admission."
 
-**Recommendation:** No code change needed. If this PR is merged, the commit message could be clarified in a future squash or the receipt updated. Low priority.
+**Deeper finding — X4 scope boundary is honest but the commit message over-claims discovery gaps:**
+
+The commit message lists three "discovery findings": race-safety gap, partial-data visibility gap, inline-surface poll gap. But the X4 tests only pin contracts for `pulseState` classification and `pollMs` persistence — they do NOT test for race-safety (no concurrent-poll test), partial-data visibility (no test that verifies what happens when data is partial), or inline-surface poll gap (the `pollMs` persistence test is a contract pin, not a gap test). 
+
+The commit message frames these as "discovery findings" that are "scoped in receipts" — but the actual tests don't cover them. This is the correct behavior (don't implement unadmitted work), but the wording is misleading: it implies the tests address these gaps when they don't. A reader might assume the race-safety gap is tested when it isn't.
+
+**Recommendation:** No code change needed. The tests are correctly scoped. If this PR is merged, consider clarifying the commit message to say: "X4 pins dynamic-behavior contracts for pulseState and pollMs. Discovery gaps (race-safety, partial-data visibility, inline-surface poll) remain documented in receipts X2-phase9-consumer.md + X4-dynamic-behavior.md, not implemented."
 
 ## Verdict
 

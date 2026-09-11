@@ -42,7 +42,7 @@ The defect is correctly documented: raw `costed_hit_rate` scores all rows includ
 
 No action needed. The fix is minimal and correct.
 
-### INFO-2: Tests properly reproduce RED before GREEN (Info)
+### INFO-2: Tests properly reproduce RED before GREEN — but the defect test could be sharper (Info)
 
 **File:** `backend/tests/services/test_eval_harness.py:96-190`
 
@@ -54,7 +54,13 @@ The test class `TestPointInTimeIntegration` has 4 tests:
 
 The defect test (#4) explicitly asserts the raw function scores both rows — this is the RED reproduction. The enveloped tests verify the fix. Proper RED→GREEN pattern.
 
-No action needed.
+**Deeper finding — the defect test documents behavior but doesn't pin the boundary:**
+
+Test #4 asserts `costed_hit_rate` returns 0.0 when given one correct and one incorrect prediction — this is the "both rows scored" defect. But it doesn't test the boundary: what happens when there are TWO complete rows and ONE incomplete? The raw function should score 2 rows (both complete) and the incomplete row should also be scored (defect), giving 3 total. The test only uses 2 rows total (1 complete + 1 incomplete), so it doesn't expose whether the defect scales with more rows.
+
+Also, the test uses `pytest.approx(0.0)` for the defect assertion — this is correct but fragile. If someone "fixes" the raw function to also filter (which would be the wrong fix — it should remain unfiltered for backward compatibility), the test would still pass because 0.0 == 0.0. The test documents the defect but doesn't prevent a well-meaning but wrong fix.
+
+**Recommendation:** No code change needed for merge. The tests are adequate for the fix. If a future card adds more evaluation tests, add a boundary test: 2 complete + 1 incomplete → raw scores 3 rows (defect confirmed at scale).
 
 ## Verdict
 
