@@ -506,25 +506,49 @@ export default function FlowseekerProBlademap({ active = true, onTrade = null })
   }, []);
 
   // Force refresh via the backend's debounced /scan/refresh, then re-poll.
-  // Also bumps pulseTick so the Pulse tape (overview rollup + print buffer)
+  // Also bumps refreshTick so the Pulse tape (overview rollup + print buffer)
   // refreshes on the Scanner tab — without this, the inline tape surfaces only
   // refresh on the Flow tab's chain poll (L614-697), leaving Scanner-tab tape
-  // stale until the user hits ⟳. The chain call here is the same one the Flow
+  // stale until manual ⟳. The chain call here is the same one the Flow
   // tab would make on next poll; connection-budget impact is one POST per
   // manual refresh, not a new recurring interval.
+  //
+  // Abort-safety (X4 race-gap closure): a ticker switch or repeated button
+  // click must not leave two /scan/refresh in flight against the same session.
+  // The ref + AbortController mirrors the ExposureStrip race-safety pattern:
+  // the new call aborts the previous one before starting, so a stale response
+  // cannot land on the wrong ticker's tape surfaces.
+  const refreshAbortRef = useRef(null);
   const forceRefresh = useCallback(async () => {
+    if (refreshAbortRef.current) {
+      refreshAbortRef.current.abort();
+    }
+    const ctrl = new AbortController();
+    refreshAbortRef.current = ctrl;
     setForcing(true);
     try {
-      await fetch(`${API}/scan/refresh?limit=500`, { method: "POST" });
-      // Wake the Pulse tape on the Scanner tab: bump pulseTick so the
+      await fetch(`${API}/scan/refresh?limit=500`, {
+        method: "POST",
+        signal: ctrl.signal,
+      });
+      // Wake the Pulse tape on the Scanner tab: bump refreshTick so the
       // [signals] effect (L940-971) re-runs and re-stamps the buffer.
       // The tape's rows come from printBufferRef which is fed by the Flow-tab
       // chain poll; on Scanner tab this re-runs existing queued prints through
       // the tape filters without a new chain fetch.
       setRefreshTick((t) => t + 1);
-    } catch { /* GET below will serve cache */ }
+    } catch (e) {
+      if (e.name !== "AbortError") { /* GET below will serve cache */ }
+    }
     setForcing(false);
     setRefreshTick((t) => t + 1);
+  }, []);
+
+  // Clean up any in-flight refresh when the component unmounts.
+  useEffect(() => {
+    return () => {
+      if (refreshAbortRef.current) refreshAbortRef.current.abort();
+    };
   }, []);
 
   // Browser notifications — opt-in, permission-gated.
