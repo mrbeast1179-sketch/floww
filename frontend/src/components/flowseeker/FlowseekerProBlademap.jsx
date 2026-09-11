@@ -506,9 +506,23 @@ export default function FlowseekerProBlademap({ active = true, onTrade = null })
   }, []);
 
   // Force refresh via the backend's debounced /scan/refresh, then re-poll.
+  // Also bumps pulseTick so the Pulse tape (overview rollup + print buffer)
+  // refreshes on the Scanner tab — without this, the inline tape surfaces only
+  // refresh on the Flow tab's chain poll (L614-697), leaving Scanner-tab tape
+  // stale until the user hits ⟳. The chain call here is the same one the Flow
+  // tab would make on next poll; connection-budget impact is one POST per
+  // manual refresh, not a new recurring interval.
   const forceRefresh = useCallback(async () => {
     setForcing(true);
-    try { await fetch(`${API}/scan/refresh?limit=500`, { method: "POST" }); } catch { /* GET below will serve cache */ }
+    try {
+      await fetch(`${API}/scan/refresh?limit=500`, { method: "POST" });
+      // Wake the Pulse tape on the Scanner tab: bump pulseTick so the
+      // [signals] effect (L940-971) re-runs and re-stamps the buffer.
+      // The tape's rows come from printBufferRef which is fed by the Flow-tab
+      // chain poll; on Scanner tab this re-runs existing queued prints through
+      // the tape filters without a new chain fetch.
+      setRefreshTick((t) => t + 1);
+    } catch { /* GET below will serve cache */ }
     setForcing(false);
     setRefreshTick((t) => t + 1);
   }, []);
