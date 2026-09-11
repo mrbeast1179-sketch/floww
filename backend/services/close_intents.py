@@ -136,6 +136,14 @@ def apply_close_fill(engine, symbol, order_id, order):
         if str(order.get("id") or "") != order_id or str(order.get("symbol") or "").upper() != symbol:
             return exception("order_identity_mismatch")
         if status in ("canceled", "expired", "rejected"):
+            # Terminal status does not imply zero execution. Releasing a partial
+            # close would allow another submission against an unchanged journal.
+            try:
+                executed = Decimal(str(order.get("filled_qty")))
+            except InvalidOperation:
+                return exception("terminal_fill_quantity_unknown")
+            if not executed.is_finite() or executed != 0:
+                return exception("terminal_fill_requires_reconciliation")
             conn.execute("UPDATE paper_close_intents SET status='canceled',reason=? "
                          "WHERE intent_id=?", [status, intent["intent_id"]])
             return _result("canceled", status)

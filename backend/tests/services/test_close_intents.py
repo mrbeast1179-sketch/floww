@@ -140,3 +140,30 @@ def test_exact_option_contract_is_resolved(engine):
     intent = prepare_close(engine, symbol)
     bind_close_order(engine, intent["intent_id"], "close-1")
     assert apply_close_fill(engine, symbol, "close-1", filled(symbol=symbol))["journal_closed"] == 1
+
+
+@pytest.mark.parametrize("status", ["canceled", "expired", "rejected"])
+@pytest.mark.parametrize("executed", ["1", None, "nan", "-1", "inf"])
+def test_terminal_order_with_nonzero_or_unknown_fill_keeps_reservation(engine, status, executed):
+    from services.close_intents import apply_close_fill, prepare_close
+    seed(engine)
+    original = reserve(engine)
+    result = apply_close_fill(engine, "SPY", "close-1", filled(status=status, filled_qty=executed))
+    assert result["status"] == "reconciliation_exception"
+    assert len(read_trades(engine, status="open")) == 1
+    retry = prepare_close(engine, "SPY")
+    assert retry["new"] is False
+    assert retry["intent_id"] == original["intent_id"]
+
+
+@pytest.mark.parametrize("status", ["canceled", "expired", "rejected"])
+def test_terminal_order_with_verified_zero_fill_releases_reservation(engine, status):
+    from services.close_intents import apply_close_fill, prepare_close
+    seed(engine)
+    original = reserve(engine)
+    result = apply_close_fill(engine, "SPY", "close-1", filled(status=status, filled_qty="0"))
+    assert result["status"] == "canceled"
+    assert len(read_trades(engine, status="open")) == 1
+    retry = prepare_close(engine, "SPY")
+    assert retry["new"] is True
+    assert retry["intent_id"] != original["intent_id"]
