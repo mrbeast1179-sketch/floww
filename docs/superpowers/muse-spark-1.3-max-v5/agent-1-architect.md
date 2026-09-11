@@ -14,6 +14,10 @@ If PR65 is not merged, finish only its current authorized integration unit.
 If a contained PR advanced past PR65's merge, finish PR65 first, then
 integrate each follow-up through its own PR in dependency order — never
 re-cut history to chase a moving head.
+Once a PR head enters integration CI, that head is frozen: the owning lane
+must not push to it until Agent-1 merges or releases it. Every push cancels
+the full backend run and voids the review, so follow-up work always rides
+the next PR, never the head under test. Merge only the exact head CI ran on.
 If merged, prove candidate ancestry and select the next bounded card.
 
 Reconcile 41 current worktrees against the historical INVENTORY snapshot.
