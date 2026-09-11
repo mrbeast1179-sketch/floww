@@ -93,3 +93,97 @@ class TestBenchmarkAndRegistry:
         assert len(failed) == 1
         assert failed[0]["name"] == "mom-5d"
         assert "costs" in failed[0]["reason"]
+
+class TestPointInTimeIntegration:
+    """Integration between eval_harness and event_envelope (PR59 + PR60).
+
+    Defect (RED): costed_hit_rate scores all rows including those with
+    missing_event_time. No point-in-time gate existed between the two modules.
+    Fix: pit_filter + costed_hit_rate_enveloped filter before scoring.
+    """
+
+    def test_pit_filter_excludes_missing_event_time(self):
+        from services.eval_harness import pit_filter
+        from services.event_envelope import is_point_in_time_complete, normalize_event
+
+        complete = normalize_event({
+            "source": "s", "symbol": "SPY",
+            "event_time": "2026-09-09T14:30:00",
+            "receive_time": "2026-09-09T14:30:01",
+            "prediction": 1, "actual": 1,
+        })
+        incomplete = normalize_event({
+            "source": "s", "symbol": "SPY",
+            "event_time": None,
+            "receive_time": "2026-09-09T14:30:01",
+            "prediction": 0, "actual": 1,
+        })
+
+        preds, actuals = pit_filter([complete, incomplete])
+        assert len(preds) == 1
+        assert preds[0] == 1
+        assert actuals[0] == 1
+        assert is_point_in_time_complete(complete)
+        assert not is_point_in_time_complete(incomplete)
+
+    def test_costed_hit_rate_enveloped_filters_before_scoring(self):
+        from services.eval_harness import costed_hit_rate_enveloped
+        from services.event_envelope import normalize_event
+
+        complete = normalize_event({
+            "source": "s", "symbol": "SPY",
+            "event_time": "2026-09-09T14:30:00",
+            "receive_time": "2026-09-09T14:30:01",
+            "prediction": 1, "actual": 1,
+        })
+        incomplete = normalize_event({
+            "source": "s", "symbol": "SPY",
+            "event_time": None,
+            "receive_time": "2026-09-09T14:30:01",
+            "prediction": 0, "actual": 1,
+        })
+
+        # With filtering: only the complete correct call scores
+        score = costed_hit_rate_enveloped([complete, incomplete],
+                                          win=1.0, loss=1.0, cost=0.0)
+        assert score == pytest.approx(1.0)
+
+    def test_costed_hit_rate_enveloped_empty_when_all_incomplete(self):
+        from services.eval_harness import costed_hit_rate_enveloped
+        from services.event_envelope import normalize_event
+
+        rows = [
+            normalize_event({"source": "s", "symbol": "SPY",
+                             "event_time": None, "prediction": 1, "actual": 1}),
+            normalize_event({"source": "s", "symbol": "SPY",
+                             "event_time": None, "prediction": 0, "actual": 1}),
+        ]
+        score = costed_hit_rate_enveloped(rows, win=1.0, loss=1.0, cost=0.0)
+        assert score == pytest.approx(0.0)
+
+    def test_raw_costed_hit_rate_scores_all_rows_including_incomplete(self):
+        """Document the defect: unfiltered costed_hit_rate has no PIT gate.
+
+        This is the behavior that pit_filter + costed_hit_rate_enveloped fix.
+        """
+        from services.eval_harness import costed_hit_rate
+        from services.event_envelope import normalize_event
+
+        complete = normalize_event({
+            "source": "s", "symbol": "SPY",
+            "event_time": "2026-09-09T14:30:00",
+            "receive_time": "2026-09-09T14:30:01",
+            "prediction": 1, "actual": 1,
+        })
+        incomplete = normalize_event({
+            "source": "s", "symbol": "SPY",
+            "event_time": None,
+            "receive_time": "2026-09-09T14:30:01",
+            "prediction": 0, "actual": 1,
+        })
+
+        # Raw costed_hit_rate scores BOTH rows (defect)
+        preds = [complete["payload"]["prediction"], incomplete["payload"]["prediction"]]
+        actuals = [complete["payload"]["actual"], incomplete["payload"]["actual"]]
+        score = costed_hit_rate(preds, actuals, win=1.0, loss=1.0, cost=0.0)
+        assert score == pytest.approx(0.0)  # (1 - 1) / 2 = 0 — both scored
